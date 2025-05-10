@@ -481,6 +481,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "10.1.2"
+  file_saver:
+    dependency: "direct main"
+    description:
+      name: file_saver
+      sha256: "017a127de686af2d2fbbd64afea97052d95f2a0f87d19d25b87e097407bf9c1e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.14"
   fixnum:
     dependency: transitive
     description:
@@ -1332,6 +1340,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.0"
+  siq_compress:
+    dependency: "direct main"
+    description:
+      path: "packages/siq_compress"
+      relative: true
+    source: path
+    version: "0.0.1"
   siq_file:
     dependency: "direct main"
     description:

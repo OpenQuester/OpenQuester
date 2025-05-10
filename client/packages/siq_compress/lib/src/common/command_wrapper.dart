@@ -1,11 +1,11 @@
 import 'dart:convert';
+import 'dart:math';
 
-import 'package:cross_file/cross_file.dart';
 import 'package:siq_compress/src/models/ffprobe_output.dart';
 import 'package:universal_io/io.dart';
 
 class CommandWrapper {
-  Future<FfprobeOutput?> metadata(XFile file) async {
+  Future<FfprobeOutput?> metadata(File file) async {
     const arguments = [
       '-v',
       'quiet',
@@ -25,9 +25,9 @@ class CommandWrapper {
 
   /// Encode any format such as Audio, Video, Photo
   /// to efficent codec with lenght and size limits
-  Future<XFile> encode({
-    required XFile inputFile,
-    required XFile outputFile,
+  Future<File> encode({
+    required File inputFile,
+    required File outputFile,
     required CodecType codecType,
   }) async {
     // Map only first chanels
@@ -77,6 +77,7 @@ class CommandWrapper {
       ...videoArgs,
       ...otherArgs,
     ];
+
     const mediaTypeArgs = [
       ...videoFormatArgs,
       '-f', // Set webm format for media
@@ -84,7 +85,7 @@ class CommandWrapper {
       '-c:v',
       'libsvtav1',
     ];
-    final imageTypeArgs = [
+    const imageTypeArgs = [
       '-f', // Set webm format for image
       'avif',
       '-c:v',
@@ -92,11 +93,23 @@ class CommandWrapper {
       '-pix_fmt',
       'yuv420p10le',
     ];
+
+    final cpuCount = min(8, Platform.numberOfProcessors);
+    final av1MultiCpuArgs = [
+      '-row-mt',
+      '1',
+      '-cpu-used',
+      '$cpuCount',
+      '-tiles',
+      '2x2',
+    ];
+
     final notConstantArguments = [
-      '-threads',
-      '${Platform.numberOfProcessors}',
       '-i', // Input file
       inputFile.path,
+      '-threads',
+      '$cpuCount',
+      if (codecType != CodecType.audio) ...av1MultiCpuArgs,
       if (codecType != CodecType.image) ...mediaTypeArgs else ...imageTypeArgs,
       if (![CodecType.audio, CodecType.image].contains(codecType)) ...mapArgs,
       ...general,
@@ -113,7 +126,8 @@ class CommandWrapper {
     String executable,
     List<String> arguments,
   ) async {
-    final result = await Process.run(executable, arguments);
+    final result = await Process.run(executable, arguments)
+        .timeout(const Duration(minutes: 5));
     if (result.exitCode != 0) {
       throw Exception(result.stderr.toString());
     }

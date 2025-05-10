@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   desktop_webview_window
+  file_saver
   flutter_secure_storage_linux
   nb_utils
   screen_retriever

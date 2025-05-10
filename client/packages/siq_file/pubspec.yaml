@@ -1,14 +1,12 @@
 name: siq_file
 description: A sigame file parser
 version: 0.0.1
-# repository: https://github.com/my_org/my_repo
 topics: [cli]
 publish_to: none
 
 environment:
   sdk: ">=3.6.0 <4.0.0"
 
-# Add regular dependencies here.
 dependencies:
   args: ^2.7.0
   cli_completion: ^0.5.1
