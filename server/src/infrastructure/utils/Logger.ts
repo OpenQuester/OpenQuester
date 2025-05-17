@@ -106,7 +106,7 @@ export class Logger {
 
     const log = cyanBright(prefix + text);
 
-    console.debug(log);
+    console.log(log);
 
     this._writeFile(log);
   }
