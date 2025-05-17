@@ -16,9 +16,9 @@ export class RedisPubSubService {
     await this.redisService.subscribe(REDIS_KEY_EXPIRE_EVENT);
 
     this.redisService.on("message", async (ch, message) => {
-      if (!ValueUtils.isString(message)) return;
+      Logger.debug(`Key expired: ${ch} - ${JSON.stringify(message)}`);
 
-      Logger.debug(`Key expired: ${ch} - ${message}`);
+      if (!ValueUtils.isString(message)) return;
 
       for (const handler of this.handlers) {
         if (handler.supports(message)) {
