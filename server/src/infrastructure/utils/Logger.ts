@@ -26,6 +26,12 @@ export class Logger {
   private static ensureStream() {
     if (this.initialized) return;
     this.initialized = true;
+
+    if (Environment.instance.ENV === "test") {
+      // Skip creating stream for file write in test environment
+      return;
+    }
+
     this.stream.on("error", (err) => {
       console.error("[LOGGER STREAM ERROR]", err);
     });
