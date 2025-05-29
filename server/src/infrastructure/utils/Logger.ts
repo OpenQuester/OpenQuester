@@ -77,10 +77,10 @@ export class Logger {
   }
 
   public static debug(obj: unknown) {
-    if (
-      Environment.instance.LOG_LEVEL !== "debug" ||
-      Environment.instance.ENV === "test"
-    ) {
+    const logLevel = Environment.instance.LOG_LEVEL || process.env.LOG_LEVEL;
+    const env = Environment.instance.ENV || process.env.ENV;
+
+    if (logLevel !== "debug" || env === "test") {
       return;
     }
 

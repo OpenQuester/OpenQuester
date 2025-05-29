@@ -1,5 +1,6 @@
 import { Client } from "pg";
-import { DataSource, DataSourceOptions } from "typeorm";
+import { DataSource } from "typeorm";
+import { createTestAppDataSource } from "./TestUtils";
 
 export interface Fixture {
   entity: any;
@@ -9,19 +10,15 @@ export interface Fixture {
 export class TestEnvironment {
   private testDataSource!: DataSource;
 
-  constructor(private readonly dataSource: DataSource) {
+  constructor() {
     //
   }
 
   public async setup(): Promise<void> {
     await this.createTestDatabase();
-    const options: DataSourceOptions = {
-      ...this.dataSource.options,
-      database: "test_db" as any,
-    };
-
-    this.testDataSource = new DataSource(options);
+    this.testDataSource = createTestAppDataSource();
     await this.testDataSource.initialize();
+    await this.testDataSource.runMigrations();
   }
 
   public async teardown(): Promise<void> {

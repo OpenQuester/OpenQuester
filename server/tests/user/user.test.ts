@@ -2,7 +2,6 @@ import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
 import { Permissions } from "domain/enums/Permissions";
-import { AppDataSource } from "infrastructure/database/DataSource";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { bootstrapTestApp } from "tests/TestApp";
@@ -43,7 +42,7 @@ describe("UserRestApiController", () => {
   let cleanup: (() => Promise<void>) | undefined;
 
   beforeAll(async () => {
-    testEnv = new TestEnvironment(AppDataSource);
+    testEnv = new TestEnvironment();
     await testEnv.setup();
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;
