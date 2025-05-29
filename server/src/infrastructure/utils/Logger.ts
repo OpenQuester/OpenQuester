@@ -139,6 +139,11 @@ export class Logger {
   }
 
   private static _writeFile(text: unknown) {
+    if (Environment.instance.ENV === "test") {
+      // Skip writing to file in test environment
+      return;
+    }
+
     if (!Logger.stream.write(text + "\n")) {
       Logger.stream.once("drain", () => {
         /* nothing else to do */
