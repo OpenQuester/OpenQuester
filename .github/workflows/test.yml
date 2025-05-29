@@ -31,6 +31,28 @@ jobs:
     runs-on: ubuntu-latest
     needs: pre_job
     if: ${{ needs.pre_job.outputs.should_run_server == 'true' }}
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+    env:
+      NODE_ENV: test
+      SESSION_SECRET: test_secret
+      REDIS_URL: redis://localhost:6379/12
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_DATABASE: test_db
     defaults:
       run:
         working-directory: ./server
@@ -44,6 +66,11 @@ jobs:
           cache-dependency-path: ./server/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - run: |
+          until pg_isready -h localhost -p 5432; do sleep 1; done
+      - run: |
+          until redis-cli -h localhost -p 6379 ping; do sleep 1; done
+      - run: npm test
 
   test_client:
     runs-on: ubuntu-latest

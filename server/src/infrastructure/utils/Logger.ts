@@ -12,6 +12,7 @@ import {
   yellow,
 } from "colorette";
 import { LogLevel } from "domain/types/log/log";
+import { Environment } from "infrastructure/config/Environment";
 
 /**
  * Logger class used for writing logs and for prettier console output
@@ -76,6 +77,13 @@ export class Logger {
   }
 
   public static debug(obj: unknown) {
+    if (
+      Environment.instance.LOG_LEVEL !== "debug" ||
+      Environment.instance.ENV === "test"
+    ) {
+      return;
+    }
+
     const prefix = "[DEBUG]: ";
     let text = "";
 

@@ -315,7 +315,6 @@ export class DIConfig {
         Container.get<SocketUserDataService>(
           CONTAINER_TYPES.SocketUserDataService
         ),
-        Container.get<SocketIOGameService>(CONTAINER_TYPES.SocketIOGameService),
         Container.get<GameService>(CONTAINER_TYPES.GameService)
       ),
       "service"

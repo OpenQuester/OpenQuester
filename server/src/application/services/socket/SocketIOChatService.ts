@@ -6,13 +6,11 @@ import { ChatSaveInputData } from "domain/types/socket/chat/ChatSaveInputData";
 import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { GameService } from "../game/GameService";
-import { SocketIOGameService } from "./SocketIOGameService";
 
 export class SocketIOChatService {
   constructor(
     private readonly socketChatRepository: SocketChatRepository,
     private readonly socketUserDataService: SocketUserDataService,
-    private readonly socketIOGameService: SocketIOGameService,
     private readonly gameService: GameService
   ) {
     //
