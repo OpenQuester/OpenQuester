@@ -12,6 +12,7 @@ import {
 import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { PackagePaginationOpts } from "domain/types/pagination/package/PackagePaginationOpts";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 
@@ -155,6 +156,9 @@ const rounds = Joi.array()
       name: Joi.string().required(),
       order: Joi.number().min(0).required(),
       description: Joi.string().allow(null),
+      type: Joi.string()
+        .valid(...Object.values(PackageRoundType))
+        .required(),
       themes,
     }).required()
   )

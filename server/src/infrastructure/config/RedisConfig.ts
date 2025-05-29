@@ -83,6 +83,16 @@ export class RedisConfig {
     } catch {
       Logger.warn("Redis connection closed", REDIS_PREFIX);
     }
+
+    if (this._subClient && this._subClient.status === "ready") {
+      this._subClient.disconnect(false);
+    }
+
+    try {
+      await this._subClient.ping();
+    } catch {
+      Logger.warn("Redis Sub Client connection closed", REDIS_PREFIX);
+    }
   }
 
   private static _getRedisLink(): string {
