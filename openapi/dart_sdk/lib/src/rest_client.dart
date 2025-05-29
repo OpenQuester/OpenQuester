@@ -10,7 +10,7 @@ import 'clients/users_client.dart';
 import 'clients/auth_client.dart';
 import 'clients/games_client.dart';
 
-/// OpenQuester API `v0.14.2`
+/// OpenQuester API `v0.15.0`
 class RestClient {
   RestClient(
     Dio dio, {
@@ -21,7 +21,7 @@ class RestClient {
   final Dio _dio;
   final String? _baseUrl;
 
-  static String get version => '0.14.2';
+  static String get version => '0.15.0';
 
   FilesClient? _files;
   PackagesClient? _packages;

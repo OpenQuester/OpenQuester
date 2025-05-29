@@ -17,7 +17,7 @@ T _$identity<T>(T value) => value;
 mixin _$SocketIOAnswerResultInput {
 
 /// Score result of the answer; positive for correct, negative for incorrect, zero for skip
- int get scoreResult;
+ int get scoreResult; SocketIOGameAnswerType get answerType;
 /// Create a copy of SocketIOAnswerResultInput
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,16 +30,16 @@ $SocketIOAnswerResultInputCopyWith<SocketIOAnswerResultInput> get copyWith => _$
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SocketIOAnswerResultInput&&(identical(other.scoreResult, scoreResult) || other.scoreResult == scoreResult));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SocketIOAnswerResultInput&&(identical(other.scoreResult, scoreResult) || other.scoreResult == scoreResult)&&(identical(other.answerType, answerType) || other.answerType == answerType));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,scoreResult);
+int get hashCode => Object.hash(runtimeType,scoreResult,answerType);
 
 @override
 String toString() {
-  return 'SocketIOAnswerResultInput(scoreResult: $scoreResult)';
+  return 'SocketIOAnswerResultInput(scoreResult: $scoreResult, answerType: $answerType)';
 }
 
 
@@ -50,7 +50,7 @@ abstract mixin class $SocketIOAnswerResultInputCopyWith<$Res>  {
   factory $SocketIOAnswerResultInputCopyWith(SocketIOAnswerResultInput value, $Res Function(SocketIOAnswerResultInput) _then) = _$SocketIOAnswerResultInputCopyWithImpl;
 @useResult
 $Res call({
- int scoreResult
+ int scoreResult, SocketIOGameAnswerType answerType
 });
 
 
@@ -67,10 +67,11 @@ class _$SocketIOAnswerResultInputCopyWithImpl<$Res>
 
 /// Create a copy of SocketIOAnswerResultInput
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? scoreResult = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? scoreResult = null,Object? answerType = null,}) {
   return _then(_self.copyWith(
 scoreResult: null == scoreResult ? _self.scoreResult : scoreResult // ignore: cast_nullable_to_non_nullable
-as int,
+as int,answerType: null == answerType ? _self.answerType : answerType // ignore: cast_nullable_to_non_nullable
+as SocketIOGameAnswerType,
   ));
 }
 
@@ -81,11 +82,12 @@ as int,
 @JsonSerializable()
 
 class _SocketIOAnswerResultInput implements SocketIOAnswerResultInput {
-  const _SocketIOAnswerResultInput({required this.scoreResult});
+  const _SocketIOAnswerResultInput({required this.scoreResult, required this.answerType});
   factory _SocketIOAnswerResultInput.fromJson(Map<String, dynamic> json) => _$SocketIOAnswerResultInputFromJson(json);
 
 /// Score result of the answer; positive for correct, negative for incorrect, zero for skip
 @override final  int scoreResult;
+@override final  SocketIOGameAnswerType answerType;
 
 /// Create a copy of SocketIOAnswerResultInput
 /// with the given fields replaced by the non-null parameter values.
@@ -100,16 +102,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SocketIOAnswerResultInput&&(identical(other.scoreResult, scoreResult) || other.scoreResult == scoreResult));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SocketIOAnswerResultInput&&(identical(other.scoreResult, scoreResult) || other.scoreResult == scoreResult)&&(identical(other.answerType, answerType) || other.answerType == answerType));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,scoreResult);
+int get hashCode => Object.hash(runtimeType,scoreResult,answerType);
 
 @override
 String toString() {
-  return 'SocketIOAnswerResultInput(scoreResult: $scoreResult)';
+  return 'SocketIOAnswerResultInput(scoreResult: $scoreResult, answerType: $answerType)';
 }
 
 
@@ -120,7 +122,7 @@ abstract mixin class _$SocketIOAnswerResultInputCopyWith<$Res> implements $Socke
   factory _$SocketIOAnswerResultInputCopyWith(_SocketIOAnswerResultInput value, $Res Function(_SocketIOAnswerResultInput) _then) = __$SocketIOAnswerResultInputCopyWithImpl;
 @override @useResult
 $Res call({
- int scoreResult
+ int scoreResult, SocketIOGameAnswerType answerType
 });
 
 
@@ -137,10 +139,11 @@ class __$SocketIOAnswerResultInputCopyWithImpl<$Res>
 
 /// Create a copy of SocketIOAnswerResultInput
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? scoreResult = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? scoreResult = null,Object? answerType = null,}) {
   return _then(_SocketIOAnswerResultInput(
 scoreResult: null == scoreResult ? _self.scoreResult : scoreResult // ignore: cast_nullable_to_non_nullable
-as int,
+as int,answerType: null == answerType ? _self.answerType : answerType // ignore: cast_nullable_to_non_nullable
+as SocketIOGameAnswerType,
   ));
 }
 

@@ -17,7 +17,7 @@ T _$identity<T>(T value) => value;
 mixin _$GameStateAnsweredPlayer {
 
 /// Id of answered player
- int get player; int get result; int get score;
+ int get player; int get result; int get score; SocketIOGameAnswerType get answerType;
 /// Create a copy of GameStateAnsweredPlayer
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,16 +30,16 @@ $GameStateAnsweredPlayerCopyWith<GameStateAnsweredPlayer> get copyWith => _$Game
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is GameStateAnsweredPlayer&&(identical(other.player, player) || other.player == player)&&(identical(other.result, result) || other.result == result)&&(identical(other.score, score) || other.score == score));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GameStateAnsweredPlayer&&(identical(other.player, player) || other.player == player)&&(identical(other.result, result) || other.result == result)&&(identical(other.score, score) || other.score == score)&&(identical(other.answerType, answerType) || other.answerType == answerType));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,player,result,score);
+int get hashCode => Object.hash(runtimeType,player,result,score,answerType);
 
 @override
 String toString() {
-  return 'GameStateAnsweredPlayer(player: $player, result: $result, score: $score)';
+  return 'GameStateAnsweredPlayer(player: $player, result: $result, score: $score, answerType: $answerType)';
 }
 
 
@@ -50,7 +50,7 @@ abstract mixin class $GameStateAnsweredPlayerCopyWith<$Res>  {
   factory $GameStateAnsweredPlayerCopyWith(GameStateAnsweredPlayer value, $Res Function(GameStateAnsweredPlayer) _then) = _$GameStateAnsweredPlayerCopyWithImpl;
 @useResult
 $Res call({
- int player, int result, int score
+ int player, int result, int score, SocketIOGameAnswerType answerType
 });
 
 
@@ -67,12 +67,13 @@ class _$GameStateAnsweredPlayerCopyWithImpl<$Res>
 
 /// Create a copy of GameStateAnsweredPlayer
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? player = null,Object? result = null,Object? score = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? player = null,Object? result = null,Object? score = null,Object? answerType = null,}) {
   return _then(_self.copyWith(
 player: null == player ? _self.player : player // ignore: cast_nullable_to_non_nullable
 as int,result: null == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
 as int,score: null == score ? _self.score : score // ignore: cast_nullable_to_non_nullable
-as int,
+as int,answerType: null == answerType ? _self.answerType : answerType // ignore: cast_nullable_to_non_nullable
+as SocketIOGameAnswerType,
   ));
 }
 
@@ -83,13 +84,14 @@ as int,
 @JsonSerializable()
 
 class _GameStateAnsweredPlayer implements GameStateAnsweredPlayer {
-  const _GameStateAnsweredPlayer({required this.player, required this.result, required this.score});
+  const _GameStateAnsweredPlayer({required this.player, required this.result, required this.score, required this.answerType});
   factory _GameStateAnsweredPlayer.fromJson(Map<String, dynamic> json) => _$GameStateAnsweredPlayerFromJson(json);
 
 /// Id of answered player
 @override final  int player;
 @override final  int result;
 @override final  int score;
+@override final  SocketIOGameAnswerType answerType;
 
 /// Create a copy of GameStateAnsweredPlayer
 /// with the given fields replaced by the non-null parameter values.
@@ -104,16 +106,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GameStateAnsweredPlayer&&(identical(other.player, player) || other.player == player)&&(identical(other.result, result) || other.result == result)&&(identical(other.score, score) || other.score == score));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GameStateAnsweredPlayer&&(identical(other.player, player) || other.player == player)&&(identical(other.result, result) || other.result == result)&&(identical(other.score, score) || other.score == score)&&(identical(other.answerType, answerType) || other.answerType == answerType));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,player,result,score);
+int get hashCode => Object.hash(runtimeType,player,result,score,answerType);
 
 @override
 String toString() {
-  return 'GameStateAnsweredPlayer(player: $player, result: $result, score: $score)';
+  return 'GameStateAnsweredPlayer(player: $player, result: $result, score: $score, answerType: $answerType)';
 }
 
 
@@ -124,7 +126,7 @@ abstract mixin class _$GameStateAnsweredPlayerCopyWith<$Res> implements $GameSta
   factory _$GameStateAnsweredPlayerCopyWith(_GameStateAnsweredPlayer value, $Res Function(_GameStateAnsweredPlayer) _then) = __$GameStateAnsweredPlayerCopyWithImpl;
 @override @useResult
 $Res call({
- int player, int result, int score
+ int player, int result, int score, SocketIOGameAnswerType answerType
 });
 
 
@@ -141,12 +143,13 @@ class __$GameStateAnsweredPlayerCopyWithImpl<$Res>
 
 /// Create a copy of GameStateAnsweredPlayer
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? player = null,Object? result = null,Object? score = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? player = null,Object? result = null,Object? score = null,Object? answerType = null,}) {
   return _then(_GameStateAnsweredPlayer(
 player: null == player ? _self.player : player // ignore: cast_nullable_to_non_nullable
 as int,result: null == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
 as int,score: null == score ? _self.score : score // ignore: cast_nullable_to_non_nullable
-as int,
+as int,answerType: null == answerType ? _self.answerType : answerType // ignore: cast_nullable_to_non_nullable
+as SocketIOGameAnswerType,
   ));
 }
 

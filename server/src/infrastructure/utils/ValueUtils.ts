@@ -96,7 +96,7 @@ export class ValueUtils {
     return this.isNumber(value) || !isNaN(Number(value));
   }
 
-  public static isNumber(value: unknown) {
+  public static isNumber(value: unknown): value is number {
     return typeof value === "number" && isFinite(value);
   }
 

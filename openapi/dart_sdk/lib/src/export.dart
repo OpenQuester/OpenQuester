@@ -111,6 +111,7 @@ export 'models/socket_io_answer_submitted_event_data.dart';
 export 'models/socket_io_answer_result_event_payload.dart';
 export 'models/socket_io_answer_result_input.dart';
 export 'models/package_question_data.dart';
+export 'models/socket_io_game_answer_type.dart';
 export 'models/permissions.dart';
 export 'models/game_event_subscription_union.dart';
 export 'models/data.dart';

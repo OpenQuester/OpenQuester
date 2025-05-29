@@ -94,13 +94,14 @@ class ContentXmlParser {
         .firstWhereOrNull((e) => e.getAttribute('type') == 'say')
         ?.value;
 
-    var questionText = questionParam?.getElement('item')?.innerText;
-    final questionAtomType = questionParam
-        ?.getElement('atom')
-        ?.getAttribute('type');
-    if (questionAtomType == null) {
-      questionText ??= questionParam?.innerText;
-    } else if (questionAtomType == 'say') {
+    String? questionText;
+    final questionItem = questionParam?.getElement('item');
+    final questionItemType =
+        questionParam?.getElement('atom')?.getAttribute('type') ??
+        questionItem?.getAttribute('type');
+    if (questionItemType == null) {
+      questionText ??= questionItem?.innerText ?? questionParam?.innerText;
+    } else if (questionItemType == 'say') {
       questionText ??= questionParam?.children
           .where((e) => {null, 'say'}.contains(e.getAttribute('type')))
           .map((e) => e.innerText)
@@ -144,7 +145,11 @@ class ContentXmlParser {
         .toList();
 
     if (questionFiles.isEmpty && questionText.isEmptyOrNull) {
-      throw Exception('Question have no files or text to ask users $question');
+      throw Exception('Question have no files and text to ask users $question');
+    }
+
+    if (answerFiles.isEmpty && answerText.isEmptyOrNull) {
+      throw Exception('Question have no files and text for answer $question');
     }
 
     return switch (questionType) {

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpenQuester API",
-    "version": "0.14.2"
+    "version": "0.15.2"
   },
   "security": [
     {
@@ -2382,6 +2382,9 @@
           "score": {
             "type": "integer",
             "examples": [-1150, 220, 0, -230]
+          },
+          "answerType": {
+            "$ref": "#/components/schemas/SocketIOGameAnswerType"
           }
         }
       },
@@ -2626,6 +2629,9 @@
             "type": "integer",
             "description": "Score result of the answer; positive for correct, negative for incorrect, zero for skip",
             "examples": [500, -500, 0]
+          },
+          "answerType": {
+            "$ref": "#/components/schemas/SocketIOGameAnswerType"
           }
         }
       },
@@ -2747,6 +2753,11 @@
             ]
           }
         }
+      },
+      "SocketIOGameAnswerType": {
+        "type": "string",
+        "enum": ["correct", "wrong", "skip"],
+        "examples": ["correct"]
       }
     }
   }

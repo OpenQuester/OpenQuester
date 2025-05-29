@@ -5,9 +5,11 @@ import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
+import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { GameLobbyLeaveData } from "domain/types/game/GameRoomLeaveData";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -169,13 +171,26 @@ export class SocketIOGameService {
       throw new ClientError(ClientResponse.GAME_NOT_STARTED);
     }
 
-    const { isGameFinished, nextGameState } = game.handleRoundProgression();
+    const currentQuestion = game.gameState.currentQuestion;
+
+    let questionData: PackageQuestionDTO | null = null;
+
+    if (currentQuestion) {
+      questionData =
+        GameQuestionMapper.getQuestionAndTheme(
+          game.package,
+          game.gameState.currentRound!.id,
+          game.gameState.currentQuestion!.id!
+        )?.question ?? null;
+    }
+
+    const { isGameFinished, nextGameState } = game.getProgressionState();
 
     if (isGameFinished || nextGameState) {
       await this.gameService.updateGame(game);
     }
 
-    return { game, isGameFinished, nextGameState };
+    return { game, isGameFinished, nextGameState, questionData };
   }
 
   public async handleGameUnpause(socketId: string) {

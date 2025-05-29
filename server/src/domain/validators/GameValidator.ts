@@ -3,7 +3,10 @@ import Joi from "joi";
 import { GAME_ID_CHARACTERS_LENGTH } from "domain/constants/game";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
-import { AnswerResultData } from "domain/types/socket/game/AnswerResultData";
+import {
+  AnswerResultData,
+  AnswerResultType,
+} from "domain/types/socket/game/AnswerResultData";
 import { AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { GameQuestionPickData } from "domain/types/socket/game/question/GameQuestionPickData";
@@ -46,6 +49,7 @@ export class GameValidator {
   public static validateAnswerResult(data: AnswerResultData) {
     const schema = Joi.object<AnswerResultData>({
       scoreResult: Joi.number().required(),
+      answerType: Joi.valid(...Object.values(AnswerResultType)).required(),
     });
 
     return this._validate<AnswerResultData>(data, schema);

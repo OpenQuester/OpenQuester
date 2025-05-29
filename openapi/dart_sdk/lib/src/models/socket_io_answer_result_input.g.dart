@@ -10,8 +10,12 @@ _SocketIOAnswerResultInput _$SocketIOAnswerResultInputFromJson(
   Map<String, dynamic> json,
 ) => _SocketIOAnswerResultInput(
   scoreResult: (json['scoreResult'] as num).toInt(),
+  answerType: SocketIOGameAnswerType.fromJson(json['answerType'] as String),
 );
 
 Map<String, dynamic> _$SocketIOAnswerResultInputToJson(
   _SocketIOAnswerResultInput instance,
-) => <String, dynamic>{'scoreResult': instance.scoreResult};
+) => <String, dynamic>{
+  'scoreResult': instance.scoreResult,
+  'answerType': instance.answerType,
+};

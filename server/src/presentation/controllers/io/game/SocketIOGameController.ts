@@ -17,6 +17,7 @@ import { GameJoinEventPayload } from "domain/types/socket/events/game/GameJoinEv
 import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
+import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { GameValidator } from "domain/validators/GameValidator";
 import { SocketWrapper } from "infrastructure/socket/SocketWrapper";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
@@ -96,8 +97,23 @@ export class SocketIOGameController {
   };
 
   private handleNextRound = async () => {
-    const { game, isGameFinished, nextGameState } =
+    const { game, isGameFinished, nextGameState, questionData } =
       await this.socketIOGameService.handleNextRound(this.socket.id);
+
+    // Always emit on next round if question is playing right now
+    if (questionData) {
+      this.eventEmitter.emit<QuestionFinishEventPayload>(
+        SocketIOGameEvents.QUESTION_FINISH,
+        {
+          answerFiles: questionData.answerFiles ?? null,
+          answerText: questionData.answerText ?? null,
+        },
+        {
+          emitter: SocketEventEmitter.IO,
+          gameId: game.id,
+        }
+      );
+    }
 
     if (isGameFinished) {
       this.eventEmitter.emit(SocketIOGameEvents.GAME_FINISHED, true, {

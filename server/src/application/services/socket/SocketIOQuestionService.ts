@@ -15,7 +15,10 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { AnswerResultData } from "domain/types/socket/game/AnswerResultData";
+import {
+  AnswerResultData,
+  AnswerResultType,
+} from "domain/types/socket/game/AnswerResultData";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -99,18 +102,22 @@ export class SocketIOQuestionService {
       throw new ClientError(ClientResponse.ONLY_SHOWMAN_SEND_ANSWER_RESULT);
     }
 
+    const isCorrect = data.answerType === AnswerResultType.CORRECT;
+
     // Keep showing question on Wrong answer or on answer skip
-    const nextState =
-      data.scoreResult > 0 ? QuestionState.CHOOSING : QuestionState.SHOWING;
+    const nextState = isCorrect
+      ? QuestionState.CHOOSING
+      : QuestionState.SHOWING;
 
     const playerAnswerResult = game.handleQuestionAnswer(
       data.scoreResult,
+      data.answerType,
       nextState
     );
 
     let question = null;
 
-    if (playerAnswerResult.score > 0) {
+    if (isCorrect) {
       question = await this.getCurrentQuestion(game);
       game.gameState.currentQuestion = null;
     }

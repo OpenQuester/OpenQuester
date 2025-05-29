@@ -68,6 +68,7 @@
   "only_showman_send_answer_result": "Only showman can send answer result",
   "already_answered": "You already answered",
   "game_finished": "Game already finished",
+  "game_is_paused": "Game is paused",
   "only_showman_next_round": "Only showman can set next round",
   "only_showman_skip_question_force": "Only showman can skip question forcefully",
   "only_showman_can_pause": "Only showman can pause the game",

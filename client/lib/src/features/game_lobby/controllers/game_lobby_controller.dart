@@ -486,6 +486,11 @@ class GameLobbyController {
       SocketIOGameSendEvents.answerResult.json!,
       SocketIOAnswerResultInput(
         scoreResult: playerAnswerIsRight ? score : -score,
+        answerType: multiplier == 0
+            ? SocketIOGameAnswerType.skip
+            : playerAnswerIsRight
+            ? SocketIOGameAnswerType.correct
+            : SocketIOGameAnswerType.wrong,
       ).toJson(),
     );
   }
@@ -496,10 +501,15 @@ class GameLobbyController {
     final nextRoundData = SocketIONextRoundEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
+
     gameData.value = gameData.value?.copyWith(
       gameState: nextRoundData.gameState,
     );
+
+    _resetScrollPosition();
   }
+
+  void _resetScrollPosition() => themeScrollPosition = null;
 
   void _onGameFinish(dynamic data) {
     gameFinished.value = true;

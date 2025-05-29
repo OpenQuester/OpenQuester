@@ -18,7 +18,7 @@ export class GameQuestionMapper {
   ) {
     const round = pack.rounds.find((round) => round.id === roundId);
     if (!round?.themes?.length) {
-      return undefined;
+      return null;
     }
 
     for (const theme of round.themes) {
@@ -28,7 +28,7 @@ export class GameQuestionMapper {
       }
     }
 
-    return undefined;
+    return null;
   }
 
   public static mapToSimpleQuestion(
