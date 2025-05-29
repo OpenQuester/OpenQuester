@@ -19,19 +19,18 @@ import { Environment } from "infrastructure/config/Environment";
  */
 export class Logger {
   private static logPath = path.resolve(process.cwd(), "logs/logs.log");
-  private static stream = fs.createWriteStream(Logger.logPath, { flags: "a" });
+  private static stream: fs.WriteStream | null = null;
   private static initialized = false;
   private static logPathExists = false;
 
   private static ensureStream() {
     if (this.initialized) return;
     this.initialized = true;
-
     if (Environment.instance.ENV === "test") {
-      // Skip creating stream for file write in test environment
+      // Do not create file stream in test environment
       return;
     }
-
+    this.stream = fs.createWriteStream(Logger.logPath, { flags: "a" });
     this.stream.on("error", (err) => {
       console.error("[LOGGER STREAM ERROR]", err);
     });
@@ -145,11 +144,10 @@ export class Logger {
   }
 
   private static _writeFile(text: unknown) {
-    if (Environment.instance.ENV === "test") {
+    if (Environment.instance.ENV === "test" || !Logger.stream) {
       // Skip writing to file in test environment
       return;
     }
-
     if (!Logger.stream.write(text + "\n")) {
       Logger.stream.once("drain", () => {
         /* nothing else to do */
