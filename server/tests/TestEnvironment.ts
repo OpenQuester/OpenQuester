@@ -46,7 +46,7 @@ export class TestEnvironment {
   private async createTestDatabase(): Promise<void> {
     const client = new Client({
       user: "postgres",
-      password: "Asdf1234!",
+      password: "postgres",
       host: "127.0.0.1",
       port: 5432,
     });
@@ -59,7 +59,7 @@ export class TestEnvironment {
   private async dropTestDatabase(): Promise<void> {
     const client = new Client({
       user: "postgres",
-      password: "Asdf1234!",
+      password: "postgres",
       host: "127.0.0.1",
       port: 5432,
     });

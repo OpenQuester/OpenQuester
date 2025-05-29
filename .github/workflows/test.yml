@@ -69,7 +69,7 @@ jobs:
       - run: |
           until pg_isready -h localhost -p 5432; do sleep 1; done
       - run: |
-          until redis-cli -h localhost -p 6379 ping; do sleep 1; done
+          until docker run --rm --network host redis:7 redis-cli -h localhost -p 6379 ping; do sleep 1; done
       - run: npm test
 
   test_client:
