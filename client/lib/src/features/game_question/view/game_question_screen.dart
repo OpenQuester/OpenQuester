@@ -243,7 +243,7 @@ class _AnsweringWidget extends WatchingWidget {
             ),
           ),
           if (gameData?.me.role == PlayerRole.showman)
-            const _ShowmanControlls(),
+            const _ShowmanControls(),
         ],
       ),
     );
@@ -259,8 +259,8 @@ class _AnsweringWidget extends WatchingWidget {
   }
 }
 
-class _ShowmanControlls extends WatchingWidget {
-  const _ShowmanControlls();
+class _ShowmanControls extends WatchingWidget {
+  const _ShowmanControls();
 
   @override
   Widget build(BuildContext context) {
@@ -337,7 +337,7 @@ class _ShowmanControlls extends WatchingWidget {
           ),
           zeroSkipButton(),
         ] else
-          const _SkipQustionBtn(),
+          const _SkipQuestionBtn(),
       ],
     );
   }
@@ -347,8 +347,8 @@ class AnswerIntent extends Intent {
   const AnswerIntent();
 }
 
-class _SkipQustionBtn extends StatelessWidget {
-  const _SkipQustionBtn();
+class _SkipQuestionBtn extends StatelessWidget {
+  const _SkipQuestionBtn();
 
   @override
   Widget build(BuildContext context) {
