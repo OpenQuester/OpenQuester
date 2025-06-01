@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
-class GameQuestion extends StatelessWidget {
+class GameQuestion extends WatchingWidget {
   const GameQuestion({required this.question, super.key});
   final SocketIOGameStateQuestionData question;
 

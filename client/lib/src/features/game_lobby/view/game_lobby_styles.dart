@@ -8,7 +8,7 @@ class GameLobbyStyles {
 
   static Size questionSize(BuildContext context) {
     final wideMode = UiModeUtils.wideModeOn(context);
-    return wideMode ? const Size(140, 80) : const Size.square(64);
+    return wideMode ? const Size(100, 64) : const Size.square(64);
   }
 
   static TextStyle? playerTextStyle(BuildContext context) {

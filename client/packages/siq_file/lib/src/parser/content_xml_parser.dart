@@ -135,12 +135,22 @@ class ContentXmlParser {
 
     final packageQuestionFiles = questionFiles
         .mapIndexed(
-          (index, e) => PackageQuestionFile(id: null, file: e, order: index),
+          (index, e) => PackageQuestionFile(
+            id: null,
+            file: e,
+            order: index,
+            displayTime: null,
+          ),
         )
         .toList();
     final packageAnswerFiles = answerFiles
         .mapIndexed(
-          (index, e) => PackageQuestionFile(id: null, file: e, order: index),
+          (index, e) => PackageQuestionFile(
+            id: null,
+            file: e,
+            order: index,
+            displayTime: null,
+          ),
         )
         .toList();
 

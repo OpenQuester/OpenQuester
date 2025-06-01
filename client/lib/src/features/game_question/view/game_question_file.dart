@@ -43,9 +43,10 @@ class GameQuestionMediaWidget extends WatchingWidget {
             strokeAlign: BorderSide.strokeAlignOutside,
           ),
         ),
+        constraints: const BoxConstraints(minHeight: 300),
         clipBehavior: Clip.antiAlias,
         child: child.center(),
       ).center(),
-    );
+    ).center();
   }
 }

@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:openquester/openquester.dart';
+import 'package:openquester/src/ui/components/hidden_builder.dart';
 
 class GameQuestionScreen extends WatchingWidget {
   const GameQuestionScreen({super.key});
@@ -11,17 +12,18 @@ class GameQuestionScreen extends WatchingWidget {
   Widget build(BuildContext context) {
     final fileData = watchValue((GameQuestionController e) => e.questionData);
     final file = fileData?.file;
-    final text = fileData?.text;
+    final questionText = fileData?.text;
     final questionMediaOnLeft = GameLobbyStyles.questionMediaOnLeft(context);
 
     final questionTextWidget = _questionTextAndButtons(
-      file: file,
-      text: text,
       context: context,
+      text: questionText,
+      file: file,
     );
 
     final column = Column(
       spacing: 16,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const GameQuestionTimer(),
         Flex(
@@ -29,10 +31,18 @@ class GameQuestionScreen extends WatchingWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           direction: questionMediaOnLeft ? Axis.horizontal : Axis.vertical,
           children: [
-            if (!questionMediaOnLeft) questionTextWidget,
-            if (file != null) GameQuestionMediaWidget(file: file).flexible(),
-            if (questionMediaOnLeft) questionTextWidget.expand(),
-            if (questionMediaOnLeft) const _QuestionBottom().withWidth(250),
+            if (!questionMediaOnLeft) ?questionTextWidget,
+            if (file != null) GameQuestionMediaWidget(file: file).expand(),
+            if (questionMediaOnLeft && questionTextWidget != null)
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: file == null ? double.infinity : 150,
+                  maxHeight: file == null ? double.infinity : 300,
+                ),
+                child: questionTextWidget,
+              ).expand(),
+            if (questionMediaOnLeft)
+              const _QuestionBottom().withWidth(250).flexible(),
           ],
         ).expand(),
         if (!questionMediaOnLeft) const _QuestionBottom(),
@@ -74,22 +84,33 @@ class GameQuestionScreen extends WatchingWidget {
     };
   }
 
-  Widget _questionTextAndButtons({
+  Widget? _questionTextAndButtons({
     required BuildContext context,
-    required PackageQuestionFile? file,
     required String? text,
+    required PackageQuestionFile? file,
   }) {
+    if (text.isEmptyOrNull) return null;
+
     return ConstrainedBox(
-      constraints: BoxConstraints(
-        maxWidth: file == null ? double.infinity : 150,
-      ),
-      child: SingleChildScrollView(
-        child: Text(
-          text ?? '',
-          style: file != null
-              ? context.textTheme.bodyLarge
-              : context.textTheme.headlineLarge,
-          textAlign: TextAlign.center,
+      constraints: const BoxConstraints(minHeight: 50, minWidth: 250),
+      child: Scrollbar(
+        trackVisibility: true,
+        thumbVisibility: true,
+        child: Row(
+          children: [
+            ListView(
+              shrinkWrap: true,
+              children: [
+                Text(
+                  text ?? '',
+                  style: file != null
+                      ? context.textTheme.bodyLarge
+                      : context.textTheme.headlineLarge,
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ).expand(),
+          ],
         ),
       ),
     );
@@ -117,10 +138,8 @@ class _QuestionBottom extends WatchingWidget {
     if (showingQuestion) {
       if (!imShowman && answeringPlayer == null && !iAlreadyAnswered) {
         child = const _AnswerButtons();
-      } else if (answeringPlayer != null) {
+      } else if (answeringPlayer != null || imShowman) {
         child = const _AnsweringWidget();
-      } else if (imShowman) {
-        child = const _SkipQustionBtn().center();
       }
     }
 
@@ -172,6 +191,8 @@ class _AnsweringWidget extends WatchingWidget {
     final answerHint = question?.answerHint;
     final answeringPlayerId = gameData?.gameState.answeringPlayer;
     final answeringPlayer = gameData?.players.getById(answeringPlayerId);
+    final answeringPlayerNickname = answeringPlayer?.meta.username;
+    final playerAnswering = answeringPlayer != null;
 
     final answer = [
       if (!answerText.isEmptyOrNull)
@@ -189,27 +210,35 @@ class _AnsweringWidget extends WatchingWidget {
       child: OverflowBar(
         spacing: 16,
         overflowSpacing: 16,
+        alignment: MainAxisAlignment.start,
+        overflowAlignment: OverflowBarAlignment.center,
         children: [
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 300),
             child: Column(
               spacing: 16,
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  LocaleKeys.question_user_is_answering.tr(
-                    args: [answeringPlayer?.meta.username ?? ''],
-                  ),
-                  textAlign: TextAlign.center,
-                  style: context.textTheme.bodyLarge,
-                ),
-                if (!answer.isEmptyOrNull)
+                if (!answeringPlayerNickname.isEmptyOrNull)
                   Text(
-                    answer,
-                    style: context.textTheme.bodySmall?.copyWith(
-                      color: context.theme.colorScheme.onSurfaceVariant,
+                    LocaleKeys.question_user_is_answering.tr(
+                      args: [answeringPlayerNickname ?? ''],
                     ),
+                    textAlign: TextAlign.center,
+                    style: context.textTheme.bodyLarge,
                   ),
+                if (!answer.isEmptyOrNull)
+                  playerAnswering
+                      ? _answerText(context, answer)
+                      : HiddenBuilder(
+                          builder: ({required context, required hidden}) {
+                            return _answerText(
+                              context,
+                              hidden ? '***' : answer,
+                            );
+                          },
+                        ),
               ],
             ),
           ),
@@ -219,13 +248,25 @@ class _AnsweringWidget extends WatchingWidget {
       ),
     );
   }
+
+  Text _answerText(BuildContext context, String answer) {
+    return Text(
+      answer,
+      style: context.textTheme.bodySmall?.copyWith(
+        color: context.theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
 }
 
-class _ShowmanControlls extends StatelessWidget {
+class _ShowmanControlls extends WatchingWidget {
   const _ShowmanControlls();
 
   @override
   Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final playerAnswering = gameData?.gameState.answeringPlayer != null;
+
     final extraColors = Theme.of(context).extension<ExtraColors>();
 
     ButtonStyle buttonStyle({required bool correctAnswer}) => ButtonStyle(
@@ -251,7 +292,6 @@ class _ShowmanControlls extends StatelessWidget {
       return Wrap(
         spacing: 8,
         runSpacing: 8,
-        alignment: WrapAlignment.center,
         children: [
           FilledButton.icon(
             onPressed: () => getIt<GameLobbyController>().answerResult(
@@ -282,18 +322,22 @@ class _ShowmanControlls extends StatelessWidget {
 
     return OverflowBar(
       overflowAlignment: OverflowBarAlignment.center,
+      alignment: MainAxisAlignment.center,
       spacing: 8,
       overflowSpacing: 8,
       children: [
-        Column(
-          spacing: 16,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            buttons(playerAnswerIsRight: true),
-            buttons(playerAnswerIsRight: false),
-          ],
-        ),
-        zeroSkipButton(),
+        if (playerAnswering) ...[
+          Column(
+            spacing: 16,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              buttons(playerAnswerIsRight: true),
+              buttons(playerAnswerIsRight: false),
+            ],
+          ),
+          zeroSkipButton(),
+        ] else
+          const _SkipQustionBtn(),
       ],
     );
   }

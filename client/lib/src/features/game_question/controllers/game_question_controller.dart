@@ -49,10 +49,13 @@ class GameQuestionController {
 
         await controller.play();
 
-        Future<void>.delayed(
-          Duration(milliseconds: questionData.value!.file!.displayTime),
-          () => mediaController.value?.pause(),
-        );
+        final waitMs = questionData.value?.file?.displayTime;
+        if (waitMs != null) {
+          Future<void>.delayed(
+            Duration(milliseconds: waitMs),
+            () => mediaController.value?.pause(),
+          );
+        }
       }
     } catch (e) {
       error.value = getIt<GameLobbyController>().onError(e);

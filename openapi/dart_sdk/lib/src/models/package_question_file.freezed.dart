@@ -17,7 +17,7 @@ T _$identity<T>(T value) => value;
 mixin _$PackageQuestionFile {
 
  int? get id; PackageEntitiesOrder get order; FileItem get file;/// Display duration in milliseconds
- int get displayTime;
+ int? get displayTime;
 /// Create a copy of PackageQuestionFile
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -50,7 +50,7 @@ abstract mixin class $PackageQuestionFileCopyWith<$Res>  {
   factory $PackageQuestionFileCopyWith(PackageQuestionFile value, $Res Function(PackageQuestionFile) _then) = _$PackageQuestionFileCopyWithImpl;
 @useResult
 $Res call({
- int? id, PackageEntitiesOrder order, FileItem file, int displayTime
+ int? id, PackageEntitiesOrder order, FileItem file, int? displayTime
 });
 
 
@@ -67,13 +67,13 @@ class _$PackageQuestionFileCopyWithImpl<$Res>
 
 /// Create a copy of PackageQuestionFile
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? order = null,Object? file = null,Object? displayTime = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? order = null,Object? file = null,Object? displayTime = freezed,}) {
   return _then(_self.copyWith(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int?,order: null == order ? _self.order : order // ignore: cast_nullable_to_non_nullable
 as PackageEntitiesOrder,file: null == file ? _self.file : file // ignore: cast_nullable_to_non_nullable
-as FileItem,displayTime: null == displayTime ? _self.displayTime : displayTime // ignore: cast_nullable_to_non_nullable
-as int,
+as FileItem,displayTime: freezed == displayTime ? _self.displayTime : displayTime // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 /// Create a copy of PackageQuestionFile
@@ -93,14 +93,14 @@ $FileItemCopyWith<$Res> get file {
 @JsonSerializable()
 
 class _PackageQuestionFile implements PackageQuestionFile {
-  const _PackageQuestionFile({required this.id, required this.order, required this.file, this.displayTime = 5000});
+  const _PackageQuestionFile({required this.id, required this.order, required this.file, required this.displayTime});
   factory _PackageQuestionFile.fromJson(Map<String, dynamic> json) => _$PackageQuestionFileFromJson(json);
 
 @override final  int? id;
 @override final  PackageEntitiesOrder order;
 @override final  FileItem file;
 /// Display duration in milliseconds
-@override@JsonKey() final  int displayTime;
+@override final  int? displayTime;
 
 /// Create a copy of PackageQuestionFile
 /// with the given fields replaced by the non-null parameter values.
@@ -135,7 +135,7 @@ abstract mixin class _$PackageQuestionFileCopyWith<$Res> implements $PackageQues
   factory _$PackageQuestionFileCopyWith(_PackageQuestionFile value, $Res Function(_PackageQuestionFile) _then) = __$PackageQuestionFileCopyWithImpl;
 @override @useResult
 $Res call({
- int? id, PackageEntitiesOrder order, FileItem file, int displayTime
+ int? id, PackageEntitiesOrder order, FileItem file, int? displayTime
 });
 
 
@@ -152,13 +152,13 @@ class __$PackageQuestionFileCopyWithImpl<$Res>
 
 /// Create a copy of PackageQuestionFile
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? order = null,Object? file = null,Object? displayTime = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? order = null,Object? file = null,Object? displayTime = freezed,}) {
   return _then(_PackageQuestionFile(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int?,order: null == order ? _self.order : order // ignore: cast_nullable_to_non_nullable
 as PackageEntitiesOrder,file: null == file ? _self.file : file // ignore: cast_nullable_to_non_nullable
-as FileItem,displayTime: null == displayTime ? _self.displayTime : displayTime // ignore: cast_nullable_to_non_nullable
-as int,
+as FileItem,displayTime: freezed == displayTime ? _self.displayTime : displayTime // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
