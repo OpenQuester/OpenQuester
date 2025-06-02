@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:openquester/openquester.dart';
-import 'package:openquester/src/ui/components/hidden_builder.dart';
 
 class GameQuestionScreen extends WatchingWidget {
   const GameQuestionScreen({super.key});
@@ -242,8 +241,7 @@ class _AnsweringWidget extends WatchingWidget {
               ],
             ),
           ),
-          if (gameData?.me.role == PlayerRole.showman)
-            const _ShowmanControls(),
+          if (gameData?.me.role == PlayerRole.showman) const _ShowmanControls(),
         ],
       ),
     );
