@@ -5,7 +5,7 @@ version: 0.15.2
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
-  flutter: 3.32.0
+  flutter: 3.32.1
 
 dependencies:
   flutter:
@@ -61,6 +61,7 @@ dependencies:
   video_player: ^2.9.5
   video_player_win: ^3.1.1
   toastification: ^3.0.2
+  fvp: ^0.32.0
 
 dev_dependencies:
   flutter_test:

@@ -19,4 +19,4 @@ dev_dependencies:
   json_serializable: ^6.9.5
   retrofit_generator: ^9.2.0
   dart_mappable_builder: ^4.5.0 # for dart_mappable
-  swagger_parser: ^1.23.2
+  swagger_parser: 1.23.2

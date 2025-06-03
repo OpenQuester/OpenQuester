@@ -27,30 +27,7 @@ class GameListItemWidget extends WatchingWidget {
         children: [
           ListTile(
             title: _title(context),
-            subtitle:
-                Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '${LocaleKeys.package.tr()}: ',
-                            style: TextStyle(
-                              color: context.theme.colorScheme.outline,
-                            ),
-                          ),
-                          TextSpan(text: item.package.title),
-                        ],
-                      ),
-                      style: context.textTheme.bodyMedium?.copyWith(
-                        color: context.theme.colorScheme.onSurfaceVariant,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 2,
-                    )
-                    .constrained(const BoxConstraints(minHeight: 42))
-                    .withTooltip(
-                      msg: LocaleKeys.game_tile_tooltips_packages_title.tr(),
-                    )
-                    .paddingTop(4),
+            subtitle: _subtitle(context),
             titleAlignment: ListTileTitleAlignment.top,
             contentPadding: 4.left + 16.right,
             mouseCursor: MouseCursor.defer,
@@ -99,6 +76,29 @@ class GameListItemWidget extends WatchingWidget {
     );
   }
 
+  Widget _subtitle(BuildContext context) {
+    return Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '${LocaleKeys.package.tr()}: ',
+                style: TextStyle(color: context.theme.colorScheme.outline),
+              ),
+              TextSpan(text: item.package.title),
+            ],
+          ),
+          style: context.textTheme.bodyMedium?.copyWith(
+            color: context.theme.colorScheme.onSurfaceVariant,
+          ),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 2,
+        )
+        .constrained(const BoxConstraints(minHeight: 42))
+        .withTooltip(msg: LocaleKeys.game_tile_tooltips_packages_title.tr())
+        .paddingTop(4)
+        .shrink();
+  }
+
   Widget _title(BuildContext context) {
     final ageRestriction = item.ageRestriction.format(context);
 
@@ -115,7 +115,7 @@ class GameListItemWidget extends WatchingWidget {
         if (ageRestriction != null)
           Text(ageRestriction.$1, style: TextStyle(color: ageRestriction.$2)),
       ],
-    ).withTooltip(msg: LocaleKeys.game_tile_tooltips_game_title.tr());
+    ).withTooltip(msg: LocaleKeys.game_tile_tooltips_game_title.tr()).shrink();
   }
 
   String _gameInfo(TimeController timeController) {

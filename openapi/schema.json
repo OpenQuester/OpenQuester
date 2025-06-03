@@ -1789,9 +1789,8 @@
             "$ref": "#/components/schemas/FileItem"
           },
           "displayTime": {
-            "type": "integer",
+            "type": ["integer", "null"],
             "description": "Display duration in milliseconds",
-            "default": 5000,
             "examples": [5000]
           }
         },
