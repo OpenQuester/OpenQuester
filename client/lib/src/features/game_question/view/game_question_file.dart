@@ -11,25 +11,33 @@ class GameQuestionMediaWidget extends WatchingWidget {
     final mediaController = watchValue(
       (GameQuestionController e) => e.mediaController,
     );
+    final showMedia = watchValue((GameQuestionController e) => e.showMedia);
     final error = watchValue((GameQuestionController e) => e.error);
 
     final url = file.file.link;
     final fileType = file.file.type;
 
-    Widget child = const CircularProgressIndicator();
+    final borderColor = context.theme.colorScheme.primary;
+    final loader = SizedBox.expand(
+      child: CircularProgressIndicator(color: borderColor).center(),
+    );
+
+    Widget child = loader;
 
     if (error != null) {
       child = Text(error).paddingAll(24);
-    } else if (fileType == PackageFileType.image) {
-      child = ImageWidget(url: url);
-    } else if (mediaController != null) {
-      if (fileType == PackageFileType.audio) {
-        child = const Icon(Icons.music_note, size: 60);
-      } else {
-        child = AspectRatio(
-          aspectRatio: mediaController.value.aspectRatio,
-          child: VideoPlayer(mediaController),
-        );
+    } else if (showMedia) {
+      if (fileType == PackageFileType.image) {
+        child = ImageWidget(url: url);
+      } else if (mediaController != null) {
+        if (fileType == PackageFileType.audio) {
+          child = const Icon(Icons.music_note, size: 60);
+        } else {
+          child = AspectRatio(
+            aspectRatio: mediaController.value.aspectRatio,
+            child: VideoPlayer(mediaController),
+          );
+        }
       }
     }
 
@@ -38,15 +46,29 @@ class GameQuestionMediaWidget extends WatchingWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: 8.circular,
-          border: Border.all(
-            color: context.theme.colorScheme.primary,
-            strokeAlign: BorderSide.strokeAlignOutside,
-          ),
+          border: Border.all(color: borderColor),
         ),
         constraints: const BoxConstraints(minHeight: 300),
         clipBehavior: Clip.antiAlias,
-        child: child.center(),
+        child: AnimatedCrossFade(
+          alignment: Alignment.center,
+          duration: Durations.long2,
+          crossFadeState: showMedia
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
+          firstChild: SizedBox.expand(child: loader.center()),
+          secondChild: SizedBox.expand(child: child.center()),
+          layoutBuilder: (topChild, topChildKey, bottomChild, bottomChildKey) {
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                Positioned.fill(key: bottomChildKey, child: bottomChild),
+                Positioned.fill(key: topChildKey, child: topChild),
+              ],
+            );
+          },
+        ),
       ).center(),
-    ).center();
+    );
   }
 }

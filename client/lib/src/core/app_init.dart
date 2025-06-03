@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:fvp/fvp.dart' as fvp;
 import 'package:openquester/common_imports.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -19,6 +20,17 @@ class AppInit {
     setUrlStrategy(PathUrlStrategy());
 
     await configureDependencies();
+
+    // Init fvp plugin for video_player to support hardware decoding
+    fvp.registerWith(
+      options: {
+        'platforms': ['windows', 'macos', 'linux'],
+        'video.decoders': [
+          'dav1d',
+          'FFmpeg:hwcontext=vaapi:copy=1:sw_fallback=1',
+        ],
+      },
+    );
 
     logger.i(await getInitInfo());
   }
