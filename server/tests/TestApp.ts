@@ -35,22 +35,25 @@ function setTestEnvDefaults() {
 }
 
 export async function bootstrapTestApp(testDataSource: DataSource) {
+  Logger.info("Setting up test application...");
   // Patch Database singleton to use test datasource
   const db = Database.getInstance(testDataSource);
   const app = express();
 
+  Logger.gray("Setting up test environment...");
   setTestEnvDefaults();
 
-  Logger.debug(process.env);
-
   // Connect to Redis
+  Logger.gray("Connecting to Redis...");
   const redis = RedisConfig.getClient();
   const sub = RedisConfig.getSubClient();
 
   await RedisConfig.initConfig();
   await RedisConfig.waitForConnection();
 
-  const io = new IOServer(createServer(app), {
+  Logger.gray("Connecting to Socket.IO...");
+  const httpServer = createServer(app);
+  const io = new IOServer(httpServer, {
     cors: { origin: "*" },
     adapter: createAdapter(redis, sub),
     cookie: true,
@@ -73,6 +76,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   );
 
   // Register test-only controller for session/cookie handling after body parser
+  Logger.gray("Setting up test REST API controller...");
   new TestRestApiController(app);
 
   // Build ApiContext and ServeApi as in production
@@ -85,6 +89,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
 
   context.env.load(true);
 
+  Logger.gray("Initializing API server...");
   const api = new ServeApi(context);
   await api.init();
 
@@ -92,7 +97,16 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   async function cleanup() {
     await io.close();
     await RedisConfig.disconnect();
+    if (httpServer.listening) {
+      return new Promise<void>((resolve) => {
+        httpServer.close(() => {
+          Logger.info("HTTP server closed");
+          resolve();
+        });
+      });
+    }
   }
 
-  return { app, dataSource: testDataSource, cleanup };
+  Logger.info("Test app initialized");
+  return { app, httpServer, dataSource: testDataSource, cleanup };
 }

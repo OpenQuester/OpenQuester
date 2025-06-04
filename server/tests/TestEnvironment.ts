@@ -1,6 +1,9 @@
 import { Client } from "pg";
 import { DataSource } from "typeorm";
-import { createTestAppDataSource } from "./TestUtils";
+
+import { RedisConfig } from "infrastructure/config/RedisConfig";
+import { Logger } from "infrastructure/utils/Logger";
+import { createTestAppDataSource } from "tests/utils/utils";
 
 export interface Fixture {
   entity: any;
@@ -19,9 +22,15 @@ export class TestEnvironment {
     this.testDataSource = createTestAppDataSource();
     await this.testDataSource.initialize();
     await this.testDataSource.runMigrations();
+
+    // Init Redis configuration
+    RedisConfig.getClient(); // Get client to initialize it
+    await RedisConfig.initConfig();
+    await RedisConfig.waitForConnection();
   }
 
   public async teardown(): Promise<void> {
+    Logger.info("Tearing down test environment...");
     if (this.testDataSource) {
       await this.testDataSource.destroy();
     }
@@ -41,12 +50,7 @@ export class TestEnvironment {
   }
 
   private async createTestDatabase(): Promise<void> {
-    const client = new Client({
-      user: "postgres",
-      password: "postgres",
-      host: "127.0.0.1",
-      port: 5432,
-    });
+    const client = this._getPGClient();
     await client.connect();
     await client.query("DROP DATABASE IF EXISTS test_db;");
     await client.query("CREATE DATABASE test_db;");
@@ -54,14 +58,20 @@ export class TestEnvironment {
   }
 
   private async dropTestDatabase(): Promise<void> {
+    const client = this._getPGClient();
+    await client.connect();
+    await client.query("DROP DATABASE IF EXISTS test_db;");
+    await client.end();
+  }
+
+  private _getPGClient() {
     const client = new Client({
       user: "postgres",
       password: "postgres",
       host: "127.0.0.1",
       port: 5432,
     });
-    await client.connect();
-    await client.query("DROP DATABASE IF EXISTS test_db;");
-    await client.end();
+
+    return client;
   }
 }

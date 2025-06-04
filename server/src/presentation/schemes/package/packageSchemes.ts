@@ -78,11 +78,9 @@ const questionSchema = baseQuestionSchema.keys({
         otherwise: Joi.when("type", {
           is: "choice",
           then: Joi.string().valid(PackageQuestionSubType.SIMPLE).required(),
-          otherwise: Joi.when("type", {
-            is: "hidden",
-            then: Joi.forbidden(), // No subType for hidden
-            otherwise: Joi.forbidden(),
-          }),
+          otherwise: Joi.string() // For hidden and simple types it's optional
+            .valid(PackageQuestionSubType.SIMPLE)
+            .optional(),
         }),
       }),
     }),

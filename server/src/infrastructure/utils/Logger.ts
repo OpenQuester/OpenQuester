@@ -125,6 +125,13 @@ export class Logger {
   }
 
   public static logMigrationComplete(version: string) {
+    const env = Environment.instance.ENV || process.env.ENV;
+
+    // Avoid unnecessary logging in test environment
+    if (env === "test") {
+      return;
+    }
+
     const prefix = "[Migration]";
 
     const log = `${prefix} Migration complete for version ${version}`;

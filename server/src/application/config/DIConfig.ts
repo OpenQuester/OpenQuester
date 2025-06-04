@@ -127,6 +127,9 @@ export class DIConfig {
       "service"
     );
 
+    // Initialize TranslateService to preload translations
+    await TranslateService.initialize();
+
     Container.register(
       CONTAINER_TYPES.RedisRepository,
       new RedisRepository(),

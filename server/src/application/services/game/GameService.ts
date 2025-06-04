@@ -127,6 +127,13 @@ export class GameService {
     return this.gameRepository.clearTimer(gameId, timerAdditional);
   }
 
+  /**
+   * @param expire seconds to expire the lock
+   */
+  public async gameLock(key: string, expire: number): Promise<boolean> {
+    return this.gameRepository.gameLock(key, expire);
+  }
+
   private _emitSocketGameCreated(gameData: GameListItemDTO) {
     const eventDataDTO: GameEventDTO = {
       event: GameEvent.CREATED,

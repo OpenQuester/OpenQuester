@@ -4,6 +4,7 @@ import {
   GAME_QUESTION_ANSWER_TIME,
   GAME_TTL_IN_SECONDS,
 } from "domain/constants/game";
+import { REDIS_LOCK_QUESTION_ANSWER } from "domain/constants/redis";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -30,6 +31,10 @@ export class SocketIOQuestionService {
     //
   }
 
+  private _getQuestionAnswerLockKey(gameId: string) {
+    return `${REDIS_LOCK_QUESTION_ANSWER}:${gameId}`;
+  }
+
   public async handleQuestionAnswer(socketId: string) {
     const { game, player } = await this._fetchPlayerAndGame(socketId);
 
@@ -46,7 +51,16 @@ export class SocketIOQuestionService {
       throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
     }
 
-    if (ValueUtils.isNumber(game.gameState.answeringPlayer)) {
+    const acquired = await this.gameService.gameLock(
+      this._getQuestionAnswerLockKey(game.id),
+      1
+    );
+
+    if (!acquired) {
+      throw new ClientError(ClientResponse.SOMEONE_ALREADY_ANSWERING);
+    }
+
+    if (!ValueUtils.isBad(game.gameState.answeringPlayer)) {
       throw new ClientError(ClientResponse.SOMEONE_ALREADY_ANSWERING);
     }
 

@@ -33,13 +33,15 @@ import { UpdatePackageTypesAndFields_1742727260372 as UpdatePackageTypesAndField
 import { AddPackageLogoFileForeignKey_1743338225856 as AddPackageLogoFK } from "infrastructure/database/migrations/0.9.7_Part4AddPackageLogoFileFK";
 import { AddTypeColumnForChoiceFile_1743660505666 as AddTypeColumnForChoiceFile } from "infrastructure/database/migrations/0.9.7_Part5AddTypeColumnForChoiceFile";
 
+// Socket imports
+
 export function setTestEnvDefaults() {
   process.env.ENV = "test";
   process.env.NODE_ENV = "test";
   process.env.DB_TYPE = "pg";
   process.env.DB_NAME = "test_db";
   process.env.DB_USER = "postgres";
-  process.env.DB_PASS = "postgres";
+  process.env.DB_PASS = "Asdf1234!";
   process.env.DB_HOST = "localhost";
   process.env.DB_PORT = "5432";
   process.env.DB_LOGGER = "false";
