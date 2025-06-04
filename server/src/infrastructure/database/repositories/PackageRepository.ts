@@ -242,6 +242,7 @@ export class PackageRepository {
           name: roundData.name,
           package: pack,
           order: roundData.order,
+          type: roundData.type,
         });
         roundsToSave.push(round);
         orders.add(roundData.order);

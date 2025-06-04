@@ -127,6 +127,9 @@ export class DIConfig {
       "service"
     );
 
+    // Initialize TranslateService to preload translations
+    await TranslateService.initialize();
+
     Container.register(
       CONTAINER_TYPES.RedisRepository,
       new RedisRepository(),
@@ -315,7 +318,6 @@ export class DIConfig {
         Container.get<SocketUserDataService>(
           CONTAINER_TYPES.SocketUserDataService
         ),
-        Container.get<SocketIOGameService>(CONTAINER_TYPES.SocketIOGameService),
         Container.get<GameService>(CONTAINER_TYPES.GameService)
       ),
       "service"

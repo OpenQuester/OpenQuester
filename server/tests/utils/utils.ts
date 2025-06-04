@@ -1,10 +1,4 @@
-import "reflect-metadata";
-import { DataSource } from "typeorm";
-import { SnakeNamingStrategy } from "typeorm-naming-strategies";
-
-import { ServerResponse } from "domain/enums/ServerResponse";
-import { Environment } from "infrastructure/config/Environment";
-import { Logger } from "infrastructure/utils/Logger";
+import { DataSource, DataSourceOptions } from "typeorm";
 
 // Models
 import { File } from "infrastructure/database/models/File";
@@ -39,67 +33,80 @@ import { UpdatePackageTypesAndFields_1742727260372 as UpdatePackageTypesAndField
 import { AddPackageLogoFileForeignKey_1743338225856 as AddPackageLogoFK } from "infrastructure/database/migrations/0.9.7_Part4AddPackageLogoFileFK";
 import { AddTypeColumnForChoiceFile_1743660505666 as AddTypeColumnForChoiceFile } from "infrastructure/database/migrations/0.9.7_Part5AddTypeColumnForChoiceFile";
 
-// Init env
-const env = Environment.instance;
+// Socket imports
 
-try {
-  env.load(false);
-} catch (err: unknown) {
-  let message = "unknown error";
-  if (err instanceof Error) {
-    message = err.message;
-  }
-  Logger.error(ServerResponse.FAILED_TO_LOAD_ENV);
-  Logger.error(`Error message: ${message}`);
-  // Bravely exit from process since it's migration process created by TypeORM
-  process.exit(0);
+export function setTestEnvDefaults() {
+  process.env.ENV = "test";
+  process.env.NODE_ENV = "test";
+  process.env.DB_TYPE = "pg";
+  process.env.DB_NAME = "test_db";
+  process.env.DB_USER = "postgres";
+  process.env.DB_PASS = "postgres";
+  process.env.DB_HOST = "localhost";
+  process.env.DB_PORT = "5432";
+  process.env.DB_LOGGER = "false";
+  process.env.SESSION_SECRET = "test_secret";
+  process.env.API_DOMAIN = "localhost";
+  process.env.SESSION_MAX_AGE = "3600000";
+  process.env.REDIS_HOST = "localhost";
+  process.env.REDIS_PORT = "6379";
+  process.env.REDIS_DB_NUMBER = "12";
+  process.env.CORS_ORIGINS = "localhost";
+  process.env.SOCKET_IO_CORS_ORIGINS = "localhost";
+  process.env.LOG_LEVEL = "info";
+  // Dummy S3, we don't check S3 in tests, used just to avoid errors
+  process.env.S3_HOST = "http://localhost:9000";
+  process.env.S3_USE_SSL = "false";
+  process.env.S3_BUCKET = "test-bucket";
+  process.env.S3_ACCESS_KEY = "test-access-key";
+  process.env.S3_SECRET_KEY = "test-secret-key";
+  process.env.S3_REGION = "eu-west";
 }
 
-/** TypeORM's data source. Used for all DB operations */
-export const AppDataSource = new DataSource({
-  type: "postgres",
-  host: env.DB_HOST,
-  port: Number(env.DB_PORT),
-  username: env.DB_USER,
-  password: env.DB_PASS,
-  database: env.DB_NAME,
-  synchronize: false,
-  logging: env.DB_LOGGER,
-  entities: [
-    User,
-    File,
-    Permission,
-    Package,
-    FileUsage,
-    PackageAnswerFile,
-    PackageQuestion,
-    PackageQuestionFile,
-    PackageRound,
-    PackageTag,
-    PackageTheme,
-    PackageQuestionChoiceAnswer,
-  ],
-  migrations: [
-    createUserAndFileTables,
-    createPermissionTable,
-    updateUserModelFields,
-    updateUserRequiredFields,
-    writeMoreToDB,
-    changePermissionValidation,
-    addDeletePermission,
-    addFileUsageTable,
-    renameAuthorAndAvatarId,
-    updateUserAndFileAndAddDiscordId,
-    changePackageModel,
-    MakeAuthorNullable,
-    UpdatePackageTypesAndFields,
-    AddPackageLogoFK,
-    AddTypeColumnForChoiceFile,
-    AddOrderColumn,
-    AddTypeToPackageRound,
-  ],
-  poolSize: 25,
-  migrationsRun: true,
-  subscribers: [],
-  namingStrategy: new SnakeNamingStrategy(),
-});
+export function createTestAppDataSource() {
+  setTestEnvDefaults();
+  const options: DataSourceOptions = {
+    type: "postgres",
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT || "5432", 10),
+    username: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
+    entities: [
+      User,
+      File,
+      Permission,
+      Package,
+      FileUsage,
+      PackageAnswerFile,
+      PackageQuestion,
+      PackageQuestionFile,
+      PackageRound,
+      PackageTag,
+      PackageTheme,
+      PackageQuestionChoiceAnswer,
+    ],
+    migrations: [
+      createUserAndFileTables,
+      createPermissionTable,
+      updateUserModelFields,
+      updateUserRequiredFields,
+      writeMoreToDB,
+      changePermissionValidation,
+      addDeletePermission,
+      addFileUsageTable,
+      renameAuthorAndAvatarId,
+      updateUserAndFileAndAddDiscordId,
+      changePackageModel,
+      MakeAuthorNullable,
+      UpdatePackageTypesAndFields,
+      AddPackageLogoFK,
+      AddTypeColumnForChoiceFile,
+      AddOrderColumn,
+      AddTypeToPackageRound,
+    ],
+    synchronize: false,
+    logging: false,
+  };
+  return new DataSource(options);
+}

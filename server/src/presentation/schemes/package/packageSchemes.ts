@@ -12,6 +12,7 @@ import {
 import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { PackagePaginationOpts } from "domain/types/pagination/package/PackagePaginationOpts";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 
@@ -77,11 +78,9 @@ const questionSchema = baseQuestionSchema.keys({
         otherwise: Joi.when("type", {
           is: "choice",
           then: Joi.string().valid(PackageQuestionSubType.SIMPLE).required(),
-          otherwise: Joi.when("type", {
-            is: "hidden",
-            then: Joi.forbidden(), // No subType for hidden
-            otherwise: Joi.forbidden(),
-          }),
+          otherwise: Joi.string() // For hidden and simple types it's optional
+            .valid(PackageQuestionSubType.SIMPLE)
+            .optional(),
         }),
       }),
     }),
@@ -155,6 +154,9 @@ const rounds = Joi.array()
       name: Joi.string().required(),
       order: Joi.number().min(0).required(),
       description: Joi.string().allow(null),
+      type: Joi.string()
+        .valid(...Object.values(PackageRoundType))
+        .required(),
       themes,
     }).required()
   )
