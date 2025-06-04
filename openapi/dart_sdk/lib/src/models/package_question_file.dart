@@ -21,8 +21,7 @@ abstract class PackageQuestionFile with _$PackageQuestionFile {
     required FileItem file,
 
     /// Display duration in milliseconds
-    @Default(5000)
-    int displayTime,
+    required int? displayTime,
   }) = _PackageQuestionFile;
   
   factory PackageQuestionFile.fromJson(Map<String, Object?> json) => _$PackageQuestionFileFromJson(json);

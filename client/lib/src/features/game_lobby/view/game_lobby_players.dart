@@ -116,7 +116,12 @@ class GameLobbyPlayer extends WatchingWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (player.role != PlayerRole.showman)
-                      _PlayerScoreText(score: player.score),
+                      _PlayerScoreText(score: player.score)
+                    else
+                      Text(
+                        LocaleKeys.showman.tr(),
+                        style: context.textTheme.bodySmall,
+                      ),
                   ],
                 ),
               ],

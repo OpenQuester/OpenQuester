@@ -11,7 +11,7 @@ _PackageQuestionFile _$PackageQuestionFileFromJson(Map<String, dynamic> json) =>
       id: (json['id'] as num?)?.toInt(),
       order: (json['order'] as num).toInt(),
       file: FileItem.fromJson(json['file'] as Map<String, dynamic>),
-      displayTime: (json['displayTime'] as num?)?.toInt() ?? 5000,
+      displayTime: (json['displayTime'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$PackageQuestionFileToJson(

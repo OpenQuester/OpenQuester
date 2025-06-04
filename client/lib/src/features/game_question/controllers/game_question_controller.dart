@@ -11,6 +11,7 @@ class GameQuestionController {
   late final questionData = ValueNotifier<GameQuestionData?>(null)
     ..addListener(_onQuestionChange);
   final mediaController = ValueNotifier<VideoPlayerController?>(null);
+  final showMedia = ValueNotifier<bool>(false);
   final error = ValueNotifier<String?>(null);
   final volume = ValueNotifier<double>(.5);
 
@@ -19,7 +20,11 @@ class GameQuestionController {
   Future<void> clear() async {
     questionData.value = null;
     error.value = null;
-    _tmpFile?.deleteSync();
+    showMedia.value = false;
+
+    final asyncActions = [?_tmpFile?.delete(), clearVideoControllers()];
+    await Future.wait(asyncActions);
+
     _tmpFile = null;
   }
 
@@ -31,12 +36,15 @@ class GameQuestionController {
 
       if (file == null) return;
 
+      VideoPlayerController? controller;
       if (file.type != PackageFileType.image) {
-        VideoPlayerController controller;
         final uri = Uri.parse(file.link!);
 
         // Fixes loading media without file extension
-        if (!kIsWeb && (Platform.isMacOS || Platform.isWindows)) {
+        final desktopPlatform =
+            !kIsWeb &&
+            (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
+        if (desktopPlatform) {
           await _setTmpFile(file);
           await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
           controller = VideoPlayerController.file(_tmpFile!);
@@ -45,15 +53,22 @@ class GameQuestionController {
         }
         await controller.setVolume(volume.value);
         await controller.initialize();
-        mediaController.value = controller;
 
-        await controller.play();
-
-        Future<void>.delayed(
-          Duration(milliseconds: questionData.value!.file!.displayTime),
-          () => mediaController.value?.pause(),
-        );
+        final waitMs = questionData.value?.file?.displayTime;
+        if (waitMs != null) {
+          Future<void>.delayed(
+            Duration(milliseconds: waitMs),
+            () => mediaController.value?.pause(),
+          );
+        }
       }
+
+      // Delay to let others players to download
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+
+      mediaController.value = controller;
+      await controller?.play();
+      showMedia.value = true;
     } catch (e) {
       error.value = getIt<GameLobbyController>().onError(e);
     }
@@ -77,7 +92,8 @@ class GameQuestionController {
   }
 
   Future<void> clearVideoControllers() async {
-    await mediaController.value?.dispose();
+    await mediaController.value?.pause();
+    // await mediaController.value?.dispose();
     mediaController.value = null;
   }
 
