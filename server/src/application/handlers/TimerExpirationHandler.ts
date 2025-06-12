@@ -2,6 +2,7 @@ import { Server as IOServer, Namespace } from "socket.io";
 
 import { GameService } from "application/services/game/GameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { REDIS_LOCK_EXPIRATION_KEY } from "domain/constants/redis";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
@@ -28,7 +29,8 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     private readonly io: IOServer,
     private readonly gameService: GameService,
     private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly redisService: RedisService
+    private readonly redisService: RedisService,
+    private readonly socketQuestionStateService: SocketQuestionStateService
   ) {
     //
   }
@@ -57,8 +59,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       );
 
       if (game.gameState.questionState === QuestionState.SHOWING) {
-        game.resetToChoosingState();
-        await this.gameService.updateGame(game);
+        await this.socketQuestionStateService.resetToChoosingState(game);
 
         this._gameNamespace
           .to(gameId)

@@ -109,7 +109,7 @@ export class SocketIOGameQuestionController {
       SocketIOGameEvents.QUESTION_ANSWER,
       {
         userId: userId!,
-        timer: timer.value(),
+        timer: timer.value()!,
       },
       { emitter: SocketEventEmitter.IO, gameId }
     );
@@ -209,7 +209,7 @@ export class SocketIOGameQuestionController {
     for (const [socketId, questionData] of map) {
       this.eventEmitter.emitToSocket<GameQuestionDataEventPayload>(
         SocketIOGameEvents.QUESTION_DATA,
-        { data: questionData, timer: timer.value() },
+        { data: questionData, timer: timer.value()! },
         socketId
       );
     }

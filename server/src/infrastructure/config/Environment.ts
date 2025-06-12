@@ -97,12 +97,6 @@ export class Environment {
       dotenv.config();
     }
 
-    // Do not load variables in test environment. It should be mocked for testing
-    if (process?.env["ENV"] === "test") {
-      Logger.error("Running in `test` environment!!", ENV_PREFIX);
-      return;
-    }
-
     this.loadEnv();
   }
 

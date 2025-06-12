@@ -47,6 +47,7 @@ export class GameStateMapper {
     return {
       id: round.id!,
       name: round.name,
+      type: round.type,
       description: round.description ?? null,
       order: round.order,
       themes: this.getRoundThemes(round),
