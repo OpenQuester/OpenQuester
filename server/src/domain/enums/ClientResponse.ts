@@ -21,6 +21,7 @@ export enum ClientResponse {
   OAUTH_PROVIDER_NOT_SUPPORTED = "oauth_provider_not_supported",
   SESSION_SAVING_ERROR = "session_saving_error",
   SOCKET_LOGGED_IN = "socket_logged_in",
+  FAILED_TO_FETCH_AVATAR = "failed_to_fetch_avatar",
 
   // Validation
   VALIDATION_ERROR = "validation_error",

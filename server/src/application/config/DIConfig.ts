@@ -10,9 +10,13 @@ import { FileUsageService } from "application/services/file/FileUsageService";
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
 import { PackageTagService } from "application/services/package/PackageTagService";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
+import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
+import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { TranslateService } from "application/services/text/TranslateService";
 import { UserService } from "application/services/user/UserService";
 import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
@@ -255,12 +259,54 @@ export class DIConfig {
     );
 
     Container.register(
-      CONTAINER_TYPES.SocketIOQuestionService,
-      new SocketIOQuestionService(
+      CONTAINER_TYPES.SocketGameContextService,
+      new SocketGameContextService(
         Container.get<SocketUserDataService>(
           CONTAINER_TYPES.SocketUserDataService
         ),
         Container.get<GameService>(CONTAINER_TYPES.GameService)
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.SocketGameTimerService,
+      new SocketGameTimerService(
+        Container.get<GameService>(CONTAINER_TYPES.GameService)
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.SocketGameValidationService,
+      new SocketGameValidationService(),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.SocketQuestionStateService,
+      new SocketQuestionStateService(
+        Container.get<GameService>(CONTAINER_TYPES.GameService)
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.SocketIOQuestionService,
+      new SocketIOQuestionService(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        ),
+        Container.get<SocketGameValidationService>(
+          CONTAINER_TYPES.SocketGameValidationService
+        ),
+        Container.get<SocketQuestionStateService>(
+          CONTAINER_TYPES.SocketQuestionStateService
+        ),
+        Container.get<SocketGameTimerService>(
+          CONTAINER_TYPES.SocketGameTimerService
+        )
       ),
       "service"
     );
@@ -276,7 +322,10 @@ export class DIConfig {
         Container.get<SocketIOQuestionService>(
           CONTAINER_TYPES.SocketIOQuestionService
         ),
-        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
+        Container.get<SocketQuestionStateService>(
+          CONTAINER_TYPES.SocketQuestionStateService
+        )
       ),
     ];
 
@@ -296,7 +345,16 @@ export class DIConfig {
           CONTAINER_TYPES.SocketUserDataService
         ),
         Container.get<GameService>(CONTAINER_TYPES.GameService),
-        Container.get<UserService>(CONTAINER_TYPES.UserService)
+        Container.get<UserService>(CONTAINER_TYPES.UserService),
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        ),
+        Container.get<SocketGameTimerService>(
+          CONTAINER_TYPES.SocketGameTimerService
+        ),
+        Container.get<SocketGameValidationService>(
+          CONTAINER_TYPES.SocketGameValidationService
+        )
       ),
       "service"
     );
@@ -315,10 +373,9 @@ export class DIConfig {
         Container.get<SocketChatRepository>(
           CONTAINER_TYPES.SocketChatRepository
         ),
-        Container.get<SocketUserDataService>(
-          CONTAINER_TYPES.SocketUserDataService
-        ),
-        Container.get<GameService>(CONTAINER_TYPES.GameService)
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        )
       ),
       "service"
     );

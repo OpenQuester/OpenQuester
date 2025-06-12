@@ -156,7 +156,7 @@ const rounds = Joi.array()
       description: Joi.string().allow(null),
       type: Joi.string()
         .valid(...Object.values(PackageRoundType))
-        .required(),
+        .optional(), // TODO: CHANGE TO REQUIRED
       themes,
     }).required()
   )

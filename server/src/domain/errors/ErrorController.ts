@@ -42,7 +42,7 @@ export class ErrorController {
     }
 
     if (error instanceof ServerError) {
-      Logger.error(`Internal server error: ${error.message} \n${error.stack}`);
+      Logger.error(`Internal server error: ${error.message}`);
       return {
         message: ServerResponse.INTERNAL_SERVER_ERROR,
         code: HttpStatus.INTERNAL,

@@ -72,5 +72,6 @@
   "only_showman_next_round": "Only showman can set next round",
   "only_showman_skip_question_force": "Only showman can skip question forcefully",
   "only_showman_can_pause": "Only showman can pause the game",
-  "only_showman_can_unpause": "Only showman can unpause the game"
+  "only_showman_can_unpause": "Only showman can unpause the game",
+  "failed_to_fetch_avatar": "Failed to fetch user avatar, please try later"
 }

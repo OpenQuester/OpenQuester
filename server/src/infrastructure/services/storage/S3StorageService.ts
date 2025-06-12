@@ -116,7 +116,10 @@ export class S3StorageService {
       https
         .get(cdnLink, (res) => {
           if (res.statusCode !== 200) {
-            resolve(true);
+            Logger.error(
+              `Failed to fetch file from CDN (${cdnLink}): ${res.statusCode}`
+            );
+            resolve(false);
             return;
           }
 
@@ -148,7 +151,7 @@ export class S3StorageService {
                   err,
                 })
               );
-              resolve(true);
+              resolve(false);
             }
           });
         })
@@ -159,7 +162,7 @@ export class S3StorageService {
               err,
             })
           );
-          resolve(true);
+          resolve(false);
         });
     });
   }
