@@ -7,6 +7,7 @@ import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
+import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
@@ -29,7 +30,8 @@ export class SocketIOGameService {
     private readonly userService: UserService,
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketGameTimerService: SocketGameTimerService,
-    private readonly socketGameValidationService: SocketGameValidationService
+    private readonly socketGameValidationService: SocketGameValidationService,
+    private readonly roundHandlerFactory: RoundHandlerFactory
   ) {
     //
   }
@@ -162,7 +164,13 @@ export class SocketIOGameService {
         )?.question ?? null;
     }
 
-    const { isGameFinished, nextGameState } = game.getProgressionState();
+    const roundHandler = this.roundHandlerFactory.createFromGame(game);
+    roundHandler.validateRoundProgression(game);
+
+    const { isGameFinished, nextGameState } =
+      await roundHandler.handleRoundProgression(game, {
+        forced: true,
+      });
 
     if (isGameFinished || nextGameState) {
       await this.gameService.updateGame(game);

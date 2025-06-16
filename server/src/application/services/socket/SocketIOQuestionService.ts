@@ -11,6 +11,7 @@ import { REDIS_LOCK_QUESTION_ANSWER } from "domain/constants/redis";
 import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
+import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -30,7 +31,8 @@ export class SocketIOQuestionService {
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketGameValidationService: SocketGameValidationService,
     private readonly socketQuestionStateService: SocketQuestionStateService,
-    private readonly socketGameTimerService: SocketGameTimerService
+    private readonly socketGameTimerService: SocketGameTimerService,
+    private readonly roundHandlerFactory: RoundHandlerFactory
   ) {
     //
   }
@@ -164,7 +166,9 @@ export class SocketIOQuestionService {
   }
 
   public async handleRoundProgression(game: Game) {
-    const { isGameFinished, nextGameState } = game.handleRoundProgression();
+    const roundHandler = this.roundHandlerFactory.createFromGame(game);
+    const { isGameFinished, nextGameState } =
+      await roundHandler.handleRoundProgression(game, { forced: false });
 
     if (isGameFinished || nextGameState) {
       await this.gameService.updateGame(game);

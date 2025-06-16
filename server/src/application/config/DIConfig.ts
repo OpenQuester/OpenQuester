@@ -20,6 +20,7 @@ import { SocketQuestionStateService } from "application/services/socket/SocketQu
 import { TranslateService } from "application/services/text/TranslateService";
 import { UserService } from "application/services/user/UserService";
 import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
+import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { RedisCache } from "infrastructure/cache/RedisCache";
 import { Database } from "infrastructure/database/Database";
@@ -292,6 +293,12 @@ export class DIConfig {
     );
 
     Container.register(
+      CONTAINER_TYPES.RoundHandlerFactory,
+      new RoundHandlerFactory(),
+      "service"
+    );
+
+    Container.register(
       CONTAINER_TYPES.SocketIOQuestionService,
       new SocketIOQuestionService(
         Container.get<GameService>(CONTAINER_TYPES.GameService),
@@ -306,7 +313,8 @@ export class DIConfig {
         ),
         Container.get<SocketGameTimerService>(
           CONTAINER_TYPES.SocketGameTimerService
-        )
+        ),
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
       ),
       "service"
     );
@@ -325,7 +333,8 @@ export class DIConfig {
         Container.get<RedisService>(CONTAINER_TYPES.RedisService),
         Container.get<SocketQuestionStateService>(
           CONTAINER_TYPES.SocketQuestionStateService
-        )
+        ),
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
       ),
     ];
 
@@ -354,7 +363,8 @@ export class DIConfig {
         ),
         Container.get<SocketGameValidationService>(
           CONTAINER_TYPES.SocketGameValidationService
-        )
+        ),
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
       ),
       "service"
     );

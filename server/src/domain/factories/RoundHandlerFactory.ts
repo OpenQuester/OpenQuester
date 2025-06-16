@@ -1,0 +1,43 @@
+import { Game } from "domain/entities/game/Game";
+import { ServerResponse } from "domain/enums/ServerResponse";
+import { ServerError } from "domain/errors/ServerError";
+import { BaseRoundHandler } from "domain/handlers/round/BaseRoundHandler";
+import { SimpleRoundHandler } from "domain/handlers/round/SimpleRoundHandler";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
+
+export class RoundHandlerFactory {
+  /**
+   * Creates a round handler for the specified round type
+   */
+  public create(roundType: PackageRoundType): BaseRoundHandler {
+    switch (roundType) {
+      case PackageRoundType.SIMPLE:
+      case PackageRoundType.FINAL:
+        return new SimpleRoundHandler();
+      default:
+        throw new ServerError(
+          ServerResponse.INVALID_ROUND_HANDLER_INPUT,
+          undefined,
+          {
+            type: roundType,
+          }
+        );
+    }
+  }
+
+  /**
+   * Creates a round handler based on the game's current round
+   */
+  public createFromGame(game: Game): BaseRoundHandler {
+    const roundType =
+      game.gameState.currentRound?.type ?? PackageRoundType.SIMPLE;
+    return this.create(roundType);
+  }
+
+  /**
+   * Gets all supported round types
+   */
+  public static getSupportedRoundTypes(): PackageRoundType[] {
+    return [PackageRoundType.SIMPLE, PackageRoundType.FINAL];
+  }
+}

@@ -29,6 +29,7 @@ export enum ClientResponse {
   BAD_ID_PROVIDED = "bad_id_provided",
   NO_AVATAR = "no_avatar",
   CANNOT_PARSE_USER_DATA = "cannot_parse_user_data",
+  INVALID_INPUT = "invalid_input",
 
   // Package
   NO_CONTENT_ROUNDS = "no_content_rounds",
@@ -65,6 +66,9 @@ export enum ClientResponse {
   GAME_ALREADY_STARTED = "game_already_started",
   GAME_NOT_STARTED = "game_not_started",
   BAD_ROUND_RETRIEVAL = "bad_round_retrieval",
+  ROUND_GAME_REQUIRED = "round_game_required",
+  ROUND_GAME_STATE_REQUIRED = "round_game_state_required",
+  ROUND_CURRENT_ROUND_REQUIRED = "round_current_round_required",
   ONLY_HOST_CAN_DELETE = "only_host_can_delete",
   YOU_CANNOT_PICK_QUESTION = "you_cannot_pick_question",
   YOU_CANNOT_ANSWER_QUESTION = "you_cannot_answer_question",
@@ -85,4 +89,5 @@ export enum ClientResponse {
 
   // Other
   DELETE_REQUEST_SENT = "delete_request_sent",
+  FEATURE_NOT_IMPLEMENTED = "feature_not_implemented",
 }
