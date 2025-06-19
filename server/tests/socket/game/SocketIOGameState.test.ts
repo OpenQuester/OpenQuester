@@ -70,7 +70,7 @@ describe("Socket Game State Tests", () => {
       const gameData = await utils.startGame(showmanSocket);
       const orderBeforeSkip = gameData.currentRound.order;
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 5000);
@@ -102,7 +102,7 @@ describe("Socket Game State Tests", () => {
       // Start game
       await utils.startGame(showmanSocket);
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 15000);
@@ -125,12 +125,111 @@ describe("Socket Game State Tests", () => {
       });
     });
 
-    it.skip("should handle game finish via all questions played", () => {
-      //
+    it("should handle game finish via all questions played", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      try {
+        // Start game
+        await utils.startGame(showmanSocket);
+
+        // Skip first round
+        showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Test timeout"));
+          }, 2000);
+
+          // Listen for game finish event
+          playerSockets[0].on(SocketIOGameEvents.GAME_FINISHED, (data: any) => {
+            clearTimeout(timeout);
+            expect(data).toBe(true);
+            resolve();
+          });
+
+          const playQuestion = async () => {
+            try {
+              // Pick question
+              await utils.pickQuestion(showmanSocket);
+
+              // Player answers
+              await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+              // Showman counts it as correct answer
+              await new Promise<void>((resolveAnswer) => {
+                playerSockets[0].once(
+                  SocketIOGameEvents.QUESTION_FINISH,
+                  () => {
+                    resolveAnswer();
+                  }
+                );
+
+                showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+                  scoreResult: 100,
+                  answerType: "correct",
+                });
+              });
+
+              // Continue to next question immediately
+              setTimeout(playQuestion, 100);
+            } catch {
+              // If we can't pick more questions, the game should finish soon
+            }
+          };
+
+          // Start playing questions after a short delay
+          setTimeout(playQuestion, 250);
+        });
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
     });
 
-    it.skip("should handle game finish via all questions played (last question skipped)", () => {
-      //
+    it("should handle game finish via all questions played (last question skipped)", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      try {
+        // Start game
+        await utils.startGame(showmanSocket);
+
+        // Skip first round
+        showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Test timeout"));
+          }, 2000);
+
+          // Listen for game finish event
+          playerSockets[0].on(SocketIOGameEvents.GAME_FINISHED, (data: any) => {
+            clearTimeout(timeout);
+            expect(data).toBe(true);
+            resolve();
+          });
+
+          const skipQuestion = async () => {
+            try {
+              // Pick question
+              await utils.pickQuestion(showmanSocket);
+
+              // Skip the question immediately
+              showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
+
+              // Continue to next question immediately
+              setTimeout(skipQuestion, 100);
+            } catch {
+              // If we can't pick more questions, the game should finish soon
+            }
+          };
+
+          // Start skipping questions after a short delay
+          setTimeout(skipQuestion, 250);
+        });
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
     });
   });
 
@@ -145,7 +244,7 @@ describe("Socket Game State Tests", () => {
         userRepo
       );
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 15000);
@@ -177,7 +276,7 @@ describe("Socket Game State Tests", () => {
       // Start game
       await utils.startGame(showmanSocket);
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 15000);
@@ -209,7 +308,7 @@ describe("Socket Game State Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { playerSockets } = setup;
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 8000);

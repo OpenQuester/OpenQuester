@@ -1,8 +1,8 @@
 import { Game } from "domain/entities/game/Game";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
-import { BaseRoundHandler } from "domain/handlers/round/BaseRoundHandler";
-import { SimpleRoundHandler } from "domain/handlers/round/SimpleRoundHandler";
+import { BaseRoundHandler } from "domain/handlers/socket/round/BaseRoundHandler";
+import { SimpleRoundHandler } from "domain/handlers/socket/round/SimpleRoundHandler";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 
 export class RoundHandlerFactory {

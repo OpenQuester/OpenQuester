@@ -9,7 +9,11 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import {
+  SocketIOEvents,
+  SocketIOGameEvents,
+} from "domain/enums/SocketIOEvents";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import {
   QuestionFinishEventPayload,
@@ -69,7 +73,7 @@ describe("Socket Question Flow Tests", () => {
       // Start the game first
       await utils.startGame(showmanSocket);
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 8000);
@@ -95,7 +99,7 @@ describe("Socket Question Flow Tests", () => {
       // Start the game first
       await utils.startGame(showmanSocket);
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 8000);
@@ -125,7 +129,7 @@ describe("Socket Question Flow Tests", () => {
       await utils.pickQuestion(showmanSocket);
       await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 15000);
@@ -160,7 +164,7 @@ describe("Socket Question Flow Tests", () => {
       await utils.pickQuestion(showmanSocket);
       await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 15000);
@@ -197,7 +201,7 @@ describe("Socket Question Flow Tests", () => {
       await utils.startGame(showmanSocket);
       await utils.pickQuestion(showmanSocket);
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 15000);
@@ -227,7 +231,7 @@ describe("Socket Question Flow Tests", () => {
       await utils.startGame(showmanSocket);
       await utils.pickQuestion(showmanSocket);
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const errorTimeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 5000);
@@ -253,43 +257,167 @@ describe("Socket Question Flow Tests", () => {
       });
     });
 
-    it.skip("should handle question skip during answer submission", () => {
-      // TODO: Test showman skipping while players are answering
-      // Expected: Should handle transition appropriately
-      // Flow:
-      // 1. Present question to players
-      // 2. Players begin answering while showman skips
-      // 3. Verify appropriate conflict resolution
-      // 4. Verify no lost answers or scoring issues
+    it("should handle question skip during answer submission", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      try {
+        // Present question to players
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket);
+
+        // Player begins answering
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        // Verify player is answering
+        const answeringState = await utils.getGameState(setup.gameId);
+        expect(answeringState).toBeDefined();
+        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(answeringState!.answeringPlayer).toBeDefined();
+
+        // Showman skips while player is answering
+        const questionFinishPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_FINISH
+        );
+        showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
+
+        const questionFinishData =
+          (await questionFinishPromise) as QuestionFinishEventPayload;
+
+        // Verify appropriate conflict resolution
+        expect(questionFinishData.answerFiles).toBeDefined();
+        expect(questionFinishData.answerText).toBeDefined();
+
+        // Verify game transitions properly and no scoring issues
+        const finalState = await utils.getGameState(setup.gameId);
+        expect(finalState).toBeDefined();
+        expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
+        expect(finalState!.answeringPlayer).toBeNull();
+        expect(finalState!.currentQuestion).toBeNull();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
     });
   });
 
   describe("Question Selection", () => {
-    it.skip("should handle selecting already played question", () => {
-      // TODO: Test selecting question that was already answered
-      // Expected: Should emit error or prevent selection
-      // Flow:
-      // 1. Start game and answer a question
-      // 2. Attempt to select same question again
-      // 3. Verify error handling
+    it("should handle selecting already played question", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      try {
+        // Start game and answer a question
+        await utils.startGame(showmanSocket);
+        const firstQuestionId = await utils.getFirstAvailableQuestionId(
+          setup.gameId
+        );
+        await utils.pickQuestion(showmanSocket, firstQuestionId);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        // Complete the question with correct answer
+        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: 100,
+          answerType: AnswerResultType.CORRECT,
+        });
+
+        // Wait for question to finish and return to choosing state
+        await utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_FINISH
+        );
+
+        // Verify we're back in choosing state
+        const choosingState = await utils.getGameState(setup.gameId);
+        expect(choosingState).toBeDefined();
+        expect(choosingState!.questionState).toBe(QuestionState.CHOOSING);
+        expect(choosingState!.currentQuestion).toBeNull();
+
+        // Attempt to select same question again - should emit error
+        const errorPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOEvents.ERROR
+        );
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: firstQuestionId,
+        });
+
+        const error = await errorPromise;
+        expect(error).toBeDefined();
+        expect(error.message).toBeDefined();
+        expect(error.message).toContain("already played");
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
     });
 
-    it.skip("should reject question selection from spectator", () => {
-      // TODO: After answering player implemented
-      // Flow:
-      // 1. Player answers a question correctly and get permission to select next question
-      // 2. Before question selection player becomes spectator
-      // 3. Attempt to select question as spectator
-      // 4. Verify that selection is rejected with appropriate error
+    it("should reject question selection from spectator", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
+      const { showmanSocket, spectatorSockets } = setup;
+
+      try {
+        // Start game
+        await utils.startGame(showmanSocket);
+
+        // Verify we're in choosing state
+        const gameState = await utils.getGameState(setup.gameId);
+        expect(gameState).toBeDefined();
+        expect(gameState!.questionState).toBe(QuestionState.CHOOSING);
+
+        // Spectator attempts to select question - should be rejected
+        const errorPromise = utils.waitForEvent(
+          spectatorSockets[0],
+          SocketIOEvents.ERROR
+        );
+        const questionId = await utils.getFirstAvailableQuestionId(
+          setup.gameId
+        );
+        spectatorSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: questionId,
+        });
+
+        const error = await errorPromise;
+        expect(error.message).toBeDefined();
+        expect(error.message).toContain("cannot pick question");
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
     });
 
-    it.skip("should handle question selection during wrong game state", () => {
-      // TODO: Test selecting question when not in CHOOSING state
-      // Expected: Should reject with state error
-      // Flow:
-      // 1. Start game and advance to ANSWERING state
-      // 2. Attempt to select another question
-      // 3. Verify state error
+    it("should handle question selection during wrong game state", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      try {
+        // Start game and advance to ANSWERING state
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        // Verify we're in ANSWERING state
+        const answeringState = await utils.getGameState(setup.gameId);
+        expect(answeringState).toBeDefined();
+        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(answeringState!.answeringPlayer).toBeDefined();
+
+        // Attempt to select another question while in wrong state
+        const errorPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOEvents.ERROR
+        );
+        const anotherQuestionId = await utils.getFirstAvailableQuestionId(
+          setup.gameId
+        );
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: anotherQuestionId,
+        });
+
+        const error = await errorPromise;
+        expect(error.message).toBeDefined();
+        expect(error.message).toContain("already picked");
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
     });
   });
 });

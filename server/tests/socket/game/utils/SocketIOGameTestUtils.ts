@@ -11,6 +11,7 @@ import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
+import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
@@ -391,9 +392,9 @@ export class SocketGameTestUtils {
     return await this.socketUserDataService.getSocketData(socket.id);
   }
 
-  public async getGameState(gameId: string): Promise<any> {
+  public async getGameState(gameId: string): Promise<GameStateDTO | null> {
     const game = await this.gameService.getGameEntity(gameId);
-    return game?.gameState;
+    return game?.gameState ?? null;
   }
 
   public async getFirstAvailableQuestionId(gameId: string): Promise<number> {

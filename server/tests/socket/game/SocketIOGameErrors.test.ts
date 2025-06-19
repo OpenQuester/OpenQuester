@@ -69,7 +69,7 @@ describe("Socket Game Error Tests", () => {
         userRepo
       );
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 8000);
@@ -99,7 +99,7 @@ describe("Socket Game Error Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { playerSockets } = setup;
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 5000);
@@ -207,7 +207,7 @@ describe("Socket Game Error Tests", () => {
       // Start game
       await utils.startGame(showmanSocket);
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 5000);
@@ -235,7 +235,7 @@ describe("Socket Game Error Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { playerSockets } = setup;
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 5000);
@@ -262,13 +262,37 @@ describe("Socket Game Error Tests", () => {
       });
     });
 
-    it.skip("should handle starting already started game", () => {
-      // TODO: Attempt to start game that's already in progress
-      // Expected: Should emit error or ignore request
-      // Flow:
-      // 1. Create and start game normally
-      // 2. Emit START_GAME again
-      // 3. Verify no state corruption
+    it("should handle starting already started game", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket } = setup;
+
+      try {
+        // Start game normally first
+        await utils.startGame(showmanSocket);
+
+        // Verify game is started by checking if currentRound exists
+        const gameState = await utils.getGameState(setup.gameId);
+        expect(gameState).toBeDefined();
+        expect(gameState!.currentRound).not.toBeNull();
+
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Test timeout"));
+          }, 5000);
+
+          showmanSocket.on(SocketIOEvents.ERROR, (error: any) => {
+            clearTimeout(timeout);
+            expect(error.message).toBeDefined();
+            error.message.includes("already started");
+            resolve();
+          });
+
+          // Try to start game again - should emit error
+          showmanSocket.emit(SocketIOGameEvents.START, {});
+        });
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
     });
   });
 
@@ -277,7 +301,7 @@ describe("Socket Game Error Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket } = setup;
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 5000);
@@ -325,7 +349,7 @@ describe("Socket Game Error Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { playerSockets } = setup;
 
-      return new Promise<void>((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Test timeout"));
         }, 5000);

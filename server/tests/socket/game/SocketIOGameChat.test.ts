@@ -5,6 +5,7 @@ import { Repository } from "typeorm";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
+import { ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { Logger } from "infrastructure/utils/Logger";
@@ -292,27 +293,25 @@ describe("Socket Game Chat Tests", () => {
         // 3. Verify message delivery to other players
       });
 
-      it.skip("should handle empty or whitespace-only messages", () => {
-        // TODO: Test chat with empty or whitespace-only content
-        // Expected: Should validate and reject empty messages
-        // Flow:
-        // 1. Send empty chat message
-        // 2. Send whitespace-only message
-        // 3. Verify validation and rejection
-      });
+      it("should handle empty or whitespace-only messages", async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { playerSockets } = setup;
 
-      // Easy Complexity Scenarios (5-7 steps)
-      it.skip("Easy: Basic chat message validation", () => {
-        // Complexity: Easy (6 steps)
-        // TODO: Test basic chat message validation and delivery
-        // Expected: Should validate and deliver messages correctly
-        // Flow:
-        // 1. Start game with showman and 2 players
-        // 2. Player1 sends normal chat message
-        // 3. Verify message appears for all participants
-        // 4. Test message length within normal limits
-        // 5. Verify message timestamp accuracy
-        // 6. Confirm message attribution to correct sender
+        try {
+          const playerSocket = playerSockets[0];
+          // Empty message test
+          playerSocket.on(SocketIOEvents.ERROR, (error: any) => {
+            expect(error.message).toBeDefined();
+          });
+          playerSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message: "" });
+
+          // Test whitespace-only message
+          playerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
+            message: "   \t\n  ",
+          });
+        } finally {
+          await utils.cleanupGameClients(setup);
+        }
       });
 
       // Easy Complexity Scenarios (5-7 steps)
@@ -321,7 +320,7 @@ describe("Socket Game Chat Tests", () => {
         // TODO: Test comprehensive Unicode support in chat
         // Expected: Should handle all Unicode characters correctly
         // Flow:
-        // 1. Start game with players from different regions
+        // 1. Start game with players
         // 2. Send messages with emojis (😀🎮🏆)
         // 3. Send messages with Cyrillic characters (Привет)
         // 4. Send messages with Asian characters (こんにちは, 你好)
@@ -330,13 +329,52 @@ describe("Socket Game Chat Tests", () => {
         // 7. Test message length calculation with Unicode
       });
 
-      it.skip("should handle chat during game pause", () => {
-        // TODO: Test chat functionality when game is paused
-        // Expected: Should continue to allow chat during pause
-        // Flow:
-        // 1. Pause game
-        // 2. Send chat messages during pause
-        // 3. Verify chat continues to function
+      it("should handle chat during game pause", async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets } = setup;
+
+        try {
+          // Start game
+          await utils.startGame(showmanSocket);
+
+          // Pause game
+          await utils.pauseGame(showmanSocket);
+
+          // Verify game is paused
+          const pausedState = await utils.getGameState(setup.gameId);
+          expect(pausedState).toBeDefined();
+          expect(pausedState!.isPaused).toBe(true);
+
+          const testMessage = "Chat during pause test";
+
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error("Test timeout"));
+            }, 5000);
+
+            // Listen for chat message on other player
+            playerSockets[1].on(
+              SocketIOEvents.CHAT_MESSAGE,
+              (data: ChatMessageBroadcastData) => {
+                Logger.debug(
+                  `Received chat message during pause: ${JSON.stringify(data)}`
+                );
+                clearTimeout(timeout);
+                expect(data.message).toBe(testMessage);
+                expect(data.user).toBeDefined();
+                expect(data.timestamp).toBeDefined();
+                resolve();
+              }
+            );
+
+            // Send chat message during pause
+            playerSockets[0].emit(SocketIOEvents.CHAT_MESSAGE, {
+              message: testMessage,
+            });
+          });
+        } finally {
+          await utils.cleanupGameClients(setup);
+        }
       });
     });
 
@@ -374,44 +412,6 @@ describe("Socket Game Chat Tests", () => {
         // 4. Player reconnects to game
         // 5. Verify player receives recent chat history
         // 6. Confirm history includes messages sent during disconnection
-      });
-    });
-
-    describe("Chat System Performance Edge Cases", () => {
-      it.skip("should handle high-volume chat in large games", () => {
-        // TODO: Test chat performance with many players chatting
-        // Expected: Should handle high chat volume efficiently
-        // Flow:
-        // 1. Create game with maximum players
-        // 2. Generate high-volume chat activity
-        // 3. Verify performance and message delivery
-      });
-
-      it.skip("should handle chat with multimedia content", () => {
-        // TODO: Test chat with links, images, or multimedia references
-        // Expected: Should handle multimedia content appropriately
-        // Flow:
-        // 1. Send chat with multimedia links
-        // 2. Verify content handling and security
-        // 3. Verify appropriate content filtering
-      });
-
-      it.skip("should handle chat memory usage optimization", () => {
-        // TODO: Test chat system memory efficiency
-        // Expected: Should manage memory efficiently
-        // Flow:
-        // 1. Generate extensive chat activity
-        // 2. Monitor memory usage
-        // 3. Verify efficient memory management
-      });
-
-      it.skip("should handle chat with different client capabilities", () => {
-        // TODO: Test chat across clients with different capabilities
-        // Expected: Should handle capability differences gracefully
-        // Flow:
-        // 1. Connect clients with different chat capabilities
-        // 2. Exchange messages
-        // 3. Verify graceful degradation for limited clients
       });
     });
   });

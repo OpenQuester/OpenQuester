@@ -168,6 +168,7 @@ export class ServeApi {
       deps.io,
       deps.socketIOGameService,
       deps.socketIOChatService,
+      deps.socketUserDataService,
       deps.socketIOQuestionService
     );
   }

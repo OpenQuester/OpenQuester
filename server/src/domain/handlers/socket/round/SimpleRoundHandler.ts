@@ -5,7 +5,7 @@ import {
   BaseRoundHandler,
   RoundProgressionOptions,
   RoundProgressionResult,
-} from "domain/handlers/round/BaseRoundHandler";
+} from "domain/handlers/socket/round/BaseRoundHandler";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";

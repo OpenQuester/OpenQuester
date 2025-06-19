@@ -5,6 +5,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { GameContext } from "domain/types/socket/game/GameContext";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
+import { Logger } from "infrastructure/utils/Logger";
 
 /**
  * Service responsible for fetching and validating socket game context.
@@ -33,6 +34,11 @@ export class SocketGameContextService {
       fetchDisconnected: false,
     });
 
+    // Log user activity for debugging (no additional Redis calls)
+    Logger.debug(
+      `User ${userSession.id} performing socket action | SocketId: ${socketId} | GameId: ${userSession.gameId}`
+    );
+
     return new GameContext(userSession, game, currentPlayer);
   }
 
@@ -45,6 +51,13 @@ export class SocketGameContextService {
     if (!userData) {
       throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
     }
+
+    // Log user activity for debugging (no additional Redis calls)
+    Logger.debug(
+      `User ${userData.id} socket activity | SocketId: ${socketId} | GameId: ${
+        userData.gameId || "none"
+      }`
+    );
 
     return userData;
   }
