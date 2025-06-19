@@ -2,6 +2,7 @@ import { Server as IOServer, Namespace } from "socket.io";
 
 import { GameService } from "application/services/game/GameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { REDIS_LOCK_EXPIRATION_KEY } from "domain/constants/redis";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
@@ -12,6 +13,7 @@ import {
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { ErrorController } from "domain/errors/ErrorController";
+import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
@@ -28,7 +30,9 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     private readonly io: IOServer,
     private readonly gameService: GameService,
     private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly redisService: RedisService
+    private readonly redisService: RedisService,
+    private readonly socketQuestionStateService: SocketQuestionStateService,
+    private readonly roundHandlerFactory: RoundHandlerFactory
   ) {
     //
   }
@@ -57,8 +61,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       );
 
       if (game.gameState.questionState === QuestionState.SHOWING) {
-        game.resetToChoosingState();
-        await this.gameService.updateGame(game);
+        await this.socketQuestionStateService.resetToChoosingState(game);
 
         this._gameNamespace
           .to(gameId)
@@ -72,7 +75,9 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
         }
 
         // Next round if all questions played
-        const { isGameFinished, nextGameState } = game.handleRoundProgression();
+        const roundHandler = this.roundHandlerFactory.createFromGame(game);
+        const { isGameFinished, nextGameState } =
+          await roundHandler.handleRoundProgression(game, { forced: false });
 
         if (isGameFinished || nextGameState) {
           await this.gameService.updateGame(game);

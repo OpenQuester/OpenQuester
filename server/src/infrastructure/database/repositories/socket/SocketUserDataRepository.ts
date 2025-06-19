@@ -23,7 +23,10 @@ export class SocketUserDataRepository {
     const data: Record<string, string> = await this.getRaw(socketId);
 
     return data && !ValueUtils.isEmpty(data)
-      ? { id: parseInt(data.id), gameId: data.gameId }
+      ? {
+          id: parseInt(data.id),
+          gameId: data.gameId === "null" ? null : data.gameId,
+        }
       : null;
   }
 

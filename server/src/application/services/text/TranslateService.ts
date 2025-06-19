@@ -18,6 +18,16 @@ export class TranslateService {
 
   private static _translationKeys: string[] = [];
 
+  public static async initialize(): Promise<void> {
+    try {
+      await this._loadTranslation("en");
+      await this._loadTranslationKeys();
+      Logger.gray("TranslateService initialized successfully");
+    } catch (error) {
+      Logger.error(`Failed to initialize TranslateService: ${error}`);
+    }
+  }
+
   /** Returns array that contains all translation keys */
   public static async translationKeys() {
     if (this._translationKeys.length > 0) {
@@ -29,16 +39,18 @@ export class TranslateService {
   }
 
   private static async _loadTranslationKeys() {
-    let translation = this._translationsMap.get("en");
+    const translation = await this._loadTranslation("en");
 
-    if (!translation || Object.keys(translation).length < 1) {
-      const filePath = path.join(this._translationsPath, "en.json");
-      translation = JSON.parse(await fs.promises.readFile(filePath, "utf8"));
+    if (!translation) {
+      Logger.warn("Failed to load English translation for keys extraction");
+      return;
     }
 
-    for (const key of Object.keys(translation as Translation)) {
-      if (!this._translationKeys.includes(key)) {
+    const keySet = new Set(this._translationKeys);
+    for (const key of Object.keys(translation)) {
+      if (!keySet.has(key)) {
         this._translationKeys.push(key);
+        keySet.add(key);
       }
     }
   }

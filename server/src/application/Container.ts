@@ -76,6 +76,13 @@ export const CONTAINER_TYPES = {
   SocketIOChatService: Symbol("SocketIOChatService"),
   RedisPubSubService: Symbol("RedisPubSubService"),
   SocketIOQuestionService: Symbol("SocketIOQuestionService"),
+  SocketGameContextService: Symbol("SocketGameContextService"),
+  SocketGameTimerService: Symbol("SocketGameTimerService"),
+  SocketGameValidationService: Symbol("SocketGameValidationService"),
+  SocketQuestionStateService: Symbol("SocketQuestionStateService"),
+
+  // Factories
+  RoundHandlerFactory: Symbol("RoundHandlerFactory"),
 
   // Use cases
   UserCacheUseCase: Symbol("UserCacheUseCase"),
