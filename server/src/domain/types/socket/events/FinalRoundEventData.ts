@@ -82,7 +82,6 @@ export interface PlayerBidData {
  */
 export interface BiddingPhaseInitializationResult {
   automaticBids: PlayerBidData[];
-  shouldTransitionToQuestion: boolean;
   questionData?: FinalRoundQuestionData;
   timer?: GameStateTimerDTO;
 }

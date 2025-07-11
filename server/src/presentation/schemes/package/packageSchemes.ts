@@ -27,7 +27,7 @@ const fileSchema = Joi.object({
 // Schema for package files (questionFiles, answerFiles)
 const packageFileSchema = Joi.object({
   file: fileSchema.required(),
-  displayTime: Joi.number().required(),
+  displayTime: Joi.number().valid(null).required(),
   order: Joi.number().min(0).required(),
 });
 

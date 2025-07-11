@@ -663,7 +663,6 @@ export class FinalRoundService {
 
       return {
         automaticBids,
-        shouldTransitionToQuestion: true,
         questionData,
         timer,
       } satisfies BiddingPhaseInitializationResult;
@@ -675,7 +674,6 @@ export class FinalRoundService {
 
       return {
         automaticBids,
-        shouldTransitionToQuestion: false,
         timer,
       } satisfies BiddingPhaseInitializationResult;
     }

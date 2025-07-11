@@ -99,31 +99,43 @@ export class ThemeEliminateEventHandler extends BaseSocketEventHandler<
         } satisfies SocketEventBroadcast<FinalBidSubmitOutputData>);
       }
 
-      if (biddingPhaseResult.shouldTransitionToQuestion) {
-        // Immediate transition to question phase
-        if (biddingPhaseResult.questionData) {
-          broadcasts.push({
-            event: SocketIOGameEvents.FINAL_QUESTION_DATA,
-            data: {
-              questionData: biddingPhaseResult.questionData,
-            } satisfies FinalQuestionEventData,
-            target: SocketBroadcastTarget.GAME,
-            gameId: game.id,
-          } satisfies SocketEventBroadcast<FinalQuestionEventData>);
-        }
-      } else {
-        // Send phase complete event with timer for remaining players
+      // Always emit FINAL_PHASE_COMPLETE for theme_elimination → bidding transition
+      broadcasts.push({
+        event: SocketIOGameEvents.FINAL_PHASE_COMPLETE,
+        data: {
+          phase: FinalRoundPhase.THEME_ELIMINATION,
+          nextPhase: FinalRoundPhase.BIDDING,
+          timer: biddingPhaseResult.timer,
+        } satisfies FinalPhaseCompleteEventData,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<FinalPhaseCompleteEventData>);
+
+      // If all players auto-bid (indicated by presence of questionData),
+      // emit question data and bidding → answering phase complete
+      if (biddingPhaseResult.questionData) {
+        broadcasts.push({
+          event: SocketIOGameEvents.FINAL_QUESTION_DATA,
+          data: {
+            questionData: biddingPhaseResult.questionData,
+          } satisfies FinalQuestionEventData,
+          target: SocketBroadcastTarget.GAME,
+          gameId: game.id,
+        } satisfies SocketEventBroadcast<FinalQuestionEventData>);
+
+        // Also emit FINAL_PHASE_COMPLETE for bidding → answering transition
         broadcasts.push({
           event: SocketIOGameEvents.FINAL_PHASE_COMPLETE,
           data: {
-            phase: FinalRoundPhase.THEME_ELIMINATION,
-            nextPhase: FinalRoundPhase.BIDDING,
+            phase: FinalRoundPhase.BIDDING,
+            nextPhase: FinalRoundPhase.ANSWERING,
             timer: biddingPhaseResult.timer,
           } satisfies FinalPhaseCompleteEventData,
           target: SocketBroadcastTarget.GAME,
           gameId: game.id,
         } satisfies SocketEventBroadcast<FinalPhaseCompleteEventData>);
       }
+      // If some players need to bid manually, the timer is already set for bidding phase
     }
 
     return {

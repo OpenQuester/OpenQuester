@@ -58,17 +58,33 @@ describe("Final Round Answering Logic", () => {
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
+      const questionDataPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_QUESTION_DATA
+      );
+
       // Complete theme elimination and bidding to reach answering phase
+      const phaseTransitionPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
       await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
-      await utils.wait(50);
+
+      await phaseTransitionPromise;
 
       // Submit bids to transition to answering phase
+      const firstBidPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_BID_SUBMIT
+      );
       playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
-      await utils.wait(50);
+
+      await firstBidPromise;
+
       playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
 
       // Wait for transition to answering phase
-      await utils.wait(50);
+      await questionDataPromise;
 
       // Verify game is in answering phase
       let gameState = await utils.getGameState(gameId);
@@ -93,17 +109,27 @@ describe("Final Round Answering Logic", () => {
         }
       );
 
+      const finalAnswerSubmitPromise = utils.waitForEvent(
+        playerSockets[1],
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
       // Submit answers from both players
       playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "Player 1 answer",
       });
-      await utils.wait(50);
+
+      await finalAnswerSubmitPromise;
+
+      const finalAnswerSubmitPromise2 = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
       playerSockets[1].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "Player 2 answer",
       });
 
       // Wait for events to be processed
-      await utils.wait(50);
+      await finalAnswerSubmitPromise2;
 
       // Verify answer submission events were received
       expect(answerSubmitEvents).toHaveLength(2);
@@ -141,16 +167,31 @@ describe("Final Round Answering Logic", () => {
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
       // Complete theme elimination and bidding to reach answering phase
+      const phaseTransitionPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
       await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
-      await utils.wait(50);
+
+      await phaseTransitionPromise;
 
       // Submit bids to transition to answering phase
+      const finalBidPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_BID_SUBMIT
+      );
+
       playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
-      await utils.wait(50);
+      await finalBidPromise;
+
+      const finalBidPromise2 = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_BID_SUBMIT
+      );
       playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
 
       // Wait for transition to answering phase
-      await utils.wait(50);
+      await finalBidPromise2;
 
       // Verify game is in answering phase
       const gameState = await utils.getGameState(gameId);
@@ -175,19 +216,28 @@ describe("Final Round Answering Logic", () => {
         }
       );
 
+      const finalAnswerSubmitPromise = utils.waitForEvent(
+        playerSockets[1],
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
+
       // Submit empty answer from first player
       playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "",
       });
-      await utils.wait(50);
+      await finalAnswerSubmitPromise;
 
+      const finalAnswerSubmitPromise2 = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
       // Submit regular answer from second player
       playerSockets[1].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "Player 2 answer",
       });
 
       // Wait for events to be processed
-      await utils.wait(50);
+      await finalAnswerSubmitPromise2;
 
       // Verify auto-loss event was received
       expect(autoLossEvents).toHaveLength(1);
@@ -219,14 +269,23 @@ describe("Final Round Answering Logic", () => {
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
       // Complete theme elimination and bidding to reach answering phase
+      const phaseTransitionPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
       await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
-      await utils.wait(50);
 
+      await phaseTransitionPromise;
+
+      const phaseCompletePromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
       // Submit bid to transition to answering phase
       playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
 
       // Wait for transition to answering phase
-      await utils.wait(50);
+      await phaseCompletePromise;
 
       // Verify game is in answering phase
       let gameState = await utils.getGameState(gameId);
@@ -242,13 +301,17 @@ describe("Final Round Answering Logic", () => {
         }
       );
 
+      const finalAnswerSubmitPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
       // Submit answer
       playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "Single player answer",
       });
 
       // Wait for events to be processed
-      await utils.wait(50);
+      await finalAnswerSubmitPromise;
 
       // Verify phase completion event was received
       expect(submitEndEvent).not.toBeNull();
@@ -278,18 +341,36 @@ describe("Final Round Answering Logic", () => {
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
       // Complete theme elimination and bidding to reach answering phase
+      const phaseTransitionPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
       await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
-      await utils.wait(50);
 
+      await phaseTransitionPromise;
+
+      const phaseCompletePromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
+
+      const bidPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_BID_SUBMIT
+      );
       // Submit bids to transition to answering phase
       playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
-      await utils.wait(50);
-      playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
-      await utils.wait(50);
-      playerSockets[2].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 400 });
+      await bidPromise;
 
-      // Wait for transition to answering phase
-      await utils.wait(50);
+      const bidPromise2 = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_BID_SUBMIT
+      );
+      playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
+      await bidPromise2;
+
+      playerSockets[2].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 400 });
+      await phaseCompletePromise;
 
       // Verify game is in answering phase
       let gameState = await utils.getGameState(gameId);
@@ -323,23 +404,35 @@ describe("Final Round Answering Logic", () => {
         }
       );
 
+      const finalAnswerSubmitPromise = utils.waitForEvent(
+        playerSockets[1],
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
       // Submit answers: regular, empty, regular
       playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "Answer from player 1",
       });
-      await utils.wait(100);
+      await finalAnswerSubmitPromise;
 
+      const finalAnswerSubmitPromise2 = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
       playerSockets[1].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "", // Empty answer (auto-loss)
       });
-      await utils.wait(100);
+      await finalAnswerSubmitPromise2;
 
+      const finalAnswerSubmitPromise3 = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
       playerSockets[2].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "Answer from player 3",
       });
 
       // Wait for events to be processed
-      await utils.wait(50);
+      await finalAnswerSubmitPromise3;
 
       // Verify all answer submission events were received
       expect(answerSubmitEvents).toHaveLength(3);
@@ -382,24 +475,50 @@ describe("Final Round Answering Logic", () => {
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
       // Complete theme elimination and bidding to reach answering phase
+      const phaseTransitionPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
       await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
-      await utils.wait(50);
 
+      await phaseTransitionPromise;
+
+      const phaseCompletePromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
+
+      const finalBidPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_BID_SUBMIT
+      );
       // Submit bids to transition to answering phase
       playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
-      await utils.wait(50);
+      await finalBidPromise;
+
       playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
-      await utils.wait(50);
+      await phaseCompletePromise;
+
+      const answerSubmitPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
 
       // Submit answers to get to reviewing phase
       playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "Player 1 answer",
       });
-      await utils.wait(50);
+      await answerSubmitPromise;
+
+      const answerSubmitPromise2 = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
+
       playerSockets[1].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "Player 2 answer",
       });
-      await utils.wait(50);
+      await answerSubmitPromise2;
 
       // Verify we're in reviewing phase
       const gameState = await utils.getGameState(gameId);
@@ -434,21 +553,31 @@ describe("Final Round Answering Logic", () => {
       expect(answerIds).toHaveLength(2);
 
       // Review second answer first (testing any order)
+      const reviewPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_REVIEW
+      );
+
       showmanSocket.emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
         answerId: answerIds[1],
         isCorrect: false,
       } satisfies FinalAnswerReviewInputData);
-      await utils.wait(50);
+      await reviewPromise;
 
       // Game should not finish yet
       expect(gameFinishedEvent).toBeNull();
 
       // Review first answer as correct
+      const reviewPromise2 = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_REVIEW
+      );
+
       showmanSocket.emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
         answerId: answerIds[0],
         isCorrect: true,
       } satisfies FinalAnswerReviewInputData);
-      await utils.wait(50);
+      await reviewPromise2;
 
       // Verify review events were received
       expect(reviewEvents).toHaveLength(2);
@@ -482,30 +611,63 @@ describe("Final Round Answering Logic", () => {
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
       // Complete theme elimination and bidding to reach answering phase
+      const phaseTransitionPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
       await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
-      await utils.wait(50);
 
+      await phaseTransitionPromise;
+
+      const phaseEndPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_PHASE_COMPLETE
+      );
       // Submit bids
+      const bidPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_BID_SUBMIT
+      );
       playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 800 });
-      await utils.wait(50);
-      playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
-      await utils.wait(50);
-      playerSockets[2].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 400 });
-      await utils.wait(50);
+      await bidPromise;
 
+      const bidPromise2 = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_BID_SUBMIT
+      );
+      playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 600 });
+      await bidPromise2;
+
+      playerSockets[2].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 400 });
+      await phaseEndPromise;
+
+      const answerPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
       // Submit answers - mix of answers and empty
       playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "Correct answer",
       });
-      await utils.wait(50);
+      await answerPromise;
+
+      const answerPromise2 = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
       playerSockets[1].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "Wrong answer",
       });
-      await utils.wait(50);
+      await answerPromise2;
+
+      const answerPromise3 = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+      );
       playerSockets[2].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
         answerText: "", // Empty answer - should be auto-loss
       });
-      await utils.wait(50);
+      await answerPromise3;
 
       // Verify we're in reviewing phase
       const gameState2 = await utils.getGameState(gameId);
@@ -537,11 +699,16 @@ describe("Final Round Answering Logic", () => {
         return answer?.playerId === playerUsers[1].id;
       });
 
+      const reviewPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_REVIEW
+      );
+
       showmanSocket.emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
         answerId: player2AnswerId!,
         isCorrect: false,
       } satisfies FinalAnswerReviewInputData);
-      await utils.wait(50);
+      await reviewPromise;
 
       // Then review player 1 as correct
       const player1AnswerId = answerIds.find((id) => {
@@ -549,11 +716,16 @@ describe("Final Round Answering Logic", () => {
         return answer?.playerId === playerUsers[0].id;
       });
 
+      const reviewPromise2 = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.FINAL_ANSWER_REVIEW
+      );
+
       showmanSocket.emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
         answerId: player1AnswerId!,
         isCorrect: true,
       } satisfies FinalAnswerReviewInputData);
-      await utils.wait(50);
+      await reviewPromise2;
 
       // Game should finish now because empty answer is auto-reviewed
       expect(gameFinishedEvent).toBe(true);

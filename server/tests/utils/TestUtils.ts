@@ -107,15 +107,14 @@ export class TestUtils {
       // Get current turn player from game state
       const currentTurnPlayerId = gameState.finalRoundData?.currentTurnPlayerId;
 
+      let currentPlayerSocket: GameClientSocket;
+
       if (!currentTurnPlayerId) {
         // Fallback to first player if no turn player is set
-        const currentPlayerSocket = playerSockets[0];
-        currentPlayerSocket.emit(SocketIOGameEvents.THEME_ELIMINATE, {
-          themeId: themeToEliminate.id,
-        });
+        currentPlayerSocket = playerSockets[0];
       } else {
         // Find the socket for the current turn player
-        let currentPlayerSocket: GameClientSocket | null = null;
+        let foundPlayerSocket: GameClientSocket | null = null;
 
         if (playerUsers) {
           // Match by user ID if user objects are provided
@@ -123,24 +122,29 @@ export class TestUtils {
             (user) => user.id === currentTurnPlayerId
           );
           if (userIndex !== -1) {
-            currentPlayerSocket = playerSockets[userIndex];
+            foundPlayerSocket = playerSockets[userIndex];
           }
         }
 
-        if (!currentPlayerSocket) {
-          currentPlayerSocket = playerSockets[0];
-        }
-
-        // Eliminate theme with the correct player
-        currentPlayerSocket.emit(SocketIOGameEvents.THEME_ELIMINATE, {
-          themeId: themeToEliminate.id,
-        });
+        currentPlayerSocket = foundPlayerSocket || playerSockets[0];
       }
 
-      eliminatedCount++;
+      // Set up listener for the theme elimination response before emitting
+      const eliminationPromise = this.waitForEvent(
+        currentPlayerSocket,
+        SocketIOGameEvents.THEME_ELIMINATE,
+        5000
+      );
 
-      // Add a small delay to let the backend process the elimination
-      await this.wait(100);
+      // Eliminate theme with the correct player
+      currentPlayerSocket.emit(SocketIOGameEvents.THEME_ELIMINATE, {
+        themeId: themeToEliminate.id,
+      });
+
+      // Wait for the elimination event to be received before continuing
+      await eliminationPromise;
+
+      eliminatedCount++;
     }
   }
 
@@ -160,6 +164,14 @@ export class TestUtils {
    */
   public async wait(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  public async waitForEvent<T = any>(
+    socket: GameClientSocket,
+    event: string,
+    timeout: number = 5000
+  ): Promise<T> {
+    return this.socketGameTestUtils.waitForEvent(socket, event, timeout);
   }
 
   /**
@@ -237,10 +249,14 @@ export class TestUtils {
 
     // Progress through rounds until we reach the final round
     for (let i = 0; i < finalRoundIndex; i++) {
+      const nextRoundPromise = this.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.NEXT_ROUND
+      );
       await this.socketGameTestUtils.progressToNextRound(showmanSocket);
 
       // Wait for round transition to complete
-      await this.wait(50);
+      await nextRoundPromise;
 
       // Check if we've reached the final round
       gameState = await this.getGameState(gameId);
@@ -249,9 +265,6 @@ export class TestUtils {
         break;
       }
     }
-
-    // Add extra wait time before final verification
-    await this.wait(50);
 
     // Verify we actually reached the final round
     const finalGameState = await this.getGameState(gameId);
