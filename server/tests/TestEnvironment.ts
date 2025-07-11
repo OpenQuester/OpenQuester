@@ -67,7 +67,7 @@ export class TestEnvironment {
   private _getPGClient() {
     const client = new Client({
       user: process.env.DB_USER || "postgres",
-      password: process.env.DB_PASS || "Asdf1234!",
+      password: process.env.DB_PASS || "postgres",
       host: process.env.DB_HOST || "127.0.0.1",
       port: parseInt(process.env.DB_PORT || "5432", 10),
     });
