@@ -27,7 +27,7 @@ const fileSchema = Joi.object({
 // Schema for package files (questionFiles, answerFiles)
 const packageFileSchema = Joi.object({
   file: fileSchema.required(),
-  displayTime: Joi.number().valid(null).required(),
+  displayTime: Joi.number().allow(null).required(),
   order: Joi.number().min(0).required(),
 });
 
@@ -158,7 +158,7 @@ const finalRoundThemes = Joi.array()
         .items(
           questionSchema.keys({
             type: Joi.string().valid("simple").required(),
-            price: Joi.valid(null).required(), // Final round questions must have null price
+            price: Joi.allow(null).required(), // Final round questions must have null price
             isHidden: Joi.boolean().valid(false).optional(),
           })
         )
