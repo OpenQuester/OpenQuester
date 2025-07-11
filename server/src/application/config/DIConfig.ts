@@ -10,6 +10,7 @@ import { FileUsageService } from "application/services/file/FileUsageService";
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
 import { PackageTagService } from "application/services/package/PackageTagService";
+import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
@@ -319,6 +320,24 @@ export class DIConfig {
       "service"
     );
 
+    Container.register(
+      CONTAINER_TYPES.FinalRoundService,
+      new FinalRoundService(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        ),
+        Container.get<SocketGameValidationService>(
+          CONTAINER_TYPES.SocketGameValidationService
+        ),
+        Container.get<SocketQuestionStateService>(
+          CONTAINER_TYPES.SocketQuestionStateService
+        ),
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
+      ),
+      "service"
+    );
+
     const handlers: RedisExpirationHandler[] = [
       new GameExpirationHandler(
         gameIndexManager,
@@ -334,7 +353,8 @@ export class DIConfig {
         Container.get<SocketQuestionStateService>(
           CONTAINER_TYPES.SocketQuestionStateService
         ),
-        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        Container.get<FinalRoundService>(CONTAINER_TYPES.FinalRoundService)
       ),
     ];
 
@@ -364,7 +384,10 @@ export class DIConfig {
         Container.get<SocketGameValidationService>(
           CONTAINER_TYPES.SocketGameValidationService
         ),
-        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        Container.get<SocketIOQuestionService>(
+          CONTAINER_TYPES.SocketIOQuestionService
+        )
       ),
       "service"
     );

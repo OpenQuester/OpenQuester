@@ -1,9 +1,14 @@
 import { Socket } from "socket.io";
 
+import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { BaseSocketEventHandler } from "domain/handlers/socket/BaseSocketEventHandler";
+import { FinalAnswerReviewEventHandler } from "domain/handlers/socket/finalround/FinalAnswerReviewEventHandler";
+import { FinalAnswerSubmitEventHandler } from "domain/handlers/socket/finalround/FinalAnswerSubmitEventHandler";
+import { FinalBidSubmitEventHandler } from "domain/handlers/socket/finalround/FinalBidSubmitEventHandler";
+import { ThemeEliminateEventHandler } from "domain/handlers/socket/finalround/ThemeEliminateEventHandler";
 import { JoinGameEventHandler } from "domain/handlers/socket/game/JoinGameEventHandler";
 import { LeaveGameEventHandler } from "domain/handlers/socket/game/LeaveGameEventHandler";
 import { NextRoundEventHandler } from "domain/handlers/socket/game/NextRoundEventHandler";
@@ -28,6 +33,7 @@ export class SocketEventHandlerFactory {
     private readonly socketIOGameService: SocketIOGameService,
     private readonly socketIOChatService: SocketIOChatService,
     private readonly socketUserDataService: SocketUserDataService,
+    private readonly finalRoundService: FinalRoundService,
     private readonly socketIOQuestionService?: SocketIOQuestionService
   ) {}
 
@@ -120,6 +126,37 @@ export class SocketEventHandlerFactory {
   }
 
   /**
+   * Create final round event handlers
+   */
+  public createFinalRoundHandlers(
+    socket: Socket,
+    eventEmitter: SocketIOEventEmitter
+  ): BaseSocketEventHandler[] {
+    return [
+      new ThemeEliminateEventHandler(
+        socket,
+        eventEmitter,
+        this.finalRoundService
+      ),
+      new FinalBidSubmitEventHandler(
+        socket,
+        eventEmitter,
+        this.finalRoundService
+      ),
+      new FinalAnswerSubmitEventHandler(
+        socket,
+        eventEmitter,
+        this.finalRoundService
+      ),
+      new FinalAnswerReviewEventHandler(
+        socket,
+        eventEmitter,
+        this.finalRoundService
+      ),
+    ];
+  }
+
+  /**
    * Create all available handlers
    */
   public createAllHandlers(
@@ -130,6 +167,7 @@ export class SocketEventHandlerFactory {
       ...this.createGameHandlers(socket, eventEmitter),
       ...this.createSystemHandlers(socket, eventEmitter),
       ...this.createQuestionHandlers(socket, eventEmitter),
+      ...this.createFinalRoundHandlers(socket, eventEmitter),
     ];
   }
 }

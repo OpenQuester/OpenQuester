@@ -9,6 +9,7 @@ import { type ApiContext } from "application/context/ApiContext";
 import { FileService } from "application/services/file/FileService";
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
+import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
@@ -121,6 +122,9 @@ export class ServeApi {
       socketIOGameService: Container.get<SocketIOGameService>(
         CONTAINER_TYPES.SocketIOGameService
       ),
+      finalRoundService: Container.get<FinalRoundService>(
+        CONTAINER_TYPES.FinalRoundService
+      ),
       socketUserDataService: Container.get<SocketUserDataService>(
         CONTAINER_TYPES.SocketUserDataService
       ),
@@ -169,6 +173,7 @@ export class ServeApi {
       deps.socketIOGameService,
       deps.socketIOChatService,
       deps.socketUserDataService,
+      deps.finalRoundService,
       deps.socketIOQuestionService
     );
   }

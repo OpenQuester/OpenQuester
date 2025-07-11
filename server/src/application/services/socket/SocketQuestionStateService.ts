@@ -1,4 +1,5 @@
 import { GameService } from "application/services/game/GameService";
+import { GAME_FINAL_ANSWER_TIME } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -77,5 +78,19 @@ export class SocketQuestionStateService {
     game.resetToChoosingState();
     await this.gameService.updateGame(game);
     await this.gameService.clearTimer(game.id);
+  }
+
+  /**
+   * Sets up timer for final round answer submission (75 seconds)
+   * This is used when all themes except one have been eliminated
+   * and players need to submit text answers
+   */
+  public async setupFinalAnswerTimer(game: Game): Promise<GameStateTimer> {
+    const timer = new GameStateTimer(GAME_FINAL_ANSWER_TIME);
+
+    game.gameState.timer = timer.start();
+    await this.gameService.saveTimer(timer.value()!, game.id);
+
+    return timer;
   }
 }

@@ -30,6 +30,8 @@ export interface GameTestSetup {
   showmanSocket: GameClientSocket;
   playerSockets: GameClientSocket[];
   spectatorSockets: GameClientSocket[];
+  showmanUser: User;
+  playerUsers: User[];
 }
 
 export class SocketGameTestUtils {
@@ -232,20 +234,24 @@ export class SocketGameTestUtils {
     userRepo: Repository<User>,
     app: Express,
     playerCount: number,
-    spectatorCount: number
+    spectatorCount: number,
+    includeFinalRound: boolean = true
   ): Promise<GameTestSetup> {
     // Create showman
-    const { socket: showmanSocket, gameId } = await this.createGameWithShowman(
-      app,
-      userRepo
-    );
+    const {
+      socket: showmanSocket,
+      gameId,
+      user: showmanUser,
+    } = await this.createGameWithShowman(app, userRepo, includeFinalRound);
 
     // Create players
     const playerSockets: GameClientSocket[] = [];
+    const playerUsers: User[] = [];
     for (let i = 0; i < playerCount; i++) {
-      const { socket } = await this.createGameClient(app, userRepo);
+      const { socket, user } = await this.createGameClient(app, userRepo);
       await this.joinGame(socket, gameId, PlayerRole.PLAYER);
       playerSockets.push(socket as GameClientSocket);
+      playerUsers.push(user);
     }
 
     // Create spectators
@@ -261,21 +267,27 @@ export class SocketGameTestUtils {
       showmanSocket: showmanSocket as GameClientSocket,
       playerSockets,
       spectatorSockets,
+      showmanUser,
+      playerUsers,
     };
   }
 
   async createGameWithShowman(
     app: Express,
-    userRepo: Repository<User>
-  ): Promise<{ socket: ClientSocket; gameId: string }> {
+    userRepo: Repository<User>,
+    includeFinalRound: boolean = true
+  ): Promise<{ socket: ClientSocket; gameId: string; user: User }> {
     // Create a test user and get authenticated socket
     const { socket, user, cookie } = await this.createGameClient(app, userRepo);
 
     // Create a test package
-    const packageData = this.packageUtils.createTestPackageData({
-      id: user.id,
-      username: user.username,
-    });
+    const packageData = this.packageUtils.createTestPackageData(
+      {
+        id: user.id,
+        username: user.username,
+      },
+      includeFinalRound
+    );
 
     const packageRes = await request(app)
       .post("/v1/packages")
@@ -322,7 +334,7 @@ export class SocketGameTestUtils {
     // Join the game as showman
     await this.joinGame(socket, gameId, PlayerRole.SHOWMAN);
 
-    return { socket, gameId };
+    return { socket, gameId, user };
   }
 
   public async deleteGame(
@@ -488,23 +500,54 @@ export class SocketGameTestUtils {
   public async progressToNextRound(
     showmanSocket: GameClientSocket
   ): Promise<void> {
-    return new Promise((resolve) => {
-      showmanSocket.once(SocketIOGameEvents.NEXT_ROUND, resolve);
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Timeout waiting for NEXT_ROUND event"));
+      }, 5000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        showmanSocket.removeListener(
+          SocketIOGameEvents.NEXT_ROUND,
+          onNextRound
+        );
+      };
+
+      const onNextRound = () => {
+        cleanup();
+        resolve();
+      };
+
+      showmanSocket.once(SocketIOGameEvents.NEXT_ROUND, onNextRound);
       showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND);
     });
   }
 
-  public async pauseGame(showmanSocket: GameClientSocket): Promise<void> {
+  public async skipQuestion(showmanSocket: GameClientSocket): Promise<void> {
     return new Promise((resolve) => {
-      showmanSocket.once(SocketIOGameEvents.GAME_PAUSE, resolve);
-      showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE);
+      showmanSocket.once(SocketIOGameEvents.QUESTION_FINISH, resolve);
+      showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE);
     });
   }
 
-  public async unpauseGame(showmanSocket: GameClientSocket): Promise<void> {
-    return new Promise((resolve) => {
-      showmanSocket.once(SocketIOGameEvents.GAME_UNPAUSE, resolve);
-      showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE);
+  public async pauseGame(showmanSocket: GameClientSocket): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Timeout waiting for GAME_PAUSE event"));
+      }, 5000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        showmanSocket.removeListener(SocketIOGameEvents.GAME_PAUSE, onPause);
+      };
+
+      const onPause = () => {
+        cleanup();
+        resolve();
+      };
+
+      showmanSocket.once(SocketIOGameEvents.GAME_PAUSE, onPause);
+      showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
     });
   }
 
@@ -626,5 +669,69 @@ export class SocketGameTestUtils {
 
   public async updateGame(game: Game): Promise<void> {
     return this.gameService.updateGame(game);
+  }
+
+  /**
+   * Properly set up final round game state in Redis using hash operations
+   * instead of simple string operations (which cause WRONGTYPE errors)
+   */
+  public async setupFinalRoundGameState(
+    gameId: string,
+    gameStateOptions: {
+      questionState?: string;
+      currentRound?: any;
+      finalRoundTurnOrder?: number[];
+      players?: any[];
+      currentTurnPlayerId?: number;
+      finalRoundData?: any;
+    }
+  ): Promise<void> {
+    const RedisConfig = await import("infrastructure/config/RedisConfig");
+    const redisClient = RedisConfig.RedisConfig.getClient();
+
+    // Create proper GameStateDTO structure
+    const gameState = {
+      questionState: gameStateOptions.questionState || "theme_elimination",
+      isPaused: false,
+      currentRound: gameStateOptions.currentRound || null,
+      currentQuestion: null,
+      answeringPlayer: null,
+      answeredPlayers: null,
+      readyPlayers: null,
+      timer: null,
+      finalRoundTurnOrder: gameStateOptions.finalRoundTurnOrder || [],
+      finalRoundData: gameStateOptions.finalRoundData
+        ? JSON.stringify(gameStateOptions.finalRoundData)
+        : null,
+    };
+
+    // Create minimal required hash fields for the game
+    const gameHash = {
+      id: gameId,
+      createdBy: "1",
+      title: "Test Game",
+      createdAt: Date.now().toString(),
+      isPrivate: "0",
+      ageRestriction: "none",
+      maxPlayers: "6",
+      package: JSON.stringify({
+        id: 1,
+        name: "Test Package",
+        rounds: [
+          {
+            type: "final",
+            themes: gameStateOptions.currentRound?.themes || [],
+          },
+        ],
+      }),
+      startedAt: Date.now().toString(),
+      finishedAt: "",
+      roundsCount: "1",
+      questionsCount: "1",
+      players: JSON.stringify(gameStateOptions.players || []),
+      gameState: JSON.stringify(gameState),
+    };
+
+    await redisClient.hset(`game:${gameId}`, gameHash);
   }
 }

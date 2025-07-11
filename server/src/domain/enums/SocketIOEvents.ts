@@ -22,4 +22,14 @@ export enum SocketIOGameEvents {
   SKIP_QUESTION_FORCE = "skip-question-force",
   GAME_PAUSE = "game-pause",
   GAME_UNPAUSE = "game-unpause",
+
+  // Final Round Events
+  THEME_ELIMINATE = "theme-eliminate",
+  FINAL_BID_SUBMIT = "final-bid-submit",
+  FINAL_ANSWER_SUBMIT = "final-answer-submit",
+  FINAL_ANSWER_REVIEW = "final-answer-review",
+  FINAL_PHASE_COMPLETE = "final-phase-complete",
+  FINAL_QUESTION_DATA = "final-question-data",
+  FINAL_SUBMIT_END = "final-submit-end",
+  FINAL_AUTO_LOSS = "final-auto-loss",
 }

@@ -16,8 +16,11 @@ import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { GetPlayerOptions } from "domain/types/game/GetPlayerOptions";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerMeta } from "domain/types/socket/game/PlayerMeta";
+import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
+import { FinalRoundTurnManager } from "domain/utils/FinalRoundTurnManager";
 import { Logger } from "infrastructure/utils/Logger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -261,6 +264,26 @@ export class Game {
     } else {
       nextGameState = GameStateMapper.getClearGameState(nextRound);
       this.gameState = nextGameState;
+
+      // If transitioning to final round, initialize final round data
+      if (nextRound.type === PackageRoundType.FINAL) {
+        const finalRoundData =
+          FinalRoundStateManager.initializeFinalRoundData(this);
+        finalRoundData.turnOrder =
+          FinalRoundTurnManager.initializeTurnOrder(this);
+
+        // Set the current turn player for theme elimination
+        const currentTurnPlayer = FinalRoundTurnManager.getCurrentTurnPlayer(
+          this,
+          finalRoundData.turnOrder
+        );
+        finalRoundData.currentTurnPlayerId = currentTurnPlayer ?? undefined;
+
+        FinalRoundStateManager.updateFinalRoundData(this, finalRoundData);
+
+        // Update the nextGameState to include the initialized final round data
+        nextGameState.finalRoundData = finalRoundData;
+      }
     }
 
     return { isGameFinished, nextGameState };

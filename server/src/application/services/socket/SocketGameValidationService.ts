@@ -2,9 +2,11 @@ import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -72,7 +74,9 @@ export class SocketGameValidationService {
         }
         break;
       case QuestionAction.SUBMIT_ANSWER:
-        // Not implemented yet
+        if (currentPlayer?.role !== PlayerRole.PLAYER) {
+          throw new ClientError(ClientResponse.INSUFFICIENT_PERMISSIONS);
+        }
         break;
       case QuestionAction.RESULT:
         if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
@@ -147,6 +151,34 @@ export class SocketGameValidationService {
 
     if (!game.gameState.currentQuestion) {
       throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
+    }
+  }
+
+  /**
+   * Validates conditions for final round answer submission
+   */
+  public validateFinalAnswerSubmission(
+    game: Game,
+    currentPlayer: Player | null
+  ): void {
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    if (currentPlayer.role !== PlayerRole.PLAYER) {
+      throw new ClientError(ClientResponse.INSUFFICIENT_PERMISSIONS);
+    }
+
+    this.validateCurrentRound(game);
+
+    // Check if it's a final round
+    if (game.gameState.currentRound?.type !== PackageRoundType.FINAL) {
+      throw new ClientError(ClientResponse.INVALID_ROUND_TYPE);
+    }
+
+    // Check if in answering phase
+    if (game.gameState.questionState !== QuestionState.ANSWERING) {
+      throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
   }
 }

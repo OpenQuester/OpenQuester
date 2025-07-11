@@ -126,7 +126,13 @@ describe("Socket Game State Tests", () => {
     });
 
     it("should handle game finish via all questions played", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const setup = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        1,
+        0,
+        false
+      );
       const { showmanSocket, playerSockets } = setup;
 
       try {

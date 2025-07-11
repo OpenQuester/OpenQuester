@@ -1,5 +1,6 @@
 import { Server as IOServer, Namespace, Socket } from "socket.io";
 
+import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
@@ -18,12 +19,14 @@ export class SocketIOInitializer {
     private readonly socketIOGameService: SocketIOGameService,
     private readonly socketIOChatService: SocketIOChatService,
     private readonly socketUserDataService: SocketUserDataService,
+    private readonly finalRoundService: FinalRoundService,
     private readonly socketIOQuestionService: SocketIOQuestionService
   ) {
     this.handlerFactory = new SocketEventHandlerFactory(
       this.socketIOGameService,
       this.socketIOChatService,
       this.socketUserDataService,
+      this.finalRoundService,
       this.socketIOQuestionService
     );
 
@@ -35,7 +38,7 @@ export class SocketIOInitializer {
   }
 
   private _initializeGameControllers(nsp: Namespace, socket: Socket) {
-    const eventEmitter = new SocketIOEventEmitter();
+    const eventEmitter = new SocketIOEventEmitter(this.socketIOGameService);
     eventEmitter.init(nsp, socket);
 
     // Initialize new standardized event handler registry

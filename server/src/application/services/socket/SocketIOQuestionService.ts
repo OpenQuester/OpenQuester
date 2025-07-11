@@ -13,12 +13,14 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
+import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import {
   AnswerResultData,
   AnswerResultType,
@@ -315,6 +317,67 @@ export class SocketIOQuestionService {
         resultMap.set(socketId, fullQuestionPayload);
       } else {
         resultMap.set(socketId, simpleQuestionPayload);
+      }
+    }
+
+    return resultMap;
+  }
+
+  public async getGameStateBroadcastMap(
+    socketIds: string[],
+    game: Game,
+    gameState: GameStateDTO
+  ): Promise<Map<string, GameStateDTO>> {
+    // SocketID to GameStateDTO map
+    const resultMap = new Map<string, GameStateDTO>();
+
+    const isFinalRound =
+      gameState.currentRound?.type === PackageRoundType.FINAL;
+
+    // If not final round, everyone gets same state
+    if (!isFinalRound) {
+      for (const socketId of socketIds) {
+        resultMap.set(socketId, gameState);
+      }
+      return resultMap;
+    }
+
+    const userDataPromises = socketIds.map((socketId) =>
+      this.socketGameContextService
+        .fetchUserSocketData(socketId)
+        .then((userSession) => ({
+          socketId,
+          userSession,
+        }))
+    );
+
+    const userDataResults = await Promise.all(userDataPromises);
+
+    // For each socket, provide appropriate game state based on role
+    for (const { socketId, userSession } of userDataResults) {
+      const player = game.getPlayer(userSession.id, {
+        fetchDisconnected: false,
+      });
+
+      if (player?.role === PlayerRole.SHOWMAN) {
+        // Showman gets full data
+        resultMap.set(socketId, gameState);
+      } else {
+        // Players and spectators get filtered data (no questions)
+        const playerGameState = { ...gameState };
+
+        // Only modify the currentRound part if it exists
+        if (playerGameState.currentRound) {
+          playerGameState.currentRound = {
+            ...playerGameState.currentRound,
+            themes: playerGameState.currentRound.themes.map((theme) => ({
+              ...theme,
+              questions: [], // Players get empty questions array
+            })),
+          };
+        }
+
+        resultMap.set(socketId, playerGameState);
       }
     }
 

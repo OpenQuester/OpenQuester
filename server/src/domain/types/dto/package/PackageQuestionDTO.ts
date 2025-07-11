@@ -15,7 +15,7 @@ export interface PackageQuestionDTO {
   id?: number;
   type: PackageQuestionType;
   order: number;
-  price: number;
+  price: number | null; // Final round questions have null price - players bid after theme selection
   isHidden: boolean;
   text?: string | null;
   answerHint?: string | null;

@@ -8,6 +8,7 @@ import {
   SocketEventBroadcast,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import {
@@ -73,16 +74,20 @@ export class SkipQuestionEventHandler extends BaseSocketEventHandler<
       const nextRoundPayload: GameNextRoundEventPayload = {
         gameState: nextGameState,
       };
+
       broadcasts.push({
         event: SocketIOGameEvents.NEXT_ROUND,
         data: nextRoundPayload,
         target: SocketBroadcastTarget.GAME,
         gameId: game.id,
+        useRoleBasedBroadcast:
+          nextGameState.currentRound?.type === PackageRoundType.FINAL,
       });
     }
 
     return {
       success: true,
+      data: {},
       broadcast: broadcasts,
     };
   }

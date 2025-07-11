@@ -9,6 +9,7 @@ import {
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -97,6 +98,8 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
         data: nextRoundPayload,
         target: SocketBroadcastTarget.GAME,
         gameId: game.id,
+        useRoleBasedBroadcast:
+          nextGameState.currentRound?.type === PackageRoundType.FINAL,
       });
 
       return {

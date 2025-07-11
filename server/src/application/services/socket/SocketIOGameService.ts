@@ -2,11 +2,13 @@ import { GameService } from "application/services/game/GameService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
+import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserService } from "application/services/user/UserService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
+import { ServerError } from "domain/errors/ServerError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
@@ -31,7 +33,8 @@ export class SocketIOGameService {
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketGameTimerService: SocketGameTimerService,
     private readonly socketGameValidationService: SocketGameValidationService,
-    private readonly roundHandlerFactory: RoundHandlerFactory
+    private readonly roundHandlerFactory: RoundHandlerFactory,
+    private readonly socketIOQuestionService: SocketIOQuestionService
   ) {
     //
   }
@@ -224,5 +227,27 @@ export class SocketIOGameService {
       );
     }
     return user;
+  }
+
+  public async getGameStateBroadcastMap(
+    socketIds: string[],
+    gameId: string,
+    gameState: GameStateDTO
+  ): Promise<Map<string, GameStateDTO>> {
+    // If game is not provided but gameId is, fetch the game
+    const game = await this.gameService.getGameEntity(gameId);
+
+    if (!game) {
+      throw new ServerError(
+        `Game not found for broadcast filtering: ${gameId}`
+      );
+    }
+
+    // Use the injected question service for broadcast map
+    return this.socketIOQuestionService.getGameStateBroadcastMap(
+      socketIds,
+      game,
+      gameState
+    );
   }
 }

@@ -16,6 +16,7 @@ export enum ClientResponse {
   INVALID_SESSION = "invalid_session",
   ACCESS_DENIED = "access_denied",
   NO_PERMISSION = "no_permission",
+  INSUFFICIENT_PERMISSIONS = "insufficient_permissions",
   LOGOUT_SUCCESS = "logout_success",
   DISCORD_AUTH_FAILED = "discord_auth_failed",
   OAUTH_PROVIDER_NOT_SUPPORTED = "oauth_provider_not_supported",
@@ -86,6 +87,20 @@ export enum ClientResponse {
   ONLY_SHOWMAN_SKIP_QUESTION_FORCE = "only_showman_skip_question_force",
   ONLY_SHOWMAN_CAN_PAUSE = "only_showman_can_pause",
   ONLY_SHOWMAN_CAN_UNPAUSE = "only_showman_can_unpause",
+
+  // Final Round
+  INVALID_ROUND_TYPE = "invalid_round_type",
+  INVALID_THEME_ID = "invalid_theme_id",
+  INVALID_QUESTION_STATE = "invalid_question_state",
+  FINAL_ROUND_INVALID_THEME_STRUCTURE = "final_round_invalid_theme_structure",
+  FINAL_ROUND_INVALID_QUESTION_TYPE = "final_round_invalid_question_type",
+  THEME_NOT_FOUND = "theme_not_found",
+  THEME_ALREADY_ELIMINATED = "theme_already_eliminated",
+  CANNOT_ELIMINATE_LAST_THEME = "cannot_eliminate_last_theme",
+  NOT_YOUR_TURN = "not_your_turn",
+  ANSWER_REQUIRED = "answer_required",
+  ANSWER_NOT_FOUND = "answer_not_found",
+  FINAL_ROUND_NOT_INITIALIZED = "final_round_not_initialized",
 
   // Other
   DELETE_REQUEST_SENT = "delete_request_sent",

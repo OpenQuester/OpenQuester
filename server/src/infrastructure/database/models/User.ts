@@ -1,5 +1,6 @@
 import {
   Column,
+  CreateDateColumn,
   Entity,
   JoinColumn,
   JoinTable,
@@ -8,6 +9,7 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
   Unique,
+  UpdateDateColumn,
 } from "typeorm";
 
 import { Container, CONTAINER_TYPES } from "application/Container";
@@ -44,10 +46,10 @@ export class User implements UserModel {
   @JoinColumn({ name: "avatar" })
   avatar?: File | null;
 
-  @Column()
+  @CreateDateColumn()
   created_at!: Date;
 
-  @Column()
+  @UpdateDateColumn()
   updated_at!: Date;
 
   @Column()

@@ -1,9 +1,12 @@
+import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import {
   SocketIOEvents,
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { ServerError } from "domain/errors/ServerError";
+import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
+import { Logger } from "infrastructure/utils/Logger";
 import { Namespace, Server, Socket } from "socket.io";
 
 type IOEVent = SocketIOEvents | SocketIOGameEvents;
@@ -12,7 +15,7 @@ export class SocketIOEventEmitter {
   private _io?: Namespace | Server;
   private _socket?: Socket;
 
-  constructor() {
+  constructor(private readonly gameService: SocketIOGameService) {
     //
   }
 
@@ -59,5 +62,47 @@ export class SocketIOEventEmitter {
     }
     const emitter = this._io;
     emitter.to(socketId).emit(event, data);
+  }
+
+  /**
+   * Special emit method for handling role-based broadcasting
+   * This is used for events where different users in a game should receive different data
+   * based on their role (e.g. Showman vs Player for final round data)
+   *
+   * This is specifically for GameStateDTO broadcasts in next round events
+   */
+  public async emitWithRoleBasedFiltering(
+    event: IOEVent,
+    data: { gameState: GameStateDTO },
+    gameId: string
+  ): Promise<void> {
+    if (!this._io || !this._socket) {
+      throw new ServerError("SocketIOEventEmitter not initialized");
+    }
+
+    try {
+      // Get all socket IDs in the game room
+      const sockets = await this._io.in(gameId).fetchSockets();
+      const socketIds = sockets.map((socket) => socket.id);
+
+      // Use the game service to get the broadcast map
+      const broadcastMap = await this.gameService.getGameStateBroadcastMap(
+        socketIds,
+        gameId,
+        data.gameState
+      );
+
+      // Emit to each socket with the appropriate data
+      for (const [socketId, gameState] of broadcastMap.entries()) {
+        const customData = { ...data, gameState };
+        this.emitToSocket(event, customData, socketId);
+      }
+    } catch (error: unknown) {
+      Logger.error(
+        `Error in role-based filtering emit: ${JSON.stringify(error)}`
+      );
+      // Fallback to regular room emit if role-based filtering fails
+      this._io.to(gameId).emit(event, data);
+    }
   }
 }

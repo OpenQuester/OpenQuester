@@ -3,6 +3,12 @@ import Joi from "joi";
 import { GAME_ID_CHARACTERS_LENGTH } from "domain/constants/game";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
+import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
+import {
+  FinalAnswerSubmitInputData,
+  FinalBidSubmitInputData,
+  ThemeEliminateInputData,
+} from "domain/types/socket/events/FinalRoundEventData";
 import {
   AnswerResultData,
   AnswerResultType,
@@ -53,6 +59,39 @@ export class GameValidator {
     });
 
     return this._validate<AnswerResultData>(data, schema);
+  }
+
+  public static validateThemeElimination(data: ThemeEliminateInputData) {
+    const schema = Joi.object<ThemeEliminateInputData>({
+      themeId: Joi.number().min(0).required(),
+    });
+
+    return this._validate<ThemeEliminateInputData>(data, schema);
+  }
+
+  public static validateBid(data: FinalBidSubmitInputData) {
+    const schema = Joi.object<FinalBidSubmitInputData>({
+      bid: Joi.number().min(1).required(),
+    });
+
+    return this._validate<FinalBidSubmitInputData>(data, schema);
+  }
+
+  public static validateFinalAnswerSubmit(data: FinalAnswerSubmitInputData) {
+    const schema = Joi.object<FinalAnswerSubmitInputData>({
+      answerText: Joi.string().max(255).allow("", null),
+    });
+
+    return this._validate<FinalAnswerSubmitInputData>(data, schema);
+  }
+
+  public static validateFinalAnswerReview(data: FinalAnswerReviewInputData) {
+    const schema = Joi.object<FinalAnswerReviewInputData>({
+      answerId: Joi.string().required(),
+      isCorrect: Joi.boolean().required(),
+    });
+
+    return this._validate<FinalAnswerReviewInputData>(data, schema);
   }
 
   private static _validate<T>(data: T, schema: Joi.ObjectSchema<T>) {

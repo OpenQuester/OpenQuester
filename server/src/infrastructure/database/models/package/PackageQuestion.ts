@@ -35,8 +35,8 @@ export class PackageQuestion {
   @JoinColumn({ name: "theme" })
   theme!: PackageTheme;
 
-  @Column()
-  price!: number;
+  @Column({ type: "int", nullable: true }) // Final round questions have null price - players bid after theme selection
+  price!: number | null;
 
   @Column({
     type: "enum",

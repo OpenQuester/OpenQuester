@@ -7,6 +7,7 @@ import {
   SocketBroadcastTarget,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
@@ -85,8 +86,13 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
         const nextRoundPayload: GameNextRoundEventPayload = {
           gameState: nextGameState,
         };
+
         return {
           success: true,
+          data: {
+            answerResult: playerAnswerResult,
+            timer: null,
+          },
           broadcast: [
             {
               event: SocketIOGameEvents.QUESTION_FINISH,
@@ -99,6 +105,8 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
               data: nextRoundPayload,
               target: SocketBroadcastTarget.GAME,
               gameId: game.id,
+              useRoleBasedBroadcast:
+                nextGameState.currentRound?.type === PackageRoundType.FINAL,
             },
           ],
         };
@@ -107,6 +115,10 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
       // For correct answers that don't trigger game finish or next round
       return {
         success: true,
+        data: {
+          answerResult: playerAnswerResult,
+          timer: null,
+        },
         broadcast: [
           {
             event: SocketIOGameEvents.QUESTION_FINISH,

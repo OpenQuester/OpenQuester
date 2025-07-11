@@ -33,7 +33,7 @@ const packageFileSchema = Joi.object({
 
 // Base question schema with common fields
 const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
-  price: Joi.number().required(),
+  price: Joi.number().allow(null).required(), // Final round questions have null price - players bid after theme selection
   order: Joi.number().min(0).required(),
   type: Joi.string()
     .valid(...Object.values(PackageQuestionType))
@@ -135,7 +135,7 @@ const questionSchema = baseQuestionSchema.keys({
 
 const questions = Joi.array().items(questionSchema).required();
 
-// Themes schema
+// Themes schema with conditional validation for final rounds
 const themes = Joi.array()
   .items(
     Joi.object<PackageThemeDTO>({
@@ -143,6 +143,27 @@ const themes = Joi.array()
       order: Joi.number().min(0).required(),
       description: Joi.string().allow(null),
       questions,
+    }).required()
+  )
+  .required();
+
+// Final round themes schema - each theme must have exactly one simple question
+const finalRoundThemes = Joi.array()
+  .items(
+    Joi.object<PackageThemeDTO>({
+      name: Joi.string().required(),
+      order: Joi.number().min(0).required(),
+      description: Joi.string().allow(null),
+      questions: Joi.array()
+        .items(
+          questionSchema.keys({
+            type: Joi.string().valid("simple").required(),
+            price: Joi.valid(null).required(), // Final round questions must have null price
+            isHidden: Joi.boolean().valid(false).optional(),
+          })
+        )
+        .length(1) // Exactly one question per theme in final round
+        .required(),
     }).required()
   )
   .required();
@@ -156,11 +177,41 @@ const rounds = Joi.array()
       description: Joi.string().allow(null),
       type: Joi.string()
         .valid(...Object.values(PackageRoundType))
-        .optional(), // TODO: CHANGE TO REQUIRED
-      themes,
+        .required(),
+      themes: Joi.when("type", {
+        is: PackageRoundType.FINAL,
+        then: finalRoundThemes,
+        otherwise: themes,
+      }),
     }).required()
   )
-  .required();
+  .required()
+  .custom((value, helpers) => {
+    // Validate that there's at only final round per package
+    const finalRounds = value.filter(
+      (round: PackageRoundDTO) => round.type === PackageRoundType.FINAL
+    );
+    if (finalRounds.length > 1) {
+      return helpers.error("custom.multipleFinalRounds");
+    }
+
+    // If there's a final round, it should be the last round
+    if (finalRounds.length === 1) {
+      const finalRoundIndex = value.findIndex(
+        (round: PackageRoundDTO) => round.type === PackageRoundType.FINAL
+      );
+      if (finalRoundIndex !== value.length - 1) {
+        return helpers.error("custom.finalRoundNotLast");
+      }
+    }
+
+    return value;
+  }, "Final round validation")
+  .messages({
+    "custom.multipleFinalRounds": "Package can have only one final round",
+    "custom.finalRoundNotLast":
+      "Final round must be the last round in the package",
+  });
 
 // Top-level upload package schema
 export const uploadPackageScheme = () =>

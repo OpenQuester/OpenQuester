@@ -106,20 +106,6 @@ export class SimpleRoundHandler extends BaseRoundHandler {
    * Handle progression state when all questions are played
    */
   private getProgressionState(game: Game): RoundProgressionResult {
-    let nextGameState = null;
-    let isGameFinished = false;
-
-    const nextRound = this.getNextRound(game);
-
-    if (!nextRound) {
-      // No more rounds, finish the game
-      game.finish();
-      isGameFinished = true;
-    } else {
-      // Move to next round
-      nextGameState = GameStateMapper.getClearGameState(nextRound);
-    }
-
-    return { isGameFinished, nextGameState };
+    return game.getProgressionState();
   }
 }

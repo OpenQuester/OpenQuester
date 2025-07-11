@@ -76,5 +76,20 @@
   "only_showman_skip_question_force": "Only showman can skip question forcefully",
   "only_showman_can_pause": "Only showman can pause the game",
   "only_showman_can_unpause": "Only showman can unpause the game",
-  "failed_to_fetch_avatar": "Failed to fetch user avatar, please try later"
+  "failed_to_fetch_avatar": "Failed to fetch user avatar, please try later",
+  "not_your_turn": "It's not your turn",
+  "theme_not_found": "Theme not found",
+  "theme_already_eliminated": "Theme has already been eliminated",
+  "cannot_eliminate_last_theme": "Cannot eliminate the last remaining theme",
+  "answer_required": "Answer is required",
+  "answer_not_found": "Answer not found",
+  "final_round_not_initialized": "Final round is not initialized",
+  "invalid_round_type": "Invalid round type",
+  "invalid_theme_id": "Invalid theme ID",
+  "invalid_question_state": "Invalid question state",
+  "final_round_invalid_theme_structure": "Invalid theme structure for final round",
+  "final_round_invalid_question_type": "Invalid question type for final round",
+  "insufficient_permissions": "Insufficient permissions to perform this action",
+  "invalid_input": "Invalid input provided",
+  "feature_not_implemented": "This feature is not implemented yet"
 }
