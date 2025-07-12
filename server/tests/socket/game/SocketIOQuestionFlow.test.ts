@@ -24,7 +24,7 @@ import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
-import { SocketGameTestUtils } from "./utils/SocketIOGameTestUtils";
+import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 describe("Socket Question Flow Tests", () => {
   let testEnv: TestEnvironment;

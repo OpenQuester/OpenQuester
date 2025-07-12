@@ -16,9 +16,9 @@ import {
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
-import { bootstrapTestApp } from "../../TestApp";
-import { TestEnvironment } from "../../TestEnvironment";
-import { SocketGameTestUtils } from "./utils/SocketIOGameTestUtils";
+import { bootstrapTestApp } from "tests/TestApp";
+import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 describe("Socket Timer and Pause Edge Cases", () => {
   let testEnv: TestEnvironment;

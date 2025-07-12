@@ -21,7 +21,7 @@ import { TestEnvironment } from "tests/TestEnvironment";
 import {
   GameTestSetup,
   SocketGameTestUtils,
-} from "./utils/SocketIOGameTestUtils";
+} from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 // Helper function to verify final round data in game state
 function verifyFinalRoundData(gameState: GameStateDTO) {

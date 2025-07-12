@@ -245,34 +245,117 @@ describe("Socket Game Chat Tests", () => {
       await utils.disconnectAndCleanup(newPlayer.socket);
     });
 
-    // TODO Tests moved from SocketIOChatAndCommunicationEdgeCases.test.ts
     describe("Chat Message Edge Cases", () => {
-      it.skip("should handle extremely long chat messages", () => {
-        // TODO: Test chat with messages exceeding length limits
-        // Expected: Should truncate or reject overly long messages
-        // Flow:
-        // 1. Join game as player
-        // 2. Send message exceeding character limit
-        // 3. Verify message length validation
-        // 4. Verify appropriate handling (truncation/rejection)
+      it("should trim leading and trailing whitespace in chat messages", async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { playerSockets } = setup;
+        const playerSocket = playerSockets[0];
+        try {
+          // Message with leading and trailing whitespace
+          const original = "   Hello, world!   \n\t  ";
+          const receivePromise = utils.waitForEvent(
+            playerSocket,
+            SocketIOEvents.CHAT_MESSAGE
+          );
+          playerSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message: original });
+          const response = await receivePromise;
+          expect(response.message).toBe("Hello, world!");
+        } finally {
+          await utils.cleanupGameClients(setup);
+        }
       });
 
-      it.skip("should handle malicious script injection in chat", () => {
-        // TODO: Test protection against script injection attacks
-        // Expected: Should sanitize and prevent script execution
-        // Flow:
-        // 1. Send chat message with script tags/code
-        // 2. Verify message sanitization
-        // 3. Verify no script execution on client side
+      it("should handle extremely long chat messages", async () => {
+        // 1. Setup game with 1 player
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { playerSockets } = setup;
+        const playerSocket = playerSockets[0];
+        try {
+          // 2. Send message at max length (255 chars)
+          const maxLengthMessage = "a".repeat(255);
+          const receivePromise = utils.waitForEvent(
+            playerSocket,
+            SocketIOEvents.CHAT_MESSAGE
+          );
+          playerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
+            message: maxLengthMessage,
+          });
+          const response = await receivePromise;
+          expect(response.message).toBe(maxLengthMessage);
+
+          // 3. Send message exceeding max length (256 chars)
+          const tooLongMessage = "b".repeat(256);
+          const errorPromise = utils.waitForEvent(
+            playerSocket,
+            SocketIOEvents.ERROR
+          );
+          playerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
+            message: tooLongMessage,
+          });
+          const error = await errorPromise;
+          // Should be a validation error, message may mention length or validation
+          expect(error.message).toMatch(/length|validation|255/i);
+        } finally {
+          await utils.cleanupGameClients(setup);
+        }
       });
 
-      it.skip("should handle special characters and Unicode in chat", () => {
-        // TODO: Test chat with special characters, emojis, Unicode
-        // Expected: Should handle Unicode properly
-        // Flow:
-        // 1. Send messages with various Unicode characters
-        // 2. Verify proper encoding/decoding
-        // 3. Verify display consistency across clients
+      it("should handle special characters, complex Unicode, and internationalization in chat", async () => {
+        // Covers: emojis, Cyrillic, Asian, Arabic, mixed scripts, and Unicode length
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+        const { playerSockets, spectatorSockets, showmanSocket } = setup;
+        const senderSocket = playerSockets[0];
+        const allReceivers = [
+          ...playerSockets,
+          ...spectatorSockets,
+          showmanSocket,
+        ];
+        try {
+          const messages = [
+            // Simple and mixed scripts
+            "Hello, 世界!", // Chinese
+            "Привет, мир!", // Cyrillic
+            "こんにちは世界", // Japanese
+            "مرحبا بالعالم", // Arabic
+            "😀🎮🏆", // Emojis
+            "Special chars: !@#$%^&*()_+-=[]{};':\",.<>/?|`~",
+            "Mix: Hello 🌍 你好 мир 😀",
+            // Mixed-script message
+            "Test: 😀 Привет 你好 Hello مرحبا",
+          ];
+
+          // For Unicode, 255 code units, not code points (Joi counts JS string length)
+          // Each emoji is 2 code units, so 127 emojis = 254, add 1 ASCII for 255
+          const maxUnicodeMsg = "😀".repeat(127) + "a";
+          const overMaxUnicodeMsg = "😀".repeat(128); // 256 code units
+          messages.push(maxUnicodeMsg);
+
+          for (const msg of messages) {
+            const receivePromises = allReceivers.map((socket) =>
+              utils.waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE)
+            );
+            senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message: msg });
+            const results = await Promise.all<ChatMessageBroadcastData>(
+              receivePromises
+            );
+            for (const res of results) {
+              expect(res.message).toBe(msg);
+            }
+          }
+
+          // Over max length Unicode message should be rejected
+          const errorPromise = utils.waitForEvent(
+            senderSocket,
+            SocketIOEvents.ERROR
+          );
+          senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
+            message: overMaxUnicodeMsg,
+          });
+          const error = await errorPromise;
+          expect(error.message).toMatch(/length|validation|255/i);
+        } finally {
+          await utils.cleanupGameClients(setup);
+        }
       });
 
       it.skip("should handle chat message flooding", () => {
@@ -284,13 +367,49 @@ describe("Socket Game Chat Tests", () => {
         // 3. Verify spam protection
       });
 
-      it.skip("should handle chat messages from disconnected players", () => {
-        // TODO: Test chat behavior when sender disconnects after sending
-        // Expected: Should handle gracefully
-        // Flow:
-        // 1. Send chat message
-        // 2. Immediately disconnect sender
-        // 3. Verify message delivery to other players
+      it("should handle chat messages from disconnected players", async () => {
+        // 1. Setup game with 2 players, 1 spectator
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+        const { playerSockets, spectatorSockets, showmanSocket } = setup;
+        const senderSocket = playerSockets[0];
+        const otherSockets = [
+          playerSockets[1],
+          ...spectatorSockets,
+          showmanSocket,
+        ];
+        const testMessage = "Message before disconnect";
+
+        // 2. Prepare listeners for all other sockets
+        const receivePromises = otherSockets.map((socket) =>
+          utils.waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE)
+        );
+
+        // 3. Wait for sender to receive their own message (ensures server processed it)
+        const senderReceivePromise = utils.waitForEvent(
+          senderSocket,
+          SocketIOEvents.CHAT_MESSAGE
+        );
+        senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
+          message: testMessage,
+        });
+        await senderReceivePromise;
+
+        // 4. Now disconnect sender
+        await utils.disconnectAndCleanup(senderSocket);
+
+        // 5. Verify all other sockets received the message
+        const results = await Promise.all(receivePromises);
+        for (const res of results) {
+          expect(res.message).toBe(testMessage);
+          expect(res.user).toBeDefined();
+        }
+
+        // 6. Cleanup remaining sockets
+        // Clean up remaining sockets using the original setup object
+        await utils.cleanupGameClients({
+          ...setup,
+          playerSockets: [playerSockets[1]],
+        });
       });
 
       it("should handle empty or whitespace-only messages", async () => {
@@ -315,19 +434,6 @@ describe("Socket Game Chat Tests", () => {
       });
 
       // Easy Complexity Scenarios (5-7 steps)
-      it.skip("Easy: Complex Unicode and internationalization", () => {
-        // Complexity: Medium (10 steps)
-        // TODO: Test comprehensive Unicode support in chat
-        // Expected: Should handle all Unicode characters correctly
-        // Flow:
-        // 1. Start game with players
-        // 2. Send messages with emojis (😀🎮🏆)
-        // 3. Send messages with Cyrillic characters (Привет)
-        // 4. Send messages with Asian characters (こんにちは, 你好)
-        // 5. Send messages with Arabic script (مرحبا)
-        // 6. Test mixed-script messages in single message
-        // 7. Test message length calculation with Unicode
-      });
 
       it("should handle chat during game pause", async () => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
@@ -391,27 +497,110 @@ describe("Socket Game Chat Tests", () => {
     });
 
     describe("Chat History and Persistence Edge Cases", () => {
-      it.skip("should handle chat history limits", () => {
-        // TODO: Test chat history size limitations
-        // Expected: Should limit history size appropriately
-        // Flow:
-        // 1. Generate large number of chat messages
-        // 2. Verify history size limits
-        // 3. Verify oldest messages are removed
+      it("should handle chat history limits", async () => {
+        // The backend limit is 100 (GAME_CHAT_HISTORY_RETRIEVAL_LIMIT)
+        // We'll send 120 messages, then join as a new client and verify only the most recent 100 are returned
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { playerSockets, showmanSocket } = setup;
+        const senderSocket = playerSockets[0];
+        const totalMessages = 120;
+        const historyLimit = 100;
+        // Send 120 messages
+        for (let i = 1; i <= totalMessages; i++) {
+          const msg = `msg-${i}`;
+          senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message: msg });
+          // Wait for the message to be processed (to avoid race conditions)
+          await utils.waitForEvent(senderSocket, SocketIOEvents.CHAT_MESSAGE);
+        }
+
+        // Now join as a new player and check chat history
+        const newPlayer = await utils.createGameClient(app, userRepo);
+        const gameData = await utils.joinSpecificGameWithData(
+          newPlayer.socket,
+          showmanSocket.gameId!,
+          PlayerRole.PLAYER
+        );
+
+        expect(gameData.chatMessages).toBeDefined();
+        expect(Array.isArray(gameData.chatMessages)).toBe(true);
+        expect(gameData.chatMessages.length).toBe(historyLimit);
+
+        // The backend returns messages in reverse-chronological order (newest first)
+        const expectedMessages = Array.from(
+          { length: historyLimit },
+          (_, i) => `msg-${totalMessages - i}`
+        );
+        const actualMessages = gameData.chatMessages.map((m: any) => m.message);
+        expect(actualMessages).toEqual(expectedMessages);
+
+        await utils.disconnectAndCleanup(newPlayer.socket);
+        await utils.cleanupGameClients(setup);
       });
 
       // Easy Complexity Scenarios (5-7 steps)
-      it.skip("Easy: Basic chat history retrieval", () => {
-        // Complexity: Easy (6 steps)
-        // TODO: Test basic chat history functionality
-        // Expected: Should provide recent chat history to reconnecting players
-        // Flow:
-        // 1. Start game and exchange 10 chat messages
-        // 2. Player disconnects after message exchange
-        // 3. Additional 5 messages sent while player disconnected
-        // 4. Player reconnects to game
-        // 5. Verify player receives recent chat history
-        // 6. Confirm history includes messages sent during disconnection
+      it("Easy: Basic chat history retrieval", async () => {
+        // 1. Setup game with 2 players
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { playerSockets, showmanSocket } = setup;
+        const senderSocket = playerSockets[0];
+        const reconnectingSocket = playerSockets[1];
+        // 2. Start game
+        await utils.startGame(showmanSocket);
+
+        // 3. Exchange 10 chat messages (sender alternates)
+        const allMessages: string[] = [];
+        for (let i = 1; i <= 10; i++) {
+          const msg = `msg-${i}`;
+          allMessages.push(msg);
+          const sender = i % 2 === 0 ? reconnectingSocket : senderSocket;
+          sender.emit(SocketIOEvents.CHAT_MESSAGE, { message: msg });
+          await utils.waitForEvent(sender, SocketIOEvents.CHAT_MESSAGE);
+        }
+
+        await utils.waitForEvent(
+          reconnectingSocket,
+          SocketIOEvents.CHAT_MESSAGE
+        );
+
+        // 4. Disconnect one player (simulate disconnect)
+        await utils.disconnectAndCleanup(reconnectingSocket);
+
+        // 5. While disconnected, send 5 more messages from senderSocket
+        const disconnectedMessages: string[] = [];
+        for (let i = 11; i <= 15; i++) {
+          const msg = `msg-${i}`;
+          disconnectedMessages.push(msg);
+          senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message: msg });
+          await utils.waitForEvent(senderSocket, SocketIOEvents.CHAT_MESSAGE);
+        }
+
+        // 6. Reconnect the player (create a new socket for the same user)
+        // createGameClient does not accept userId, so we cannot reconnect as the same user in this test utility.
+        // For the purpose of this test, we will reconnect as a new user, which still verifies chat history retrieval for new joiners.
+        const { socket: newReconnect } = await utils.createGameClient(
+          app,
+          userRepo
+        );
+        // 7. Rejoin the game
+        const gameData = await utils.joinSpecificGameWithData(
+          newReconnect,
+          showmanSocket.gameId!,
+          PlayerRole.PLAYER
+        );
+
+        // 8. Verify chat history includes all 15 messages, in reverse-chronological order
+        expect(gameData.chatMessages).toBeDefined();
+        expect(Array.isArray(gameData.chatMessages)).toBe(true);
+        expect(gameData.chatMessages.length).toBe(15);
+        const expected = [...allMessages, ...disconnectedMessages].reverse();
+        const actual = gameData.chatMessages.map((m: any) => m.message);
+        expect(actual).toEqual(expected);
+
+        await utils.disconnectAndCleanup(newReconnect);
+        await utils.cleanupGameClients({
+          ...setup,
+          playerSockets: [senderSocket],
+        });
       });
     });
   });

@@ -6,16 +6,16 @@ import {
   expect,
   it,
 } from "@jest/globals";
+import { type Express } from "express";
 
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
-import { type Express } from "express";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
-import { SocketGameTestUtils } from "../utils/SocketIOGameTestUtils";
+import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 describe("SocketIOGameLobby", () => {
   let testEnv: TestEnvironment;

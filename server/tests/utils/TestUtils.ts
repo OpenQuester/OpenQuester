@@ -220,7 +220,7 @@ export class TestUtils {
     let gameState = await this.getGameState(gameId);
 
     // If we're already in the final round, no need to progress
-    if (gameState.currentRound?.type === PackageRoundType.FINAL) {
+    if (this._isFinalRound(gameState)) {
       // Verify we have the expected final round themes
       const themes = gameState.currentRound?.themes || [];
       const finalThemeNames = themes.map((t) => t.name);
@@ -261,7 +261,7 @@ export class TestUtils {
       // Check if we've reached the final round
       gameState = await this.getGameState(gameId);
 
-      if (gameState.currentRound?.type === PackageRoundType.FINAL) {
+      if (this._isFinalRound(gameState)) {
         break;
       }
     }
@@ -348,5 +348,9 @@ export class TestUtils {
       gameId,
       bid,
     });
+  }
+
+  private _isFinalRound(gameState: GameStateDTO): boolean {
+    return gameState.currentRound?.type === PackageRoundType.FINAL;
   }
 }

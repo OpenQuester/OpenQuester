@@ -30,18 +30,21 @@ export class SocketIOChatService {
     );
 
     const isMuted = context.game.isPlayerMuted(context.userSession.id);
-
     if (isMuted) {
       throw new ClientError(ClientResponse.YOU_ARE_MUTED);
     }
 
     const chatMessage = await this.saveChatMessage({
       gameId: context.userSession.gameId!,
-      message,
+      message: this._sanitize(message),
       gameCreatedAt: context.game.createdAt,
       user: context.userSession.id,
     });
 
     return chatMessage;
+  }
+
+  private _sanitize(message: string): string {
+    return message.trim();
   }
 }

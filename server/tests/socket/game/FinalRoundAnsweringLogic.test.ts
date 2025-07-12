@@ -19,7 +19,7 @@ import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
-import { TestUtils } from "../../utils/TestUtils";
+import { TestUtils } from "tests/utils/TestUtils";
 
 describe("Final Round Answering Logic", () => {
   let testEnv: TestEnvironment;
