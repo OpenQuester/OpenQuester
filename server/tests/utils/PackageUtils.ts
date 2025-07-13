@@ -150,6 +150,33 @@ export class PackageUtils {
           },
         ],
       });
+    } else {
+      // Add a second simple round instead of a final round
+      rounds.push({
+        name: "Round 2",
+        description: "Second test simple round",
+        order: 1,
+        type: PackageRoundType.SIMPLE,
+        themes: [
+          {
+            name: "Theme 2",
+            description: "Second theme",
+            order: 0,
+            questions: [
+              {
+                type: PackageQuestionType.SIMPLE,
+                subType: PackageQuestionSubType.SIMPLE,
+                order: 0,
+                price: 100,
+                text: "Simple question text 2",
+                answerText: "Simple answer 2",
+                answerDelay: 5000,
+                isHidden: false,
+              } satisfies PackageQuestionDTO,
+            ] as PackageQuestionDTO[],
+          },
+        ],
+      });
     }
 
     return {

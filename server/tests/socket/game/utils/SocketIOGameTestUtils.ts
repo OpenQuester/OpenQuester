@@ -672,66 +672,19 @@ export class SocketGameTestUtils {
   }
 
   /**
-   * Properly set up final round game state in Redis using hash operations
-   * instead of simple string operations (which cause WRONGTYPE errors)
+   * Directly set a player's score in the game entity and persist it.
    */
-  public async setupFinalRoundGameState(
+  public async setPlayerScore(
     gameId: string,
-    gameStateOptions: {
-      questionState?: string;
-      currentRound?: any;
-      finalRoundTurnOrder?: number[];
-      players?: any[];
-      currentTurnPlayerId?: number;
-      finalRoundData?: any;
-    }
+    playerId: number,
+    score: number
   ): Promise<void> {
-    const RedisConfig = await import("infrastructure/config/RedisConfig");
-    const redisClient = RedisConfig.RedisConfig.getClient();
-
-    // Create proper GameStateDTO structure
-    const gameState = {
-      questionState: gameStateOptions.questionState || "theme_elimination",
-      isPaused: false,
-      currentRound: gameStateOptions.currentRound || null,
-      currentQuestion: null,
-      answeringPlayer: null,
-      answeredPlayers: null,
-      readyPlayers: null,
-      timer: null,
-      finalRoundTurnOrder: gameStateOptions.finalRoundTurnOrder || [],
-      finalRoundData: gameStateOptions.finalRoundData
-        ? JSON.stringify(gameStateOptions.finalRoundData)
-        : null,
-    };
-
-    // Create minimal required hash fields for the game
-    const gameHash = {
-      id: gameId,
-      createdBy: "1",
-      title: "Test Game",
-      createdAt: Date.now().toString(),
-      isPrivate: "0",
-      ageRestriction: "none",
-      maxPlayers: "6",
-      package: JSON.stringify({
-        id: 1,
-        name: "Test Package",
-        rounds: [
-          {
-            type: "final",
-            themes: gameStateOptions.currentRound?.themes || [],
-          },
-        ],
-      }),
-      startedAt: Date.now().toString(),
-      finishedAt: "",
-      roundsCount: "1",
-      questionsCount: "1",
-      players: JSON.stringify(gameStateOptions.players || []),
-      gameState: JSON.stringify(gameState),
-    };
-
-    await redisClient.hset(`game:${gameId}`, gameHash);
+    const game = await this.getGameFromGameService(gameId);
+    const player = game.getPlayer(playerId, { fetchDisconnected: true });
+    if (!player) {
+      throw new Error(`Player ${playerId} not found in game ${gameId}`);
+    }
+    player.score = score;
+    await this.updateGame(game);
   }
 }

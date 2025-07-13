@@ -5,11 +5,6 @@ import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Logger } from "infrastructure/utils/Logger";
 import { createTestAppDataSource } from "tests/utils/utils";
 
-export interface Fixture {
-  entity: any;
-  data: any[];
-}
-
 export class TestEnvironment {
   private testDataSource!: DataSource;
 
@@ -35,14 +30,6 @@ export class TestEnvironment {
       await this.testDataSource.destroy();
     }
     await this.dropTestDatabase();
-  }
-
-  async reset(fixtures: Fixture[]): Promise<void> {
-    for (const fixture of fixtures) {
-      const repo = this.testDataSource.getRepository(fixture.entity);
-      await repo.delete({});
-      await repo.save(fixture.data);
-    }
   }
 
   public getDatabase() {

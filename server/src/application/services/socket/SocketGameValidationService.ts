@@ -62,6 +62,7 @@ export class SocketGameValidationService {
    */
   public validateQuestionAction(
     currentPlayer: Player | null,
+    game: Game,
     action: QuestionAction
   ): void {
     switch (action) {
@@ -96,6 +97,14 @@ export class SocketGameValidationService {
           currentPlayer?.role !== PlayerRole.SHOWMAN
         ) {
           throw new ClientError(ClientResponse.YOU_CANNOT_PICK_QUESTION);
+        }
+        // If simple round, restrict to showman or currentTurnPlayerId
+        if (
+          game.gameState.currentRound?.type === PackageRoundType.SIMPLE &&
+          game.gameState.currentTurnPlayerId !== currentPlayer.meta.id &&
+          currentPlayer?.role !== PlayerRole.SHOWMAN
+        ) {
+          throw new ClientError(ClientResponse.NOT_YOUR_TURN);
         }
         break;
     }

@@ -105,7 +105,7 @@ export class TestUtils {
       const themeToEliminate = activeThemes[0];
 
       // Get current turn player from game state
-      const currentTurnPlayerId = gameState.finalRoundData?.currentTurnPlayerId;
+      const currentTurnPlayerId = gameState.currentTurnPlayerId;
 
       let currentPlayerSocket: GameClientSocket;
 

@@ -46,10 +46,21 @@ STORAGE_TYPE=
 STORAGE_NAME=
 
 # S3
-S3_HOST=
+
+# Should include http(s). Used to create connection to S3, so this is required even if S3_USE_SUB_DOMAIN_BUCKET_FORMAT is true
+S3_ENDPOINT=
+# Should include http(s) and bucket name as subdomain, e.g. https://bucket.s3domain.com
+# This is not required if S3_USE_SUB_DOMAIN_BUCKET_FORMAT is false
+S3_URL_PREFIX=
+
+# If true, use subdomain bucket format for S3 URLs (e.g. https://bucket.s3domain.com/file-path which is S3_URL_PREFIX/file-path)
+# If false, use path-style (e.g. http://localhost:9000/bucket/file-path which is S3_ENDPOINT/S3_BUCKET/file-path)
+S3_USE_SUB_DOMAIN_BUCKET_FORMAT=
+
+# Bucket is required even if S3_USE_SUB_DOMAIN_BUCKET_FORMAT is true, same as all other variables
+S3_BUCKET=
 S3_USE_SSL=
 S3_PORT=
-S3_BUCKET=
 S3_ACCESS_KEY=
 S3_SECRET_KEY=
 ```

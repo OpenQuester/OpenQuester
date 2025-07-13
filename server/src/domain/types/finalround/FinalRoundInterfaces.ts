@@ -29,7 +29,6 @@ export interface FinalRoundGameData {
   phase: FinalRoundPhase;
   /** Turn order for final round theme elimination */
   turnOrder: number[];
-  currentTurnPlayerId?: number;
   bids: Record<number, number>; // playerId -> bidAmount
   answers: FinalRoundAnswer[];
   eliminatedThemes: number[];

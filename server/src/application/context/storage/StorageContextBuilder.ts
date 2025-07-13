@@ -10,11 +10,18 @@ export class StorageContextBuilder {
     const env = Environment.instance;
     try {
       return {
-        host: env.getEnvVar("S3_HOST", "string"),
+        endpoint: env.getEnvVar("S3_ENDPOINT", "string"),
         bucket: env.getEnvVar("S3_BUCKET", "string"),
         accessKey: env.getEnvVar("S3_ACCESS_KEY", "string"),
         secretKey: env.getEnvVar("S3_SECRET_KEY", "string"),
         region: env.getEnvVar("S3_REGION", "string"),
+        urlPrefix: env.getEnvVar("S3_URL_PREFIX", "string", "", true),
+        useSubDomainBucketFormat: env.getEnvVar(
+          "S3_USE_SUB_DOMAIN_BUCKET_FORMAT",
+          "boolean",
+          false,
+          true
+        ),
       };
     } catch (err: unknown) {
       let text: string;

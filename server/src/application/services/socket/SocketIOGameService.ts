@@ -104,6 +104,8 @@ export class SocketIOGameService {
       throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
     }
 
+    const currentTurnPlayerId = game.initCurrentTurnPlayer();
+
     const gameState: GameStateDTO = {
       currentRound: GameStateMapper.getGameRound(game.package, 0),
       isPaused: false,
@@ -113,6 +115,7 @@ export class SocketIOGameService {
       currentQuestion: null,
       readyPlayers: null,
       timer: null,
+      currentTurnPlayerId,
     };
 
     game.startedAt = new Date();

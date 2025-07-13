@@ -5,6 +5,7 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
   SocketBroadcastTarget,
+  SocketEventBroadcast,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
@@ -62,23 +63,36 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
         answerText: question!.answerText ?? null,
       };
 
+      const answerResultPayload: QuestionAnswerResultEventPayload = {
+        answerResult: playerAnswerResult,
+        timer: null,
+      };
+
+      const broadcasts: SocketEventBroadcast[] = [
+        {
+          event: SocketIOGameEvents.ANSWER_RESULT,
+          data: answerResultPayload,
+          target: SocketBroadcastTarget.GAME,
+          gameId: game.id,
+        },
+        {
+          event: SocketIOGameEvents.QUESTION_FINISH,
+          data: finishPayload,
+          target: SocketBroadcastTarget.GAME,
+          gameId: game.id,
+        },
+      ];
+
       if (isGameFinished) {
+        broadcasts.push({
+          event: SocketIOGameEvents.GAME_FINISHED,
+          data: true,
+          target: SocketBroadcastTarget.GAME,
+          gameId: game.id,
+        });
         return {
           success: true,
-          broadcast: [
-            {
-              event: SocketIOGameEvents.QUESTION_FINISH,
-              data: finishPayload,
-              target: SocketBroadcastTarget.GAME,
-              gameId: game.id,
-            },
-            {
-              event: SocketIOGameEvents.GAME_FINISHED,
-              data: true,
-              target: SocketBroadcastTarget.GAME,
-              gameId: game.id,
-            },
-          ],
+          broadcast: broadcasts,
         };
       }
 
@@ -86,47 +100,26 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
         const nextRoundPayload: GameNextRoundEventPayload = {
           gameState: nextGameState,
         };
-
+        broadcasts.push({
+          event: SocketIOGameEvents.NEXT_ROUND,
+          data: nextRoundPayload,
+          target: SocketBroadcastTarget.GAME,
+          gameId: game.id,
+          useRoleBasedBroadcast:
+            nextGameState.currentRound?.type === PackageRoundType.FINAL,
+        });
         return {
           success: true,
-          data: {
-            answerResult: playerAnswerResult,
-            timer: null,
-          },
-          broadcast: [
-            {
-              event: SocketIOGameEvents.QUESTION_FINISH,
-              data: finishPayload,
-              target: SocketBroadcastTarget.GAME,
-              gameId: game.id,
-            },
-            {
-              event: SocketIOGameEvents.NEXT_ROUND,
-              data: nextRoundPayload,
-              target: SocketBroadcastTarget.GAME,
-              gameId: game.id,
-              useRoleBasedBroadcast:
-                nextGameState.currentRound?.type === PackageRoundType.FINAL,
-            },
-          ],
+          data: answerResultPayload,
+          broadcast: broadcasts,
         };
       }
 
       // For correct answers that don't trigger game finish or next round
       return {
         success: true,
-        data: {
-          answerResult: playerAnswerResult,
-          timer: null,
-        },
-        broadcast: [
-          {
-            event: SocketIOGameEvents.QUESTION_FINISH,
-            data: finishPayload,
-            target: SocketBroadcastTarget.GAME,
-            gameId: game.id,
-          },
-        ],
+        data: answerResultPayload,
+        broadcast: broadcasts,
       };
     }
 

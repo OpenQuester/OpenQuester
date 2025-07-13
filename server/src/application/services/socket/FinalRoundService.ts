@@ -141,7 +141,7 @@ export class FinalRoundService {
         turnOrder
       );
       if (currentTurnPlayer !== null) {
-        finalRoundData.currentTurnPlayerId = currentTurnPlayer;
+        game.gameState.currentTurnPlayerId = currentTurnPlayer;
         nextPlayerId = currentTurnPlayer;
       }
     }
@@ -251,6 +251,7 @@ export class FinalRoundService {
     GameStateValidator.validateGameInProgress(game);
     this.socketGameValidationService.validateQuestionAction(
       currentPlayer,
+      game,
       QuestionAction.SUBMIT_ANSWER
     );
     this.socketGameValidationService.validateFinalAnswerSubmission(
@@ -309,6 +310,7 @@ export class FinalRoundService {
     GameStateValidator.validateGameInProgress(game);
     this.socketGameValidationService.validateQuestionAction(
       currentPlayer,
+      game,
       QuestionAction.RESULT
     );
     FinalRoundValidator.validateReviewingPhase(game);
@@ -427,7 +429,7 @@ export class FinalRoundService {
         turnOrder
       );
       if (currentTurnPlayer !== null) {
-        finalRoundData.currentTurnPlayerId = currentTurnPlayer;
+        game.gameState.currentTurnPlayerId = currentTurnPlayer;
         nextPlayerId = currentTurnPlayer;
       }
     }

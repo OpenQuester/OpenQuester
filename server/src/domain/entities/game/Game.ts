@@ -181,6 +181,32 @@ export class Game {
     return player ?? null;
   }
 
+  /** Get all players in game excluding showman */
+  public getInGamePlayers(): Player[] {
+    return this.players.filter(
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
+    );
+  }
+
+  public initCurrentTurnPlayer() {
+    const inGamePlayers = this.getInGamePlayers();
+    if (inGamePlayers.length > 0) {
+      // Shuffle the array a few times for extra randomness
+      const shuffled = [...inGamePlayers];
+      for (let i = 0; i < 5; i++) {
+        for (let j = shuffled.length - 1; j > 0; j--) {
+          const k = Math.floor(Math.random() * (j + 1));
+          [shuffled[j], shuffled[k]] = [shuffled[k], shuffled[j]];
+        }
+      }
+      // Pick the first player after shuffling
+      return shuffled[0].meta.id;
+    }
+    return null;
+  }
+
   public removePlayer(userId: number): void {
     const player = this.getPlayer(userId, { fetchDisconnected: false });
     if (player) {
@@ -265,24 +291,43 @@ export class Game {
       nextGameState = GameStateMapper.getClearGameState(nextRound);
       this.gameState = nextGameState;
 
-      // If transitioning to final round, initialize final round data
       if (nextRound.type === PackageRoundType.FINAL) {
+        // Initialize final round data
         const finalRoundData =
           FinalRoundStateManager.initializeFinalRoundData(this);
         finalRoundData.turnOrder =
           FinalRoundTurnManager.initializeTurnOrder(this);
-
-        // Set the current turn player for theme elimination
         const currentTurnPlayer = FinalRoundTurnManager.getCurrentTurnPlayer(
           this,
           finalRoundData.turnOrder
         );
-        finalRoundData.currentTurnPlayerId = currentTurnPlayer ?? undefined;
-
+        nextGameState.currentTurnPlayerId = currentTurnPlayer ?? undefined;
         FinalRoundStateManager.updateFinalRoundData(this, finalRoundData);
-
-        // Update the nextGameState to include the initialized final round data
         nextGameState.finalRoundData = finalRoundData;
+      } else if (nextRound.type === PackageRoundType.SIMPLE) {
+        // Set current turn player to the player with the lowest score
+        const inGamePlayers = this.getInGamePlayers();
+        if (inGamePlayers.length > 0) {
+          let minScore = inGamePlayers[0].score;
+          let minPlayers = [inGamePlayers[0]];
+          for (let i = 1; i < inGamePlayers.length; i++) {
+            const player = inGamePlayers[i];
+            if (player.score < minScore) {
+              minScore = player.score;
+              minPlayers = [player];
+            } else if (player.score === minScore) {
+              minPlayers.push(player);
+            }
+          }
+          // If multiple players have the same lowest score, pick randomly among them
+          const chosen =
+            minPlayers.length === 1
+              ? minPlayers[0]
+              : minPlayers[Math.floor(Math.random() * minPlayers.length)];
+          nextGameState.currentTurnPlayerId = chosen.meta.id;
+        } else {
+          nextGameState.currentTurnPlayerId = null;
+        }
       }
     }
 

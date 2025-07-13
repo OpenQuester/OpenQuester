@@ -41,8 +41,8 @@ function verifyFinalRoundData(gameState: GameStateDTO) {
   expect(finalData.turnOrder.length).toBeGreaterThan(0);
 
   // Verify current turn player is set
-  expect(finalData.currentTurnPlayerId).toBeDefined();
-  expect(typeof finalData.currentTurnPlayerId).toBe("number");
+  expect(gameState.currentTurnPlayerId).toBeDefined();
+  expect(typeof gameState.currentTurnPlayerId).toBe("number");
 }
 
 // Helper function to verify showman gets full question data

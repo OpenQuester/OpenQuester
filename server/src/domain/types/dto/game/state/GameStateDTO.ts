@@ -25,4 +25,6 @@ export interface GameStateDTO {
   timer: GameStateTimerDTO | null;
   /** Final round specific data */
   finalRoundData?: FinalRoundGameData | null;
+  /** Which player can pick a question or eliminate theme in final */
+  currentTurnPlayerId?: number | null;
 }

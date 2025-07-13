@@ -420,4 +420,92 @@ describe("Socket Question Flow Tests", () => {
       }
     });
   });
+
+  describe("Turn Player Rotation", () => {
+    it("should set a random initial currentTurnPlayerId on game start", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+
+      const { showmanSocket, gameId } = setup;
+      await utils.startGame(showmanSocket);
+
+      const gameState = await utils.getGameState(gameId);
+      expect(gameState?.currentTurnPlayerId).toBeDefined();
+
+      const playerIds = setup.playerUsers.map((u) => u.id);
+      expect(playerIds).toContain(gameState!.currentTurnPlayerId);
+
+      await utils.cleanupGameClients(setup);
+    });
+
+    it("should rotate currentTurnPlayerId to the player who answers correctly (if not already their turn)", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+      const { showmanSocket, playerSockets, gameId } = setup;
+
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      // Get initial turn player
+      let gameState = await utils.getGameState(gameId);
+      expect(gameState?.currentTurnPlayerId).toBeDefined();
+
+      const initialTurnPlayer = gameState!.currentTurnPlayerId;
+      // Pick a player who is NOT the current turn player
+      const nextPlayerSocket = playerSockets.find(
+        (_s, i) => setup.playerUsers[i].id !== initialTurnPlayer
+      );
+      const nextPlayerId =
+        setup.playerUsers[playerSockets.indexOf(nextPlayerSocket!)].id;
+
+      // That player answers
+      await utils.answerQuestion(nextPlayerSocket!, showmanSocket);
+
+      // Wait for ANSWER_RESULT event (correct answer)
+      const answerResultPromise = utils.waitForEvent(
+        nextPlayerSocket!,
+        SocketIOGameEvents.ANSWER_RESULT
+      );
+      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scoreResult: 100,
+        answerType: AnswerResultType.CORRECT,
+      });
+      await answerResultPromise;
+
+      gameState = await utils.getGameState(gameId);
+      expect(gameState!.currentTurnPlayerId).toBe(nextPlayerId);
+      await utils.cleanupGameClients(setup);
+    });
+
+    it("should NOT rotate currentTurnPlayerId if the current turn player answers correctly", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+      const { showmanSocket, playerSockets, gameId } = setup;
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      let gameState = await utils.getGameState(gameId);
+      expect(gameState?.currentTurnPlayerId).toBeDefined();
+
+      const initialTurnPlayer = gameState!.currentTurnPlayerId;
+      const currentPlayerSocket = playerSockets.find(
+        (_s, i) => setup.playerUsers[i].id === initialTurnPlayer
+      );
+
+      // That player answers
+      await utils.answerQuestion(currentPlayerSocket!, showmanSocket);
+
+      // Wait for ANSWER_RESULT event (correct answer)
+      const answerResultPromise = utils.waitForEvent(
+        currentPlayerSocket!,
+        SocketIOGameEvents.ANSWER_RESULT
+      );
+      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scoreResult: 100,
+        answerType: AnswerResultType.CORRECT,
+      });
+      await answerResultPromise;
+
+      gameState = await utils.getGameState(gameId);
+      expect(gameState!.currentTurnPlayerId).toBe(initialTurnPlayer);
+      await utils.cleanupGameClients(setup);
+    });
+  });
 });

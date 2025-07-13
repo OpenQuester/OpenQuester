@@ -36,7 +36,9 @@ export function setTestEnvDefaults() {
   process.env.SOCKET_IO_CORS_ORIGINS = "localhost";
   process.env.LOG_LEVEL = "info";
   // Dummy S3, we don't check S3 in tests, used just to avoid errors
-  process.env.S3_HOST = "http://localhost:9000";
+  process.env.S3_ENDPOINT = "http://localhost:9000";
+  process.env.S3_URL_PREFIX = "http://bucket.localhost:9000";
+  process.env.S3_USE_SUB_DOMAIN_BUCKET_FORMAT = "false";
   process.env.S3_USE_SSL = "false";
   process.env.S3_BUCKET = "test-bucket";
   process.env.S3_ACCESS_KEY = "test-access-key";

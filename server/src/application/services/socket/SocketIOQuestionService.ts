@@ -54,6 +54,7 @@ export class SocketIOQuestionService {
     GameStateValidator.validateGameInProgress(game);
     this.socketGameValidationService.validateQuestionAction(
       currentPlayer,
+      game,
       QuestionAction.ANSWER
     );
     this.socketGameValidationService.validateQuestionAnswering(
@@ -118,6 +119,7 @@ export class SocketIOQuestionService {
     GameStateValidator.validateGameInProgress(game);
     this.socketGameValidationService.validateQuestionAction(
       currentPlayer,
+      game,
       QuestionAction.RESULT
     );
 
@@ -135,6 +137,15 @@ export class SocketIOQuestionService {
     );
 
     let question = null;
+
+    if (
+      isCorrect &&
+      game.gameState.currentRound?.type === PackageRoundType.SIMPLE
+    ) {
+      // Update current turn player ID to the one who answered correctly
+      const answeringPlayerId = playerAnswerResult.player;
+      game.gameState.currentTurnPlayerId = answeringPlayerId;
+    }
 
     if (isCorrect) {
       question = await this.getCurrentQuestion(game);
@@ -191,6 +202,7 @@ export class SocketIOQuestionService {
     GameStateValidator.validateGameInProgress(game);
     this.socketGameValidationService.validateQuestionAction(
       currentPlayer,
+      game,
       QuestionAction.SKIP
     );
     this.socketGameValidationService.validateQuestionSkipping(game);
@@ -219,6 +231,7 @@ export class SocketIOQuestionService {
     GameStateValidator.validateGameInProgress(game);
     this.socketGameValidationService.validateQuestionAction(
       currentPlayer,
+      game,
       QuestionAction.PICK
     );
     this.socketGameValidationService.validateQuestionPicking(game);

@@ -13,6 +13,8 @@ import {
   SocketIOEvents,
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { bootstrapTestApp } from "tests/TestApp";
@@ -56,6 +58,41 @@ describe("Socket Game Flow Tests", () => {
     } catch (err) {
       console.error("Error during teardown:", err);
     }
+  });
+
+  it("should set currentTurnPlayerId to the player with the lowest score on simple round start", async () => {
+    // Setup a game with 3 players and two simple rounds (no final round)
+    const setup = await utils.setupGameTestEnvironment(
+      userRepo,
+      app,
+      3,
+      0,
+      false
+    );
+    const { showmanSocket } = setup;
+
+    // Start the game
+    await utils.startGame(showmanSocket);
+
+    // Artificially set player scores
+    // Player 0: 10, Player 1: -5, Player 2: 0
+    await utils.setPlayerScore(setup.gameId, setup.playerUsers[0].id, 10);
+    await utils.setPlayerScore(setup.gameId, setup.playerUsers[1].id, -5);
+    await utils.setPlayerScore(setup.gameId, setup.playerUsers[2].id, 0);
+
+    // Progress to next round (should be simple round)
+    const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
+      showmanSocket,
+      SocketIOGameEvents.NEXT_ROUND
+    );
+    await utils.progressToNextRound(showmanSocket);
+    const { gameState } = await nextRoundPromise;
+
+    // The player with the lowest score (-5) should be the currentTurnPlayerId
+    expect(gameState.currentRound!.type).toBe(PackageRoundType.SIMPLE);
+    expect(gameState.currentTurnPlayerId).toBe(setup.playerUsers[1].id);
+
+    await utils.cleanupGameClients(setup);
   });
 
   describe("Game Joining Flow", () => {

@@ -3078,7 +3078,7 @@
             "$ref": "#/components/schemas/GameStateTimer"
           }
         },
-        "required": ["phase"]
+        "required": ["phase", "nextPhase"]
       },
       "FinalQuestionEventData": {
         "type": "object",
@@ -3098,17 +3098,45 @@
             "$ref": "#/components/schemas/FinalRoundPhase"
           },
           "nextPhase": {
-            "$ref": "#/components/schemas/FinalRoundPhase"
+            "oneOf": [
+              { "$ref": "#/components/schemas/FinalRoundPhase" },
+              { "type": "null" }
+            ]
           },
           "allReviews": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AnswerReviewData"
-            },
+            "oneOf": [
+              {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/AnswerReviewData" }
+              },
+              { "type": "null" }
+            ],
             "description": "All answers revealed when transitioning to reviewing phase"
           }
         },
         "required": ["phase"]
+      },
+      "QuestionFinishEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a question is finished (showing answer)",
+        "properties": {
+          "answerFiles": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/PackageQuestionFile" }
+              },
+              { "type": "null" }
+            ]
+          },
+          "answerText": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/QuestionAnswerText" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["answerFiles", "answerText"]
       },
       "FinalAutoLossEventData": {
         "type": "object",
