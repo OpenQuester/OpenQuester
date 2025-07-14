@@ -104,5 +104,4 @@ export enum ClientResponse {
 
   // Other
   DELETE_REQUEST_SENT = "delete_request_sent",
-  FEATURE_NOT_IMPLEMENTED = "feature_not_implemented",
 }

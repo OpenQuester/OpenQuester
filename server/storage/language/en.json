@@ -90,6 +90,5 @@
   "final_round_invalid_theme_structure": "Invalid theme structure for final round",
   "final_round_invalid_question_type": "Invalid question type for final round",
   "insufficient_permissions": "Insufficient permissions to perform this action",
-  "invalid_input": "Invalid input provided",
-  "feature_not_implemented": "This feature is not implemented yet"
+  "invalid_input": "Invalid input provided"
 }
