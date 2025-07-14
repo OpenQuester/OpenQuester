@@ -104,7 +104,7 @@ export class SocketIOGameService {
       throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
     }
 
-    const currentTurnPlayerId = game.initCurrentTurnPlayer();
+    const currentTurnPlayerId = game.getRandomTurnPlayer();
 
     const gameState: GameStateDTO = {
       currentRound: GameStateMapper.getGameRound(game.package, 0),

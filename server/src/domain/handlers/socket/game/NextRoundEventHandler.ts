@@ -65,6 +65,7 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
         data: {
           answerFiles: questionData.answerFiles ?? null,
           answerText: questionData.answerText ?? null,
+          nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
         } satisfies QuestionFinishEventPayload,
         target: SocketBroadcastTarget.GAME,
         gameId: game.id,

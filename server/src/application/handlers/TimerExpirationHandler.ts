@@ -79,6 +79,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
           .emit(SocketIOGameEvents.QUESTION_FINISH, {
             answerFiles: question.answerFiles ?? null,
             answerText: question.answerText ?? null,
+            nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
           } satisfies QuestionFinishEventPayload);
 
         if (!game.isAllQuestionsPlayed()) {

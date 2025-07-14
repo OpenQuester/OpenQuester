@@ -61,6 +61,8 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
         answerResult: playerAnswerResult,
         answerFiles: question!.answerFiles ?? null,
         answerText: question!.answerText ?? null,
+        // nextTurnPlayerId is set to next turn player in handleAnswerResult
+        nextTurnPlayerId: game.gameState.currentTurnPlayerId!,
       };
 
       const answerResultPayload: QuestionAnswerResultEventPayload = {

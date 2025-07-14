@@ -190,7 +190,7 @@ export class Game {
     );
   }
 
-  public initCurrentTurnPlayer() {
+  public getRandomTurnPlayer() {
     const inGamePlayers = this.getInGamePlayers();
     if (inGamePlayers.length > 0) {
       // Select a random player using Math.random for index
