@@ -11,6 +11,11 @@ PODS:
   - flutter_web_auth_2 (3.0.0):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
+  - fvp (0.32.0):
+    - Flutter
+    - FlutterMacOS
+    - mdk (~> 0.33.0)
+  - mdk (0.33.1)
   - nb_utils (0.0.1):
     - FlutterMacOS
   - package_info_plus (0.0.1):
@@ -43,6 +48,7 @@ DEPENDENCIES:
   - flutter_secure_storage_darwin (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - flutter_web_auth_2 (from `Flutter/ephemeral/.symlinks/plugins/flutter_web_auth_2/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - fvp (from `Flutter/ephemeral/.symlinks/plugins/fvp/darwin`)
   - nb_utils (from `Flutter/ephemeral/.symlinks/plugins/nb_utils/macos`)
   - package_info_plus (from `Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos`)
   - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
@@ -53,6 +59,10 @@ DEPENDENCIES:
   - video_player_avfoundation (from `Flutter/ephemeral/.symlinks/plugins/video_player_avfoundation/darwin`)
   - window_manager (from `Flutter/ephemeral/.symlinks/plugins/window_manager/macos`)
   - window_to_front (from `Flutter/ephemeral/.symlinks/plugins/window_to_front/macos`)
+
+SPEC REPOS:
+  trunk:
+    - mdk
 
 EXTERNAL SOURCES:
   connectivity_plus:
@@ -67,6 +77,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_web_auth_2/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
+  fvp:
+    :path: Flutter/ephemeral/.symlinks/plugins/fvp/darwin
   nb_utils:
     :path: Flutter/ephemeral/.symlinks/plugins/nb_utils/macos
   package_info_plus:
@@ -95,6 +107,8 @@ SPEC CHECKSUMS:
   flutter_secure_storage_darwin: ce237a8775b39723566dc72571190a3769d70468
   flutter_web_auth_2: 62b08da29f15a20fa63f144234622a1488d45b65
   FlutterMacOS: 8f6f14fa908a6fb3fba0cd85dbd81ec4b251fb24
+  fvp: f5cc3b5fdbc03ab72a2d4d1b49b175c96785ebaf
+  mdk: 622e3452cea55a982c0712ec9ce931d8ec718b22
   nb_utils: 2361d8cd78db3c0167bab7635f62ec6d8a329819
   package_info_plus: f0052d280d17aa382b932f399edf32507174e870
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564

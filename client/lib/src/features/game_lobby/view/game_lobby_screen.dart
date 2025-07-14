@@ -46,7 +46,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
 
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, __) async {
+      onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         await _onExit();
       },

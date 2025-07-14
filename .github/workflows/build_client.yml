@@ -151,7 +151,7 @@ jobs:
           flutter pub get
           choco install make -y
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-          make pre_run
+          make pre_build
 
       - name: Build and create bundle
         run: |

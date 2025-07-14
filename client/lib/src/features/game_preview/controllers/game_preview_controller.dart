@@ -5,7 +5,7 @@ import 'package:openquester/openquester.dart';
 
 @singleton
 class GamePreviewController {
-  final animationDuration = Durations.short2;
+  final Duration animationDuration = Durations.short2;
   GameListItem? game;
 
   Future<void> initWithId(String gameId) async {

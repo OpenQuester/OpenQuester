@@ -53,7 +53,7 @@ class _ImageWidgetState extends State<ImageWidget> {
         : Image(
             image: image!,
             fit: widget.fit,
-            errorBuilder: (_, __, ___) => placeholder(),
+            errorBuilder: (_, _, _) => placeholder(),
           );
 
     final size = widget.avatarRadius != null
