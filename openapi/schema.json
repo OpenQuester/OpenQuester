@@ -2359,6 +2359,10 @@
               { "$ref": "#/components/schemas/FinalRoundGameData" },
               { "type": "null" }
             ]
+          },
+          "currentTurnPlayerId": {
+            "oneOf": [{ "type": "integer" }, { "type": "null" }],
+            "description": "Id of player whose turn it is to pick a question or eliminate theme"
           }
         }
       },
