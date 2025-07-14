@@ -259,7 +259,8 @@ class GameLobbyController {
     final user = PlayerData.fromJson(data as Map<String, dynamic>);
 
     // If player is new - change his status
-    if (gameData.value!.players.any((e) => e.meta.id == user.meta.id)) {
+    if (gameData.value?.players.any((e) => e.meta.id == user.meta.id) ??
+        false) {
       gameData.value = gameData.value?.changePlayer(
         id: user.meta.id,
         onChange: (value) => value.copyWith(status: PlayerDataStatus.inGame),

@@ -8,8 +8,10 @@ class GameLobbyPlayers extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final answeredPlayers = gameData?.gameState.answeredPlayers;
-    final answeringPlayer = gameData?.gameState.answeringPlayer;
+    final gameState = gameData?.gameState;
+    final answeredPlayers = gameState?.answeredPlayers;
+    final answeringPlayer = gameState?.answeringPlayer;
+    final currentTurnPlayerId = gameState?.currentTurnPlayerId;
     const roleToShow = {PlayerRole.player, PlayerRole.showman};
     const inGame = PlayerDataStatus.inGame;
     final players =
@@ -35,6 +37,7 @@ class GameLobbyPlayers extends WatchingWidget {
         return GameLobbyPlayer(
           player: player,
           answering: answeringPlayer == player.meta.id,
+          picking: currentTurnPlayerId == player.meta.id,
           playerAnswerState: showUserAnsweredCorrect,
         );
       },
@@ -53,12 +56,14 @@ class GameLobbyPlayer extends WatchingWidget {
   const GameLobbyPlayer({
     required this.player,
     required this.playerAnswerState,
-    this.answering = false,
+    required this.answering,
+    required this.picking,
     super.key,
   });
 
   final PlayerData player;
   final bool answering;
+  final bool picking;
   final PlayerAnswerState playerAnswerState;
 
   @override
@@ -146,10 +151,12 @@ class GameLobbyPlayer extends WatchingWidget {
                 alignment: Alignment.topLeft,
                 child: const Icon(Icons.signal_wifi_off).paddingAll(2),
               ),
-            if (answering)
+            if (answering || picking)
               Align(
                 alignment: Alignment.bottomRight,
-                child: const Icon(Icons.more_horiz).paddingAll(2),
+                child: Icon(
+                  picking ? Icons.star_border_rounded : Icons.more_horiz,
+                ).paddingAll(2),
               ),
             if (!{
               PlayerAnswerState.skip,

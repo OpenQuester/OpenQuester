@@ -37,8 +37,10 @@ class ChatScreen extends WatchingWidget {
   Widget textMessageBuilder(
     BuildContext context,
     TextMessage message,
-    int index,
-  ) {
+    int index, {
+    required bool isSentByMe,
+    MessageGroupStatus? groupStatus,
+  }) {
     return SimpleTextMessage(message: message, index: index);
   }
 }

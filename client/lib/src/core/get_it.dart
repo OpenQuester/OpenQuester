@@ -3,7 +3,7 @@ import 'package:injectable/injectable.dart';
 
 import 'package:openquester/src/core/get_it.config.dart';
 
-final getIt = GetIt.instance;
+final GetIt getIt = GetIt.instance;
 
 @InjectableInit(
   initializerName: 'init', // default

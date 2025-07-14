@@ -1,6 +1,5 @@
-// dart format width=80
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -100,6 +99,163 @@ class _$FfprobeOutputCopyWithImpl<$Res>
     return $FormatDataCopyWith<$Res>(_self.format, (value) {
       return _then(_self.copyWith(format: value));
     });
+  }
+}
+
+/// Adds pattern-matching-related methods to [FfprobeOutput].
+extension FfprobeOutputPatterns on FfprobeOutput {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_FfprobeOutput value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _FfprobeOutput() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_FfprobeOutput value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FfprobeOutput():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_FfprobeOutput value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FfprobeOutput() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(List<StreamData> streams, FormatData format)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _FfprobeOutput() when $default != null:
+        return $default(_that.streams, _that.format);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(List<StreamData> streams, FormatData format) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FfprobeOutput():
+        return $default(_that.streams, _that.format);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(List<StreamData> streams, FormatData format)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FfprobeOutput() when $default != null:
+        return $default(_that.streams, _that.format);
+      case _:
+        return null;
+    }
   }
 }
 
@@ -442,6 +598,280 @@ class _$StreamDataCopyWithImpl<$Res> implements $StreamDataCopyWith<$Res> {
                   as String?,
       ),
     );
+  }
+}
+
+/// Adds pattern-matching-related methods to [StreamData].
+extension StreamDataPatterns on StreamData {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_StreamData value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _StreamData() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_StreamData value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _StreamData():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_StreamData value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _StreamData() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+      int index,
+      String? codecName,
+      String? codecLongName,
+      @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
+      CodecType? codecType,
+      String? profile,
+      int? width,
+      int? height,
+      int? codedWidth,
+      int? codedHeight,
+      String? displayAspectRatio,
+      String? pixFmt,
+      int? level,
+      @JsonKey(fromJson: _sampleFormatFromString, toJson: _sampleFormatToString)
+      SampleFormat? sampleFmt,
+      String? sampleRate,
+      int? channels,
+      String? channelLayout,
+      String? nbFrames,
+    )?
+    $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _StreamData() when $default != null:
+        return $default(
+          _that.index,
+          _that.codecName,
+          _that.codecLongName,
+          _that.codecType,
+          _that.profile,
+          _that.width,
+          _that.height,
+          _that.codedWidth,
+          _that.codedHeight,
+          _that.displayAspectRatio,
+          _that.pixFmt,
+          _that.level,
+          _that.sampleFmt,
+          _that.sampleRate,
+          _that.channels,
+          _that.channelLayout,
+          _that.nbFrames,
+        );
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+      int index,
+      String? codecName,
+      String? codecLongName,
+      @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
+      CodecType? codecType,
+      String? profile,
+      int? width,
+      int? height,
+      int? codedWidth,
+      int? codedHeight,
+      String? displayAspectRatio,
+      String? pixFmt,
+      int? level,
+      @JsonKey(fromJson: _sampleFormatFromString, toJson: _sampleFormatToString)
+      SampleFormat? sampleFmt,
+      String? sampleRate,
+      int? channels,
+      String? channelLayout,
+      String? nbFrames,
+    )
+    $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _StreamData():
+        return $default(
+          _that.index,
+          _that.codecName,
+          _that.codecLongName,
+          _that.codecType,
+          _that.profile,
+          _that.width,
+          _that.height,
+          _that.codedWidth,
+          _that.codedHeight,
+          _that.displayAspectRatio,
+          _that.pixFmt,
+          _that.level,
+          _that.sampleFmt,
+          _that.sampleRate,
+          _that.channels,
+          _that.channelLayout,
+          _that.nbFrames,
+        );
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+      int index,
+      String? codecName,
+      String? codecLongName,
+      @JsonKey(unknownEnumValue: JsonKey.nullForUndefinedEnumValue)
+      CodecType? codecType,
+      String? profile,
+      int? width,
+      int? height,
+      int? codedWidth,
+      int? codedHeight,
+      String? displayAspectRatio,
+      String? pixFmt,
+      int? level,
+      @JsonKey(fromJson: _sampleFormatFromString, toJson: _sampleFormatToString)
+      SampleFormat? sampleFmt,
+      String? sampleRate,
+      int? channels,
+      String? channelLayout,
+      String? nbFrames,
+    )?
+    $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _StreamData() when $default != null:
+        return $default(
+          _that.index,
+          _that.codecName,
+          _that.codecLongName,
+          _that.codecType,
+          _that.profile,
+          _that.width,
+          _that.height,
+          _that.codedWidth,
+          _that.codedHeight,
+          _that.displayAspectRatio,
+          _that.pixFmt,
+          _that.level,
+          _that.sampleFmt,
+          _that.sampleRate,
+          _that.channels,
+          _that.channelLayout,
+          _that.nbFrames,
+        );
+      case _:
+        return null;
+    }
   }
 }
 
@@ -852,6 +1282,214 @@ class _$FormatDataCopyWithImpl<$Res> implements $FormatDataCopyWith<$Res> {
                   as String?,
       ),
     );
+  }
+}
+
+/// Adds pattern-matching-related methods to [FormatData].
+extension FormatDataPatterns on FormatData {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_FormatData value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _FormatData() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_FormatData value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FormatData():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_FormatData value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FormatData() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+      String filename,
+      String formatName,
+      String formatLongName,
+      String size,
+      String? bitRate,
+      String? duration,
+      String? startTime,
+    )?
+    $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _FormatData() when $default != null:
+        return $default(
+          _that.filename,
+          _that.formatName,
+          _that.formatLongName,
+          _that.size,
+          _that.bitRate,
+          _that.duration,
+          _that.startTime,
+        );
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+      String filename,
+      String formatName,
+      String formatLongName,
+      String size,
+      String? bitRate,
+      String? duration,
+      String? startTime,
+    )
+    $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FormatData():
+        return $default(
+          _that.filename,
+          _that.formatName,
+          _that.formatLongName,
+          _that.size,
+          _that.bitRate,
+          _that.duration,
+          _that.startTime,
+        );
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+      String filename,
+      String formatName,
+      String formatLongName,
+      String size,
+      String? bitRate,
+      String? duration,
+      String? startTime,
+    )?
+    $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FormatData() when $default != null:
+        return $default(
+          _that.filename,
+          _that.formatName,
+          _that.formatLongName,
+          _that.size,
+          _that.bitRate,
+          _that.duration,
+          _that.startTime,
+        );
+      case _:
+        return null;
+    }
   }
 }
 

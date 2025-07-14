@@ -1,6 +1,5 @@
-// dart format width=80
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -130,6 +129,160 @@ as int,
 
 }
 
+
+/// Adds pattern-matching-related methods to [PackageQuestionUnion].
+extension PackageQuestionUnionPatterns on PackageQuestionUnion {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( PackageQuestionUnionSimple value)?  simple,TResult Function( PackageQuestionUnionStake value)?  stake,TResult Function( PackageQuestionUnionSecret value)?  secret,TResult Function( PackageQuestionUnionNoRisk value)?  noRisk,TResult Function( PackageQuestionUnionChoice value)?  choice,TResult Function( PackageQuestionUnionHidden value)?  hidden,required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case PackageQuestionUnionSimple() when simple != null:
+return simple(_that);case PackageQuestionUnionStake() when stake != null:
+return stake(_that);case PackageQuestionUnionSecret() when secret != null:
+return secret(_that);case PackageQuestionUnionNoRisk() when noRisk != null:
+return noRisk(_that);case PackageQuestionUnionChoice() when choice != null:
+return choice(_that);case PackageQuestionUnionHidden() when hidden != null:
+return hidden(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( PackageQuestionUnionSimple value)  simple,required TResult Function( PackageQuestionUnionStake value)  stake,required TResult Function( PackageQuestionUnionSecret value)  secret,required TResult Function( PackageQuestionUnionNoRisk value)  noRisk,required TResult Function( PackageQuestionUnionChoice value)  choice,required TResult Function( PackageQuestionUnionHidden value)  hidden,}){
+final _that = this;
+switch (_that) {
+case PackageQuestionUnionSimple():
+return simple(_that);case PackageQuestionUnionStake():
+return stake(_that);case PackageQuestionUnionSecret():
+return secret(_that);case PackageQuestionUnionNoRisk():
+return noRisk(_that);case PackageQuestionUnionChoice():
+return choice(_that);case PackageQuestionUnionHidden():
+return hidden(_that);}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( PackageQuestionUnionSimple value)?  simple,TResult? Function( PackageQuestionUnionStake value)?  stake,TResult? Function( PackageQuestionUnionSecret value)?  secret,TResult? Function( PackageQuestionUnionNoRisk value)?  noRisk,TResult? Function( PackageQuestionUnionChoice value)?  choice,TResult? Function( PackageQuestionUnionHidden value)?  hidden,}){
+final _that = this;
+switch (_that) {
+case PackageQuestionUnionSimple() when simple != null:
+return simple(_that);case PackageQuestionUnionStake() when stake != null:
+return stake(_that);case PackageQuestionUnionSecret() when secret != null:
+return secret(_that);case PackageQuestionUnionNoRisk() when noRisk != null:
+return noRisk(_that);case PackageQuestionUnionChoice() when choice != null:
+return choice(_that);case PackageQuestionUnionHidden() when hidden != null:
+return hidden(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  SimpleQuestionType type,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)?  simple,TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  StakeQuestionType type,  QuestionMaxPrice maxPrice,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay,  StakeQuestionSubType subType)?  stake,TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  SecretQuestionType type,  SecretQuestionSubType subType,  QuestionAllowedPrices allowedPrices,  QuestionTransferType transferType,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)?  secret,TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  NoRiskQuestionType type,  NoRiskQuestionSubType subType,  QuestionPriceMultiplier priceMultiplier,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)?  noRisk,TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  ChoiceQuestionType type,  dynamic subType,  QuestionShowDelay showDelay,  List<QuestionChoiceAnswers> answers,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)?  choice,TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  HiddenQuestionType type,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)?  hidden,required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case PackageQuestionUnionSimple() when simple != null:
+return simple(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionStake() when stake != null:
+return stake(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.maxPrice,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay,_that.subType);case PackageQuestionUnionSecret() when secret != null:
+return secret(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.subType,_that.allowedPrices,_that.transferType,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionNoRisk() when noRisk != null:
+return noRisk(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.subType,_that.priceMultiplier,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionChoice() when choice != null:
+return choice(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.subType,_that.showDelay,_that.answers,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionHidden() when hidden != null:
+return hidden(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  SimpleQuestionType type,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)  simple,required TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  StakeQuestionType type,  QuestionMaxPrice maxPrice,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay,  StakeQuestionSubType subType)  stake,required TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  SecretQuestionType type,  SecretQuestionSubType subType,  QuestionAllowedPrices allowedPrices,  QuestionTransferType transferType,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)  secret,required TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  NoRiskQuestionType type,  NoRiskQuestionSubType subType,  QuestionPriceMultiplier priceMultiplier,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)  noRisk,required TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  ChoiceQuestionType type,  dynamic subType,  QuestionShowDelay showDelay,  List<QuestionChoiceAnswers> answers,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)  choice,required TResult Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  HiddenQuestionType type,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)  hidden,}) {final _that = this;
+switch (_that) {
+case PackageQuestionUnionSimple():
+return simple(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionStake():
+return stake(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.maxPrice,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay,_that.subType);case PackageQuestionUnionSecret():
+return secret(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.subType,_that.allowedPrices,_that.transferType,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionNoRisk():
+return noRisk(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.subType,_that.priceMultiplier,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionChoice():
+return choice(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.subType,_that.showDelay,_that.answers,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionHidden():
+return hidden(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  SimpleQuestionType type,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)?  simple,TResult? Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  StakeQuestionType type,  QuestionMaxPrice maxPrice,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay,  StakeQuestionSubType subType)?  stake,TResult? Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  SecretQuestionType type,  SecretQuestionSubType subType,  QuestionAllowedPrices allowedPrices,  QuestionTransferType transferType,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)?  secret,TResult? Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  NoRiskQuestionType type,  NoRiskQuestionSubType subType,  QuestionPriceMultiplier priceMultiplier,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)?  noRisk,TResult? Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  ChoiceQuestionType type,  dynamic subType,  QuestionShowDelay showDelay,  List<QuestionChoiceAnswers> answers,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)?  choice,TResult? Function( int? id,  PackageEntitiesOrder order,  int? price,  String? text,  String? answerHint,  String? questionComment,  HiddenQuestionType type,  QuestionAnswerText? answerText,  List<PackageQuestionFile?>? questionFiles,  List<PackageQuestionFile?>? answerFiles,  bool isHidden,  int answerDelay)?  hidden,}) {final _that = this;
+switch (_that) {
+case PackageQuestionUnionSimple() when simple != null:
+return simple(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionStake() when stake != null:
+return stake(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.maxPrice,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay,_that.subType);case PackageQuestionUnionSecret() when secret != null:
+return secret(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.subType,_that.allowedPrices,_that.transferType,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionNoRisk() when noRisk != null:
+return noRisk(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.subType,_that.priceMultiplier,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionChoice() when choice != null:
+return choice(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.subType,_that.showDelay,_that.answers,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case PackageQuestionUnionHidden() when hidden != null:
+return hidden(_that.id,_that.order,_that.price,_that.text,_that.answerHint,_that.questionComment,_that.type,_that.answerText,_that.questionFiles,_that.answerFiles,_that.isHidden,_that.answerDelay);case _:
+  return null;
+
+}
+}
+
+}
 
 /// @nodoc
 @JsonSerializable()

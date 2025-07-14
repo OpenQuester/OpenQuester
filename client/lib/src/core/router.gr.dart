@@ -101,6 +101,16 @@ class GameLobbyRouteArgs {
   String toString() {
     return 'GameLobbyRouteArgs{gameId: $gameId, key: $key}';
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! GameLobbyRouteArgs) return false;
+    return gameId == other.gameId && key == other.key;
+  }
+
+  @override
+  int get hashCode => gameId.hashCode ^ key.hashCode;
 }
 
 /// generated route for
@@ -150,6 +160,16 @@ class GamePreviewRouteArgs {
   String toString() {
     return 'GamePreviewRouteArgs{gameId: $gameId, item: $item, key: $key}';
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! GamePreviewRouteArgs) return false;
+    return gameId == other.gameId && item == other.item && key == other.key;
+  }
+
+  @override
+  int get hashCode => gameId.hashCode ^ item.hashCode ^ key.hashCode;
 }
 
 /// generated route for

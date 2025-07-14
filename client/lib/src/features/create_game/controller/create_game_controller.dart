@@ -4,7 +4,9 @@ import 'package:openquester/common_imports.dart';
 class CreateGameController {
   CreateGameController();
 
-  final state = ValueNotifier(const CreateGameDto());
+  final ValueNotifier<CreateGameDto> state = ValueNotifier(
+    const CreateGameDto(),
+  );
   final formKey = GlobalKey<FormState>();
 
   void dispose() {

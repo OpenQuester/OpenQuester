@@ -5,7 +5,7 @@ import 'package:socket_io_client/socket_io_client.dart';
 
 @Singleton(order: 3)
 class SocketController {
-  static final socketUri = Env.apiUrl;
+  static final Uri socketUri = Env.apiUrl;
   late Socket general;
 
   @PostConstruct(preResolve: true)
