@@ -285,7 +285,7 @@ class GameLobbyController {
 
     if (!myTurnToAnswer && me?.role != PlayerRole.showman) {
       getIt<ToastController>().show(
-        LocaleKeys.not_your_turn_to_answer.tr(),
+        LocaleKeys.not_your_turn_to_pick.tr(),
         type: ToastType.warning,
       );
       return;
