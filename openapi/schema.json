@@ -2945,29 +2945,6 @@
         "description": "Phase of the final round",
         "examples": ["theme_elimination"]
       },
-      "FinalRoundBid": {
-        "type": "object",
-        "description": "Player bid in final round",
-        "properties": {
-          "playerId": {
-            "type": "integer",
-            "description": "ID of the player making the bid",
-            "examples": [123]
-          },
-          "bidAmount": {
-            "type": "integer",
-            "description": "Amount of the bid",
-            "examples": [500]
-          },
-          "submittedAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "When the bid was submitted",
-            "examples": ["2024-01-01T00:00:00Z"]
-          }
-        },
-        "required": ["playerId", "bidAmount", "submittedAt"]
-      },
       "FinalRoundAnswer": {
         "type": "object",
         "description": "Player answer in final round",
