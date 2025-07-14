@@ -281,9 +281,9 @@ class GameLobbyController {
   void onQuestionPick(int questionId) {
     final currentTurnPlayerId = gameData.value?.gameState.currentTurnPlayerId;
     final me = gameData.value?.me;
-    final myTurnToAnswer = currentTurnPlayerId == me?.meta.id;
+    final myTurnToPick = currentTurnPlayerId == me?.meta.id;
 
-    if (!myTurnToAnswer && me?.role != PlayerRole.showman) {
+    if (!myTurnToPick && me?.role != PlayerRole.showman) {
       getIt<ToastController>().show(
         LocaleKeys.not_your_turn_to_pick.tr(),
         type: ToastType.warning,
