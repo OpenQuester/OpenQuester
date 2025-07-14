@@ -28,6 +28,12 @@ _GameState _$GameStateFromJson(Map<String, dynamic> json) => _GameState(
   timer: json['timer'] == null
       ? null
       : GameStateTimer.fromJson(json['timer'] as Map<String, dynamic>),
+  finalRoundData: json['finalRoundData'] == null
+      ? null
+      : FinalRoundGameData.fromJson(
+          json['finalRoundData'] as Map<String, dynamic>,
+        ),
+  currentTurnPlayerId: (json['currentTurnPlayerId'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$GameStateToJson(_GameState instance) =>
@@ -39,4 +45,6 @@ Map<String, dynamic> _$GameStateToJson(_GameState instance) =>
       'currentRound': instance.currentRound,
       'currentQuestion': instance.currentQuestion,
       'timer': instance.timer,
+      'finalRoundData': instance.finalRoundData,
+      'currentTurnPlayerId': instance.currentTurnPlayerId,
     };

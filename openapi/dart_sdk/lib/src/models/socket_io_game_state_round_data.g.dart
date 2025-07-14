@@ -11,6 +11,7 @@ _SocketIOGameStateRoundData _$SocketIOGameStateRoundDataFromJson(
 ) => _SocketIOGameStateRoundData(
   order: (json['order'] as num).toInt(),
   name: json['name'] as String,
+  type: PackageRoundType.fromJson(json['type'] as String),
   description: json['description'] as String?,
   themes: (json['themes'] as List<dynamic>)
       .map(
@@ -24,6 +25,7 @@ Map<String, dynamic> _$SocketIOGameStateRoundDataToJson(
 ) => <String, dynamic>{
   'order': instance.order,
   'name': instance.name,
+  'type': instance.type,
   'description': instance.description,
   'themes': instance.themes,
 };

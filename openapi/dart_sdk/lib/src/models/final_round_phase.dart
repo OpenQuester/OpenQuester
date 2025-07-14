@@ -4,10 +4,9 @@
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+/// Phase of the final round
 @JsonEnum()
-enum GameStateQuestionState {
-  @JsonValue('choosing')
-  choosing('choosing'),
+enum FinalRoundPhase {
   @JsonValue('theme_elimination')
   themeElimination('theme_elimination'),
   @JsonValue('bidding')
@@ -16,17 +15,12 @@ enum GameStateQuestionState {
   answering('answering'),
   @JsonValue('reviewing')
   reviewing('reviewing'),
-  @JsonValue('showing')
-  showing('showing'),
-  /// The name has been replaced because it contains a keyword. Original name: `null`.
-  @JsonValue(null)
-  valueNull(null),
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 
-  const GameStateQuestionState(this.json);
+  const FinalRoundPhase(this.json);
 
-  factory GameStateQuestionState.fromJson(String? json) => values.firstWhere(
+  factory FinalRoundPhase.fromJson(String json) => values.firstWhere(
         (e) => e.json == json,
         orElse: () => $unknown,
       );

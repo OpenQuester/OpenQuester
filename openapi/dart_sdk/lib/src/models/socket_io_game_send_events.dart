@@ -32,6 +32,22 @@ enum SocketIOGameSendEvents {
   gamePause('game-pause'),
   @JsonValue('game-unpause')
   gameUnpause('game-unpause'),
+  @JsonValue('theme-eliminate')
+  themeEliminate('theme-eliminate'),
+  @JsonValue('final-bid-submit')
+  finalBidSubmit('final-bid-submit'),
+  @JsonValue('final-answer-submit')
+  finalAnswerSubmit('final-answer-submit'),
+  @JsonValue('final-answer-review')
+  finalAnswerReview('final-answer-review'),
+  @JsonValue('final-phase-complete')
+  finalPhaseComplete('final-phase-complete'),
+  @JsonValue('final-question-data')
+  finalQuestionData('final-question-data'),
+  @JsonValue('final-submit-end')
+  finalSubmitEnd('final-submit-end'),
+  @JsonValue('final-auto-loss')
+  finalAutoLoss('final-auto-loss'),
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 

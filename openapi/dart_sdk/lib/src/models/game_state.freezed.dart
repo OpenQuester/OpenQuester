@@ -17,7 +17,8 @@ T _$identity<T>(T value) => value;
 mixin _$GameState {
 
  GameStateQuestionState? get questionState; bool get isPaused;/// Id of player who is currently answering
- int? get answeringPlayer; List<GameStateAnsweredPlayer>? get answeredPlayers; SocketIOGameStateRoundData? get currentRound; PackageQuestionData? get currentQuestion; GameStateTimer? get timer;
+ int? get answeringPlayer; List<GameStateAnsweredPlayer>? get answeredPlayers; SocketIOGameStateRoundData? get currentRound; PackageQuestionData? get currentQuestion; GameStateTimer? get timer; FinalRoundGameData? get finalRoundData;/// Id of player whose turn it is to pick a question or eliminate theme
+ int? get currentTurnPlayerId;
 /// Create a copy of GameState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,16 +31,16 @@ $GameStateCopyWith<GameState> get copyWith => _$GameStateCopyWithImpl<GameState>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is GameState&&(identical(other.questionState, questionState) || other.questionState == questionState)&&(identical(other.isPaused, isPaused) || other.isPaused == isPaused)&&(identical(other.answeringPlayer, answeringPlayer) || other.answeringPlayer == answeringPlayer)&&const DeepCollectionEquality().equals(other.answeredPlayers, answeredPlayers)&&(identical(other.currentRound, currentRound) || other.currentRound == currentRound)&&(identical(other.currentQuestion, currentQuestion) || other.currentQuestion == currentQuestion)&&(identical(other.timer, timer) || other.timer == timer));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GameState&&(identical(other.questionState, questionState) || other.questionState == questionState)&&(identical(other.isPaused, isPaused) || other.isPaused == isPaused)&&(identical(other.answeringPlayer, answeringPlayer) || other.answeringPlayer == answeringPlayer)&&const DeepCollectionEquality().equals(other.answeredPlayers, answeredPlayers)&&(identical(other.currentRound, currentRound) || other.currentRound == currentRound)&&(identical(other.currentQuestion, currentQuestion) || other.currentQuestion == currentQuestion)&&(identical(other.timer, timer) || other.timer == timer)&&(identical(other.finalRoundData, finalRoundData) || other.finalRoundData == finalRoundData)&&(identical(other.currentTurnPlayerId, currentTurnPlayerId) || other.currentTurnPlayerId == currentTurnPlayerId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,questionState,isPaused,answeringPlayer,const DeepCollectionEquality().hash(answeredPlayers),currentRound,currentQuestion,timer);
+int get hashCode => Object.hash(runtimeType,questionState,isPaused,answeringPlayer,const DeepCollectionEquality().hash(answeredPlayers),currentRound,currentQuestion,timer,finalRoundData,currentTurnPlayerId);
 
 @override
 String toString() {
-  return 'GameState(questionState: $questionState, isPaused: $isPaused, answeringPlayer: $answeringPlayer, answeredPlayers: $answeredPlayers, currentRound: $currentRound, currentQuestion: $currentQuestion, timer: $timer)';
+  return 'GameState(questionState: $questionState, isPaused: $isPaused, answeringPlayer: $answeringPlayer, answeredPlayers: $answeredPlayers, currentRound: $currentRound, currentQuestion: $currentQuestion, timer: $timer, finalRoundData: $finalRoundData, currentTurnPlayerId: $currentTurnPlayerId)';
 }
 
 
@@ -50,11 +51,11 @@ abstract mixin class $GameStateCopyWith<$Res>  {
   factory $GameStateCopyWith(GameState value, $Res Function(GameState) _then) = _$GameStateCopyWithImpl;
 @useResult
 $Res call({
- GameStateQuestionState? questionState, bool isPaused, int? answeringPlayer, List<GameStateAnsweredPlayer>? answeredPlayers, SocketIOGameStateRoundData? currentRound, PackageQuestionData? currentQuestion, GameStateTimer? timer
+ GameStateQuestionState? questionState, bool isPaused, int? answeringPlayer, List<GameStateAnsweredPlayer>? answeredPlayers, SocketIOGameStateRoundData? currentRound, PackageQuestionData? currentQuestion, GameStateTimer? timer, FinalRoundGameData? finalRoundData, int? currentTurnPlayerId
 });
 
 
-$SocketIOGameStateRoundDataCopyWith<$Res>? get currentRound;$PackageQuestionDataCopyWith<$Res>? get currentQuestion;$GameStateTimerCopyWith<$Res>? get timer;
+$SocketIOGameStateRoundDataCopyWith<$Res>? get currentRound;$PackageQuestionDataCopyWith<$Res>? get currentQuestion;$GameStateTimerCopyWith<$Res>? get timer;$FinalRoundGameDataCopyWith<$Res>? get finalRoundData;
 
 }
 /// @nodoc
@@ -67,7 +68,7 @@ class _$GameStateCopyWithImpl<$Res>
 
 /// Create a copy of GameState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? questionState = freezed,Object? isPaused = null,Object? answeringPlayer = freezed,Object? answeredPlayers = freezed,Object? currentRound = freezed,Object? currentQuestion = freezed,Object? timer = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? questionState = freezed,Object? isPaused = null,Object? answeringPlayer = freezed,Object? answeredPlayers = freezed,Object? currentRound = freezed,Object? currentQuestion = freezed,Object? timer = freezed,Object? finalRoundData = freezed,Object? currentTurnPlayerId = freezed,}) {
   return _then(_self.copyWith(
 questionState: freezed == questionState ? _self.questionState : questionState // ignore: cast_nullable_to_non_nullable
 as GameStateQuestionState?,isPaused: null == isPaused ? _self.isPaused : isPaused // ignore: cast_nullable_to_non_nullable
@@ -76,7 +77,9 @@ as int?,answeredPlayers: freezed == answeredPlayers ? _self.answeredPlayers : an
 as List<GameStateAnsweredPlayer>?,currentRound: freezed == currentRound ? _self.currentRound : currentRound // ignore: cast_nullable_to_non_nullable
 as SocketIOGameStateRoundData?,currentQuestion: freezed == currentQuestion ? _self.currentQuestion : currentQuestion // ignore: cast_nullable_to_non_nullable
 as PackageQuestionData?,timer: freezed == timer ? _self.timer : timer // ignore: cast_nullable_to_non_nullable
-as GameStateTimer?,
+as GameStateTimer?,finalRoundData: freezed == finalRoundData ? _self.finalRoundData : finalRoundData // ignore: cast_nullable_to_non_nullable
+as FinalRoundGameData?,currentTurnPlayerId: freezed == currentTurnPlayerId ? _self.currentTurnPlayerId : currentTurnPlayerId // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 /// Create a copy of GameState
@@ -115,6 +118,18 @@ $GameStateTimerCopyWith<$Res>? get timer {
   return $GameStateTimerCopyWith<$Res>(_self.timer!, (value) {
     return _then(_self.copyWith(timer: value));
   });
+}/// Create a copy of GameState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$FinalRoundGameDataCopyWith<$Res>? get finalRoundData {
+    if (_self.finalRoundData == null) {
+    return null;
+  }
+
+  return $FinalRoundGameDataCopyWith<$Res>(_self.finalRoundData!, (value) {
+    return _then(_self.copyWith(finalRoundData: value));
+  });
 }
 }
 
@@ -123,7 +138,7 @@ $GameStateTimerCopyWith<$Res>? get timer {
 @JsonSerializable()
 
 class _GameState implements GameState {
-  const _GameState({required this.questionState, required this.isPaused, required this.answeringPlayer, required final  List<GameStateAnsweredPlayer>? answeredPlayers, this.currentRound, this.currentQuestion, this.timer}): _answeredPlayers = answeredPlayers;
+  const _GameState({required this.questionState, required this.isPaused, required this.answeringPlayer, required final  List<GameStateAnsweredPlayer>? answeredPlayers, this.currentRound, this.currentQuestion, this.timer, this.finalRoundData, this.currentTurnPlayerId}): _answeredPlayers = answeredPlayers;
   factory _GameState.fromJson(Map<String, dynamic> json) => _$GameStateFromJson(json);
 
 @override final  GameStateQuestionState? questionState;
@@ -142,6 +157,9 @@ class _GameState implements GameState {
 @override final  SocketIOGameStateRoundData? currentRound;
 @override final  PackageQuestionData? currentQuestion;
 @override final  GameStateTimer? timer;
+@override final  FinalRoundGameData? finalRoundData;
+/// Id of player whose turn it is to pick a question or eliminate theme
+@override final  int? currentTurnPlayerId;
 
 /// Create a copy of GameState
 /// with the given fields replaced by the non-null parameter values.
@@ -156,16 +174,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GameState&&(identical(other.questionState, questionState) || other.questionState == questionState)&&(identical(other.isPaused, isPaused) || other.isPaused == isPaused)&&(identical(other.answeringPlayer, answeringPlayer) || other.answeringPlayer == answeringPlayer)&&const DeepCollectionEquality().equals(other._answeredPlayers, _answeredPlayers)&&(identical(other.currentRound, currentRound) || other.currentRound == currentRound)&&(identical(other.currentQuestion, currentQuestion) || other.currentQuestion == currentQuestion)&&(identical(other.timer, timer) || other.timer == timer));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GameState&&(identical(other.questionState, questionState) || other.questionState == questionState)&&(identical(other.isPaused, isPaused) || other.isPaused == isPaused)&&(identical(other.answeringPlayer, answeringPlayer) || other.answeringPlayer == answeringPlayer)&&const DeepCollectionEquality().equals(other._answeredPlayers, _answeredPlayers)&&(identical(other.currentRound, currentRound) || other.currentRound == currentRound)&&(identical(other.currentQuestion, currentQuestion) || other.currentQuestion == currentQuestion)&&(identical(other.timer, timer) || other.timer == timer)&&(identical(other.finalRoundData, finalRoundData) || other.finalRoundData == finalRoundData)&&(identical(other.currentTurnPlayerId, currentTurnPlayerId) || other.currentTurnPlayerId == currentTurnPlayerId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,questionState,isPaused,answeringPlayer,const DeepCollectionEquality().hash(_answeredPlayers),currentRound,currentQuestion,timer);
+int get hashCode => Object.hash(runtimeType,questionState,isPaused,answeringPlayer,const DeepCollectionEquality().hash(_answeredPlayers),currentRound,currentQuestion,timer,finalRoundData,currentTurnPlayerId);
 
 @override
 String toString() {
-  return 'GameState(questionState: $questionState, isPaused: $isPaused, answeringPlayer: $answeringPlayer, answeredPlayers: $answeredPlayers, currentRound: $currentRound, currentQuestion: $currentQuestion, timer: $timer)';
+  return 'GameState(questionState: $questionState, isPaused: $isPaused, answeringPlayer: $answeringPlayer, answeredPlayers: $answeredPlayers, currentRound: $currentRound, currentQuestion: $currentQuestion, timer: $timer, finalRoundData: $finalRoundData, currentTurnPlayerId: $currentTurnPlayerId)';
 }
 
 
@@ -176,11 +194,11 @@ abstract mixin class _$GameStateCopyWith<$Res> implements $GameStateCopyWith<$Re
   factory _$GameStateCopyWith(_GameState value, $Res Function(_GameState) _then) = __$GameStateCopyWithImpl;
 @override @useResult
 $Res call({
- GameStateQuestionState? questionState, bool isPaused, int? answeringPlayer, List<GameStateAnsweredPlayer>? answeredPlayers, SocketIOGameStateRoundData? currentRound, PackageQuestionData? currentQuestion, GameStateTimer? timer
+ GameStateQuestionState? questionState, bool isPaused, int? answeringPlayer, List<GameStateAnsweredPlayer>? answeredPlayers, SocketIOGameStateRoundData? currentRound, PackageQuestionData? currentQuestion, GameStateTimer? timer, FinalRoundGameData? finalRoundData, int? currentTurnPlayerId
 });
 
 
-@override $SocketIOGameStateRoundDataCopyWith<$Res>? get currentRound;@override $PackageQuestionDataCopyWith<$Res>? get currentQuestion;@override $GameStateTimerCopyWith<$Res>? get timer;
+@override $SocketIOGameStateRoundDataCopyWith<$Res>? get currentRound;@override $PackageQuestionDataCopyWith<$Res>? get currentQuestion;@override $GameStateTimerCopyWith<$Res>? get timer;@override $FinalRoundGameDataCopyWith<$Res>? get finalRoundData;
 
 }
 /// @nodoc
@@ -193,7 +211,7 @@ class __$GameStateCopyWithImpl<$Res>
 
 /// Create a copy of GameState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? questionState = freezed,Object? isPaused = null,Object? answeringPlayer = freezed,Object? answeredPlayers = freezed,Object? currentRound = freezed,Object? currentQuestion = freezed,Object? timer = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? questionState = freezed,Object? isPaused = null,Object? answeringPlayer = freezed,Object? answeredPlayers = freezed,Object? currentRound = freezed,Object? currentQuestion = freezed,Object? timer = freezed,Object? finalRoundData = freezed,Object? currentTurnPlayerId = freezed,}) {
   return _then(_GameState(
 questionState: freezed == questionState ? _self.questionState : questionState // ignore: cast_nullable_to_non_nullable
 as GameStateQuestionState?,isPaused: null == isPaused ? _self.isPaused : isPaused // ignore: cast_nullable_to_non_nullable
@@ -202,7 +220,9 @@ as int?,answeredPlayers: freezed == answeredPlayers ? _self._answeredPlayers : a
 as List<GameStateAnsweredPlayer>?,currentRound: freezed == currentRound ? _self.currentRound : currentRound // ignore: cast_nullable_to_non_nullable
 as SocketIOGameStateRoundData?,currentQuestion: freezed == currentQuestion ? _self.currentQuestion : currentQuestion // ignore: cast_nullable_to_non_nullable
 as PackageQuestionData?,timer: freezed == timer ? _self.timer : timer // ignore: cast_nullable_to_non_nullable
-as GameStateTimer?,
+as GameStateTimer?,finalRoundData: freezed == finalRoundData ? _self.finalRoundData : finalRoundData // ignore: cast_nullable_to_non_nullable
+as FinalRoundGameData?,currentTurnPlayerId: freezed == currentTurnPlayerId ? _self.currentTurnPlayerId : currentTurnPlayerId // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -241,6 +261,18 @@ $GameStateTimerCopyWith<$Res>? get timer {
 
   return $GameStateTimerCopyWith<$Res>(_self.timer!, (value) {
     return _then(_self.copyWith(timer: value));
+  });
+}/// Create a copy of GameState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$FinalRoundGameDataCopyWith<$Res>? get finalRoundData {
+    if (_self.finalRoundData == null) {
+    return null;
+  }
+
+  return $FinalRoundGameDataCopyWith<$Res>(_self.finalRoundData!, (value) {
+    return _then(_self.copyWith(finalRoundData: value));
   });
 }
 }
