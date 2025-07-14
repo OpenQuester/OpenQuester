@@ -3110,6 +3110,10 @@
               { "$ref": "#/components/schemas/QuestionAnswerText" },
               { "type": "null" }
             ]
+          },
+          "nextTurnPlayerId": {
+            "oneOf": [{ "type": "integer" }, { "type": "null" }],
+            "description": "ID of the next player to take their turn, null if no next player (game finished)"
           }
         },
         "required": ["answerFiles", "answerText"]

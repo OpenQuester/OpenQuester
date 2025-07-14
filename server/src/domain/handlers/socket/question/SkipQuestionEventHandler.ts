@@ -52,6 +52,7 @@ export class SkipQuestionEventHandler extends BaseSocketEventHandler<
     const finishPayload: QuestionFinishEventPayload = {
       answerFiles: question.answerFiles ?? null,
       answerText: question.answerText ?? null,
+      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
     };
 
     const broadcasts: SocketEventBroadcast[] = [

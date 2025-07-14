@@ -4,9 +4,13 @@ import { PackageAnswerFileDTO } from "domain/types/dto/package/PackageAnswerFile
 export interface QuestionFinishEventPayload {
   answerFiles: PackageAnswerFileDTO[] | null;
   answerText: string | null;
+  nextTurnPlayerId: number | null;
 }
 
 export interface QuestionFinishWithAnswerEventPayload
-  extends Pick<QuestionFinishEventPayload, "answerFiles" | "answerText"> {
+  extends Pick<
+    QuestionFinishEventPayload,
+    "answerFiles" | "answerText" | "nextTurnPlayerId"
+  > {
   answerResult: GameStateAnsweredPlayerData;
 }
