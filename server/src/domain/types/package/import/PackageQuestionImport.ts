@@ -6,7 +6,7 @@ import { PackageTheme } from "infrastructure/database/models/package/PackageThem
 export interface PackageQuestionImport {
   theme: PackageTheme;
   order: number;
-  price: number;
+  price: number | null; // Final round questions have null price - players bid after theme selection
   type: PackageQuestionType;
   isHidden: boolean;
   text?: string | null;

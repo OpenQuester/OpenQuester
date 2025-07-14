@@ -67,6 +67,7 @@ export const CONTAINER_TYPES = {
   DependencyService: Symbol("DependencyService"),
   S3StorageService: Symbol("S3StorageService"),
   SocketIOGameService: Symbol("SocketIOGameService"),
+  FinalRoundService: Symbol("FinalRoundService"),
   PackageService: Symbol("PackageService"),
   RedisService: Symbol("RedisService"),
   SocketUserDataService: Symbol("SocketUserDataService"),
@@ -76,6 +77,13 @@ export const CONTAINER_TYPES = {
   SocketIOChatService: Symbol("SocketIOChatService"),
   RedisPubSubService: Symbol("RedisPubSubService"),
   SocketIOQuestionService: Symbol("SocketIOQuestionService"),
+  SocketGameContextService: Symbol("SocketGameContextService"),
+  SocketGameTimerService: Symbol("SocketGameTimerService"),
+  SocketGameValidationService: Symbol("SocketGameValidationService"),
+  SocketQuestionStateService: Symbol("SocketQuestionStateService"),
+
+  // Factories
+  RoundHandlerFactory: Symbol("RoundHandlerFactory"),
 
   // Use cases
   UserCacheUseCase: Symbol("UserCacheUseCase"),

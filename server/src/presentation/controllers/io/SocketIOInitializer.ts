@@ -1,20 +1,35 @@
 import { Server as IOServer, Namespace, Socket } from "socket.io";
 
+import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
-import { SocketIOGameController } from "presentation/controllers/io/game/SocketIOGameController";
-import { SocketIOGameQuestionController } from "presentation/controllers/io/game/SocketIOGameQuestionController";
+import { SocketEventHandlerFactory } from "domain/handlers/socket/SocketEventHandlerFactory";
+import { SocketEventHandlerRegistry } from "domain/handlers/socket/SocketEventHandlerRegistry";
+import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
+import { Logger } from "infrastructure/utils/Logger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class SocketIOInitializer {
+  private readonly handlerFactory: SocketEventHandlerFactory;
+
   constructor(
     private readonly io: IOServer,
     private readonly socketIOGameService: SocketIOGameService,
     private readonly socketIOChatService: SocketIOChatService,
+    private readonly socketUserDataService: SocketUserDataService,
+    private readonly finalRoundService: FinalRoundService,
     private readonly socketIOQuestionService: SocketIOQuestionService
   ) {
+    this.handlerFactory = new SocketEventHandlerFactory(
+      this.socketIOGameService,
+      this.socketIOChatService,
+      this.socketUserDataService,
+      this.finalRoundService,
+      this.socketIOQuestionService
+    );
+
     const gameNamespace = this.io.of(SOCKET_GAME_NAMESPACE);
 
     gameNamespace.on("connection", (socket: Socket) => {
@@ -23,21 +38,34 @@ export class SocketIOInitializer {
   }
 
   private _initializeGameControllers(nsp: Namespace, socket: Socket) {
-    const eventEmitter = new SocketIOEventEmitter();
+    const eventEmitter = new SocketIOEventEmitter(this.socketIOGameService);
     eventEmitter.init(nsp, socket);
 
-    new SocketIOGameController(
+    // Initialize new standardized event handler registry
+    const handlerRegistry = new SocketEventHandlerRegistry(
       socket,
-      eventEmitter,
-      this.socketIOGameService,
-      this.socketIOChatService
+      eventEmitter
     );
 
-    new SocketIOGameQuestionController(
+    // Register all standardized event handlers
+    const allHandlers = this.handlerFactory.createAllHandlers(
       socket,
-      nsp,
-      eventEmitter,
-      this.socketIOQuestionService
+      eventEmitter
+    );
+    for (const handler of allHandlers) {
+      handlerRegistry.registerInstance(handler);
+    }
+
+    // Log handler registration stats
+    const registryStats = handlerRegistry.getStats();
+    Logger.info(
+      `Registered ${
+        registryStats.totalHandlers
+      } standardized socket handlers | SocketId: ${socket.id} | GameEvents: ${
+        registryStats.gameEvents
+      } | SystemEvents: ${
+        registryStats.systemEvents
+      } | Events: ${registryStats.eventNames.join(", ")}`
     );
   }
 }

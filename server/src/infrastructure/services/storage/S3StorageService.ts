@@ -48,7 +48,7 @@ export class S3StorageService {
         secretAccessKey: this.s3Context.secretKey,
       },
       forcePathStyle: true,
-      endpoint: this.s3Context.host,
+      endpoint: this.s3Context.endpoint,
       region: this.s3Context.region,
     });
   }
@@ -94,12 +94,19 @@ export class S3StorageService {
 
   public getUrl(filename: string) {
     const filePath = StorageUtils.parseFilePath(filename);
-
-    const baseUrl = this.s3Context.host.endsWith("/")
-      ? `${this.s3Context.host}${this.s3Context.bucket}`
-      : `${this.s3Context.host}/${this.s3Context.bucket}`;
-
-    return `${baseUrl}/${filePath}`;
+    // Support both subdomain and path-style bucket formats
+    if (this.s3Context.useSubDomainBucketFormat) {
+      const baseUrl = this.s3Context.urlPrefix.endsWith("/")
+        ? this.s3Context.urlPrefix.slice(0, -1)
+        : this.s3Context.urlPrefix;
+      return `${baseUrl}/${filePath}`;
+    } else {
+      // Path-style: endpoint/bucket/file-path
+      const endpoint = this.s3Context.endpoint.endsWith("/")
+        ? this.s3Context.endpoint.slice(0, -1)
+        : this.s3Context.endpoint;
+      return `${endpoint}/${this.s3Context.bucket}/${filePath}`;
+    }
   }
 
   /**
@@ -116,7 +123,10 @@ export class S3StorageService {
       https
         .get(cdnLink, (res) => {
           if (res.statusCode !== 200) {
-            resolve(true);
+            Logger.error(
+              `Failed to fetch file from CDN (${cdnLink}): ${res.statusCode}`
+            );
+            resolve(false);
             return;
           }
 
@@ -148,7 +158,7 @@ export class S3StorageService {
                   err,
                 })
               );
-              resolve(true);
+              resolve(false);
             }
           });
         })
@@ -159,7 +169,7 @@ export class S3StorageService {
               err,
             })
           );
-          resolve(true);
+          resolve(false);
         });
     });
   }

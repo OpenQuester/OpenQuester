@@ -19,3 +19,5 @@ content.xml
 *.csr
 *.key
 *.pfx
+
+.github/copilot-instructions.md

@@ -12,6 +12,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { PackageRoundImport } from "domain/types/package/import/PackageRoundImport";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { Package } from "infrastructure/database/models/package/Package";
 import { PackageTheme } from "infrastructure/database/models/package/PackageTheme";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
@@ -37,11 +38,19 @@ export class PackageRound {
   @Column({ type: "int" })
   order!: number;
 
+  @Column({
+    type: "enum",
+    enum: [...Object.values(PackageRoundType)],
+    default: "simple",
+  })
+  type!: PackageRoundType;
+
   public import(data: PackageRoundImport): void {
     this.name = data.name;
     this.description = data.description;
     this.package = data.package;
     this.order = data.order;
+    this.type = data.type;
   }
 
   public toDTO(
@@ -62,6 +71,7 @@ export class PackageRound {
       description: this.description,
       themes: themesDTO,
       order: this.order,
+      type: this.type,
     };
 
     if (opts.fetchIds) {

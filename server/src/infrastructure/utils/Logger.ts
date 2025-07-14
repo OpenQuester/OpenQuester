@@ -12,19 +12,25 @@ import {
   yellow,
 } from "colorette";
 import { LogLevel } from "domain/types/log/log";
+import { Environment } from "infrastructure/config/Environment";
 
 /**
  * Logger class used for writing logs and for prettier console output
  */
 export class Logger {
   private static logPath = path.resolve(process.cwd(), "logs/logs.log");
-  private static stream = fs.createWriteStream(Logger.logPath, { flags: "a" });
+  private static stream: fs.WriteStream | null = null;
   private static initialized = false;
   private static logPathExists = false;
 
   private static ensureStream() {
     if (this.initialized) return;
     this.initialized = true;
+    if (Environment.instance.ENV === "test") {
+      // Do not create file stream in test environment
+      return;
+    }
+    this.stream = fs.createWriteStream(Logger.logPath, { flags: "a" });
     this.stream.on("error", (err) => {
       console.error("[LOGGER STREAM ERROR]", err);
     });
@@ -76,6 +82,13 @@ export class Logger {
   }
 
   public static debug(obj: unknown) {
+    const logLevel = Environment.instance.LOG_LEVEL || process.env.LOG_LEVEL;
+    const env = Environment.instance.ENV || process.env.ENV;
+
+    if (logLevel !== "debug" || env === "test") {
+      return;
+    }
+
     const prefix = "[DEBUG]: ";
     let text = "";
 
@@ -112,6 +125,13 @@ export class Logger {
   }
 
   public static logMigrationComplete(version: string) {
+    const env = Environment.instance.ENV || process.env.ENV;
+
+    // Avoid unnecessary logging in test environment
+    if (env === "test") {
+      return;
+    }
+
     const prefix = "[Migration]";
 
     const log = `${prefix} Migration complete for version ${version}`;
@@ -131,6 +151,10 @@ export class Logger {
   }
 
   private static _writeFile(text: unknown) {
+    if (Environment.instance.ENV === "test" || !Logger.stream) {
+      // Skip writing to file in test environment
+      return;
+    }
     if (!Logger.stream.write(text + "\n")) {
       Logger.stream.once("drain", () => {
         /* nothing else to do */

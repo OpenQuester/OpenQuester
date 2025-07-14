@@ -35,8 +35,8 @@ export class PackageQuestion {
   @JoinColumn({ name: "theme" })
   theme!: PackageTheme;
 
-  @Column()
-  price!: number;
+  @Column({ type: "int", nullable: true }) // Final round questions have null price - players bid after theme selection
+  price!: number | null;
 
   @Column({
     type: "enum",
@@ -44,7 +44,7 @@ export class PackageQuestion {
   })
   type!: PackageQuestionType;
 
-  @Column({ default: false })
+  @Column({ name: "is_hidden", default: false })
   isHidden!: boolean;
 
   @Column({ type: "text", nullable: true })
@@ -89,7 +89,7 @@ export class PackageQuestion {
   @Column({ type: "decimal", precision: 6, scale: 3, nullable: true })
   price_multiplier?: number | null;
 
-  @Column({ type: "int", nullable: true })
+  @Column({ name: "show_delay", type: "int", nullable: true })
   showDelay?: number | null;
 
   @OneToMany(

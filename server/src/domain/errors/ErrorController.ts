@@ -42,7 +42,7 @@ export class ErrorController {
     }
 
     if (error instanceof ServerError) {
-      Logger.error(`Internal server error: ${error.message} \n${error.stack}`);
+      Logger.error(`Internal server error: ${error.message}`);
       return {
         message: ServerResponse.INTERNAL_SERVER_ERROR,
         code: HttpStatus.INTERNAL,
@@ -69,14 +69,8 @@ export class ErrorController {
     }
     const args = error.textArgs;
 
-    let message: string;
-
-    const tsKeys = await ts.translationKeys();
-    if (tsKeys.includes(error.message)) {
-      message = await ts.translate(error.message, lang);
-    } else {
-      message = error.message;
-    }
+    const translatedMessage = await ts.translate(error.message, lang);
+    let message = translatedMessage;
 
     if (args && ValueUtils.isObject(args) && !ValueUtils.isEmpty(args)) {
       message = TemplateUtils.text(message, args);

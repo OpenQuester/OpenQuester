@@ -1,93 +1,108 @@
 import { GameService } from "application/services/game/GameService";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
+import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
+import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
+import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import {
   GAME_QUESTION_ANSWER_SUBMIT_TIME,
   GAME_QUESTION_ANSWER_TIME,
-  GAME_TTL_IN_SECONDS,
 } from "domain/constants/game";
+import { REDIS_LOCK_QUESTION_ANSWER } from "domain/constants/redis";
 import { Game } from "domain/entities/game/Game";
-import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { ClientResponse } from "domain/enums/ClientResponse";
-import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
+import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
+import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { QuestionAction } from "domain/types/game/QuestionAction";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import {
   AnswerResultData,
   AnswerResultType,
 } from "domain/types/socket/game/AnswerResultData";
-import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 export class SocketIOQuestionService {
   constructor(
-    private readonly socketUserDataService: SocketUserDataService,
-    private readonly gameService: GameService
+    private readonly gameService: GameService,
+    private readonly socketGameContextService: SocketGameContextService,
+    private readonly socketGameValidationService: SocketGameValidationService,
+    private readonly socketQuestionStateService: SocketQuestionStateService,
+    private readonly socketGameTimerService: SocketGameTimerService,
+    private readonly roundHandlerFactory: RoundHandlerFactory
   ) {
     //
   }
 
+  private _getQuestionAnswerLockKey(gameId: string) {
+    return `${REDIS_LOCK_QUESTION_ANSWER}:${gameId}`;
+  }
+
   public async handleQuestionAnswer(socketId: string) {
-    const { game, player } = await this._fetchPlayerAndGame(socketId);
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
 
-    this._validateGameStatus(game);
+    // Validation
+    GameStateValidator.validateGameInProgress(game);
+    this.socketGameValidationService.validateQuestionAction(
+      currentPlayer,
+      game,
+      QuestionAction.ANSWER
+    );
+    this.socketGameValidationService.validateQuestionAnswering(
+      game,
+      currentPlayer!.meta.id
+    );
 
-    if (
-      player?.role === PlayerRole.SHOWMAN ||
-      player?.role === PlayerRole.SPECTATOR
-    ) {
-      throw new ClientError(ClientResponse.YOU_CANNOT_ANSWER_QUESTION);
-    }
+    // Lock for question answering
+    const acquired = await this.gameService.gameLock(
+      this._getQuestionAnswerLockKey(game.id),
+      1
+    );
 
-    if (!game.gameState.currentQuestion) {
-      throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
-    }
-
-    if (ValueUtils.isNumber(game.gameState.answeringPlayer)) {
+    if (!acquired) {
       throw new ClientError(ClientResponse.SOMEONE_ALREADY_ANSWERING);
     }
 
-    const isAnswered = !!game.gameState.answeredPlayers?.find(
-      (answerResult) => answerResult.player === player?.meta.id
-    );
-
-    if (isAnswered) {
-      throw new ClientError(ClientResponse.ALREADY_ANSWERED);
-    }
-
-    const elapsedTimer = game.gameState.timer!;
-
-    elapsedTimer.elapsedMs =
-      Date.now() - new Date(elapsedTimer.startedAt).getTime();
-
-    await this.gameService.saveTimer(
-      elapsedTimer,
-      game.id,
-      // Apply some additional expire time for key safety (in case of high latency)
-      Math.ceil(GAME_QUESTION_ANSWER_SUBMIT_TIME * 1.5),
+    // Save question showing timer at current state
+    await this.socketGameTimerService.saveElapsedTimer(
+      game,
+      GAME_QUESTION_ANSWER_SUBMIT_TIME,
       QuestionState.SHOWING
     );
 
-    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_SUBMIT_TIME);
+    // Setup and set answering timer
+    const timer = await this.socketQuestionStateService.setupAnsweringTimer(
+      game,
+      GAME_QUESTION_ANSWER_SUBMIT_TIME,
+      currentPlayer!.meta.id
+    );
 
-    game.gameState.answeringPlayer = player!.meta.id;
-    game.gameState.questionState = QuestionState.ANSWERING;
-    game.gameState.timer = timer.start();
-
-    await this.gameService.updateGame(game);
-    await this.gameService.saveTimer(timer.value(), game.id);
-
-    return { userId: player?.meta.id, gameId: game.id, timer };
+    return {
+      userId: currentPlayer?.meta.id,
+      gameId: game.id,
+      timer,
+    };
   }
 
   public async handleAnswerSubmitted(socketId: string) {
-    const { player, game } = await this._fetchPlayerAndGame(socketId);
-    this._validateGameStatus(game);
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
 
-    if (game.gameState.answeringPlayer !== player?.meta.id) {
+    GameStateValidator.validateGameInProgress(game);
+
+    if (game.gameState.answeringPlayer !== currentPlayer?.meta.id) {
       throw new ClientError(ClientResponse.CANNOT_SUBMIT_ANSWER);
     }
 
@@ -95,12 +110,18 @@ export class SocketIOQuestionService {
   }
 
   public async handleAnswerResult(socketId: string, data: AnswerResultData) {
-    const { player, game } = await this._fetchPlayerAndGame(socketId);
-    this._validateGameStatus(game);
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
 
-    if (player?.role !== PlayerRole.SHOWMAN) {
-      throw new ClientError(ClientResponse.ONLY_SHOWMAN_SEND_ANSWER_RESULT);
-    }
+    GameStateValidator.validateGameInProgress(game);
+    this.socketGameValidationService.validateQuestionAction(
+      currentPlayer,
+      game,
+      QuestionAction.RESULT
+    );
 
     const isCorrect = data.answerType === AnswerResultType.CORRECT;
 
@@ -116,6 +137,15 @@ export class SocketIOQuestionService {
     );
 
     let question = null;
+
+    if (
+      isCorrect &&
+      game.gameState.currentRound?.type === PackageRoundType.SIMPLE
+    ) {
+      // Update current turn player ID to the one who answered correctly
+      const answeringPlayerId = playerAnswerResult.player;
+      game.gameState.currentTurnPlayerId = answeringPlayerId;
+    }
 
     if (isCorrect) {
       question = await this.getCurrentQuestion(game);
@@ -149,7 +179,9 @@ export class SocketIOQuestionService {
   }
 
   public async handleRoundProgression(game: Game) {
-    const { isGameFinished, nextGameState } = game.handleRoundProgression();
+    const roundHandler = this.roundHandlerFactory.createFromGame(game);
+    const { isGameFinished, nextGameState } =
+      await roundHandler.handleRoundProgression(game, { forced: false });
 
     if (isGameFinished || nextGameState) {
       await this.gameService.updateGame(game);
@@ -159,61 +191,52 @@ export class SocketIOQuestionService {
   }
 
   public async handleQuestionSkip(socketId: string) {
-    const { game, player } = await this._fetchPlayerAndGame(socketId);
-    this._validateGameStatus(game);
-
-    if (player?.role !== PlayerRole.SHOWMAN) {
-      throw new ClientError(ClientResponse.ONLY_SHOWMAN_SKIP_QUESTION_FORCE);
-    }
-
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
     const gameState = game.gameState;
 
-    if (!gameState.currentRound) {
-      throw new ClientError(ClientResponse.GAME_NOT_STARTED);
-    }
-
-    if (!gameState.currentQuestion) {
-      throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
-    }
+    // Validation
+    GameStateValidator.validateGameInProgress(game);
+    this.socketGameValidationService.validateQuestionAction(
+      currentPlayer,
+      game,
+      QuestionAction.SKIP
+    );
+    this.socketGameValidationService.validateQuestionSkipping(game);
 
     const questionData = GameQuestionMapper.getQuestionAndTheme(
       game.package,
-      gameState.currentRound.id,
-      gameState.currentQuestion.id!
+      gameState.currentRound!.id,
+      gameState.currentQuestion!.id!
     );
 
     if (!questionData?.question) {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
     }
 
-    game.resetToChoosingState();
-    await this.gameService.updateGame(game);
-    await this.gameService.clearTimer(game.id);
-
+    await this.socketQuestionStateService.resetToChoosingState(game);
     return { game, question: questionData.question };
   }
 
   public async handleQuestionPick(socketId: string, questionId: number) {
-    const { game, player } = await this._fetchPlayerAndGame(socketId);
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
 
-    this._validateGameStatus(game);
+    GameStateValidator.validateGameInProgress(game);
+    this.socketGameValidationService.validateQuestionAction(
+      currentPlayer,
+      game,
+      QuestionAction.PICK
+    );
+    this.socketGameValidationService.validateQuestionPicking(game);
 
-    if (
-      player?.role !== PlayerRole.PLAYER &&
-      player?.role !== PlayerRole.SHOWMAN
-    ) {
-      throw new ClientError(ClientResponse.YOU_CANNOT_PICK_QUESTION);
-    }
-
-    const currentRound = game.gameState.currentRound;
-
-    if (!currentRound) {
-      throw new ClientError(ClientResponse.GAME_NOT_STARTED);
-    }
-
-    if (game.gameState.currentQuestion) {
-      throw new ClientError(ClientResponse.QUESTION_ALREADY_PICKED);
-    }
+    const currentRound = game.gameState.currentRound!;
 
     const questionData = GameQuestionMapper.getQuestionAndTheme(
       game.package,
@@ -231,21 +254,18 @@ export class SocketIOQuestionService {
       throw new ClientError(ClientResponse.QUESTION_ALREADY_PLAYED);
     }
 
-    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_TIME);
-    timer.start();
-
-    await this.updateQuestionState(game, QuestionState.SHOWING, {
-      withSave: false,
-    });
+    const timer = await this.socketQuestionStateService.setupQuestionTimer(
+      game,
+      GAME_QUESTION_ANSWER_TIME,
+      QuestionState.SHOWING
+    );
 
     game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
       questionData.question
     );
-    game.gameState.timer = timer.value();
     GameQuestionMapper.setQuestionPlayed(game, question.id!, theme.id!);
 
     await this.gameService.updateGame(game);
-    await this.gameService.saveTimer(timer.value(), game.id);
 
     return { question, game, timer };
   }
@@ -291,16 +311,20 @@ export class SocketIOQuestionService {
     > = new Map();
 
     const userDataPromises = socketsIds.map((socketId) =>
-      this._fetchUserSocketData(socketId).then((userData) => ({
-        socketId,
-        userData,
-      }))
+      this.socketGameContextService
+        .fetchUserSocketData(socketId)
+        .then((userSession) => ({
+          socketId,
+          userSession,
+        }))
     );
 
     const userDataResults = await Promise.all(userDataPromises);
 
-    for (const { socketId, userData } of userDataResults) {
-      const player = game.getPlayer(userData.id, { fetchDisconnected: false });
+    for (const { socketId, userSession } of userDataResults) {
+      const player = game.getPlayer(userSession.id, {
+        fetchDisconnected: false,
+      });
 
       if (player?.role === PlayerRole.SHOWMAN) {
         resultMap.set(socketId, fullQuestionPayload);
@@ -312,63 +336,64 @@ export class SocketIOQuestionService {
     return resultMap;
   }
 
-  public async updateQuestionState(
+  public async getGameStateBroadcastMap(
+    socketIds: string[],
     game: Game,
-    questionState: QuestionState,
-    opts?: {
-      withSave: boolean;
-    }
-  ) {
-    if (game.gameState.questionState === questionState) {
-      return;
-    }
+    gameState: GameStateDTO
+  ): Promise<Map<string, GameStateDTO>> {
+    // SocketID to GameStateDTO map
+    const resultMap = new Map<string, GameStateDTO>();
 
-    game.gameState.questionState = questionState;
+    const isFinalRound =
+      gameState.currentRound?.type === PackageRoundType.FINAL;
 
-    if (opts && opts.withSave) {
-      await this.gameService.updateGame(game);
-    }
-
-    return game;
-  }
-
-  private async _fetchUserSocketData(socketId: string) {
-    const userData = await this.socketUserDataService.getSocketData(socketId);
-
-    if (!userData) {
-      throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
+    // If not final round, everyone gets same state
+    if (!isFinalRound) {
+      for (const socketId of socketIds) {
+        resultMap.set(socketId, gameState);
+      }
+      return resultMap;
     }
 
-    return userData;
-  }
-
-  private async _fetchPlayerAndGame(socketId: string) {
-    const user = await this._fetchUserSocketData(socketId);
-
-    if (!user.gameId) {
-      throw new ClientError(
-        ClientResponse.GAME_NOT_FOUND,
-        HttpStatus.NOT_FOUND,
-        { gameId: user.gameId }
-      );
-    }
-
-    const game = await this.gameService.getGameEntity(
-      user.gameId,
-      GAME_TTL_IN_SECONDS
+    const userDataPromises = socketIds.map((socketId) =>
+      this.socketGameContextService
+        .fetchUserSocketData(socketId)
+        .then((userSession) => ({
+          socketId,
+          userSession,
+        }))
     );
-    const player = game.getPlayer(user.id, { fetchDisconnected: false });
 
-    return { game, player };
-  }
+    const userDataResults = await Promise.all(userDataPromises);
 
-  private _validateGameStatus(game: Game) {
-    if (game.gameState.isPaused) {
-      throw new ClientError(ClientResponse.GAME_IS_PAUSED);
+    // For each socket, provide appropriate game state based on role
+    for (const { socketId, userSession } of userDataResults) {
+      const player = game.getPlayer(userSession.id, {
+        fetchDisconnected: false,
+      });
+
+      if (player?.role === PlayerRole.SHOWMAN) {
+        // Showman gets full data
+        resultMap.set(socketId, gameState);
+      } else {
+        // Players and spectators get filtered data (no questions)
+        const playerGameState = { ...gameState };
+
+        // Only modify the currentRound part if it exists
+        if (playerGameState.currentRound) {
+          playerGameState.currentRound = {
+            ...playerGameState.currentRound,
+            themes: playerGameState.currentRound.themes.map((theme) => ({
+              ...theme,
+              questions: [], // Players get empty questions array
+            })),
+          };
+        }
+
+        resultMap.set(socketId, playerGameState);
+      }
     }
 
-    if (game.finishedAt !== null) {
-      throw new ClientError(ClientResponse.GAME_FINISHED);
-    }
+    return resultMap;
   }
 }

@@ -1,7 +1,9 @@
 export interface S3Context {
-  host: string;
+  endpoint: string;
   bucket: string;
   accessKey: string;
   secretKey: string;
   region: string;
+  urlPrefix: string;
+  useSubDomainBucketFormat: boolean;
 }

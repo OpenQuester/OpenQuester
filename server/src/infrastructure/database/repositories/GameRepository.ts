@@ -450,4 +450,12 @@ export class GameRepository {
       })
       .filter((g): g is Game => !!g);
   }
+
+  /**
+   * @param expire seconds to expire the lock
+   */
+  public async gameLock(key: string, expire: number): Promise<boolean> {
+    const acquired = await this.redisService.setLockKey(key, expire);
+    return acquired === "OK";
+  }
 }

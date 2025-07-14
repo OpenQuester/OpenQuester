@@ -16,8 +16,11 @@ import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { GetPlayerOptions } from "domain/types/game/GetPlayerOptions";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerMeta } from "domain/types/socket/game/PlayerMeta";
+import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
+import { FinalRoundTurnManager } from "domain/utils/FinalRoundTurnManager";
 import { Logger } from "infrastructure/utils/Logger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -178,6 +181,25 @@ export class Game {
     return player ?? null;
   }
 
+  /** Get all players in game excluding showman */
+  public getInGamePlayers(): Player[] {
+    return this.players.filter(
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
+    );
+  }
+
+  public initCurrentTurnPlayer() {
+    const inGamePlayers = this.getInGamePlayers();
+    if (inGamePlayers.length > 0) {
+      // Select a random player using Math.random for index
+      const randomIndex = Math.floor(Math.random() * inGamePlayers.length);
+      return inGamePlayers[randomIndex].meta.id;
+    }
+    return null;
+  }
+
   public removePlayer(userId: number): void {
     const player = this.getPlayer(userId, { fetchDisconnected: false });
     if (player) {
@@ -261,6 +283,45 @@ export class Game {
     } else {
       nextGameState = GameStateMapper.getClearGameState(nextRound);
       this.gameState = nextGameState;
+
+      if (nextRound.type === PackageRoundType.FINAL) {
+        // Initialize final round data
+        const finalRoundData =
+          FinalRoundStateManager.initializeFinalRoundData(this);
+        finalRoundData.turnOrder =
+          FinalRoundTurnManager.initializeTurnOrder(this);
+        const currentTurnPlayer = FinalRoundTurnManager.getCurrentTurnPlayer(
+          this,
+          finalRoundData.turnOrder
+        );
+        nextGameState.currentTurnPlayerId = currentTurnPlayer ?? undefined;
+        FinalRoundStateManager.updateFinalRoundData(this, finalRoundData);
+        nextGameState.finalRoundData = finalRoundData;
+      } else if (nextRound.type === PackageRoundType.SIMPLE) {
+        // Set current turn player to the player with the lowest score
+        const inGamePlayers = this.getInGamePlayers();
+        if (inGamePlayers.length > 0) {
+          let minScore = inGamePlayers[0].score;
+          let minPlayers = [inGamePlayers[0]];
+          for (let i = 1; i < inGamePlayers.length; i++) {
+            const player = inGamePlayers[i];
+            if (player.score < minScore) {
+              minScore = player.score;
+              minPlayers = [player];
+            } else if (player.score === minScore) {
+              minPlayers.push(player);
+            }
+          }
+          // If multiple players have the same lowest score, pick randomly among them
+          const chosen =
+            minPlayers.length === 1
+              ? minPlayers[0]
+              : minPlayers[Math.floor(Math.random() * minPlayers.length)];
+          nextGameState.currentTurnPlayerId = chosen.meta.id;
+        } else {
+          nextGameState.currentTurnPlayerId = null;
+        }
+      }
     }
 
     return { isGameFinished, nextGameState };

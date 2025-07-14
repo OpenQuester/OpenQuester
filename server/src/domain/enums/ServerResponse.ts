@@ -38,5 +38,7 @@ export enum ServerResponse {
   // DI
   DEPENDENCY_NOT_REGISTERED = `Dependency %name not registered`,
 
+  // Other
+  INVALID_ROUND_HANDLER_INPUT = "Invalid round handler input",
   INTERNAL_SERVER_ERROR = "Internal server error",
 }

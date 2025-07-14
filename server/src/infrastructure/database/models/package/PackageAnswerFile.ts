@@ -36,8 +36,8 @@ export class PackageAnswerFile {
   @Column({ type: "enum", enum: PackageFileType })
   type!: PackageFileType;
 
-  @Column()
-  display_time!: number;
+  @Column({ type: "int", nullable: true })
+  display_time!: number | null;
 
   public import(data: PackageAnswerFileImport) {
     this.file = data.file;

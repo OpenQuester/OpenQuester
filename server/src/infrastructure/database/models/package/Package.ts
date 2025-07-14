@@ -136,7 +136,9 @@ export class Package {
       });
     }
 
-    const roundsDTO = this.rounds.map((round) => round.toDTO(storage, options));
+    const roundsDTO = this.rounds
+      .sort((a, b) => a.order - b.order) // Sort by order
+      .map((round) => round.toDTO(storage, options));
 
     const tagsDTO = this.tags.map((tag) => tag.toDTO());
 

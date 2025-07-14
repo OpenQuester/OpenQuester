@@ -6,6 +6,6 @@ export interface PackageAnswerFileImport {
   file: File;
   order: number;
   type: PackageFileType;
-  display_time: number;
+  display_time: number | null;
   question: PackageQuestion;
 }

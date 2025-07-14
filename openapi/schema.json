@@ -1868,7 +1868,7 @@
             ]
           }
         },
-        "required": ["price", "type"],
+        "required": ["price", "order", "type"],
         "description": "Base properties for all question types"
       },
       "ChoiceQuestion": {
@@ -2045,7 +2045,7 @@
             "description": "Questions in the theme"
           }
         },
-        "required": ["name", "questions"],
+        "required": ["name", "order", "questions"],
         "description": "Theme structure for package"
       },
       "PackageRound": {
@@ -2068,13 +2068,16 @@
             "description": "Description of the round",
             "examples": ["This round contains simple questions"]
           },
+          "type": {
+            "$ref": "#/components/schemas/PackageRoundType"
+          },
           "themes": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/PackageTheme" },
             "description": "Themes in the round"
           }
         },
-        "required": ["name", "themes"],
+        "required": ["name", "order", "type", "themes"],
         "description": "Round structure for package"
       },
       "PackageCreateInputData": {
@@ -2132,7 +2135,7 @@
             "description": "Rounds in the package"
           }
         },
-        "required": ["title", "rounds"],
+        "required": ["title", "ageRestriction", "rounds"],
         "description": "Input for creating a new package; author is set via authentication"
       },
       "InputSocketIOAuth": {
@@ -2307,7 +2310,15 @@
         "properties": {
           "questionState": {
             "type": ["string", "null"],
-            "enum": ["choosing", "showing", "answered", null],
+            "enum": [
+              "choosing",
+              "theme_elimination",
+              "bidding",
+              "answering",
+              "reviewing",
+              "showing",
+              null
+            ],
             "examples": ["choosing"]
           },
           "isPaused": {
@@ -2342,6 +2353,16 @@
               { "$ref": "#/components/schemas/GameStateTimer" },
               { "type": "null" }
             ]
+          },
+          "finalRoundData": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/FinalRoundGameData" },
+              { "type": "null" }
+            ]
+          },
+          "currentTurnPlayerId": {
+            "oneOf": [{ "type": "integer" }, { "type": "null" }],
+            "description": "Id of player whose turn it is to pick a question or eliminate theme"
           }
         }
       },
@@ -2406,6 +2427,9 @@
           "name": {
             "type": "string",
             "examples": ["Round 1"]
+          },
+          "type": {
+            "$ref": "#/components/schemas/PackageRoundType"
           },
           "description": {
             "type": ["string", "null"],
@@ -2488,7 +2512,15 @@
           "answer-result",
           "skip-question-force",
           "game-pause",
-          "game-unpause"
+          "game-unpause",
+          "theme-eliminate",
+          "final-bid-submit",
+          "final-answer-submit",
+          "final-answer-review",
+          "final-phase-complete",
+          "final-question-data",
+          "final-submit-end",
+          "final-auto-loss"
         ],
         "examples": ["join"]
       },
@@ -2507,12 +2539,21 @@
           "next-round",
           "game-finished",
           "game-pause",
-          "game-unpause"
+          "game-unpause",
+          "theme-eliminate",
+          "final-bid-submit",
+          "final-answer-submit",
+          "final-answer-review",
+          "final-phase-complete",
+          "final-question-data",
+          "final-submit-end",
+          "final-auto-loss"
         ],
         "examples": ["join"]
       },
       "SocketIOGamePauseEventPayload": {
         "type": "object",
+        "description": "Data sent to all players when the game is paused",
         "properties": {
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
@@ -2521,6 +2562,7 @@
       },
       "SocketIOGameUnpauseEventPayload": {
         "type": "object",
+        "description": "Data sent to all players when the game is unpaused",
         "properties": {
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
@@ -2753,9 +2795,440 @@
           }
         }
       },
+      "ThemeEliminateInput": {
+        "type": "object",
+        "description": "Data sent to eliminate a theme in final round",
+        "properties": {
+          "themeId": {
+            "type": "integer",
+            "description": "ID of the theme to eliminate",
+            "examples": [5]
+          }
+        },
+        "required": ["themeId"]
+      },
+      "ThemeEliminateOutput": {
+        "type": "object",
+        "description": "Data sent to all players when a theme is eliminated in final round",
+        "properties": {
+          "themeId": {
+            "type": "integer",
+            "description": "ID of the eliminated theme",
+            "examples": [5]
+          },
+          "eliminatedBy": {
+            "type": "integer",
+            "description": "ID of the player who eliminated the theme",
+            "examples": [123]
+          },
+          "nextPlayerId": {
+            "type": ["integer", "null"],
+            "description": "Next player to pick theme, null if elimination complete",
+            "examples": [124]
+          }
+        },
+        "required": ["themeId", "eliminatedBy"]
+      },
+      "FinalAnswerSubmitInput": {
+        "type": "object",
+        "description": "Data sent by player to submit final answer in final round",
+        "properties": {
+          "answerText": {
+            "type": "string",
+            "description": "Player's final answer text",
+            "maxLength": 500,
+            "examples": ["This is my final answer"]
+          }
+        },
+        "required": ["answerText"]
+      },
+      "FinalAnswerSubmitOutput": {
+        "type": "object",
+        "description": "Data sent to all players when a final answer is submitted",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who submitted the answer",
+            "examples": [123]
+          },
+          "answerText": {
+            "type": "string",
+            "description": "The submitted answer text",
+            "examples": ["This is my final answer"]
+          }
+        },
+        "required": ["playerId", "answerText"]
+      },
+      "FinalBidSubmitInput": {
+        "type": "object",
+        "description": "Data sent by player to submit bid in final round",
+        "properties": {
+          "bid": {
+            "type": "integer",
+            "description": "Player's bid amount",
+            "examples": [500]
+          }
+        },
+        "required": ["bid"]
+      },
+      "FinalBidSubmitOutput": {
+        "type": "object",
+        "description": "Data sent to all players when a bid is submitted",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who submitted the bid",
+            "examples": [123]
+          },
+          "bidAmount": {
+            "type": "integer",
+            "description": "The bid amount",
+            "examples": [500]
+          }
+        },
+        "required": ["playerId", "bidAmount"]
+      },
+      "FinalAnswerReviewInput": {
+        "type": "object",
+        "description": "Data sent by showman to review a final answer",
+        "properties": {
+          "answerId": {
+            "type": "string",
+            "description": "ID of the answer being reviewed",
+            "examples": ["answer-123"]
+          },
+          "isCorrect": {
+            "type": "boolean",
+            "description": "Whether the answer is correct",
+            "examples": [true]
+          }
+        },
+        "required": ["answerId", "isCorrect"]
+      },
+      "FinalAnswerReviewOutput": {
+        "type": "object",
+        "description": "Data sent to all players when an answer is reviewed",
+        "properties": {
+          "answerId": {
+            "type": "string",
+            "description": "ID of the reviewed answer",
+            "examples": ["answer-123"]
+          },
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player whose answer was reviewed",
+            "examples": [123]
+          },
+          "isCorrect": {
+            "type": "boolean",
+            "description": "Whether the answer was correct",
+            "examples": [true]
+          },
+          "scoreChange": {
+            "type": "integer",
+            "description": "Score change for the player",
+            "examples": [500]
+          }
+        },
+        "required": ["answerId", "playerId", "isCorrect", "scoreChange"]
+      },
       "SocketIOGameAnswerType": {
         "type": "string",
         "enum": ["correct", "wrong", "skip"],
+        "examples": ["correct"]
+      },
+      "PackageRoundType": {
+        "type": "string",
+        "enum": ["simple", "final"],
+        "description": "Type of package round",
+        "examples": ["simple"]
+      },
+      "FinalRoundPhase": {
+        "type": "string",
+        "enum": ["theme_elimination", "bidding", "answering", "reviewing"],
+        "description": "Phase of the final round",
+        "examples": ["theme_elimination"]
+      },
+      "FinalRoundAnswer": {
+        "type": "object",
+        "description": "Player answer in final round",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique ID of the answer",
+            "examples": ["answer-123"]
+          },
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player submitting the answer",
+            "examples": [123]
+          },
+          "answer": {
+            "type": "string",
+            "description": "The player's answer text",
+            "examples": ["The answer is 42"]
+          },
+          "isCorrect": {
+            "type": ["boolean", "null"],
+            "description": "Whether the answer is correct (null if not yet reviewed)",
+            "examples": [true]
+          },
+          "autoLoss": {
+            "type": ["boolean", "null"],
+            "description": "Whether this is an automatic loss",
+            "examples": [false]
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the answer was submitted",
+            "examples": ["2024-01-01T00:00:00Z"]
+          },
+          "reviewedAt": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "When the answer was reviewed",
+            "examples": ["2024-01-01T00:01:00Z"]
+          }
+        },
+        "required": ["id", "playerId", "answer", "submittedAt"]
+      },
+      "FinalRoundGameData": {
+        "type": "object",
+        "description": "Final round game state data",
+        "properties": {
+          "phase": {
+            "$ref": "#/components/schemas/FinalRoundPhase"
+          },
+          "turnOrder": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Turn order for final round theme elimination",
+            "examples": [[1, 2, 3]]
+          },
+          "bids": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "Player bids mapped by player ID",
+            "examples": [{ "123": 500, "124": 300 }]
+          },
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FinalRoundAnswer"
+            },
+            "description": "All submitted answers"
+          },
+          "eliminatedThemes": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "IDs of eliminated themes",
+            "examples": [[1, 3, 5]]
+          }
+        },
+        "required": [
+          "phase",
+          "turnOrder",
+          "bids",
+          "answers",
+          "eliminatedThemes"
+        ]
+      },
+      "FinalPhaseCompleteEventData": {
+        "type": "object",
+        "description": "Data sent when a final round phase is completed",
+        "properties": {
+          "phase": {
+            "$ref": "#/components/schemas/FinalRoundPhase"
+          },
+          "nextPhase": {
+            "$ref": "#/components/schemas/FinalRoundPhase"
+          },
+          "timer": {
+            "$ref": "#/components/schemas/GameStateTimer"
+          }
+        },
+        "required": ["phase", "nextPhase"]
+      },
+      "FinalQuestionEventData": {
+        "type": "object",
+        "description": "Data sent when final round question is revealed",
+        "properties": {
+          "questionData": {
+            "$ref": "#/components/schemas/FinalRoundQuestionData"
+          }
+        },
+        "required": ["questionData"]
+      },
+      "FinalSubmitEndEventData": {
+        "type": "object",
+        "description": "Data sent when final round answering phase ends",
+        "properties": {
+          "phase": {
+            "$ref": "#/components/schemas/FinalRoundPhase"
+          },
+          "nextPhase": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/FinalRoundPhase" },
+              { "type": "null" }
+            ]
+          },
+          "allReviews": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/AnswerReviewData" }
+              },
+              { "type": "null" }
+            ],
+            "description": "All answers revealed when transitioning to reviewing phase"
+          }
+        },
+        "required": ["phase"]
+      },
+      "QuestionFinishEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a question is finished (showing answer)",
+        "properties": {
+          "answerFiles": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/PackageQuestionFile" }
+              },
+              { "type": "null" }
+            ]
+          },
+          "answerText": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/QuestionAnswerText" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["answerFiles", "answerText"]
+      },
+      "FinalAutoLossEventData": {
+        "type": "object",
+        "description": "Data sent when a player automatically loses in final round",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who lost",
+            "examples": [123]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/FinalAnswerLossReason"
+          }
+        },
+        "required": ["playerId", "reason"]
+      },
+      "FinalAnswerLossReason": {
+        "type": "string",
+        "enum": ["empty_answer", "timeout"],
+        "description": "Reason for automatic loss in final round",
+        "examples": ["empty_answer"]
+      },
+      "FinalRoundQuestionData": {
+        "type": "object",
+        "description": "Question data for final round",
+        "properties": {
+          "themeId": {
+            "type": "integer",
+            "description": "ID of the question theme",
+            "examples": [1]
+          },
+          "themeName": {
+            "type": "string",
+            "description": "Name of the question theme",
+            "examples": ["Geography"]
+          },
+          "question": {
+            "type": "object",
+            "description": "Question state data",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "Question ID",
+                "examples": [187]
+              },
+              "order": {
+                "type": "integer",
+                "description": "Question order",
+                "examples": [1]
+              },
+              "price": {
+                "type": ["integer", "null"],
+                "description": "Question price/points",
+                "examples": [500]
+              },
+              "questionComment": {
+                "type": ["string", "null"],
+                "description": "Question comment",
+                "examples": ["Geography question"]
+              },
+              "isPlayed": {
+                "type": "boolean",
+                "description": "Whether question has been played",
+                "examples": [false]
+              }
+            },
+            "required": ["id", "order", "isPlayed"]
+          }
+        },
+        "required": ["themeId", "themeName", "question"]
+      },
+      "AnswerReviewData": {
+        "type": "object",
+        "description": "Data for reviewing final round answers",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player",
+            "examples": [123]
+          },
+          "answerId": {
+            "type": "string",
+            "description": "Unique ID of the answer",
+            "examples": ["answer-123"]
+          },
+          "answerText": {
+            "type": "string",
+            "description": "Player's answer text",
+            "examples": ["Paris"]
+          },
+          "scoreChange": {
+            "type": "integer",
+            "description": "Score change for the player",
+            "examples": [500]
+          },
+          "answerType": {
+            "$ref": "#/components/schemas/FinalAnswerType"
+          },
+          "isCorrect": {
+            "type": "boolean",
+            "description": "Whether the answer is correct (optional, present after review)",
+            "examples": [true]
+          }
+        },
+        "required": [
+          "playerId",
+          "answerId",
+          "answerText",
+          "scoreChange",
+          "answerType"
+        ]
+      },
+      "FinalAnswerType": {
+        "type": "string",
+        "enum": ["correct", "wrong", "auto_loss"],
+        "description": "Type of final round answer result",
         "examples": ["correct"]
       }
     }

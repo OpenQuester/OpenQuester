@@ -6,6 +6,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 
 export class GameStateMapper {
   public static initGameState(): GameStateDTO {
@@ -23,7 +24,10 @@ export class GameStateMapper {
 
   public static getClearGameState(round: GameStateRoundDTO): GameStateDTO {
     return {
-      questionState: QuestionState.CHOOSING,
+      questionState:
+        round.type === PackageRoundType.FINAL
+          ? QuestionState.THEME_ELIMINATION
+          : QuestionState.CHOOSING,
       currentRound: round,
       isPaused: false,
       answeredPlayers: null,
@@ -31,6 +35,7 @@ export class GameStateMapper {
       currentQuestion: null,
       readyPlayers: null,
       timer: null,
+      finalRoundData: null,
     };
   }
 
@@ -47,6 +52,7 @@ export class GameStateMapper {
     return {
       id: round.id!,
       name: round.name,
+      type: round.type,
       description: round.description ?? null,
       order: round.order,
       themes: this.getRoundThemes(round),
