@@ -3027,11 +3027,6 @@
             "description": "Turn order for final round theme elimination",
             "examples": [[1, 2, 3]]
           },
-          "currentTurnPlayerId": {
-            "type": ["integer", "null"],
-            "description": "ID of the player whose turn it is",
-            "examples": [123]
-          },
           "bids": {
             "type": "object",
             "additionalProperties": {
