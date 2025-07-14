@@ -76,7 +76,7 @@ jobs:
         run: |
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-          make pre_run
+          make pre_build
 
       - name: Build Web
         run: flutter build web --no-web-resources-cdn --build-number $GITHUB_RUN_NUMBER --wasm
