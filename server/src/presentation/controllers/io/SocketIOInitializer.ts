@@ -67,8 +67,5 @@ export class SocketIOInitializer {
         registryStats.systemEvents
       } | Events: ${registryStats.eventNames.join(", ")}`
     );
-
-    // Legacy controllers have been fully replaced by standardized handlers
-    // All socket events are now handled through the new pattern
   }
 }
