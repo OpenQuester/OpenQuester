@@ -2,7 +2,7 @@
 
 // ignore_for_file: constant_identifier_names
 
-abstract class LocaleKeys {
+abstract class  LocaleKeys {
   static const home_tabs_games = 'home_tabs.games';
   static const home_tabs_packages = 'home_tabs.packages';
   static const home_tabs = 'home_tabs';
@@ -16,8 +16,7 @@ abstract class LocaleKeys {
   static const game_tile_tooltips_players = 'game_tile_tooltips.players';
   static const game_tile_tooltips_rounds = 'game_tile_tooltips.rounds';
   static const game_tile_tooltips_questions = 'game_tile_tooltips.questions';
-  static const game_tile_tooltips_packages_title =
-      'game_tile_tooltips.packages_title';
+  static const game_tile_tooltips_packages_title = 'game_tile_tooltips.packages_title';
   static const game_tile_tooltips_game_title = 'game_tile_tooltips.game_title';
   static const game_tile_tooltips = 'game_tile_tooltips';
   static const duration_h = 'duration.h';
@@ -82,4 +81,6 @@ abstract class LocaleKeys {
   static const copy_game_link = 'copy_game_link';
   static const link_copied = 'link_copied';
   static const chat_message = 'chat_message';
+  static const not_your_turn_to_answer = 'not_your_turn_to_answer';
+
 }

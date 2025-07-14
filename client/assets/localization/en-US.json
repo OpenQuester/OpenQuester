@@ -85,5 +85,6 @@
   "share_game_tooltip": "Copies game link",
   "copy_game_link": "Copy game link",
   "link_copied": "Link copied to clipboard",
-  "chat_message": "Chat message"
+  "chat_message": "Chat message",
+  "not_your_turn_to_answer": "Not your turn to answer"
 }

@@ -279,6 +279,18 @@ class GameLobbyController {
   }
 
   void onQuestionPick(int questionId) {
+    final currentTurnPlayerId = gameData.value?.gameState.currentTurnPlayerId;
+    final me = gameData.value?.me;
+    final myTurnToAnswer = currentTurnPlayerId == me?.meta.id;
+
+    if (!myTurnToAnswer && me?.role != PlayerRole.showman) {
+      getIt<ToastController>().show(
+        LocaleKeys.not_your_turn_to_answer.tr(),
+        type: ToastType.warning,
+      );
+      return;
+    }
+
     socket?.emit(
       SocketIOGameSendEvents.questionPick.json!,
       SocketIOQuestionPickEventInput(questionId: questionId).toJson(),
@@ -402,17 +414,23 @@ class GameLobbyController {
   void _onQuestionFinish(dynamic data) {
     if (data is! Map) return;
 
-    final questionData = SocketIOAnswerResultEventPayload.fromJson(
+    final questionData = QuestionFinishEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
 
-    _updateGameStateFromAnswerResult(questionData);
+    _updateGameStateFromAnswerResult(
+      SocketIOAnswerResultEventPayload(
+        answerFiles: questionData.answerFiles,
+        answerText: questionData.answerText,
+      ),
+    );
 
     gameData.value = gameData.value?.copyWith.gameState(
       currentQuestion: gameData.value?.gameState.currentQuestion?.copyWith(
         answerFiles: questionData.answerFiles,
         answerText: questionData.answerText,
       ),
+      currentTurnPlayerId: questionData.nextTurnPlayerId,
     );
 
     _showAnswer();

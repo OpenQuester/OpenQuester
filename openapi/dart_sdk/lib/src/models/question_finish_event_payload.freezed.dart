@@ -16,7 +16,8 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$QuestionFinishEventPayload {
 
- List<PackageQuestionFile>? get answerFiles; QuestionAnswerText? get answerText;
+ List<PackageQuestionFile>? get answerFiles; QuestionAnswerText? get answerText;/// ID of the next player to take their turn, null if no next player (game finished)
+ int? get nextTurnPlayerId;
 /// Create a copy of QuestionFinishEventPayload
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -29,16 +30,16 @@ $QuestionFinishEventPayloadCopyWith<QuestionFinishEventPayload> get copyWith => 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is QuestionFinishEventPayload&&const DeepCollectionEquality().equals(other.answerFiles, answerFiles)&&(identical(other.answerText, answerText) || other.answerText == answerText));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is QuestionFinishEventPayload&&const DeepCollectionEquality().equals(other.answerFiles, answerFiles)&&(identical(other.answerText, answerText) || other.answerText == answerText)&&(identical(other.nextTurnPlayerId, nextTurnPlayerId) || other.nextTurnPlayerId == nextTurnPlayerId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(answerFiles),answerText);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(answerFiles),answerText,nextTurnPlayerId);
 
 @override
 String toString() {
-  return 'QuestionFinishEventPayload(answerFiles: $answerFiles, answerText: $answerText)';
+  return 'QuestionFinishEventPayload(answerFiles: $answerFiles, answerText: $answerText, nextTurnPlayerId: $nextTurnPlayerId)';
 }
 
 
@@ -49,7 +50,7 @@ abstract mixin class $QuestionFinishEventPayloadCopyWith<$Res>  {
   factory $QuestionFinishEventPayloadCopyWith(QuestionFinishEventPayload value, $Res Function(QuestionFinishEventPayload) _then) = _$QuestionFinishEventPayloadCopyWithImpl;
 @useResult
 $Res call({
- List<PackageQuestionFile>? answerFiles, QuestionAnswerText? answerText
+ List<PackageQuestionFile>? answerFiles, QuestionAnswerText? answerText, int? nextTurnPlayerId
 });
 
 
@@ -66,11 +67,12 @@ class _$QuestionFinishEventPayloadCopyWithImpl<$Res>
 
 /// Create a copy of QuestionFinishEventPayload
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? answerFiles = freezed,Object? answerText = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? answerFiles = freezed,Object? answerText = freezed,Object? nextTurnPlayerId = freezed,}) {
   return _then(_self.copyWith(
 answerFiles: freezed == answerFiles ? _self.answerFiles : answerFiles // ignore: cast_nullable_to_non_nullable
 as List<PackageQuestionFile>?,answerText: freezed == answerText ? _self.answerText : answerText // ignore: cast_nullable_to_non_nullable
-as QuestionAnswerText?,
+as QuestionAnswerText?,nextTurnPlayerId: freezed == nextTurnPlayerId ? _self.nextTurnPlayerId : nextTurnPlayerId // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -81,7 +83,7 @@ as QuestionAnswerText?,
 @JsonSerializable()
 
 class _QuestionFinishEventPayload implements QuestionFinishEventPayload {
-  const _QuestionFinishEventPayload({required final  List<PackageQuestionFile>? answerFiles, required this.answerText}): _answerFiles = answerFiles;
+  const _QuestionFinishEventPayload({required final  List<PackageQuestionFile>? answerFiles, required this.answerText, this.nextTurnPlayerId}): _answerFiles = answerFiles;
   factory _QuestionFinishEventPayload.fromJson(Map<String, dynamic> json) => _$QuestionFinishEventPayloadFromJson(json);
 
  final  List<PackageQuestionFile>? _answerFiles;
@@ -94,6 +96,8 @@ class _QuestionFinishEventPayload implements QuestionFinishEventPayload {
 }
 
 @override final  QuestionAnswerText? answerText;
+/// ID of the next player to take their turn, null if no next player (game finished)
+@override final  int? nextTurnPlayerId;
 
 /// Create a copy of QuestionFinishEventPayload
 /// with the given fields replaced by the non-null parameter values.
@@ -108,16 +112,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _QuestionFinishEventPayload&&const DeepCollectionEquality().equals(other._answerFiles, _answerFiles)&&(identical(other.answerText, answerText) || other.answerText == answerText));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _QuestionFinishEventPayload&&const DeepCollectionEquality().equals(other._answerFiles, _answerFiles)&&(identical(other.answerText, answerText) || other.answerText == answerText)&&(identical(other.nextTurnPlayerId, nextTurnPlayerId) || other.nextTurnPlayerId == nextTurnPlayerId));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_answerFiles),answerText);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_answerFiles),answerText,nextTurnPlayerId);
 
 @override
 String toString() {
-  return 'QuestionFinishEventPayload(answerFiles: $answerFiles, answerText: $answerText)';
+  return 'QuestionFinishEventPayload(answerFiles: $answerFiles, answerText: $answerText, nextTurnPlayerId: $nextTurnPlayerId)';
 }
 
 
@@ -128,7 +132,7 @@ abstract mixin class _$QuestionFinishEventPayloadCopyWith<$Res> implements $Ques
   factory _$QuestionFinishEventPayloadCopyWith(_QuestionFinishEventPayload value, $Res Function(_QuestionFinishEventPayload) _then) = __$QuestionFinishEventPayloadCopyWithImpl;
 @override @useResult
 $Res call({
- List<PackageQuestionFile>? answerFiles, QuestionAnswerText? answerText
+ List<PackageQuestionFile>? answerFiles, QuestionAnswerText? answerText, int? nextTurnPlayerId
 });
 
 
@@ -145,11 +149,12 @@ class __$QuestionFinishEventPayloadCopyWithImpl<$Res>
 
 /// Create a copy of QuestionFinishEventPayload
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? answerFiles = freezed,Object? answerText = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? answerFiles = freezed,Object? answerText = freezed,Object? nextTurnPlayerId = freezed,}) {
   return _then(_QuestionFinishEventPayload(
 answerFiles: freezed == answerFiles ? _self._answerFiles : answerFiles // ignore: cast_nullable_to_non_nullable
 as List<PackageQuestionFile>?,answerText: freezed == answerText ? _self.answerText : answerText // ignore: cast_nullable_to_non_nullable
-as QuestionAnswerText?,
+as QuestionAnswerText?,nextTurnPlayerId: freezed == nextTurnPlayerId ? _self.nextTurnPlayerId : nextTurnPlayerId // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 

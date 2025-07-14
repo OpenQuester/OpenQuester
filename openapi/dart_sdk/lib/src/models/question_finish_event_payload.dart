@@ -16,6 +16,9 @@ abstract class QuestionFinishEventPayload with _$QuestionFinishEventPayload {
   const factory QuestionFinishEventPayload({
     required List<PackageQuestionFile>? answerFiles,
     required QuestionAnswerText? answerText,
+
+    /// ID of the next player to take their turn, null if no next player (game finished)
+    int? nextTurnPlayerId,
   }) = _QuestionFinishEventPayload;
   
   factory QuestionFinishEventPayload.fromJson(Map<String, Object?> json) => _$QuestionFinishEventPayloadFromJson(json);

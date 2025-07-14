@@ -13,6 +13,7 @@ _QuestionFinishEventPayload _$QuestionFinishEventPayloadFromJson(
       ?.map((e) => PackageQuestionFile.fromJson(e as Map<String, dynamic>))
       .toList(),
   answerText: json['answerText'] as String?,
+  nextTurnPlayerId: (json['nextTurnPlayerId'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$QuestionFinishEventPayloadToJson(
@@ -20,4 +21,5 @@ Map<String, dynamic> _$QuestionFinishEventPayloadToJson(
 ) => <String, dynamic>{
   'answerFiles': instance.answerFiles,
   'answerText': instance.answerText,
+  'nextTurnPlayerId': instance.nextTurnPlayerId,
 };
