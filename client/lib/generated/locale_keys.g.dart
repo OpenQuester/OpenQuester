@@ -82,4 +82,5 @@ abstract class LocaleKeys {
   static const copy_game_link = 'copy_game_link';
   static const link_copied = 'link_copied';
   static const chat_message = 'chat_message';
+  static const not_your_turn_to_pick = 'not_your_turn_to_pick';
 }

@@ -35,6 +35,7 @@ class ContentXmlParser {
       themes: await Future.wait(themes ?? []),
       description: description,
       order: index,
+      type: PackageRoundType.simple, // TODO: Add PackageRoundType parsing
     );
   }
 

@@ -18,7 +18,7 @@ mixin _$PackageRound {
 
  int? get id; PackageEntitiesOrder get order;/// Name of the round
  String get name;/// Description of the round
- String? get description;/// Themes in the round
+ String? get description; PackageRoundType get type;/// Themes in the round
  List<PackageTheme> get themes;
 /// Create a copy of PackageRound
 /// with the given fields replaced by the non-null parameter values.
@@ -32,16 +32,16 @@ $PackageRoundCopyWith<PackageRound> get copyWith => _$PackageRoundCopyWithImpl<P
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PackageRound&&(identical(other.id, id) || other.id == id)&&(identical(other.order, order) || other.order == order)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other.themes, themes));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PackageRound&&(identical(other.id, id) || other.id == id)&&(identical(other.order, order) || other.order == order)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.type, type) || other.type == type)&&const DeepCollectionEquality().equals(other.themes, themes));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,order,name,description,const DeepCollectionEquality().hash(themes));
+int get hashCode => Object.hash(runtimeType,id,order,name,description,type,const DeepCollectionEquality().hash(themes));
 
 @override
 String toString() {
-  return 'PackageRound(id: $id, order: $order, name: $name, description: $description, themes: $themes)';
+  return 'PackageRound(id: $id, order: $order, name: $name, description: $description, type: $type, themes: $themes)';
 }
 
 
@@ -52,7 +52,7 @@ abstract mixin class $PackageRoundCopyWith<$Res>  {
   factory $PackageRoundCopyWith(PackageRound value, $Res Function(PackageRound) _then) = _$PackageRoundCopyWithImpl;
 @useResult
 $Res call({
- int? id, PackageEntitiesOrder order, String name, String? description, List<PackageTheme> themes
+ int? id, PackageEntitiesOrder order, String name, String? description, PackageRoundType type, List<PackageTheme> themes
 });
 
 
@@ -69,13 +69,14 @@ class _$PackageRoundCopyWithImpl<$Res>
 
 /// Create a copy of PackageRound
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? order = null,Object? name = null,Object? description = freezed,Object? themes = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? order = null,Object? name = null,Object? description = freezed,Object? type = null,Object? themes = null,}) {
   return _then(_self.copyWith(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int?,order: null == order ? _self.order : order // ignore: cast_nullable_to_non_nullable
 as PackageEntitiesOrder,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
-as String?,themes: null == themes ? _self.themes : themes // ignore: cast_nullable_to_non_nullable
+as String?,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
+as PackageRoundType,themes: null == themes ? _self.themes : themes // ignore: cast_nullable_to_non_nullable
 as List<PackageTheme>,
   ));
 }
@@ -87,7 +88,7 @@ as List<PackageTheme>,
 @JsonSerializable()
 
 class _PackageRound implements PackageRound {
-  const _PackageRound({required this.id, required this.order, required this.name, required this.description, required final  List<PackageTheme> themes}): _themes = themes;
+  const _PackageRound({required this.id, required this.order, required this.name, required this.description, required this.type, required final  List<PackageTheme> themes}): _themes = themes;
   factory _PackageRound.fromJson(Map<String, dynamic> json) => _$PackageRoundFromJson(json);
 
 @override final  int? id;
@@ -96,6 +97,7 @@ class _PackageRound implements PackageRound {
 @override final  String name;
 /// Description of the round
 @override final  String? description;
+@override final  PackageRoundType type;
 /// Themes in the round
  final  List<PackageTheme> _themes;
 /// Themes in the round
@@ -119,16 +121,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PackageRound&&(identical(other.id, id) || other.id == id)&&(identical(other.order, order) || other.order == order)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other._themes, _themes));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PackageRound&&(identical(other.id, id) || other.id == id)&&(identical(other.order, order) || other.order == order)&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&(identical(other.type, type) || other.type == type)&&const DeepCollectionEquality().equals(other._themes, _themes));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,order,name,description,const DeepCollectionEquality().hash(_themes));
+int get hashCode => Object.hash(runtimeType,id,order,name,description,type,const DeepCollectionEquality().hash(_themes));
 
 @override
 String toString() {
-  return 'PackageRound(id: $id, order: $order, name: $name, description: $description, themes: $themes)';
+  return 'PackageRound(id: $id, order: $order, name: $name, description: $description, type: $type, themes: $themes)';
 }
 
 
@@ -139,7 +141,7 @@ abstract mixin class _$PackageRoundCopyWith<$Res> implements $PackageRoundCopyWi
   factory _$PackageRoundCopyWith(_PackageRound value, $Res Function(_PackageRound) _then) = __$PackageRoundCopyWithImpl;
 @override @useResult
 $Res call({
- int? id, PackageEntitiesOrder order, String name, String? description, List<PackageTheme> themes
+ int? id, PackageEntitiesOrder order, String name, String? description, PackageRoundType type, List<PackageTheme> themes
 });
 
 
@@ -156,13 +158,14 @@ class __$PackageRoundCopyWithImpl<$Res>
 
 /// Create a copy of PackageRound
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? order = null,Object? name = null,Object? description = freezed,Object? themes = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? order = null,Object? name = null,Object? description = freezed,Object? type = null,Object? themes = null,}) {
   return _then(_PackageRound(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as int?,order: null == order ? _self.order : order // ignore: cast_nullable_to_non_nullable
 as PackageEntitiesOrder,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
-as String?,themes: null == themes ? _self._themes : themes // ignore: cast_nullable_to_non_nullable
+as String?,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
+as PackageRoundType,themes: null == themes ? _self._themes : themes // ignore: cast_nullable_to_non_nullable
 as List<PackageTheme>,
   ));
 }

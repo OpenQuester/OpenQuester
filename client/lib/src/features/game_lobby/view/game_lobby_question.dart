@@ -8,6 +8,7 @@ class GameQuestion extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final borderRadius = 12.circular;
+
     return FilledButton(
       onPressed: question.isPlayed
           ? null

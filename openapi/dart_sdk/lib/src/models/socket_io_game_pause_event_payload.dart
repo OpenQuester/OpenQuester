@@ -9,6 +9,7 @@ import 'game_state_timer.dart';
 part 'socket_io_game_pause_event_payload.freezed.dart';
 part 'socket_io_game_pause_event_payload.g.dart';
 
+/// Data sent to all players when the game is paused
 @Freezed()
 abstract class SocketIOGamePauseEventPayload with _$SocketIOGamePauseEventPayload {
   const factory SocketIOGamePauseEventPayload({

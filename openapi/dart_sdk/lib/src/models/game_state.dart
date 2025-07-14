@@ -4,6 +4,7 @@
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'final_round_game_data.dart';
 import 'game_state_answered_player.dart';
 import 'game_state_question_state.dart';
 import 'game_state_timer.dart';
@@ -25,6 +26,10 @@ abstract class GameState with _$GameState {
     SocketIOGameStateRoundData? currentRound,
     PackageQuestionData? currentQuestion,
     GameStateTimer? timer,
+    FinalRoundGameData? finalRoundData,
+
+    /// Id of player whose turn it is to pick a question or eliminate theme
+    int? currentTurnPlayerId,
   }) = _GameState;
   
   factory GameState.fromJson(Map<String, Object?> json) => _$GameStateFromJson(json);
