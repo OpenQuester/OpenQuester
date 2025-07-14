@@ -193,16 +193,9 @@ export class Game {
   public initCurrentTurnPlayer() {
     const inGamePlayers = this.getInGamePlayers();
     if (inGamePlayers.length > 0) {
-      // Shuffle the array a few times for extra randomness
-      const shuffled = [...inGamePlayers];
-      for (let i = 0; i < 5; i++) {
-        for (let j = shuffled.length - 1; j > 0; j--) {
-          const k = Math.floor(Math.random() * (j + 1));
-          [shuffled[j], shuffled[k]] = [shuffled[k], shuffled[j]];
-        }
-      }
-      // Pick the first player after shuffling
-      return shuffled[0].meta.id;
+      // Select a random player using Math.random for index
+      const randomIndex = Math.floor(Math.random() * inGamePlayers.length);
+      return inGamePlayers[randomIndex].meta.id;
     }
     return null;
   }
