@@ -422,6 +422,59 @@ describe("Socket Question Flow Tests", () => {
   });
 
   describe("Turn Player Rotation", () => {
+    it("should send nextTurnPlayerId in QUESTION_FINISH and rotate turn after correct answer", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+      const { showmanSocket, playerSockets, gameId } = setup;
+
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      // Get initial turn player
+      let gameState = await utils.getGameState(gameId);
+      expect(gameState?.currentTurnPlayerId).toBeDefined();
+      const initialTurnPlayer = gameState!.currentTurnPlayerId;
+
+      // Pick a player who is NOT the current turn player
+      const nextPlayerSocket = playerSockets.find(
+        (_s, i) => setup.playerUsers[i].id !== initialTurnPlayer
+      );
+      const nextPlayerId =
+        setup.playerUsers[playerSockets.indexOf(nextPlayerSocket!)].id;
+
+      // That player answers
+      await utils.answerQuestion(nextPlayerSocket!, showmanSocket);
+
+      // Listen for QUESTION_FINISH event
+      const questionFinishPromise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(
+          () => reject(new Error("Timeout waiting for QUESTION_FINISH")),
+          10000
+        );
+        nextPlayerSocket!.on(SocketIOGameEvents.QUESTION_FINISH, (data) => {
+          clearTimeout(timeout);
+          try {
+            expect(data.nextTurnPlayerId).toBeDefined();
+            expect(data.nextTurnPlayerId).toBe(nextPlayerId);
+            resolve(undefined);
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      // Submit correct answer result
+      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scoreResult: 100,
+        answerType: AnswerResultType.CORRECT,
+      });
+      await questionFinishPromise;
+
+      // Also check game state updated
+      gameState = await utils.getGameState(gameId);
+      expect(gameState!.currentTurnPlayerId).toBe(nextPlayerId);
+      await utils.cleanupGameClients(setup);
+    });
+
     it("should set a random initial currentTurnPlayerId on game start", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
 

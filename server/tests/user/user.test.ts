@@ -1,3 +1,4 @@
+import { type Express } from "express";
 import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
@@ -35,7 +36,7 @@ async function createUser(
 
 describe("UserRestApiController", () => {
   let testEnv: TestEnvironment;
-  let app: any;
+  let app: Express;
   let dataSource: DataSource;
   let userRepo: Repository<User>;
   let permRepo: Repository<Permission>;
@@ -64,16 +65,6 @@ describe("UserRestApiController", () => {
     } catch (err) {
       console.error("Error during teardown:", err);
     }
-  });
-
-  // Global error handlers to ensure process exits on unhandled errors
-  process.on("unhandledRejection", (reason) => {
-    console.error("Unhandled Rejection:", reason);
-    setTimeout(() => process.exit(1), 1000);
-  });
-  process.on("uncaughtException", (err) => {
-    console.error("Uncaught Exception:", err);
-    setTimeout(() => process.exit(1), 1000);
   });
 
   beforeEach(async () => {
