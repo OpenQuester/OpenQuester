@@ -224,6 +224,10 @@ export class PinoLogger implements ILogger {
     return String(msg);
   }
 
+  /**
+   * Sanitize meta object for logging. Removes only 'prefix' property, keeps all others.
+   * Returns undefined if no valid properties remain.
+   */
   private sanitizeMeta(meta: unknown): Record<string, unknown> | undefined {
     if (!ValueUtils.isObject(meta)) {
       return undefined;
@@ -234,7 +238,7 @@ export class PinoLogger implements ILogger {
     let hasValidKeys = false;
 
     for (const [key, value] of Object.entries(metaObj)) {
-      if (key !== "type" && value !== undefined) {
+      if (key !== "prefix" && value !== undefined) {
         sanitized[key] = value;
         hasValidKeys = true;
       }
@@ -299,19 +303,17 @@ export class PinoLogger implements ILogger {
       return;
     }
 
-    // Extract prefix from meta if present
+    // Extract prefix from meta if present, and remove it from metaObj
     let prefix: string | undefined;
     let metaObj: Record<string, unknown> | undefined = undefined;
-    if (meta && typeof meta === "object" && meta !== null && "prefix" in meta) {
+    if (meta && typeof meta === "object" && meta !== null) {
       const m = meta as Record<string, unknown>;
       if (typeof m.prefix === "string") {
         prefix = m.prefix;
       }
-      // Remove prefix from meta for file logging
+      // Remove prefix from meta for logging, keep all other properties
       metaObj = { ...m };
       delete metaObj.prefix;
-    } else if (meta && typeof meta === "object") {
-      metaObj = meta as Record<string, unknown>;
     }
 
     const sanitizedMsg = this.sanitizeMessage(msg);
@@ -321,9 +323,13 @@ export class PinoLogger implements ILogger {
     // Prepend prefix to message if present
     const msgWithPrefix = prefix ? `${prefix}${sanitizedMsg}` : sanitizedMsg;
 
-    // Log to terminal - always just the message for clean output
+    // Log to terminal - pass meta (without prefix) as first arg if present, then message
     if (this.terminalLogger) {
-      this.terminalLogger[method](msgWithPrefix);
+      if (sanitizedMeta) {
+        this.terminalLogger[method](sanitizedMeta, msgWithPrefix);
+      } else {
+        this.terminalLogger[method](msgWithPrefix);
+      }
     }
 
     // Log to file for this type (with meta if present)
@@ -338,7 +344,7 @@ export class PinoLogger implements ILogger {
   }
 
   public checkAccess(logLevel: LogLevel, requiredLogLevel: LogLevel) {
-    // Order: trace < debug < info < warn < error
+    // trace < debug < info < warn < error
     const levels: LogLevel[] = ["trace", "debug", "info", "warn", "error"];
     const logIndex = levels.indexOf(logLevel);
     const requiredLogIndex = levels.indexOf(requiredLogLevel);
