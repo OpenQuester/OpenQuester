@@ -15,8 +15,7 @@ import { SocketIOGameService } from "application/services/socket/SocketIOGameSer
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserService } from "application/services/user/UserService";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
-import { BaseError } from "domain/errors/BaseError";
-import { ServerError } from "domain/errors/ServerError";
+import { ErrorController } from "domain/errors/ErrorController";
 import { EnvType } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { type Database } from "infrastructure/database/Database";
@@ -24,7 +23,6 @@ import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubSer
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
-import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
 import { SocketIOInitializer } from "presentation/controllers/io/SocketIOInitializer";
 import { MiddlewareController } from "presentation/controllers/middleware/MiddlewareController";
 import { AuthRestApiController } from "presentation/controllers/rest/AuthRestApiController";
@@ -62,7 +60,6 @@ export class ServeApi {
 
   public async init() {
     try {
-      // this._context.logger.verbose("VERBOSELOGS TEST");
       await this._context.env.loadSessionConfig(
         SESSION_SECRET_LENGTH,
         this._redis
@@ -95,14 +92,11 @@ export class ServeApi {
       this._attachControllers();
       this._app.use(errorMiddleware(this._context.logger));
     } catch (err: unknown) {
-      // TODO: Translate errors from first level of nesting (initialization errors)
-      let message = "unknown error";
-      if (err instanceof BaseError) {
-        message = TemplateUtils.text(err.message, err.textArgs ?? {});
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-      throw new ServerError(`Serve API error -> ${message}`);
+      const error = await ErrorController.resolveError(
+        err,
+        this._context.logger
+      );
+      this._context.logger.error(`API initialization error: ${error.message}`);
     }
   }
 

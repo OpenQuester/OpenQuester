@@ -37,6 +37,7 @@ export class ErrorController {
 
       if (error instanceof Error) {
         message += error.message;
+        message += error.stack ? `\nStack: ${error.stack}` : "";
       }
 
       error = new ServerError(message);
