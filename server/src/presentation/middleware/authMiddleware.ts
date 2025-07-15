@@ -11,14 +11,18 @@ import { ServerResponse } from "domain/enums/ServerResponse";
 import { Session } from "domain/types/auth/session";
 import { SessionDTO } from "domain/types/dto/auth/SessionDTO";
 import { Environment, EnvType } from "infrastructure/config/Environment";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
-const isPublicEndpoint = (url: string, method: string): boolean => {
+const isPublicEndpoint = (
+  env: Environment,
+  url: string,
+  method: string
+): boolean => {
   const publicEndpoints = ["v1/api-docs", "v1/users", "v1/files"];
 
-  if (Environment.instance.ENV === EnvType.DEV) {
+  if (env.ENV === EnvType.DEV) {
     publicEndpoints.push("v1/dev");
   }
 
@@ -37,58 +41,57 @@ const isPublicEndpoint = (url: string, method: string): boolean => {
   );
 };
 
-export const verifySession = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  if (isPublicEndpoint(req.url, req.method)) {
-    return next();
-  }
+export const verifySession =
+  (env: Environment, logger: ILogger) =>
+  async (req: Request, res: Response, next: NextFunction) => {
+    if (isPublicEndpoint(env, req.url, req.method)) {
+      return next();
+    }
 
-  const dateExpired = new Date(String(req.session.cookie.expires)) < new Date();
+    const dateExpired =
+      new Date(String(req.session.cookie.expires)) < new Date();
 
-  if (
-    !req.session.userId ||
-    dateExpired ||
-    !ValueUtils.isNumeric(req.session.userId)
-  ) {
-    return unauthorizedError(req, res);
-  }
+    if (
+      !req.session.userId ||
+      dateExpired ||
+      !ValueUtils.isNumeric(req.session.userId)
+    ) {
+      return unauthorizedError(req, res);
+    }
 
-  let session: SessionDTO;
-  try {
-    session = validateSession(req.session);
-  } catch (err: unknown) {
-    return handleSessionValidationError(err, req, res);
-  }
+    let session: SessionDTO;
+    try {
+      session = validateSession(req.session);
+    } catch (err: unknown) {
+      return handleSessionValidationError(err, req, res, logger);
+    }
 
-  if (!session || !session.userId) {
-    return unauthorizedError(req, res);
-  }
+    if (!session || !session.userId) {
+      return unauthorizedError(req, res);
+    }
 
-  // TODO: Get from cache when implemented
-  const user = await Container.get<UserService>(
-    CONTAINER_TYPES.UserService
-  ).getUserByRequest(req, {
-    select: USER_SELECT_FIELDS,
-    relations: USER_RELATIONS,
-    relationSelects: {
-      avatar: ["id", "filename"],
-      permissions: ["id", "name"],
-    },
-  });
+    // TODO: Get from cache when implemented
+    const user = await Container.get<UserService>(
+      CONTAINER_TYPES.UserService
+    ).getUserByRequest(req, {
+      select: USER_SELECT_FIELDS,
+      relations: USER_RELATIONS,
+      relationSelects: {
+        avatar: ["id", "filename"],
+        permissions: ["id", "name"],
+      },
+    });
 
-  if (!user) {
-    return unauthorizedError(req, res);
-  }
+    if (!user) {
+      return unauthorizedError(req, res);
+    }
 
-  // Refresh session expire time
-  req.session.touch();
-  req.user = user;
+    // Refresh session expire time
+    req.session.touch();
+    req.user = user;
 
-  next();
-};
+    next();
+  };
 
 function validateSession(session: Session) {
   return new RequestDataValidator<SessionDTO>(
@@ -104,12 +107,13 @@ function validateSession(session: Session) {
 async function handleSessionValidationError(
   err: unknown,
   req: Request,
-  res: Response
+  res: Response,
+  logger: ILogger
 ) {
   if (err instanceof Error) {
     return unauthorizedError(req, res);
   }
-  Logger.error(
+  logger.error(
     `Unknown error during session validation: ${JSON.stringify(err)}`
   );
 

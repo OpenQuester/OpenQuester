@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class UpdateUserModelFields_0_1_11_1723107959823
   implements MigrationInterface
@@ -8,6 +8,8 @@ export class UpdateUserModelFields_0_1_11_1723107959823
   name = "UpdateUserModelFields_0_1_11_1723107959823";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const logger = await PinoLogger.init({ pretty: true });
+
     await queryRunner.addColumn(
       "user",
       new TableColumn({
@@ -45,7 +47,7 @@ export class UpdateUserModelFields_0_1_11_1723107959823
         isNullable: true,
       })
     );
-    Logger.logMigrationComplete("0.1.11");
+    logger.migration("0.1.11");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

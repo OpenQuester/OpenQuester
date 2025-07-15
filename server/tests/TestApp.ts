@@ -9,29 +9,31 @@ import { ApiContext } from "application/context/ApiContext";
 import { Environment } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Database } from "infrastructure/database/Database";
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { ServeApi } from "presentation/ServeApi";
 import { TestRestApiController } from "tests/TestRestApiController";
 import { setTestEnvDefaults } from "tests/utils/utils";
 
 export async function bootstrapTestApp(testDataSource: DataSource) {
-  Logger.info("Setting up test application...");
+  const logger = await PinoLogger.init({ pretty: true });
+
+  logger.info("Setting up test application...");
   // Patch Database singleton to use test datasource
-  const db = Database.getInstance(testDataSource);
+  const db = Database.getInstance(testDataSource, logger);
   const app = express();
 
-  Logger.gray("Setting up test environment...");
+  logger.info("Setting up test environment...");
   setTestEnvDefaults();
 
   // Connect to Redis
-  Logger.gray("Connecting to Redis...");
+  logger.info("Connecting to Redis...");
   const redis = RedisConfig.getClient();
   const sub = RedisConfig.getSubClient();
 
   await RedisConfig.initConfig();
   await RedisConfig.waitForConnection();
 
-  Logger.gray("Connecting to Socket.IO...");
+  logger.info("Connecting to Socket.IO...");
   const httpServer = createServer(app);
   const io = new IOServer(httpServer, {
     cors: { origin: "*" },
@@ -56,20 +58,21 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   );
 
   // Register test-only controller for session/cookie handling after body parser
-  Logger.gray("Setting up test REST API controller...");
+  logger.info("Setting up test REST API controller...");
   new TestRestApiController(app);
 
   // Build ApiContext and ServeApi as in production
   const context = new ApiContext({
     db,
-    env: Environment.instance,
+    env: Environment.getInstance(logger),
     io,
     app,
+    logger,
   });
 
   context.env.load(true);
 
-  Logger.gray("Initializing API server...");
+  logger.info("Initializing API server...");
   const api = new ServeApi(context);
   await api.init();
 
@@ -80,13 +83,13 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     if (httpServer.listening) {
       return new Promise<void>((resolve) => {
         httpServer.close(() => {
-          Logger.info("HTTP server closed");
+          logger.info("HTTP server closed");
           resolve();
         });
       });
     }
   }
 
-  Logger.info("Test app initialized");
+  logger.info("Test app initialized");
   return { app, httpServer, dataSource: testDataSource, cleanup };
 }

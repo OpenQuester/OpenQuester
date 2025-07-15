@@ -7,6 +7,8 @@ import { PackageUploadResponse } from "domain/types/package/PackageUploadRespons
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { Package } from "infrastructure/database/models/package/Package";
 import { User } from "infrastructure/database/models/User";
+import { ILogger } from "infrastructure/logger/ILogger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -49,10 +51,12 @@ describe("PackageRestApiController", () => {
   let packageUtils: PackageUtils;
   let testUtils: TestUtils;
   let serverUrl: string;
+  let logger: ILogger;
 
   beforeAll(async () => {
     // --- setup ---
-    testEnv = new TestEnvironment();
+    logger = await PinoLogger.init({ pretty: true });
+    testEnv = new TestEnvironment(logger);
     await testEnv.setup();
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;

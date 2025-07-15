@@ -8,8 +8,8 @@ import { SESSION_SECRET_REDIS_NSP } from "domain/constants/session";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
 import { EnvVar } from "domain/types/env/env";
-import { LogLevel } from "domain/types/log/log";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
+import { LogLevel } from "infrastructure/logger/PinoLogger";
 import { SessionUtils } from "infrastructure/utils/SessionUtils";
 import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
@@ -62,13 +62,13 @@ export class Environment {
   // Logs
   public LOG_LEVEL!: LogLevel;
 
-  private constructor() {
+  private constructor(private readonly logger: ILogger) {
     //
   }
 
-  public static get instance() {
-    if (!this._instance) {
-      this._instance = new Environment();
+  public static getInstance(logger: ILogger, opts?: { overwrite: boolean }) {
+    if (!this._instance || opts?.overwrite) {
+      this._instance = new Environment(logger);
     }
 
     return this._instance;
@@ -175,10 +175,14 @@ export class Environment {
 
     switch (this._type) {
       case EnvType.PROD:
-        Logger.pink("Running in production environment", ENV_PREFIX);
+        this.logger.warn("Running in production environment", {
+          prefix: ENV_PREFIX,
+        });
         break;
       case EnvType.DEV:
-        Logger.pink("Running in development environment", ENV_PREFIX);
+        this.logger.warn("Running in development environment", {
+          prefix: ENV_PREFIX,
+        });
         break;
     }
 

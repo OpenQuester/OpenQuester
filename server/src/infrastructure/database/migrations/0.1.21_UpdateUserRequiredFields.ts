@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class UpdateUserRequiredFields_0_1_21_1723204474011
   implements MigrationInterface
@@ -12,7 +12,8 @@ export class UpdateUserRequiredFields_0_1_21_1723204474011
       ALTER TABLE "user"
       ADD CONSTRAINT "UQ_user_name" UNIQUE ("name");
     `);
-    Logger.logMigrationComplete("0.1.21");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.1.21");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

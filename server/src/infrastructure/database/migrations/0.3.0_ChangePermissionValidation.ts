@@ -6,7 +6,7 @@ import {
   TableUnique,
 } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class ChangePermissionValidation_0_3_0_1729181792142
   implements MigrationInterface
@@ -88,7 +88,8 @@ export class ChangePermissionValidation_0_3_0_1729181792142
 
     await queryRunner.query(query);
 
-    Logger.logMigrationComplete("0.3.0");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.3.0");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

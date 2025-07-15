@@ -12,6 +12,7 @@ import {
   EmptyInputData,
   GameStartBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class StartGameEventHandler extends BaseSocketEventHandler<
@@ -21,9 +22,10 @@ export class StartGameEventHandler extends BaseSocketEventHandler<
   constructor(
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
+    logger: ILogger,
     private readonly socketIOGameService: SocketIOGameService
   ) {
-    super(socket, eventEmitter);
+    super(socket, eventEmitter, logger);
   }
 
   public getEventName(): SocketIOGameEvents {

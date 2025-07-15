@@ -24,6 +24,7 @@ import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { RedisCache } from "infrastructure/cache/RedisCache";
+import { Environment } from "infrastructure/config/Environment";
 import { Database } from "infrastructure/database/Database";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
 import { File } from "infrastructure/database/models/File";
@@ -42,6 +43,7 @@ import { RedisRepository } from "infrastructure/database/repositories/RedisRepos
 import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
 import { SocketUserDataRepository } from "infrastructure/database/repositories/socket/SocketUserDataRepository";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { DependencyService } from "infrastructure/services/dependency/DependencyService";
 import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { RedisService } from "infrastructure/services/redis/RedisService";
@@ -52,7 +54,9 @@ export class DIConfig {
   constructor(
     private readonly db: Database,
     private readonly redisClient: Redis,
-    private readonly io: IOServer
+    private readonly io: IOServer,
+    private readonly env: Environment,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -134,11 +138,12 @@ export class DIConfig {
     );
 
     // Initialize TranslateService to preload translations
+    TranslateService.setLogger(this.logger);
     await TranslateService.initialize();
 
     Container.register(
       CONTAINER_TYPES.RedisRepository,
-      new RedisRepository(),
+      new RedisRepository(this.logger),
       "repository"
     );
 
@@ -197,17 +202,19 @@ export class DIConfig {
     Container.register(
       CONTAINER_TYPES.S3StorageService,
       new S3StorageService(
-        StorageContextBuilder.buildS3Context(),
+        StorageContextBuilder.buildS3Context(this.env),
         Container.get<FileService>(CONTAINER_TYPES.FileService),
         Container.get<FileUsageService>(CONTAINER_TYPES.FileUsageService),
         Container.get<UserService>(CONTAINER_TYPES.UserService),
-        Container.get<DependencyService>(CONTAINER_TYPES.DependencyService)
+        Container.get<DependencyService>(CONTAINER_TYPES.DependencyService),
+        this.logger
       ),
       "service"
     );
 
     const gameIndexManager = new GameIndexManager(
-      Container.get<RedisService>(CONTAINER_TYPES.RedisService)
+      Container.get<RedisService>(CONTAINER_TYPES.RedisService),
+      this.logger
     );
 
     Container.register(
@@ -227,7 +234,8 @@ export class DIConfig {
         gameIndexManager,
         Container.get<UserService>(CONTAINER_TYPES.UserService),
         Container.get<PackageService>(CONTAINER_TYPES.PackageService),
-        Container.get<S3StorageService>(CONTAINER_TYPES.S3StorageService)
+        Container.get<S3StorageService>(CONTAINER_TYPES.S3StorageService),
+        this.logger
       ),
       "repository"
     );
@@ -266,7 +274,8 @@ export class DIConfig {
         Container.get<SocketUserDataService>(
           CONTAINER_TYPES.SocketUserDataService
         ),
-        Container.get<GameService>(CONTAINER_TYPES.GameService)
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        this.logger
       ),
       "service"
     );
@@ -354,7 +363,8 @@ export class DIConfig {
           CONTAINER_TYPES.SocketQuestionStateService
         ),
         Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
-        Container.get<FinalRoundService>(CONTAINER_TYPES.FinalRoundService)
+        Container.get<FinalRoundService>(CONTAINER_TYPES.FinalRoundService),
+        this.logger
       ),
     ];
 
@@ -362,7 +372,8 @@ export class DIConfig {
       CONTAINER_TYPES.RedisPubSubService,
       new RedisPubSubService(
         Container.get<RedisService>(CONTAINER_TYPES.RedisService),
-        handlers
+        handlers,
+        this.logger
       ),
       "service"
     );

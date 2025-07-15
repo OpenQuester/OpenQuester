@@ -8,7 +8,8 @@ import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputD
 import { ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import {
@@ -27,9 +28,11 @@ describe("Socket Game Chat Tests", () => {
   let spectatorSockets: GameClientSocket[];
   let utils: SocketGameTestUtils;
   let redisClient: Redis;
+  let logger: ILogger;
 
   beforeAll(async () => {
-    testEnv = new TestEnvironment();
+    logger = await PinoLogger.init({ pretty: true });
+    testEnv = new TestEnvironment(logger);
     await testEnv.setup();
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;
@@ -74,9 +77,9 @@ describe("Socket Game Chat Tests", () => {
     try {
       await testEnv.teardown();
       if (cleanup) await cleanup();
-      Logger.info("Test environment torn down successfully.");
+      logger.info("Test environment torn down successfully.");
     } catch (err) {
-      Logger.error(`Error during teardown: ${JSON.stringify(err)}`);
+      logger.error(`Error during teardown: ${JSON.stringify(err)}`);
     }
   });
 
@@ -462,7 +465,7 @@ describe("Socket Game Chat Tests", () => {
             playerSockets[1].on(
               SocketIOEvents.CHAT_MESSAGE,
               (data: ChatMessageBroadcastData) => {
-                Logger.debug(
+                logger.debug(
                   `Received chat message during pause: ${JSON.stringify(data)}`
                 );
                 clearTimeout(timeout);

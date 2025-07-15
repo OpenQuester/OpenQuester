@@ -34,4 +34,11 @@ export class ApiContext {
   public get env() {
     return this._ctx.env;
   }
+
+  /**
+   * Logger instance
+   */
+  public get logger() {
+    return this._ctx.logger;
+  }
 }

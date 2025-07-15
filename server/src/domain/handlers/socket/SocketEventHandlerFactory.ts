@@ -22,6 +22,7 @@ import { QuestionPickEventHandler } from "domain/handlers/socket/question/Questi
 import { SkipQuestionEventHandler } from "domain/handlers/socket/question/SkipQuestionEventHandler";
 import { ChatMessageEventHandler } from "domain/handlers/socket/system/ChatMessageEventHandler";
 import { DisconnectEventHandler } from "domain/handlers/socket/system/DisconnectEventHandler";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
@@ -34,8 +35,11 @@ export class SocketEventHandlerFactory {
     private readonly socketIOChatService: SocketIOChatService,
     private readonly socketUserDataService: SocketUserDataService,
     private readonly finalRoundService: FinalRoundService,
+    private readonly logger: ILogger,
     private readonly socketIOQuestionService?: SocketIOQuestionService
-  ) {}
+  ) {
+    //
+  }
 
   /**
    * Create all available game event handlers
@@ -48,17 +52,39 @@ export class SocketEventHandlerFactory {
       new JoinGameEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.socketIOGameService,
         this.socketIOChatService,
         this.socketUserDataService
       ),
-      new LeaveGameEventHandler(socket, eventEmitter, this.socketIOGameService),
-      new StartGameEventHandler(socket, eventEmitter, this.socketIOGameService),
-      new NextRoundEventHandler(socket, eventEmitter, this.socketIOGameService),
-      new PauseGameEventHandler(socket, eventEmitter, this.socketIOGameService),
+      new LeaveGameEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new StartGameEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new NextRoundEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new PauseGameEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
       new UnpauseGameEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.socketIOGameService
       ),
     ];
@@ -75,11 +101,13 @@ export class SocketEventHandlerFactory {
       new DisconnectEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.socketIOGameService
       ),
       new ChatMessageEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.socketIOChatService
       ),
     ];
@@ -100,26 +128,31 @@ export class SocketEventHandlerFactory {
       new QuestionPickEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.socketIOQuestionService
       ),
       new QuestionAnswerEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.socketIOQuestionService
       ),
       new AnswerSubmittedEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.socketIOQuestionService
       ),
       new AnswerResultEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.socketIOQuestionService
       ),
       new SkipQuestionEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.socketIOQuestionService
       ),
     ];
@@ -136,21 +169,25 @@ export class SocketEventHandlerFactory {
       new ThemeEliminateEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.finalRoundService
       ),
       new FinalBidSubmitEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.finalRoundService
       ),
       new FinalAnswerSubmitEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.finalRoundService
       ),
       new FinalAnswerReviewEventHandler(
         socket,
         eventEmitter,
+        this.logger,
         this.finalRoundService
       ),
     ];

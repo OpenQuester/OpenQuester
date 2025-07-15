@@ -1,58 +1,61 @@
 import { type NextFunction, type Request, type Response } from "express";
 
 import { Environment } from "infrastructure/config/Environment";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
-export const logMiddleware = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
-  // Capture the original send method to log the response body
-  const originalSend = res.send;
-  let isSent = false;
+export const logMiddleware =
+  (env: Environment, logger: ILogger) =>
+  async (req: Request, res: Response, next: NextFunction) => {
+    // Capture the original send method to log the response body
+    const originalSend = res.send;
+    let isSent = false;
 
-  res.send = function (body: any) {
-    // TODO: Why double logging happens? Fix when solution found
-    // Avoid double logging
-    if (!isSent) {
-      // Log the request path and arguments
-      try {
-        log(req, body);
-      } catch {
-        // Avoid all unexpected errors, for example with JSON.stringify
+    res.send = function (body: any) {
+      // TODO: Why double logging happens? Fix when solution found
+      // Avoid double logging
+      if (!isSent) {
+        // Log the request path and arguments
+        try {
+          log(req, body, env, logger);
+        } catch {
+          // Avoid all unexpected errors, for example with JSON.stringify
+        }
+        isSent = true;
       }
-      isSent = true;
-    }
-    return originalSend.call(this, body);
+      return originalSend.call(this, body);
+    };
+
+    next();
   };
 
-  next();
-};
+function log(
+  req: Request,
+  responseBody: any,
+  env: Environment,
+  logger: ILogger
+) {
+  const level = env.LOG_LEVEL;
 
-function log(req: Request, responseBody: any) {
-  const level = Environment.instance.LOG_LEVEL;
-
-  if (Logger.checkAccess(level, "debug")) {
-    Logger.debug(
+  if (logger.checkAccess(level, "debug")) {
+    logger.debug(
       `[${req.session.userId ?? "GUEST"}] [${req.method}]: ${JSON.stringify(
         req.originalUrl
       )}`
     );
 
-    if (Logger.checkAccess(level, "verbose")) {
-      Logger.debug(`Query parameters: ${format(req.query)}`);
+    if (logger.checkAccess(level, "trace")) {
+      logger.debug(`Query parameters: ${format(req.query)}`);
 
       if (!ValueUtils.isEmpty(req.headers)) {
-        Logger.debug(`Request headers: ${JSON.stringify(req.headers)}`);
+        logger.debug(`Request headers: ${JSON.stringify(req.headers)}`);
       }
 
       if (!ValueUtils.isEmpty(req.body)) {
-        Logger.debug(`Request body: ${format(req.body)}`);
+        logger.debug(`Request body: ${format(req.body)}`);
       }
 
-      Logger.debug(`Response body: ${format(responseBody)}`);
+      logger.debug(`Response body: ${format(responseBody)}`);
       console.log("\n");
     }
   }

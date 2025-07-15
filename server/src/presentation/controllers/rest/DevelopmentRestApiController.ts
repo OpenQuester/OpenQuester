@@ -13,14 +13,15 @@ import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { type Express } from "express";
 
 import { Environment } from "infrastructure/config/Environment";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
 
 export class DevelopmentRestApiController {
   constructor(
     private readonly app: Express,
     private readonly userService: UserService,
     private readonly env: Environment,
-    private readonly gameService: GameService
+    private readonly gameService: GameService,
+    private readonly logger: ILogger
   ) {
     const dummyUser = {
       username: "dev-user",
@@ -62,7 +63,9 @@ export class DevelopmentRestApiController {
         req.session.userId = user.id;
         req.session.save((err) => {
           if (err) {
-            Logger.error(`DEV: Session save error: ${err}`);
+            this.logger.error(`DEV: Session save error: ${err}`, {
+              prefix: "[DEV]: ",
+            });
             return res.status(500).json({ error: "Session save failed" });
           }
           // Signed session value to put it in Postman
@@ -76,7 +79,9 @@ export class DevelopmentRestApiController {
           });
         });
       } catch (error) {
-        Logger.error(`DEV: Login error: ${error}`);
+        this.logger.error(`DEV: Login error: ${error}`, {
+          prefix: "[DEV]: ",
+        });
         res.status(500).json({ error: "Login failed" });
       }
     });
@@ -107,8 +112,10 @@ export class DevelopmentRestApiController {
 
         res.json({ success: true, games });
       } catch (err: any) {
-        const error = await ErrorController.resolveError(err);
-        Logger.error(`DEV: Generate games error: ${error.message}`);
+        const error = await ErrorController.resolveError(err, this.logger);
+        this.logger.error(`DEV: Generate games error: ${error.message}`, {
+          prefix: "[DEV]: ",
+        });
         res.status(500).json({ error: `Failed to generate games` });
       }
     });

@@ -4,16 +4,18 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { GameContext } from "domain/types/socket/game/GameContext";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
+import { type ILogger } from "infrastructure/logger/ILogger";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
-import { Logger } from "infrastructure/utils/Logger";
 
 /**
  * Service responsible for fetching and validating socket game context.
  */
+
 export class SocketGameContextService {
   constructor(
     private readonly socketUserDataService: SocketUserDataService,
-    private readonly gameService: GameService
+    private readonly gameService: GameService,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -35,8 +37,9 @@ export class SocketGameContextService {
     });
 
     // Log user activity for debugging (no additional Redis calls)
-    Logger.debug(
-      `User ${userSession.id} performing socket action | SocketId: ${socketId} | GameId: ${userSession.gameId}`
+    this.logger.debug(
+      `User ${userSession.id} performing socket action | SocketId: ${socketId} | GameId: ${userSession.gameId}`,
+      { prefix: "[SOCKET]: " }
     );
 
     return new GameContext(userSession, game, currentPlayer);
@@ -53,10 +56,11 @@ export class SocketGameContextService {
     }
 
     // Log user activity for debugging (no additional Redis calls)
-    Logger.debug(
+    this.logger.debug(
       `User ${userData.id} socket activity | SocketId: ${socketId} | GameId: ${
         userData.gameId || "none"
-      }`
+      }`,
+      { prefix: "[SOCKET]: " }
     );
 
     return userData;

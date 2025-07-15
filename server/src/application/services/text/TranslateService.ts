@@ -3,7 +3,7 @@ import { IncomingHttpHeaders } from "http";
 import path from "path";
 
 import { Language, Translation } from "domain/types/text/translation";
-import { Logger } from "infrastructure/utils/Logger";
+import { type ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 /**
@@ -15,16 +15,24 @@ export class TranslateService {
     "storage/language"
   );
   private static _translationsMap = new Map<Language, Translation>();
-
   private static _translationKeys: string[] = [];
+  private static _logger: ILogger;
+
+  public static setLogger(logger: ILogger) {
+    this._logger = logger;
+  }
 
   public static async initialize(): Promise<void> {
     try {
       await this._loadTranslation("en");
       await this._loadTranslationKeys();
-      Logger.gray("TranslateService initialized successfully");
+      this._logger?.info("TranslateService initialized successfully", {
+        prefix: "[TRANSLATE]: ",
+      });
     } catch (error) {
-      Logger.error(`Failed to initialize TranslateService: ${error}`);
+      this._logger?.error(`Failed to initialize TranslateService: ${error}`, {
+        prefix: "[TRANSLATE]: ",
+      });
     }
   }
 
@@ -42,7 +50,10 @@ export class TranslateService {
     const translation = await this._loadTranslation("en");
 
     if (!translation) {
-      Logger.warn("Failed to load English translation for keys extraction");
+      this._logger?.warn(
+        "Failed to load English translation for keys extraction",
+        { prefix: "[TRANSLATE]: " }
+      );
       return;
     }
 
@@ -72,7 +83,9 @@ export class TranslateService {
       );
 
       this._translationsMap.set(language, translation);
-      Logger.gray(`Translation loading for '${language}' is completed`);
+      this._logger?.info(`Translation loading for '${language}' is completed`, {
+        prefix: "[TRANSLATE]: ",
+      });
       return translation;
     } catch {
       // Ignore if we don't have translation for provided language, will use eng
@@ -104,8 +117,9 @@ export class TranslateService {
       (await this._loadTranslation("en"));
 
     if (!translation) {
-      Logger.warn(
-        `Translation for language '${selectedLang}' not found. Returning key.`
+      this._logger?.warn(
+        `Translation for language '${selectedLang}' not found. Returning key.`,
+        { prefix: "[TRANSLATE]: " }
       );
       return translationKey;
     }

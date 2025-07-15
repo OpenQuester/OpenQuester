@@ -7,7 +7,7 @@ import { BaseError } from "domain/errors/BaseError";
 import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { Language } from "domain/types/text/translation";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -17,6 +17,7 @@ export class ErrorController {
    */
   public static async resolveError(
     error: unknown,
+    logger: ILogger,
     headers?: IncomingHttpHeaders
   ): Promise<{
     message: string;
@@ -42,7 +43,7 @@ export class ErrorController {
     }
 
     if (error instanceof ServerError) {
-      Logger.error(`Internal server error: ${error.message}`);
+      logger.error(`Internal server error: ${error.message}`);
       return {
         message: ServerResponse.INTERNAL_SERVER_ERROR,
         code: HttpStatus.INTERNAL,
@@ -56,7 +57,7 @@ export class ErrorController {
       };
     }
 
-    Logger.error(`Error of unknown type caught: ${JSON.stringify(error)}`);
+    logger.error(`Error of unknown type caught: ${JSON.stringify(error)}`);
     return {
       message: ServerResponse.INTERNAL_SERVER_ERROR,
       code: HttpStatus.INTERNAL,

@@ -9,6 +9,7 @@ import {
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameUnpauseBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class UnpauseGameEventHandler extends BaseSocketEventHandler<
@@ -18,9 +19,10 @@ export class UnpauseGameEventHandler extends BaseSocketEventHandler<
   constructor(
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
+    logger: ILogger,
     private readonly socketIOGameService: SocketIOGameService
   ) {
-    super(socket, eventEmitter);
+    super(socket, eventEmitter, logger);
   }
 
   public getEventName(): SocketIOGameEvents {

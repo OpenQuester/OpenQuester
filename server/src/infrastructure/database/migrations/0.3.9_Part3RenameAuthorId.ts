@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableForeignKey } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class RenameAuthorAndAvatarId_1734207358779
   implements MigrationInterface
@@ -54,7 +54,8 @@ export class RenameAuthorAndAvatarId_1734207358779
       );
     }
 
-    Logger.logMigrationComplete("0.3.9-3");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.3.9-3");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

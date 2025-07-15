@@ -5,6 +5,8 @@ import { DataSource, Repository } from "typeorm";
 import { Permissions } from "domain/enums/Permissions";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
+import { ILogger } from "infrastructure/logger/ILogger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 
@@ -41,9 +43,11 @@ describe("UserRestApiController", () => {
   let userRepo: Repository<User>;
   let permRepo: Repository<Permission>;
   let cleanup: (() => Promise<void>) | undefined;
+  let logger: ILogger;
 
   beforeAll(async () => {
-    testEnv = new TestEnvironment();
+    logger = await PinoLogger.init({ pretty: true });
+    testEnv = new TestEnvironment(logger);
     await testEnv.setup();
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;

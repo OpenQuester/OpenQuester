@@ -2,17 +2,18 @@ import { Client } from "pg";
 import { DataSource } from "typeorm";
 
 import { RedisConfig } from "infrastructure/config/RedisConfig";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { createTestAppDataSource } from "tests/utils/utils";
 
 export class TestEnvironment {
   private testDataSource!: DataSource;
 
-  constructor() {
+  constructor(private readonly logger: ILogger) {
     //
   }
 
   public async setup(): Promise<void> {
+    // const logger = await PinoLogger.init({ pretty: true });
     await this.createTestDatabase();
     this.testDataSource = createTestAppDataSource();
     await this.testDataSource.initialize();
@@ -25,7 +26,9 @@ export class TestEnvironment {
   }
 
   public async teardown(): Promise<void> {
-    Logger.info("Tearing down test environment...");
+    this.logger.info("Tearing down test environment...", {
+      prefix: "[TEST]: ",
+    });
     if (this.testDataSource) {
       await this.testDataSource.destroy();
     }
@@ -54,7 +57,7 @@ export class TestEnvironment {
   private _getPGClient() {
     const client = new Client({
       user: process.env.DB_USER || "postgres",
-      password: process.env.DB_PASS || "postgres",
+      password: process.env.DB_PASS || "Asdf1234!",
       host: process.env.DB_HOST || "127.0.0.1",
       port: parseInt(process.env.DB_PORT || "5432", 10),
     });
