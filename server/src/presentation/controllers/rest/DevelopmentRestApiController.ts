@@ -34,6 +34,10 @@ export class DevelopmentRestApiController {
     this.app.post("/v1/dev/login/:num", async (req, res) => {
       try {
         const num = req.params.num ? `-${req.params.num}` : "";
+        this.logger.audit(`Dev login request triggered`, {
+          prefix: "[DEV]: ",
+          id: req.params.num,
+        });
         let user = await this.userService.findOne(
           {
             username: dummyUser.username + num,
@@ -63,7 +67,7 @@ export class DevelopmentRestApiController {
         req.session.userId = user.id;
         req.session.save((err) => {
           if (err) {
-            this.logger.error(`DEV: Session save error: ${err}`, {
+            this.logger.error(`Session save error: ${err}`, {
               prefix: "[DEV]: ",
             });
             return res.status(500).json({ error: "Session save failed" });
@@ -79,7 +83,7 @@ export class DevelopmentRestApiController {
           });
         });
       } catch (error) {
-        this.logger.error(`DEV: Login error: ${error}`, {
+        this.logger.error(`Login error: ${error}`, {
           prefix: "[DEV]: ",
         });
         res.status(500).json({ error: "Login failed" });
@@ -97,6 +101,11 @@ export class DevelopmentRestApiController {
         const count = parseInt(req.query.count as string) || 50;
         const packageId = parseInt(req.body.packageId);
 
+        this.logger.audit(`Dev generate games triggered`, {
+          prefix: "[DEV]: ",
+          count,
+          packageId,
+        });
         if (count < 1 || count > 250) {
           return res
             .status(400)

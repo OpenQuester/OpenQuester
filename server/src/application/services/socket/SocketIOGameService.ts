@@ -132,7 +132,9 @@ export class SocketIOGameService {
     const game = context.game;
     const userSession = context.userSession;
 
-    if (!game.hasPlayer(userSession.id)) return { emit: false };
+    if (!game.hasPlayer(userSession.id)) {
+      return { emit: false };
+    }
 
     game.removePlayer(userSession.id);
 

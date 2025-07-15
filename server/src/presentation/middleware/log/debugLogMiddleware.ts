@@ -56,7 +56,6 @@ function log(
       }
 
       logger.debug(`Response body: ${format(responseBody)}`);
-      console.log("\n");
     }
   }
 }

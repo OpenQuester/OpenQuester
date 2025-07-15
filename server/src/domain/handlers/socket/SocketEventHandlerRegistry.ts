@@ -46,10 +46,6 @@ export class SocketEventHandlerRegistry {
     this.socket.on(eventName, async (data: any) => {
       await handler.handle(data);
     });
-
-    this.logger.debug(`Registered handler for event: ${eventName}`, {
-      prefix: "[SOCKET]: ",
-    });
   }
 
   /**

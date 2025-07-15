@@ -64,7 +64,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   // Build ApiContext and ServeApi as in production
   const context = new ApiContext({
     db,
-    env: Environment.getInstance(logger),
+    env: Environment.getInstance(logger, { overwrite: true }),
     io,
     app,
     logger,

@@ -142,6 +142,9 @@ export class Environment {
     if (secret) {
       this.SESSION_SECRET = secret;
     } else {
+      this.logger.audit(`Generating new session secret`, {
+        prefix: ENV_PREFIX,
+      });
       this.SESSION_SECRET = await SessionUtils.generateSecret(length);
       await redisClient.set(SESSION_SECRET_REDIS_NSP, this.SESSION_SECRET);
     }

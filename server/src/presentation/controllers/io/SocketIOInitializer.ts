@@ -5,6 +5,7 @@ import { SocketIOChatService } from "application/services/socket/SocketIOChatSer
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
+import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import { SocketEventHandlerFactory } from "domain/handlers/socket/SocketEventHandlerFactory";
 import { SocketEventHandlerRegistry } from "domain/handlers/socket/SocketEventHandlerRegistry";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -34,7 +35,7 @@ export class SocketIOInitializer {
 
     const gameNamespace = this.io.of(SOCKET_GAME_NAMESPACE);
 
-    gameNamespace.on("connection", (socket: Socket) => {
+    gameNamespace.on(SocketIOEvents.CONNECTION, (socket: Socket) => {
       this._initializeGameControllers(gameNamespace, socket);
     });
   }
@@ -64,15 +65,15 @@ export class SocketIOInitializer {
 
     // Log handler registration stats
     const registryStats = handlerRegistry.getStats();
-    this.logger.info(
-      `Registered ${
-        registryStats.totalHandlers
-      } standardized socket handlers | SocketId: ${socket.id} | GameEvents: ${
-        registryStats.gameEvents
-      } | SystemEvents: ${
-        registryStats.systemEvents
-      } | Events: ${registryStats.eventNames.join(", ")}`,
-      { prefix: "[SOCKET]: " }
+    this.logger.trace(
+      `Registered ${registryStats.totalHandlers} standardized socket handlers`,
+      {
+        prefix: "[SOCKET]: ",
+        socketId: socket.id,
+        gameEvents: registryStats.gameEvents,
+        systemEvents: registryStats.systemEvents,
+        events: registryStats.eventNames.join(", "),
+      }
     );
   }
 }
