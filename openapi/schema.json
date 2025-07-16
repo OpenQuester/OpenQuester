@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpenQuester API",
-    "version": "0.15.2"
+    "version": "0.16.1"
   },
   "security": [
     {

@@ -1,6 +1,6 @@
 {
   "name": "openquester_api",
-  "version": "0.15.2",
+  "version": "0.16.1",
   "description": "",
   "scripts": {
     "start:dev:run": "wait-on ./dist/index.js && nodemon ./dist/index.js",
