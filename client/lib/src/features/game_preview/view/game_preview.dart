@@ -65,7 +65,7 @@ class _GamePreviewScreenState extends State<GamePreviewScreen> {
             // Fixes overflow when width changes
             width: showList
                 ? MediaQuery.sizeOf(context).width
-                : widget.item!.$2.width,
+                : widget.item?.$2.width,
             duration: Durations.medium1,
             child: GameListItemWidget(
               item: game,
