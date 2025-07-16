@@ -49,7 +49,6 @@ class BlurDialogRoute<R> extends CustomRoute<R> {
     super.allowSnapshotting,
     super.barrierDismissible,
     super.barrierLabel,
-    super.customRouteBuilder,
     super.duration,
     super.fullMatch,
     super.guards,
@@ -62,10 +61,7 @@ class BlurDialogRoute<R> extends CustomRoute<R> {
     super.title,
     super.usesPathAsKey,
   }) : super(
-         transitionsBuilder: blurIn,
-         barrierColor: Colors.black.withValues(alpha: .3),
-         opaque: false,
-         fullscreenDialog: true,
+         customRouteBuilder: _blurBuilder,
        );
 
   static Widget blurIn(
@@ -84,6 +80,21 @@ class BlurDialogRoute<R> extends CustomRoute<R> {
           child: child,
         );
       },
+    );
+  }
+
+  static Route<T> _blurBuilder<T>(
+    BuildContext context,
+    Widget child,
+    AutoRoutePage<T> page,
+  ) {
+    return PageRouteBuilder<T>(
+      fullscreenDialog: page.fullscreenDialog,
+      opaque: false,
+      settings: page,
+      pageBuilder: (_, _, _) => child,
+      transitionsBuilder: blurIn,
+      barrierColor: Colors.black.withValues(alpha: .3),
     );
   }
 }
