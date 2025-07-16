@@ -5,4 +5,5 @@ export interface FileDTO {
   filename: string;
   source: FileSource;
   created_at: Date;
+  size?: number;
 }

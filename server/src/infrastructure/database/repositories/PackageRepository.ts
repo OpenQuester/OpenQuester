@@ -180,7 +180,9 @@ export class PackageRepository {
             path: StorageUtils.getFilePath(packageData.logo.file.md5),
           });
           await transaction.save(logoFile);
-          files.push(logoFile);
+          const logoFileDTO = logoFile.toDTO();
+          logoFileDTO.size = packageData.logo.file.size;
+          files.push(logoFileDTO);
         }
       }
 
@@ -355,7 +357,9 @@ export class PackageRepository {
               });
               fileUsagesToSave.push(fileUsage);
 
-              files.push(fileEntity.toDTO());
+              const fileDTO = fileEntity.toDTO();
+              fileDTO.size = questionFileData.file.size;
+              files.push(fileDTO);
             }
             ordersMap.set("questionFiles", new Set());
 
@@ -403,7 +407,9 @@ export class PackageRepository {
               });
               fileUsagesToSave.push(fileUsage);
 
-              files.push(fileEntity.toDTO());
+              const fileDTO = fileEntity.toDTO();
+              fileDTO.size = answerFileData.file.size;
+              files.push(fileDTO);
             }
             ordersMap.set("answerFiles", new Set());
 
@@ -443,7 +449,9 @@ export class PackageRepository {
                 });
                 fileUsagesToSave.push(fileUsage);
 
-                files.push(file.toDTO());
+                const fileDTO = file.toDTO();
+                fileDTO.size = answerData.file.size;
+                files.push(fileDTO);
               }
 
               const type = answerData.file?.type;

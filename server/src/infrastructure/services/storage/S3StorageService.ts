@@ -58,27 +58,41 @@ export class S3StorageService {
     bucket: string,
     filenameWithPath: string,
     expiresInSeconds: number,
-    filename: string
+    filename: string,
+    size?: number
   ) {
     let command: PutObjectCommand | GetObjectCommand;
     let opts = {};
 
     switch (type) {
-      case "PUT":
-        command = new PutObjectCommand({
+      case "PUT": {
+        const putParams: any = {
           Bucket: bucket,
           Key: filenameWithPath,
           ContentMD5: Buffer.from(filename, "hex").toString("base64"),
           IfNoneMatch: "*",
-        });
+        };
+
+        // Add Content-Length header if size is provided
+        if (size !== undefined) {
+          putParams.ContentLength = size;
+        }
+
+        command = new PutObjectCommand(putParams);
 
         // Unhoistable means headers that cannot be ignored
+        const unhoistableHeaders = new Set(["Content-MD5", "If-None-Match"]);
+        if (size !== undefined) {
+          unhoistableHeaders.add("Content-Length");
+        }
+
         opts = {
           expiresIn: expiresInSeconds,
-          unhoistableHeaders: new Set(["Content-MD5", "If-None-Match"]),
+          unhoistableHeaders,
         };
         break;
-      case "GET":
+      }
+      case "GET": {
         command = new GetObjectCommand({
           Bucket: bucket,
           Key: filenameWithPath,
@@ -87,6 +101,7 @@ export class S3StorageService {
           expiresIn: expiresInSeconds,
         };
         break;
+      }
     }
 
     return getSignedUrl(this._client, command, opts);
@@ -176,9 +191,10 @@ export class S3StorageService {
 
   public async upload(
     filename: string,
+    size?: number,
     expiresIn: number = UPLOAD_FILE_LINK_EXPIRES_IN
   ) {
-    return this.performFileUpload(filename, expiresIn);
+    return this.performFileUpload(filename, expiresIn, undefined, undefined, undefined, size);
   }
 
   public async generatePresignedUrls(
@@ -194,7 +210,8 @@ export class S3StorageService {
         this.s3Context.bucket,
         `${file.path}${filename}`,
         expiresIn,
-        filename
+        filename,
+        file.size
       );
     }
 
@@ -206,7 +223,8 @@ export class S3StorageService {
     expiresIn: number,
     source?: FileSource,
     user?: User,
-    pack?: Package
+    pack?: Package,
+    size?: number
   ) {
     if (!source) {
       source = FileSource.S3;
@@ -219,7 +237,8 @@ export class S3StorageService {
       this.s3Context.bucket,
       filenameWithPath,
       expiresIn,
-      filename
+      filename,
+      size
     );
 
     const file = await this._writeFile(

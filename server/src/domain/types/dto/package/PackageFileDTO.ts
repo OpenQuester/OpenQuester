@@ -5,4 +5,5 @@ export interface PackageFileDTO {
   md5: string; // filename
   type: PackageFileType;
   link?: string;
+  size?: number; // file size in bytes
 }

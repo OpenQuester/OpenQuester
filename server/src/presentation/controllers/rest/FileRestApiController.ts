@@ -6,7 +6,7 @@ import { HttpStatus } from "domain/enums/HttpStatus";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
-import { filenameScheme } from "presentation/schemes/file/fileSchemes";
+import { filenameScheme, fileUploadBodyScheme } from "presentation/schemes/file/fileSchemes";
 
 export class FileRestApiController {
   constructor(
@@ -30,9 +30,16 @@ export class FileRestApiController {
   };
 
   private uploadFile = async (req: Request, res: Response) => {
-    const validatedData = this._validateParamsFilename(req);
+    const validatedParams = this._validateParamsFilename(req);
+    const validatedBody = new RequestDataValidator<{ size: number }>(
+      req.body,
+      fileUploadBodyScheme()
+    ).validate();
 
-    const url = await this.storage.upload(validatedData.filename);
+    const url = await this.storage.upload(
+      validatedParams.filename,
+      validatedBody.size
+    );
     res.send({ url });
   };
 

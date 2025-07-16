@@ -1,6 +1,7 @@
 import Joi from "joi";
 
 import { LIMIT_MAX, LIMIT_MIN, OFFSET_MIN } from "domain/constants/pagination";
+import { MAX_FILE_SIZE, MAX_LOGO_SIZE } from "domain/constants/storage";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
@@ -21,6 +22,24 @@ const fileSchema = Joi.object({
   md5: Joi.string().required(),
   type: Joi.string()
     .valid(...Object.values(PackageFileType))
+    .required(),
+  size: Joi.number()
+    .integer()
+    .min(1)
+    .max(MAX_FILE_SIZE)
+    .required(),
+});
+
+// Logo file schema with specific size limit
+const logoFileSchema = Joi.object({
+  md5: Joi.string().required(),
+  type: Joi.string()
+    .valid(...Object.values(PackageFileType))
+    .required(),
+  size: Joi.number()
+    .integer()
+    .min(1)
+    .max(MAX_LOGO_SIZE)
     .required(),
 });
 
@@ -225,7 +244,7 @@ export const uploadPackageScheme = () =>
         .valid(...Object.values(AgeRestriction))
         .required(),
       logo: Joi.object({
-        file: fileSchema.required(),
+        file: logoFileSchema.required(),
       }).allow(null),
       tags: Joi.array()
         .items(
