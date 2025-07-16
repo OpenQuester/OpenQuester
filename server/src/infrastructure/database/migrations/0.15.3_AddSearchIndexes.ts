@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddSearchIndexes_0_15_3_1752686138751
   implements MigrationInterface
@@ -97,7 +97,8 @@ export class AddSearchIndexes_0_15_3_1752686138751
       "CREATE INDEX IF NOT EXISTS idx_package_question_theme ON package_question (theme)"
     );
 
-    Logger.logMigrationComplete("0.15.3 - Added search optimization indexes");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.15.3");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
@@ -131,8 +132,6 @@ export class AddSearchIndexes_0_15_3_1752686138751
     await queryRunner.query("DROP INDEX IF EXISTS idx_package_round_package");
     await queryRunner.query("DROP INDEX IF EXISTS idx_package_theme_round");
     await queryRunner.query("DROP INDEX IF EXISTS idx_package_question_theme");
-
     // Note: We don't drop the pg_trgm extension as it might be used elsewhere
-    Logger.logMigrationComplete("0.15.3 - Removed search optimization indexes");
   }
 }
