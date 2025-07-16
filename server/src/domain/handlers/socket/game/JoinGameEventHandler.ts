@@ -76,13 +76,17 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
 
   protected async execute(
     data: GameJoinInputData,
-    _context: SocketEventContext
+    context: SocketEventContext
   ): Promise<SocketEventResult<GameJoinOutputData>> {
     const result = await this.socketIOGameService.joinPlayer(
       data,
       this.socket.id
     );
     const { player, game } = result;
+
+    // Assign context variables for logging
+    context.gameId = game.id;
+    context.userId = this.socket.userId;
 
     // Join the socket room
     await this.socket.join(data.gameId);

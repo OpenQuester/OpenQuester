@@ -63,7 +63,9 @@ export class FinalAnswerReviewEventHandler extends BaseSocketEventHandler<
         data
       );
 
+    // Assign context variables for logging
     context.gameId = game.id;
+    context.userId = this.socket.userId;
 
     const outputData: FinalAnswerReviewOutputData = {
       answerId: data.answerId,

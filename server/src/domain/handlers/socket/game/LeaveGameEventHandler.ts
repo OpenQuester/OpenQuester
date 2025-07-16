@@ -61,8 +61,9 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
       };
     }
 
-    // Update context with game information (for logging or further processing)
+    // Assign context variables for logging
     context.gameId = result.data.gameId;
+    context.userId = this.socket.userId;
 
     const broadcastData: GameLeaveBroadcastData = {
       user: result.data.userId,

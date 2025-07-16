@@ -53,8 +53,9 @@ export class StartGameEventHandler extends BaseSocketEventHandler<
     // Execute the start game logic
     const gameDTO = await this.socketIOGameService.startGame(this.socket.id);
 
-    // Update context with game information (for logging or further processing)
+    // Assign context variables for logging
     context.gameId = gameDTO.id;
+    context.userId = this.socket.userId;
 
     const startEventPayload: GameStartBroadcastData = {
       currentRound: gameDTO.gameState.currentRound!,

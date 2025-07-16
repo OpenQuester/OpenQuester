@@ -51,16 +51,18 @@ export class DisconnectEventHandler extends BaseSocketEventHandler<
 
   protected async execute(
     _data: EmptyInputData,
-    _context: SocketEventContext
+    context: SocketEventContext
   ): Promise<SocketEventResult<EmptyOutputData>> {
     const broadcasts: SocketEventBroadcast[] = [];
 
     try {
+      context.userId = this.socket.userId;
       // Try to leave game first (will emit leave event if needed)
       const result = await this.socketIOGameService.leaveLobby(this.socket.id);
 
       // Add broadcast if the service indicates it should be emitted
       if (result.emit && result.data) {
+        context.gameId = result.data.gameId;
         broadcasts.push({
           event: SocketIOGameEvents.LEAVE,
           data: { user: result.data.userId },

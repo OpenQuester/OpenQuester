@@ -45,10 +45,14 @@ export class QuestionAnswerEventHandler extends BaseSocketEventHandler<
 
   protected async execute(
     _data: EmptyInputData,
-    _context: SocketEventContext
+    context: SocketEventContext
   ): Promise<SocketEventResult<QuestionAnswerEventPayload>> {
     const { userId, gameId, timer } =
       await this.socketIOQuestionService.handleQuestionAnswer(this.socket.id);
+
+    // Assign context variables for logging
+    context.gameId = gameId;
+    context.userId = this.socket.userId;
 
     const result: QuestionAnswerEventPayload = {
       userId: userId!,

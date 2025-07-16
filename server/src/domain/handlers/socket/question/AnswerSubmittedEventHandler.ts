@@ -48,11 +48,15 @@ export class AnswerSubmittedEventHandler extends BaseSocketEventHandler<
 
   protected async execute(
     data: AnswerSubmittedInputData,
-    _context: SocketEventContext
+    context: SocketEventContext
   ): Promise<SocketEventResult<AnswerSubmittedBroadcastData>> {
     const game = await this.socketIOQuestionService.handleAnswerSubmitted(
       this.socket.id
     );
+
+    // Assign context variables for logging
+    context.gameId = game.id;
+    context.userId = this.socket.userId;
 
     const broadcastData: AnswerSubmittedBroadcastData = {
       answerText: data.answerText,

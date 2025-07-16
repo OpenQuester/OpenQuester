@@ -15,6 +15,7 @@ import { SocketIOGameService } from "application/services/socket/SocketIOGameSer
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserService } from "application/services/user/UserService";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
+import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { ErrorController } from "domain/errors/ErrorController";
 import { EnvType } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
@@ -149,6 +150,7 @@ export class ServeApi {
       this._context.logger
     );
     new AuthRestApiController(
+      deps.io.of(SOCKET_GAME_NAMESPACE),
       deps.app,
       deps.redisService,
       deps.userService,

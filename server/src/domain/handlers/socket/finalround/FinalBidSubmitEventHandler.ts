@@ -61,7 +61,9 @@ export class FinalBidSubmitEventHandler extends BaseSocketEventHandler<
         data.bid
       );
 
+    // Assign context variables for logging
     context.gameId = game.id;
+    context.userId = this.socket.userId;
 
     const outputData: FinalBidSubmitOutputData = {
       playerId,

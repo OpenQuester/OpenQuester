@@ -55,6 +55,10 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
       data.questionId
     );
 
+    // Assign context variables for logging
+    context.gameId = result.game.id;
+    context.userId = this.socket.userId;
+
     const { question, game, timer } = result;
 
     const resultData: GameQuestionDataEventPayload = {

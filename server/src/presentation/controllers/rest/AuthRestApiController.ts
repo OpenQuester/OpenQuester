@@ -1,6 +1,7 @@
 import { Router, type Express, type Request, type Response } from "express";
 import Joi from "joi";
 import https, { RequestOptions } from "node:https";
+import { Namespace } from "socket.io";
 
 import { FileService } from "application/services/file/FileService";
 import { TranslateService as ts } from "application/services/text/TranslateService";
@@ -33,6 +34,7 @@ import { RequestDataValidator } from "presentation/schemes/RequestDataValidator"
 
 export class AuthRestApiController {
   constructor(
+    private readonly gameNamespace: Namespace,
     private readonly app: Express,
     private readonly redisService: RedisService,
     private readonly userService: UserService,
@@ -64,8 +66,15 @@ export class AuthRestApiController {
       throw new ClientError(ClientResponse.SOCKET_LOGGED_IN);
     }
 
+    const socket = this.gameNamespace.sockets.get(authDTO.socketId);
+
+    // Apply userId to socket for later use
+    if (socket) {
+      socket.userId = req.user!.id; // Null safety approved by auth middleware
+    }
+
     await this.socketUserDataService.set(authDTO.socketId, {
-      userId: req.user!.id, // Null safety approved by auth middleware
+      userId: req.user!.id,
       language: ts.parseHeaders(req.headers),
     });
 

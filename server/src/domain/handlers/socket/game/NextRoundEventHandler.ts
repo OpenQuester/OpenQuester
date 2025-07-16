@@ -55,8 +55,9 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
     const { game, isGameFinished, nextGameState, questionData } =
       await this.socketIOGameService.handleNextRound(this.socket.id);
 
-    // Update context with game information (for logging or further processing)
+    // Assign context variables for logging
     context.gameId = game.id;
+    context.userId = this.socket.userId;
 
     const broadcasts: SocketEventBroadcast[] = [];
 

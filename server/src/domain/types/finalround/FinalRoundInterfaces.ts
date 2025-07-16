@@ -1,15 +1,6 @@
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 
 /**
- * Interface for player bid in final round
- */
-export interface FinalRoundBid {
-  playerId: number;
-  bidAmount: number;
-  submittedAt: Date;
-}
-
-/**
  * Interface for player answer in final round
  */
 export interface FinalRoundAnswer {
