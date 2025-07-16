@@ -12,6 +12,7 @@ import {
   EmptyInputData,
   GameLeaveBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class LeaveGameEventHandler extends BaseSocketEventHandler<
@@ -21,9 +22,10 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
   constructor(
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
+    logger: ILogger,
     private readonly socketIOGameService: SocketIOGameService
   ) {
-    super(socket, eventEmitter);
+    super(socket, eventEmitter, logger);
   }
 
   public getEventName(): SocketIOGameEvents {
@@ -59,8 +61,9 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
       };
     }
 
-    // Update context with game information (for logging or further processing)
+    // Assign context variables for logging
     context.gameId = result.data.gameId;
+    context.userId = this.socket.userId;
 
     const broadcastData: GameLeaveBroadcastData = {
       user: result.data.userId,

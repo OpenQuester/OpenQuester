@@ -12,6 +12,7 @@ import {
   EmptyInputData,
   GameStartBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class StartGameEventHandler extends BaseSocketEventHandler<
@@ -21,9 +22,10 @@ export class StartGameEventHandler extends BaseSocketEventHandler<
   constructor(
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
+    logger: ILogger,
     private readonly socketIOGameService: SocketIOGameService
   ) {
-    super(socket, eventEmitter);
+    super(socket, eventEmitter, logger);
   }
 
   public getEventName(): SocketIOGameEvents {
@@ -51,8 +53,9 @@ export class StartGameEventHandler extends BaseSocketEventHandler<
     // Execute the start game logic
     const gameDTO = await this.socketIOGameService.startGame(this.socket.id);
 
-    // Update context with game information (for logging or further processing)
+    // Assign context variables for logging
     context.gameId = gameDTO.id;
+    context.userId = this.socket.userId;
 
     const startEventPayload: GameStartBroadcastData = {
       currentRound: gameDTO.gameState.currentRound!,

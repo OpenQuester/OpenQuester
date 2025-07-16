@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddDeleteFilePermission_0_3_9_1730832569761
   implements MigrationInterface
@@ -11,7 +11,8 @@ export class AddDeleteFilePermission_0_3_9_1730832569761
     await queryRunner.query(
       `INSERT INTO "permission" (name) VALUES ('delete_file');`
     );
-    Logger.logMigrationComplete("0.3.9");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.3.9");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

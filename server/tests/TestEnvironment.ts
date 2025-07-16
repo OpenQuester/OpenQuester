@@ -2,17 +2,18 @@ import { Client } from "pg";
 import { DataSource } from "typeorm";
 
 import { RedisConfig } from "infrastructure/config/RedisConfig";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { createTestAppDataSource } from "tests/utils/utils";
 
 export class TestEnvironment {
   private testDataSource!: DataSource;
 
-  constructor() {
+  constructor(private readonly logger: ILogger) {
     //
   }
 
   public async setup(): Promise<void> {
+    // const logger = await PinoLogger.init({ pretty: true });
     await this.createTestDatabase();
     this.testDataSource = createTestAppDataSource();
     await this.testDataSource.initialize();
@@ -25,7 +26,9 @@ export class TestEnvironment {
   }
 
   public async teardown(): Promise<void> {
-    Logger.info("Tearing down test environment...");
+    this.logger.info("Tearing down test environment...", {
+      prefix: "[TEST]: ",
+    });
     if (this.testDataSource) {
       await this.testDataSource.destroy();
     }

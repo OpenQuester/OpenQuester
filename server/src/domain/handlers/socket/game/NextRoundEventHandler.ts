@@ -13,6 +13,7 @@ import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class NextRoundEventHandler extends BaseSocketEventHandler<
@@ -22,9 +23,10 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
   constructor(
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
+    logger: ILogger,
     private readonly socketIOGameService: SocketIOGameService
   ) {
-    super(socket, eventEmitter);
+    super(socket, eventEmitter, logger);
   }
 
   public getEventName(): SocketIOGameEvents {
@@ -53,8 +55,9 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
     const { game, isGameFinished, nextGameState, questionData } =
       await this.socketIOGameService.handleNextRound(this.socket.id);
 
-    // Update context with game information (for logging or further processing)
+    // Assign context variables for logging
     context.gameId = game.id;
+    context.userId = this.socket.userId;
 
     const broadcasts: SocketEventBroadcast[] = [];
 

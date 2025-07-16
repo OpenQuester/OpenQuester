@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableForeignKey } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddPackageLogoFileForeignKey_1743338225856
   implements MigrationInterface
@@ -17,7 +17,8 @@ export class AddPackageLogoFileForeignKey_1743338225856
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.createForeignKey("package", this.fk);
 
-    Logger.logMigrationComplete("0.9.7-4");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.9.7-4");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

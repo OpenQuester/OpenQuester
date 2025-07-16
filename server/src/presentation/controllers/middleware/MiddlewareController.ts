@@ -8,7 +8,6 @@ import Redis from "ioredis";
 import { ApiContext } from "application/context/ApiContext";
 import { ClientError } from "domain/errors/ClientError";
 import { EnvType } from "infrastructure/config/Environment";
-import { Logger } from "infrastructure/utils/Logger";
 import { verifySession } from "presentation/middleware/authMiddleware";
 import { logMiddleware } from "presentation/middleware/log/debugLogMiddleware";
 
@@ -23,13 +22,17 @@ export class MiddlewareController {
     private readonly redisClient: Redis
   ) {
     this.allowedHosts = this.ctx.env.CORS_ORIGINS;
-    Logger.gray(
+
+    ctx.logger.info(
       `Allowed CORS origins for current instance: [${this.allowedHosts}]`,
-      CORS_PREFIX
+      { prefix: CORS_PREFIX }
     );
+
     if (this.allowedHosts.some((host) => host === "*")) {
       this.allOriginsAllowed = true;
-      Logger.warn("Current instance's CORS allows all origins !!", CORS_PREFIX);
+      ctx.logger.warn("Current instance's CORS allows all origins !!", {
+        prefix: CORS_PREFIX,
+      });
     }
   }
 
@@ -73,7 +76,7 @@ export class MiddlewareController {
       })
     );
     this.ctx.app.disable("x-powered-by");
-    this.ctx.app.use(logMiddleware);
+    this.ctx.app.use(logMiddleware(this.ctx.env, this.ctx.logger));
 
     // Trust first proxy to enable secure cookies
     this.ctx.app.set("trust proxy", 1);
@@ -94,6 +97,6 @@ export class MiddlewareController {
         },
       })
     );
-    this.ctx.app.use(verifySession);
+    this.ctx.app.use(verifySession(this.ctx.env, this.ctx.logger));
   }
 }

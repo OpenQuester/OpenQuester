@@ -26,8 +26,8 @@ import { type File } from "infrastructure/database/models/File";
 import { type Package } from "infrastructure/database/models/package/Package";
 import { Permission } from "infrastructure/database/models/Permission";
 import { type User } from "infrastructure/database/models/User";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { DependencyService } from "infrastructure/services/dependency/DependencyService";
-import { Logger } from "infrastructure/utils/Logger";
 import { StorageUtils } from "infrastructure/utils/StorageUtils";
 import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
@@ -40,7 +40,8 @@ export class S3StorageService {
     private readonly fileService: FileService,
     private readonly fileUsageService: FileUsageService,
     private readonly userService: UserService,
-    private readonly dependencyService: DependencyService
+    private readonly dependencyService: DependencyService,
+    private readonly logger: ILogger
   ) {
     this._client = new S3Client({
       credentials: {
@@ -123,8 +124,11 @@ export class S3StorageService {
       https
         .get(cdnLink, (res) => {
           if (res.statusCode !== 200) {
-            Logger.error(
-              `Failed to fetch file from CDN (${cdnLink}): ${res.statusCode}`
+            this.logger.error(
+              `Failed to fetch file from CDN (${cdnLink}): ${res.statusCode}`,
+              {
+                prefix: "[S3StorageService]: ",
+              }
             );
             resolve(false);
             return;
@@ -152,22 +156,28 @@ export class S3StorageService {
               await this._client.send(command);
               resolve(md5Hash);
             } catch (err) {
-              Logger.error(
+              this.logger.error(
                 TemplateUtils.text(ServerResponse.BUCKET_UPLOAD_FAILED, {
                   filename,
                   err,
-                })
+                }),
+                {
+                  prefix: "[S3StorageService]: ",
+                }
               );
               resolve(false);
             }
           });
         })
         .on("error", (err) => {
-          Logger.error(
+          this.logger.error(
             TemplateUtils.text(ServerResponse.BUCKET_UPLOAD_FAILED, {
               cdnLink,
               err,
-            })
+            }),
+            {
+              prefix: "[S3StorageService]: ",
+            }
           );
           resolve(false);
         });
@@ -238,6 +248,11 @@ export class S3StorageService {
     const usageRecords = await this.dependencyService.getFileUsage(filename);
 
     if (usageRecords.length < 1) {
+      this.logger.debug(
+        `Trying to delete file ${filename} but no usage records found, user ${
+          req.user?.id || "unknown"
+        }`
+      );
       return;
     }
 

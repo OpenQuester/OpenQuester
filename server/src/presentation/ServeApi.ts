@@ -15,8 +15,8 @@ import { SocketIOGameService } from "application/services/socket/SocketIOGameSer
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserService } from "application/services/user/UserService";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
-import { BaseError } from "domain/errors/BaseError";
-import { ServerError } from "domain/errors/ServerError";
+import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
+import { ErrorController } from "domain/errors/ErrorController";
 import { EnvType } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { type Database } from "infrastructure/database/Database";
@@ -24,8 +24,6 @@ import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubSer
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
-import { Logger } from "infrastructure/utils/Logger";
-import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
 import { SocketIOInitializer } from "presentation/controllers/io/SocketIOInitializer";
 import { MiddlewareController } from "presentation/controllers/middleware/MiddlewareController";
 import { AuthRestApiController } from "presentation/controllers/rest/AuthRestApiController";
@@ -36,8 +34,6 @@ import { PackageRestApiController } from "presentation/controllers/rest/PackageR
 import { SwaggerRestApiController } from "presentation/controllers/rest/SwaggerRestApiController";
 import { UserRestApiController } from "presentation/controllers/rest/UserRestApiController";
 import { errorMiddleware } from "presentation/middleware/errorMiddleware";
-
-const APP_PREFIX = "[APP]: ";
 
 /**
  * Serves all api controllers and dependencies.
@@ -78,27 +74,30 @@ export class ServeApi {
 
       // Initialize server listening
       this._server = this._app.listen(this._port, () => {
-        Logger.info(`App listening on port: ${this._port}`, APP_PREFIX);
+        this._context.logger.info(`App listening on port: ${this._port}`);
       });
       this._io.listen(this._server);
 
       // Initialize Dependency injection Container
-      await new DIConfig(this._db, this._redis, this._io).initialize();
+      await new DIConfig(
+        this._db,
+        this._redis,
+        this._io,
+        this._context.env,
+        this._context.logger
+      ).initialize();
 
       await this._processPrepareJobs();
 
       // Attach API controllers
       this._attachControllers();
-      this._app.use(errorMiddleware);
+      this._app.use(errorMiddleware(this._context.logger));
     } catch (err: unknown) {
-      // TODO: Translate errors from first level of nesting (initialization errors)
-      let message = "unknown error";
-      if (err instanceof BaseError) {
-        message = TemplateUtils.text(err.message, err.textArgs ?? {});
-      } else if (err instanceof Error) {
-        message = err.message;
-      }
-      throw new ServerError(`Serve API error -> ${message}`);
+      const error = await ErrorController.resolveError(
+        err,
+        this._context.logger
+      );
+      this._context.logger.error(`API initialization error: ${error.message}`);
     }
   }
 
@@ -144,26 +143,34 @@ export class ServeApi {
     };
 
     // REST
-    new UserRestApiController(deps.app, deps.userService, deps.fileService);
+    new UserRestApiController(
+      deps.app,
+      deps.userService,
+      deps.fileService,
+      this._context.logger
+    );
     new AuthRestApiController(
+      deps.io.of(SOCKET_GAME_NAMESPACE),
       deps.app,
       deps.redisService,
       deps.userService,
       deps.fileService,
       deps.storage,
-      deps.socketUserDataService
+      deps.socketUserDataService,
+      this._context.logger
     );
     new PackageRestApiController(deps.app, deps.packageService);
     new FileRestApiController(deps.app, deps.storage);
     new GameRestApiController(deps.app, deps.game);
-    new SwaggerRestApiController(deps.app);
+    new SwaggerRestApiController(deps.app, this._context.logger);
 
     if (this._context.env.ENV === EnvType.DEV) {
       new DevelopmentRestApiController(
         deps.app,
         deps.userService,
         this._context.env,
-        deps.game
+        deps.game,
+        this._context.logger
       );
     }
 
@@ -174,7 +181,8 @@ export class ServeApi {
       deps.socketIOChatService,
       deps.socketUserDataService,
       deps.finalRoundService,
-      deps.socketIOQuestionService
+      deps.socketIOQuestionService,
+      this._context.logger
     );
   }
 

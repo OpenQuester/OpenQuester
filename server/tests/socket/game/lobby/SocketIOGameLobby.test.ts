@@ -13,6 +13,8 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
+import { ILogger } from "infrastructure/logger/ILogger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
@@ -23,9 +25,11 @@ describe("SocketIOGameLobby", () => {
   let app: Express;
   let serverUrl: string;
   let utils: SocketGameTestUtils;
+  let logger: ILogger;
 
   beforeAll(async () => {
-    testEnv = new TestEnvironment();
+    logger = await PinoLogger.init({ pretty: true });
+    testEnv = new TestEnvironment(logger);
     await testEnv.setup();
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;

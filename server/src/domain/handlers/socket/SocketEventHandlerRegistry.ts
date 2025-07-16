@@ -2,7 +2,7 @@ import {
   SocketIOEvents,
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
-import { Logger } from "infrastructure/utils/Logger";
+import { type ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 import { Socket } from "socket.io";
 import { BaseSocketEventHandler } from "./BaseSocketEventHandler";
@@ -15,10 +15,16 @@ export class SocketEventHandlerRegistry {
   private handlers = new Map<string, BaseSocketEventHandler>();
   private socket: Socket;
   private eventEmitter: SocketIOEventEmitter;
+  private logger: ILogger;
 
-  constructor(socket: Socket, eventEmitter: SocketIOEventEmitter) {
+  constructor(
+    socket: Socket,
+    eventEmitter: SocketIOEventEmitter,
+    logger: ILogger
+  ) {
     this.socket = socket;
     this.eventEmitter = eventEmitter;
+    this.logger = logger;
   }
 
   /**
@@ -28,8 +34,9 @@ export class SocketEventHandlerRegistry {
     const eventName = handler.getEventName();
 
     if (this.handlers.has(eventName)) {
-      Logger.warn(
-        `Handler for event ${eventName} is already registered. Overriding.`
+      this.logger.warn(
+        `Handler for event ${eventName} is already registered. Overriding.`,
+        { prefix: "[SOCKET]: " }
       );
     }
 
@@ -39,8 +46,6 @@ export class SocketEventHandlerRegistry {
     this.socket.on(eventName, async (data: any) => {
       await handler.handle(data);
     });
-
-    Logger.debug(`Registered handler for event: ${eventName}`);
   }
 
   /**

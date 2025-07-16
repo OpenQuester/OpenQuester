@@ -9,6 +9,7 @@ import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { GameJoinMeta } from "domain/types/socket/events/game/GameJoinMeta";
 
 /**
  * Input data interfaces for socket events
@@ -46,9 +47,7 @@ export interface EmptyOutputData {
  * Output/broadcast data interfaces for socket events
  */
 export interface GameJoinOutputData {
-  meta: {
-    title: string;
-  };
+  meta: GameJoinMeta;
   players: PlayerDTO[];
   gameState: GameStateDTO;
   chatMessages: ChatMessageGamePayloadDTO[];

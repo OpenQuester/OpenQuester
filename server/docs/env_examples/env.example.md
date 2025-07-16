@@ -32,7 +32,7 @@ REDIS_PORT=
 REDIS_DB_NUMBER=
 
 # Logs
-# info | debug | verbose
+# "trace" < "debug" < "info" < "warn" < "error";
 LOG_LEVEL=
 
 # "all" or boolean or "query" | "schema" | "error" | "warn" | "info" | "log" | "migration"

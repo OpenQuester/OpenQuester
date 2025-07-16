@@ -3,7 +3,7 @@ import Redis from "ioredis";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
 import { Environment } from "infrastructure/config/Environment";
-import { Logger } from "infrastructure/utils/Logger";
+import { type ILogger } from "infrastructure/logger/ILogger";
 
 const REDIS_PREFIX = "[REDIS]: ";
 
@@ -11,6 +11,11 @@ export class RedisConfig {
   private static _client: Redis;
   private static _subClient: Redis;
   private static _env: Environment;
+  private static _logger: ILogger;
+
+  public static setLogger(logger: ILogger) {
+    this._logger = logger;
+  }
 
   public static getClient(): Redis {
     if (!this._client) {
@@ -36,13 +41,15 @@ export class RedisConfig {
     const client = this.getClient();
 
     if (client.status === "ready") {
-      Logger.info("Redis client is ready", REDIS_PREFIX);
+      this._logger?.info("Redis client is ready", { prefix: REDIS_PREFIX });
       return;
     }
 
     return new Promise((resolve, reject) => {
       if (client.status === "connecting") {
-        Logger.info("Redis client is connecting...", REDIS_PREFIX);
+        this._logger?.info("Redis client is connecting...", {
+          prefix: REDIS_PREFIX,
+        });
       }
 
       const timeout = setTimeout(() => {
@@ -58,13 +65,15 @@ export class RedisConfig {
 
       const readyHandler = () => {
         cleanup();
-        Logger.info("Redis client is ready", REDIS_PREFIX);
+        this._logger?.info("Redis client is ready", { prefix: REDIS_PREFIX });
         resolve();
       };
 
       const errorHandler = (error: Error) => {
         cleanup();
-        Logger.error(`Redis client error: ${error}`, REDIS_PREFIX);
+        this._logger?.error(`Redis client error: ${error}`, {
+          prefix: REDIS_PREFIX,
+        });
         reject(error);
       };
 
@@ -81,7 +90,7 @@ export class RedisConfig {
     try {
       await this._client.ping();
     } catch {
-      Logger.warn("Redis connection closed", REDIS_PREFIX);
+      this._logger?.warn("Redis connection closed", { prefix: REDIS_PREFIX });
     }
 
     if (this._subClient && this._subClient.status === "ready") {
@@ -91,13 +100,15 @@ export class RedisConfig {
     try {
       await this._subClient.ping();
     } catch {
-      Logger.warn("Redis Sub Client connection closed", REDIS_PREFIX);
+      this._logger?.warn("Redis Sub Client connection closed", {
+        prefix: REDIS_PREFIX,
+      });
     }
   }
 
   private static _getRedisLink(): string {
     if (!this._env) {
-      this._env = Environment?.instance;
+      this._env = Environment?.getInstance(this._logger);
     }
     const username = this._env.REDIS_USERNAME || "";
     const password = this._env.REDIS_PASSWORD || "";

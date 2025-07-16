@@ -2,7 +2,7 @@ import { DataSource, EntityTarget, ObjectLiteral, Repository } from "typeorm";
 
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
-import { Logger } from "infrastructure/utils/Logger";
+import { type ILogger } from "infrastructure/logger/ILogger";
 
 const DB_PREFIX = "[DB]: ";
 
@@ -14,7 +14,10 @@ export class Database {
   private _connected: boolean = false;
   private _repositories: Map<EntityTarget<any>, Repository<any>> = new Map();
 
-  private constructor(private _dataSource: DataSource) {
+  private constructor(
+    private readonly _dataSource: DataSource,
+    private readonly _logger: ILogger
+  ) {
     if (!this._dataSource) {
       throw new ServerError(ServerResponse.INVALID_DATA_SOURCE);
     }
@@ -26,12 +29,11 @@ export class Database {
   /**
    * Get or create instance from specified data source
    */
-  public static getInstance(dataSource: DataSource): Database {
+  public static getInstance(dataSource: DataSource, logger: ILogger): Database {
     const db = Database._instanceMap.get(dataSource);
 
     if (!db) {
-      const freshDatabase = new Database(dataSource);
-
+      const freshDatabase = new Database(dataSource, logger);
       Database._instanceMap.set(dataSource, freshDatabase);
       return freshDatabase;
     }
@@ -43,7 +45,7 @@ export class Database {
    * Build connection to the database
    */
   public async build() {
-    Logger.warn("Connecting to DB...", DB_PREFIX);
+    this._logger.warn("Connecting to DB...", { prefix: DB_PREFIX });
 
     try {
       // Force only one DataSource init at the time, so only one migrations runner will be executed
@@ -51,7 +53,7 @@ export class Database {
         await this.waitForInitialization();
       }
       this._connected = true;
-      Logger.info("Connection to DB established", DB_PREFIX);
+      this._logger.info("Connection to DB established", { prefix: DB_PREFIX });
     } catch (err: unknown) {
       let message = "unknown error";
       if (err instanceof Error) {
@@ -122,7 +124,7 @@ export class Database {
     }
     Database._instanceMap.delete(this._dataSource);
     this._connected = false;
-    Logger.warn("Database connection closed", DB_PREFIX);
+    this._logger.warn("Database connection closed", { prefix: DB_PREFIX });
   }
 
   public get connected(): boolean {

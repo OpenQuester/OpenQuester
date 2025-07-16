@@ -1,4 +1,4 @@
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
 export class AddTypeToPackageRound_1747924851733 implements MigrationInterface {
@@ -16,7 +16,8 @@ export class AddTypeToPackageRound_1747924851733 implements MigrationInterface {
       })
     );
 
-    Logger.logMigrationComplete("0.14.2");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.14.2");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

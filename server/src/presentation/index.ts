@@ -11,12 +11,17 @@ import { Environment, EnvType } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Database } from "infrastructure/database/Database";
 import { AppDataSource } from "infrastructure/database/DataSource";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { ServeApi } from "presentation/ServeApi";
 
 const main = async () => {
-  Logger.info(`Initializing API Context`);
-  Logger.info(`API version: ${process.env.npm_package_version}`);
+  const logger = await PinoLogger.init({ pretty: true });
+
+  // Set loggers on static services
+  setLoggers(logger);
+  logger.info(`Initializing API Context`);
+  logger.info(`API version: ${process.env.npm_package_version}`);
 
   // Initialize api context
   const app = express();
@@ -27,16 +32,17 @@ const main = async () => {
   const allowedHosts = origins ? origins.split(",") : [];
   let allOriginsAllowed = allowedHosts.includes("*");
 
-  Logger.gray(
-    `Allowed CORS origins for socket.io: [${allowedHosts}]`,
-    "[IO CORS]: "
-  );
+  // No gray method in PinoLogger; use info with prefix for now
+  logger.info(`Allowed CORS origins for socket.io: [${allowedHosts}]`, {
+    prefix: "[IO CORS]: ",
+  });
   if (allowedHosts.some((host) => host === "*")) {
     allOriginsAllowed = true;
-    Logger.warn("Current socket.io CORS allows all origins !!", "[IO CORS]: ");
+    logger.warn("Current socket.io CORS allows all origins !!", {
+      prefix: "[IO CORS]: ",
+    });
   }
 
-  // Connect to Redis
   const redis = RedisConfig.getClient();
   const sub = RedisConfig.getSubClient();
 
@@ -75,16 +81,18 @@ const main = async () => {
     connectTimeout: 45000,
     transports: ["websocket"],
   });
-
+  logger.debug("Now logger is async");
   const context = new ApiContext({
-    db: Database.getInstance(AppDataSource),
-    env: Environment.instance,
+    db: Database.getInstance(AppDataSource, logger),
+    // Overwrite to ensure that logger is async
+    env: Environment.getInstance(logger, { overwrite: true }),
     io,
     app,
+    logger,
   });
 
   if (context.env.SOCKET_IO_ADMIN_UI_ENABLE) {
-    Logger.info("Socket.IO Admin UI enabled");
+    logger.info("Socket.IO Admin UI enabled");
     instrument(io, {
       auth: {
         type: "basic",
@@ -95,14 +103,15 @@ const main = async () => {
     });
   }
 
-  Logger.info(`Starting server process: ${process.pid}`);
+  logger.info(`Starting server process: ${process.pid}`);
 
   context.env.load(false);
 
   ["SIGINT", "SIGTERM", "uncaughtException"].forEach((signal) => {
     process.on(
       signal,
-      async (error) => await gracefulShutdown(context, api?.server, error)
+      async (error) =>
+        await gracefulShutdown(context, api?.server, logger, error)
     );
   });
 
@@ -111,32 +120,43 @@ const main = async () => {
   await api.init();
 
   if (!api || !api.server) {
-    Logger.error(`API serve error`);
-    await gracefulShutdown(context, api?.server);
+    logger.error(`API serve error`);
+    await gracefulShutdown(context, api?.server, logger);
   }
 };
 
 async function gracefulShutdown(
   ctx: ApiContext,
   server: Server | undefined,
+  logger: PinoLogger,
   error?: unknown
 ) {
   if (error instanceof Error) {
-    await ErrorController.resolveError(error);
-    Logger.warn("Server closed due to error");
+    await ErrorController.resolveError(error, logger);
+    logger.warn("Server closed due to error");
+    await logger.close();
     process.exit(1);
   }
   if (!server) {
-    Logger.warn("Server not initiated");
+    logger.warn("Server not initiated");
+    await logger.close();
     return process.exit(1);
   }
-  setTimeout(() => process.exit(1), 5000);
+  setTimeout(async () => {
+    await logger.close();
+    process.exit(1);
+  }, 5000);
   server.close();
   await ctx.db.disconnect();
   await ctx.io.close();
   await RedisConfig.disconnect();
-  Logger.warn("Server closed gracefully");
+  logger.warn("Server closed gracefully");
+  await logger.close();
   process.exit(0);
+}
+
+function setLoggers(logger: ILogger) {
+  RedisConfig.setLogger(logger);
 }
 
 void main();

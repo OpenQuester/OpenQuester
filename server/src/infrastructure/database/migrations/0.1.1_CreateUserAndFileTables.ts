@@ -6,7 +6,7 @@ import {
   TableUnique,
 } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class CreateUserAndFileTables_0_1_1_1722683756069
   implements MigrationInterface
@@ -98,7 +98,8 @@ export class CreateUserAndFileTables_0_1_1_1722683756069
         onDelete: "SET NULL",
       })
     );
-    Logger.logMigrationComplete("0.1.1");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.1.1");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

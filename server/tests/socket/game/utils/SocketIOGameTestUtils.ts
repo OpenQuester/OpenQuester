@@ -108,11 +108,11 @@ export class SocketGameTestUtils {
     socket.close();
   }
 
-  private async createAndLoginUser(
+  public async createAndLoginUser(
     userRepo: Repository<User>,
     app: Express,
     username: string
-  ): Promise<{ user: User; cookie: string[] }> {
+  ): Promise<{ user: User; cookie: string }> {
     // Create user
     const user = userRepo.create({
       username,
@@ -145,7 +145,7 @@ export class SocketGameTestUtils {
   private async authenticateSocket(
     app: Express,
     socket: GameClientSocket,
-    cookie: string[]
+    cookie: string
   ): Promise<void> {
     const authRes = await request(app)
       .post("/v1/auth/socket")
@@ -162,7 +162,7 @@ export class SocketGameTestUtils {
   public async createGameClient(
     app: Express,
     userRepo: Repository<User>
-  ): Promise<{ socket: GameClientSocket; user: User; cookie: string[] }> {
+  ): Promise<{ socket: GameClientSocket; user: User; cookie: string }> {
     const username = `testuser_${Date.now()}_${Math.random()
       .toString(36)
       .slice(2, 7)}`;

@@ -198,6 +198,16 @@ export class TestUtils {
     });
   }
 
+  public async createAndLoginUser(
+    username: string
+  ): Promise<{ user: User; cookie: string }> {
+    return this.socketGameTestUtils.createAndLoginUser(
+      this.userRepo,
+      this.app,
+      username
+    );
+  }
+
   /**
    * Navigate to final round
    */

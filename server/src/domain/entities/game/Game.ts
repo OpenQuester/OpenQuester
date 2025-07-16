@@ -21,7 +21,7 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerMeta } from "domain/types/socket/game/PlayerMeta";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundTurnManager } from "domain/utils/FinalRoundTurnManager";
-import { Logger } from "infrastructure/utils/Logger";
+import { type ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class Game {
@@ -39,8 +39,9 @@ export class Game {
   private _questionsCount: number;
   private _players: Player[];
   private _gameState: GameStateDTO;
+  private readonly _logger: ILogger;
 
-  constructor(data: GameImportDTO) {
+  constructor(data: GameImportDTO, logger: ILogger) {
     this._id = data.id;
     this._title = data.title;
     this._createdBy = data.createdBy;
@@ -55,6 +56,7 @@ export class Game {
     this._questionsCount = data.questionsCount;
     this._players = data.players;
     this._gameState = data.gameState;
+    this._logger = logger;
   }
 
   // Getters
@@ -468,8 +470,13 @@ export class Game {
     }
 
     // Inform developers in case if collision happened
-    Logger.error("Game join collision happened !!", "[GAME]: ");
-    Logger.warn(`Slots: ${occupiedSlots}, \ngame: ${JSON.stringify(this.id)}`);
+    this._logger.error("Game join collision happened !!", {
+      prefix: "[GAME]: ",
+    });
+    this._logger.warn(
+      `Slots: ${occupiedSlots}, \ngame: ${JSON.stringify(this.id)}`,
+      { prefix: "[GAME]: " }
+    );
     return -1;
   }
 

@@ -7,11 +7,9 @@ import {
   RoundProgressionResult,
 } from "domain/handlers/socket/round/BaseRoundHandler";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
-import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class SimpleRoundHandler extends BaseRoundHandler {
   constructor() {
@@ -84,22 +82,6 @@ export class SimpleRoundHandler extends BaseRoundHandler {
     );
 
     return all.length > 0 && played.length === all.length;
-  }
-
-  /**
-   * Get the next round for progression
-   */
-  private getNextRound(game: Game) {
-    if (!ValueUtils.isNumber(game.gameState.currentRound?.order)) {
-      return null;
-    }
-
-    const nextRound = GameStateMapper.getGameRound(
-      game.package,
-      game.gameState.currentRound.order + 1
-    );
-
-    return nextRound;
   }
 
   /**

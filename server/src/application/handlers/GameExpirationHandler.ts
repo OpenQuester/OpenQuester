@@ -8,7 +8,9 @@ export class GameExpirationHandler implements RedisExpirationHandler {
   constructor(
     private readonly gameIndexManager: GameIndexManager,
     private readonly redisService: RedisService
-  ) {}
+  ) {
+    //
+  }
 
   public supports(key: string): boolean {
     return key.startsWith(`${GAME_NAMESPACE}:`);

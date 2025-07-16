@@ -2,14 +2,14 @@ import Redis, { Callback, RedisKey, RedisValue } from "ioredis";
 
 import { REDIS_LOCK_KEY_EXPIRE_DEFAULT } from "domain/constants/redis";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class RedisRepository {
   private _client: Redis;
   private _subClient: Redis;
 
-  constructor() {
+  constructor(private readonly logger: ILogger) {
     this._client = RedisConfig.getClient();
     this._subClient = RedisConfig.getSubClient();
   }
@@ -104,12 +104,18 @@ export class RedisRepository {
       const keys = await this.scan(keyPattern);
       if (keys.length > 0) {
         await this.delMultiple(keys);
-        Logger.info(`Cleaned up ${keys.length} ${logEntity}(s)`);
+        this.logger.info(`Cleaned up ${keys.length} ${logEntity}(s)`, {
+          prefix: "[REDIS]: ",
+        });
       } else {
-        Logger.info(`No ${logEntity}s to clean up`);
+        this.logger.info(`No ${logEntity}s to clean up`, {
+          prefix: "[REDIS]: ",
+        });
       }
     } catch (err: any) {
-      Logger.error(`Failed to clean up ${logEntity}(s): ${err.message}`);
+      this.logger.error(`Failed to clean up ${logEntity}(s): ${err.message}`, {
+        prefix: "[REDIS]: ",
+      });
     }
   }
 

@@ -24,9 +24,9 @@ import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
 import { User } from "infrastructure/database/models/User";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
-import { Logger } from "infrastructure/utils/Logger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class GameRepository {
@@ -35,7 +35,8 @@ export class GameRepository {
     private readonly gameIndexManager: GameIndexManager,
     private readonly userService: UserService,
     private readonly packageService: PackageService,
-    private readonly storage: S3StorageService
+    private readonly storage: S3StorageService,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -59,7 +60,7 @@ export class GameRepository {
       );
     }
 
-    return GameMapper.deserializeGameHash(data);
+    return GameMapper.deserializeGameHash(data, this.logger);
   }
 
   public async updateGame(game: Game): Promise<void> {
@@ -177,8 +178,11 @@ export class GameRepository {
     } while (await this._isGameExists(gameId));
 
     if (collisionsCounter > 0) {
-      Logger.warn(
-        `Game id collisions while game creation: ${collisionsCounter}`
+      this.logger.warn(
+        `Game id collisions while game creation: ${collisionsCounter}`,
+        {
+          prefix: "[GameRepository]: ",
+        }
       );
     }
 
@@ -192,22 +196,25 @@ export class GameRepository {
       fetchIds: true,
     });
 
-    const game = new Game({
-      id: gameId,
-      title: gameData.title,
-      createdBy: createdBy.id,
-      createdAt: new Date(),
-      isPrivate: gameData.isPrivate,
-      ageRestriction: gameData.ageRestriction,
-      maxPlayers: gameData.maxPlayers,
-      startedAt: null,
-      finishedAt: null,
-      package: packageDTO,
-      roundsCount: counts.roundsCount,
-      questionsCount: counts.questionsCount,
-      players: [],
-      gameState: GameStateMapper.initGameState(),
-    });
+    const game = new Game(
+      {
+        id: gameId,
+        title: gameData.title,
+        createdBy: createdBy.id,
+        createdAt: new Date(),
+        isPrivate: gameData.isPrivate,
+        ageRestriction: gameData.ageRestriction,
+        maxPlayers: gameData.maxPlayers,
+        startedAt: null,
+        finishedAt: null,
+        package: packageDTO,
+        roundsCount: counts.roundsCount,
+        questionsCount: counts.questionsCount,
+        players: [],
+        gameState: GameStateMapper.initGameState(),
+      },
+      this.logger
+    );
 
     const pipeline = this.redisService.pipeline();
     pipeline.hset(key, GameMapper.serializeGameToHash(game));
@@ -317,8 +324,9 @@ export class GameRepository {
       }
     }
 
-    Logger.info(
-      `Games updated: ${gamesCounter}, in ${Date.now() - startTime} ms`
+    this.logger.info(
+      `Games updated: ${gamesCounter}, in ${Date.now() - startTime} ms`,
+      { prefix: "[GameRepository]: " }
     );
   }
 
@@ -443,7 +451,10 @@ export class GameRepository {
     return results
       .map(([, data]) => {
         try {
-          return GameMapper.deserializeGameHash(data as Record<string, string>);
+          return GameMapper.deserializeGameHash(
+            data as Record<string, string>,
+            this.logger
+          );
         } catch {
           // Ignore invalid games
         }

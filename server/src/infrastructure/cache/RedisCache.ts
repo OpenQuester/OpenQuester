@@ -8,6 +8,14 @@ export class RedisCache implements ICache {
     //
   }
 
+  /**
+   * Scan for keys matching a pattern. Returns array of keys.
+   * @param pattern Redis key pattern, e.g. "cache:user:*:1"
+   */
+  public async scan(pattern: string): Promise<string[]> {
+    return this.redisService.scan(pattern);
+  }
+
   public async get<T>(key: string): Promise<T | null> {
     const val = await this.redisService.get(key);
 

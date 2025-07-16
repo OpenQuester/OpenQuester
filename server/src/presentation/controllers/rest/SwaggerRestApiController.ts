@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import Swagger from "swagger-ui-express";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 
 const SWAGGER_PREFIX = "[SWAGGER]: ";
@@ -12,7 +12,7 @@ export class SwaggerRestApiController {
   private _jsonPath: string;
   private _specification: { [key: string]: any };
 
-  constructor(private readonly app: Express) {
+  constructor(private readonly app: Express, private readonly logger: ILogger) {
     const router = Router();
     this._jsonPath = path.join(process.cwd(), "../openapi/schema.json");
 
@@ -38,7 +38,9 @@ export class SwaggerRestApiController {
     // eslint-disable-next-line
     const oas = fs.readFileSync(this._jsonPath, "utf-8");
     try {
-      Logger.gray("Specification reading initiated", SWAGGER_PREFIX);
+      this.logger.info("Specification reading initiated", {
+        prefix: SWAGGER_PREFIX,
+      });
       return JSON.parse(oas);
     } catch {
       return {};

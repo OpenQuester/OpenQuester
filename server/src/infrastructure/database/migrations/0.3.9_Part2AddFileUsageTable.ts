@@ -5,7 +5,7 @@ import {
   TableForeignKey,
 } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddFileUsageTable_1731771003354 implements MigrationInterface {
   name = "AddFileUsageTable_1731771003354";
@@ -79,7 +79,8 @@ export class AddFileUsageTable_1731771003354 implements MigrationInterface {
         onDelete: "SET NULL",
       })
     );
-    Logger.logMigrationComplete("0.3.9-2");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.3.9-2");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

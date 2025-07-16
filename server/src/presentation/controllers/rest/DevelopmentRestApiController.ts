@@ -13,14 +13,15 @@ import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { type Express } from "express";
 
 import { Environment } from "infrastructure/config/Environment";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
 
 export class DevelopmentRestApiController {
   constructor(
     private readonly app: Express,
     private readonly userService: UserService,
     private readonly env: Environment,
-    private readonly gameService: GameService
+    private readonly gameService: GameService,
+    private readonly logger: ILogger
   ) {
     const dummyUser = {
       username: "dev-user",
@@ -33,6 +34,10 @@ export class DevelopmentRestApiController {
     this.app.post("/v1/dev/login/:num", async (req, res) => {
       try {
         const num = req.params.num ? `-${req.params.num}` : "";
+        this.logger.audit(`Dev login request triggered`, {
+          prefix: "[DEV]: ",
+          id: req.params.num,
+        });
         let user = await this.userService.findOne(
           {
             username: dummyUser.username + num,
@@ -62,7 +67,9 @@ export class DevelopmentRestApiController {
         req.session.userId = user.id;
         req.session.save((err) => {
           if (err) {
-            Logger.error(`DEV: Session save error: ${err}`);
+            this.logger.error(`Session save error: ${err}`, {
+              prefix: "[DEV]: ",
+            });
             return res.status(500).json({ error: "Session save failed" });
           }
           // Signed session value to put it in Postman
@@ -76,7 +83,9 @@ export class DevelopmentRestApiController {
           });
         });
       } catch (error) {
-        Logger.error(`DEV: Login error: ${error}`);
+        this.logger.error(`Login error: ${error}`, {
+          prefix: "[DEV]: ",
+        });
         res.status(500).json({ error: "Login failed" });
       }
     });
@@ -92,6 +101,11 @@ export class DevelopmentRestApiController {
         const count = parseInt(req.query.count as string) || 50;
         const packageId = parseInt(req.body.packageId);
 
+        this.logger.audit(`Dev generate games triggered`, {
+          prefix: "[DEV]: ",
+          count,
+          packageId,
+        });
         if (count < 1 || count > 250) {
           return res
             .status(400)
@@ -107,8 +121,10 @@ export class DevelopmentRestApiController {
 
         res.json({ success: true, games });
       } catch (err: any) {
-        const error = await ErrorController.resolveError(err);
-        Logger.error(`DEV: Generate games error: ${error.message}`);
+        const error = await ErrorController.resolveError(err, this.logger);
+        this.logger.error(`DEV: Generate games error: ${error.message}`, {
+          prefix: "[DEV]: ",
+        });
         res.status(500).json({ error: `Failed to generate games` });
       }
     });
