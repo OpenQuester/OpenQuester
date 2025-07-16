@@ -70,7 +70,6 @@ export const verifySession =
       return unauthorizedError(req, res);
     }
 
-    // TODO: Get from cache when implemented
     const user = await Container.get<UserService>(
       CONTAINER_TYPES.UserService
     ).getUserByRequest(req, {

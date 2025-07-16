@@ -8,7 +8,7 @@ export const errorMiddleware =
   (logger: ILogger) =>
   async (
     err: Error | BaseError,
-    req: Request,
+    _req: Request,
     res: Response,
     next: NextFunction
   ) => {
@@ -16,7 +16,7 @@ export const errorMiddleware =
       const { message, code } = await ErrorController.resolveError(err, logger);
       res.status(code).json({ error: message });
     } else {
-      logger.info(`Error middleware hit without error: ${err}`);
+      logger.error(`Error middleware hit without error: ${err}`);
       return next();
     }
   };

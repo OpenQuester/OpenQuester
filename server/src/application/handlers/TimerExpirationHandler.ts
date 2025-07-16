@@ -59,6 +59,9 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     const acquired = await this.redisService.setLockKey(lockKey);
 
     if (!acquired) {
+      this.logger.debug(
+        `Lock not acquired for key ${key}, another instance is handling it`
+      );
       return; // Another instance acquired the lock
     }
 

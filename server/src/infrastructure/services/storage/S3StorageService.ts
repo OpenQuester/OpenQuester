@@ -248,6 +248,11 @@ export class S3StorageService {
     const usageRecords = await this.dependencyService.getFileUsage(filename);
 
     if (usageRecords.length < 1) {
+      this.logger.debug(
+        `Trying to delete file ${filename} but no usage records found, user ${
+          req.user?.id || "unknown"
+        }`
+      );
       return;
     }
 
