@@ -1,6 +1,16 @@
 #!/bin/bash
 set -e
 
+# Ensure we're on the main branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$CURRENT_BRANCH" != "main" ]; then
+  echo "Error: This script must be run on the 'main' branch. You are on '$CURRENT_BRANCH'."
+  exit 1
+fi
+
+# Pull changes
+git pull
+
 # Determine the version to use.
 if [ -n "$1" ]; then
   # If a version is passed as $1, use it.
