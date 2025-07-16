@@ -15,29 +15,58 @@ class CreateGameDialog extends WatchingWidget {
     final state = watch(controller.state).value;
 
     return AdaptiveDialog(
-      builder: (context) => Card(
+      builder: (context) => AnimatedCard(
         elevation: 0,
+        padding: const EdgeInsets.all(24),
+        enableHoverEffect: false,
+        enableTapAnimation: false,
         child: SingleChildScrollView(
-          padding: 16.all,
           child: Form(
             key: controller.formKey,
             child: Column(
-              spacing: 16,
+              spacing: 20,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // Header
+                Text(
+                  LocaleKeys.create_game.tr(),
+                  style: context.textTheme.headlineMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                
                 _UploadPackageButtons(controller: controller, state: state),
                 _SelectedPackagePreview(package: state.package),
-                _GameName(state: state, controller: controller),
-                _AgeRestrictionSelect(
-                  state: state,
-                  controller: controller,
-                ).withTitle(LocaleKeys.age_restriction.tr()),
-                _PrivateGameSelect(state: state, controller: controller),
-                _MaxPlayersSelect(state: state, controller: controller),
+                
+                // Game Settings Section
+                AnimatedCard(
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
+                  padding: const EdgeInsets.all(16),
+                  enableHoverEffect: false,
+                  enableTapAnimation: false,
+                  child: Column(
+                    spacing: 16,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        LocaleKeys.game_settings.tr(),
+                        style: context.textTheme.titleMedium,
+                      ),
+                      _GameName(state: state, controller: controller),
+                      _AgeRestrictionSelect(
+                        state: state,
+                        controller: controller,
+                      ).withTitle(LocaleKeys.age_restriction.tr()),
+                      _PrivateGameSelect(state: state, controller: controller),
+                      _MaxPlayersSelect(state: state, controller: controller),
+                    ],
+                  ),
+                ),
+                
                 _StartGameButton(
                   controller: controller,
                   stateValid: state.valid,
-                ).paddingTop(40),
+                ).paddingTop(24),
               ],
             ),
           ),
@@ -116,15 +145,17 @@ class _PrivateGameSelect extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return AnimatedListTile(
       title: Text(LocaleKeys.private.tr()),
       subtitle: Text(LocaleKeys.private_game_description.tr()),
-      contentPadding: 0.all,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      isSelected: state.private,
       trailing: Switch(
         value: state.private,
         onChanged: (private) =>
             controller.state.value = state.copyWith(private: private),
       ),
+      onTap: () => controller.state.value = state.copyWith(private: !state.private),
     );
   }
 }
@@ -196,15 +227,18 @@ class _SelectedPackagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedCrossFade(
-      firstChild: const SizedBox(),
-      secondChild: package != null
-          ? PackageListItemWidget(item: package!).paddingBottom(16)
-          : const SizedBox(),
-      crossFadeState: package == null
-          ? CrossFadeState.showFirst
-          : CrossFadeState.showSecond,
-      duration: Durations.medium1,
+    return AppAnimatedSwitcher(
+      animationType: AppAnimationType.slideScale,
+      duration: AppAnimations.medium,
+      child: package != null
+          ? AnimatedCard(
+              key: ValueKey(package!.id),
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.1),
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              child: PackageListItemWidget(item: package!),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }

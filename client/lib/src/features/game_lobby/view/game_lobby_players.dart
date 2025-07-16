@@ -76,102 +76,134 @@ class GameLobbyPlayer extends WatchingWidget {
         ? extraColors.success
         : null;
 
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: borderColor ?? context.theme.colorScheme.surfaceContainerHigh,
+    return AnimatedCard(
+      backgroundColor: context.theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(12),
+      padding: const EdgeInsets.all(4),
+      enableHoverEffect: false,
+      enableTapAnimation: answering || picking,
+      child: AnimatedContainer(
+        duration: AppAnimations.fast,
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: borderColor ?? context.theme.colorScheme.surfaceContainerHigh,
+            width: borderColor != null ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: (answering || picking) ? [
+            BoxShadow(
+              color: context.theme.colorScheme.primary.withValues(alpha: 0.3),
+              blurRadius: 8,
+              spreadRadius: 2,
+            ),
+          ] : null,
         ),
-        borderRadius: 12.circular,
-        color: context.theme.colorScheme.surface,
-      ),
-      padding: 4.all,
-      constraints: BoxConstraints.loose(
-        Size(
-          GameLobbyStyles.playersMobile.width,
-          GameLobbyStyles.players.height,
+        constraints: BoxConstraints.loose(
+          Size(
+            GameLobbyStyles.playersMobile.width,
+            GameLobbyStyles.players.height,
+          ),
         ),
-      ),
-      child: IconTheme(
-        data: const IconThemeData(size: 16, color: Colors.white),
-        child: Stack(
-          alignment: Alignment.center,
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(
-              child: Container(
-                foregroundDecoration: BoxDecoration(
-                  color: foregroundColor,
-                  borderRadius: 8.circular,
+        child: IconTheme(
+          data: const IconThemeData(size: 16, color: Colors.white),
+          child: Stack(
+            alignment: Alignment.center,
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(
+                child: Container(
+                  foregroundDecoration: BoxDecoration(
+                    color: foregroundColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
+                  clipBehavior: Clip.antiAlias,
+                  child: ImageWidget(url: player.meta.avatar),
                 ),
-                decoration: BoxDecoration(borderRadius: 8.circular),
-                clipBehavior: Clip.antiAlias,
-                child: ImageWidget(url: player.meta.avatar),
               ),
-            ),
-            Stack(
-              alignment: Alignment.topRight,
-              fit: StackFit.expand,
-              children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      player.meta.username,
-                      style: GameLobbyStyles.playerTextStyle(context),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (player.role != PlayerRole.showman)
-                      _PlayerScoreText(score: player.score)
-                    else
-                      Text(
-                        LocaleKeys.showman.tr(),
-                        style: context.textTheme.bodySmall,
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            if (player.role == PlayerRole.showman)
-              Align(
+              Stack(
                 alignment: Alignment.topRight,
-                child: Assets.icons.crown
-                    .svg(
-                      width: 16,
-                      height: 16,
-                      colorFilter: const ColorFilter.mode(
-                        Colors.white,
-                        BlendMode.srcIn,
+                fit: StackFit.expand,
+                children: [
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        player.meta.username,
+                        style: GameLobbyStyles.playerTextStyle(context),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    )
-                    .withTooltip(msg: LocaleKeys.showman.tr())
-                    .paddingAll(2),
+                      if (player.role != PlayerRole.showman)
+                        _PlayerScoreText(score: player.score)
+                      else
+                        Text(
+                          LocaleKeys.showman.tr(),
+                          style: context.textTheme.bodySmall,
+                        ),
+                    ],
+                  ),
+                ],
               ),
-            if (player.status == PlayerDataStatus.disconnected)
-              Align(
-                alignment: Alignment.topLeft,
-                child: const Icon(Icons.signal_wifi_off).paddingAll(2),
-              ),
-            if (answering || picking)
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Icon(
-                  picking ? Icons.star_border_rounded : Icons.more_horiz,
-                ).paddingAll(2),
-              ),
-            if (!{
-              PlayerAnswerState.skip,
-              PlayerAnswerState.none,
-            }.contains(playerAnswerState))
-              Align(
-                alignment: Alignment.bottomLeft,
-                child: Icon(
-                  playerAnswerState == PlayerAnswerState.correct
-                      ? Icons.check
-                      : Icons.close,
-                ).paddingAll(2),
-              ),
-          ],
-        ).center(),
+              if (player.role == PlayerRole.showman)
+                Align(
+                  alignment: Alignment.topRight,
+                  child: AppAnimatedSwitcher(
+                    animationType: AppAnimationType.scale,
+                    duration: AppAnimations.fast,
+                    child: Assets.icons.crown
+                        .svg(
+                          width: 16,
+                          height: 16,
+                          colorFilter: const ColorFilter.mode(
+                            Colors.white,
+                            BlendMode.srcIn,
+                          ),
+                        )
+                        .withTooltip(msg: LocaleKeys.showman.tr())
+                        .paddingAll(2),
+                  ),
+                ),
+              if (player.status == PlayerDataStatus.disconnected)
+                Align(
+                  alignment: Alignment.topLeft,
+                  child: AppAnimatedSwitcher(
+                    animationType: AppAnimationType.fade,
+                    duration: AppAnimations.fast,
+                    child: const Icon(Icons.signal_wifi_off).paddingAll(2),
+                  ),
+                ),
+              if (answering || picking)
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: AppAnimatedSwitcher(
+                    animationType: AppAnimationType.scale,
+                    duration: AppAnimations.fast,
+                    child: Icon(
+                      picking ? Icons.star_border_rounded : Icons.more_horiz,
+                      key: ValueKey(picking ? 'picking' : 'answering'),
+                    ).paddingAll(2),
+                  ),
+                ),
+              if (!{
+                PlayerAnswerState.skip,
+                PlayerAnswerState.none,
+              }.contains(playerAnswerState))
+                Align(
+                  alignment: Alignment.bottomLeft,
+                  child: AppAnimatedSwitcher(
+                    animationType: AppAnimationType.scale,
+                    duration: AppAnimations.fast,
+                    child: Icon(
+                      playerAnswerState == PlayerAnswerState.correct
+                          ? Icons.check
+                          : Icons.close,
+                      key: ValueKey(playerAnswerState),
+                    ).paddingAll(2),
+                  ),
+                ),
+            ],
+          ).center(),
+        ),
       ),
     );
   }
