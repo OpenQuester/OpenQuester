@@ -130,9 +130,12 @@ export class SocketIOGameService {
       socketId
     );
     const game = context.game;
+    const gameId = game.id;
     const userSession = context.userSession;
 
-    if (!game.hasPlayer(userSession.id)) return { emit: false };
+    if (!game.hasPlayer(userSession.id)) {
+      return { emit: false };
+    }
 
     game.removePlayer(userSession.id);
 
@@ -142,7 +145,7 @@ export class SocketIOGameService {
     });
     await this.gameService.updateGame(game);
 
-    return { emit: true, data: { userId: userSession.id, gameId: game.id } };
+    return { emit: true, data: { userId: userSession.id, gameId } };
   }
 
   public async handleNextRound(socketId: string) {

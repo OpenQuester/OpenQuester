@@ -6,6 +6,7 @@ import {
   BaseSocketEventHandler,
   SocketBroadcastTarget,
   SocketEventBroadcast,
+  SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
@@ -15,6 +16,7 @@ import {
   EmptyInputData,
   EmptyOutputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class SkipQuestionEventHandler extends BaseSocketEventHandler<
@@ -24,9 +26,10 @@ export class SkipQuestionEventHandler extends BaseSocketEventHandler<
   constructor(
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
+    logger: ILogger,
     private readonly socketIOQuestionService: SocketIOQuestionService
   ) {
-    super(socket, eventEmitter);
+    super(socket, eventEmitter, logger);
   }
 
   public getEventName(): SocketIOGameEvents {
@@ -43,11 +46,18 @@ export class SkipQuestionEventHandler extends BaseSocketEventHandler<
     // Authorization handled in service
   }
 
-  protected async execute(): Promise<SocketEventResult<EmptyOutputData>> {
+  protected async execute(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<SocketEventResult<EmptyOutputData>> {
     const { game, question } =
       await this.socketIOQuestionService.handleQuestionSkip(this.socket.id);
     const { isGameFinished, nextGameState } =
       await this.socketIOQuestionService.handleRoundProgression(game);
+
+    // Assign context variables for logging
+    context.gameId = game.id;
+    context.userId = this.socket.userId;
 
     const finishPayload: QuestionFinishEventPayload = {
       answerFiles: question.answerFiles ?? null,

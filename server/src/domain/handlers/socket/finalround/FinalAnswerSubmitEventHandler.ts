@@ -18,6 +18,7 @@ import {
   FinalSubmitEndEventData,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { GameValidator } from "domain/validators/GameValidator";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class FinalAnswerSubmitEventHandler extends BaseSocketEventHandler<
@@ -27,9 +28,10 @@ export class FinalAnswerSubmitEventHandler extends BaseSocketEventHandler<
   constructor(
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
+    logger: ILogger,
     private readonly finalRoundService: FinalRoundService
   ) {
-    super(socket, eventEmitter);
+    super(socket, eventEmitter, logger);
   }
 
   public getEventName(): SocketIOGameEvents {
@@ -60,7 +62,9 @@ export class FinalAnswerSubmitEventHandler extends BaseSocketEventHandler<
         data.answerText
       );
 
+    // Assign context variables for logging
     context.gameId = game.id;
+    context.userId = this.socket.userId;
 
     const outputData: FinalAnswerSubmitOutputData = {
       playerId,

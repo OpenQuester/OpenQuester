@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddTypeColumnForChoiceFile_1743660505666
   implements MigrationInterface
@@ -18,7 +18,8 @@ export class AddTypeColumnForChoiceFile_1743660505666
       })
     );
 
-    Logger.logMigrationComplete("0.9.7-5");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.9.7-5");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

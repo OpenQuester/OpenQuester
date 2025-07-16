@@ -1,6 +1,7 @@
 import { Router, type Express, type Request, type Response } from "express";
 import Joi from "joi";
 import https, { RequestOptions } from "node:https";
+import { Namespace } from "socket.io";
 
 import { FileService } from "application/services/file/FileService";
 import { TranslateService as ts } from "application/services/text/TranslateService";
@@ -23,22 +24,24 @@ import { SocketAuthDTO } from "domain/types/dto/auth/SocketAuthDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { RegisterUser } from "domain/types/user/RegisterUser";
 import { User } from "infrastructure/database/models/User";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
-import { Logger } from "infrastructure/utils/Logger";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { socketAuthScheme } from "presentation/schemes/auth/authSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
 export class AuthRestApiController {
   constructor(
+    private readonly gameNamespace: Namespace,
     private readonly app: Express,
     private readonly redisService: RedisService,
     private readonly userService: UserService,
     private readonly fileService: FileService,
     private readonly storage: S3StorageService,
-    private readonly socketUserDataService: SocketUserDataService
+    private readonly socketUserDataService: SocketUserDataService,
+    private readonly logger: ILogger
   ) {
     const router = Router();
 
@@ -63,8 +66,15 @@ export class AuthRestApiController {
       throw new ClientError(ClientResponse.SOCKET_LOGGED_IN);
     }
 
+    const socket = this.gameNamespace.sockets.get(authDTO.socketId);
+
+    // Apply userId to socket for later use
+    if (socket) {
+      socket.userId = req.user!.id; // Null safety approved by auth middleware
+    }
+
     await this.socketUserDataService.set(authDTO.socketId, {
-      userId: req.user!.id, // Null safety approved by auth middleware
+      userId: req.user!.id,
       language: ts.parseHeaders(req.headers),
     });
 
@@ -91,7 +101,9 @@ export class AuthRestApiController {
 
         req.session.save((err) => {
           if (err) {
-            Logger.error(`Session save error: ${err}`);
+            this.logger.error(`Session save error: ${err}`, {
+              prefix: "[AUTH]: ",
+            });
             throw new ClientError(ClientResponse.SESSION_SAVING_ERROR);
           }
 

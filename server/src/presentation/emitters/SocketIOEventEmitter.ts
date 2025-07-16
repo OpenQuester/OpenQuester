@@ -6,7 +6,7 @@ import {
 import { ServerError } from "domain/errors/ServerError";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
-import { Logger } from "infrastructure/utils/Logger";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { Namespace, Server, Socket } from "socket.io";
 
 type IOEVent = SocketIOEvents | SocketIOGameEvents;
@@ -15,7 +15,10 @@ export class SocketIOEventEmitter {
   private _io?: Namespace | Server;
   private _socket?: Socket;
 
-  constructor(private readonly gameService: SocketIOGameService) {
+  constructor(
+    private readonly gameService: SocketIOGameService,
+    private readonly logger: ILogger
+  ) {
     //
   }
 
@@ -98,8 +101,11 @@ export class SocketIOEventEmitter {
         this.emitToSocket(event, customData, socketId);
       }
     } catch (error: unknown) {
-      Logger.error(
-        `Error in role-based filtering emit: ${JSON.stringify(error)}`
+      this.logger.error(
+        `Error in role-based filtering emit: ${JSON.stringify(error)}`,
+        {
+          prefix: "[IOEventEmitter]: ",
+        }
       );
       // Fallback to regular room emit if role-based filtering fails
       this._io.to(gameId).emit(event, data);

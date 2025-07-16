@@ -9,9 +9,10 @@ import { type Permissions } from "domain/enums/Permissions";
 import { ClientError } from "domain/errors/ClientError";
 import { ErrorController } from "domain/errors/ErrorController";
 import { Permission } from "infrastructure/database/models/Permission";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
-export function checkPermission(permission: Permissions) {
+export function checkPermission(permission: Permissions, logger: ILogger) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = await Container.get<UserService>(
@@ -39,6 +40,7 @@ export function checkPermission(permission: Permissions) {
     } catch (err: unknown) {
       const { message, code } = await ErrorController.resolveError(
         err,
+        logger,
         req.headers
       );
       return res.status(code).send({ error: message });
@@ -50,7 +52,10 @@ export function checkPermission(permission: Permissions) {
  * Require some permission from user, that makes request, if he passed
  * the id in request params, which means he's doing request on another user
  */
-export function checkPermissionWithId(permission: Permissions) {
+export function checkPermissionWithId(
+  permission: Permissions,
+  logger: ILogger
+) {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.params.id) {
       try {
@@ -82,6 +87,7 @@ export function checkPermissionWithId(permission: Permissions) {
       } catch (err: unknown) {
         const { message, code } = await ErrorController.resolveError(
           err,
+          logger,
           req.headers
         );
         return res.status(code).send({ error: message });

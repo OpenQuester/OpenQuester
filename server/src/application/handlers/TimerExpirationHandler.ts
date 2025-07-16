@@ -31,6 +31,7 @@ import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameN
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 
 export class TimerExpirationHandler implements RedisExpirationHandler {
@@ -43,7 +44,8 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     private readonly redisService: RedisService,
     private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly roundHandlerFactory: RoundHandlerFactory,
-    private readonly finalRoundService: FinalRoundService
+    private readonly finalRoundService: FinalRoundService,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -57,6 +59,9 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     const acquired = await this.redisService.setLockKey(lockKey);
 
     if (!acquired) {
+      this.logger.debug(
+        `Lock not acquired for key ${key}, another instance is handling it`
+      );
       return; // Another instance acquired the lock
     }
 
@@ -140,7 +145,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
         return;
       }
     } catch (err: unknown) {
-      const error = await ErrorController.resolveError(err);
+      const error = await ErrorController.resolveError(err, this.logger);
       this._gameNamespace.to(gameId).emit(SocketIOEvents.ERROR, {
         message: error.message,
       });
@@ -248,7 +253,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
           } satisfies FinalPhaseCompleteEventData);
       }
     } catch (err: unknown) {
-      const error = await ErrorController.resolveError(err);
+      const error = await ErrorController.resolveError(err, this.logger);
       this._gameNamespace.to(game.id).emit(SocketIOEvents.ERROR, {
         message: error.message,
       });
@@ -277,7 +282,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
           questionData: result.questionData,
         } satisfies FinalQuestionEventData);
     } catch (err: unknown) {
-      const error = await ErrorController.resolveError(err);
+      const error = await ErrorController.resolveError(err, this.logger);
       this._gameNamespace.to(game.id).emit(SocketIOEvents.ERROR, {
         message: error.message,
       });

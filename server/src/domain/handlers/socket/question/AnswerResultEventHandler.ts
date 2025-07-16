@@ -6,6 +6,7 @@ import {
   BaseSocketEventHandler,
   SocketBroadcastTarget,
   SocketEventBroadcast,
+  SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
@@ -17,6 +18,7 @@ import {
   AnswerResultType,
 } from "domain/types/socket/game/AnswerResultData";
 import { GameValidator } from "domain/validators/GameValidator";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class AnswerResultEventHandler extends BaseSocketEventHandler<
@@ -26,9 +28,10 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
   constructor(
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
+    logger: ILogger,
     private readonly socketIOQuestionService: SocketIOQuestionService
   ) {
-    super(socket, eventEmitter);
+    super(socket, eventEmitter, logger);
   }
 
   public getEventName(): SocketIOGameEvents {
@@ -44,13 +47,18 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
   }
 
   protected async execute(
-    data: AnswerResultData
+    data: AnswerResultData,
+    context: SocketEventContext
   ): Promise<SocketEventResult<QuestionAnswerResultEventPayload>> {
     const { playerAnswerResult, game, question, timer } =
       await this.socketIOQuestionService.handleAnswerResult(
         this.socket.id,
         data
       );
+
+    // Assign context variables for logging
+    context.gameId = game.id;
+    context.userId = this.socket.userId;
 
     // Handle correct answers with round progression
     if (playerAnswerResult.answerType === AnswerResultType.CORRECT) {

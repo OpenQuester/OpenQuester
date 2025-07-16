@@ -6,8 +6,7 @@ import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class StorageContextBuilder {
-  public static buildS3Context(): S3Context {
-    const env = Environment.instance;
+  public static buildS3Context(env: Environment): S3Context {
     try {
       return {
         endpoint: env.getEnvVar("S3_ENDPOINT", "string"),

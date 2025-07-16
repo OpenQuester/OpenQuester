@@ -6,7 +6,7 @@ import { ErrorController } from "domain/errors/ErrorController";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
-import { Logger } from "infrastructure/utils/Logger";
+import { type ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 import { Socket } from "socket.io";
 
@@ -54,10 +54,16 @@ export interface SocketEventBroadcast<T = unknown> {
 export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   protected readonly socket: Socket;
   protected readonly eventEmitter: SocketIOEventEmitter;
+  protected readonly logger: ILogger;
 
-  constructor(socket: Socket, eventEmitter: SocketIOEventEmitter) {
+  constructor(
+    socket: Socket,
+    eventEmitter: SocketIOEventEmitter,
+    logger: ILogger
+  ) {
     this.socket = socket;
     this.eventEmitter = eventEmitter;
+    this.logger = logger;
   }
 
   /**
@@ -224,7 +230,10 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
     duration: number
   ): Promise<void> {
     try {
-      const { message } = await ErrorController.resolveError(error);
+      const { message } = await ErrorController.resolveError(
+        error,
+        this.logger
+      );
 
       // Emit error to client
       this.eventEmitter.emit<ErrorEventPayload>(SocketIOEvents.ERROR, {
@@ -232,18 +241,20 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
       });
 
       // Log error with full context and original error details for server-side debugging
-      Logger.error(
+      this.logger.error(
         `Socket event error in ${this.getEventName()}: ${message} | SocketId: ${
           context.socketId
         } | UserId: ${context.userId} | GameId: ${
           context.gameId
-        } | Duration: ${duration}ms | OriginalError: ${String(error)}`
+        } | Duration: ${duration}ms | OriginalError: ${String(error)}`,
+        { prefix: "[SOCKET]: " }
       );
     } catch (handlingError) {
-      Logger.error(
+      this.logger.error(
         `Error while handling socket event error: ${handlingError} | OriginalError: ${String(
           error
-        )} | SocketId: ${context.socketId}`
+        )} | SocketId: ${context.socketId}`,
+        { prefix: "[SOCKET]: " }
       );
     }
   }
@@ -253,8 +264,9 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
    */
   private logSuccess(context: SocketEventContext, duration: number): void {
     const eventName = this.getEventName();
-    Logger.info(
-      `Socket event ${eventName} completed successfully | SocketId: ${context.socketId} | UserId: ${context.userId} | GameId: ${context.gameId} | Duration: ${duration}ms`
+    this.logger.info(
+      `Socket event ${eventName} completed successfully | SocketId: ${context.socketId} | UserId: ${context.userId} | GameId: ${context.gameId} | Duration: ${duration}ms`,
+      { prefix: "[SOCKET]: " }
     );
   }
 }

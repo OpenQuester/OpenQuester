@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class UpdateUserAndFileAndAddDiscordId_0_8_2_1738571232826
   implements MigrationInterface
@@ -62,7 +62,8 @@ export class UpdateUserAndFileAndAddDiscordId_0_8_2_1738571232826
       })
     );
 
-    Logger.logMigrationComplete("0.8.2");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.8.2");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

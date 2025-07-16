@@ -16,6 +16,8 @@ import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameN
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
+import { ILogger } from "infrastructure/logger/ILogger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import {
@@ -91,9 +93,11 @@ describe("Final Round Transition Test", () => {
   let userRepo: Repository<User>;
   let serverUrl: string;
   let utils: SocketGameTestUtils;
+  let logger: ILogger;
 
   beforeAll(async () => {
-    testEnv = new TestEnvironment();
+    logger = await PinoLogger.init({ pretty: true });
+    testEnv = new TestEnvironment(logger);
     await testEnv.setup();
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;

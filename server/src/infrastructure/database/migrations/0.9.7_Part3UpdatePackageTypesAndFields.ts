@@ -6,7 +6,7 @@ import {
   TableForeignKey,
 } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class UpdatePackageTypesAndFields_1742727260372
   implements MigrationInterface
@@ -107,7 +107,8 @@ export class UpdatePackageTypesAndFields_1742727260372
       })
     );
 
-    Logger.logMigrationComplete("0.9.7-3");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.9.7-3");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

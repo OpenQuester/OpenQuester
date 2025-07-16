@@ -15,6 +15,7 @@ import { UserInputDTO } from "domain/types/dto/user/UserInputDTO";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { File } from "infrastructure/database/models/File";
 import { User } from "infrastructure/database/models/User";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import {
@@ -35,7 +36,8 @@ export class UserRestApiController {
   constructor(
     private readonly app: Express,
     private readonly userService: UserService,
-    private readonly fileService: FileService
+    private readonly fileService: FileService,
+    private readonly logger: ILogger
   ) {
     const router = Router();
     const meRouter = Router();
@@ -51,25 +53,25 @@ export class UserRestApiController {
 
     router.get(
       "/",
-      checkPermission(Permissions.GET_ALL_USERS),
+      checkPermission(Permissions.GET_ALL_USERS, this.logger),
       asyncHandler(this.listUsers)
     );
 
     router.get(
       "/:id",
-      checkPermissionWithId(Permissions.GET_ANOTHER_USER),
+      checkPermissionWithId(Permissions.GET_ANOTHER_USER, this.logger),
       asyncHandler(this.getUser)
     );
 
     router.patch(
       "/:id",
-      checkPermissionWithId(Permissions.CHANGE_ANOTHER_USER),
+      checkPermissionWithId(Permissions.CHANGE_ANOTHER_USER, this.logger),
       asyncHandler(this.updateUser)
     );
 
     router.delete(
       "/:id",
-      checkPermissionWithId(Permissions.DELETE_ANOTHER_USER),
+      checkPermissionWithId(Permissions.DELETE_ANOTHER_USER, this.logger),
       asyncHandler(this.deleteUser)
     );
   }

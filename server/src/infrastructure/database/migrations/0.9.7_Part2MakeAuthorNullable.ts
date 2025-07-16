@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class MakeAuthorNullable_1742725198044 implements MigrationInterface {
   name = "MakeAuthorNullable_1742725198044";
@@ -9,7 +9,8 @@ export class MakeAuthorNullable_1742725198044 implements MigrationInterface {
     await queryRunner.query(
       'ALTER TABLE "package" ALTER COLUMN "author" DROP NOT NULL;'
     );
-    Logger.logMigrationComplete("0.9.7-2");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.9.7-2");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

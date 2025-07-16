@@ -6,7 +6,7 @@ import {
   TableUnique,
 } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class CreatePermissionTable_0_1_2_1723128633623
   implements MigrationInterface
@@ -14,6 +14,8 @@ export class CreatePermissionTable_0_1_2_1723128633623
   name = "CreatePermissionTable_0_1_2_1723128633623";
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const logger = await PinoLogger.init({ pretty: true });
+
     await queryRunner.createTable(
       new Table({
         name: "permission",
@@ -83,7 +85,7 @@ export class CreatePermissionTable_0_1_2_1723128633623
       `INSERT INTO "permission" (name) VALUES ('admin'), ('user');`
     );
 
-    Logger.logMigrationComplete("0.1.2");
+    logger.migration("0.1.2");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

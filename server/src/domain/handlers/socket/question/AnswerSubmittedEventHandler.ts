@@ -13,6 +13,7 @@ import {
   AnswerSubmittedInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameValidator } from "domain/validators/GameValidator";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class AnswerSubmittedEventHandler extends BaseSocketEventHandler<
@@ -22,9 +23,10 @@ export class AnswerSubmittedEventHandler extends BaseSocketEventHandler<
   constructor(
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
+    logger: ILogger,
     private readonly socketIOQuestionService: SocketIOQuestionService
   ) {
-    super(socket, eventEmitter);
+    super(socket, eventEmitter, logger);
   }
 
   public getEventName(): SocketIOGameEvents {
@@ -46,11 +48,15 @@ export class AnswerSubmittedEventHandler extends BaseSocketEventHandler<
 
   protected async execute(
     data: AnswerSubmittedInputData,
-    _context: SocketEventContext
+    context: SocketEventContext
   ): Promise<SocketEventResult<AnswerSubmittedBroadcastData>> {
     const game = await this.socketIOQuestionService.handleAnswerSubmitted(
       this.socket.id
     );
+
+    // Assign context variables for logging
+    context.gameId = game.id;
+    context.userId = this.socket.userId;
 
     const broadcastData: AnswerSubmittedBroadcastData = {
       answerText: data.answerText,

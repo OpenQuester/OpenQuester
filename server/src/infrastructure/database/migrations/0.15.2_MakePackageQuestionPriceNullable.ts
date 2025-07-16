@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class MakePackageQuestionPriceNullable_1747925123456
   implements MigrationInterface
@@ -13,7 +13,8 @@ export class MakePackageQuestionPriceNullable_1747925123456
       `ALTER TABLE "package_question" ALTER COLUMN "price" DROP NOT NULL`
     );
 
-    Logger.logMigrationComplete("0.15.2");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.15.2");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

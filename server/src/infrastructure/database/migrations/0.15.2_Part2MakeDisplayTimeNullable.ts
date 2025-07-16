@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-import { Logger } from "infrastructure/utils/Logger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class MakeAnswerAndQuestionDisplayTimeNullable_1747925123456
   implements MigrationInterface
@@ -17,7 +17,8 @@ export class MakeAnswerAndQuestionDisplayTimeNullable_1747925123456
       `ALTER TABLE "package_answer_file" ALTER COLUMN "display_time" DROP NOT NULL`
     );
 
-    Logger.logMigrationComplete("0.15.2-2");
+    const logger = await PinoLogger.init({ pretty: true });
+    logger.migration("0.15.2-2");
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

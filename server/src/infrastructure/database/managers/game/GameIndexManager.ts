@@ -7,15 +7,18 @@ import {
   PaginationOptsBase,
   PaginationOrder,
 } from "domain/types/pagination/PaginationOpts";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
-import { Logger } from "infrastructure/utils/Logger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class GameIndexManager {
   private readonly INDEX_PREFIX = `${GAME_NAMESPACE}:index`;
   private readonly TEMP_KEY_TTL = 30; // seconds
 
-  constructor(private readonly redisService: RedisService) {
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly logger: ILogger
+  ) {
     //
   }
 
@@ -143,7 +146,9 @@ export class GameIndexManager {
       gameIds.forEach((gameId: string, index: number) => {
         const ttlResult = ttlResults[index];
         if (ttlResult[1] === null) {
-          Logger.error(`TTL command failed for game:${gameId}`);
+          this.logger.error(`TTL command failed for game:${gameId}`, {
+            prefix: "[GameIndexManager]: ",
+          });
           return;
         }
         const ttl = ttlResult[1] as number;
@@ -156,10 +161,17 @@ export class GameIndexManager {
 
     // Clean up orphaned gameIds
     if (orphanedGameIds.length > 0) {
-      Logger.info(`Found ${orphanedGameIds.length} orphaned gameIds`);
+      this.logger.info(`Found ${orphanedGameIds.length} orphaned gameIds`, {
+        prefix: "[GameIndexManager]: ",
+      });
       const cleanupPromises = orphanedGameIds.map((gameId: string) =>
         this.removeGameFromAllIndexes(gameId).catch((err) => {
-          Logger.error(`Failed to clean indexes for game ${gameId}: ${err}`);
+          this.logger.error(
+            `Failed to clean indexes for game ${gameId}: ${err}`,
+            {
+              prefix: "[GameIndexManager]: ",
+            }
+          );
         })
       );
       await Promise.all(cleanupPromises);

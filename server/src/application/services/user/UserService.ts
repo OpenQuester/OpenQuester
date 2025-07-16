@@ -89,6 +89,9 @@ export class UserService {
     return this.userRepository.find(where, selectOptions);
   }
 
+  /**
+   * Same as `get` method, but with custom `where` condition and avoids cache
+   */
   public async findOne(
     where: FindOptionsWhere<User>,
     selectOptions: SelectOptions<User>

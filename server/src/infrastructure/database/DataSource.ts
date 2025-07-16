@@ -4,7 +4,6 @@ import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { Environment } from "infrastructure/config/Environment";
-import { Logger } from "infrastructure/utils/Logger";
 
 // Models
 import { File } from "infrastructure/database/models/File";
@@ -19,6 +18,7 @@ import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { PackageTheme } from "infrastructure/database/models/package/PackageTheme";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 // Migrations imports
 import { UpdateUserModelFields_0_1_11_1723107959823 as updateUserModelFields } from "infrastructure/database/migrations/0.1.11_UpdateUserModelFields";
@@ -41,8 +41,10 @@ import { UpdatePackageTypesAndFields_1742727260372 as UpdatePackageTypesAndField
 import { AddPackageLogoFileForeignKey_1743338225856 as AddPackageLogoFK } from "infrastructure/database/migrations/0.9.7_Part4AddPackageLogoFileFK";
 import { AddTypeColumnForChoiceFile_1743660505666 as AddTypeColumnForChoiceFile } from "infrastructure/database/migrations/0.9.7_Part5AddTypeColumnForChoiceFile";
 
-// Init env
-const env = Environment.instance;
+// Init env synchronously for migration scripts
+/* eslint-disable-next-line node/no-sync */
+const logger = PinoLogger.initSync({ pretty: true });
+const env = Environment.getInstance(logger);
 
 try {
   env.load(false);
@@ -51,8 +53,8 @@ try {
   if (err instanceof Error) {
     message = err.message;
   }
-  Logger.error(ServerResponse.FAILED_TO_LOAD_ENV);
-  Logger.error(`Error message: ${message}`);
+  logger.error(ServerResponse.FAILED_TO_LOAD_ENV);
+  logger.error(`Error message: ${message}`);
   // Bravely exit from process since it's migration process created by TypeORM
   process.exit(0);
 }

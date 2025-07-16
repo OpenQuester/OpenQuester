@@ -1,9 +1,12 @@
+import { type Express } from "express";
 import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
 import { Permissions } from "domain/enums/Permissions";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
+import { ILogger } from "infrastructure/logger/ILogger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 
@@ -35,14 +38,16 @@ async function createUser(
 
 describe("UserRestApiController", () => {
   let testEnv: TestEnvironment;
-  let app: any;
+  let app: Express;
   let dataSource: DataSource;
   let userRepo: Repository<User>;
   let permRepo: Repository<Permission>;
   let cleanup: (() => Promise<void>) | undefined;
+  let logger: ILogger;
 
   beforeAll(async () => {
-    testEnv = new TestEnvironment();
+    logger = await PinoLogger.init({ pretty: true });
+    testEnv = new TestEnvironment(logger);
     await testEnv.setup();
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;
@@ -64,16 +69,6 @@ describe("UserRestApiController", () => {
     } catch (err) {
       console.error("Error during teardown:", err);
     }
-  });
-
-  // Global error handlers to ensure process exits on unhandled errors
-  process.on("unhandledRejection", (reason) => {
-    console.error("Unhandled Rejection:", reason);
-    setTimeout(() => process.exit(1), 1000);
-  });
-  process.on("uncaughtException", (err) => {
-    console.error("Uncaught Exception:", err);
-    setTimeout(() => process.exit(1), 1000);
   });
 
   beforeEach(async () => {
