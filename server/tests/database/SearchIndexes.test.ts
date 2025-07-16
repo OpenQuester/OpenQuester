@@ -1,13 +1,18 @@
 import { AddSearchIndexes_0_15_3_1752686138751 } from "infrastructure/database/migrations/0.15.3_AddSearchIndexes";
+import { ILogger } from "infrastructure/logger/ILogger";
+import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 
 describe("Search Indexes Migration Test", () => {
   let testEnv: TestEnvironment;
   let cleanup: (() => Promise<void>) | undefined;
+  let logger: ILogger;
 
   beforeAll(async () => {
-    testEnv = new TestEnvironment();
+    logger = await PinoLogger.init({ pretty: true });
+
+    testEnv = new TestEnvironment(logger);
     await testEnv.setup();
 
     // Bootstrap the test app to properly initialize Redis and other services
