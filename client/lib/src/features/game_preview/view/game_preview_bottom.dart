@@ -7,7 +7,6 @@ class GamePreviewBottom extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final animationConfiguration = AnimationConfigurationClass.of(context)!;
     return FutureBuilder(
       future: getIt<PackageController>().getPackage(packageId),
       builder: (context, snapshot) {
@@ -15,18 +14,30 @@ class GamePreviewBottom extends StatelessWidget {
         final rounds = pack?.sortedRounds() ?? <PackageRound>[];
 
         return AnimatedSize(
-          duration: animationConfiguration.duration,
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final round in rounds)
-                ListTile(
-                  title: Text(round.name),
-                  subtitle: Text(
-                    round.sortedThemes().map((e) => ' • ${e.name}').join('\n'),
+          duration: AppAnimations.medium,
+          curve: AppAnimations.easeOutCubic,
+          child: AppAnimatedSwitcher(
+            animationType: AppAnimationType.fadeBlur,
+            duration: AppAnimations.medium,
+            child: snapshot.connectionState == ConnectionState.waiting
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                : ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final round in rounds)
+                        AnimatedListTile(
+                          title: Text(round.name),
+                          subtitle: Text(
+                            round.sortedThemes().map((e) => ' • ${e.name}').join('\n'),
+                          ),
+                        ),
+                    ],
                   ),
-                ),
-            ],
           ),
         );
       },

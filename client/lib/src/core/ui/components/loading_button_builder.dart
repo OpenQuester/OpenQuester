@@ -23,8 +23,33 @@ class LoadingButtonBuilder extends StatefulWidget {
   State<LoadingButtonBuilder> createState() => _LoadingButtonBuilderState();
 }
 
-class _LoadingButtonBuilderState extends State<LoadingButtonBuilder> {
+class _LoadingButtonBuilderState extends State<LoadingButtonBuilder>
+    with TickerProviderStateMixin {
   bool loading = false;
+  late AnimationController _scaleController;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(
+      parent: _scaleController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _scaleController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +71,12 @@ class _LoadingButtonBuilderState extends State<LoadingButtonBuilder> {
       void Function(void Function()) setState,
       Future<void> Function()? onPressed,
     ) async {
+      if (loading) return;
+      
+      // Scale animation on press
+      await _scaleController.forward();
+      await _scaleController.reverse();
+      
       setState(() => loading = true);
       try {
         await onPressed?.call();
@@ -58,10 +89,29 @@ class _LoadingButtonBuilderState extends State<LoadingButtonBuilder> {
       }
     }
 
-    return widget.builder(
-      context,
-      loading ? loader : widget.child,
-      () async => onPressed(setState, widget.onPressed),
+    return GestureDetector(
+      onTapDown: (_) => _scaleController.forward(),
+      onTapUp: (_) => _scaleController.reverse(),
+      onTapCancel: () => _scaleController.reverse(),
+      child: AnimatedBuilder(
+        animation: _scaleAnimation,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnimation.value,
+            child: widget.builder(
+              context,
+              AppAnimatedSwitcher(
+                animationType: AppAnimationType.scale,
+                duration: const Duration(milliseconds: 200),
+                child: loading 
+                  ? loader 
+                  : widget.child,
+              ),
+              () async => onPressed(setState, widget.onPressed),
+            ),
+          );
+        },
+      ),
     );
   }
 }
