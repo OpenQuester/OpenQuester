@@ -33,12 +33,15 @@ export class UserService {
   public async list(
     paginationOpts: PaginationOptsBase<User>
   ): Promise<PaginatedResult<UserDTO[]>> {
-    const startTime = Date.now();
     this.logger.trace("User listing started", {
       paginationOpts,
     });
 
     this.logger.debug("Users listing with pagination options: ", {
+      paginationOpts,
+    });
+
+    const log = this.logger.performance(`User listing`, {
       paginationOpts,
     });
 
@@ -55,12 +58,7 @@ export class UserService {
       user.toDTO()
     );
 
-    const operationTime = Date.now() - startTime;
-    this.logger.performance(`User listing completed in ${operationTime}ms`, {
-      operationTime,
-      userCount: usersData.length,
-      paginationOpts,
-    });
+    log.finish({ usersData });
 
     return { data: usersData, pageInfo: usersListPaginated.pageInfo };
   }
@@ -79,13 +77,17 @@ export class UserService {
     userId: number,
     selectOptions?: SelectOptions<User>
   ): Promise<User> {
-    const startTime = Date.now();
     this.logger.trace("User retrieval started", {
       userId,
       selectOptions,
     });
 
     this.logger.debug("Retrieving user with options: ", {
+      userId,
+      selectOptions,
+    });
+
+    const log = this.logger.performance(`User retrieval`, {
       userId,
       selectOptions,
     });
@@ -100,10 +102,8 @@ export class UserService {
     });
 
     if (!user) {
-      const operationTime = Date.now() - startTime;
       this.logger.trace(`User not found: ${userId}`, {
         userId,
-        operationTime,
       });
       throw new ClientError(
         ClientResponse.USER_NOT_FOUND,
@@ -111,10 +111,7 @@ export class UserService {
       );
     }
 
-    const operationTime = Date.now() - startTime;
-    this.logger.performance(`User retrieval completed in ${operationTime}ms`, {
-      operationTime,
-      userId,
+    log.finish({
       hasAvatar: !!user.avatar,
       permissionCount: user.permissions?.length || 0,
     });
@@ -123,20 +120,18 @@ export class UserService {
   }
 
   public async create(data: RegisterUser) {
-    const startTime = Date.now();
     this.logger.trace("User creation started", {
       email: data.email,
       username: data.username,
     });
 
+    const log = this.logger.performance(`User creation`, {
+      email: data.email,
+      username: data.username,
+    });
     const user = await this.userRepository.create(data);
 
-    const operationTime = Date.now() - startTime;
-    this.logger.performance(`User creation completed in ${operationTime}ms`, {
-      operationTime,
-      userId: user.id,
-      email: user.email,
-    });
+    log.finish();
 
     this.logger.audit(`New user created: ${user.email}`, {
       userId: user.id,
@@ -189,7 +184,6 @@ export class UserService {
    * User deletion logic
    */
   private async performDelete(userId: number) {
-    const startTime = Date.now();
     this.logger.trace("User deletion started", {
       userId,
     });
@@ -200,24 +194,22 @@ export class UserService {
     });
 
     if (!user || user.is_deleted) {
-      const operationTime = Date.now() - startTime;
       this.logger.warn(
         `User deletion failed - ${user ? "already deleted" : "not found"}`,
         {
           userId,
-          operationTime,
         }
       );
       throw new ClientError(ClientResponse.USER_NOT_FOUND);
     }
 
-    const result = await this.userRepository.delete(user);
-
-    const operationTime = Date.now() - startTime;
-    this.logger.performance(`User deletion completed in ${operationTime}ms`, {
-      operationTime,
+    const log = this.logger.performance(`User deletion`, {
       userId,
     });
+
+    const result = await this.userRepository.delete(user);
+
+    log.finish();
 
     this.logger.audit(`User deleted: ${userId}`, {
       userId,
@@ -234,7 +226,6 @@ export class UserService {
     user: User,
     updateUserData: UpdateUserDTO
   ): Promise<UserDTO> {
-    const startTime = Date.now();
     this.logger.trace("User update started", {
       userId: user.id,
       updateFields: Object.keys(updateUserData),
@@ -257,6 +248,11 @@ export class UserService {
       user.birthday = date;
     }
 
+    const log = this.logger.performance(`User update`, {
+      userId: user.id,
+      changedFields: Object.keys(updateUserData),
+    });
+
     await this.userRepository.update(user);
 
     if (updateData.avatar && updateData.avatar.id != previousAvatar?.id) {
@@ -271,11 +267,7 @@ export class UserService {
     // Emit user change event if notification service is available
     this.userNotificationRoomService.emitUserChange(updatedUserDTO);
 
-    const operationTime = Date.now() - startTime;
-    this.logger.performance(`User update completed in ${operationTime}ms`, {
-      operationTime,
-      userId: user.id,
-      changedFields: Object.keys(updateUserData),
+    log.finish({
       avatarChanged:
         updateData.avatar && updateData.avatar.id != previousAvatar?.id,
     });

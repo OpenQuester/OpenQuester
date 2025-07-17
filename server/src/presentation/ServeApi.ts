@@ -66,14 +66,16 @@ export class ServeApi {
       prefix: "[ServeApi]: ",
     });
 
+    const log = this._context.logger.performance(`API initialization`, {
+      prefix: "[ServeApi]: ",
+    });
+
     try {
       // Load session configuration
-      const sessionStartTime = Date.now();
       await this._context.env.loadSessionConfig(
         SESSION_SECRET_LENGTH,
         this._redis
       );
-      const sessionTime = Date.now() - sessionStartTime;
 
       // Build database connection
       await this._db.build();
@@ -109,19 +111,12 @@ export class ServeApi {
       const controllersTime = Date.now() - controllersStartTime;
       this._app.use(errorMiddleware(this._context.logger));
 
-      const totalInitTime = Date.now() - initStartTime;
-      this._context.logger.performance(
-        `API initialization completed in ${totalInitTime}ms`,
-        {
-          prefix: "[ServeApi]: ",
-          totalInitTime,
-          sessionTime,
-          middlewareTime,
-          diTime,
-          jobsTime,
-          controllersTime,
-        }
-      );
+      log.finish({
+        middlewareTime,
+        diTime,
+        jobsTime,
+        controllersTime,
+      });
     } catch (err: unknown) {
       const failureTime = Date.now() - initStartTime;
       this._context.logger.error(

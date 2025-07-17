@@ -31,6 +31,11 @@ export interface LoggerConfig {
   logLevel?: CustomLevel;
 }
 
+// Performance logging interface
+export interface PerformanceLog {
+  finish(additionalMeta?: object): void;
+}
+
 // Updated to use custom levels
 export type LogLevel = CustomLevel;
 // Custom log methods for our custom levels
@@ -72,6 +77,44 @@ async function ensureLogDirs(paths: string[]): Promise<void> {
         );
       }
     }
+  }
+}
+
+/**
+ * Implementation of performance logging that tracks execution time
+ */
+class PerformanceLogImpl implements PerformanceLog {
+  private readonly startTime: number;
+  private readonly logger: PinoLogger;
+  private readonly message: string;
+  private readonly meta?: object;
+
+  constructor(logger: PinoLogger, message: string, meta?: object) {
+    this.startTime = Date.now();
+    this.logger = logger;
+    this.message = message;
+    this.meta = meta;
+  }
+
+  public finish(additionalMeta?: object): void {
+    const endTime = Date.now();
+    const elapsedMs = endTime - this.startTime;
+    const elapsedTime = this.formatElapsedTime(elapsedMs);
+
+    const completedMessage = `${this.message} completed in ${elapsedTime}`;
+    this.logger.log(LogType.PERFORMANCE, completedMessage, {
+      ...(this.meta ? this.meta : {}),
+      ...(additionalMeta ? additionalMeta : {}),
+    });
+  }
+
+  private formatElapsedTime(milliseconds: number): string {
+    if (milliseconds > 1000) {
+      this.logger.warn(
+        `Performance log took longer than 1 second: ${milliseconds}ms`
+      );
+    }
+    return `${milliseconds}ms`;
   }
 }
 
@@ -283,8 +326,8 @@ export class PinoLogger implements ILogger {
     this.log(LogType.AUDIT, msg, meta);
   }
 
-  public performance(msg: string, meta?: object): void {
-    this.log(LogType.PERFORMANCE, msg, meta);
+  public performance(msg: string, meta?: object): PerformanceLog {
+    return new PerformanceLogImpl(this, msg, meta);
   }
 
   public migration(msg: string, meta?: object): void {

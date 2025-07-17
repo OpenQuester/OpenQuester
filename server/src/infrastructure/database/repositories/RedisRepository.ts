@@ -48,11 +48,15 @@ export class RedisRepository {
    * @param expire expire time in milliseconds
    */
   public async set(key: string, value: string, expire?: number): Promise<void> {
-    const startTime = Date.now();
     this.logger.trace(`Redis SET operation started for key: ${key}`, {
       prefix: "[REDIS]: ",
       key,
       hasExpire: !!expire,
+    });
+
+    const log = this.logger.performance(`Redis SET`, {
+      key,
+      expire: expire ?? null,
     });
 
     if (expire) {
@@ -61,14 +65,7 @@ export class RedisRepository {
       await this._client.set(key, value);
     }
 
-    const operationTime = Date.now() - startTime;
-    this.logger.performance(`Redis SET completed in ${operationTime}ms`, {
-      prefix: "[REDIS]: ",
-      operationTime,
-      key,
-      valueLength: value.length,
-      expire,
-    });
+    log.finish();
   }
 
   /**
@@ -116,9 +113,13 @@ export class RedisRepository {
     keyPattern: string,
     logEntity: string
   ): Promise<void> {
-    const startTime = Date.now();
     this.logger.trace(`Redis cleanup started for pattern: ${keyPattern}`, {
       prefix: "[REDIS]: ",
+      keyPattern,
+      logEntity,
+    });
+
+    const log = this.logger.performance(`Redis cleanup`, {
       keyPattern,
       logEntity,
     });
@@ -128,40 +129,21 @@ export class RedisRepository {
       if (keys.length > 0) {
         await this.delMultiple(keys);
 
-        const operationTime = Date.now() - startTime;
-        this.logger.performance(
-          `Redis cleanup completed in ${operationTime}ms`,
-          {
-            prefix: "[REDIS]: ",
-            operationTime,
-            keysDeleted: keys.length,
-            keyPattern,
-          }
-        );
         this.logger.info(`Cleaned up ${keys.length} ${logEntity}(s)`, {
           prefix: "[REDIS]: ",
         });
       } else {
-        const operationTime = Date.now() - startTime;
-        this.logger.performance(
-          `Redis cleanup scan completed in ${operationTime}ms - no keys found`,
-          {
-            prefix: "[REDIS]: ",
-            operationTime,
-            keyPattern,
-          }
-        );
         this.logger.info(`No ${logEntity}s to clean up`, {
           prefix: "[REDIS]: ",
         });
       }
     } catch (err: any) {
-      const operationTime = Date.now() - startTime;
       this.logger.error(`Failed to clean up ${logEntity}(s): ${err.message}`, {
         prefix: "[REDIS]: ",
-        operationTime,
         errorMessage: err.message,
       });
+    } finally {
+      log.finish();
     }
   }
 
@@ -189,11 +171,15 @@ export class RedisRepository {
   }
 
   public async get(key: string, updateTtl?: number): Promise<string | null> {
-    const startTime = Date.now();
     this.logger.trace(`Redis GET operation started for key: ${key}`, {
       prefix: "[REDIS]: ",
       key,
       updateTtl,
+    });
+
+    const log = this.logger.performance(`Redis GET`, {
+      key,
+      updateTtl: updateTtl ?? null,
     });
 
     const value = await this._client.get(key);
@@ -202,15 +188,7 @@ export class RedisRepository {
       await this.expire(key, updateTtl);
     }
 
-    const operationTime = Date.now() - startTime;
-    const cacheHit = value !== null;
-    this.logger.performance(`Redis GET completed in ${operationTime}ms`, {
-      prefix: "[REDIS]: ",
-      operationTime,
-      key,
-      cacheHit,
-      valueLength: value?.length || 0,
-    });
+    log.finish();
 
     return value;
   }

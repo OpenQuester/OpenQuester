@@ -82,8 +82,8 @@ export class AuthRestApiController {
   };
 
   private handleOauthLogin = async (req: Request, res: Response) => {
-    const startTime = Date.now();
     const clientIp = req.ip;
+    const log = this.logger.performance(`OAuth login`);
 
     this.logger.trace("OAuth login attempt started", {
       prefix: "[AUTH]: ",
@@ -110,26 +110,16 @@ export class AuthRestApiController {
 
         req.session.save((err) => {
           if (err) {
-            const operationTime = Date.now() - startTime;
             this.logger.error(`Session save error: ${err}`, {
               prefix: "[AUTH]: ",
-              operationTime,
               userId: userData?.id,
               clientIp,
             });
+            log.finish();
             throw new ClientError(ClientResponse.SESSION_SAVING_ERROR);
           }
 
-          const operationTime = Date.now() - startTime;
-          this.logger.performance(
-            `OAuth login completed in ${operationTime}ms`,
-            {
-              prefix: "[AUTH]: ",
-              operationTime,
-              userId: userData?.id,
-              provider: authDTO.oauthProvider,
-            }
-          );
+          log.finish();
 
           this.logger.audit(`User logged in via ${authDTO.oauthProvider}`, {
             userId: userData?.id,
@@ -157,7 +147,7 @@ export class AuthRestApiController {
   };
 
   private logout = async (req: Request, res: Response) => {
-    const startTime = Date.now();
+    const log = this.logger.performance(`User logout`);
     const sessionId = req.sessionID;
     const userId = req.session.userId;
     const clientIp = req.ip;
@@ -171,14 +161,13 @@ export class AuthRestApiController {
 
     req.session.destroy(async (err) => {
       if (err) {
-        const operationTime = Date.now() - startTime;
         this.logger.error(`Session destroy error: ${err}`, {
           prefix: "[AUTH]: ",
-          operationTime,
           userId,
           sessionId,
           clientIp,
         });
+        log.finish();
         throw new ServerError(
           ServerResponse.UNABLE_TO_DESTROY_SESSION,
           HttpStatus.INTERNAL,
@@ -192,13 +181,7 @@ export class AuthRestApiController {
       await this.redisService.del(`session:${sessionId}`);
       res.clearCookie("connect.sid");
 
-      const operationTime = Date.now() - startTime;
-      this.logger.performance(`User logout completed in ${operationTime}ms`, {
-        prefix: "[AUTH]: ",
-        operationTime,
-        userId,
-        sessionId,
-      });
+      log.finish();
 
       this.logger.audit(`User logged out`, {
         userId,

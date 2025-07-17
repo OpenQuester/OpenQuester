@@ -29,15 +29,14 @@ export class GameService {
     gameId: string,
     updatedTtl?: number
   ): Promise<GameListItemDTO> {
-    const startTime = Date.now();
-    const game = await this.gameRepository.getGame(gameId, updatedTtl);
-    const operationTime = Date.now() - startTime;
-
-    this.logger.performance(`Game retrieval completed in ${operationTime}ms`, {
-      operationTime,
+    const log = this.logger.performance(`Game retrieval`, {
       gameId,
       updatedTtl,
     });
+
+    const game = await this.gameRepository.getGame(gameId, updatedTtl);
+
+    log.finish();
 
     return game;
   }
