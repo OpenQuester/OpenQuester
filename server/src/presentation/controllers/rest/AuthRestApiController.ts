@@ -82,6 +82,15 @@ export class AuthRestApiController {
   };
 
   private handleOauthLogin = async (req: Request, res: Response) => {
+    const clientIp = req.ip;
+    const log = this.logger.performance(`OAuth login`);
+
+    this.logger.trace("OAuth login attempt started", {
+      prefix: "[AUTH]: ",
+      clientIp,
+      userAgent: req.get("User-Agent"),
+    });
+
     const authDTO = new RequestDataValidator<Oauth2LoginDTO>(
       req.body,
       Joi.object({
@@ -103,22 +112,62 @@ export class AuthRestApiController {
           if (err) {
             this.logger.error(`Session save error: ${err}`, {
               prefix: "[AUTH]: ",
+              userId: userData?.id,
+              clientIp,
             });
+            log.finish();
             throw new ClientError(ClientResponse.SESSION_SAVING_ERROR);
           }
+
+          log.finish();
+
+          this.logger.audit(`User logged in via ${authDTO.oauthProvider}`, {
+            userId: userData?.id,
+            email: userData?.email,
+            provider: authDTO.oauthProvider,
+            clientIp,
+            userAgent: req.get("User-Agent"),
+            loginTime: new Date(),
+          });
 
           res.status(HttpStatus.OK).json(userData);
         });
         break;
       default:
+        this.logger.warn(
+          `Unsupported OAuth provider: ${authDTO.oauthProvider}`,
+          {
+            prefix: "[AUTH]: ",
+            provider: authDTO.oauthProvider,
+            clientIp,
+          }
+        );
         throw new ClientError(ClientResponse.OAUTH_PROVIDER_NOT_SUPPORTED);
     }
   };
 
   private logout = async (req: Request, res: Response) => {
+    const log = this.logger.performance(`User logout`);
     const sessionId = req.sessionID;
+    const userId = req.session.userId;
+    const clientIp = req.ip;
+
+    this.logger.trace("User logout started", {
+      prefix: "[AUTH]: ",
+      userId,
+      sessionId,
+      clientIp,
+    });
+
     req.session.destroy(async (err) => {
       if (err) {
+        this.logger.error(`Session destroy error: ${err}`, {
+          prefix: "[AUTH]: ",
+          userId,
+          sessionId,
+          clientIp,
+        });
+        log.finish();
         throw new ServerError(
           ServerResponse.UNABLE_TO_DESTROY_SESSION,
           HttpStatus.INTERNAL,
@@ -131,6 +180,16 @@ export class AuthRestApiController {
 
       await this.redisService.del(`session:${sessionId}`);
       res.clearCookie("connect.sid");
+
+      log.finish();
+
+      this.logger.audit(`User logged out`, {
+        userId,
+        sessionId,
+        clientIp,
+        userAgent: req.get("User-Agent"),
+        logoutTime: new Date(),
+      });
 
       res.status(HttpStatus.OK).json({
         message: await ts.localize(ClientResponse.LOGOUT_SUCCESS, req.headers),

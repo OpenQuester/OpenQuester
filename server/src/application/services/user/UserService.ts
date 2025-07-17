@@ -33,7 +33,15 @@ export class UserService {
   public async list(
     paginationOpts: PaginationOptsBase<User>
   ): Promise<PaginatedResult<UserDTO[]>> {
+    this.logger.trace("User listing started", {
+      paginationOpts,
+    });
+
     this.logger.debug("Users listing with pagination options: ", {
+      paginationOpts,
+    });
+
+    const log = this.logger.performance(`User listing`, {
       paginationOpts,
     });
 
@@ -49,6 +57,8 @@ export class UserService {
     const usersData: UserDTO[] = usersListPaginated.data.map((user) =>
       user.toDTO()
     );
+
+    log.finish({ usersData });
 
     return { data: usersData, pageInfo: usersListPaginated.pageInfo };
   }
@@ -67,7 +77,17 @@ export class UserService {
     userId: number,
     selectOptions?: SelectOptions<User>
   ): Promise<User> {
+    this.logger.trace("User retrieval started", {
+      userId,
+      selectOptions,
+    });
+
     this.logger.debug("Retrieving user with options: ", {
+      userId,
+      selectOptions,
+    });
+
+    const log = this.logger.performance(`User retrieval`, {
       userId,
       selectOptions,
     });
@@ -82,17 +102,44 @@ export class UserService {
     });
 
     if (!user) {
+      this.logger.trace(`User not found: ${userId}`, {
+        userId,
+      });
       throw new ClientError(
         ClientResponse.USER_NOT_FOUND,
         HttpStatus.NOT_FOUND
       );
     }
 
+    log.finish({
+      hasAvatar: !!user.avatar,
+      permissionCount: user.permissions?.length || 0,
+    });
+
     return user;
   }
 
   public async create(data: RegisterUser) {
-    return this.userRepository.create(data);
+    this.logger.trace("User creation started", {
+      email: data.email,
+      username: data.username,
+    });
+
+    const log = this.logger.performance(`User creation`, {
+      email: data.email,
+      username: data.username,
+    });
+    const user = await this.userRepository.create(data);
+
+    log.finish();
+
+    this.logger.audit(`New user created: ${user.email}`, {
+      userId: user.id,
+      email: user.email,
+      username: user.username,
+    });
+
+    return user;
   }
 
   public async find(
@@ -137,16 +184,39 @@ export class UserService {
    * User deletion logic
    */
   private async performDelete(userId: number) {
+    this.logger.trace("User deletion started", {
+      userId,
+    });
+
     const user = await this.userRepository.get(userId, {
       select: ["id", "is_deleted"],
       relations: [],
     });
 
     if (!user || user.is_deleted) {
+      this.logger.warn(
+        `User deletion failed - ${user ? "already deleted" : "not found"}`,
+        {
+          userId,
+        }
+      );
       throw new ClientError(ClientResponse.USER_NOT_FOUND);
     }
 
-    return this.userRepository.delete(user);
+    const log = this.logger.performance(`User deletion`, {
+      userId,
+    });
+
+    const result = await this.userRepository.delete(user);
+
+    log.finish();
+
+    this.logger.audit(`User deleted: ${userId}`, {
+      userId,
+      deletedAt: new Date(),
+    });
+
+    return result;
   }
 
   /**
@@ -156,6 +226,11 @@ export class UserService {
     user: User,
     updateUserData: UpdateUserDTO
   ): Promise<UserDTO> {
+    this.logger.trace("User update started", {
+      userId: user.id,
+      updateFields: Object.keys(updateUserData),
+    });
+
     const updateData = updateUserData;
 
     user.username = updateData.username ?? user.username;
@@ -173,6 +248,11 @@ export class UserService {
       user.birthday = date;
     }
 
+    const log = this.logger.performance(`User update`, {
+      userId: user.id,
+      changedFields: Object.keys(updateUserData),
+    });
+
     await this.userRepository.update(user);
 
     if (updateData.avatar && updateData.avatar.id != previousAvatar?.id) {
@@ -186,6 +266,17 @@ export class UserService {
 
     // Emit user change event if notification service is available
     this.userNotificationRoomService.emitUserChange(updatedUserDTO);
+
+    log.finish({
+      avatarChanged:
+        updateData.avatar && updateData.avatar.id != previousAvatar?.id,
+    });
+
+    this.logger.audit(`User updated: ${user.id}`, {
+      userId: user.id,
+      changedFields: Object.keys(updateUserData),
+      updatedAt: user.updated_at,
+    });
 
     return updatedUserDTO;
   }

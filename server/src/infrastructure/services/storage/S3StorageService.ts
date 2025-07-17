@@ -120,6 +120,17 @@ export class S3StorageService {
     cdnLink: string,
     filename: string
   ): Promise<any> {
+    this.logger.trace(`Discord file upload started for ${filename}`, {
+      prefix: "[S3StorageService]: ",
+      cdnLink,
+      filename,
+    });
+
+    const log = this.logger.performance(`Discord file upload`, {
+      cdnLink,
+      filename,
+    });
+
     return new Promise((resolve) => {
       https
         .get(cdnLink, (res) => {
@@ -128,8 +139,10 @@ export class S3StorageService {
               `Failed to fetch file from CDN (${cdnLink}): ${res.statusCode}`,
               {
                 prefix: "[S3StorageService]: ",
+                statusCode: res.statusCode,
               }
             );
+            log.finish();
             resolve(false);
             return;
           }
@@ -154,6 +167,7 @@ export class S3StorageService {
 
             try {
               await this._client.send(command);
+
               resolve(md5Hash);
             } catch (err) {
               this.logger.error(
@@ -163,9 +177,12 @@ export class S3StorageService {
                 }),
                 {
                   prefix: "[S3StorageService]: ",
+                  errorMessage: err,
                 }
               );
               resolve(false);
+            } finally {
+              log.finish();
             }
           });
         })
@@ -177,6 +194,7 @@ export class S3StorageService {
             }),
             {
               prefix: "[S3StorageService]: ",
+              errorMessage: err,
             }
           );
           resolve(false);

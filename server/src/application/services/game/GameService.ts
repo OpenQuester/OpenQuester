@@ -13,12 +13,14 @@ import { GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { GameRepository } from "infrastructure/database/repositories/GameRepository";
+import { ILogger } from "infrastructure/logger/ILogger";
 
 export class GameService {
   constructor(
     private readonly io: IOServer,
     private readonly gameRepository: GameRepository,
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -27,7 +29,16 @@ export class GameService {
     gameId: string,
     updatedTtl?: number
   ): Promise<GameListItemDTO> {
-    return this.gameRepository.getGame(gameId, updatedTtl);
+    const log = this.logger.performance(`Game retrieval`, {
+      gameId,
+      updatedTtl,
+    });
+
+    const game = await this.gameRepository.getGame(gameId, updatedTtl);
+
+    log.finish();
+
+    return game;
   }
 
   public async getGameEntity(

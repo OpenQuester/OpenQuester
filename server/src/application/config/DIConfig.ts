@@ -261,7 +261,8 @@ export class DIConfig {
       new GameService(
         Container.get<IOServer>(CONTAINER_TYPES.IO),
         Container.get<GameRepository>(CONTAINER_TYPES.GameRepository),
-        Container.get<UserService>(CONTAINER_TYPES.UserService)
+        Container.get<UserService>(CONTAINER_TYPES.UserService),
+        this.logger
       ),
       "service"
     );

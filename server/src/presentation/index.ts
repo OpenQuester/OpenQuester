@@ -150,7 +150,7 @@ async function gracefulShutdown(
   await ctx.db.disconnect();
   await ctx.io.close();
   await RedisConfig.disconnect();
-  logger.warn("Server closed gracefully");
+  logger.info("Server closed gracefully");
   await logger.close();
   process.exit(0);
 }

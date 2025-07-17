@@ -48,11 +48,24 @@ export class RedisRepository {
    * @param expire expire time in milliseconds
    */
   public async set(key: string, value: string, expire?: number): Promise<void> {
+    this.logger.trace(`Redis SET operation started for key: ${key}`, {
+      prefix: "[REDIS]: ",
+      key,
+      hasExpire: !!expire,
+    });
+
+    const log = this.logger.performance(`Redis SET`, {
+      key,
+      expire: expire ?? null,
+    });
+
     if (expire) {
       await this._client.set(key, value, "PX", expire);
     } else {
       await this._client.set(key, value);
     }
+
+    log.finish();
   }
 
   /**
@@ -100,10 +113,22 @@ export class RedisRepository {
     keyPattern: string,
     logEntity: string
   ): Promise<void> {
+    this.logger.trace(`Redis cleanup started for pattern: ${keyPattern}`, {
+      prefix: "[REDIS]: ",
+      keyPattern,
+      logEntity,
+    });
+
+    const log = this.logger.performance(`Redis cleanup`, {
+      keyPattern,
+      logEntity,
+    });
+
     try {
       const keys = await this.scan(keyPattern);
       if (keys.length > 0) {
         await this.delMultiple(keys);
+
         this.logger.info(`Cleaned up ${keys.length} ${logEntity}(s)`, {
           prefix: "[REDIS]: ",
         });
@@ -115,7 +140,10 @@ export class RedisRepository {
     } catch (err: any) {
       this.logger.error(`Failed to clean up ${logEntity}(s): ${err.message}`, {
         prefix: "[REDIS]: ",
+        errorMessage: err.message,
       });
+    } finally {
+      log.finish();
     }
   }
 
@@ -143,10 +171,25 @@ export class RedisRepository {
   }
 
   public async get(key: string, updateTtl?: number): Promise<string | null> {
+    this.logger.trace(`Redis GET operation started for key: ${key}`, {
+      prefix: "[REDIS]: ",
+      key,
+      updateTtl,
+    });
+
+    const log = this.logger.performance(`Redis GET`, {
+      key,
+      updateTtl: updateTtl ?? null,
+    });
+
     const value = await this._client.get(key);
+
     if (updateTtl && value !== null && !ValueUtils.isEmpty(value)) {
       await this.expire(key, updateTtl);
     }
+
+    log.finish();
+
     return value;
   }
 

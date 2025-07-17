@@ -9,7 +9,7 @@ import { ApiContext } from "application/context/ApiContext";
 import { ClientError } from "domain/errors/ClientError";
 import { EnvType } from "infrastructure/config/Environment";
 import { verifySession } from "presentation/middleware/authMiddleware";
-import { logMiddleware } from "presentation/middleware/log/debugLogMiddleware";
+import { performanceLogMiddleware } from "presentation/middleware/log/performanceLogMiddleware";
 
 const CORS_PREFIX = "[CORS]: ";
 
@@ -76,7 +76,7 @@ export class MiddlewareController {
       })
     );
     this.ctx.app.disable("x-powered-by");
-    this.ctx.app.use(logMiddleware(this.ctx.env, this.ctx.logger));
+    this.ctx.app.use(performanceLogMiddleware(this.ctx.logger));
 
     // Trust first proxy to enable secure cookies
     this.ctx.app.set("trust proxy", 1);
