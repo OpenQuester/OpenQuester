@@ -148,6 +148,8 @@ export class Game {
       playerData.gameStatus = PlayerGameStatus.IN_GAME;
       playerData.role = role;
       playerData.gameSlot = slotIdx;
+      // Always update meta with current user data
+      playerData.updateMeta(meta);
       return playerData;
     }
 
