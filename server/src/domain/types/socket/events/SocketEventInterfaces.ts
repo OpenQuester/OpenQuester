@@ -8,6 +8,7 @@ import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameJoinMeta } from "domain/types/socket/events/game/GameJoinMeta";
 
@@ -78,4 +79,11 @@ export interface ChatMessageBroadcastData {
   timestamp: Date;
   user: number;
   message: string;
+}
+
+/**
+ * User notification event interfaces
+ */
+export interface UserChangeBroadcastData {
+  userData: UserDTO;
 }

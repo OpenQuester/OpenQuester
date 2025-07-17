@@ -2261,6 +2261,22 @@
           }
         ]
       },
+      "SocketIOUserChangeEventPayload": {
+        "type": "object",
+        "description": "Data sent to subscribed players when a user's information is updated",
+        "properties": {
+          "userData": {
+            "$ref": "#/components/schemas/ResponseUser"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "examples": ["2024-01-01T00:00:00Z"],
+            "description": "When the user change occurred"
+          }
+        },
+        "required": ["userData", "timestamp"]
+      },
       "SocketIONextRoundEventPayload": {
         "type": "object",
         "properties": {
@@ -2496,6 +2512,11 @@
         "type": "string",
         "enum": ["error", "disconnect", "connection", "games", "chat-message"],
         "examples": ["error"]
+      },
+      "SocketIOUserReceiveEvents": {
+        "type": "string",
+        "enum": ["user-change"],
+        "examples": ["user-change"]
       },
       "SocketIOGameSendEvents": {
         "type": "string",

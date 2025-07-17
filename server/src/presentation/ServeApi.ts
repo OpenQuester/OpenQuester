@@ -13,6 +13,7 @@ import { FinalRoundService } from "application/services/socket/FinalRoundService
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { UserService } from "application/services/user/UserService";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
@@ -140,6 +141,9 @@ export class ServeApi {
       io: Container.get<IOServer>(CONTAINER_TYPES.IO),
       redisService: Container.get<RedisService>(CONTAINER_TYPES.RedisService),
       fileService: Container.get<FileService>(CONTAINER_TYPES.FileService),
+      userNotificationRoomService: Container.get<UserNotificationRoomService>(
+        CONTAINER_TYPES.UserNotificationRoomService
+      ),
     };
 
     // REST
@@ -180,8 +184,9 @@ export class ServeApi {
       deps.socketIOGameService,
       deps.socketIOChatService,
       deps.socketUserDataService,
-      deps.finalRoundService,
       deps.socketIOQuestionService,
+      deps.finalRoundService,
+      deps.userNotificationRoomService,
       this._context.logger
     );
   }

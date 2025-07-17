@@ -1,6 +1,7 @@
 import { Socket } from "socket.io";
 
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
+import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -23,7 +24,8 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
-    private readonly socketIOGameService: SocketIOGameService
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly userNotificationRoomService: UserNotificationRoomService
   ) {
     super(socket, eventEmitter, logger);
   }
@@ -88,10 +90,38 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
   }
 
   protected override async afterBroadcast(
-    _result: SocketEventResult<GameLeaveBroadcastData>,
+    result: SocketEventResult<GameLeaveBroadcastData>,
     context: SocketEventContext
   ): Promise<void> {
     if (context.gameId) {
+      // Get game state before leaving to get player list
+      try {
+        const game = await this.socketIOGameService.getGameEntity(
+          context.gameId
+        );
+        const allPlayerIds = game.players.map((p) => p.meta.id);
+
+        // Unsubscribe from all other players' notification rooms
+        await this.userNotificationRoomService.unsubscribeFromMultipleUserNotifications(
+          this.socket.id,
+          allPlayerIds
+        );
+
+        // Unsubscribe all remaining players from this user's notification room
+        if (result.data && result.data.user !== -1) {
+          await this.userNotificationRoomService.unsubscribeGameFromUserNotifications(
+            context.gameId,
+            result.data.user
+          );
+        }
+      } catch (error) {
+        // Game might not exist anymore, just clean up socket room
+        this.logger.error(
+          `Could not clean up user notification rooms for game ${context.gameId}: ${error}`,
+          { prefix: "[USER_NOTIFICATIONS]: " }
+        );
+      }
+
       await this.socket.leave(context.gameId);
     }
   }

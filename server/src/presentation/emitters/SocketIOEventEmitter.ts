@@ -2,6 +2,7 @@ import { SocketIOGameService } from "application/services/socket/SocketIOGameSer
 import {
   SocketIOEvents,
   SocketIOGameEvents,
+  SocketIOUserEvents,
 } from "domain/enums/SocketIOEvents";
 import { ServerError } from "domain/errors/ServerError";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
@@ -9,7 +10,7 @@ import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { Namespace, Server, Socket } from "socket.io";
 
-type IOEVent = SocketIOEvents | SocketIOGameEvents;
+type IOEVent = SocketIOEvents | SocketIOGameEvents | SocketIOUserEvents;
 
 export class SocketIOEventEmitter {
   private _io?: Namespace | Server;

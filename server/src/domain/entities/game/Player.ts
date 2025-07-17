@@ -4,7 +4,7 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerMeta } from "domain/types/socket/game/PlayerMeta";
 
 export class Player {
-  private readonly _meta: PlayerMeta;
+  private _meta: PlayerMeta;
   private _slot: number | null;
   private _role: PlayerRole;
   private _status: PlayerGameStatus;
@@ -31,6 +31,10 @@ export class Player {
       username: this._meta.username,
       avatar: this._meta.avatar ?? null,
     };
+  }
+
+  public updateMeta(meta: PlayerMeta): void {
+    this._meta = meta;
   }
 
   public toDTO(): PlayerDTO {

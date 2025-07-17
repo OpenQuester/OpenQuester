@@ -81,6 +81,7 @@ export const CONTAINER_TYPES = {
   SocketGameTimerService: Symbol("SocketGameTimerService"),
   SocketGameValidationService: Symbol("SocketGameValidationService"),
   SocketQuestionStateService: Symbol("SocketQuestionStateService"),
+  UserNotificationRoomService: Symbol("UserNotificationRoomService"),
 
   // Factories
   RoundHandlerFactory: Symbol("RoundHandlerFactory"),

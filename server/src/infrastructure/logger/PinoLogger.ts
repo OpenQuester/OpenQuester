@@ -1,23 +1,40 @@
 import fs from "fs";
 import path from "path";
-import pino, { Logger as PinoLoggerType } from "pino";
+import pino from "pino";
 import type SonicBoom from "sonic-boom";
 
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogType } from "infrastructure/logger/LogType";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+// Custom levels configuration for Pino
+export const customLevels = {
+  trace: 10, // LogType.VERBOSE
+  debug: 20, // LogType.DEBUG
+  info: 30, // LogType.INFO
+  warn: 40, // LogType.WARN
+  error: 50, // LogType.ERROR
+  audit: 60, // LogType.AUDIT
+  performance: 65, // LogType.PERFORMANCE
+  migration: 70, // LogType.MIGRATION
+} as const;
+
+export type CustomLevel = keyof typeof customLevels;
+
+// Custom logger type that extends Pino's Logger with custom level methods
+type CustomLogger = pino.Logger<CustomLevel>;
+
 // Configuration for log file paths
 export interface LoggerConfig {
   logPaths?: Partial<Record<LogType, string>>;
   pretty?: boolean;
-  logLevel?: "trace" | "debug" | "info" | "warn" | "error";
+  logLevel?: CustomLevel;
 }
 
-// Type-safe log method mapping
-export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
-// Only use Pino's supported log methods
-type LogMethod = "info" | "debug" | "error" | "warn" | "trace";
+// Updated to use custom levels
+export type LogLevel = CustomLevel;
+// Custom log methods for our custom levels
+type LogMethod = CustomLevel;
 
 const defaultLogDir = path.resolve(process.cwd(), "logs");
 const defaultLogPaths: Record<LogType, string> = {
@@ -59,8 +76,8 @@ async function ensureLogDirs(paths: string[]): Promise<void> {
 }
 
 export class PinoLogger implements ILogger {
-  private readonly loggers: Map<LogType, PinoLoggerType> = new Map();
-  private terminalLogger: PinoLoggerType | null = null;
+  private readonly loggers: Map<LogType, CustomLogger> = new Map();
+  private terminalLogger: CustomLogger | null = null;
   private fileStreams: SonicBoom[] = [];
   private initialized = false;
   private logLevel = (process.env.LOG_LEVEL as LogLevel) || "info";
@@ -116,27 +133,36 @@ export class PinoLogger implements ILogger {
   private initTerminalLogger(config: LoggerConfig): void {
     const logLevel = config.logLevel || "trace";
 
+    const pinoOptions = {
+      level: logLevel,
+      customLevels,
+      useOnlyCustomLevels: true,
+      formatters: {
+        level: (label: string) => ({ level: label }),
+      },
+    };
+
     if (config.pretty) {
-      // Use pino-pretty for terminal output
+      // Use pino-pretty for terminal output with custom level names
       this.terminalLogger = pino({
-        level: logLevel,
+        ...pinoOptions,
         transport: {
           target: "pino-pretty",
           options: {
             colorize: true,
             translateTime: "SYS:standard",
             ignore: "pid,hostname",
+            customLevels:
+              "trace:10,debug:20,info:30,warn:40,error:50,audit:60,performance:65,migration:70",
+            useOnlyCustomProps: true,
+            customColors:
+              "trace:dim,debug:cyan,info:green,warn:yellow,error:red,audit:magenta,performance:blue,migration:brightWhite",
           },
         },
-      });
+      }) as CustomLogger;
     } else {
       // Plain terminal logger
-      this.terminalLogger = pino({
-        level: logLevel,
-        formatters: {
-          level: (label) => ({ level: label }),
-        },
-      });
+      this.terminalLogger = pino(pinoOptions) as CustomLogger;
     }
   }
 
@@ -154,13 +180,15 @@ export class PinoLogger implements ILogger {
 
         const fileLogger = pino(
           {
-            level: this.getPinoLevel(type),
+            level: this.getCustomLevel(type),
+            customLevels,
+            useOnlyCustomLevels: true,
             formatters: {
-              level: (label) => ({ level: label }),
+              level: (label: string) => ({ level: label }),
             },
           },
           stream
-        );
+        ) as CustomLogger;
 
         this.loggers.set(type, fileLogger);
       } catch (error) {
@@ -172,40 +200,24 @@ export class PinoLogger implements ILogger {
     }
   }
 
-  private getPinoLevel(type: LogType): string {
-    const levelMap: Record<LogType, string> = {
+  private getCustomLevel(type: LogType): CustomLevel {
+    const levelMap: Record<LogType, CustomLevel> = {
       [LogType.ERROR]: "error",
       [LogType.WARN]: "warn",
       [LogType.DEBUG]: "debug",
       [LogType.VERBOSE]: "trace",
       [LogType.INFO]: "info",
-      [LogType.AUDIT]: "info",
-      [LogType.PERFORMANCE]: "info",
-      [LogType.MIGRATION]: "info",
+      [LogType.AUDIT]: "audit",
+      [LogType.PERFORMANCE]: "performance",
+      [LogType.MIGRATION]: "migration",
     };
 
     return levelMap[type] || "info";
   }
 
   private getLogMethod(type: LogType): LogMethod {
-    // Map LogType.VERBOSE to 'trace' for Pino
-    switch (type) {
-      case LogType.ERROR:
-        return "error";
-      case LogType.WARN:
-        return "warn";
-      case LogType.DEBUG:
-        return "debug";
-      case LogType.VERBOSE:
-        return "trace";
-      case LogType.INFO:
-      case LogType.AUDIT:
-      case LogType.PERFORMANCE:
-      case LogType.MIGRATION:
-        return "info";
-      default:
-        return "info";
-    }
+    // Map LogType to custom level names
+    return this.getCustomLevel(type);
   }
 
   private ensureInitialized(): void {
@@ -290,9 +302,9 @@ export class PinoLogger implements ILogger {
       [LogType.DEBUG]: "debug",
       [LogType.VERBOSE]: "trace",
       [LogType.INFO]: "info",
-      [LogType.AUDIT]: "info", // audit, performance, migration are info-level
-      [LogType.PERFORMANCE]: "info",
-      [LogType.MIGRATION]: "info",
+      [LogType.AUDIT]: "audit",
+      [LogType.PERFORMANCE]: "performance",
+      [LogType.MIGRATION]: "migration",
     };
     const messageLevel = typeToLevel[type] || "info";
     const envLevel =
@@ -344,16 +356,15 @@ export class PinoLogger implements ILogger {
   }
 
   public checkAccess(logLevel: LogLevel, requiredLogLevel: LogLevel) {
-    // trace < debug < info < warn < error
-    const levels: LogLevel[] = ["trace", "debug", "info", "warn", "error"];
-    const logIndex = levels.indexOf(logLevel);
-    const requiredLogIndex = levels.indexOf(requiredLogLevel);
+    // Custom level hierarchy: trace(10) < debug(20) < info(30) < warn(40) < error(50) < audit(60) < performance(65) < migration(70)
+    const currentLevel = customLevels[logLevel];
+    const requiredLevel = customLevels[requiredLogLevel];
 
-    if (logIndex === -1 || requiredLogIndex === -1) {
+    if (currentLevel === undefined || requiredLevel === undefined) {
       return false;
     }
-    // Only log if the message is at or above the configured level
-    return logIndex <= requiredLogIndex;
+    // Only log if the message level is at or above the configured level
+    return currentLevel <= requiredLevel;
   }
 
   /**
@@ -392,13 +403,15 @@ export class PinoLogger implements ILogger {
         logger.fileStreams.push(stream);
         const fileLogger = pino(
           {
-            level: logger.getPinoLevel(type),
+            level: logger.getCustomLevel(type),
+            customLevels,
+            useOnlyCustomLevels: true,
             formatters: {
-              level: (label) => ({ level: label }),
+              level: (label: string) => ({ level: label }),
             },
           },
           stream
-        );
+        ) as CustomLogger;
         logger.loggers.set(type, fileLogger);
       } catch (error) {
         console.error(

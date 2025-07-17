@@ -142,6 +142,29 @@ export class SocketGameTestUtils {
     return { user, cookie };
   }
 
+  public async loginExistingUser(
+    app: Express,
+    userId: number
+  ): Promise<{ cookie: string }> {
+    // Login existing user by ID
+    const loginRes = await request(app).post("/v1/test/login").send({ userId });
+
+    if (loginRes.status !== 200) {
+      throw new Error(
+        `Failed to login existing user ${userId}: ${JSON.stringify(
+          loginRes.body
+        )}`
+      );
+    }
+
+    const cookie = loginRes.headers["set-cookie"];
+    if (!cookie || !Array.isArray(cookie)) {
+      throw new Error("No cookie received from login response");
+    }
+
+    return { cookie };
+  }
+
   private async authenticateSocket(
     app: Express,
     socket: GameClientSocket,
@@ -656,6 +679,43 @@ export class SocketGameTestUtils {
         timeoutId = null;
         socket.removeListener(event, handler);
         reject(new Error(`Timeout waiting for event: ${event}`));
+      };
+
+      timeoutId = setTimeout(onTimeout, timeout);
+      socket.once(event, handler);
+    });
+  }
+
+  /**
+   * Waits for a specified time to ensure that a specific event is NOT received.
+   * If the event is received, the promise rejects immediately.
+   * If the timeout completes without the event, the promise resolves successfully.
+   */
+  public async waitForNoEvent(
+    socket: GameClientSocket,
+    event: string,
+    timeout: number = 150
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let timeoutId: NodeJS.Timeout | null = null;
+
+      const handler = (data: any) => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+        socket.removeListener(event, handler);
+        reject(
+          new Error(
+            `Unexpected event received: ${event}. Data: ${JSON.stringify(data)}`
+          )
+        );
+      };
+
+      const onTimeout = () => {
+        timeoutId = null;
+        socket.removeListener(event, handler);
+        resolve(); // Success - no event was received
       };
 
       timeoutId = setTimeout(onTimeout, timeout);

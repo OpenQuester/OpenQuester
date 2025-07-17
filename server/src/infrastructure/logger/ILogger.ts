@@ -10,7 +10,6 @@ export interface ILogger {
   audit(msg: string, meta?: object): void;
   performance(msg: string, meta?: object): void;
   migration(msg: string, meta?: object): void;
-  // Add more as needed
   log(type: LogType, msg: string, meta?: object): void;
   checkAccess(logLevel: LogLevel, requiredLogLevel: LogLevel): boolean;
 }

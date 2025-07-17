@@ -4,6 +4,7 @@ import { FinalRoundService } from "application/services/socket/FinalRoundService
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { BaseSocketEventHandler } from "domain/handlers/socket/BaseSocketEventHandler";
 import { FinalAnswerReviewEventHandler } from "domain/handlers/socket/finalround/FinalAnswerReviewEventHandler";
 import { FinalAnswerSubmitEventHandler } from "domain/handlers/socket/finalround/FinalAnswerSubmitEventHandler";
@@ -35,8 +36,9 @@ export class SocketEventHandlerFactory {
     private readonly socketIOChatService: SocketIOChatService,
     private readonly socketUserDataService: SocketUserDataService,
     private readonly finalRoundService: FinalRoundService,
-    private readonly logger: ILogger,
-    private readonly socketIOQuestionService?: SocketIOQuestionService
+    private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly socketIOQuestionService: SocketIOQuestionService,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -55,13 +57,15 @@ export class SocketEventHandlerFactory {
         this.logger,
         this.socketIOGameService,
         this.socketIOChatService,
-        this.socketUserDataService
+        this.socketUserDataService,
+        this.userNotificationRoomService
       ),
       new LeaveGameEventHandler(
         socket,
         eventEmitter,
         this.logger,
-        this.socketIOGameService
+        this.socketIOGameService,
+        this.userNotificationRoomService
       ),
       new StartGameEventHandler(
         socket,

@@ -1,6 +1,7 @@
 import {
   SocketIOEvents,
   SocketIOGameEvents,
+  SocketIOUserEvents,
 } from "domain/enums/SocketIOEvents";
 import { ErrorController } from "domain/errors/ErrorController";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
@@ -40,7 +41,7 @@ export interface SocketEventResult<T = unknown> {
 }
 
 export interface SocketEventBroadcast<T = unknown> {
-  event: SocketIOEvents | SocketIOGameEvents;
+  event: SocketIOEvents | SocketIOGameEvents | SocketIOUserEvents;
   data: T;
   target?: SocketBroadcastTarget;
   gameId?: string;
@@ -163,7 +164,10 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
    * Get the event name this handler processes
    * Must be implemented by subclasses
    */
-  public abstract getEventName(): SocketIOEvents | SocketIOGameEvents;
+  public abstract getEventName():
+    | SocketIOEvents
+    | SocketIOGameEvents
+    | SocketIOUserEvents;
 
   /**
    * Handle broadcasting of events
@@ -264,7 +268,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
    */
   private logSuccess(context: SocketEventContext, duration: number): void {
     const eventName = this.getEventName();
-    this.logger.info(
+    this.logger.debug(
       `Socket event ${eventName} completed successfully | SocketId: ${context.socketId} | UserId: ${context.userId} | GameId: ${context.gameId} | Duration: ${duration}ms`,
       { prefix: "[SOCKET]: " }
     );
