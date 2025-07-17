@@ -46,7 +46,7 @@ export const performanceLogMiddleware =
         }
       );
 
-      // Log slow requests as warnings
+      // Log slow requests
       if (durationMs > 1000) {
         logger.warn(
           `Slow request detected: ${req.method} ${req.originalUrl} took ${durationMs}ms`,
@@ -61,9 +61,9 @@ export const performanceLogMiddleware =
         );
       }
 
-      // Log very slow requests as errors
+      // Log very slow requests
       if (durationMs > 5000) {
-        logger.error(
+        logger.warn(
           `Very slow request: ${req.method} ${req.originalUrl} took ${durationMs}ms`,
           {
             prefix: "[PERF]: ",
