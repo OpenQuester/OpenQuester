@@ -5,6 +5,7 @@ import { SocketGameValidationService } from "application/services/socket/SocketG
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserService } from "application/services/user/UserService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
+import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
@@ -37,6 +38,10 @@ export class SocketIOGameService {
     private readonly socketIOQuestionService: SocketIOQuestionService
   ) {
     //
+  }
+
+  public getGameEntity(gameId: string, updatedTTL?: number): Promise<Game> {
+    return this.gameService.getGameEntity(gameId, updatedTTL);
   }
 
   public async joinPlayer(

@@ -3,9 +3,13 @@ import { GAME_FINAL_ANSWER_TIME } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { ILogger } from "infrastructure/logger/ILogger";
 
 export class SocketQuestionStateService {
-  constructor(private readonly gameService: GameService) {
+  constructor(
+    private readonly gameService: GameService,
+    private readonly logger: ILogger
+  ) {
     //
   }
 
@@ -17,7 +21,14 @@ export class SocketQuestionStateService {
     questionState: QuestionState,
     opts?: { saveGame: boolean }
   ): Promise<Game | undefined> {
+    this.logger.trace("Updating question state", {
+      gameId: game.id,
+      currentState: game.gameState.questionState,
+      newState: questionState,
+    });
+
     if (game.gameState.questionState === questionState) {
+      // Ignore if already in desired state
       return;
     }
 
@@ -38,10 +49,18 @@ export class SocketQuestionStateService {
     durationMs: number,
     answeringPlayerId: number
   ): Promise<GameStateTimer> {
+    this.logger.debug("Setting up answering timer", {
+      gameId: game.id,
+      durationMs,
+      answeringPlayerId,
+    });
+
     const timer = new GameStateTimer(durationMs);
 
     game.gameState.answeringPlayer = answeringPlayerId;
-    game.gameState.questionState = QuestionState.ANSWERING;
+    await this.updateQuestionState(game, QuestionState.ANSWERING, {
+      saveGame: false,
+    });
     game.gameState.timer = timer.start();
 
     await this.gameService.updateGame(game);
@@ -58,6 +77,12 @@ export class SocketQuestionStateService {
     durationMs: number,
     questionState: QuestionState
   ): Promise<GameStateTimer> {
+    this.logger.debug("Setting up question timer", {
+      gameId: game.id,
+      durationMs,
+      questionState,
+    });
+
     const timer = new GameStateTimer(durationMs);
 
     await this.updateQuestionState(game, questionState, {

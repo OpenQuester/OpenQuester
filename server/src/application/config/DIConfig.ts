@@ -18,9 +18,11 @@ import { SocketIOChatService } from "application/services/socket/SocketIOChatSer
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { TranslateService } from "application/services/text/TranslateService";
 import { UserService } from "application/services/user/UserService";
 import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
+import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { RedisCache } from "infrastructure/cache/RedisCache";
@@ -185,16 +187,30 @@ export class DIConfig {
       new UserRepository(
         db.getRepository(User),
         Container.get<FileUsageService>(CONTAINER_TYPES.FileUsageService),
-        Container.get<UserCacheUseCase>(CONTAINER_TYPES.UserCacheUseCase)
+        Container.get<UserCacheUseCase>(CONTAINER_TYPES.UserCacheUseCase),
+        this.logger
       ),
       "repository"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.UserNotificationRoomService,
+      new UserNotificationRoomService(
+        Container.get<IOServer>(CONTAINER_TYPES.IO).of(SOCKET_GAME_NAMESPACE),
+        this.logger
+      ),
+      "service"
     );
 
     Container.register(
       CONTAINER_TYPES.UserService,
       new UserService(
         Container.get<UserRepository>(CONTAINER_TYPES.UserRepository),
-        Container.get<FileUsageService>(CONTAINER_TYPES.FileUsageService)
+        Container.get<FileUsageService>(CONTAINER_TYPES.FileUsageService),
+        Container.get<UserNotificationRoomService>(
+          CONTAINER_TYPES.UserNotificationRoomService
+        ),
+        this.logger
       ),
       "service"
     );
@@ -297,7 +313,8 @@ export class DIConfig {
     Container.register(
       CONTAINER_TYPES.SocketQuestionStateService,
       new SocketQuestionStateService(
-        Container.get<GameService>(CONTAINER_TYPES.GameService)
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        this.logger
       ),
       "service"
     );

@@ -6,6 +6,10 @@ export enum SocketIOEvents {
   CHAT_MESSAGE = "chat-message",
 }
 
+export enum SocketIOUserEvents {
+  USER_CHANGE = "user-change",
+}
+
 export enum SocketIOGameEvents {
   JOIN = "join",
   START = "start",

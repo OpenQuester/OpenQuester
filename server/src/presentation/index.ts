@@ -81,7 +81,7 @@ const main = async () => {
     connectTimeout: 45000,
     transports: ["websocket"],
   });
-  logger.debug("Now logger is async");
+
   const context = new ApiContext({
     db: Database.getInstance(AppDataSource, logger),
     // Overwrite to ensure that logger is async

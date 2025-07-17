@@ -2,6 +2,7 @@ import { Socket } from "socket.io";
 
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
+import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -31,7 +32,8 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     logger: ILogger,
     private readonly socketIOGameService: SocketIOGameService,
     private readonly socketIOChatService: SocketIOChatService,
-    private readonly socketUserDataService: SocketUserDataService
+    private readonly socketUserDataService: SocketUserDataService,
+    private readonly userNotificationRoomService: UserNotificationRoomService
   ) {
     super(socket, eventEmitter, logger);
   }
@@ -78,6 +80,11 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     data: GameJoinInputData,
     context: SocketEventContext
   ): Promise<SocketEventResult<GameJoinOutputData>> {
+    this.logger.debug(
+      `User ${this.socket.userId} joining game ${data.gameId}`,
+      { prefix: "[SOCKET]: " }
+    );
+
     const result = await this.socketIOGameService.joinPlayer(
       data,
       this.socket.id
@@ -90,6 +97,27 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
 
     // Join the socket room
     await this.socket.join(data.gameId);
+
+    // Subscribe to user notification rooms for all existing players
+    const existingPlayerIds = game.players
+      .filter((p) => p.meta.id !== player.meta.id) // Exclude the joining player
+      .map((p) => p.meta.id);
+
+    if (existingPlayerIds.length > 0) {
+      await this.userNotificationRoomService.subscribeToMultipleUserNotifications(
+        this.socket.id,
+        existingPlayerIds
+      );
+    }
+
+    // Subscribe all existing players to the new player's notification room
+    if (game.players.length > 1) {
+      // Only if there are other players
+      await this.userNotificationRoomService.subscribeGameToUserNotifications(
+        data.gameId,
+        player.meta.id
+      );
+    }
 
     // Prepare the response data
     const gameJoinData: GameJoinOutputData = {

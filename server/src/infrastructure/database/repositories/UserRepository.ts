@@ -13,12 +13,14 @@ import { RegisterUser } from "domain/types/user/RegisterUser";
 import { User } from "infrastructure/database/models/User";
 import { PaginatedResults } from "infrastructure/database/pagination/PaginatedResults";
 import { QueryBuilder } from "infrastructure/database/QueryBuilder";
+import { ILogger } from "infrastructure/logger/ILogger";
 
 export class UserRepository {
   constructor(
     private readonly repository: Repository<User>,
     private readonly fileUsageService: FileUsageService,
-    private readonly cache: UserCacheUseCase
+    private readonly cache: UserCacheUseCase,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -30,6 +32,9 @@ export class UserRepository {
     // Try cache first
     const cached = await this.cache.get(id, selectOptions);
     if (cached) {
+      this.logger.trace(`User ${id} cache hit`, {
+        prefix: "[USER_REPOSITORY]: ",
+      });
       const user = new User();
       user.import(cached);
       return user;
@@ -64,6 +69,12 @@ export class UserRepository {
     where: FindOptionsWhere<User>,
     selectOptions: SelectOptions<User>
   ) {
+    this.logger.trace("findOne for user with options: ", {
+      where,
+      selectOptions,
+      prefix: "[USER_REPOSITORY]: ",
+    });
+
     const qb = await QueryBuilder.buildFindQuery<User>(
       this.repository,
       where,
@@ -111,6 +122,11 @@ export class UserRepository {
   }
 
   public async create(data: RegisterUser) {
+    this.logger.debug(`Creating new user`, {
+      data,
+      prefix: "[USER_REPOSITORY]: ",
+    });
+
     const whereOpts: FindOptionsWhere<User>[] = [{ username: data.username }];
 
     if (data.email) {
@@ -154,15 +170,29 @@ export class UserRepository {
   }
 
   public async delete(user: User) {
+    this.logger.debug(`Deleting user ${user.id}`, {
+      prefix: "[USER_REPOSITORY]: ",
+    });
+
     user.is_deleted = true;
     user.updated_at = new Date();
     await this.cache.delete(user.id);
-    return this.update(user);
+    const updateResult = await this.update(user);
+
+    this.logger.audit(`User '${user.id} | ${user.email}' is deleted`, {
+      prefix: "[USER_REPOSITORY]: ",
+    });
+
+    return updateResult;
   }
 
   public async update(user: User) {
+    this.logger.debug(`Updating user ${user.id}`, {
+      prefix: "[USER_REPOSITORY]: ",
+    });
+
     await this.cache.delete(user.id);
-    return this.repository.update(
+    const updateResult = await this.repository.update(
       { id: user.id },
       {
         username: user.username,
@@ -172,5 +202,11 @@ export class UserRepository {
         is_deleted: user.is_deleted,
       }
     );
+
+    this.logger.audit(`User '${user.id} | ${user.email}' is updated`, {
+      prefix: "[USER_REPOSITORY]: ",
+    });
+
+    return updateResult;
   }
 }

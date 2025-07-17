@@ -2,6 +2,7 @@ import { type Request } from "express";
 import { FindOptionsWhere } from "typeorm";
 
 import { FileUsageService } from "application/services/file/FileUsageService";
+import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
@@ -14,12 +15,15 @@ import { SelectOptions } from "domain/types/SelectOptions";
 import { RegisterUser } from "domain/types/user/RegisterUser";
 import { User } from "infrastructure/database/models/User";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
-    private readonly fileUsageService: FileUsageService
+    private readonly fileUsageService: FileUsageService,
+    private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -29,6 +33,10 @@ export class UserService {
   public async list(
     paginationOpts: PaginationOptsBase<User>
   ): Promise<PaginatedResult<UserDTO[]>> {
+    this.logger.debug("Users listing with pagination options: ", {
+      paginationOpts,
+    });
+
     const usersListPaginated = await this.userRepository.list(paginationOpts, {
       select: USER_SELECT_FIELDS,
       relations: USER_RELATIONS,
@@ -59,6 +67,11 @@ export class UserService {
     userId: number,
     selectOptions?: SelectOptions<User>
   ): Promise<User> {
+    this.logger.debug("Retrieving user with options: ", {
+      userId,
+      selectOptions,
+    });
+
     const user = await this.userRepository.get(userId, {
       select: selectOptions?.select ?? USER_SELECT_FIELDS,
       relations: selectOptions?.relations ?? USER_RELATIONS,
@@ -169,7 +182,12 @@ export class UserService {
       }
     }
 
-    return user.toDTO();
+    const updatedUserDTO = user.toDTO();
+
+    // Emit user change event if notification service is available
+    this.userNotificationRoomService.emitUserChange(updatedUserDTO);
+
+    return updatedUserDTO;
   }
 
   public async getUserByRequest(
