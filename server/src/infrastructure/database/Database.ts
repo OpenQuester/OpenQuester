@@ -45,7 +45,7 @@ export class Database {
    * Build connection to the database
    */
   public async build() {
-    this._logger.warn("Connecting to DB...", { prefix: DB_PREFIX });
+    this._logger.info("Connecting to DB...", { prefix: DB_PREFIX });
 
     try {
       // Force only one DataSource init at the time, so only one migrations runner will be executed

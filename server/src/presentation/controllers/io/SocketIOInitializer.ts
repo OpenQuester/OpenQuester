@@ -44,6 +44,14 @@ export class SocketIOInitializer {
   }
 
   private _initializeGameControllers(nsp: Namespace, socket: Socket) {
+    this.logger.trace(
+      `Socket Game controllers initialization started for ${socket.id}`,
+      {
+        prefix: "[SOCKET]: ",
+        socketId: socket.id,
+      }
+    );
+
     const eventEmitter = new SocketIOEventEmitter(
       this.socketIOGameService,
       this.logger
@@ -65,7 +73,6 @@ export class SocketIOInitializer {
     for (const handler of allHandlers) {
       handlerRegistry.registerInstance(handler);
     }
-
     // Log handler registration stats
     const registryStats = handlerRegistry.getStats();
     this.logger.trace(

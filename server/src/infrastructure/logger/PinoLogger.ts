@@ -10,12 +10,12 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
 // Custom levels configuration for Pino
 export const customLevels = {
   trace: 10, // LogType.VERBOSE
+  performance: 15, // LogType.PERFORMANCE
   debug: 20, // LogType.DEBUG
   info: 30, // LogType.INFO
   warn: 40, // LogType.WARN
   error: 50, // LogType.ERROR
   audit: 60, // LogType.AUDIT
-  performance: 65, // LogType.PERFORMANCE
   migration: 70, // LogType.MIGRATION
 } as const;
 

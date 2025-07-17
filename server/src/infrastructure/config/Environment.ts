@@ -178,12 +178,12 @@ export class Environment {
 
     switch (this._type) {
       case EnvType.PROD:
-        this.logger.warn("Running in production environment", {
+        this.logger.info("Running in production environment", {
           prefix: ENV_PREFIX,
         });
         break;
       case EnvType.DEV:
-        this.logger.warn("Running in development environment", {
+        this.logger.info("Running in development environment", {
           prefix: ENV_PREFIX,
         });
         break;

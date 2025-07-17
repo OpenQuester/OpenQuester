@@ -120,14 +120,24 @@ export class S3StorageService {
     cdnLink: string,
     filename: string
   ): Promise<any> {
+    const startTime = Date.now();
+    this.logger.trace(`Discord file upload started for ${filename}`, {
+      prefix: "[S3StorageService]: ",
+      cdnLink,
+      filename,
+    });
+
     return new Promise((resolve) => {
       https
         .get(cdnLink, (res) => {
           if (res.statusCode !== 200) {
+            const fetchTime = Date.now() - startTime;
             this.logger.error(
               `Failed to fetch file from CDN (${cdnLink}): ${res.statusCode}`,
               {
                 prefix: "[S3StorageService]: ",
+                fetchTime,
+                statusCode: res.statusCode,
               }
             );
             resolve(false);
@@ -142,6 +152,14 @@ export class S3StorageService {
 
           res.on("end", async () => {
             const fileBuffer = Buffer.concat(chunks);
+            const fetchTime = Date.now() - startTime;
+
+            this.logger.performance(`Discord file fetched in ${fetchTime}ms`, {
+              prefix: "[S3StorageService]: ",
+              fetchTime,
+              fileSize: fileBuffer.length,
+              filename,
+            });
 
             const md5Hash = createHash("md5").update(fileBuffer).digest("hex");
 
@@ -153,9 +171,26 @@ export class S3StorageService {
             });
 
             try {
+              const uploadStartTime = Date.now();
               await this._client.send(command);
+              const uploadTime = Date.now() - uploadStartTime;
+              const totalTime = Date.now() - startTime;
+
+              this.logger.performance(
+                `Discord file uploaded to S3 in ${uploadTime}ms (total: ${totalTime}ms)`,
+                {
+                  prefix: "[S3StorageService]: ",
+                  uploadTime,
+                  totalTime,
+                  fileSize: fileBuffer.length,
+                  filename,
+                  md5Hash,
+                }
+              );
+
               resolve(md5Hash);
             } catch (err) {
+              const totalTime = Date.now() - startTime;
               this.logger.error(
                 TemplateUtils.text(ServerResponse.BUCKET_UPLOAD_FAILED, {
                   filename,
@@ -163,6 +198,8 @@ export class S3StorageService {
                 }),
                 {
                   prefix: "[S3StorageService]: ",
+                  totalTime,
+                  errorMessage: err,
                 }
               );
               resolve(false);
@@ -170,6 +207,7 @@ export class S3StorageService {
           });
         })
         .on("error", (err) => {
+          const totalTime = Date.now() - startTime;
           this.logger.error(
             TemplateUtils.text(ServerResponse.BUCKET_UPLOAD_FAILED, {
               cdnLink,
@@ -177,6 +215,8 @@ export class S3StorageService {
             }),
             {
               prefix: "[S3StorageService]: ",
+              totalTime,
+              errorMessage: err,
             }
           );
           resolve(false);
