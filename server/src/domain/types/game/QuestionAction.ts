@@ -4,6 +4,7 @@
  */
 export enum QuestionAction {
   ANSWER = "ANSWER",
+  PLAYER_SKIP = "PLAYER_SKIP",
   SUBMIT_ANSWER = "SUBMIT_ANSWER",
   RESULT = "RESULT",
   SKIP = "SKIP",

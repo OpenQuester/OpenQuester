@@ -221,6 +221,73 @@ export class SocketIOQuestionService {
     return { game, question: questionData.question };
   }
 
+  public async handlePlayerSkip(socketId: string) {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
+
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    // Validation
+    GameStateValidator.validateGameInProgress(game);
+    this.socketGameValidationService.validateQuestionSkipping(game);
+    this.socketGameValidationService.validateQuestionAction(
+      currentPlayer,
+      game,
+      QuestionAction.PLAYER_SKIP
+    );
+
+    // Check if player is currently answering - they can't skip while answering
+    if (game.gameState.answeringPlayer === currentPlayer.meta.id) {
+      throw new ClientError(ClientResponse.CANNOT_SKIP_WHILE_ANSWERING);
+    }
+
+    // Check if player has already answered this question
+    const hasAnswered = game.gameState.answeredPlayers?.some(
+      (answeredPlayer) => answeredPlayer.player === currentPlayer.meta.id
+    );
+
+    if (hasAnswered) {
+      throw new ClientError(ClientResponse.ALREADY_ANSWERED_QUESTION);
+    }
+
+    // Add player to skipped players list
+    game.addSkippedPlayer(currentPlayer.meta.id);
+    await this.gameService.updateGame(game);
+
+    return { game, playerId: currentPlayer.meta.id };
+  }
+
+  public async handlePlayerUnskip(socketId: string) {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
+
+    // Validation
+    GameStateValidator.validateGameInProgress(game);
+    this.socketGameValidationService.validateQuestionUnskipping(game);
+
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    if (!game.hasPlayerSkipped(currentPlayer.meta.id)) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_SKIPPED);
+    }
+
+    // Remove player from skipped players list
+    game.removeSkippedPlayer(currentPlayer.meta.id);
+    await this.gameService.updateGame(game);
+
+    return { game, playerId: currentPlayer.meta.id };
+  }
+
   public async handleQuestionPick(socketId: string, questionId: number) {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
@@ -395,5 +462,38 @@ export class SocketIOQuestionService {
     }
 
     return resultMap;
+  }
+
+  /**
+   * Handle automatic question skip when all players have skipped
+   * This method bypasses socket-based authorization checks since it's triggered automatically
+   * @param game - Game instance
+   * @returns Game instance and question data
+   */
+  public async handleAutomaticQuestionSkip(game: Game) {
+    const gameState = game.gameState;
+
+    // Basic validation - game must be in progress and have a current question
+    GameStateValidator.validateGameInProgress(game);
+    this.socketGameValidationService.validateQuestionSkipping(game);
+
+    if (!gameState.currentQuestion) {
+      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+    }
+
+    const questionData = GameQuestionMapper.getQuestionAndTheme(
+      game.package,
+      gameState.currentRound!.id,
+      gameState.currentQuestion.id!
+    );
+
+    if (!questionData?.question) {
+      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+    }
+
+    // Reset to choosing state
+    await this.socketQuestionStateService.resetToChoosingState(game);
+
+    return { game, question: questionData.question };
   }
 }

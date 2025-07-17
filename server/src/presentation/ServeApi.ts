@@ -79,10 +79,9 @@ export class ServeApi {
 
       // Build database connection
       await this._db.build();
+
       // Middlewares
-      const middlewareStartTime = Date.now();
       await new MiddlewareController(this._context, this._redis).initialize();
-      const middlewareTime = Date.now() - middlewareStartTime;
 
       // Initialize server listening
       this._server = this._app.listen(this._port, () => {
@@ -91,7 +90,6 @@ export class ServeApi {
       this._io.listen(this._server);
 
       // Initialize Dependency injection Container
-      const diStartTime = Date.now();
       await new DIConfig(
         this._db,
         this._redis,
@@ -99,24 +97,14 @@ export class ServeApi {
         this._context.env,
         this._context.logger
       ).initialize();
-      const diTime = Date.now() - diStartTime;
 
-      const jobsStartTime = Date.now();
       await this._processPrepareJobs();
-      const jobsTime = Date.now() - jobsStartTime;
 
       // Attach API controllers
-      const controllersStartTime = Date.now();
       this._attachControllers();
-      const controllersTime = Date.now() - controllersStartTime;
       this._app.use(errorMiddleware(this._context.logger));
 
-      log.finish({
-        middlewareTime,
-        diTime,
-        jobsTime,
-        controllersTime,
-      });
+      log.finish();
     } catch (err: unknown) {
       const failureTime = Date.now() - initStartTime;
       this._context.logger.error(

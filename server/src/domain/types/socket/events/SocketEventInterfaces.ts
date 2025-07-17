@@ -74,6 +74,14 @@ export interface AnswerSubmittedBroadcastData {
   answerText: string | null;
 }
 
+export interface QuestionSkipBroadcastData {
+  playerId: number;
+}
+
+export interface QuestionUnskipBroadcastData {
+  playerId: number;
+}
+
 export interface ChatMessageBroadcastData {
   uuid: string;
   timestamp: Date;

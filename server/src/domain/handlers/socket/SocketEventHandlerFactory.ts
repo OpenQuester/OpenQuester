@@ -20,6 +20,8 @@ import { AnswerResultEventHandler } from "domain/handlers/socket/question/Answer
 import { AnswerSubmittedEventHandler } from "domain/handlers/socket/question/AnswerSubmittedEventHandler";
 import { QuestionAnswerEventHandler } from "domain/handlers/socket/question/QuestionAnswerEventHandler";
 import { QuestionPickEventHandler } from "domain/handlers/socket/question/QuestionPickEventHandler";
+import { QuestionSkipEventHandler } from "domain/handlers/socket/question/QuestionSkipEventHandler";
+import { QuestionUnskipEventHandler } from "domain/handlers/socket/question/QuestionUnskipEventHandler";
 import { SkipQuestionEventHandler } from "domain/handlers/socket/question/SkipQuestionEventHandler";
 import { ChatMessageEventHandler } from "domain/handlers/socket/system/ChatMessageEventHandler";
 import { DisconnectEventHandler } from "domain/handlers/socket/system/DisconnectEventHandler";
@@ -154,6 +156,18 @@ export class SocketEventHandlerFactory {
         this.socketIOQuestionService
       ),
       new SkipQuestionEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOQuestionService
+      ),
+      new QuestionSkipEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOQuestionService
+      ),
+      new QuestionUnskipEventHandler(
         socket,
         eventEmitter,
         this.logger,

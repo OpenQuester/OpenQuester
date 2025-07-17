@@ -14,6 +14,10 @@ import {
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import {
+  QuestionSkipBroadcastData,
+  QuestionUnskipBroadcastData,
+} from "domain/types/socket/events/SocketEventInterfaces";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import {
   QuestionFinishEventPayload,
@@ -562,6 +566,360 @@ describe("Socket Question Flow Tests", () => {
 
       gameState = await utils.getGameState(gameId);
       expect(gameState!.currentTurnPlayerId).toBe(initialTurnPlayer);
+      await utils.cleanupGameClients(setup);
+    });
+  });
+
+  describe("Player Skip Mechanism", () => {
+    it("should allow player to skip question", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      // Start game and pick question
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Test timeout"));
+        }, 2000);
+
+        showmanSocket.on(
+          SocketIOGameEvents.QUESTION_SKIP,
+          (data: QuestionSkipBroadcastData) => {
+            clearTimeout(timeout);
+            expect(data.playerId).toBe(setup.playerUsers[0].id);
+            resolve();
+          }
+        );
+
+        // Player skips question
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      }).finally(async () => {
+        await utils.cleanupGameClients(setup);
+      });
+    });
+
+    it("should allow player to unskip question", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      // Start game and pick question
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      // First skip the question
+      await new Promise<void>((resolve) => {
+        showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      });
+
+      // Then unskip it
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Test timeout"));
+        }, 2000);
+
+        showmanSocket.on(
+          SocketIOGameEvents.QUESTION_UNSKIP,
+          (data: QuestionUnskipBroadcastData) => {
+            clearTimeout(timeout);
+            expect(data.playerId).toBe(setup.playerUsers[0].id);
+            resolve();
+          }
+        );
+
+        // Player unskips question
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_UNSKIP, {});
+      }).finally(async () => {
+        await utils.cleanupGameClients(setup);
+      });
+    });
+
+    it("should prevent non-players from skipping", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
+      const { showmanSocket, spectatorSockets } = setup;
+
+      // Start game and pick question
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Test timeout"));
+        }, 10000);
+
+        spectatorSockets[0].on(
+          SocketIOEvents.ERROR,
+          (error: { message: string }) => {
+            clearTimeout(timeout);
+            expect(error.message).toBeDefined();
+            expect(error.message.toLowerCase()).toContain(
+              "only players can skip"
+            );
+            resolve();
+          }
+        );
+
+        // Spectator tries to skip question - should fail
+        spectatorSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      }).finally(async () => {
+        await utils.cleanupGameClients(setup);
+      });
+    });
+
+    it("should prevent player from skipping while answering", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      // Start game and pick question
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      // Player begins answering
+      await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Test timeout"));
+        }, 2000);
+
+        playerSockets[0].on(
+          SocketIOEvents.ERROR,
+          (error: { message: string }) => {
+            clearTimeout(timeout);
+            expect(error.message).toBeDefined();
+            expect(error.message.toLowerCase()).toContain(
+              "cannot skip while answering"
+            );
+            resolve();
+          }
+        );
+
+        // Player tries to skip while answering - should fail
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      }).finally(async () => {
+        await utils.cleanupGameClients(setup);
+      });
+    });
+
+    it("should prevent player from skipping if already answered", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      // Start game and pick question
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      // First player answers
+      await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+      // Showman gives result
+      await new Promise<void>((resolve) => {
+        playerSockets[0].once(SocketIOGameEvents.ANSWER_RESULT, resolve);
+        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: -100,
+          answerType: AnswerResultType.WRONG,
+        });
+      });
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Test timeout"));
+        }, 2000);
+
+        playerSockets[0].on(
+          SocketIOEvents.ERROR,
+          (error: { message: string }) => {
+            clearTimeout(timeout);
+            expect(error.message).toBeDefined();
+            expect(error.message.toLowerCase()).toContain("already answered");
+            resolve();
+          }
+        );
+
+        // Player tries to skip after he answered - should fail
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      }).finally(async () => {
+        await utils.cleanupGameClients(setup);
+      });
+    });
+
+    it("should prevent unskipping when player hasn't skipped", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      // Start game and pick question
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Test timeout"));
+        }, 2000);
+
+        playerSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
+          clearTimeout(timeout);
+          expect(error.message).toBeDefined();
+          expect(error.message).toContain("has not skipped");
+          resolve();
+        });
+
+        // Player tries to unskip without skipping first - should fail
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_UNSKIP, {});
+      }).finally(async () => {
+        await utils.cleanupGameClients(setup);
+      });
+    });
+
+    it("should automatically skip question when all players have skipped", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      // Start game and pick question
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      let skipCount = 0;
+
+      // Listen for individual player skips on showman socket
+      showmanSocket.on(SocketIOGameEvents.QUESTION_SKIP, (_data: any) => {
+        skipCount++;
+      });
+
+      // Listen for automatic question finish when all players skip
+      const questionFinishPromise = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Test timeout"));
+        }, 2000);
+
+        showmanSocket.on(
+          SocketIOGameEvents.QUESTION_FINISH,
+          (data: QuestionFinishEventPayload) => {
+            clearTimeout(timeout);
+            expect(data.answerFiles).toBeDefined();
+            expect(data.answerText).toBeDefined();
+            expect(skipCount).toBe(3);
+            resolve();
+          }
+        );
+      });
+
+      // All players skip the question sequentially
+      for (let i = 0; i < playerSockets.length; i++) {
+        await new Promise<void>((resolve) => {
+          showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
+          playerSockets[i].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+        });
+      }
+
+      await questionFinishPromise;
+      await utils.cleanupGameClients(setup);
+    });
+
+    it("should update game state with skipped players", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      // Start game and pick question
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      // First player skips
+      await new Promise<void>((resolve) => {
+        showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      });
+
+      // Check game state has been updated
+      let gameState = await utils.getGameState(setup.gameId);
+      expect(gameState?.skippedPlayers).toBeDefined();
+      expect(gameState!.skippedPlayers).not.toBeNull();
+      expect(gameState!.skippedPlayers).toContain(setup.playerUsers[0].id);
+      expect(gameState!.skippedPlayers).toHaveLength(1);
+
+      // Second player skips
+      await new Promise<void>((resolve) => {
+        showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
+        playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      });
+
+      // Check game state has both players (but not all players, so no auto-skip)
+      gameState = await utils.getGameState(setup.gameId);
+      expect(gameState?.skippedPlayers).toBeDefined();
+      expect(gameState!.skippedPlayers).not.toBeNull();
+      expect(gameState!.skippedPlayers).toContain(setup.playerUsers[0].id);
+      expect(gameState!.skippedPlayers).toContain(setup.playerUsers[1].id);
+      expect(gameState!.skippedPlayers).toHaveLength(2);
+
+      await utils.cleanupGameClients(setup);
+    });
+
+    it("should remove player from skipped list when unskipping", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      // Start game and pick question
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      // Two players skip (not all players, so no automatic skip)
+      await new Promise<void>((resolve) => {
+        showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      });
+
+      await new Promise<void>((resolve) => {
+        showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
+        playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      });
+
+      // First player unskips
+      await new Promise<void>((resolve) => {
+        showmanSocket.once(SocketIOGameEvents.QUESTION_UNSKIP, resolve);
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_UNSKIP, {});
+      });
+
+      // Check game state - only second player should be in skipped list
+      const gameState = await utils.getGameState(setup.gameId);
+      expect(gameState?.skippedPlayers).toBeDefined();
+      expect(gameState!.skippedPlayers).not.toBeNull();
+      expect(gameState!.skippedPlayers).not.toContain(setup.playerUsers[0].id);
+      expect(gameState!.skippedPlayers).toContain(setup.playerUsers[1].id);
+      expect(gameState!.skippedPlayers).toHaveLength(1);
+
+      await utils.cleanupGameClients(setup);
+    });
+
+    it("should reset skipped players when question finishes", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { showmanSocket, playerSockets } = setup;
+
+      // Start game and pick question
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket);
+
+      // Player skips
+      await new Promise<void>((resolve) => {
+        showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      });
+
+      // Verify player is in skipped list
+      let gameState = await utils.getGameState(setup.gameId);
+      expect(gameState?.skippedPlayers).toBeDefined();
+      expect(gameState!.skippedPlayers).toContain(setup.playerUsers[0].id);
+
+      // Showman force skips question
+      await new Promise<void>((resolve) => {
+        playerSockets[0].once(SocketIOGameEvents.QUESTION_FINISH, resolve);
+        showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
+      });
+
+      // Check that skipped players list is cleared
+      gameState = await utils.getGameState(setup.gameId);
+      expect(gameState?.skippedPlayers).toBeNull();
+
       await utils.cleanupGameClients(setup);
     });
   });

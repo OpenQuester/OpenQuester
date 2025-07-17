@@ -27,4 +27,6 @@ export interface GameStateDTO {
   finalRoundData?: FinalRoundGameData | null;
   /** Which player can pick a question or eliminate theme in final */
   currentTurnPlayerId?: number | null;
+  /** Players who have skipped the current question */
+  skippedPlayers: number[] | null;
 }
