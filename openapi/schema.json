@@ -2446,7 +2446,7 @@
           }
         }
       },
-      "SocketIOPlayerReadyEventPayload": {
+      "SocketIOPlayerReadinessEventPayload": {
         "type": "object",
         "description": "This data sent to all players in room when a player changes their ready status",
         "properties": {
@@ -2472,36 +2472,6 @@
             "type": "boolean",
             "description": "Optional field indicating if game auto-start was triggered",
             "examples": [true]
-          }
-        },
-        "required": ["playerId", "isReady", "readyPlayers"]
-      },
-      "SocketIOPlayerUnreadyEventPayload": {
-        "type": "object",
-        "description": "This data sent to all players in room when a player becomes unready",
-        "properties": {
-          "playerId": {
-            "type": "integer",
-            "description": "ID of the player who became unready",
-            "examples": [1]
-          },
-          "isReady": {
-            "type": "boolean",
-            "description": "Whether the player is ready or not (always false for unready events)",
-            "examples": [false]
-          },
-          "readyPlayers": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            },
-            "description": "Array of all currently ready player IDs",
-            "examples": [[2, 3]]
-          },
-          "autoStartTriggered": {
-            "type": "boolean",
-            "description": "Optional field indicating if game auto-start was triggered (always false for unready events)",
-            "examples": [false]
           }
         },
         "required": ["playerId", "isReady", "readyPlayers"]
