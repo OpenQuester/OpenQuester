@@ -436,6 +436,7 @@ export class Game {
     this.gameState.timer = null;
     this.gameState.answeredPlayers = null;
     this.gameState.answeringPlayer = null;
+    this.gameState.skippedPlayers = null;
     this.updateQuestionState(QuestionState.CHOOSING);
   }
 
@@ -453,6 +454,59 @@ export class Game {
 
   public get timer() {
     return this.gameState.timer;
+  }
+
+  public addSkippedPlayer(playerId: number): void {
+    if (!this.gameState.skippedPlayers) {
+      this.gameState.skippedPlayers = [];
+    }
+
+    if (!this.gameState.skippedPlayers.includes(playerId)) {
+      this.gameState.skippedPlayers.push(playerId);
+      this._logger.trace("Player skipped question", {
+        prefix: "[GAME]: ",
+        playerId,
+      });
+    }
+  }
+
+  public removeSkippedPlayer(playerId: number): void {
+    if (!this.gameState.skippedPlayers) {
+      return;
+    }
+
+    this.gameState.skippedPlayers = this.gameState.skippedPlayers.filter(
+      (id) => id !== playerId
+    );
+
+    this._logger.trace("Player unskipped question", {
+      prefix: "[GAME]: ",
+      playerId,
+    });
+
+    if (this.gameState.skippedPlayers.length === 0) {
+      this.gameState.skippedPlayers = null;
+    }
+  }
+
+  public hasPlayerSkipped(playerId: number): boolean {
+    return this.gameState.skippedPlayers?.includes(playerId) ?? false;
+  }
+
+  public haveAllPlayersSkipped(): boolean {
+    const activePlayers = this.getInGamePlayers();
+    if (activePlayers.length === 0) {
+      return false;
+    }
+
+    const skippedPlayers = this.gameState.skippedPlayers ?? [];
+    return activePlayers.every((player) =>
+      skippedPlayers.includes(player.meta.id)
+    );
+  }
+
+  public getSkippedPlayers(): number[] {
+    return this.gameState.skippedPlayers ?? [];
   }
 
   private _getFirstFreeSlotIndex(): number {

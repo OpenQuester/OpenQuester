@@ -2535,6 +2535,8 @@
           "game-pause",
           "game-unpause",
           "theme-eliminate",
+          "question-skip",
+          "question-unskip",
           "final-bid-submit",
           "final-answer-submit",
           "final-answer-review",
@@ -2562,6 +2564,8 @@
           "game-pause",
           "game-unpause",
           "theme-eliminate",
+          "question-skip",
+          "question-unskip",
           "final-bid-submit",
           "final-answer-submit",
           "final-answer-review",
@@ -2571,6 +2575,28 @@
           "final-auto-loss"
         ],
         "examples": ["join"]
+      },
+      "SocketIOGameSkipEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when player skips a question",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who skipped the question",
+            "examples": [727]
+          }
+        }
+      },
+      "SocketIOGameUnskipEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when player unskips a question",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who unskipped the question",
+            "examples": [727]
+          }
+        }
       },
       "SocketIOGamePauseEventPayload": {
         "type": "object",

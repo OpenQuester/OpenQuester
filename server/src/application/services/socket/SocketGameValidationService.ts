@@ -66,6 +66,11 @@ export class SocketGameValidationService {
     action: QuestionAction
   ): void {
     switch (action) {
+      case QuestionAction.PLAYER_SKIP:
+        if (currentPlayer?.role !== PlayerRole.PLAYER) {
+          throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_SKIP);
+        }
+        break;
       case QuestionAction.ANSWER:
         if (
           currentPlayer?.role === PlayerRole.SHOWMAN ||
@@ -156,6 +161,14 @@ export class SocketGameValidationService {
    * Validates question skipping conditions
    */
   public validateQuestionSkipping(game: Game): void {
+    this.validateCurrentRound(game);
+
+    if (!game.gameState.currentQuestion) {
+      throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
+    }
+  }
+
+  public validateQuestionUnskipping(game: Game): void {
     this.validateCurrentRound(game);
 
     if (!game.gameState.currentQuestion) {

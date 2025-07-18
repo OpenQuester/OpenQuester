@@ -87,6 +87,10 @@ export enum ClientResponse {
   ONLY_SHOWMAN_SKIP_QUESTION_FORCE = "only_showman_skip_question_force",
   ONLY_SHOWMAN_CAN_PAUSE = "only_showman_can_pause",
   ONLY_SHOWMAN_CAN_UNPAUSE = "only_showman_can_unpause",
+  ONLY_PLAYERS_CAN_SKIP = "only_players_can_skip",
+  CANNOT_SKIP_WHILE_ANSWERING = "cannot_skip_while_answering",
+  ALREADY_ANSWERED_QUESTION = "already_answered_question",
+  PLAYER_NOT_SKIPPED = "player_not_skipped",
 
   // Final Round
   INVALID_ROUND_TYPE = "invalid_round_type",

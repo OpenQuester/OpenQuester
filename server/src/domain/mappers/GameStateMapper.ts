@@ -19,6 +19,7 @@ export class GameStateMapper {
       questionState: null,
       readyPlayers: null,
       timer: null,
+      skippedPlayers: null,
     };
   }
 
@@ -36,6 +37,7 @@ export class GameStateMapper {
       readyPlayers: null,
       timer: null,
       finalRoundData: null,
+      skippedPlayers: null,
     };
   }
 

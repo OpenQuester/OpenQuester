@@ -121,6 +121,7 @@ export class SocketIOGameService {
       readyPlayers: null,
       timer: null,
       currentTurnPlayerId,
+      skippedPlayers: null,
     };
 
     game.startedAt = new Date();
