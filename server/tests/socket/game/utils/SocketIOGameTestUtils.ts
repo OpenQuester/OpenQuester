@@ -801,16 +801,19 @@ export class SocketGameTestUtils {
   public async waitForPlayerUnready(
     socket: GameClientSocket,
     expectedPlayerId?: number
-  ): Promise<any> {
+  ): Promise<PlayerReadinessBroadcastData> {
     return new Promise((resolve) => {
-      socket.once(SocketIOGameEvents.PLAYER_UNREADY, (data) => {
-        if (
-          expectedPlayerId === undefined ||
-          data.playerId === expectedPlayerId
-        ) {
-          resolve(data);
+      socket.once(
+        SocketIOGameEvents.PLAYER_UNREADY,
+        (data: PlayerReadinessBroadcastData) => {
+          if (
+            expectedPlayerId === undefined ||
+            data.playerId === expectedPlayerId
+          ) {
+            resolve(data);
+          }
         }
-      });
+      );
     });
   }
 

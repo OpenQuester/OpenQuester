@@ -7,6 +7,7 @@ import {
   it,
 } from "@jest/globals";
 import { type Express } from "express";
+import { Repository } from "typeorm";
 
 import {
   SocketIOEvents,
@@ -26,7 +27,7 @@ describe("SocketIOGameReady", () => {
   let testEnv: TestEnvironment;
   let cleanup: (() => Promise<void>) | undefined;
   let app: Express;
-  let userRepo: any;
+  let userRepo: Repository<User>;
   let serverUrl: string;
   let utils: SocketGameTestUtils;
   let logger: ILogger;
