@@ -94,5 +94,6 @@
   "only_players_can_skip": "Only players can skip the question",
   "cannot_skip_while_answering": "You cannot skip while answering",
   "already_answered_question": "You have already answered this question",
-  "player_not_skipped": "Player has not skipped the question"
+  "player_not_skipped": "Player has not skipped the question",
+  "only_players_can_set_ready": "Only players can change readiness state"
 }

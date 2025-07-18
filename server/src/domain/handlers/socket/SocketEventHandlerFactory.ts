@@ -14,6 +14,8 @@ import { JoinGameEventHandler } from "domain/handlers/socket/game/JoinGameEventH
 import { LeaveGameEventHandler } from "domain/handlers/socket/game/LeaveGameEventHandler";
 import { NextRoundEventHandler } from "domain/handlers/socket/game/NextRoundEventHandler";
 import { PauseGameEventHandler } from "domain/handlers/socket/game/PauseGameEventHandler";
+import { PlayerReadyEventHandler } from "domain/handlers/socket/game/PlayerReadyEventHandler";
+import { PlayerUnreadyEventHandler } from "domain/handlers/socket/game/PlayerUnreadyEventHandler";
 import { StartGameEventHandler } from "domain/handlers/socket/game/StartGameEventHandler";
 import { UnpauseGameEventHandler } from "domain/handlers/socket/game/UnpauseGameEventHandler";
 import { AnswerResultEventHandler } from "domain/handlers/socket/question/AnswerResultEventHandler";
@@ -88,6 +90,18 @@ export class SocketEventHandlerFactory {
         this.socketIOGameService
       ),
       new UnpauseGameEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new PlayerReadyEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new PlayerUnreadyEventHandler(
         socket,
         eventEmitter,
         this.logger,

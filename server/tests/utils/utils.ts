@@ -14,8 +14,6 @@ import { PackageTheme } from "infrastructure/database/models/package/PackageThem
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 
-// Socket imports
-
 export function setTestEnvDefaults() {
   process.env.ENV = "test";
   process.env.NODE_ENV = "test";
@@ -31,7 +29,7 @@ export function setTestEnvDefaults() {
   process.env.SESSION_MAX_AGE = "3600000";
   process.env.REDIS_HOST = "localhost";
   process.env.REDIS_PORT = "6379";
-  process.env.REDIS_DB_NUMBER = "12";
+  process.env.REDIS_DB_NUMBER = "0";
   process.env.CORS_ORIGINS = "localhost";
   process.env.SOCKET_IO_CORS_ORIGINS = "localhost";
   process.env.LOG_LEVEL = "info";

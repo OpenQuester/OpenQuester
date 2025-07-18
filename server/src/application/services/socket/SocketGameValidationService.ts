@@ -50,6 +50,21 @@ export class SocketGameValidationService {
   }
 
   /**
+   * Validates that player can set ready state
+   */
+  public validatePlayerReadyState(player: Player | null, game: Game): void {
+    // Only players (not showman or spectators) can set ready state
+    if (!player || player.role !== PlayerRole.PLAYER) {
+      throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_SET_READY);
+    }
+
+    // Can only set ready state before game starts
+    if (ValueUtils.isValidDate(game.startedAt)) {
+      throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
+    }
+  }
+
+  /**
    * Validates that player is showman and game is in progress
    */
   public validateNextRound(player: Player | null, game: Game): void {

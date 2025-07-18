@@ -82,6 +82,13 @@ export interface QuestionUnskipBroadcastData {
   playerId: number;
 }
 
+export interface PlayerReadinessBroadcastData {
+  playerId: number;
+  isReady: boolean;
+  readyPlayers: number[];
+  autoStartTriggered?: boolean;
+}
+
 export interface ChatMessageBroadcastData {
   uuid: string;
   timestamp: Date;

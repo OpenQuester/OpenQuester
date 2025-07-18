@@ -28,6 +28,8 @@ export enum SocketIOGameEvents {
   QUESTION_UNSKIP = "question-unskip",
   GAME_PAUSE = "game-pause",
   GAME_UNPAUSE = "game-unpause",
+  PLAYER_READY = "player-ready",
+  PLAYER_UNREADY = "player-unready",
 
   // Final Round Events
   THEME_ELIMINATE = "theme-eliminate",

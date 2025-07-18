@@ -14,6 +14,7 @@ import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
+import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { User } from "infrastructure/database/models/User";
@@ -746,5 +747,78 @@ export class SocketGameTestUtils {
     }
     player.score = score;
     await this.updateGame(game);
+  }
+
+  /**
+   * Helper method to set a player as ready with socket event
+   */
+  public async setPlayerReady(playerSocket: GameClientSocket): Promise<void> {
+    return new Promise((resolve) => {
+      playerSocket.once(SocketIOGameEvents.PLAYER_READY, () => {
+        resolve();
+      });
+      playerSocket.emit(SocketIOGameEvents.PLAYER_READY);
+    });
+  }
+
+  /**
+   * Helper method to set a player as unready with socket event
+   */
+  public async setPlayerUnready(playerSocket: GameClientSocket): Promise<void> {
+    return new Promise((resolve) => {
+      playerSocket.once(SocketIOGameEvents.PLAYER_UNREADY, () => {
+        resolve();
+      });
+      playerSocket.emit(SocketIOGameEvents.PLAYER_UNREADY);
+    });
+  }
+
+  /**
+   * Wait for a player ready event with specific data
+   */
+  public async waitForPlayerReady(
+    socket: GameClientSocket,
+    expectedPlayerId?: number
+  ): Promise<PlayerReadinessBroadcastData> {
+    return new Promise((resolve) => {
+      socket.once(
+        SocketIOGameEvents.PLAYER_READY,
+        (data: PlayerReadinessBroadcastData) => {
+          if (
+            expectedPlayerId === undefined ||
+            data.playerId === expectedPlayerId
+          ) {
+            resolve(data);
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Wait for a player unready event with specific data
+   */
+  public async waitForPlayerUnready(
+    socket: GameClientSocket,
+    expectedPlayerId?: number
+  ): Promise<any> {
+    return new Promise((resolve) => {
+      socket.once(SocketIOGameEvents.PLAYER_UNREADY, (data) => {
+        if (
+          expectedPlayerId === undefined ||
+          data.playerId === expectedPlayerId
+        ) {
+          resolve(data);
+        }
+      });
+    });
+  }
+
+  /**
+   * Helper method to check if all players are ready in game state
+   */
+  public async areAllPlayersReady(gameId: string): Promise<boolean> {
+    const game = await this.getGameFromGameService(gameId);
+    return game.isEveryoneReady();
   }
 }

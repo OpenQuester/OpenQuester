@@ -91,6 +91,7 @@ export enum ClientResponse {
   CANNOT_SKIP_WHILE_ANSWERING = "cannot_skip_while_answering",
   ALREADY_ANSWERED_QUESTION = "already_answered_question",
   PLAYER_NOT_SKIPPED = "player_not_skipped",
+  ONLY_PLAYERS_CAN_SET_READY = "only_players_can_set_ready",
 
   // Final Round
   INVALID_ROUND_TYPE = "invalid_round_type",

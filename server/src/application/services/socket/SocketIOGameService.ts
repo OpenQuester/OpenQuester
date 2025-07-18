@@ -145,6 +145,13 @@ export class SocketIOGameService {
 
     game.removePlayer(userSession.id);
 
+    // Remove player from ready list if they were ready
+    if (game.gameState.readyPlayers) {
+      game.gameState.readyPlayers = game.gameState.readyPlayers.filter(
+        (playerId) => playerId !== userSession.id
+      );
+    }
+
     await this.socketUserDataService.update(socketId, {
       id: JSON.stringify(userSession.id),
       gameId: JSON.stringify(null),
@@ -224,6 +231,84 @@ export class SocketIOGameService {
 
   public async removePlayerAuth(socketId: string) {
     return this.socketUserDataService.remove(socketId);
+  }
+
+  public async setPlayerReadiness(socketId: string, isReady: boolean) {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
+
+    // Validate player can set ready state
+    this.socketGameValidationService.validatePlayerReadyState(
+      currentPlayer,
+      game
+    );
+
+    const playerId = currentPlayer!.meta.id;
+    const currentReadyPlayers = game.gameState.readyPlayers || [];
+
+    // Update ready state
+    let newReadyPlayers: number[];
+    if (isReady) {
+      // Add player to ready list if not already present
+      newReadyPlayers = currentReadyPlayers.includes(playerId)
+        ? currentReadyPlayers
+        : [...currentReadyPlayers, playerId];
+    } else {
+      // Remove player from ready list
+      newReadyPlayers = currentReadyPlayers.filter((id) => id !== playerId);
+    }
+
+    // Update game state
+    game.gameState.readyPlayers = newReadyPlayers;
+    await this.gameService.updateGame(game);
+
+    // Check if auto-start should trigger
+    const shouldAutoStart = game.isEveryoneReady();
+
+    return {
+      game,
+      playerId,
+      isReady,
+      readyPlayers: newReadyPlayers,
+      shouldAutoStart,
+    };
+  }
+
+  public async handleAutoStart(gameId: string) {
+    // Use existing start game logic but fetch game by ID
+    const game = await this.gameService.getGameEntity(gameId);
+
+    if (ValueUtils.isValidDate(game.startedAt)) {
+      // Game already started, no need to auto-start
+      return null;
+    }
+
+    const currentTurnPlayerId = game.getRandomTurnPlayer();
+
+    const gameState: GameStateDTO = {
+      currentRound: GameStateMapper.getGameRound(game.package, 0),
+      isPaused: false,
+      questionState: QuestionState.CHOOSING,
+      answeredPlayers: null,
+      answeringPlayer: null,
+      currentQuestion: null,
+      readyPlayers: null, // Clear ready state when game starts
+      timer: null,
+      currentTurnPlayerId,
+      skippedPlayers: null,
+    };
+
+    game.startedAt = new Date();
+    game.gameState = gameState;
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      gameState,
+    };
   }
 
   private async _fetchUser(socketId: string): Promise<UserDTO> {
