@@ -2461,7 +2461,7 @@
       },
       "SocketIOPlayerReadinessEventPayload": {
         "type": "object",
-        "description": "This data sent to all players in room when a player changes their ready status",
+        "description": "This data is sent to all players in room when a player changes their ready status",
         "properties": {
           "playerId": {
             "type": "integer",
