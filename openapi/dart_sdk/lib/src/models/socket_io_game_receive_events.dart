@@ -34,6 +34,26 @@ enum SocketIOGameReceiveEvents {
   gameUnpause('game-unpause'),
   @JsonValue('theme-eliminate')
   themeEliminate('theme-eliminate'),
+  @JsonValue('question-skip')
+  questionSkip('question-skip'),
+  @JsonValue('question-unskip')
+  questionUnskip('question-unskip'),
+  @JsonValue('player-ready')
+  playerReady('player-ready'),
+  @JsonValue('player-unready')
+  playerUnready('player-unready'),
+  @JsonValue('player-kicked')
+  playerKicked('player-kicked'),
+  @JsonValue('player-restricted')
+  playerRestricted('player-restricted'),
+  @JsonValue('player-role-change')
+  playerRoleChange('player-role-change'),
+  @JsonValue('score-changed')
+  scoreChanged('score-changed'),
+  @JsonValue('player-slot-change')
+  playerSlotChange('player-slot-change'),
+  @JsonValue('turn-player-changed')
+  turnPlayerChanged('turn-player-changed'),
   @JsonValue('final-bid-submit')
   finalBidSubmit('final-bid-submit'),
   @JsonValue('final-answer-submit')

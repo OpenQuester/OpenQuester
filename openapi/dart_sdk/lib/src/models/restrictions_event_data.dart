@@ -15,6 +15,9 @@ abstract class RestrictionsEventData with _$RestrictionsEventData {
 
     /// Restricted players can only join as spectators
     required bool restricted,
+
+    /// If true - player is banned from the game
+    required bool banned,
   }) = _RestrictionsEventData;
   
   factory RestrictionsEventData.fromJson(Map<String, Object?> json) => _$RestrictionsEventDataFromJson(json);
