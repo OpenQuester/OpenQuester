@@ -36,7 +36,7 @@ export class SocketGameTimerService {
     }
 
     game.pause();
-    game.setTimer(timer);
+    game.setTimer(null);
     await this.gameService.updateGame(game);
 
     return { game, timer };
