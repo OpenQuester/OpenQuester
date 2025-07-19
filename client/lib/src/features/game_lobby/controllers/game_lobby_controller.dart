@@ -611,13 +611,13 @@ class GameLobbyController {
   void _onQuestionUnSkip(dynamic data) {
     if (data is! Map) return;
 
-    final unskipedPlayer = SocketIOGameUnskipEventPayload.fromJson(
+    final unskippedPlayer = SocketIOGameUnskipEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
     gameData.value = gameData.value?.copyWith.gameState(
       skippedPlayers: gameData.value?.gameState.skippedPlayers
           ?.whereNot(
-            (e) => e == unskipedPlayer.playerId,
+            (e) => e == unskippedPlayer.playerId,
           )
           .toList(),
     );
