@@ -75,9 +75,34 @@ class BlurDialogRoute<R> extends CustomRoute<R> {
       child: child,
       builder: (context, child) {
         final sigma = animation.value * 2;
+
+        // Slide animation: from 20px down to 0
+        final slideOffset =
+            Tween<Offset>(
+              begin: const Offset(0, 0.05), // 20px equivalent in relative units
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              ),
+            );
+
+        // Fade animation
+        final fadeAnimation = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOut,
+        );
+
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          child: child,
+          child: SlideTransition(
+            position: slideOffset,
+            child: FadeTransition(
+              opacity: fadeAnimation,
+              child: child,
+            ),
+          ),
         );
       },
     );
