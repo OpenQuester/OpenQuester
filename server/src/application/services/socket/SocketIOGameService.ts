@@ -6,6 +6,7 @@ import { SocketIOQuestionService } from "application/services/socket/SocketIOQue
 import { UserService } from "application/services/user/UserService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
+import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
@@ -13,6 +14,7 @@ import { ServerError } from "domain/errors/ServerError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
+import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
@@ -56,11 +58,26 @@ export class SocketIOGameService {
 
     GameStateValidator.validateGameNotFinished(game);
 
+    // Check existing player restrictions FIRST before checking role availability
+    const existingPlayer = game.getPlayer(user.id, { fetchDisconnected: true });
+    if (existingPlayer) {
+      // Banned players cannot join at all
+      if (existingPlayer.isBanned) {
+        throw new ClientError(ClientResponse.YOU_ARE_BANNED);
+      }
+
+      // Restricted players can only join as spectators
+      if (existingPlayer.isRestricted && data.role !== PlayerRole.SPECTATOR) {
+        throw new ClientError(ClientResponse.YOU_ARE_RESTRICTED);
+      }
+    }
+
+    // Now check role availability after restriction checks
     if (data.role === PlayerRole.PLAYER && !game.checkFreeSlot()) {
       throw new ClientError(ClientResponse.GAME_IS_FULL);
     }
 
-    if (data.role === PlayerRole.SHOWMAN && game.checkShowmanSlot()) {
+    if (data.role === PlayerRole.SHOWMAN && game.checkShowmanSlotIsTaken()) {
       throw new ClientError(ClientResponse.SHOWMAN_IS_TAKEN);
     }
 
@@ -72,18 +89,6 @@ export class SocketIOGameService {
       },
       data.role
     );
-
-    if (player.isRestricted && data.role !== PlayerRole.SPECTATOR) {
-      game.removePlayer(player.meta.id);
-      await this.gameService.updateGame(game);
-      throw new ClientError(ClientResponse.YOU_ARE_RESTRICTED);
-    }
-
-    if (player.isBanned) {
-      game.removePlayer(player.meta.id);
-      await this.gameService.updateGame(game);
-      throw new ClientError(ClientResponse.YOU_ARE_BANNED);
-    }
 
     await this.socketUserDataService.update(socketId, {
       id: JSON.stringify(user.id),
@@ -309,6 +314,313 @@ export class SocketIOGameService {
       game,
       gameState,
     };
+  }
+
+  /**
+   * Changes player role
+   */
+  public async changePlayerRole(
+    socketId: string,
+    newRole: PlayerRole,
+    targetPlayerId: number | null
+  ): Promise<{ game: Game; targetPlayer: PlayerDTO; players: PlayerDTO[] }> {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const { game, currentPlayer } = context;
+
+    targetPlayerId = targetPlayerId ?? currentPlayer!.meta.id;
+
+    const targetPlayer = game.getPlayer(targetPlayerId, {
+      fetchDisconnected: false,
+    });
+
+    if (!targetPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    this.socketGameValidationService.validatePlayerRoleChange(
+      currentPlayer,
+      targetPlayer,
+      newRole,
+      game
+    );
+
+    // Update player role
+    targetPlayer.role = newRole;
+
+    // If changing to player, assign a slot
+    if (newRole === PlayerRole.PLAYER) {
+      const firstFreeSlot = this._getFirstFreeSlotIndex(game);
+      if (firstFreeSlot === -1) {
+        throw new ClientError(ClientResponse.GAME_IS_FULL);
+      }
+      targetPlayer.gameSlot = firstFreeSlot;
+    } else if (newRole === PlayerRole.SPECTATOR) {
+      targetPlayer.gameSlot = null;
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      targetPlayer: targetPlayer.toDTO(),
+      players: game.players.map((p) => p.toDTO()),
+    };
+  }
+
+  /**
+   * Updates player restrictions (mute/restrict/ban)
+   */
+  public async updatePlayerRestrictions(
+    socketId: string,
+    targetPlayerId: number,
+    restrictions: { muted: boolean; restricted: boolean; banned: boolean }
+  ): Promise<{ game: Game; targetPlayer: PlayerDTO; wasRemoved: boolean }> {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const { game, currentPlayer } = context;
+
+    const targetPlayer = game.getPlayer(targetPlayerId, {
+      fetchDisconnected: true,
+    });
+
+    if (!targetPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    this.socketGameValidationService.validatePlayerManagement(currentPlayer);
+
+    // Update restrictions
+    targetPlayer.isMuted = restrictions.muted;
+    targetPlayer.isRestricted = restrictions.restricted;
+    targetPlayer.isBanned = restrictions.banned;
+
+    // If player is banned, remove them from the game
+    if (restrictions.banned) {
+      game.removePlayer(targetPlayerId);
+
+      // Remove from ready players list if they were ready
+      if (game.gameState.readyPlayers) {
+        game.gameState.readyPlayers = game.gameState.readyPlayers.filter(
+          (playerId) => playerId !== targetPlayerId
+        );
+      }
+    } else if (
+      restrictions.restricted &&
+      targetPlayer.role === PlayerRole.PLAYER
+    ) {
+      // If player is restricted (but not banned), change role to spectator
+      targetPlayer.role = PlayerRole.SPECTATOR;
+      targetPlayer.gameSlot = null;
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      targetPlayer: targetPlayer.toDTO(),
+      wasRemoved: restrictions.banned,
+    };
+  }
+
+  /**
+   * Kicks a player from the game
+   */
+  public async kickPlayer(
+    socketId: string,
+    targetPlayerId: number
+  ): Promise<{ game: Game; targetPlayerId: number }> {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const { game, currentPlayer } = context;
+
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    const targetPlayer = game.getPlayer(targetPlayerId, {
+      fetchDisconnected: false,
+    });
+
+    if (!targetPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    this.socketGameValidationService.validatePlayerManagement(currentPlayer);
+
+    // Remove player from the game
+    game.removePlayer(targetPlayerId);
+
+    // Remove from ready players list if they were ready
+    if (game.gameState.readyPlayers) {
+      game.gameState.readyPlayers = game.gameState.readyPlayers.filter(
+        (playerId) => playerId !== targetPlayerId
+      );
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      targetPlayerId,
+    };
+  }
+
+  /**
+   * Changes player score
+   */
+  public async changePlayerScore(
+    socketId: string,
+    targetPlayerId: number,
+    newScore: number
+  ): Promise<{ game: Game; targetPlayerId: number; newScore: number }> {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const { game, currentPlayer } = context;
+
+    const targetPlayer = game.getPlayer(targetPlayerId, {
+      fetchDisconnected: false,
+    });
+
+    if (!targetPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    this.socketGameValidationService.validatePlayerScoreChange(currentPlayer);
+
+    // Update score
+    targetPlayer.score = newScore;
+
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      targetPlayerId,
+      newScore,
+    };
+  }
+
+  /**
+   * Changes turn player
+   */
+  public async changeTurnPlayer(
+    socketId: string,
+    newTurnPlayerId: number | null
+  ): Promise<{ game: Game; newTurnPlayerId: number | null }> {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const { game, currentPlayer } = context;
+
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    this.socketGameValidationService.validateTurnPlayerChange(
+      currentPlayer,
+      game,
+      newTurnPlayerId
+    );
+
+    // Update turn player
+    game.gameState.currentTurnPlayerId = newTurnPlayerId;
+
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      newTurnPlayerId,
+    };
+  }
+
+  /**
+   * Changes player slot
+   */
+  public async changePlayerSlot(
+    socketId: string,
+    targetSlot: number,
+    targetPlayerId?: number
+  ): Promise<{
+    game: Game;
+    playerId: number;
+    newSlot: number;
+    updatedPlayers: PlayerDTO[];
+  }> {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const { game, currentPlayer } = context;
+
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    targetPlayerId = targetPlayerId ?? currentPlayer.meta.id;
+
+    // Determine which player's slot to change
+    let targetPlayer: Player | null;
+
+    if (
+      targetPlayerId !== undefined &&
+      targetPlayerId !== currentPlayer.meta.id
+    ) {
+      // Showman changing another player's slot
+      targetPlayer = game.getPlayer(targetPlayerId, {
+        fetchDisconnected: false,
+      });
+      if (!targetPlayer) {
+        throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+      }
+    } else {
+      // Player changing their own slot
+      targetPlayer = currentPlayer;
+    }
+
+    if (!targetPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    this.socketGameValidationService.validatePlayerSlotChange(
+      currentPlayer,
+      game,
+      targetSlot,
+      targetPlayer
+    );
+
+    // Update slot
+    targetPlayer.gameSlot = targetSlot;
+
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      playerId: targetPlayer.meta.id,
+      newSlot: targetSlot,
+      updatedPlayers: game.players.map((p) => p.toDTO()),
+    };
+  }
+
+  /**
+   * Helper method to get first free slot index
+   */
+  private _getFirstFreeSlotIndex(game: Game): number {
+    const occupiedSlots = new Set(
+      game.players
+        .filter((p) => p.role === PlayerRole.PLAYER && p.gameSlot !== null)
+        .map((p) => p.gameSlot)
+    );
+
+    for (let i = 0; i < game.maxPlayers; i++) {
+      if (!occupiedSlots.has(i)) {
+        return i;
+      }
+    }
+
+    return -1;
   }
 
   private async _fetchUser(socketId: string): Promise<UserDTO> {

@@ -31,6 +31,15 @@ export enum SocketIOGameEvents {
   PLAYER_READY = "player-ready",
   PLAYER_UNREADY = "player-unready",
 
+  // Player Management Events
+  PLAYER_ROLE_CHANGE = "player-role-change",
+  PLAYER_RESTRICTED = "player-restricted",
+  PLAYER_BANNED = "player-banned",
+  PLAYER_KICKED = "player-kicked",
+  SCORE_CHANGED = "score-changed",
+  TURN_PLAYER_CHANGED = "turn-player-changed",
+  PLAYER_SLOT_CHANGE = "player-slot-change",
+
   // Final Round Events
   THEME_ELIMINATE = "theme-eliminate",
   FINAL_BID_SUBMIT = "final-bid-submit",

@@ -2163,6 +2163,11 @@
             "type": "boolean",
             "examples": [false],
             "description": "Restricted players can only join as spectators"
+          },
+          "banned": {
+            "type": "boolean",
+            "examples": [false],
+            "description": "If true - player is banned from the game"
           }
         }
       },
@@ -2582,6 +2587,12 @@
           "question-unskip",
           "player-ready",
           "player-unready",
+          "player-kicked",
+          "player-restricted",
+          "player-role-change",
+          "score-changed",
+          "player-slot-change",
+          "turn-player-changed",
           "final-bid-submit",
           "final-answer-submit",
           "final-answer-review",
@@ -2613,6 +2624,12 @@
           "question-unskip",
           "player-ready",
           "player-unready",
+          "player-kicked",
+          "player-restricted",
+          "player-role-change",
+          "score-changed",
+          "player-slot-change",
+          "turn-player-changed",
           "final-bid-submit",
           "final-answer-submit",
           "final-answer-review",
@@ -2660,6 +2677,216 @@
         "properties": {
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
+          }
+        }
+      },
+      "SocketIOPlayerKickInput": {
+        "type": "object",
+        "description": "Data sent to kick a player from the game (showman only)",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player to kick",
+            "examples": [123]
+          }
+        },
+        "required": ["playerId"]
+      },
+      "SocketIOPlayerKickEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a player is kicked",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who was kicked",
+            "examples": [123]
+          }
+        }
+      },
+      "SocketIOPlayerRestrictionInput": {
+        "type": "object",
+        "description": "Data sent to update player restrictions (showman only)",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player to restrict",
+            "examples": [123]
+          },
+          "muted": {
+            "type": "boolean",
+            "description": "Whether the player is muted",
+            "examples": [true]
+          },
+          "restricted": {
+            "type": "boolean",
+            "description": "Whether the player is restricted",
+            "examples": [false]
+          },
+          "banned": {
+            "type": "boolean",
+            "description": "Whether the player is banned",
+            "examples": [false]
+          }
+        },
+        "required": ["playerId", "muted", "restricted", "banned"]
+      },
+      "SocketIOPlayerRestrictionEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when player restrictions are updated",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player whose restrictions were updated",
+            "examples": [123]
+          },
+          "muted": {
+            "type": "boolean",
+            "description": "Whether the player is muted",
+            "examples": [true]
+          },
+          "restricted": {
+            "type": "boolean",
+            "description": "Whether the player is restricted",
+            "examples": [false]
+          },
+          "banned": {
+            "type": "boolean",
+            "description": "Whether the player is banned",
+            "examples": [false]
+          }
+        }
+      },
+      "SocketIOPlayerRoleChangeInput": {
+        "type": "object",
+        "description": "Data sent to change a player's role",
+        "properties": {
+          "playerId": {
+            "oneOf": [{ "type": "integer" }, { "type": "null" }],
+            "description": "ID of the player whose role to change",
+            "examples": [123, null]
+          },
+          "newRole": {
+            "$ref": "#/components/schemas/PlayerRole",
+            "description": "The new role for the player"
+          }
+        },
+        "required": ["playerId", "newRole"]
+      },
+      "SocketIOPlayerRoleChangeEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a player's role is changed",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player whose role was changed",
+            "examples": [123]
+          },
+          "newRole": {
+            "$ref": "#/components/schemas/PlayerRole",
+            "description": "The new role of the player"
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerData"
+            },
+            "description": "Updated list of all players with their current data"
+          }
+        }
+      },
+      "SocketIOPlayerScoreChangeInput": {
+        "type": "object",
+        "description": "Data sent to change a player's score (showman only)",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player whose score to change",
+            "examples": [123]
+          },
+          "newScore": {
+            "type": "integer",
+            "description": "The new score for the player",
+            "examples": [1500]
+          }
+        },
+        "required": ["playerId", "newScore"]
+      },
+      "SocketIOPlayerScoreChangeEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a player's score is changed",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player whose score was changed",
+            "examples": [123]
+          },
+          "newScore": {
+            "type": "integer",
+            "description": "The new score of the player",
+            "examples": [1500]
+          }
+        }
+      },
+      "SocketIOPlayerSlotChangeInput": {
+        "type": "object",
+        "description": "Data sent to change a player's slot",
+        "properties": {
+          "targetSlot": {
+            "type": "integer",
+            "description": "The target slot to change to (0-indexed)",
+            "examples": [0, 1, 2]
+          },
+          "playerId": {
+            "type": ["integer", "null"],
+            "description": "Optional: ID of the player whose slot to change (for showman use)",
+            "examples": [123, null]
+          }
+        },
+        "required": ["targetSlot"]
+      },
+      "SocketIOPlayerSlotChangeEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a player changes their slot",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who changed their slot",
+            "examples": [123]
+          },
+          "newSlot": {
+            "type": "integer",
+            "description": "The new slot number (0-indexed)",
+            "examples": [0, 1, 2]
+          },
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerData"
+            },
+            "description": "Updated list of all players with their current data"
+          }
+        }
+      },
+      "SocketIOTurnPlayerChangeInput": {
+        "type": "object",
+        "description": "Data sent to change the current turn player (showman only)",
+        "properties": {
+          "newTurnPlayerId": {
+            "type": ["integer", "null"],
+            "description": "ID of the player who should have the turn, or null to clear",
+            "examples": [123, null]
+          }
+        },
+        "required": ["newTurnPlayerId"]
+      },
+      "SocketIOTurnPlayerChangeEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when the turn player is changed",
+        "properties": {
+          "newTurnPlayerId": {
+            "type": ["integer", "null"],
+            "description": "ID of the player who now has the turn, or null if cleared",
+            "examples": [123, null]
           }
         }
       },

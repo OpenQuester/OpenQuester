@@ -32,6 +32,39 @@ export interface AnswerSubmittedInputData {
   answerText: string | null;
 }
 
+/**
+ * Player management input data interfaces
+ */
+export interface PlayerRoleChangeInputData {
+  playerId: number | null;
+  newRole: PlayerRole;
+}
+
+export interface PlayerRestrictionInputData {
+  playerId: number;
+  muted: boolean;
+  restricted: boolean;
+  banned: boolean;
+}
+
+export interface PlayerKickInputData {
+  playerId: number;
+}
+
+export interface PlayerScoreChangeInputData {
+  playerId: number;
+  newScore: number;
+}
+
+export interface TurnPlayerChangeInputData {
+  newTurnPlayerId: number | null;
+}
+
+export interface PlayerSlotChangeInputData {
+  targetSlot: number;
+  playerId?: number;
+}
+
 // Empty interfaces for events without input data
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -101,4 +134,44 @@ export interface ChatMessageBroadcastData {
  */
 export interface UserChangeBroadcastData {
   userData: UserDTO;
+}
+
+/**
+ * Player management broadcast data interfaces
+ */
+export interface PlayerRoleChangeBroadcastData {
+  playerId: number;
+  newRole: PlayerRole;
+  /**
+   * Include all players for cases if player role changed to player
+   * so we can see slot and other info
+   */
+  players: PlayerDTO[];
+}
+
+export interface PlayerRestrictionBroadcastData {
+  playerId: number;
+  muted: boolean;
+  restricted: boolean;
+  banned: boolean;
+}
+
+export interface PlayerKickBroadcastData {
+  playerId: number;
+}
+
+export interface PlayerScoreChangeBroadcastData {
+  playerId: number;
+  newScore: number;
+}
+
+export interface TurnPlayerChangeBroadcastData {
+  newTurnPlayerId: number | null;
+}
+
+export interface PlayerSlotChangeBroadcastData {
+  playerId: number;
+  newSlot: number;
+  /** Include all players to synchronize data */
+  players: PlayerDTO[];
 }
