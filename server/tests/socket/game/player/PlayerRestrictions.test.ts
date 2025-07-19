@@ -65,7 +65,7 @@ describe("PlayerRestrictions", () => {
 
     const keysUpdated = await redisClient.keys("*");
     if (keysUpdated.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
+      throw new Error(`Redis keys not cleared before test: ${keysUpdated}`);
     }
   });
 

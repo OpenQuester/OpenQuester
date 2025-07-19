@@ -565,7 +565,6 @@ export class SocketIOGameService {
     let targetPlayer: Player | null;
 
     if (
-      targetPlayerId !== undefined &&
       targetPlayerId !== currentPlayer.meta.id
     ) {
       // Showman changing another player's slot
