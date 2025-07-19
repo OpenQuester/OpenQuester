@@ -597,13 +597,13 @@ class GameLobbyController {
   void _onQuestionSkip(dynamic data) {
     if (data is! Map) return;
 
-    final skipedPlayer = SocketIOGameSkipEventPayload.fromJson(
+    final skippedPlayer = SocketIOGameSkipEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
     gameData.value = gameData.value?.copyWith.gameState(
       skippedPlayers: {
         ...?gameData.value?.gameState.skippedPlayers,
-        skipedPlayer.playerId,
+        skippedPlayer.playerId,
       }.toList(),
     );
   }
