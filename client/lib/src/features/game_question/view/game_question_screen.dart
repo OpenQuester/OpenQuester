@@ -150,31 +150,56 @@ class _QuestionBottom extends WatchingWidget {
   }
 }
 
-class _AnswerButtons extends StatelessWidget {
+class _AnswerButtons extends WatchingWidget {
   const _AnswerButtons();
 
   @override
   Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final myId = gameData?.me.meta.id;
+    final playerSkipped =
+        gameData?.gameState.skippedPlayers?.contains(myId) ?? false;
     final borderRadius = 8.circular;
     final foregroundColor = context.theme.colorScheme.onSurfaceVariant;
 
     return InkWell(
       onTap: getIt<GameLobbyController>().onAnswer,
+      onLongPress: () =>
+          getIt<GameLobbyController>().passQuestion(pass: !playerSkipped),
       borderRadius: borderRadius,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: foregroundColor),
-          borderRadius: borderRadius,
-        ),
-        child: Text(
-          [
-            LocaleKeys.question_press_to_answer.tr(),
-            // TODO: Add hold to skip
-            // LocaleKeys.question_hold_to_skip.tr(),
-          ].join('\n'),
-          textAlign: TextAlign.center,
-          style: context.textTheme.bodyLarge?.copyWith(color: foregroundColor),
-        ).center(),
+      child: Builder(
+        builder: (context) {
+          final child = Container(
+            decoration: BoxDecoration(
+              border: playerSkipped ? null : Border.all(color: foregroundColor),
+              borderRadius: borderRadius,
+            ),
+            padding: 16.all,
+            child: Text(
+              [
+                LocaleKeys.question_press_to_answer.tr(),
+                if (playerSkipped)
+                  LocaleKeys.question_hold_to_unskip.tr()
+                else
+                  LocaleKeys.question_hold_to_skip.tr(),
+              ].join('\n'),
+              textAlign: TextAlign.center,
+              style: context.textTheme.bodyLarge?.copyWith(
+                color: foregroundColor,
+              ),
+            ).center(),
+          );
+
+          if (playerSkipped) {
+            return DottedBorderWidget(
+              color: context.theme.colorScheme.outline,
+              radius: 8,
+              child: child,
+            );
+          }
+
+          return child;
+        },
       ),
     ).paddingAll(24);
   }

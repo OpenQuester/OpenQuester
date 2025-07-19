@@ -2369,6 +2369,14 @@
               "$ref": "#/components/schemas/GameStateAnsweredPlayer"
             }
           },
+          "skippedPlayers": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "integer"
+            },
+            "description": "IDs of players who skipped the question",
+            "examples": [727]
+          },
           "timer": {
             "oneOf": [
               { "$ref": "#/components/schemas/GameStateTimer" },
