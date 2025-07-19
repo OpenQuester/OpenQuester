@@ -89,8 +89,22 @@ export enum ClientResponse {
   ONLY_SHOWMAN_CAN_UNPAUSE = "only_showman_can_unpause",
   ONLY_PLAYERS_CAN_SKIP = "only_players_can_skip",
   CANNOT_SKIP_WHILE_ANSWERING = "cannot_skip_while_answering",
+  CANNOT_CHANGE_ROLE_WHILE_ANSWERING = "cannot_change_role_while_answering",
   ALREADY_ANSWERED_QUESTION = "already_answered_question",
   PLAYER_NOT_SKIPPED = "player_not_skipped",
+  ONLY_PLAYERS_CAN_SET_READY = "only_players_can_set_ready",
+
+  // Player Management
+  ONLY_SHOWMAN_CAN_MANAGE_PLAYERS = "only_showman_can_manage_players",
+  CANNOT_MANAGE_SHOWMAN = "cannot_manage_showman",
+  CANNOT_MANAGE_YOURSELF = "cannot_manage_yourself",
+  INVALID_ROLE_CHANGE = "invalid_role_change",
+  SHOWMAN_SLOT_TAKEN = "showman_slot_taken",
+  INVALID_SLOT_NUMBER = "invalid_slot_number",
+  SLOT_ALREADY_OCCUPIED = "slot_already_occupied",
+  CANNOT_CHANGE_TO_SAME_SLOT = "cannot_change_to_same_slot",
+  ONLY_PLAYERS_CAN_CHANGE_SLOTS = "only_players_can_change_slots",
+  INVALID_SCORE_VALUE = "invalid_score_value",
 
   // Final Round
   INVALID_ROUND_TYPE = "invalid_round_type",

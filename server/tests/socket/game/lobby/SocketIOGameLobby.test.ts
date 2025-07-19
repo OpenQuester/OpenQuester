@@ -15,9 +15,9 @@ import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
+import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
-import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 describe("SocketIOGameLobby", () => {
   let testEnv: TestEnvironment;
@@ -57,7 +57,7 @@ describe("SocketIOGameLobby", () => {
 
     const keysUpdated = await redisClient.keys("*");
     if (keysUpdated.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
+      throw new Error(`Redis keys not cleared before test: ${keysUpdated}`);
     }
   });
 

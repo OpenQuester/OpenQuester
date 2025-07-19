@@ -10,6 +10,14 @@ import {
   ThemeEliminateInputData,
 } from "domain/types/socket/events/FinalRoundEventData";
 import {
+  PlayerKickInputData,
+  PlayerRestrictionInputData,
+  PlayerRoleChangeInputData,
+  PlayerScoreChangeInputData,
+  PlayerSlotChangeInputData,
+  TurnPlayerChangeInputData,
+} from "domain/types/socket/events/SocketEventInterfaces";
+import {
   AnswerResultData,
   AnswerResultType,
 } from "domain/types/socket/game/AnswerResultData";
@@ -92,6 +100,60 @@ export class GameValidator {
     });
 
     return this._validate<FinalAnswerReviewInputData>(data, schema);
+  }
+
+  public static validatePlayerRoleChange(data: PlayerRoleChangeInputData) {
+    const schema = Joi.object<PlayerRoleChangeInputData>({
+      playerId: Joi.number().min(0),
+      newRole: Joi.valid(...Object.values(PlayerRole)).required(),
+    });
+
+    return this._validate<PlayerRoleChangeInputData>(data, schema);
+  }
+
+  public static validatePlayerRestriction(data: PlayerRestrictionInputData) {
+    const schema = Joi.object<PlayerRestrictionInputData>({
+      playerId: Joi.number().min(0).required(),
+      muted: Joi.boolean().required(),
+      restricted: Joi.boolean().required(),
+      banned: Joi.boolean().required(),
+    });
+
+    return this._validate<PlayerRestrictionInputData>(data, schema);
+  }
+
+  public static validatePlayerKick(data: PlayerKickInputData) {
+    const schema = Joi.object<PlayerKickInputData>({
+      playerId: Joi.number().min(0).required(),
+    });
+
+    return this._validate<PlayerKickInputData>(data, schema);
+  }
+
+  public static validatePlayerScoreChange(data: PlayerScoreChangeInputData) {
+    const schema = Joi.object<PlayerScoreChangeInputData>({
+      playerId: Joi.number().min(0).required(),
+      newScore: Joi.number().required(),
+    });
+
+    return this._validate<PlayerScoreChangeInputData>(data, schema);
+  }
+
+  public static validateTurnPlayerChange(data: TurnPlayerChangeInputData) {
+    const schema = Joi.object<TurnPlayerChangeInputData>({
+      newTurnPlayerId: Joi.number().min(0).allow(null).required(),
+    });
+
+    return this._validate<TurnPlayerChangeInputData>(data, schema);
+  }
+
+  public static validatePlayerSlotChange(data: PlayerSlotChangeInputData) {
+    const schema = Joi.object<PlayerSlotChangeInputData>({
+      targetSlot: Joi.number().min(0).required(),
+      playerId: Joi.number().min(0),
+    });
+
+    return this._validate<PlayerSlotChangeInputData>(data, schema);
   }
 
   private static _validate<T>(data: T, schema: Joi.ObjectSchema<T>) {

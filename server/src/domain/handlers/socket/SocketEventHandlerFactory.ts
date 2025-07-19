@@ -14,7 +14,15 @@ import { JoinGameEventHandler } from "domain/handlers/socket/game/JoinGameEventH
 import { LeaveGameEventHandler } from "domain/handlers/socket/game/LeaveGameEventHandler";
 import { NextRoundEventHandler } from "domain/handlers/socket/game/NextRoundEventHandler";
 import { PauseGameEventHandler } from "domain/handlers/socket/game/PauseGameEventHandler";
+import { PlayerKickEventHandler } from "domain/handlers/socket/game/PlayerKickEventHandler";
+import { PlayerReadyEventHandler } from "domain/handlers/socket/game/PlayerReadyEventHandler";
+import { PlayerRestrictionEventHandler } from "domain/handlers/socket/game/PlayerRestrictionEventHandler";
+import { PlayerRoleChangeEventHandler } from "domain/handlers/socket/game/PlayerRoleChangeEventHandler";
+import { PlayerScoreChangeEventHandler } from "domain/handlers/socket/game/PlayerScoreChangeEventHandler";
+import { PlayerSlotChangeEventHandler } from "domain/handlers/socket/game/PlayerSlotChangeEventHandler";
+import { PlayerUnreadyEventHandler } from "domain/handlers/socket/game/PlayerUnreadyEventHandler";
 import { StartGameEventHandler } from "domain/handlers/socket/game/StartGameEventHandler";
+import { TurnPlayerChangeEventHandler } from "domain/handlers/socket/game/TurnPlayerChangeEventHandler";
 import { UnpauseGameEventHandler } from "domain/handlers/socket/game/UnpauseGameEventHandler";
 import { AnswerResultEventHandler } from "domain/handlers/socket/question/AnswerResultEventHandler";
 import { AnswerSubmittedEventHandler } from "domain/handlers/socket/question/AnswerSubmittedEventHandler";
@@ -88,6 +96,54 @@ export class SocketEventHandlerFactory {
         this.socketIOGameService
       ),
       new UnpauseGameEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new PlayerReadyEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new PlayerUnreadyEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new PlayerKickEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new PlayerRestrictionEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new PlayerRoleChangeEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new PlayerScoreChangeEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new TurnPlayerChangeEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOGameService
+      ),
+      new PlayerSlotChangeEventHandler(
         socket,
         eventEmitter,
         this.logger,
