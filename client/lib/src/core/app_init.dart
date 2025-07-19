@@ -32,7 +32,7 @@ class AppInit {
           'NVDEC', // Linux/Win Nvidia
           'D3D11', // Windows
           //
-          'dav1d', // Software AV
+          'dav1d', // Software AV1
           'FFmpeg:hwcontext=vaapi:copy=1:sw_fallback=1', // Hardware + software
         ],
       },
