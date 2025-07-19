@@ -52,21 +52,25 @@ export class RedisRepository {
   /**
    * Private wrapper method to handle consistent logging for Redis operations
    * @param operationName The name of the Redis operation (e.g., "Redis GET")
-   * @param logData Object containing data to log
+   * @param traceLogData Object containing data to log
    * @param operation The async Redis operation to execute
    * @returns The result of the Redis operation
    */
   private async executeWithLogging<T>(
     operationName: string,
-    logData: object,
-    operation: () => Promise<T>
+    traceLogData: object,
+    operation: () => Promise<T>,
+    performanceLogData: object | null = null
   ): Promise<T> {
     this.logger.trace(operationName, {
       prefix: "[REDIS]: ",
-      ...logData,
+      ...traceLogData,
     });
 
-    const log = this.logger.performance(operationName, logData);
+    const log = this.logger.performance(
+      operationName,
+      performanceLogData ? performanceLogData : traceLogData
+    );
 
     try {
       const result = await operation();
@@ -83,14 +87,15 @@ export class RedisRepository {
   public async set(key: string, value: string, expire?: number): Promise<void> {
     return this.executeWithLogging(
       "Redis SET",
-      { key, expire: expire ?? null, hasExpire: !!expire },
+      { key, value, expire: expire ?? null },
       async () => {
         if (expire) {
           await this._client.set(key, value, "PX", expire);
         } else {
           await this._client.set(key, value);
         }
-      }
+      },
+      { key, expire: expire ?? null }
     );
   }
 
@@ -262,7 +267,8 @@ export class RedisRepository {
         } else {
           return this._client.hset(key, fields);
         }
-      }
+      },
+      { key, expire }
     );
   }
 

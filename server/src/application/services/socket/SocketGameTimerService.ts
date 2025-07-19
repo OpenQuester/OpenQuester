@@ -27,16 +27,19 @@ export class SocketGameTimerService {
     const timer = await this.gameService.getTimer(game.id);
     if (timer) {
       timer.elapsedMs = this.calculateElapsedTime(timer);
+      // Save timer with elapsed time
       await this.gameService.saveTimer(
         timer,
         game.id,
         Math.ceil(GAME_TTL_IN_SECONDS * SECOND_MS * 1.25), // Convert to ms
         questionState!
       );
+      // Clear existing timer to avoid expiration
+      await this.gameService.clearTimer(game.id);
     }
 
     game.pause();
-    game.setTimer(timer);
+    game.setTimer(null);
     await this.gameService.updateGame(game);
 
     return { game, timer };
@@ -48,7 +51,14 @@ export class SocketGameTimerService {
     const timer = await this.gameService.getTimer(game.id, questionState!);
 
     if (timer) {
+      // Clear timer with elapsed time
       await this.gameService.clearTimer(game.id, questionState!);
+      // Update timer with new time to expire
+      await this.gameService.saveTimer(
+        timer,
+        game.id,
+        timer.durationMs - (timer?.elapsedMs || 0)
+      );
     }
 
     game.unpause();
