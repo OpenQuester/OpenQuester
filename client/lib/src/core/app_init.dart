@@ -29,8 +29,10 @@ class AppInit {
           // Hardware decoders
           'videotoolbox', // Apple
           'mediacodec', // Android
+          'VDPAU', // Linux Nvidia
           'NVDEC', // Linux/Win Nvidia
-          'D3D11', // Windows
+          'D3D12', // Windows DX12
+          'D3D11', // Windows DX11
           //
           'dav1d', // Software AV1
           'FFmpeg:hwcontext=vaapi:copy=1:sw_fallback=1', // Hardware + software
