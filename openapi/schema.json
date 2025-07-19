@@ -2369,7 +2369,7 @@
             "items": {
               "type": "integer"
             },
-            "description": "Id of player who skipped question",
+            "description": "IDs of players who skipped question",
             "examples": [727]
           },
           "timer": {
