@@ -377,7 +377,6 @@ class GameLobbyController {
     gameData.value = gameData.value?.copyWith
         .gameState(
           answeringPlayer: null,
-          skippedPlayers: null,
           answeredPlayers: [
             ...?gameData.value?.gameState.answeredPlayers,
             if (questionData.answerResult != null) questionData.answerResult!,
@@ -435,8 +434,8 @@ class GameLobbyController {
         answerText: questionData.answerText,
       ),
       currentTurnPlayerId: questionData.nextTurnPlayerId,
+      skippedPlayers: null,
     );
-
     _showAnswer();
   }
 

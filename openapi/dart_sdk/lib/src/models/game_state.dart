@@ -24,7 +24,7 @@ abstract class GameState with _$GameState {
     required int? answeringPlayer,
     required List<GameStateAnsweredPlayer>? answeredPlayers,
 
-    /// Id of player who skipped question
+    /// IDs of players who skipped the question
     required List<int>? skippedPlayers,
     SocketIOGameStateRoundData? currentRound,
     PackageQuestionData? currentQuestion,
