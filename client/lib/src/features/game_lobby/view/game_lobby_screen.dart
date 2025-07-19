@@ -116,7 +116,9 @@ class _BodyBuilder extends WatchingWidget {
 
     Widget body;
 
-    if (isPaused) {
+    if (gameData?.gameState.currentRound == null) {
+      body = const _GameLobby();
+    } else if (isPaused) {
       body = const _GamePausedScreen();
     } else if (gameFinished) {
       body = const _GameFinishedScreen();
@@ -127,6 +129,16 @@ class _BodyBuilder extends WatchingWidget {
     }
 
     return body;
+  }
+}
+
+class _GameLobby extends WatchingWidget {
+  const _GameLobby();
+
+  @override
+  Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    return const Placeholder();
   }
 }
 

@@ -22,20 +22,12 @@ class GameLobbyThemes extends WatchingWidget {
 
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final round = gameData?.gameState.currentRound;
-    final themes = round
-        ?.sortedThemes()
-        .map((theme) => GameLobbyTheme(theme: theme).paddingBottom(16))
-        .toList();
-
-    if (themes == null) {
-      if (gameData?.me.role == PlayerRole.showman) {
-        return FilledButton(
-          onPressed: getIt<GameLobbyController>().startGame,
-          child: Text(LocaleKeys.start_game.tr()),
-        ).center();
-      }
-      return const CircularProgressIndicator().center();
-    }
+    final themes =
+        round
+            ?.sortedThemes()
+            .map((theme) => GameLobbyTheme(theme: theme).paddingBottom(16))
+            .toList() ??
+        [];
 
     return ListView.builder(
       controller: scrollController,
