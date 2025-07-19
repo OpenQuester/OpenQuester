@@ -16,8 +16,9 @@ class GameLobbyController {
   final gameData = ValueNotifier<SocketIOGameJoinEventPayload?>(null);
   final gameListData = ValueNotifier<GameListItem?>(null);
   final gameFinished = ValueNotifier<bool>(false);
-
+  final lobbyEditorMode = ValueNotifier<bool>(false);
   final showChat = ValueNotifier<bool>(false);
+  
   StreamSubscription<ChatOperation>? _chatMessagesSub;
   double? themeScrollPosition;
 
@@ -162,10 +163,13 @@ class GameLobbyController {
       _chatMessagesSub = null;
       showChat.value = false;
       gameFinished.value = false;
+      lobbyEditorMode.value = false;
       themeScrollPosition = null;
       getIt<SocketChatController>().clear();
       getIt<GameQuestionController>().clear();
-    } catch (_) {}
+    } catch (e, s) {
+      logger.e(e, stackTrace: s);
+    }
   }
 
   Future<void> leave({bool force = false}) async {
@@ -188,6 +192,11 @@ class GameLobbyController {
     gameData.value = SocketIOGameJoinEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
+
+    // Set editor mode after loading game but not starting
+    if (gameData.value?.gameState.currentRound == null) {
+      lobbyEditorMode.value = true;
+    }
 
     await _initChat();
 

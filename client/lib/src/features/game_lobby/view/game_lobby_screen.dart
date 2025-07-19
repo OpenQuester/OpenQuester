@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
+import 'package:openquester/src/features/game_lobby/view/game_lobby_editor.dart';
+import 'package:openquester/src/features/game_lobby/view/game_lobby_editor_players.dart';
 
 @RoutePage()
 class GameLobbyScreen extends WatchingStatefulWidget {
@@ -108,6 +110,9 @@ class _BodyBuilder extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final lobbyEditorMode = watchValue(
+      (GameLobbyController e) => e.lobbyEditorMode,
+    );
     final currentQuestion = watchValue(
       (GameQuestionController e) => e.questionData,
     );
@@ -116,8 +121,10 @@ class _BodyBuilder extends WatchingWidget {
 
     Widget body;
 
-    if (gameData?.gameState.currentRound == null) {
-      body = const _GameLobby();
+    if (lobbyEditorMode) {
+      body = const GameLobbyEditor();
+    } else if (gameData?.gameState.currentRound == null) {
+      body = const CircularProgressIndicator().center();
     } else if (isPaused) {
       body = const _GamePausedScreen();
     } else if (gameFinished) {
@@ -129,16 +136,6 @@ class _BodyBuilder extends WatchingWidget {
     }
 
     return body;
-  }
-}
-
-class _GameLobby extends WatchingWidget {
-  const _GameLobby();
-
-  @override
-  Widget build(BuildContext context) {
-    final gameData = watchValue((GameLobbyController e) => e.gameData);
-    return const Placeholder();
   }
 }
 
@@ -174,15 +171,25 @@ class _BodyLayoutBuilder extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final playersOnLeft = GameLobbyStyles.playersOnLeft(context);
+    final lobbyEditorMode = watchValue(
+      (GameLobbyController e) => e.lobbyEditorMode,
+    );
 
     Widget child;
     final body = const _BodyBuilder().expand();
+
+    Widget playersList({required Axis axis}) {
+      if (lobbyEditorMode) {
+        return GameLobbyEditorPlayers(axis: axis);
+      }
+      return GameLobbyPlayers(axis: axis);
+    }
 
     if (playersOnLeft) {
       child = Row(
         spacing: 8,
         children: [
-          const GameLobbyPlayers(axis: Axis.vertical)
+          playersList(axis: Axis.vertical)
               .withWidth(GameLobbyStyles.players.width)
               .paddingSymmetric(horizontal: 8)
               .paddingTop(16)
@@ -193,7 +200,7 @@ class _BodyLayoutBuilder extends WatchingWidget {
     } else {
       child = Column(
         children: [
-          const GameLobbyPlayers(
+          playersList(
             axis: Axis.horizontal,
           ).withHeight(GameLobbyStyles.playersMobile.height),
           const Divider(height: 0, thickness: .4).paddingTop(8),

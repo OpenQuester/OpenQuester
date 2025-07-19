@@ -55,6 +55,8 @@ extension WidgetX on Widget {
   Widget constrained(BoxConstraints constraints) {
     return ConstrainedBox(constraints: constraints, child: this);
   }
+
+  SliverToBoxAdapter get sliver => SliverToBoxAdapter(child: this);
 }
 
 extension NumberPaddings on num {

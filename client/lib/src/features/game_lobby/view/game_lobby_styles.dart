@@ -27,4 +27,13 @@ class GameLobbyStyles {
       MediaQuery.sizeOf(context).height < 600;
 
   static const double maxTimerWidth = 400;
+
+  static BoxConstraints playerTileConstrains() => BoxConstraints.loose(
+    Size(
+      playersMobile.width,
+      players.height,
+    ),
+  );
+
+  static double get playerTileRadius => 12;
 }

@@ -98,16 +98,11 @@ class GameLobbyPlayer extends WatchingWidget {
             : Border.all(
                 color: borderColor,
               ),
-        borderRadius: 12.circular,
+        borderRadius: GameLobbyStyles.playerTileRadius.circular,
         color: context.theme.colorScheme.surface,
       ),
       padding: 4.all,
-      constraints: BoxConstraints.loose(
-        Size(
-          GameLobbyStyles.playersMobile.width,
-          GameLobbyStyles.players.height,
-        ),
-      ),
+      constraints: GameLobbyStyles.playerTileConstrains(),
       child: IconTheme(
         data: const IconThemeData(size: 16, color: Colors.white),
         child: Stack(
