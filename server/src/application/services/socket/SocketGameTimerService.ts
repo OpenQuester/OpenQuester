@@ -57,7 +57,7 @@ export class SocketGameTimerService {
       await this.gameService.saveTimer(
         timer,
         game.id,
-        timer.durationMs - timer?.elapsedMs || 0
+        timer.durationMs - (timer?.elapsedMs || 0)
       );
     }
 
