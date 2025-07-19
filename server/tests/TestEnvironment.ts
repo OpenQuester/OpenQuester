@@ -13,7 +13,6 @@ export class TestEnvironment {
   }
 
   public async setup(): Promise<void> {
-    // const logger = await PinoLogger.init({ pretty: true });
     await this.createTestDatabase();
     this.testDataSource = createTestAppDataSource();
     await this.testDataSource.initialize();

@@ -222,9 +222,9 @@ export class Game {
   }
 
   /**
-   * @returns Whether showman slot is free
+   * @returns Whether showman slot is taken
    */
-  public checkShowmanSlot(): boolean {
+  public checkShowmanSlotIsTaken(): boolean {
     return this._players.some(
       (p) =>
         p.role === PlayerRole.SHOWMAN &&

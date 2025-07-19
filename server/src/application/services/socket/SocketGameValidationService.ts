@@ -3,6 +3,7 @@ import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
@@ -28,6 +29,11 @@ export class SocketGameValidationService {
           throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_UNPAUSE);
         case ShowmanAction.NEXT_ROUND:
           throw new ClientError(ClientResponse.ONLY_SHOWMAN_NEXT_ROUND);
+        case ShowmanAction.MANAGE_PLAYERS:
+        case ShowmanAction.KICK_PLAYER:
+        case ShowmanAction.CHANGE_SCORE:
+        case ShowmanAction.CHANGE_TURN_PLAYER:
+          throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_MANAGE_PLAYERS);
       }
     }
   }
@@ -47,6 +53,21 @@ export class SocketGameValidationService {
     this.validateShowmanRole(player, ShowmanAction.UNPAUSE);
     GameStateValidator.validateGameNotFinished(game);
     GameStateValidator.validateGameStarted(game);
+  }
+
+  /**
+   * Validates that player can set ready state
+   */
+  public validatePlayerReadyState(player: Player | null, game: Game): void {
+    // Only players (not showman or spectators) can set ready state
+    if (!player || player.role !== PlayerRole.PLAYER) {
+      throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_SET_READY);
+    }
+
+    // Can only set ready state before game starts
+    if (ValueUtils.isValidDate(game.startedAt)) {
+      throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
+    }
   }
 
   /**
@@ -201,6 +222,166 @@ export class SocketGameValidationService {
     // Check if in answering phase
     if (game.gameState.questionState !== QuestionState.ANSWERING) {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
+    }
+  }
+
+  /**
+   * Validates player management operations (restrict/ban/kick)
+   */
+  public validatePlayerManagement(currentPlayer: Player | null): void {
+    this.validateShowmanRole(currentPlayer, ShowmanAction.MANAGE_PLAYERS);
+  }
+
+  /**
+   * Validates player role change
+   */
+  public validatePlayerRoleChange(
+    currentPlayer: Player | null,
+    targetPlayer: Player | null,
+    newRole: PlayerRole,
+    game: Game
+  ): void {
+    if (!currentPlayer || !targetPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    const isSelfChange = currentPlayer.meta.id === targetPlayer.meta.id;
+
+    if (isSelfChange) {
+      // Validate self-role change
+      this.validateSelfRoleChange(currentPlayer, newRole, game);
+    } else {
+      // Validate showman-initiated role change (existing behavior)
+      this.validatePlayerManagement(currentPlayer);
+
+      // Check if trying to change to showman when slot is taken
+      if (newRole === PlayerRole.SHOWMAN && game.checkShowmanSlotIsTaken()) {
+        throw new ClientError(ClientResponse.SHOWMAN_SLOT_TAKEN);
+      }
+    }
+
+    // Common validation - cannot change to same role
+    if (targetPlayer.role === newRole) {
+      throw new ClientError(ClientResponse.INVALID_ROLE_CHANGE);
+    }
+  }
+
+  /**
+   * Validates self-role change
+   */
+  private validateSelfRoleChange(
+    currentPlayer: Player,
+    newRole: PlayerRole,
+    game: Game
+  ): void {
+    // Check if restricted player is trying to change to non-spectator role
+    if (currentPlayer.isRestricted && newRole !== PlayerRole.SPECTATOR) {
+      throw new ClientError(ClientResponse.YOU_ARE_RESTRICTED);
+    }
+
+    // Check if banned player is trying to change role (shouldn't happen, but safety check)
+    if (currentPlayer.isBanned) {
+      throw new ClientError(ClientResponse.YOU_ARE_BANNED);
+    }
+
+    // Prevent role changes during active questions to avoid disrupting gameplay
+    if (
+      game.gameState?.currentQuestion &&
+      game.gameState?.questionState === QuestionState.ANSWERING
+    ) {
+      throw new ClientError(ClientResponse.CANNOT_CHANGE_ROLE_WHILE_ANSWERING);
+    }
+
+    // Check if trying to become showman when slot is taken
+    if (newRole === PlayerRole.SHOWMAN && game.checkShowmanSlotIsTaken()) {
+      throw new ClientError(ClientResponse.SHOWMAN_SLOT_TAKEN);
+    }
+
+    // If changing to player role, check if there are available slots
+    if (newRole === PlayerRole.PLAYER) {
+      const activePlayers = game.players.filter(
+        (p) =>
+          p.role === PlayerRole.PLAYER &&
+          p.gameStatus === PlayerGameStatus.IN_GAME &&
+          p.meta.id !== currentPlayer.meta.id
+      );
+
+      if (activePlayers.length >= game.maxPlayers) {
+        throw new ClientError(ClientResponse.GAME_IS_FULL);
+      }
+    }
+  }
+
+  /**
+   * Validates player score change
+   */
+  public validatePlayerScoreChange(currentPlayer: Player | null): void {
+    this.validateShowmanRole(currentPlayer, ShowmanAction.CHANGE_SCORE);
+  }
+
+  /**
+   * Validates turn player change
+   */
+  public validateTurnPlayerChange(
+    currentPlayer: Player,
+    game: Game,
+    newTurnPlayerId: number | null
+  ): void {
+    this.validateShowmanRole(currentPlayer, ShowmanAction.CHANGE_TURN_PLAYER);
+    GameStateValidator.validateGameNotFinished(game);
+
+    if (newTurnPlayerId !== null) {
+      const targetPlayer = game.getPlayer(newTurnPlayerId, {
+        fetchDisconnected: false,
+      });
+      if (!targetPlayer || targetPlayer.role !== PlayerRole.PLAYER) {
+        throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+      }
+    }
+  }
+
+  /**
+   * Validates player slot change
+   */
+  public validatePlayerSlotChange(
+    currentPlayer: Player,
+    game: Game,
+    targetSlot: number,
+    targetPlayer: Player
+  ): void {
+    const isShowmanChange =
+      targetPlayer.meta.id !== undefined &&
+      targetPlayer.meta.id !== currentPlayer.meta.id;
+
+    if (isShowmanChange) {
+      this.validatePlayerManagement(currentPlayer);
+    }
+    // Target player must be a player (not showman or spectator)
+    if (targetPlayer.role !== PlayerRole.PLAYER) {
+      throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_CHANGE_SLOTS);
+    }
+
+    // Cannot change to same slot
+    if (targetPlayer.gameSlot === targetSlot) {
+      throw new ClientError(ClientResponse.CANNOT_CHANGE_TO_SAME_SLOT);
+    }
+
+    // Validate slot number (0-indexed slots consistent with Game entity)
+    if (targetSlot < 0 || targetSlot >= game.maxPlayers) {
+      throw new ClientError(ClientResponse.INVALID_SLOT_NUMBER);
+    }
+
+    // Check if slot is occupied
+    const slotOccupied = game.players.some(
+      (p) =>
+        p.gameSlot === targetSlot &&
+        p.role === PlayerRole.PLAYER &&
+        p.gameStatus === PlayerGameStatus.IN_GAME &&
+        p.meta.id !== targetPlayer.meta.id
+    );
+
+    if (slotOccupied) {
+      throw new ClientError(ClientResponse.SLOT_ALREADY_OCCUPIED);
     }
   }
 }

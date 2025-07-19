@@ -94,5 +94,17 @@
   "only_players_can_skip": "Only players can skip the question",
   "cannot_skip_while_answering": "You cannot skip while answering",
   "already_answered_question": "You have already answered this question",
-  "player_not_skipped": "Player has not skipped the question"
+  "player_not_skipped": "Player has not skipped the question",
+  "only_players_can_set_ready": "Only players can change readiness state",
+  "only_showman_can_manage_players": "Only showman can manage players",
+  "cannot_manage_showman": "Cannot manage showman player",
+  "cannot_manage_yourself": "Cannot manage yourself",
+  "invalid_role_change": "Invalid role change",
+  "showman_slot_taken": "Showman slot is already taken",
+  "invalid_slot_number": "Invalid slot number",
+  "slot_already_occupied": "This slot is already occupied",
+  "cannot_change_to_same_slot": "Cannot change to the same slot",
+  "only_players_can_change_slots": "Only players can change slots",
+  "invalid_score_value": "Invalid score value provided",
+  "cannot_change_role_while_answering": "Cannot change role while answering"
 }
