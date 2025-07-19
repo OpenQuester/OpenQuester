@@ -23,6 +23,8 @@ class GameLobbyController {
 
   String? get gameId => _gameId;
 
+  int get myId => ProfileController.getUser()!.id;
+
   Future<void> join({required String gameId}) async {
     // Check if already joined
     if (_gameId == gameId) return;
@@ -42,6 +44,9 @@ class GameLobbyController {
       socket = await getIt<SocketController>().createConnection(path: '/games');
       socket!
         ..onConnect((_) => _onConnect())
+        ..onReconnect(_onReconnect)
+        ..onReconnectFailed(_onDisconnect)
+        ..onDisconnect(_onDisconnect)
         // TODO: Add on disconnect pause state
         ..on(SocketIOEvents.error.json!, onError)
         ..on(SocketIOGameReceiveEvents.gameData.json!, _onGameData)
@@ -68,8 +73,29 @@ class GameLobbyController {
     }
   }
 
+  Future<void> _onDisconnect(dynamic data) async {
+    logger.d('GameLobbyController._onDisconnect: $gameId');
+
+    gameData.value = gameData.value?.changePlayer(
+      id: myId,
+      onChange: (value) =>
+          value.copyWith(status: PlayerDataStatus.disconnected),
+    );
+    _setGamePause(isPaused: true);
+  }
+
+  Future<void> _onReconnect(dynamic data) async {
+    logger.d('GameLobbyController._onReconnect: ${this.gameId}');
+
+    final gameId = this.gameId!;
+    clear();
+    await join(gameId: gameId);
+  }
+
   Future<void> _onConnect() async {
     try {
+      logger.d('GameLobbyController._onConnect: $gameId');
+
       await getIt<Api>().api.auth.postV1AuthSocket(
         body: InputSocketIOAuth(socketId: socket!.id!),
       );
@@ -240,10 +266,12 @@ class GameLobbyController {
           value.copyWith(status: PlayerDataStatus.disconnected),
     );
 
-    getIt<ToastController>().show(
-      LocaleKeys.user_leave_the_game.tr(args: [user.meta.username]),
-      type: ToastType.info,
-    );
+    if (myId != user.meta.id) {
+      getIt<ToastController>().show(
+        LocaleKeys.user_leave_the_game.tr(args: [user.meta.username]),
+        type: ToastType.info,
+      );
+    }
   }
 
   void _leave() {
@@ -276,10 +304,12 @@ class GameLobbyController {
 
     _updateChatUsers();
 
-    getIt<ToastController>().show(
-      LocaleKeys.user_joined_the_game.tr(args: [user.meta.username]),
-      type: ToastType.info,
-    );
+    if (myId != user.meta.id) {
+      getIt<ToastController>().show(
+        LocaleKeys.user_joined_the_game.tr(args: [user.meta.username]),
+        type: ToastType.info,
+      );
+    }
   }
 
   void onQuestionPick(int questionId) {
