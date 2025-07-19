@@ -26,8 +26,16 @@ class AppInit {
       options: {
         'platforms': ['windows', 'macos', 'linux'],
         'video.decoders': [
-          'dav1d',
-          'FFmpeg:hwcontext=vaapi:copy=1:sw_fallback=1',
+          // Hardware decoders
+          'videotoolbox', // Apple
+          'mediacodec', // Android
+          'VDPAU', // Linux Nvidia
+          'NVDEC', // Linux/Win Nvidia
+          'D3D12', // Windows DX12
+          'D3D11', // Windows DX11
+          //
+          'dav1d', // Software AV1
+          'FFmpeg:hwcontext=vaapi:copy=1:sw_fallback=1', // Hardware + software
         ],
       },
     );

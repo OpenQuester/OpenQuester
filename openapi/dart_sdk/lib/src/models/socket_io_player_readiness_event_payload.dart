@@ -7,7 +7,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'socket_io_player_readiness_event_payload.freezed.dart';
 part 'socket_io_player_readiness_event_payload.g.dart';
 
-/// This data sent to all players in room when a player changes their ready status
+/// This data is sent to all players in room when a player changes their ready status
 @Freezed()
 abstract class SocketIOPlayerReadinessEventPayload with _$SocketIOPlayerReadinessEventPayload {
   const factory SocketIOPlayerReadinessEventPayload({

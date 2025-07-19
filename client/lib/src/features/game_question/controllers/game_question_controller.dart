@@ -93,7 +93,6 @@ class GameQuestionController {
 
   Future<void> clearVideoControllers() async {
     await mediaController.value?.pause();
-    // await mediaController.value?.dispose();
     mediaController.value = null;
   }
 
