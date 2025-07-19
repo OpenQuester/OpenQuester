@@ -57,6 +57,8 @@ class GameLobbyController {
         ..on(SocketIOGameReceiveEvents.gameFinished.json!, _onGameFinish)
         ..on(SocketIOGameReceiveEvents.gamePause.json!, _onGamePause)
         ..on(SocketIOGameReceiveEvents.gameUnpause.json!, _onGameUnPause)
+        ..on(SocketIOGameReceiveEvents.questionSkip.json!, _onQuestionSkip)
+        ..on(SocketIOGameReceiveEvents.questionUnskip.json!, _onQuestionUnSkip)
         ..connect();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
@@ -375,6 +377,7 @@ class GameLobbyController {
     gameData.value = gameData.value?.copyWith
         .gameState(
           answeringPlayer: null,
+          skippedPlayers: null,
           answeredPlayers: [
             ...?gameData.value?.gameState.answeredPlayers,
             if (questionData.answerResult != null) questionData.answerResult!,
@@ -493,6 +496,20 @@ class GameLobbyController {
     socket?.emit(SocketIOGameSendEvents.questionAnswer.json!);
   }
 
+  void passQuestion({required bool pass}) {
+    final me = gameData.value?.me;
+    if (me == null) return;
+    if (me.role != PlayerRole.player) return;
+    if (gameData.value?.gameState.answeringPlayer != null) return;
+    if (gameData.value?.gameState.isPaused ?? true) return;
+
+    socket?.emit(
+      pass
+          ? SocketIOGameSendEvents.questionSkip.json!
+          : SocketIOGameSendEvents.questionUnskip.json!,
+    );
+  }
+
   Future<void> answerResult({
     required bool playerAnswerIsRight,
     double? multiplier,
@@ -575,5 +592,34 @@ class GameLobbyController {
 
   void skipQuestion() {
     socket?.emit(SocketIOGameSendEvents.skipQuestionForce.json!);
+  }
+
+  void _onQuestionSkip(dynamic data) {
+    if (data is! Map) return;
+
+    final skipedPlayer = SocketIOGameSkipEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+    gameData.value = gameData.value?.copyWith.gameState(
+      skippedPlayers: {
+        ...?gameData.value?.gameState.skippedPlayers,
+        skipedPlayer.playerId,
+      }.toList(),
+    );
+  }
+
+  void _onQuestionUnSkip(dynamic data) {
+    if (data is! Map) return;
+
+    final unskipedPlayer = SocketIOGameUnskipEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+    gameData.value = gameData.value?.copyWith.gameState(
+      skippedPlayers: gameData.value?.gameState.skippedPlayers
+          ?.whereNot(
+            (e) => e == unskipedPlayer.playerId,
+          )
+          .toList(),
+    );
   }
 }

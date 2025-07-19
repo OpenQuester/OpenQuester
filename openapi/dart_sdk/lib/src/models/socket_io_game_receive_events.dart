@@ -34,6 +34,10 @@ enum SocketIOGameReceiveEvents {
   gameUnpause('game-unpause'),
   @JsonValue('theme-eliminate')
   themeEliminate('theme-eliminate'),
+  @JsonValue('question-skip')
+  questionSkip('question-skip'),
+  @JsonValue('question-unskip')
+  questionUnskip('question-unskip'),
   @JsonValue('final-bid-submit')
   finalBidSubmit('final-bid-submit'),
   @JsonValue('final-answer-submit')

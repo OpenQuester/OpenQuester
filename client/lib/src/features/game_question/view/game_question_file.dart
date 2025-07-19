@@ -49,7 +49,6 @@ class GameQuestionMediaWidget extends WatchingWidget {
           border: Border.all(color: borderColor),
         ),
         constraints: const BoxConstraints(minHeight: 300),
-        clipBehavior: Clip.antiAlias,
         child: AnimatedCrossFade(
           alignment: Alignment.center,
           duration: Durations.long2,

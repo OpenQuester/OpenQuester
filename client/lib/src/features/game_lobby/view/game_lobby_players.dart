@@ -11,6 +11,7 @@ class GameLobbyPlayers extends WatchingWidget {
     final gameState = gameData?.gameState;
     final answeredPlayers = gameState?.answeredPlayers;
     final answeringPlayer = gameState?.answeringPlayer;
+    final skippedPlayers = gameState?.skippedPlayers;
     final currentTurnPlayerId = gameState?.currentTurnPlayerId;
     const roleToShow = {PlayerRole.player, PlayerRole.showman};
     const inGame = PlayerDataStatus.inGame;
@@ -31,8 +32,13 @@ class GameLobbyPlayers extends WatchingWidget {
         final answeredPlayer = answeredPlayers?.firstWhereOrNull(
           (e) => e.player == player.meta.id,
         );
+
         final result = answeredPlayer?.result;
-        final showUserAnsweredCorrect = _getPlayerAnswerState(result);
+        final passQuestion = skippedPlayers?.contains(player.meta.id) ?? false;
+        final showUserAnsweredCorrect = _getPlayerAnswerState(
+          result,
+          passQuestion,
+        );
 
         return GameLobbyPlayer(
           player: player,
@@ -44,7 +50,8 @@ class GameLobbyPlayers extends WatchingWidget {
     );
   }
 
-  PlayerAnswerState _getPlayerAnswerState(int? result) {
+  PlayerAnswerState _getPlayerAnswerState(int? result, bool passQuestion) {
+    if (passQuestion) return PlayerAnswerState.skip;
     if (result == null) return PlayerAnswerState.none;
     if (result > 0) return PlayerAnswerState.correct;
     if (result == 0) return PlayerAnswerState.skip;
@@ -70,17 +77,21 @@ class GameLobbyPlayer extends WatchingWidget {
   Widget build(BuildContext context) {
     final extraColors = Theme.of(context).extension<ExtraColors>()!;
     final foregroundColor = Colors.black.withValues(alpha: .4);
-    final borderColor = playerAnswerState == PlayerAnswerState.wrong
-        ? Colors.red
-        : playerAnswerState == PlayerAnswerState.correct
-        ? extraColors.success
-        : null;
+    final borderColor = switch (playerAnswerState) {
+      PlayerAnswerState.wrong => Colors.red,
+      PlayerAnswerState.correct => extraColors.success,
+      PlayerAnswerState.none => context.theme.colorScheme.surfaceContainerHigh,
+      PlayerAnswerState.skip => null,
+    };
+    final playerSkipped = playerAnswerState == PlayerAnswerState.skip;
 
-    return Container(
+    final child = Container(
       decoration: BoxDecoration(
-        border: Border.all(
-          color: borderColor ?? context.theme.colorScheme.surfaceContainerHigh,
-        ),
+        border: borderColor == null
+            ? null
+            : Border.all(
+                color: borderColor,
+              ),
         borderRadius: 12.circular,
         color: context.theme.colorScheme.surface,
       ),
@@ -174,6 +185,16 @@ class GameLobbyPlayer extends WatchingWidget {
         ).center(),
       ),
     );
+
+    if (playerSkipped) {
+      return DottedBorderWidget(
+        color: context.theme.colorScheme.outline,
+        radius: 12,
+        child: child,
+      );
+    }
+
+    return child;
   }
 }
 
