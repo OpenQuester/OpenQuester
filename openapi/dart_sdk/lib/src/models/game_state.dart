@@ -33,6 +33,7 @@ abstract class GameState with _$GameState {
 
     /// Id of player whose turn it is to pick a question or eliminate theme
     int? currentTurnPlayerId,
+    List<int?>? readyPlayers,
   }) = _GameState;
   
   factory GameState.fromJson(Map<String, Object?> json) => _$GameStateFromJson(json);

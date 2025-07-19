@@ -26,7 +26,11 @@ class AppInit {
       options: {
         'platforms': ['windows', 'macos', 'linux'],
         'video.decoders': [
+          'videotoolbox',
+          'mediacodec',
           'dav1d',
+          'NVDEC',
+          'D3D11',
           'FFmpeg:hwcontext=vaapi:copy=1:sw_fallback=1',
         ],
       },
