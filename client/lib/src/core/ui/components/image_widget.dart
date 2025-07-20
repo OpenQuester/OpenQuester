@@ -18,15 +18,15 @@ class ImageWidget extends StatefulWidget {
 }
 
 class _ImageWidgetState extends State<ImageWidget> {
-  ImageProvider<Object>? image;
+  ImageProvider<Object>? imageProvider;
 
   Future<void> _setProvider() async {
     if (widget.url == null) {
-      image = null;
+      imageProvider = null;
       return;
     }
 
-    image = await getImageProvider(widget.url!);
+    imageProvider = await getImageProvider(widget.url!);
     setState(() {});
   }
 
@@ -46,10 +46,10 @@ class _ImageWidgetState extends State<ImageWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final child = image == null
+    final child = imageProvider == null
         ? placeholder()
         : Image(
-            image: image!,
+            image: imageProvider!,
             fit: widget.fit,
             errorBuilder: (_, _, _) => placeholder(),
           );
