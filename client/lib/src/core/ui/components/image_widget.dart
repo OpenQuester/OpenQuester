@@ -2,22 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
 class ImageWidget extends StatefulWidget {
-  ImageWidget({
-    required String? url,
+  const ImageWidget({
+    required this.url,
     this.avatarRadius,
     this.fit = BoxFit.cover,
     super.key,
-  }) : _provider = url == null
-           ? null
-           : NetworkImageProvider(
-               url,
-               cacheKey: url,
-               maxHeight: 1000,
-               maxWidth: 1000,
-               errorListener: logger.w,
-             );
+  });
 
-  final ImageProvider? _provider;
+  final String? url;
   final double? avatarRadius;
   final BoxFit? fit;
 
@@ -26,10 +18,16 @@ class ImageWidget extends StatefulWidget {
 }
 
 class _ImageWidgetState extends State<ImageWidget> {
-  late ImageProvider<Object>? image;
+  ImageProvider<Object>? imageProvider;
 
-  void _setProvider() {
-    image = widget._provider;
+  Future<void> _setProvider() async {
+    if (widget.url == null) {
+      imageProvider = null;
+      return;
+    }
+
+    imageProvider = await getImageProvider(widget.url!);
+    setState(() {});
   }
 
   @override
@@ -40,18 +38,18 @@ class _ImageWidgetState extends State<ImageWidget> {
 
   @override
   void didUpdateWidget(covariant ImageWidget oldWidget) {
-    if (oldWidget._provider != widget._provider) {
-      setState(_setProvider);
+    if (oldWidget.url != widget.url) {
+      _setProvider();
     }
     super.didUpdateWidget(oldWidget);
   }
 
   @override
   Widget build(BuildContext context) {
-    final child = image == null
+    final child = imageProvider == null
         ? placeholder()
         : Image(
-            image: image!,
+            image: imageProvider!,
             fit: widget.fit,
             errorBuilder: (_, _, _) => placeholder(),
           );

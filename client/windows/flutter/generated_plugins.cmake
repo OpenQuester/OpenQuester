@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
   desktop_webview_window
+  flutter_avif_windows
   flutter_secure_storage_windows
   fvp
   nb_utils
