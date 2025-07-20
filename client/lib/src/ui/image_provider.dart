@@ -6,7 +6,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_avif/flutter_avif.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
-const int maxImageCacheSize = 2000;
+/// Maximum height of the loaded image the image will be
+/// resized on disk to fit the height and width.
+const int maxCachedImageSize = 2000;
 
 Future<ImageProvider> getImageProvider(
   String url,
@@ -14,8 +16,11 @@ Future<ImageProvider> getImageProvider(
   final defaultProvider = CachedNetworkImageProvider(
     url,
     imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet,
-    maxHeight: maxImageCacheSize,
-    maxWidth: maxImageCacheSize,
+    maxHeight: maxCachedImageSize,
+    maxWidth: maxCachedImageSize,
+  );
+  final avifProvider = CachedNetworkAvifImageProvider(
+    url,
   );
 
   final stream = DefaultCacheManager().getImageFile(
@@ -36,9 +41,8 @@ Future<ImageProvider> getImageProvider(
 
       if (fType == AvifFileType.unknown) {
         return defaultProvider;
-      } else {
-        return CachedNetworkAvifImageProvider(url);
       }
+      return avifProvider;
     }
   }
   return defaultProvider;
