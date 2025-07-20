@@ -57,3 +57,6 @@ app.*.map.json
 **/*.freezed.dart
 **/*.g.dart
 **/*.gen.dart
+lib/src/core/controllers/upload_controller.dart
+lib/src/core/router.gr.dart
+lib/src/core/get_it.config.dart
