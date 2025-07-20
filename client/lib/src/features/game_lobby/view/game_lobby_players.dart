@@ -102,7 +102,7 @@ class GameLobbyPlayer extends WatchingWidget {
         color: context.theme.colorScheme.surface,
       ),
       padding: 4.all,
-      constraints: GameLobbyStyles.playerTileConstrains(),
+      constraints: GameLobbyStyles.playerTileConstrains(context),
       child: IconTheme(
         data: const IconThemeData(size: 16, color: Colors.white),
         child: Stack(

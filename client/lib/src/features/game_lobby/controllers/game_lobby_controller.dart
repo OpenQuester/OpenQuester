@@ -18,7 +18,7 @@ class GameLobbyController {
   final gameFinished = ValueNotifier<bool>(false);
   final lobbyEditorMode = ValueNotifier<bool>(false);
   final showChat = ValueNotifier<bool>(false);
-  
+
   StreamSubscription<ChatOperation>? _chatMessagesSub;
   double? themeScrollPosition;
 

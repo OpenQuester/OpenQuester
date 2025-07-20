@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
-import 'package:openquester/src/features/game_lobby/view/game_lobby_editor.dart';
-import 'package:openquester/src/features/game_lobby/view/game_lobby_editor_players.dart';
 
 @RoutePage()
 class GameLobbyScreen extends WatchingStatefulWidget {
@@ -189,20 +187,22 @@ class _BodyLayoutBuilder extends WatchingWidget {
       child = Row(
         spacing: 8,
         children: [
-          playersList(axis: Axis.vertical)
-              .withWidth(GameLobbyStyles.players.width)
-              .paddingSymmetric(horizontal: 8)
-              .paddingTop(16)
-              .paddingLeft(16),
+          if (!lobbyEditorMode)
+            playersList(axis: Axis.vertical)
+                .withWidth(GameLobbyStyles.players.width)
+                .paddingSymmetric(horizontal: 8)
+                .paddingTop(16)
+                .paddingLeft(16),
           body,
         ],
       );
     } else {
       child = Column(
         children: [
-          playersList(
-            axis: Axis.horizontal,
-          ).withHeight(GameLobbyStyles.playersMobile.height),
+          if (!lobbyEditorMode)
+            playersList(
+              axis: Axis.horizontal,
+            ).withHeight(GameLobbyStyles.playersMobile.height),
           const Divider(height: 0, thickness: .4).paddingTop(8),
           body,
         ],

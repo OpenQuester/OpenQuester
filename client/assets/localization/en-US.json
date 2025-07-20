@@ -94,5 +94,7 @@
     "set_as_showman": "set as showman",
     "set_as_player": "set as player",
     "set_as_spectator": "set as spectator"
-  }
+  },
+  "spectators": "Spectators",
+  "players": "Players"
 }

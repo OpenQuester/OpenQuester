@@ -28,12 +28,10 @@ class GameLobbyStyles {
 
   static const double maxTimerWidth = 400;
 
-  static BoxConstraints playerTileConstrains() => BoxConstraints.loose(
-    Size(
-      playersMobile.width,
-      players.height,
-    ),
-  );
+  static BoxConstraints playerTileConstrains(BuildContext context) =>
+      BoxConstraints.loose(
+        playersOnLeft(context) ? players : playersMobile,
+      );
 
   static double get playerTileRadius => 12;
 }
