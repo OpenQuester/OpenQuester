@@ -49,4 +49,4 @@ app.*.map.json
 .fvm/
 
 # Generated files
-lib/**/*.dart
+lib/src/**/*.dart
