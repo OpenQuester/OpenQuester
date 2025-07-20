@@ -16,12 +16,15 @@ class GameLobbyController {
   final gameData = ValueNotifier<SocketIOGameJoinEventPayload?>(null);
   final gameListData = ValueNotifier<GameListItem?>(null);
   final gameFinished = ValueNotifier<bool>(false);
-
+  final lobbyEditorMode = ValueNotifier<bool>(false);
   final showChat = ValueNotifier<bool>(false);
+
   StreamSubscription<ChatOperation>? _chatMessagesSub;
   double? themeScrollPosition;
 
   String? get gameId => _gameId;
+
+  int get myId => ProfileController.getUser()!.id;
 
   Future<void> join({required String gameId}) async {
     // Check if already joined
@@ -42,6 +45,9 @@ class GameLobbyController {
       socket = await getIt<SocketController>().createConnection(path: '/games');
       socket!
         ..onConnect((_) => _onConnect())
+        ..onReconnect(_onReconnect)
+        ..onReconnectFailed(_onDisconnect)
+        ..onDisconnect(_onDisconnect)
         // TODO: Add on disconnect pause state
         ..on(SocketIOEvents.error.json!, onError)
         ..on(SocketIOGameReceiveEvents.gameData.json!, _onGameData)
@@ -68,8 +74,29 @@ class GameLobbyController {
     }
   }
 
+  Future<void> _onDisconnect(dynamic data) async {
+    logger.d('GameLobbyController._onDisconnect: $gameId');
+
+    gameData.value = gameData.value?.changePlayer(
+      id: myId,
+      onChange: (value) =>
+          value.copyWith(status: PlayerDataStatus.disconnected),
+    );
+    _setGamePause(isPaused: true);
+  }
+
+  Future<void> _onReconnect(dynamic data) async {
+    logger.d('GameLobbyController._onReconnect: ${this.gameId}');
+
+    final gameId = this.gameId!;
+    clear();
+    await join(gameId: gameId);
+  }
+
   Future<void> _onConnect() async {
     try {
+      logger.d('GameLobbyController._onConnect: $gameId');
+
       await getIt<Api>().api.auth.postV1AuthSocket(
         body: InputSocketIOAuth(socketId: socket!.id!),
       );
@@ -136,10 +163,13 @@ class GameLobbyController {
       _chatMessagesSub = null;
       showChat.value = false;
       gameFinished.value = false;
+      lobbyEditorMode.value = false;
       themeScrollPosition = null;
       getIt<SocketChatController>().clear();
       getIt<GameQuestionController>().clear();
-    } catch (_) {}
+    } catch (e, s) {
+      logger.e(e, stackTrace: s);
+    }
   }
 
   Future<void> leave({bool force = false}) async {
@@ -162,6 +192,11 @@ class GameLobbyController {
     gameData.value = SocketIOGameJoinEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
+
+    // Set editor mode after loading game but not starting
+    if (gameData.value?.gameState.currentRound == null) {
+      lobbyEditorMode.value = true;
+    }
 
     await _initChat();
 
@@ -192,6 +227,7 @@ class GameLobbyController {
   }
 
   void _updateChatUsers() {
+    if (gameData.value == null) return;
     // Set chat users
     final users = gameData.value!.players.map(UserX.fromPlayerData).toList();
     getIt<SocketChatController>().setUsers(users);
@@ -239,10 +275,12 @@ class GameLobbyController {
           value.copyWith(status: PlayerDataStatus.disconnected),
     );
 
-    getIt<ToastController>().show(
-      LocaleKeys.user_leave_the_game.tr(args: [user.meta.username]),
-      type: ToastType.info,
-    );
+    if (myId != user.meta.id) {
+      getIt<ToastController>().show(
+        LocaleKeys.user_leave_the_game.tr(args: [user.meta.username]),
+        type: ToastType.info,
+      );
+    }
   }
 
   void _leave() {
@@ -275,10 +313,12 @@ class GameLobbyController {
 
     _updateChatUsers();
 
-    getIt<ToastController>().show(
-      LocaleKeys.user_joined_the_game.tr(args: [user.meta.username]),
-      type: ToastType.info,
-    );
+    if (myId != user.meta.id) {
+      getIt<ToastController>().show(
+        LocaleKeys.user_joined_the_game.tr(args: [user.meta.username]),
+        type: ToastType.info,
+      );
+    }
   }
 
   void onQuestionPick(int questionId) {

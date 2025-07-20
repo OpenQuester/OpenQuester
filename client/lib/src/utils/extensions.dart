@@ -55,6 +55,8 @@ extension WidgetX on Widget {
   Widget constrained(BoxConstraints constraints) {
     return ConstrainedBox(constraints: constraints, child: this);
   }
+
+  SliverToBoxAdapter get sliver => SliverToBoxAdapter(child: this);
 }
 
 extension NumberPaddings on num {
@@ -135,9 +137,7 @@ extension SocketIOGameStateRoundDataX on SocketIOGameStateRoundData {
 }
 
 extension SocketIOGameJoinEventPayloadX on SocketIOGameJoinEventPayload {
-  PlayerData get me {
-    return players.getById(ProfileController.getUser()!.id)!;
-  }
+  PlayerData get me => players.getById(ProfileController.getUser()!.id)!;
 
   SocketIOGameJoinEventPayload changePlayer({
     required int? id,

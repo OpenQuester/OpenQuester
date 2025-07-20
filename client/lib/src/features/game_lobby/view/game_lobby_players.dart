@@ -17,7 +17,13 @@ class GameLobbyPlayers extends WatchingWidget {
     const inGame = PlayerDataStatus.inGame;
     final players =
         gameData?.players
-            .where((p) => roleToShow.contains(p.role) && p.status == inGame)
+            .where(
+              (p) {
+                final itsMe = p.meta.id == getIt<GameLobbyController>().myId;
+                return roleToShow.contains(p.role) &&
+                    (p.status == inGame || itsMe);
+              },
+            )
             .sorted((a, b) => a.role == PlayerRole.showman ? 0 : 1)
             .toList() ??
         [];
@@ -92,16 +98,11 @@ class GameLobbyPlayer extends WatchingWidget {
             : Border.all(
                 color: borderColor,
               ),
-        borderRadius: 12.circular,
+        borderRadius: GameLobbyStyles.playerTileRadius.circular,
         color: context.theme.colorScheme.surface,
       ),
       padding: 4.all,
-      constraints: BoxConstraints.loose(
-        Size(
-          GameLobbyStyles.playersMobile.width,
-          GameLobbyStyles.players.height,
-        ),
-      ),
+      constraints: GameLobbyStyles.playerTileConstrains(context),
       child: IconTheme(
         data: const IconThemeData(size: 16, color: Colors.white),
         child: Stack(
