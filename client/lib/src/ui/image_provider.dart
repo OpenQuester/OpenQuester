@@ -1,16 +1,43 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cached_network_image_platform_interface/cached_network_image_platform_interface.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_avif/flutter_avif.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
-class NetworkImageProvider extends CachedNetworkImageProvider {
-  const NetworkImageProvider(
-    super.url, {
-    super.maxHeight,
-    super.maxWidth,
-    super.scale = 1.0,
-    super.errorListener,
-    super.headers,
-    super.cacheManager,
-    super.cacheKey,
-    super.imageRenderMethodForWeb = ImageRenderMethodForWeb.HttpGet,
-  });
+Future<ImageProvider> getImageProvider(
+  String url,
+) async {
+  final defaultProvider = CachedNetworkImageProvider(
+    url,
+    imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet,
+    maxHeight: 2000,
+    maxWidth: 2000,
+  );
+
+  final stream = DefaultCacheManager().getImageFile(
+    url,
+    withProgress: true,
+  );
+
+  await for (final event in stream) {
+    if (event is FileInfo) {
+      final file = event.file;
+      final bytes = await file.readAsBytes();
+
+      if (bytes.lengthInBytes == 0) {
+        throw StateError('$url is empty and cannot be loaded as an image.');
+      }
+
+      final fType = isAvifFile(bytes.sublist(0, 16));
+
+      if (fType == AvifFileType.unknown) {
+        return defaultProvider;
+      } else {
+        return CachedNetworkAvifImageProvider(url);
+      }
+    }
+  }
+  return defaultProvider;
 }

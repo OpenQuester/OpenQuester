@@ -48,12 +48,12 @@ extension GetItInjectableX on _i174.GetIt {
   }) async {
     final gh = _i526.GetItHelper(this, environment, environmentFilter);
     gh.factory<_i936.S3UploadController>(() => _i936.S3UploadController());
-    gh.singleton<_i419.Oauth2Controller>(() => _i419.Oauth2Controller());
     await gh.singletonAsync<_i895.DioController>(() {
       final i = _i895.DioController();
       return i.init().then((_) => i);
     }, preResolve: true);
     gh.singleton<_i741.Storage>(() => _i741.Storage());
+    gh.singleton<_i419.Oauth2Controller>(() => _i419.Oauth2Controller());
     gh.singleton<_i676.LoadController>(() => _i676.LoadController());
     await gh.singletonAsync<_i460.PackageInfoController>(() {
       final i = _i460.PackageInfoController();
@@ -73,11 +73,11 @@ extension GetItInjectableX on _i174.GetIt {
     gh.singleton<_i546.GamePreviewController>(
       () => _i546.GamePreviewController(),
     );
-    gh.singleton<_i99.GameQuestionController>(
-      () => _i99.GameQuestionController(),
-    );
     gh.singleton<_i905.PackageUploadController>(
       () => _i905.PackageUploadController(),
+    );
+    gh.singleton<_i99.GameQuestionController>(
+      () => _i99.GameQuestionController(),
     );
     gh.singleton<_i149.Api>(() => _i149.Api());
     await gh.singletonAsync<_i785.AuthController>(() {
