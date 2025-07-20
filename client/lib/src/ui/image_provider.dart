@@ -6,14 +6,16 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_avif/flutter_avif.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
+const int maxImageCacheSize = 2000;
+
 Future<ImageProvider> getImageProvider(
   String url,
 ) async {
   final defaultProvider = CachedNetworkImageProvider(
     url,
     imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet,
-    maxHeight: 2000,
-    maxWidth: 2000,
+    maxHeight: maxImageCacheSize,
+    maxWidth: maxImageCacheSize,
   );
 
   final stream = DefaultCacheManager().getImageFile(
