@@ -106,5 +106,10 @@
   "cannot_change_to_same_slot": "Cannot change to the same slot",
   "only_players_can_change_slots": "Only players can change slots",
   "invalid_score_value": "Invalid score value provided",
-  "cannot_change_role_while_answering": "Cannot change role while answering"
+  "cannot_change_role_while_answering": "Cannot change role while answering",
+  "game_not_in_secret_transfer_phase": "Game is not in secret question transfer phase",
+  "secret_question_data_not_found": "Secret question data not found",
+  "cannot_transfer_secret_question": "Cannot transfer secret question",
+  "invalid_transfer_target": "Invalid transfer target",
+  "cannot_transfer_to_self": "Cannot transfer secret question to yourself"
 }

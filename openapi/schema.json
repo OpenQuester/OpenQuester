@@ -2607,7 +2607,8 @@
           "final-phase-complete",
           "final-question-data",
           "final-submit-end",
-          "final-auto-loss"
+          "final-auto-loss",
+          "secret-question-transfer"
         ],
         "examples": ["join"]
       },
@@ -2644,7 +2645,9 @@
           "final-phase-complete",
           "final-question-data",
           "final-submit-end",
-          "final-auto-loss"
+          "final-auto-loss",
+          "secret-question-picked",
+          "secret-question-transfer"
         ],
         "examples": ["join"]
       },
@@ -3004,6 +3007,61 @@
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
           }
         }
+      },
+      "SocketIOSecretQuestionPickedEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a secret question is picked",
+        "properties": {
+          "pickerPlayerId": {
+            "type": "integer",
+            "description": "ID of the player who picked the secret question",
+            "examples": [123]
+          },
+          "transferType": {
+            "$ref": "#/components/schemas/QuestionTransferType",
+            "description": "Transfer type determining who can receive the question"
+          },
+          "questionId": {
+            "type": "integer",
+            "description": "ID of the picked secret question",
+            "examples": [456]
+          }
+        },
+        "required": ["pickerPlayerId", "transferType", "questionId"]
+      },
+      "SocketIOSecretQuestionTransferInputData": {
+        "type": "object",
+        "description": "Data sent by a player to transfer a secret question to another player",
+        "properties": {
+          "targetPlayerId": {
+            "type": "integer",
+            "description": "ID of the player who should receive the secret question",
+            "examples": [789]
+          }
+        },
+        "required": ["targetPlayerId"]
+      },
+      "SocketIOSecretQuestionTransferEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a secret question is transferred",
+        "properties": {
+          "fromPlayerId": {
+            "type": "integer",
+            "description": "ID of the player who transferred the question",
+            "examples": [123]
+          },
+          "toPlayerId": {
+            "type": "integer",
+            "description": "ID of the player who received the question",
+            "examples": [789]
+          },
+          "questionId": {
+            "type": "integer",
+            "description": "ID of the transferred secret question",
+            "examples": [456]
+          }
+        },
+        "required": ["fromPlayerId", "toPlayerId", "questionId"]
       },
       "PackageQuestionData": {
         "type": "object",

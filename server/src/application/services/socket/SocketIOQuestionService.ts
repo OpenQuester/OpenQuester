@@ -9,22 +9,28 @@ import {
 } from "domain/constants/game";
 import { REDIS_LOCK_QUESTION_ANSWER } from "domain/constants/redis";
 import { Game } from "domain/entities/game/Game";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
+import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
+import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import {
   AnswerResultData,
   AnswerResultType,
 } from "domain/types/socket/game/AnswerResultData";
+import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 export class SocketIOQuestionService {
@@ -321,11 +327,32 @@ export class SocketIOQuestionService {
       throw new ClientError(ClientResponse.QUESTION_ALREADY_PLAYED);
     }
 
-    const timer = await this.socketQuestionStateService.setupQuestionTimer(
-      game,
-      GAME_QUESTION_ANSWER_TIME,
-      QuestionState.SHOWING
-    );
+    let isSecretQuestion = false;
+    let timer: GameStateTimer | null = null;
+    let secretQuestionData: SecretQuestionGameData | null = null;
+
+    if (question.type === PackageQuestionType.SECRET) {
+      isSecretQuestion = true;
+
+      // Set up secret question data
+      secretQuestionData = {
+        pickerPlayerId: currentPlayer!.meta.id,
+        transferType: question.transferType!,
+        questionId: question.id!,
+        transferPhase: true,
+      } satisfies SecretQuestionGameData;
+
+      // Set the game state to secret transfer phase
+      game.gameState.questionState = QuestionState.SECRET_TRANSFER;
+      game.gameState.secretQuestionData = secretQuestionData;
+    } else {
+      // Normal question flow - set up timer and showing state
+      timer = await this.socketQuestionStateService.setupQuestionTimer(
+        game,
+        GAME_QUESTION_ANSWER_TIME,
+        QuestionState.SHOWING
+      );
+    }
 
     game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
       questionData.question
@@ -334,7 +361,13 @@ export class SocketIOQuestionService {
 
     await this.gameService.updateGame(game);
 
-    return { question, game, timer };
+    return {
+      question,
+      game,
+      timer,
+      secretQuestionData,
+      isSecretQuestion,
+    };
   }
 
   public async getCurrentQuestion(game: Game) {
@@ -495,5 +528,93 @@ export class SocketIOQuestionService {
     await this.socketQuestionStateService.resetToChoosingState(game);
 
     return { game, question: questionData.question };
+  }
+
+  /**
+   * Handle secret question transfer to target player
+   */
+  public async handleSecretQuestionTransfer(
+    socketId: string,
+    data: SecretQuestionTransferInputData
+  ) {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
+
+    // Validation
+    GameStateValidator.validateGameInProgress(game);
+    const secretData = game.gameState.secretQuestionData;
+    this.validateSecretQuestionTransfer(
+      game,
+      currentPlayer,
+      secretData ?? null,
+      data.targetPlayerId
+    );
+
+    // Set up the question for normal play with the target player as answering player
+    const timer = await this.socketQuestionStateService.setupQuestionTimer(
+      game,
+      GAME_QUESTION_ANSWER_TIME,
+      QuestionState.SHOWING
+    );
+
+    // Clear secret question data and set normal question state
+    game.gameState.secretQuestionData = null;
+    game.gameState.questionState = QuestionState.SHOWING;
+
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      fromPlayerId: currentPlayer!.meta.id,
+      toPlayerId: data.targetPlayerId,
+      questionId: secretData!.questionId,
+      timer,
+    };
+  }
+
+  /**
+   * Validate secret question transfer constraints
+   */
+  private validateSecretQuestionTransfer(
+    game: Game,
+    currentPlayer: Player | null,
+    secretData: SecretQuestionGameData | null,
+    targetPlayerId: number
+  ) {
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    if (game.gameState.questionState !== QuestionState.SECRET_TRANSFER) {
+      throw new ClientError(ClientResponse.GAME_NOT_IN_SECRET_TRANSFER_PHASE);
+    }
+
+    if (!secretData) {
+      throw new ClientError(ClientResponse.SECRET_QUESTION_DATA_NOT_FOUND);
+    }
+
+    // Only the picker can transfer the question
+    if (secretData.pickerPlayerId !== currentPlayer.meta.id) {
+      throw new ClientError(ClientResponse.CANNOT_TRANSFER_SECRET_QUESTION);
+    }
+
+    // Check if target player exists and is in game
+    const targetPlayer = game.getPlayer(targetPlayerId, {
+      fetchDisconnected: false,
+    });
+    if (!targetPlayer || targetPlayer.role !== PlayerRole.PLAYER) {
+      throw new ClientError(ClientResponse.INVALID_TRANSFER_TARGET);
+    }
+
+    // Check transfer type restrictions
+    if (
+      secretData.transferType === PackageQuestionTransferType.EXCEPT_CURRENT &&
+      targetPlayerId === secretData.pickerPlayerId
+    ) {
+      throw new ClientError(ClientResponse.CANNOT_TRANSFER_TO_SELF);
+    }
   }
 }

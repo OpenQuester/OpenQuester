@@ -18,6 +18,7 @@ import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuest
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { User } from "infrastructure/database/models/User";
@@ -557,6 +558,203 @@ export class SocketGameTestUtils {
     });
   }
 
+  /**
+   * Picks and completes any type of question (regular, secret, etc.)
+   * This method handles the full flow including secret question transfers
+   */
+  public async pickAndCompleteQuestion(
+    showmanSocket: GameClientSocket,
+    playerSockets: GameClientSocket[],
+    questionId?: number,
+    shouldAnswer = false // New parameter to control answering vs skipping
+  ): Promise<void> {
+    const socketUserData = await this.getSocketUserData(showmanSocket);
+    if (!socketUserData?.gameId) {
+      throw new Error("Cannot determine game ID from socket");
+    }
+
+    let actualQuestionId = questionId;
+    if (!actualQuestionId) {
+      actualQuestionId = await this.getFirstAvailableQuestionId(
+        socketUserData.gameId
+      );
+    }
+
+    // Get question details to check if it's a secret question
+    const game = await this.gameService.getGameEntity(socketUserData.gameId);
+    if (!game) {
+      throw new Error("Game not found");
+    }
+
+    // Find the question in the current round
+    let questionType = null;
+    if (game.gameState.currentRound) {
+      for (const theme of game.gameState.currentRound.themes) {
+        for (const question of theme.questions) {
+          if (question.id === actualQuestionId) {
+            questionType = this.getQuestionTypeFromPackage(
+              game,
+              actualQuestionId
+            );
+            break;
+          }
+        }
+        if (questionType) break;
+      }
+    }
+
+    // Pick the question
+    if (questionType === PackageQuestionType.SECRET) {
+      // Handle secret question flow
+      const secretPickedPromise = this.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.SECRET_QUESTION_PICKED
+      );
+
+      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: actualQuestionId,
+      });
+
+      await secretPickedPromise;
+
+      // Transfer to first player
+      const questionDataPromise = this.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.QUESTION_DATA
+      );
+
+      showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+        targetPlayerId: await this.getPlayerUserIdFromSocket(playerSockets[0]),
+      });
+
+      await questionDataPromise;
+
+      if (shouldAnswer) {
+        // Answer correctly
+        await this.answerQuestion(playerSockets[0], showmanSocket);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: 100,
+          answerType: AnswerResultType.CORRECT,
+        });
+      } else {
+        // Skip the question
+        await this.skipQuestion(showmanSocket);
+      }
+    } else {
+      // Handle regular question flow
+      await this.pickQuestion(showmanSocket, actualQuestionId);
+
+      if (shouldAnswer) {
+        // Answer correctly
+        // For regular questions, a player should answer, not the showman
+        await this.answerQuestion(playerSockets[0], showmanSocket);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: 100,
+          answerType: AnswerResultType.CORRECT,
+        });
+      } else {
+        // Skip the question
+        await this.skipQuestion(showmanSocket);
+      }
+    }
+  }
+
+  /**
+   * Picks a question and prepares it for answering (handles secret questions properly)
+   * Returns the socket that should answer the question (player for secret, original for regular)
+   */
+  public async pickQuestionForAnswering(
+    showmanSocket: GameClientSocket,
+    playerSockets: GameClientSocket[],
+    questionId?: number
+  ): Promise<GameClientSocket> {
+    const socketUserData = await this.getSocketUserData(showmanSocket);
+    if (!socketUserData?.gameId) {
+      throw new Error("Cannot determine game ID from socket");
+    }
+
+    let actualQuestionId = questionId;
+    if (!actualQuestionId) {
+      actualQuestionId = await this.getFirstAvailableQuestionId(
+        socketUserData.gameId
+      );
+    }
+
+    // Get question details to check if it's a secret question
+    const game = await this.gameService.getGameEntity(socketUserData.gameId);
+    if (!game) {
+      throw new Error("Game not found");
+    }
+
+    // Find the question type
+    const questionType = this.getQuestionTypeFromPackage(
+      game,
+      actualQuestionId
+    );
+
+    if (questionType === PackageQuestionType.SECRET) {
+      // Handle secret question flow
+      const secretPickedPromise = this.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.SECRET_QUESTION_PICKED
+      );
+
+      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: actualQuestionId,
+      });
+
+      await secretPickedPromise;
+
+      // Transfer to first player
+      const questionDataPromise = this.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.QUESTION_DATA
+      );
+
+      showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+        targetPlayerId: await this.getPlayerUserIdFromSocket(playerSockets[0]),
+      });
+
+      await questionDataPromise;
+
+      // Return the player socket as they should answer the question
+      return playerSockets[0];
+    } else {
+      // Handle regular question flow
+      await this.pickQuestion(showmanSocket, actualQuestionId);
+
+      // Return the showman socket (though really any socket can answer for regular questions)
+      return showmanSocket;
+    }
+  }
+
+  private getQuestionTypeFromPackage(game: Game, questionId: number) {
+    if (!game.package?.rounds) return null;
+
+    for (const round of game.package.rounds) {
+      for (const theme of round.themes) {
+        for (const question of theme.questions) {
+          if (question.id === questionId) {
+            return question.type;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private async getPlayerUserIdFromSocket(
+    socket: GameClientSocket
+  ): Promise<number> {
+    const userData = await this.getSocketUserData(socket);
+    if (!userData?.id) {
+      throw new Error("Cannot get user ID from player socket");
+    }
+    return userData.id;
+  }
+
   public async pauseGame(showmanSocket: GameClientSocket): Promise<void> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -576,74 +774,6 @@ export class SocketGameTestUtils {
       showmanSocket.once(SocketIOGameEvents.GAME_PAUSE, onPause);
       showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
     });
-  }
-
-  public validateGameState(
-    gameState: any, // TODO: Type
-    expectedState: {
-      isPaused?: boolean;
-      questionState?: string;
-      currentRound?: any; // TODO: Type
-      answeringPlayer?: number | null;
-      currentQuestion?: any; // TODO: Type
-    }
-  ): void {
-    expect(gameState).toBeDefined();
-    if (expectedState.isPaused !== undefined) {
-      expect(gameState.isPaused).toBe(expectedState.isPaused);
-    }
-    if (expectedState.questionState !== undefined) {
-      expect(gameState.questionState).toBe(expectedState.questionState);
-    }
-    if (expectedState.currentRound !== undefined) {
-      expect(gameState.currentRound).toEqual(expectedState.currentRound);
-    }
-    if (expectedState.answeringPlayer !== undefined) {
-      expect(gameState.answeringPlayer).toBe(expectedState.answeringPlayer);
-    }
-    if (expectedState.currentQuestion !== undefined) {
-      expect(gameState.currentQuestion).toEqual(expectedState.currentQuestion);
-    }
-  }
-
-  public validatePlayers(
-    players: any[], // TODO: Type
-    expected: {
-      totalCount: number;
-      showmanCount?: number; // Not more than one
-      playerCount?: number;
-      spectatorCount?: number;
-    }
-  ): void {
-    expect(players).toHaveLength(expected.totalCount);
-
-    if (expected.showmanCount !== undefined) {
-      expect(players.filter((p) => p.role === PlayerRole.SHOWMAN)).toHaveLength(
-        expected.showmanCount
-      );
-    }
-    if (expected.playerCount !== undefined) {
-      expect(players.filter((p) => p.role === PlayerRole.PLAYER)).toHaveLength(
-        expected.playerCount
-      );
-    }
-    if (expected.spectatorCount !== undefined) {
-      expect(
-        players.filter((p) => p.role === PlayerRole.SPECTATOR)
-      ).toHaveLength(expected.spectatorCount);
-    }
-  }
-
-  public async expectError(
-    action: () => Promise<void>,
-    expectedMessage: string
-  ): Promise<void> {
-    try {
-      await action();
-      fail("Expected action to throw an error");
-    } catch (error: any) {
-      expect(error.message).toBe(expectedMessage);
-    }
   }
 
   public async cleanupGameClients(setup: GameTestSetup): Promise<void> {
@@ -966,37 +1096,6 @@ export class SocketGameTestUtils {
     }
 
     return totalQuestions;
-  }
-
-  /**
-   * Get the number of unplayed questions in the current round
-   */
-  public async getCurrentRoundUnplayedQuestionCount(
-    gameId: string
-  ): Promise<number> {
-    const game = await this.gameService.getGameEntity(gameId);
-    if (!game || !game.gameState.currentRound) {
-      throw new Error("Game or current round not found");
-    }
-
-    const currentRound = game.gameState.currentRound;
-
-    if (!currentRound.themes || currentRound.themes.length === 0) {
-      return 0;
-    }
-
-    let unplayedQuestions = 0;
-    for (const theme of currentRound.themes) {
-      if (theme.questions) {
-        for (const question of theme.questions) {
-          if (!question.isPlayed) {
-            unplayedQuestions++;
-          }
-        }
-      }
-    }
-
-    return unplayedQuestions;
   }
 
   /**

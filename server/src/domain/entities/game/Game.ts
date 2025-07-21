@@ -453,6 +453,7 @@ export class Game {
     this.gameState.answeredPlayers = null;
     this.gameState.answeringPlayer = null;
     this.gameState.skippedPlayers = null;
+    this.gameState.secretQuestionData = null;
     this.updateQuestionState(QuestionState.CHOOSING);
   }
 

@@ -49,4 +49,8 @@ export enum SocketIOGameEvents {
   FINAL_QUESTION_DATA = "final-question-data",
   FINAL_SUBMIT_END = "final-submit-end",
   FINAL_AUTO_LOSS = "final-auto-loss",
+
+  // Secret Question Events
+  SECRET_QUESTION_PICKED = "secret-question-picked",
+  SECRET_QUESTION_TRANSFER = "secret-question-transfer",
 }

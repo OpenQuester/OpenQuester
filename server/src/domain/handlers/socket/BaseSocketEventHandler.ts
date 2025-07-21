@@ -32,6 +32,7 @@ export enum SocketBroadcastTarget {
  */
 export interface SocketEventResult<T = unknown> {
   success: boolean;
+  /** Data that can be transferred between execution layers, e.g. from execute to afterBroadcast */
   data?: T;
   error?: string;
   context?: SocketEventContext & {
