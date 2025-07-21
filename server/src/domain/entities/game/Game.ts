@@ -1,6 +1,7 @@
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
@@ -395,7 +396,22 @@ export class Game {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
 
-    const score = player.score + scoreResult;
+    // Check if current question is NoRisk type and prevent score loss
+    let modifiedScoreResult = scoreResult;
+    if (this.gameState.currentQuestion && scoreResult < 0) {
+      const questionData = GameQuestionMapper.getQuestionAndTheme(
+        this._package,
+        this.gameState.currentRound!.id,
+        this.gameState.currentQuestion.id!
+      );
+
+      if (questionData?.question?.type === PackageQuestionType.NO_RISK) {
+        // For NoRisk questions, prevent score loss by setting negative results to 0
+        modifiedScoreResult = 0;
+      }
+    }
+
+    const score = player.score + modifiedScoreResult;
 
     // Update the player's score in the _players array
     const idx = this._players.findIndex((p) => p.meta.id === player.meta.id);
@@ -407,7 +423,7 @@ export class Game {
 
     const playerAnswerResult: GameStateAnsweredPlayerData = {
       player: this.gameState.answeringPlayer!,
-      result: scoreResult,
+      result: modifiedScoreResult,
       score,
       answerType,
     };
@@ -437,6 +453,7 @@ export class Game {
     this.gameState.answeredPlayers = null;
     this.gameState.answeringPlayer = null;
     this.gameState.skippedPlayers = null;
+    this.gameState.secretQuestionData = null;
     this.updateQuestionState(QuestionState.CHOOSING);
   }
 

@@ -20,6 +20,7 @@ export class GameStateMapper {
       readyPlayers: null,
       timer: null,
       skippedPlayers: null,
+      secretQuestionData: null,
     };
   }
 
@@ -38,6 +39,7 @@ export class GameStateMapper {
       timer: null,
       finalRoundData: null,
       skippedPlayers: null,
+      secretQuestionData: null,
     };
   }
 

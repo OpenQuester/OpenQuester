@@ -24,6 +24,7 @@ import {
 import { AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { GameQuestionPickData } from "domain/types/socket/game/question/GameQuestionPickData";
+import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
 export class GameValidator {
@@ -50,6 +51,16 @@ export class GameValidator {
     });
 
     return this._validate<GameQuestionPickData>(data, schema);
+  }
+
+  public static validateSecretQuestionTransfer(
+    data: SecretQuestionTransferInputData
+  ) {
+    const schema = Joi.object<SecretQuestionTransferInputData>({
+      targetPlayerId: Joi.number().min(0).required(),
+    });
+
+    return this._validate<SecretQuestionTransferInputData>(data, schema);
   }
 
   public static validateAnswerSubmitted(data: AnswerSubmittedData) {

@@ -120,6 +120,13 @@ export enum ClientResponse {
   ANSWER_NOT_FOUND = "answer_not_found",
   FINAL_ROUND_NOT_INITIALIZED = "final_round_not_initialized",
 
+  // Secret Question
+  GAME_NOT_IN_SECRET_TRANSFER_PHASE = "game_not_in_secret_transfer_phase",
+  SECRET_QUESTION_DATA_NOT_FOUND = "secret_question_data_not_found",
+  CANNOT_TRANSFER_SECRET_QUESTION = "cannot_transfer_secret_question",
+  INVALID_TRANSFER_TARGET = "invalid_transfer_target",
+  CANNOT_TRANSFER_TO_SELF = "cannot_transfer_to_self",
+
   // Other
   DELETE_REQUEST_SENT = "delete_request_sent",
 }

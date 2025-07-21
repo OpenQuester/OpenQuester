@@ -13,7 +13,6 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
-import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -150,7 +149,7 @@ describe("Final Round Transition Test", () => {
       true // include final round
     );
 
-    const { showmanSocket } = setup;
+    const { showmanSocket, gameId } = setup;
 
     try {
       await utils.startGame(showmanSocket);
@@ -163,9 +162,10 @@ describe("Final Round Transition Test", () => {
       );
 
       // Complete all questions in the regular round to trigger transition
-      for (let i = 0; i < 5; i++) {
-        await utils.pickQuestion(showmanSocket);
-        await utils.skipQuestion(showmanSocket);
+      const currentRoundQuestionCount =
+        await utils.getCurrentRoundQuestionCount(gameId);
+      for (let i = 0; i < currentRoundQuestionCount; i++) {
+        await utils.pickAndCompleteQuestion(showmanSocket, setup.playerSockets);
       }
 
       // Verify final round transition
@@ -223,26 +223,29 @@ describe("Final Round Transition Test", () => {
     try {
       await utils.startGame(setup.showmanSocket);
 
-      // Skip first 4 questions
-      for (let i = 0; i < 4; i++) {
-        await utils.pickQuestion(setup.showmanSocket);
-        await utils.skipQuestion(setup.showmanSocket);
-      }
-
       const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
         setup.showmanSocket,
-        SocketIOGameEvents.NEXT_ROUND,
-        10000
+        SocketIOGameEvents.NEXT_ROUND
       );
 
-      // Answer last question correctly
-      await utils.pickQuestion(setup.showmanSocket);
-      await utils.answerQuestion(setup.playerSockets[0], setup.showmanSocket);
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      setup.showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-        scoreResult: 100,
-        answerType: AnswerResultType.CORRECT,
-      });
+      // Skip all but the last question
+      const currentRoundQuestionCount =
+        await utils.getCurrentRoundQuestionCount(setup.gameId);
+      const questionsToSkip = currentRoundQuestionCount - 1; // Leave only the last question
+      for (let i = 0; i < questionsToSkip; i++) {
+        await utils.pickAndCompleteQuestion(
+          setup.showmanSocket,
+          setup.playerSockets
+        );
+      }
+
+      // Answer last question correctly using the complete workflow
+      await utils.pickAndCompleteQuestion(
+        setup.showmanSocket,
+        setup.playerSockets,
+        undefined,
+        true
+      );
 
       const gameState = (await nextRoundPromise).gameState;
       verifyFinalRoundData(gameState);
@@ -271,10 +274,14 @@ describe("Final Round Transition Test", () => {
         15000
       );
 
-      // Skip all 5 questions to trigger natural progression
-      for (let i = 0; i < 5; i++) {
-        await utils.pickQuestion(setup.showmanSocket);
-        await utils.skipQuestion(setup.showmanSocket);
+      // Skip all questions to trigger natural progression
+      const currentRoundQuestionCount =
+        await utils.getCurrentRoundQuestionCount(setup.gameId);
+      for (let i = 0; i < currentRoundQuestionCount; i++) {
+        await utils.pickAndCompleteQuestion(
+          setup.showmanSocket,
+          setup.playerSockets
+        );
       }
 
       const gameState = (await nextRoundPromise).gameState;
@@ -320,9 +327,10 @@ describe("Final Round Transition Test", () => {
         );
 
       // Trigger final round transition
-      for (let i = 0; i < 5; i++) {
-        await utils.pickQuestion(showmanSocket);
-        await utils.skipQuestion(showmanSocket);
+      const currentRoundQuestionCount =
+        await utils.getCurrentRoundQuestionCount(setup.gameId);
+      for (let i = 0; i < currentRoundQuestionCount; i++) {
+        await utils.pickAndCompleteQuestion(showmanSocket, setup.playerSockets);
       }
 
       // Get both game states
