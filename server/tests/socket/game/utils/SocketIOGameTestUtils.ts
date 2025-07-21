@@ -9,9 +9,12 @@ import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { Game } from "domain/entities/game/Game";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { HttpStatus } from "domain/enums/HttpStatus";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
+import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -823,5 +826,205 @@ export class SocketGameTestUtils {
   public async areAllPlayersReady(gameId: string): Promise<boolean> {
     const game = await this.getGameFromGameService(gameId);
     return game.isEveryoneReady();
+  }
+
+  /**
+   * Find a question by type in the game state
+   * Optimized version that prefetches all question data for better performance
+   */
+  public async findQuestionByType(
+    gameState: GameStateDTO,
+    questionType: PackageQuestionType,
+    gameId: string
+  ): Promise<GameStateQuestionDTO | null> {
+    if (!gameState.currentRound?.themes) {
+      return null;
+    }
+
+    // Get the full game to access package data
+    const game = await this.gameService.getGameEntity(gameId);
+    if (!game) {
+      throw new Error("Game not found");
+    }
+
+    // For Hidden questions, we can use a fast path since they're identifiable by price
+    if (questionType === PackageQuestionType.HIDDEN) {
+      for (const theme of gameState.currentRound.themes) {
+        if (theme.questions) {
+          for (const question of theme.questions) {
+            if (!question.isPlayed && question.price === null) {
+              return question;
+            }
+          }
+        }
+      }
+      return null;
+    }
+
+    // For other question types, we need to check the package data
+    // Build a map of all questions that need to be checked to minimize GameQuestionMapper calls
+    const questionsToCheck: Array<{
+      question: GameStateQuestionDTO;
+      themeId: number;
+    }> = [];
+
+    for (const theme of gameState.currentRound.themes) {
+      if (theme.questions) {
+        for (const question of theme.questions) {
+          if (!question.isPlayed) {
+            questionsToCheck.push({ question, themeId: theme.id });
+          }
+        }
+      }
+    }
+
+    // Now check each question efficiently
+    for (const { question } of questionsToCheck) {
+      const questionData = GameQuestionMapper.getQuestionAndTheme(
+        game.package,
+        gameState.currentRound.id,
+        question.id
+      );
+
+      if (!questionData?.question) {
+        continue;
+      }
+
+      const fullQuestion = questionData.question;
+
+      // Check for Choice questions
+      if (questionType === PackageQuestionType.CHOICE) {
+        if (
+          fullQuestion.answers &&
+          fullQuestion.answers.length > 0 &&
+          fullQuestion.showDelay !== undefined &&
+          fullQuestion.showDelay !== null
+        ) {
+          return question;
+        }
+      }
+      // Check for other question types by direct type comparison
+      else if (fullQuestion.type === questionType) {
+        return question;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Find all questions by type in the game state
+   */
+  public findAllQuestionsByType(
+    gameState: GameStateDTO,
+    questionType: PackageQuestionType
+  ): GameStateQuestionDTO[] {
+    const results: GameStateQuestionDTO[] = [];
+
+    if (!gameState.currentRound?.themes) {
+      return results;
+    }
+
+    for (const theme of gameState.currentRound.themes) {
+      if (theme.questions) {
+        for (const question of theme.questions) {
+          // Same workaround as above - hidden questions have null price
+          if (
+            questionType === PackageQuestionType.HIDDEN &&
+            question.price === null &&
+            !question.isPlayed
+          ) {
+            results.push(question);
+          }
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Get the total number of questions in the current round
+   */
+  public async getCurrentRoundQuestionCount(gameId: string): Promise<number> {
+    const game = await this.gameService.getGameEntity(gameId);
+    if (!game || !game.gameState.currentRound) {
+      throw new Error("Game or current round not found");
+    }
+
+    const currentRound = game.gameState.currentRound;
+
+    if (!currentRound.themes || currentRound.themes.length === 0) {
+      return 0;
+    }
+
+    let totalQuestions = 0;
+    for (const theme of currentRound.themes) {
+      if (theme.questions) {
+        totalQuestions += theme.questions.length;
+      }
+    }
+
+    return totalQuestions;
+  }
+
+  /**
+   * Get the number of unplayed questions in the current round
+   */
+  public async getCurrentRoundUnplayedQuestionCount(
+    gameId: string
+  ): Promise<number> {
+    const game = await this.gameService.getGameEntity(gameId);
+    if (!game || !game.gameState.currentRound) {
+      throw new Error("Game or current round not found");
+    }
+
+    const currentRound = game.gameState.currentRound;
+
+    if (!currentRound.themes || currentRound.themes.length === 0) {
+      return 0;
+    }
+
+    let unplayedQuestions = 0;
+    for (const theme of currentRound.themes) {
+      if (theme.questions) {
+        for (const question of theme.questions) {
+          if (!question.isPlayed) {
+            unplayedQuestions++;
+          }
+        }
+      }
+    }
+
+    return unplayedQuestions;
+  }
+
+  /**
+   * Find first hidden question ID for testing
+   */
+  public async getFirstHiddenQuestionId(gameId: string): Promise<number> {
+    const game = await this.gameService.getGameEntity(gameId);
+    if (!game || !game.gameState.currentRound) {
+      throw new Error("Game or current round not found");
+    }
+
+    const currentRound = game.gameState.currentRound;
+
+    if (!currentRound.themes || currentRound.themes.length === 0) {
+      throw new Error("No themes found in current round");
+    }
+
+    // Find first hidden question (price is null and not played)
+    for (const theme of currentRound.themes) {
+      if (theme.questions && theme.questions.length > 0) {
+        for (const question of theme.questions) {
+          if (question.id && !question.isPlayed && question.price === null) {
+            return question.id;
+          }
+        }
+      }
+    }
+
+    throw new Error("No hidden questions found");
   }
 }

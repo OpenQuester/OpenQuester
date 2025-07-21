@@ -150,7 +150,7 @@ describe("Final Round Transition Test", () => {
       true // include final round
     );
 
-    const { showmanSocket } = setup;
+    const { showmanSocket, gameId } = setup;
 
     try {
       await utils.startGame(showmanSocket);
@@ -163,7 +163,9 @@ describe("Final Round Transition Test", () => {
       );
 
       // Complete all questions in the regular round to trigger transition
-      for (let i = 0; i < 5; i++) {
+      const currentRoundQuestionCount =
+        await utils.getCurrentRoundQuestionCount(gameId);
+      for (let i = 0; i < currentRoundQuestionCount; i++) {
         await utils.pickQuestion(showmanSocket);
         await utils.skipQuestion(showmanSocket);
       }
@@ -223,8 +225,11 @@ describe("Final Round Transition Test", () => {
     try {
       await utils.startGame(setup.showmanSocket);
 
-      // Skip first 4 questions
-      for (let i = 0; i < 4; i++) {
+      // Skip all but the last question
+      const currentRoundQuestionCount =
+        await utils.getCurrentRoundQuestionCount(setup.gameId);
+      const questionsToSkip = currentRoundQuestionCount - 1; // Leave only the last question
+      for (let i = 0; i < questionsToSkip; i++) {
         await utils.pickQuestion(setup.showmanSocket);
         await utils.skipQuestion(setup.showmanSocket);
       }
@@ -271,8 +276,10 @@ describe("Final Round Transition Test", () => {
         15000
       );
 
-      // Skip all 5 questions to trigger natural progression
-      for (let i = 0; i < 5; i++) {
+      // Skip all questions to trigger natural progression
+      const currentRoundQuestionCount =
+        await utils.getCurrentRoundQuestionCount(setup.gameId);
+      for (let i = 0; i < currentRoundQuestionCount; i++) {
         await utils.pickQuestion(setup.showmanSocket);
         await utils.skipQuestion(setup.showmanSocket);
       }
@@ -320,7 +327,9 @@ describe("Final Round Transition Test", () => {
         );
 
       // Trigger final round transition
-      for (let i = 0; i < 5; i++) {
+      const currentRoundQuestionCount =
+        await utils.getCurrentRoundQuestionCount(setup.gameId);
+      for (let i = 0; i < currentRoundQuestionCount; i++) {
         await utils.pickQuestion(showmanSocket);
         await utils.skipQuestion(showmanSocket);
       }
