@@ -34,37 +34,48 @@ class _ReadyButton extends WatchingWidget {
     final imReady = readyPlayers?.contains(gameData?.me.meta.id) ?? false;
     final imShowman = gameData?.me.role == PlayerRole.showman;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 8,
       children: [
-        FilledButton.tonal(
-          onPressed: () {
-            final controller = getIt<GameLobbyController>();
-            if (imShowman) {
-              controller.startGame();
-            } else {
-              controller.playerReady(ready: !imReady);
-            }
-          },
-          child: Text(
-            imShowman
-                ? [
-                    LocaleKeys.start_game.tr(),
-                    ' ',
-                    '(',
-                    LocaleKeys.game_lobby_editor_ready.tr(),
-                    ' ',
-                    ':',
-                    ' ${readyPlayers?.length ?? 0}/$playerCount',
-                    ')',
-                  ].join()
-                : imReady
-                ? LocaleKeys.game_lobby_editor_not_ready.tr()
-                : LocaleKeys.game_lobby_editor_ready.tr(),
+        if (!imShowman)
+          Text(
+            LocaleKeys.game_lobby_hint.tr(),
+            style: context.textTheme.bodyMedium,
           ),
-        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FilledButton.tonal(
+              onPressed: () {
+                final controller = getIt<GameLobbyController>();
+                if (imShowman) {
+                  controller.startGame();
+                } else {
+                  controller.playerReady(ready: !imReady);
+                }
+              },
+              child: Text(
+                imShowman
+                    ? [
+                        LocaleKeys.start_game.tr(),
+                        ' ',
+                        '(',
+                        LocaleKeys.game_lobby_editor_ready.tr(),
+                        ' ',
+                        ':',
+                        ' ${readyPlayers?.length ?? 0}/$playerCount',
+                        ')',
+                      ].join()
+                    : imReady
+                    ? LocaleKeys.game_lobby_editor_not_ready.tr()
+                    : LocaleKeys.game_lobby_editor_ready.tr(),
+              ),
+            ),
+          ],
+        ).paddingAll(16),
       ],
-    ).paddingAll(16);
+    );
   }
 }
 

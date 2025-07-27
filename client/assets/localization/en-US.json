@@ -101,5 +101,6 @@
   },
   "spectators": "Spectators",
   "players": "Players",
-  "you_are_spectator": "You are spectator"
+  "you_are_spectator": "You are spectator",
+  "game_lobby_hint": "Select your role and press 'Ready' to start game"
 }
