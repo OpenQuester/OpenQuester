@@ -87,5 +87,20 @@
   "copy_game_link": "Copy game link",
   "link_copied": "Link copied to clipboard",
   "chat_message": "Chat message",
-  "not_your_turn_to_pick": "Not your turn to pick"
+  "not_your_turn_to_pick": "Not your turn to pick",
+  "drag_or_tap_to": "Drag or tap to {}",
+  "release_to": "Release to {}",
+  "game_lobby_editor": {
+    "set_as_showman": "set as showman",
+    "set_as_player": "set as player",
+    "set_as_spectator": "set as spectator",
+    "ready": "Ready",
+    "not_ready": "Not ready",
+    "open_player_editor": "Open player editor",
+    "close_player_editor": "Close player editor"
+  },
+  "spectators": "Spectators",
+  "players": "Players",
+  "you_are_spectator": "You are spectator",
+  "game_lobby_hint": "Select your role and press 'Ready' to start game"
 }

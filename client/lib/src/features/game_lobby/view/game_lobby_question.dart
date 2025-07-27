@@ -32,13 +32,13 @@ class GameQuestion extends WatchingWidget {
           WidgetState.disabled: context.theme.colorScheme.onSurfaceVariant,
           WidgetState.any: context.theme.colorScheme.onSurface,
         }),
-        minimumSize: WidgetStatePropertyAll(
-          GameLobbyStyles.questionSize(context),
-        ),
         textStyle: WidgetStateProperty.fromMap({
           WidgetState.disabled: context.textTheme.labelLarge,
           WidgetState.any: context.textTheme.titleLarge,
         }),
+        minimumSize: WidgetStatePropertyAll(
+          GameLobbyStyles.questionSize(context),
+        ),
         padding: WidgetStatePropertyAll(0.all),
         backgroundBuilder: (context, states, child) {
           if (child != null && states.contains(WidgetState.disabled)) {

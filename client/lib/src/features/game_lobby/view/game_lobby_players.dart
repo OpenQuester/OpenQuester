@@ -17,7 +17,13 @@ class GameLobbyPlayers extends WatchingWidget {
     const inGame = PlayerDataStatus.inGame;
     final players =
         gameData?.players
-            .where((p) => roleToShow.contains(p.role) && p.status == inGame)
+            .where(
+              (p) {
+                final itsMe = p.meta.id == getIt<GameLobbyController>().myId;
+                return roleToShow.contains(p.role) &&
+                    (p.status == inGame || itsMe);
+              },
+            )
             .sorted((a, b) => a.role == PlayerRole.showman ? 0 : 1)
             .toList() ??
         [];
@@ -65,6 +71,7 @@ class GameLobbyPlayer extends WatchingWidget {
     required this.playerAnswerState,
     required this.answering,
     required this.picking,
+    this.customIcon,
     super.key,
   });
 
@@ -72,6 +79,7 @@ class GameLobbyPlayer extends WatchingWidget {
   final bool answering;
   final bool picking;
   final PlayerAnswerState playerAnswerState;
+  final Widget? customIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -92,16 +100,11 @@ class GameLobbyPlayer extends WatchingWidget {
             : Border.all(
                 color: borderColor,
               ),
-        borderRadius: 12.circular,
+        borderRadius: GameLobbyStyles.playerTileRadius.circular,
         color: context.theme.colorScheme.surface,
       ),
       padding: 4.all,
-      constraints: BoxConstraints.loose(
-        Size(
-          GameLobbyStyles.playersMobile.width,
-          GameLobbyStyles.players.height,
-        ),
-      ),
+      constraints: GameLobbyStyles.playerTileConstrains(context),
       child: IconTheme(
         data: const IconThemeData(size: 16, color: Colors.white),
         child: Stack(
@@ -131,9 +134,9 @@ class GameLobbyPlayer extends WatchingWidget {
                       style: GameLobbyStyles.playerTextStyle(context),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (player.role != PlayerRole.showman)
+                    if (player.role == PlayerRole.player)
                       _PlayerScoreText(score: player.score)
-                    else
+                    else if (player.role == PlayerRole.showman)
                       Text(
                         LocaleKeys.showman.tr(),
                         style: context.textTheme.bodySmall,
@@ -157,10 +160,13 @@ class GameLobbyPlayer extends WatchingWidget {
                     .withTooltip(msg: LocaleKeys.showman.tr())
                     .paddingAll(2),
               ),
-            if (player.status == PlayerDataStatus.disconnected)
+            if (player.status == PlayerDataStatus.disconnected ||
+                customIcon != null)
               Align(
                 alignment: Alignment.topLeft,
-                child: const Icon(Icons.signal_wifi_off).paddingAll(2),
+                child:
+                    customIcon ??
+                    const Icon(Icons.signal_wifi_off).paddingAll(2),
               ),
             if (answering || picking)
               Align(
