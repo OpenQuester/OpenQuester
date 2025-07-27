@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
@@ -13,12 +11,8 @@ class GameQuestionTimer extends WatchingWidget {
 
     if (timer == null) return const SizedBox.shrink();
 
-    final elapsedFromNow = max(
-      DateTime.now().difference(timer.startedAt).inMilliseconds,
-      0,
-    );
-    final timeLeft = Duration(milliseconds: timer.durationMs - elapsedFromNow);
-    final beginPoint = (1 / (timer.durationMs / elapsedFromNow)).clamp(0, 1);
+    final timeLeft = Duration(milliseconds: timer.durationMs - timer.elapsedMs);
+    final beginPoint = (1 / (timer.durationMs / timer.elapsedMs)).clamp(0, 1);
 
     return ConstrainedBox(
       key: ValueKey(timer),

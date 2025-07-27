@@ -617,7 +617,10 @@ class GameLobbyController {
   }
 
   void _setGamePause({required bool isPaused}) {
-    gameData.value = gameData.value?.copyWith.gameState(isPaused: isPaused);
+    gameData.value = gameData.value?.copyWith.gameState(
+      isPaused: isPaused,
+      timer: null,
+    );
     if (isPaused) {
       _pauseMediaPlay();
     } else {
