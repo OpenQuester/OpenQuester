@@ -88,7 +88,7 @@
   "link_copied": "Link copied to clipboard",
   "chat_message": "Chat message",
   "not_your_turn_to_pick": "Not your turn to pick",
-  "drag_to": "Drag to {}",
+  "drag_or_tap_to": "Drag or tap to {}",
   "release_to": "Release to {}",
   "game_lobby_editor": {
     "set_as_showman": "set as showman",

@@ -65,6 +65,10 @@ class GameLobbyController {
         ..on(SocketIOGameReceiveEvents.gameUnpause.json!, _onGameUnPause)
         ..on(SocketIOGameReceiveEvents.questionSkip.json!, _onQuestionSkip)
         ..on(SocketIOGameReceiveEvents.questionUnskip.json!, _onQuestionUnSkip)
+        ..on(
+          SocketIOGameReceiveEvents.playerRoleChange.json!,
+          _onPlayerRoleChange,
+        )
         ..connect();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
@@ -659,6 +663,26 @@ class GameLobbyController {
             (e) => e == unskippedPlayer.playerId,
           )
           .toList(),
+    );
+  }
+
+  void _onPlayerRoleChange(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOPlayerRoleChangeEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith(players: data.players);
+  }
+
+  Future<void> playerRoleChange(PlayerRole newRole, [int? playerId]) async {
+    await socket?.emitWithAckAsync(
+      SocketIOGameSendEvents.playerRoleChange.json!,
+      SocketIOPlayerRoleChangeInput(
+        newRole: newRole,
+        playerId: playerId ?? gameData.value!.me.meta.id,
+      ).toJson(),
     );
   }
 }

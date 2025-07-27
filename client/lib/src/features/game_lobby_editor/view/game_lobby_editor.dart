@@ -6,70 +6,92 @@ class GameLobbyEditor extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final players = gameData?.players ?? [];
-
-    List<PlayerData> getList(PlayerRole role) {
-      return players.where((e) => e.role == role).toList();
-    }
-
-    final showmans = getList(PlayerRole.showman);
-
-    const gap = SizedBox();
-
-    final children = <Widget>[
-      Text(LocaleKeys.showman.tr()),
-      Wrap(
-        children: [
-          if (showmans.isEmpty)
-            _PlayerDragTarget(
-              onAcceptWithDetails: (details) {},
-              toDo: LocaleKeys.game_lobby_editor_set_as_showman.tr(),
-            ),
-          for (final player in showmans) playerWidget(player),
-        ],
-      ),
-      gap,
-      Text(LocaleKeys.players.tr()),
-      Wrap(
-        children: [
-          _PlayerDragTarget(
-            onAcceptWithDetails: (details) {},
-            toDo: LocaleKeys.game_lobby_editor_set_as_player.tr(),
-          ),
-          for (final player in getList(PlayerRole.player)) playerWidget(player),
-        ],
-      ),
-      gap,
-      Text(LocaleKeys.spectators.tr()),
-      Wrap(
-        children: [
-          _PlayerDragTarget(
-            onAcceptWithDetails: (details) {},
-            toDo: LocaleKeys.game_lobby_editor_set_as_spectator.tr(),
-          ),
-          for (final player in getList(PlayerRole.spectator))
-            playerWidget(player),
-        ],
-      ),
-    ];
-
-    return ListView.separated(
-      itemCount: children.length,
-      padding: 16.horizontal,
-      separatorBuilder: (context, index) =>
-          const SizedBox.square(dimension: 16),
-      itemBuilder: (context, index) => children[index],
+    return ListView(
+      padding: 16.all,
+      children: const [
+        _RoleGroup(PlayerRole.showman),
+        _RoleGroup(PlayerRole.player),
+        _RoleGroup(PlayerRole.spectator),
+      ],
     );
   }
+}
 
-  Widget playerWidget(PlayerData player) {
+class _RoleGroup extends WatchingWidget {
+  const _RoleGroup(this.role);
+
+  final PlayerRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final groupPlayers =
+        gameData?.players
+            .where((e) => e.role == role)
+            .sortedBy((p) => p.slot ?? 0) ??
+        [];
+
+    final showmanFilled =
+        !(role == PlayerRole.showman && groupPlayers.isNotEmpty);
+    final notPlayerTargetForPlayer = ![
+      role,
+      gameData?.me.role,
+    ].every((e) => e == PlayerRole.player);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 16,
+      children: [
+        _RoleTitle(role),
+        _Wrap(
+          children: [
+            if (showmanFilled && notPlayerTargetForPlayer)
+              _PlayerDragTarget(
+                onChange: (data) => _playerRoleChange(data, role),
+                role: role,
+              ),
+            for (final player in groupPlayers) _Player(player),
+          ],
+        ),
+      ],
+    ).paddingBottom(16);
+  }
+}
+
+Future<void> _playerRoleChange(
+  PlayerData data,
+  PlayerRole newRole,
+) async {
+  await getIt<GameLobbyController>().playerRoleChange(
+    newRole,
+    data.meta.id,
+  );
+}
+
+class _Player extends WatchingWidget {
+  const _Player(this.player);
+  final PlayerData player;
+
+  @override
+  Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final playerAvailableToChange = _playerAvailableToChange(gameData, player);
+
     final child = GameLobbyPlayer(
       player: player,
       playerAnswerState: PlayerAnswerState.none,
       answering: false,
       picking: false,
+      customIcon: playerAvailableToChange
+          ? Icon(
+              Icons.drag_handle,
+              size: 28,
+              color: context.theme.colorScheme.onSurfaceVariant,
+            )
+          : null,
     );
+
+    if (!playerAvailableToChange) return child;
 
     return Draggable<PlayerData>(
       data: player,
@@ -77,42 +99,120 @@ class GameLobbyEditor extends WatchingWidget {
         opacity: .7,
         child: child,
       ),
-      child: child,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.grab,
+        child: child,
+      ),
     );
   }
 }
 
-class _PlayerDragTarget extends StatelessWidget {
+class _PlayerDragTarget extends WatchingWidget {
   const _PlayerDragTarget({
-    required this.toDo,
-    required this.onAcceptWithDetails,
+    required this.role,
+    required this.onChange,
   });
-  final String toDo;
-  final void Function(DragTargetDetails<PlayerData> details)
-  onAcceptWithDetails;
+  final PlayerRole role;
+  final void Function(PlayerData data) onChange;
 
   @override
   Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+
+    final toDoText = switch (role) {
+      PlayerRole.showman => LocaleKeys.game_lobby_editor_set_as_showman.tr(),
+      PlayerRole.player => LocaleKeys.game_lobby_editor_set_as_player.tr(),
+      PlayerRole.spectator =>
+        LocaleKeys.game_lobby_editor_set_as_spectator.tr(),
+      PlayerRole.$unknown => '',
+    };
+
     return ConstrainedBox(
       constraints: GameLobbyStyles.playerTileConstrains(context),
       child: DragTarget<PlayerData>(
-        onAcceptWithDetails: onAcceptWithDetails,
+        onAcceptWithDetails: (details) => onChange(details.data),
+        onWillAcceptWithDetails: (details) {
+          if (role == details.data.role) return false;
+          return _playerAvailableToChange(gameData, details.data);
+        },
         builder: (context, candidateData, rejectedData) {
           final dragging = candidateData.isNotEmpty;
+          final myRole = role == gameData?.me.role;
 
-          return DottedBorderWidget(
-            radius: GameLobbyStyles.playerTileRadius,
-            color: context.theme.colorScheme.onSurface,
-            padding: 8.all,
-            child: Text(
-              dragging
-                  ? LocaleKeys.release_to.tr(args: [toDo])
-                  : LocaleKeys.drag_to.tr(args: [toDo]),
-              textAlign: TextAlign.center,
-            ).center(),
+          return InkWell(
+            borderRadius: GameLobbyStyles.playerTileRadius.circular,
+            onTap: myRole ? null : () => onChange(gameData!.me),
+            child: DottedBorderWidget(
+              radius: GameLobbyStyles.playerTileRadius,
+              color: context.theme.colorScheme.onSurface,
+              padding: 8.all,
+              gap: dragging ? 0 : 5,
+              child: Text(
+                dragging
+                    ? LocaleKeys.release_to.tr(args: [toDoText])
+                    : LocaleKeys.drag_or_tap_to.tr(args: [toDoText]),
+                textAlign: TextAlign.center,
+                style: context.textTheme.labelSmall,
+              ).center(),
+            ),
           );
         },
       ),
+    );
+  }
+}
+
+bool _playerAvailableToChange(
+  SocketIOGameJoinEventPayload? gameData,
+  PlayerData playerData,
+) {
+  final me = gameData?.me;
+  if (me?.role == PlayerRole.showman) return true;
+  if (playerData.meta.id == me?.meta.id) return true;
+  return false;
+}
+
+class _Wrap extends StatelessWidget {
+  const _Wrap({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: children,
+    );
+  }
+}
+
+class _RoleTitle extends WatchingWidget {
+  const _RoleTitle(this.role);
+  final PlayerRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final gameList = watchValue((GameLobbyController e) => e.gameListData);
+
+    final roleName = switch (role) {
+      PlayerRole.showman => LocaleKeys.showman.tr(),
+      PlayerRole.player => LocaleKeys.players.tr(),
+      PlayerRole.spectator => LocaleKeys.spectators.tr(),
+      PlayerRole.$unknown => '',
+    };
+
+    int getPlayerCount() {
+      return gameData?.players.where((e) => e.role == role).length ?? 0;
+    }
+
+    final count = role == PlayerRole.player
+        ? '(${getPlayerCount()} / ${gameList?.maxPlayers ?? ''})'
+        : null;
+
+    return Text(
+      [roleName, count].nonNulls.join(' '),
+      style: context.textTheme.headlineMedium,
     );
   }
 }

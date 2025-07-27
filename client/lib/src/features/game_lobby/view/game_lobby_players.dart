@@ -71,6 +71,7 @@ class GameLobbyPlayer extends WatchingWidget {
     required this.playerAnswerState,
     required this.answering,
     required this.picking,
+    this.customIcon,
     super.key,
   });
 
@@ -78,6 +79,7 @@ class GameLobbyPlayer extends WatchingWidget {
   final bool answering;
   final bool picking;
   final PlayerAnswerState playerAnswerState;
+  final Widget? customIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -132,9 +134,9 @@ class GameLobbyPlayer extends WatchingWidget {
                       style: GameLobbyStyles.playerTextStyle(context),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (player.role != PlayerRole.showman)
+                    if (player.role == PlayerRole.player)
                       _PlayerScoreText(score: player.score)
-                    else
+                    else if (player.role == PlayerRole.showman)
                       Text(
                         LocaleKeys.showman.tr(),
                         style: context.textTheme.bodySmall,
@@ -158,10 +160,13 @@ class GameLobbyPlayer extends WatchingWidget {
                     .withTooltip(msg: LocaleKeys.showman.tr())
                     .paddingAll(2),
               ),
-            if (player.status == PlayerDataStatus.disconnected)
+            if (player.status == PlayerDataStatus.disconnected ||
+                customIcon != null)
               Align(
                 alignment: Alignment.topLeft,
-                child: const Icon(Icons.signal_wifi_off).paddingAll(2),
+                child:
+                    customIcon ??
+                    const Icon(Icons.signal_wifi_off).paddingAll(2),
               ),
             if (answering || picking)
               Align(
