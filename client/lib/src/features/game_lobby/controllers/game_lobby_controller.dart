@@ -25,6 +25,7 @@ class GameLobbyController {
   String? get gameId => _gameId;
 
   int get myId => ProfileController.getUser()!.id;
+  bool get gameStarted => gameData.value?.gameState.currentRound != null;
 
   Future<void> join({required String gameId}) async {
     // Check if already joined
@@ -48,7 +49,6 @@ class GameLobbyController {
         ..onReconnect(_onReconnect)
         ..onReconnectFailed(_onDisconnect)
         ..onDisconnect(_onDisconnect)
-        // TODO: Add on disconnect pause state
         ..on(SocketIOEvents.error.json!, onError)
         ..on(SocketIOGameReceiveEvents.gameData.json!, _onGameData)
         ..on(SocketIOGameReceiveEvents.start.json!, _onGameStart)
@@ -69,6 +69,7 @@ class GameLobbyController {
           SocketIOGameReceiveEvents.playerRoleChange.json!,
           _onPlayerRoleChange,
         )
+        ..on(SocketIOGameReceiveEvents.playerReady.json!, _onPlayerReady)
         ..connect();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
@@ -105,14 +106,9 @@ class GameLobbyController {
         body: InputSocketIOAuth(socketId: socket!.id!),
       );
 
-      final iAmHost =
-          gameListData.value!.createdBy.id == ProfileController.getUser()?.id;
-
       final ioGameJoinInput = SocketIOGameJoinInput(
         gameId: _gameId!,
-        role: iAmHost
-            ? SocketIOGameJoinInputRole.showman
-            : SocketIOGameJoinInputRole.player,
+        role: SocketIOGameJoinInputRole.spectator,
       );
 
       socket?.emit(SocketIOGameSendEvents.join.json!, ioGameJoinInput.toJson());
@@ -198,7 +194,7 @@ class GameLobbyController {
     );
 
     // Set editor mode after loading game but not starting
-    if (gameData.value?.gameState.currentRound == null) {
+    if (!gameStarted) {
       lobbyEditorMode.value = true;
     }
 
@@ -244,6 +240,7 @@ class GameLobbyController {
     gameData.value = gameData.value?.copyWith.gameState(
       currentRound: startData.currentRound,
     );
+    lobbyEditorMode.value = false;
   }
 
   void startGame() {
@@ -328,6 +325,9 @@ class GameLobbyController {
   void onQuestionPick(int questionId) {
     final currentTurnPlayerId = gameData.value?.gameState.currentTurnPlayerId;
     final me = gameData.value?.me;
+
+    if (me?.role == PlayerRole.spectator) return;
+
     final myTurnToPick = currentTurnPlayerId == me?.meta.id;
 
     if (!myTurnToPick && me?.role != PlayerRole.showman) {
@@ -683,6 +683,26 @@ class GameLobbyController {
         newRole: newRole,
         playerId: playerId ?? gameData.value!.me.meta.id,
       ).toJson(),
+    );
+  }
+
+  void _onPlayerReady(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOPlayerReadinessEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith.gameState(
+      readyPlayers: data.readyPlayers,
+    );
+  }
+
+  void playerReady({required bool ready}) {
+    socket?.emit(
+      ready
+          ? SocketIOGameSendEvents.playerReady.json!
+          : SocketIOGameSendEvents.playerUnready.json!,
     );
   }
 }

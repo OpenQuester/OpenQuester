@@ -133,7 +133,18 @@ class _BodyBuilder extends WatchingWidget {
       body = const GameLobbyThemes();
     }
 
-    return body;
+    return Column(
+      children: [
+        if (gameData?.me.role == PlayerRole.spectator)
+          Text(
+            LocaleKeys.you_are_spectator.tr(),
+            style: context.textTheme.bodySmall?.copyWith(
+              color: context.theme.colorScheme.onSurfaceVariant,
+            ),
+          ).paddingAll(8),
+        body.expand(),
+      ],
+    );
   }
 }
 

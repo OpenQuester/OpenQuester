@@ -9,11 +9,62 @@ class GameLobbyEditor extends WatchingWidget {
     return ListView(
       padding: 16.all,
       children: const [
+        _ReadyButton(),
         _RoleGroup(PlayerRole.showman),
         _RoleGroup(PlayerRole.player),
         _RoleGroup(PlayerRole.spectator),
       ],
     );
+  }
+}
+
+class _ReadyButton extends WatchingWidget {
+  const _ReadyButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+
+    if (getIt<GameLobbyController>().gameStarted) return const SizedBox();
+
+    final playerCount = gameData?.players
+        .where((p) => p.role == PlayerRole.player)
+        .length;
+    final readyPlayers = gameData?.gameState.readyPlayers;
+    final imReady = readyPlayers?.contains(gameData?.me.meta.id) ?? false;
+    final imShowman = gameData?.me.role == PlayerRole.showman;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        FilledButton.tonal(
+          onPressed: () {
+            final controller = getIt<GameLobbyController>();
+            if (imShowman) {
+              controller.startGame();
+            } else {
+              controller.playerReady(ready: !imReady);
+            }
+          },
+          child: Text(
+            imShowman
+                ? [
+                    LocaleKeys.start_game.tr(),
+                    ' ',
+                    '(',
+                    LocaleKeys.game_lobby_editor_ready.tr(),
+                    ' ',
+                    ':',
+                    ' ${readyPlayers?.length ?? 0}/$playerCount',
+                    ')',
+                  ].join()
+                : imReady
+                ? LocaleKeys.game_lobby_editor_not_ready.tr()
+                : LocaleKeys.game_lobby_editor_ready.tr(),
+          ),
+        ),
+      ],
+    ).paddingAll(16);
   }
 }
 

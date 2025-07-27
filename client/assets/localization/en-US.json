@@ -93,8 +93,13 @@
   "game_lobby_editor": {
     "set_as_showman": "set as showman",
     "set_as_player": "set as player",
-    "set_as_spectator": "set as spectator"
+    "set_as_spectator": "set as spectator",
+    "ready": "Ready",
+    "not_ready": "Not ready",
+    "open_player_editor": "Open player editor",
+    "close_player_editor": "Close player editor"
   },
   "spectators": "Spectators",
-  "players": "Players"
+  "players": "Players",
+  "you_are_spectator": "You are spectator"
 }
