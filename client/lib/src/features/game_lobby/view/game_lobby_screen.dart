@@ -108,6 +108,9 @@ class _BodyBuilder extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final lobbyEditorMode = watchValue(
+      (GameLobbyController e) => e.lobbyEditorMode,
+    );
     final currentQuestion = watchValue(
       (GameQuestionController e) => e.questionData,
     );
@@ -116,7 +119,11 @@ class _BodyBuilder extends WatchingWidget {
 
     Widget body;
 
-    if (isPaused) {
+    if (lobbyEditorMode) {
+      body = const GameLobbyEditor();
+    } else if (gameData?.gameState.currentRound == null) {
+      body = const CircularProgressIndicator().center();
+    } else if (isPaused) {
       body = const _GamePausedScreen();
     } else if (gameFinished) {
       body = const _GameFinishedScreen();
@@ -126,7 +133,18 @@ class _BodyBuilder extends WatchingWidget {
       body = const GameLobbyThemes();
     }
 
-    return body;
+    return Column(
+      children: [
+        if (gameData?.me.role == PlayerRole.spectator)
+          Text(
+            LocaleKeys.you_are_spectator.tr(),
+            style: context.textTheme.bodySmall?.copyWith(
+              color: context.theme.colorScheme.onSurfaceVariant,
+            ),
+          ).paddingAll(8),
+        body.expand(),
+      ],
+    );
   }
 }
 
@@ -162,28 +180,40 @@ class _BodyLayoutBuilder extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final playersOnLeft = GameLobbyStyles.playersOnLeft(context);
+    final lobbyEditorMode = watchValue(
+      (GameLobbyController e) => e.lobbyEditorMode,
+    );
 
     Widget child;
     final body = const _BodyBuilder().expand();
+
+    Widget playersList({required Axis axis}) {
+      if (lobbyEditorMode) {
+        return GameLobbyEditorPlayers(axis: axis);
+      }
+      return GameLobbyPlayers(axis: axis);
+    }
 
     if (playersOnLeft) {
       child = Row(
         spacing: 8,
         children: [
-          const GameLobbyPlayers(axis: Axis.vertical)
-              .withWidth(GameLobbyStyles.players.width)
-              .paddingSymmetric(horizontal: 8)
-              .paddingTop(16)
-              .paddingLeft(16),
+          if (!lobbyEditorMode)
+            playersList(axis: Axis.vertical)
+                .withWidth(GameLobbyStyles.players.width)
+                .paddingSymmetric(horizontal: 8)
+                .paddingTop(16)
+                .paddingLeft(16),
           body,
         ],
       );
     } else {
       child = Column(
         children: [
-          const GameLobbyPlayers(
-            axis: Axis.horizontal,
-          ).withHeight(GameLobbyStyles.playersMobile.height),
+          if (!lobbyEditorMode)
+            playersList(
+              axis: Axis.horizontal,
+            ).withHeight(GameLobbyStyles.playersMobile.height),
           const Divider(height: 0, thickness: .4).paddingTop(8),
           body,
         ],
