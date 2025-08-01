@@ -1,6 +1,9 @@
 import Joi from "joi";
 
-import { GAME_ID_CHARACTERS_LENGTH } from "domain/constants/game";
+import {
+  GAME_ID_CHARACTERS_LENGTH,
+  STAKE_QUESTION_MIN_BID,
+} from "domain/constants/game";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
@@ -9,6 +12,10 @@ import {
   FinalBidSubmitInputData,
   ThemeEliminateInputData,
 } from "domain/types/socket/events/FinalRoundEventData";
+import {
+  StakeBidSubmitInputData,
+  StakeBidType,
+} from "domain/types/socket/events/game/StakeQuestionEventData";
 import {
   PlayerKickInputData,
   PlayerRestrictionInputData,
@@ -94,6 +101,19 @@ export class GameValidator {
     });
 
     return this._validate<FinalBidSubmitInputData>(data, schema);
+  }
+
+  public static validateStakeBid(data: StakeBidSubmitInputData) {
+    const schema = Joi.object<StakeBidSubmitInputData>({
+      bid: Joi.alternatives()
+        .try(
+          Joi.number().min(STAKE_QUESTION_MIN_BID), // Normal numeric bid
+          Joi.string().valid(...Object.values(StakeBidType)) // Special bid types
+        )
+        .required(),
+    });
+
+    return this._validate<StakeBidSubmitInputData>(data, schema);
   }
 
   public static validateFinalAnswerSubmit(data: FinalAnswerSubmitInputData) {

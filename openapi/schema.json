@@ -2608,7 +2608,10 @@
           "final-question-data",
           "final-submit-end",
           "final-auto-loss",
-          "secret-question-transfer"
+          "secret-question-transfer",
+          "stake-question-picked",
+          "stake-bid-submit",
+          "stake-question-winner"
         ],
         "examples": ["join"]
       },
@@ -2647,7 +2650,10 @@
           "final-submit-end",
           "final-auto-loss",
           "secret-question-picked",
-          "secret-question-transfer"
+          "secret-question-transfer",
+          "stake-question-picked",
+          "stake-bid-submit",
+          "stake-question-winner"
         ],
         "examples": ["join"]
       },
@@ -3621,6 +3627,134 @@
         "enum": ["correct", "wrong", "auto_loss"],
         "description": "Type of final round answer result",
         "examples": ["correct"]
+      },
+      "StakeBidType": {
+        "type": "string",
+        "enum": ["normal", "pass", "all-in"],
+        "description": "Type of bid in stake question",
+        "examples": ["normal"]
+      },
+      "StakeQuestionPickedBroadcastData": {
+        "type": "object",
+        "description": "Data sent when a stake question is picked",
+        "properties": {
+          "pickerPlayerId": {
+            "type": "integer",
+            "description": "The player who picked the stake question",
+            "examples": [123]
+          },
+          "questionId": {
+            "type": "integer",
+            "description": "Question ID for reference",
+            "examples": [456]
+          },
+          "maxPrice": {
+            "type": ["integer", "null"],
+            "description": "Maximum bid allowed for this question (null means no limit)",
+            "examples": [400, null]
+          },
+          "biddingOrder": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Players order for sequential bidding",
+            "examples": [[123, 124, 125]]
+          },
+          "timer": {
+            "$ref": "#/components/schemas/GameStateTimer",
+            "description": "Timer for the bidding phase (30 seconds per bid)"
+          }
+        },
+        "required": [
+          "pickerPlayerId",
+          "questionId",
+          "maxPrice",
+          "biddingOrder",
+          "timer"
+        ]
+      },
+      "StakeBidSubmitInputData": {
+        "type": "object",
+        "description": "Data for stake question bid submission",
+        "properties": {
+          "bid": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Numeric bid amount"
+              },
+              {
+                "$ref": "#/components/schemas/StakeBidType"
+              }
+            ],
+            "description": "Bid amount (number), or special bid type",
+            "examples": [250, "pass", "all-in"]
+          }
+        },
+        "required": ["bid"]
+      },
+      "StakeBidSubmitOutputData": {
+        "type": "object",
+        "description": "Data sent to all players when a bid is submitted",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who submitted the bid",
+            "examples": [123]
+          },
+          "bidAmount": {
+            "type": ["integer", "null"],
+            "description": "Actual bid amount (null for pass bids)",
+            "examples": [250, null]
+          },
+          "bidType": {
+            "$ref": "#/components/schemas/StakeBidType",
+            "description": "Type of bid submitted"
+          },
+          "isPhaseComplete": {
+            "type": "boolean",
+            "description": "True if bidding phase is complete and this player won",
+            "examples": [false]
+          },
+          "nextBidderId": {
+            "type": ["integer", "null"],
+            "description": "Next player to bid (null if phase complete)",
+            "examples": [124, null]
+          },
+          "timer": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/GameStateTimer" },
+              { "type": "null" }
+            ],
+            "description": "Timer for the next bid or remaining time (30 seconds per bid)"
+          }
+        },
+        "required": [
+          "playerId",
+          "bidAmount",
+          "bidType",
+          "isPhaseComplete",
+          "nextBidderId"
+        ]
+      },
+      "StakeQuestionWinnerEventData": {
+        "type": "object",
+        "description": "Data sent when stake question bidding completes and winner is announced. Question data is sent separately via QUESTION_DATA event.",
+        "properties": {
+          "winnerPlayerId": {
+            "type": "integer",
+            "description": "ID of the player who won the bidding",
+            "examples": [123]
+          },
+          "finalBid": {
+            "type": ["integer", "null"],
+            "description": "Final winning bid amount",
+            "examples": [350]
+          }
+        },
+        "required": ["winnerPlayerId", "finalBid"]
       }
     }
   }

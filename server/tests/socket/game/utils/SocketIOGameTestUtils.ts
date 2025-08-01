@@ -17,6 +17,7 @@ import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
+import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
@@ -632,7 +633,67 @@ export class SocketGameTestUtils {
       if (shouldAnswer) {
         // Answer correctly
         await this.answerQuestion(playerSockets[0], showmanSocket);
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: 100,
+          answerType: AnswerResultType.CORRECT,
+        });
+      } else {
+        // Skip the question
+        await this.skipQuestion(showmanSocket);
+      }
+    } else if (questionType === PackageQuestionType.STAKE) {
+      // Handle stake question flow
+      const stakePickedPromise = this.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.STAKE_QUESTION_PICKED
+      );
+
+      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: actualQuestionId,
+      });
+
+      await stakePickedPromise;
+
+      // Complete the bidding phase by having all players pass
+      const stakeWinnerPromise = this.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.STAKE_QUESTION_WINNER
+      );
+
+      // Get current game state to determine bidding order
+      const game = await this.gameService.getGameEntity(socketUserData.gameId);
+      if (game?.gameState.stakeQuestionData) {
+        const stakeData = game.gameState.stakeQuestionData;
+        const biddingOrder = stakeData.biddingOrder;
+
+        // Have all players in bidding order pass sequentially
+        for (let i = 0; i < biddingOrder.length; i++) {
+          const playerId = biddingOrder[i];
+
+          // Find the socket for this player
+          let playerSocket = null;
+          for (const socket of playerSockets) {
+            const socketUserId = await this.getUserIdFromSocket(socket);
+            if (socketUserId === playerId) {
+              playerSocket = socket;
+              break;
+            }
+          }
+
+          if (playerSocket) {
+            // Wait for the bidding turn to be this player's turn before bidding
+            playerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+              bid: StakeBidType.PASS,
+            });
+          }
+        }
+      }
+
+      await stakeWinnerPromise;
+
+      if (shouldAnswer) {
+        // Answer correctly
+        await this.answerQuestion(playerSockets[0], showmanSocket);
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 100,
           answerType: AnswerResultType.CORRECT,
@@ -649,7 +710,6 @@ export class SocketGameTestUtils {
         // Answer correctly
         // For regular questions, a player should answer, not the showman
         await this.answerQuestion(playerSockets[0], showmanSocket);
-        await new Promise((resolve) => setTimeout(resolve, 100));
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 100,
           answerType: AnswerResultType.CORRECT,
@@ -1125,5 +1185,105 @@ export class SocketGameTestUtils {
     }
 
     throw new Error("No hidden questions found");
+  }
+
+  /**
+   * Helper method to get user ID from socket user data
+   */
+  public async getUserIdFromSocket(socket: GameClientSocket): Promise<number> {
+    const socketUserData = await this.getSocketUserData(socket);
+    if (!socketUserData?.id) {
+      throw new Error(`Cannot get user ID from socket ${socket.id}`);
+    }
+    return socketUserData.id;
+  }
+
+  /**
+   * Helper method to find a question ID by type from game entity
+   * Note: This method relies on the test package structure from PackageUtils
+   */
+  public async getQuestionIdByType(
+    gameId: string,
+    questionType: PackageQuestionType
+  ): Promise<number> {
+    const game = await this.gameService.getGameEntity(gameId);
+    if (!game || !game.gameState.currentRound) {
+      throw new Error("Game or current round not found");
+    }
+
+    const currentRound = game.gameState.currentRound;
+
+    if (!currentRound.themes || currentRound.themes.length === 0) {
+      throw new Error("No themes found in current round");
+    }
+
+    // Based on the test package structure in PackageUtils, questions are ordered:
+    // 0: SIMPLE (100), 1: STAKE (200), 2: SECRET (300), 3: NO_RISK (400), 4: HIDDEN (500), 5: CHOICE (300)
+    const targetOrder = this.getQuestionOrderByType(questionType);
+
+    // Find question with the target order in the first theme
+    const firstTheme = currentRound.themes[0];
+    if (firstTheme.questions && firstTheme.questions.length > 0) {
+      for (const question of firstTheme.questions) {
+        if (
+          question.id &&
+          question.order === targetOrder &&
+          !question.isPlayed
+        ) {
+          return question.id;
+        }
+      }
+    }
+
+    throw new Error(
+      `No unplayed question of type ${questionType} found in game ${gameId}`
+    );
+  }
+
+  /**
+   * Helper method to get question order by type
+   */
+  private getQuestionOrderByType(questionType: PackageQuestionType): number {
+    switch (questionType) {
+      case PackageQuestionType.SIMPLE:
+        return 0;
+      case PackageQuestionType.STAKE:
+        return 1;
+      case PackageQuestionType.SECRET:
+        return 2;
+      case PackageQuestionType.NO_RISK:
+        return 3;
+      case PackageQuestionType.HIDDEN:
+        return 4;
+      case PackageQuestionType.CHOICE:
+        return 5;
+      default:
+        throw new Error(`Unsupported question type: ${questionType}`);
+    }
+  }
+
+  /**
+   * Set the current turn player by emitting TURN_PLAYER_CHANGED event from showman
+   */
+  public async setCurrentTurnPlayer(
+    showmanSocket: GameClientSocket,
+    newTurnPlayerId: number
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(
+          new Error("TURN_PLAYER_CHANGED event not received within timeout")
+        );
+      }, 5000);
+
+      showmanSocket.once(SocketIOGameEvents.TURN_PLAYER_CHANGED, () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+
+      showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
+        newTurnPlayerId,
+      });
+    });
   }
 }

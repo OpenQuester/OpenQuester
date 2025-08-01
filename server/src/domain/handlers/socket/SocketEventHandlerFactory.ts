@@ -32,6 +32,7 @@ import { QuestionSkipEventHandler } from "domain/handlers/socket/question/Questi
 import { QuestionUnskipEventHandler } from "domain/handlers/socket/question/QuestionUnskipEventHandler";
 import { SecretQuestionTransferEventHandler } from "domain/handlers/socket/question/SecretQuestionTransferEventHandler";
 import { SkipQuestionEventHandler } from "domain/handlers/socket/question/SkipQuestionEventHandler";
+import { StakeBidSubmitEventHandler } from "domain/handlers/socket/question/StakeBidSubmitEventHandler";
 import { ChatMessageEventHandler } from "domain/handlers/socket/system/ChatMessageEventHandler";
 import { DisconnectEventHandler } from "domain/handlers/socket/system/DisconnectEventHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -231,6 +232,12 @@ export class SocketEventHandlerFactory {
         this.socketIOQuestionService
       ),
       new SecretQuestionTransferEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOQuestionService
+      ),
+      new StakeBidSubmitEventHandler(
         socket,
         eventEmitter,
         this.logger,

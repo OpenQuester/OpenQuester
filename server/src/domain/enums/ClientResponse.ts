@@ -116,6 +116,7 @@ export enum ClientResponse {
   THEME_ALREADY_ELIMINATED = "theme_already_eliminated",
   CANNOT_ELIMINATE_LAST_THEME = "cannot_eliminate_last_theme",
   NOT_YOUR_TURN = "not_your_turn",
+  PLAYER_ALREADY_PASSED = "player_already_passed",
   ANSWER_REQUIRED = "answer_required",
   ANSWER_NOT_FOUND = "answer_not_found",
   FINAL_ROUND_NOT_INITIALIZED = "final_round_not_initialized",
