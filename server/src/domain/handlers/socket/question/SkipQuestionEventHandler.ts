@@ -51,7 +51,9 @@ export class SkipQuestionEventHandler extends BaseSocketEventHandler<
     context: SocketEventContext
   ): Promise<SocketEventResult<EmptyOutputData>> {
     const { game, question } =
-      await this.socketIOQuestionService.handleQuestionSkip(this.socket.id);
+      await this.socketIOQuestionService.handleQuestionForceSkip(
+        this.socket.id
+      );
     const { isGameFinished, nextGameState } =
       await this.socketIOQuestionService.handleRoundProgression(game);
 

@@ -36,7 +36,7 @@ export class PackageQuestionChoiceAnswer {
   @JoinColumn({ name: "file" })
   file?: File | null;
 
-  @Column({ type: "enum", enum: PackageFileType })
+  @Column({ type: "enum", enum: PackageFileType, nullable: true })
   type?: PackageFileType | null;
 
   public import(data: PackageQuestionChoiceAnswerImport) {

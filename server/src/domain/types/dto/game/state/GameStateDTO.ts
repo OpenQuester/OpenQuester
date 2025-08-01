@@ -1,6 +1,8 @@
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
+import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { FinalRoundGameData } from "domain/types/finalround/FinalRoundInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
@@ -29,4 +31,8 @@ export interface GameStateDTO {
   currentTurnPlayerId?: number | null;
   /** Players who have skipped the current question */
   skippedPlayers: number[] | null;
+  /** Secret question specific data - only set when a secret question is picked */
+  secretQuestionData?: SecretQuestionGameData | null;
+  /** Stake question specific data - only set when a stake question is picked */
+  stakeQuestionData?: StakeQuestionGameData | null;
 }

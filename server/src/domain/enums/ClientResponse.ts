@@ -116,9 +116,17 @@ export enum ClientResponse {
   THEME_ALREADY_ELIMINATED = "theme_already_eliminated",
   CANNOT_ELIMINATE_LAST_THEME = "cannot_eliminate_last_theme",
   NOT_YOUR_TURN = "not_your_turn",
+  PLAYER_ALREADY_PASSED = "player_already_passed",
   ANSWER_REQUIRED = "answer_required",
   ANSWER_NOT_FOUND = "answer_not_found",
   FINAL_ROUND_NOT_INITIALIZED = "final_round_not_initialized",
+
+  // Secret Question
+  GAME_NOT_IN_SECRET_TRANSFER_PHASE = "game_not_in_secret_transfer_phase",
+  SECRET_QUESTION_DATA_NOT_FOUND = "secret_question_data_not_found",
+  CANNOT_TRANSFER_SECRET_QUESTION = "cannot_transfer_secret_question",
+  INVALID_TRANSFER_TARGET = "invalid_transfer_target",
+  CANNOT_TRANSFER_TO_SELF = "cannot_transfer_to_self",
 
   // Other
   DELETE_REQUEST_SENT = "delete_request_sent",
