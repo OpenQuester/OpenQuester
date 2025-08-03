@@ -10,8 +10,9 @@ export enum StakeBidType {
  * Data for stake question bid submission
  */
 export interface StakeBidSubmitInputData {
-  /** Bid amount (number), or special bid type */
-  bid: number | StakeBidType;
+  bidType: StakeBidType;
+  /** Bid amount or null for pass/all-in */
+  bidAmount: number | null;
 }
 
 export interface StakeBidSubmitOutputData {

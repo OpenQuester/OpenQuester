@@ -683,7 +683,8 @@ export class SocketGameTestUtils {
           if (playerSocket) {
             // Wait for the bidding turn to be this player's turn before bidding
             playerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-              bid: StakeBidType.PASS,
+              bidType: StakeBidType.PASS,
+              bidAmount: null,
             });
           }
         }

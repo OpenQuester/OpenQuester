@@ -31,7 +31,10 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
-import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
+import {
+  StakeBidSubmitInputData,
+  StakeBidType,
+} from "domain/types/socket/events/game/StakeQuestionEventData";
 import {
   AnswerResultData,
   AnswerResultType,
@@ -591,8 +594,13 @@ export class SocketIOQuestionService {
 
   public async handleStakeBidSubmit(
     socketId: string,
-    bid: number | StakeBidType
+    inputData: StakeBidSubmitInputData
   ): Promise<StakeBidSubmitResult> {
+    const bid: number | StakeBidType =
+      inputData.bidType === StakeBidType.NORMAL && inputData.bidAmount !== null
+        ? inputData.bidAmount
+        : inputData.bidType;
+
     // Context & Validation
     const context = await this.socketGameContextService.fetchGameContext(
       socketId

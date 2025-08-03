@@ -234,7 +234,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 0 goes all-in (should bid their full score of 400, which equals maxPrice)
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.ALL_IN,
+          bidType: StakeBidType.ALL_IN,
+          bidAmount: null,
         } as StakeBidSubmitInputData);
 
         const result = await bidPromise;
@@ -267,7 +268,8 @@ describe("Stake Question Max Price Cases Tests", () => {
         // Player 0 bids the max price (400) - should NOT be detected as all-in
         // since player has more score (500) than the bid amount
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 400, // Question max price - should be treated as normal bid
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 400, // Question max price - should be treated as normal bid
         } as StakeBidSubmitInputData);
 
         const result = await bidPromise;
@@ -294,7 +296,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // First, player[0] bids to start the sequence (must be >= question price of 200)
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 250,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250,
         });
         await utils.waitForEvent(
           showmanSocket,
@@ -309,7 +312,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player[1] (score 700) tries to bid more than question max price (400)
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 500, // exceeds question max price of 400
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 500, // exceeds question max price of 400
         });
 
         const error = await errorPromise;
@@ -332,7 +336,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Round 1: p0 bids 250, p1 bids 260, p2 bids 270 (all >= question price of 200)
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 250,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250,
         });
         await utils.waitForEvent(
           showmanSocket,
@@ -340,7 +345,8 @@ describe("Stake Question Max Price Cases Tests", () => {
         );
 
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 260,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 260,
         });
         await utils.waitForEvent(
           showmanSocket,
@@ -348,7 +354,8 @@ describe("Stake Question Max Price Cases Tests", () => {
         );
 
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 270,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 270,
         });
         let bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
@@ -363,7 +370,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Round 2: p0 bids 280, p1 bids 290, p2 bids 300
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 280,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 280,
         });
         await utils.waitForEvent(
           showmanSocket,
@@ -371,7 +379,8 @@ describe("Stake Question Max Price Cases Tests", () => {
         );
 
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 290,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 290,
         });
         await utils.waitForEvent(
           showmanSocket,
@@ -379,7 +388,8 @@ describe("Stake Question Max Price Cases Tests", () => {
         );
 
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 300,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 300,
         });
         bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
@@ -388,7 +398,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Round 3: p0 goes all-in (400 - their score, which equals question max price)
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.ALL_IN,
+          bidType: StakeBidType.ALL_IN,
+          bidAmount: null,
         });
         bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
@@ -439,7 +450,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 0 bids the maximum price (400) - should automatically end bidding and declare winner
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 400,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 400,
         });
 
         // Should get both the bid result AND the winner announcement
@@ -578,7 +590,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 1 (picker) bids first - normal bid
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 200,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 200,
         });
 
         // Wait for Player 1's bid to be processed
@@ -595,7 +608,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 2 goes ALL_IN (250)
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.ALL_IN,
+          bidType: StakeBidType.ALL_IN,
+          bidAmount: null,
         });
 
         // Wait for Player 2's ALL_IN bid to be processed
@@ -612,7 +626,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 3 tries to make a numeric bid (should be rejected)
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 300,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 300,
         });
 
         // Should get an error response since numeric bids are not allowed after ALL_IN
@@ -628,7 +643,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 3 should be able to PASS
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         });
 
         const passResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
@@ -642,7 +658,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 4 can go ALL_IN if they want to compete
         playerSockets[3].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.ALL_IN,
+          bidType: StakeBidType.ALL_IN,
+          bidAmount: null,
         });
 
         const secondAllInResult =
@@ -703,7 +720,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 0 bids exactly their score (400) - should be accepted as ALL_IN
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 400,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 400,
         });
 
         const bidResult = await bidPromise;
@@ -776,7 +794,8 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 0 bids exactly their score (200) which equals the question price
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 200,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 200,
         });
 
         const bidResult = await bidPromise;

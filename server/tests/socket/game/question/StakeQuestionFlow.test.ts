@@ -311,7 +311,8 @@ describe("Stake Question Flow Tests", () => {
 
         // Player 0 (picker/first bidder) bids 250 (must be >= question price of 200)
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 250,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250,
         } as StakeBidSubmitInputData);
 
         const result = await bidPromise;
@@ -364,7 +365,8 @@ describe("Stake Question Flow Tests", () => {
         );
 
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 250,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250,
         } as StakeBidSubmitInputData);
 
         await firstBidPromise;
@@ -376,7 +378,8 @@ describe("Stake Question Flow Tests", () => {
         );
 
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         } as StakeBidSubmitInputData);
 
         const result = await passPromise;
@@ -409,7 +412,8 @@ describe("Stake Question Flow Tests", () => {
 
           // Player 1 tries to bid when it's Player 0's turn
           playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: 250,
+            bidType: StakeBidType.NORMAL,
+          bidAmount: 250,
           });
 
           const error = await errorPromise;
@@ -432,7 +436,8 @@ describe("Stake Question Flow Tests", () => {
 
           // Player 0 bids 250 (must be >= question price of 200)
           playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: 250,
+            bidType: StakeBidType.NORMAL,
+          bidAmount: 250,
           });
 
           await utils.waitForEvent(
@@ -448,7 +453,8 @@ describe("Stake Question Flow Tests", () => {
 
           // Player 1 tries to bid lower
           playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: 50,
+            bidType: StakeBidType.NORMAL,
+          bidAmount: 50,
           });
 
           const error = await errorPromise;
@@ -471,7 +477,8 @@ describe("Stake Question Flow Tests", () => {
 
           // First bid something to get to Player 2's turn (score: 250)
           playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: 250,
+            bidType: StakeBidType.NORMAL,
+          bidAmount: 250,
           });
           await utils.waitForEvent(
             showmanSocket,
@@ -479,7 +486,8 @@ describe("Stake Question Flow Tests", () => {
           );
 
           playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: 260,
+            bidType: StakeBidType.NORMAL,
+          bidAmount: 260,
           });
           await utils.waitForEvent(
             showmanSocket,
@@ -494,7 +502,8 @@ describe("Stake Question Flow Tests", () => {
 
           // Player 2 (score: 250) tries to bid more than they have
           playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: 300, // Exceeds their score of 250
+            bidType: StakeBidType.NORMAL,
+          bidAmount: 300, // Exceeds their score of 250
           });
 
           const error = await errorPromise;
@@ -517,7 +526,8 @@ describe("Stake Question Flow Tests", () => {
 
           // Player[0] bids 350
           playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: 350,
+            bidType: StakeBidType.NORMAL,
+          bidAmount: 350,
           });
           let bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
             showmanSocket,
@@ -529,7 +539,8 @@ describe("Stake Question Flow Tests", () => {
 
           // Player[1] bids 360 (now highest bid)
           playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: 360,
+            bidType: StakeBidType.NORMAL,
+          bidAmount: 360,
           });
 
           bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
@@ -548,7 +559,8 @@ describe("Stake Question Flow Tests", () => {
           );
 
           playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: StakeBidType.ALL_IN,
+            bidType: StakeBidType.ALL_IN,
+          bidAmount: null,
           });
 
           const errorResult = await errorPromise;
@@ -574,7 +586,8 @@ describe("Stake Question Flow Tests", () => {
 
           // Player[0] starts with a small bid (must be >= question price of 200)
           playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: 250,
+            bidType: StakeBidType.NORMAL,
+          bidAmount: 250,
           });
           let bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
             showmanSocket,
@@ -586,7 +599,8 @@ describe("Stake Question Flow Tests", () => {
 
           // Player[1] goes ALL_IN (300 score, which is less than maxPrice 400)
           playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: StakeBidType.ALL_IN,
+            bidType: StakeBidType.ALL_IN,
+          bidAmount: null,
           });
 
           bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
@@ -609,7 +623,8 @@ describe("Stake Question Flow Tests", () => {
           );
 
           playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: 350, // Regular numeric bid
+            bidType: StakeBidType.NORMAL,
+          bidAmount: 350, // Regular numeric bid
           });
 
           const errorResult = await errorPromise;
@@ -619,7 +634,8 @@ describe("Stake Question Flow Tests", () => {
 
           // Test 2: Player[2] can still PASS
           playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: StakeBidType.PASS,
+            bidType: StakeBidType.PASS,
+          bidAmount: null,
           });
 
           bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
@@ -633,7 +649,8 @@ describe("Stake Question Flow Tests", () => {
           // Test 3: Player[0] gets another turn and can only ALL_IN (since their score is 300 < current highest 400)
           // They should be able to pass though
           playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: StakeBidType.PASS,
+            bidType: StakeBidType.PASS,
+          bidAmount: null,
           });
 
           bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
@@ -707,7 +724,8 @@ describe("Stake Question Flow Tests", () => {
 
         // Complete all bids: Player 0 -> 250, Player 1 -> 350, Player 2 -> pass, Player 0 -> pass (could outbid but chooses not to)
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 250,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250,
         });
 
         // Wait for Player 0's specific bid response
@@ -731,7 +749,8 @@ describe("Stake Question Flow Tests", () => {
         });
 
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 350,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 350,
         });
 
         // Wait for Player 1's specific bid response
@@ -755,7 +774,8 @@ describe("Stake Question Flow Tests", () => {
         });
 
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         });
 
         // Wait for Player 2's specific pass response
@@ -783,7 +803,8 @@ describe("Stake Question Flow Tests", () => {
 
         // Player 0 gets another chance but passes (completing the round)
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         });
 
         // Wait for Player 0's final pass bid to be processed - this should complete the phase
@@ -852,7 +873,8 @@ describe("Stake Question Flow Tests", () => {
 
           // First bidder (player 0) tries to pass - should be rejected
           playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: StakeBidType.PASS,
+            bidType: StakeBidType.PASS,
+          bidAmount: null,
           });
 
           const error = await errorPromise;
@@ -874,7 +896,8 @@ describe("Stake Question Flow Tests", () => {
 
         // Player 0 bids 250 (must be >= question price of 200), others pass
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 250,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250,
         });
         await utils.waitForEvent(
           showmanSocket,
@@ -882,7 +905,8 @@ describe("Stake Question Flow Tests", () => {
         );
 
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         });
         await utils.waitForEvent(
           showmanSocket,
@@ -890,7 +914,8 @@ describe("Stake Question Flow Tests", () => {
         );
 
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         });
 
         // Wait for the final pass bid to be processed

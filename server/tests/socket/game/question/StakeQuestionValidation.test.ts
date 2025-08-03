@@ -159,7 +159,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 0 tries to bid 150 (below question price of 200)
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 150, // Below question price of 200
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 150, // Below question price of 200
         } as StakeBidSubmitInputData);
 
         // Should receive an error
@@ -189,7 +190,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 0 bids exactly the question price (200)
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 200, // Equal to question price
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 200, // Equal to question price
         } as StakeBidSubmitInputData);
 
         // Should succeed
@@ -220,7 +222,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 0 bids above the question price
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 250, // Above question price of 200
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250, // Above question price of 200
         } as StakeBidSubmitInputData);
 
         // Should succeed
@@ -247,7 +250,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 0 makes initial bid
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 220,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 220,
         } as StakeBidSubmitInputData);
 
         await utils.waitForEvent(
@@ -257,7 +261,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 1 passes
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         } as StakeBidSubmitInputData);
 
         await utils.waitForEvent(
@@ -267,7 +272,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 2 makes a bid to continue the round
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 240,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 240,
         } as StakeBidSubmitInputData);
 
         await utils.waitForEvent(
@@ -284,7 +290,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 1 (who already passed) tries to bid again
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 260,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 260,
         } as StakeBidSubmitInputData);
 
         // Should receive an error
@@ -308,7 +315,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 0 makes initial bid
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 220,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 220,
         } as StakeBidSubmitInputData);
 
         await utils.waitForEvent(
@@ -318,7 +326,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 1 passes
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         } as StakeBidSubmitInputData);
 
         await utils.waitForEvent(
@@ -328,7 +337,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 2 makes a bid
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 240,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 240,
         } as StakeBidSubmitInputData);
 
         await utils.waitForEvent(
@@ -344,7 +354,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 1 (who already passed) tries to go ALL_IN
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.ALL_IN,
+          bidType: StakeBidType.ALL_IN,
+          bidAmount: null,
         } as StakeBidSubmitInputData);
 
         // Should receive an error
@@ -368,7 +379,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 0 makes initial bid
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 220,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 220,
         } as StakeBidSubmitInputData);
 
         await utils.waitForEvent(
@@ -378,7 +390,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 1 passes
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         } as StakeBidSubmitInputData);
 
         await utils.waitForEvent(
@@ -388,7 +401,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 2 makes a bid
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 240,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 240,
         } as StakeBidSubmitInputData);
 
         await utils.waitForEvent(
@@ -404,7 +418,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Player 1 (who already passed) tries to pass again
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         } as StakeBidSubmitInputData);
 
         // Should receive an error
@@ -435,7 +450,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Try negative bid
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: -100,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: -100,
         } as StakeBidSubmitInputData);
 
         const error = await errorPromise;
@@ -465,7 +481,8 @@ describe("Stake Question Validation Tests", () => {
 
         // Try zero bid
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: 0,
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 0,
         } as StakeBidSubmitInputData);
 
         const error = await errorPromise;

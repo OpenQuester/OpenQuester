@@ -105,12 +105,14 @@ export class GameValidator {
 
   public static validateStakeBid(data: StakeBidSubmitInputData) {
     const schema = Joi.object<StakeBidSubmitInputData>({
-      bid: Joi.alternatives()
-        .try(
-          Joi.number().min(STAKE_QUESTION_MIN_BID), // Normal numeric bid
-          Joi.string().valid(...Object.values(StakeBidType)) // Special bid types
-        )
+      bidType: Joi.string()
+        .valid(...Object.values(StakeBidType))
         .required(),
+      bidAmount: Joi.when("bidType", {
+        is: StakeBidType.NORMAL,
+        then: Joi.number().min(STAKE_QUESTION_MIN_BID).required(),
+        otherwise: Joi.valid(null).required(),
+      }),
     });
 
     return this._validate<StakeBidSubmitInputData>(data, schema);

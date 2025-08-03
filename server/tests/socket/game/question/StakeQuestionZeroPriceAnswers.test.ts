@@ -257,7 +257,8 @@ describe("Stake Question Zero Price Answer Tests", () => {
   }> {
     try {
       playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bid: 1,
+        bidType: StakeBidType.NORMAL,
+          bidAmount: 1,
       });
 
       const player0BidResult =
@@ -269,7 +270,8 @@ describe("Stake Question Zero Price Answer Tests", () => {
 
       if (!player0BidResult.isPhaseComplete) {
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bid: StakeBidType.PASS,
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
         });
 
         const player1BidResult =
@@ -281,7 +283,8 @@ describe("Stake Question Zero Price Answer Tests", () => {
 
         if (!player1BidResult.isPhaseComplete) {
           playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bid: StakeBidType.PASS,
+            bidType: StakeBidType.PASS,
+          bidAmount: null,
           });
 
           await utils.waitForEvent<StakeBidSubmitOutputData>(

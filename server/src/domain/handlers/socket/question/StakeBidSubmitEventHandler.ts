@@ -71,10 +71,7 @@ export class StakeBidSubmitEventHandler extends BaseSocketEventHandler<
       winnerPlayerId,
       questionData,
       timer,
-    } = await this.questionService.handleStakeBidSubmit(
-      this.socket.id,
-      data.bid
-    );
+    } = await this.questionService.handleStakeBidSubmit(this.socket.id, data);
 
     // Assign context variables for logging
     context.gameId = game.id;

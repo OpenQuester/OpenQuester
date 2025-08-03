@@ -3678,22 +3678,17 @@
         "type": "object",
         "description": "Data for stake question bid submission",
         "properties": {
-          "bid": {
-            "oneOf": [
-              {
-                "type": "integer",
-                "minimum": 1,
-                "description": "Numeric bid amount"
-              },
-              {
-                "$ref": "#/components/schemas/StakeBidType"
-              }
-            ],
-            "description": "Bid amount (number), or special bid type",
-            "examples": [250, "pass", "all-in"]
+          "bidType": {
+            "$ref": "#/components/schemas/StakeBidType"
+          },
+          "bidAmount": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": "Bid amount for normal bids, null for pass/all-in bids",
+            "examples": [250, null]
           }
         },
-        "required": ["bid"]
+        "required": ["bidType", "bidAmount"]
       },
       "StakeBidSubmitOutputData": {
         "type": "object",
