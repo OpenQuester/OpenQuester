@@ -110,5 +110,6 @@
   "selected_package": "Selected Package",
   "ready_to_play": "Ready to play",
   "change_package": "Change Package",
-  "game_settings": "Game Settings"
+  "game_settings": "Game Settings",
+  "connect_discord": "Connect your Discord account to get started"
 }

@@ -99,7 +99,7 @@ class _LoginContent extends WatchingWidget {
               textAlign: TextAlign.center,
             ),
             Text(
-              'Connect your Discord account to get started',
+              LocaleKeys.connect_discord.tr(),
               style: context.textTheme.bodySmall?.copyWith(
                 color: context.theme.colorScheme.onSurfaceVariant,
               ),
