@@ -7,6 +7,7 @@ class GameLobbyMenu extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controller = getIt<GameLobbyController>();
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final me = gameData?.me;
     final pauseState = gameData?.gameState.isPaused ?? false;
@@ -22,6 +23,17 @@ class GameLobbyMenu extends WatchingWidget {
             if (gameId == null) return;
             final link = Env.clientAppUrl.replace(path: '/games/$gameId');
             Clipboard.setData(ClipboardData(text: link.toString()));
+          },
+        ),
+        PopupMenuItem<void>(
+          child: Text(
+            controller.lobbyEditorMode.value
+                ? LocaleKeys.game_lobby_editor_close_player_editor.tr()
+                : LocaleKeys.game_lobby_editor_open_player_editor.tr(),
+          ),
+          onTap: () {
+            controller.lobbyEditorMode.value =
+                !controller.lobbyEditorMode.value;
           },
         ),
         if (imShowman) ...[

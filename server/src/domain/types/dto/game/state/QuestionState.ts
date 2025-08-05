@@ -5,4 +5,5 @@ export enum QuestionState {
   ANSWERING = "answering",
   REVIEWING = "reviewing",
   SHOWING = "showing",
+  SECRET_TRANSFER = "secret_transfer",
 }

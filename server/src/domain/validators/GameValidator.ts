@@ -1,6 +1,9 @@
 import Joi from "joi";
 
-import { GAME_ID_CHARACTERS_LENGTH } from "domain/constants/game";
+import {
+  GAME_ID_CHARACTERS_LENGTH,
+  STAKE_QUESTION_MIN_BID,
+} from "domain/constants/game";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
@@ -9,6 +12,10 @@ import {
   FinalBidSubmitInputData,
   ThemeEliminateInputData,
 } from "domain/types/socket/events/FinalRoundEventData";
+import {
+  StakeBidSubmitInputData,
+  StakeBidType,
+} from "domain/types/socket/events/game/StakeQuestionEventData";
 import {
   PlayerKickInputData,
   PlayerRestrictionInputData,
@@ -24,6 +31,7 @@ import {
 import { AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { GameQuestionPickData } from "domain/types/socket/game/question/GameQuestionPickData";
+import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
 export class GameValidator {
@@ -50,6 +58,16 @@ export class GameValidator {
     });
 
     return this._validate<GameQuestionPickData>(data, schema);
+  }
+
+  public static validateSecretQuestionTransfer(
+    data: SecretQuestionTransferInputData
+  ) {
+    const schema = Joi.object<SecretQuestionTransferInputData>({
+      targetPlayerId: Joi.number().min(0).required(),
+    });
+
+    return this._validate<SecretQuestionTransferInputData>(data, schema);
   }
 
   public static validateAnswerSubmitted(data: AnswerSubmittedData) {
@@ -83,6 +101,21 @@ export class GameValidator {
     });
 
     return this._validate<FinalBidSubmitInputData>(data, schema);
+  }
+
+  public static validateStakeBid(data: StakeBidSubmitInputData) {
+    const schema = Joi.object<StakeBidSubmitInputData>({
+      bidType: Joi.string()
+        .valid(...Object.values(StakeBidType))
+        .required(),
+      bidAmount: Joi.when("bidType", {
+        is: StakeBidType.NORMAL,
+        then: Joi.number().min(STAKE_QUESTION_MIN_BID).required(),
+        otherwise: Joi.valid(null).required(),
+      }),
+    });
+
+    return this._validate<StakeBidSubmitInputData>(data, schema);
   }
 
   public static validateFinalAnswerSubmit(data: FinalAnswerSubmitInputData) {
