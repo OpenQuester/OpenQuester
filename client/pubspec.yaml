@@ -5,7 +5,7 @@ version: 0.17.0
 
 environment:
   sdk: ">=3.8.0 <4.0.0"
-  flutter: 3.32.7
+  flutter: 3.32.8
 
 dependencies:
   flutter:
@@ -65,6 +65,7 @@ dependencies:
   dotted_border: ^3.1.0
   flutter_avif: ^3.0.0
   flutter_cache_manager: ^3.4.1
+  animate_do: ^4.2.0
 
 dev_dependencies:
   flutter_test:

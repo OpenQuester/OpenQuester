@@ -9,7 +9,7 @@ class ProfileBtn extends StatelessWidget {
     return IconButton(
       icon: const Icon(Icons.account_circle),
       tooltip: LocaleKeys.profile.tr(),
-      onPressed: () => const ProfileRoute().push<void>(context),
+      onPressed: () => const ProfileDialog().show(context),
     );
   }
 }

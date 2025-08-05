@@ -15,8 +15,24 @@ abstract class CreateGameDto with _$CreateGameDto {
 }
 
 extension CreateGameDtoX on CreateGameDto {
-  bool get valid {
+  bool get basicDataPresent {
     return package != null && gameName != null;
+  }
+
+  bool get valid {
+    if (!basicDataPresent) return false;
+
+    // Check game name length validation
+    final nameLength = gameName?.length ?? 0;
+    if (nameLength < GameValidationConst.minGameNameLength) return false;
+    if (nameLength > GameValidationConst.maxGameNameLength) return false;
+
+    // Check game name regex validation
+    if (!GameValidationConst.gameNameRegExp.hasMatch(gameName ?? '')) {
+      return false;
+    }
+
+    return true;
   }
 
   GameCreateData toRequestData() {

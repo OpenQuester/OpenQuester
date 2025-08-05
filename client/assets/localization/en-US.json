@@ -102,5 +102,14 @@
   "spectators": "Spectators",
   "players": "Players",
   "you_are_spectator": "You are spectator",
-  "game_lobby_hint": "Select your role and press 'Ready' to start game"
+  "game_lobby_hint": "Select your role and press 'Ready' to start game",
+  "create_game_hint": "Set up your game and invite players to join",
+  "email": "Email",
+  "member_since": "Member Since",
+  "game_package": "Game Package",
+  "selected_package": "Selected Package",
+  "ready_to_play": "Ready to play",
+  "change_package": "Change Package",
+  "game_settings": "Game Settings",
+  "connect_discord": "Connect your Discord account to get started"
 }

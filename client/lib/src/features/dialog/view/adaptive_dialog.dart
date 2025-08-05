@@ -5,10 +5,12 @@ class AdaptiveDialog extends StatefulWidget {
   const AdaptiveDialog({
     required this.builder,
     this.allowBottomSheet = true,
+    this.constraints,
     super.key,
   });
   final Widget Function(BuildContext) builder;
   final bool allowBottomSheet;
+  final BoxConstraints? constraints;
 
   @override
   State<AdaptiveDialog> createState() => _AdaptiveDialogState();
@@ -35,7 +37,12 @@ class _AdaptiveDialogState extends State<AdaptiveDialog>
         child: Scaffold(
           backgroundColor: Colors.transparent,
           body: showDialog
-              ? DialogContainer(child: child)
+              ? widget.constraints != null
+                    ? ConstrainedBox(
+                        constraints: widget.constraints!,
+                        child: DialogContainer(child: child),
+                      ).center()
+                    : DialogContainer(child: child)
               : GestureDetector(onTap: () => Navigator.pop(context)),
           bottomSheet: showDialog
               ? const SizedBox() // Fixes child dublicates
