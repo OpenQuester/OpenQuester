@@ -43,16 +43,16 @@ class CreateGameDialog extends WatchingWidget {
                       LocaleKeys.start_game.tr(),
                       style: context.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurface,
+                        color: context.theme.colorScheme.onSurface,
                       ),
                       textAlign: TextAlign.center,
                     ).paddingBottom(4),
                     Text(
                       LocaleKeys.create_game_hint.tr(),
                       style: context.textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.7),
+                        color: context.theme.colorScheme.onSurface.withValues(
+                          alpha: 0.7,
+                        ),
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -131,14 +131,14 @@ class _MaxPlayersSelect extends StatelessWidget {
               Container(
                 padding: 8.horizontal + 4.vertical,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
+                  color: context.theme.colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   '${state.maxPlayers}',
                   style: context.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    color: context.theme.colorScheme.onPrimaryContainer,
                   ),
                 ),
               ),
@@ -183,7 +183,7 @@ class _PrivateGameSelect extends StatelessWidget {
           Icon(
             state.private ? Icons.lock_rounded : Icons.public_rounded,
             size: 20,
-            color: Theme.of(context).colorScheme.primary,
+            color: context.theme.colorScheme.primary,
           ).paddingRight(12),
           Expanded(
             child: Column(
@@ -198,9 +198,9 @@ class _PrivateGameSelect extends StatelessWidget {
                 Text(
                   LocaleKeys.private_game_description.tr(),
                   style: context.textTheme.bodySmall?.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.7),
+                    color: context.theme.colorScheme.onSurface.withValues(
+                      alpha: 0.7,
+                    ),
                   ),
                 ),
               ],
@@ -246,7 +246,7 @@ class _AgeRestrictionSelect extends StatelessWidget {
               Icon(
                 Icons.family_restroom_rounded,
                 size: 20,
-                color: Theme.of(context).colorScheme.primary,
+                color: context.theme.colorScheme.primary,
               ).paddingRight(12),
               Text(
                 LocaleKeys.age_restriction.tr(),
@@ -447,7 +447,7 @@ class _PackageSelectionSection extends StatelessWidget {
             Icon(
               Icons.library_books_rounded,
               size: 20,
-              color: Theme.of(context).colorScheme.primary,
+              color: context.theme.colorScheme.primary,
             ).paddingRight(8),
             Text(
               LocaleKeys.game_package.tr(),
@@ -479,12 +479,12 @@ class _SelectedPackageIndicator extends StatelessWidget {
       duration: const Duration(milliseconds: 200),
       padding: 12.all,
       decoration: BoxDecoration(
-        color: Theme.of(
-          context,
-        ).colorScheme.primaryContainer.withValues(alpha: 0.4),
+        color: context.theme.colorScheme.primaryContainer.withValues(
+          alpha: 0.4,
+        ),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+          color: context.theme.colorScheme.primary.withValues(alpha: 0.3),
           width: 1.5,
         ),
       ),
@@ -493,13 +493,13 @@ class _SelectedPackageIndicator extends StatelessWidget {
           Container(
             padding: 6.all,
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
+              color: context.theme.colorScheme.primary,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Icon(
               Icons.check_rounded,
               size: 16,
-              color: Theme.of(context).colorScheme.onPrimary,
+              color: context.theme.colorScheme.onPrimary,
             ),
           ).paddingRight(12),
           Expanded(
@@ -509,7 +509,7 @@ class _SelectedPackageIndicator extends StatelessWidget {
                 Text(
                   LocaleKeys.selected_package.tr(),
                   style: context.textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.primary,
+                    color: context.theme.colorScheme.primary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -527,9 +527,7 @@ class _SelectedPackageIndicator extends StatelessWidget {
           Text(
             LocaleKeys.ready_to_play.tr(),
             style: context.textTheme.labelMedium?.copyWith(
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.7),
+              color: context.theme.colorScheme.onSurface.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -557,7 +555,7 @@ class _GameConfigSection extends StatelessWidget {
             Icon(
               Icons.settings_rounded,
               size: 20,
-              color: Theme.of(context).colorScheme.primary,
+              color: context.theme.colorScheme.primary,
             ).paddingRight(8),
             Text(
               LocaleKeys.game_settings.tr(),
@@ -714,17 +712,17 @@ class _AnimatedButtonState extends State<_AnimatedButton>
               padding: 16.horizontal + 12.vertical,
               decoration: BoxDecoration(
                 color: widget.enabled
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.12),
+                    ? context.theme.colorScheme.primary
+                    : context.theme.colorScheme.onSurface.withValues(
+                        alpha: 0.12,
+                      ),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: widget.enabled
                     ? [
                         BoxShadow(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: 0.3),
+                          color: context.theme.colorScheme.primary.withValues(
+                            alpha: 0.3,
+                          ),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),
@@ -735,20 +733,20 @@ class _AnimatedButtonState extends State<_AnimatedButton>
                 child: DefaultTextStyle(
                   style: TextStyle(
                     color: widget.enabled
-                        ? Theme.of(context).colorScheme.onPrimary
-                        : Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.38),
+                        ? context.theme.colorScheme.onPrimary
+                        : context.theme.colorScheme.onSurface.withValues(
+                            alpha: 0.38,
+                          ),
                     fontWeight: FontWeight.w500,
                     fontSize: 16,
                   ),
                   child: IconTheme(
                     data: IconThemeData(
                       color: widget.enabled
-                          ? Theme.of(context).colorScheme.onPrimary
-                          : Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.38),
+                          ? context.theme.colorScheme.onPrimary
+                          : context.theme.colorScheme.onSurface.withValues(
+                              alpha: 0.38,
+                            ),
                       size: 24,
                     ),
                     child: widget.child,

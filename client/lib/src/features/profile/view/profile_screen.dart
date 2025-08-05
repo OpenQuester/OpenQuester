@@ -27,49 +27,47 @@ class ProfileDialog extends WatchingWidget {
     final user = watchValue((ProfileController m) => m.user);
 
     return AdaptiveDialog(
-      builder: (context) => Container(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Card(
-          elevation: 0,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Container(
-                padding: 20.all,
-                decoration: BoxDecoration(
-                  color: context.theme.colorScheme.primaryContainer.withValues(
-                    alpha: 0.3,
-                  ),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
+      constraints: const BoxConstraints(maxWidth: 400),
+      builder: (context) => Card(
+        elevation: 0,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: 20.all,
+              decoration: BoxDecoration(
+                color: context.theme.colorScheme.primaryContainer.withValues(
+                  alpha: 0.3,
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.account_circle_outlined,
-                      color: context.theme.colorScheme.primary,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.account_circle_outlined,
+                    color: context.theme.colorScheme.primary,
+                  ),
+                  Text(
+                    LocaleKeys.profile.tr(),
+                    style: context.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
                     ),
-                    Text(
-                      LocaleKeys.profile.tr(),
-                      style: context.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ).paddingLeft(8),
-                  ],
-                ),
+                  ).paddingLeft(8),
+                ],
               ),
+            ),
 
-              // Content
-              Padding(
-                padding: 24.all,
-                child: user == null
-                    ? const _LoginContent()
-                    : _ProfileContent(user: user),
-              ),
-            ],
-          ),
+            // Content
+            Padding(
+              padding: 24.all,
+              child: user == null
+                  ? const _LoginContent()
+                  : _ProfileContent(user: user),
+            ),
+          ],
         ),
       ),
     );
@@ -223,12 +221,12 @@ class _ProfileContent extends WatchingWidget {
             children: [
               if (user.email != null)
                 _InfoRow(
-                  label: 'Email',
+                  label: LocaleKeys.email.tr(),
                   value: user.email!,
                   icon: Icons.email_outlined,
                 ),
               _InfoRow(
-                label: 'Member Since',
+                label: LocaleKeys.member_since.tr(),
                 value: dateFormat.format(user.createdAt),
                 icon: Icons.calendar_today_outlined,
               ),
@@ -289,25 +287,23 @@ class _InfoRow extends StatelessWidget {
           size: 16,
           color: context.theme.colorScheme.onSurfaceVariant,
         ),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: context.textTheme.bodySmall?.copyWith(
-                  color: context.theme.colorScheme.onSurfaceVariant,
-                ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: context.textTheme.bodySmall?.copyWith(
+                color: context.theme.colorScheme.onSurfaceVariant,
               ),
-              Text(
-                value,
-                style: context.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
+            ),
+            Text(
+              value,
+              style: context.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
               ),
-            ],
-          ),
-        ).paddingLeft(8),
+            ),
+          ],
+        ).paddingLeft(8).expand(),
       ],
     );
   }
