@@ -6,26 +6,46 @@ import { SocketQuestionStateService } from "application/services/socket/SocketQu
 import {
   GAME_QUESTION_ANSWER_SUBMIT_TIME,
   GAME_QUESTION_ANSWER_TIME,
+  STAKE_QUESTION_BID_TIME,
 } from "domain/constants/game";
 import { REDIS_LOCK_QUESTION_ANSWER } from "domain/constants/redis";
 import { Game } from "domain/entities/game/Game";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
+import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
+import { StakeBiddingMapper } from "domain/mappers/StakeBiddingMapper";
+import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
+import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
+import {
+  StakeBidSubmitInputData,
+  StakeBidType,
+} from "domain/types/socket/events/game/StakeQuestionEventData";
 import {
   AnswerResultData,
   AnswerResultType,
 } from "domain/types/socket/game/AnswerResultData";
+import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
+import { SecretQuestionValidator } from "domain/validators/SecretQuestionValidator";
+import { StakeQuestionValidator } from "domain/validators/StakeQuestionValidator";
+import { ILogger } from "infrastructure/logger/ILogger";
 
 export class SocketIOQuestionService {
   constructor(
@@ -34,7 +54,8 @@ export class SocketIOQuestionService {
     private readonly socketGameValidationService: SocketGameValidationService,
     private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly socketGameTimerService: SocketGameTimerService,
-    private readonly roundHandlerFactory: RoundHandlerFactory
+    private readonly roundHandlerFactory: RoundHandlerFactory,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -44,25 +65,20 @@ export class SocketIOQuestionService {
   }
 
   public async handleQuestionAnswer(socketId: string) {
+    // Context & Validation
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
     const game = context.game;
     const currentPlayer = context.currentPlayer;
 
-    // Validation
-    GameStateValidator.validateGameInProgress(game);
-    this.socketGameValidationService.validateQuestionAction(
+    QuestionActionValidator.validateAnswerAction({
+      game,
       currentPlayer,
-      game,
-      QuestionAction.ANSWER
-    );
-    this.socketGameValidationService.validateQuestionAnswering(
-      game,
-      currentPlayer!.meta.id
-    );
+      action: QuestionAction.ANSWER,
+    });
 
-    // Lock for question answering
+    // Execution
     const acquired = await this.gameService.gameLock(
       this._getQuestionAnswerLockKey(game.id),
       1
@@ -72,14 +88,13 @@ export class SocketIOQuestionService {
       throw new ClientError(ClientResponse.SOMEONE_ALREADY_ANSWERING);
     }
 
-    // Save question showing timer at current state
+    // Save showing timer to have timer restore point
     await this.socketGameTimerService.saveElapsedTimer(
       game,
       GAME_QUESTION_ANSWER_SUBMIT_TIME,
       QuestionState.SHOWING
     );
 
-    // Setup and set answering timer
     const timer = await this.socketQuestionStateService.setupAnsweringTimer(
       game,
       GAME_QUESTION_ANSWER_SUBMIT_TIME,
@@ -93,6 +108,9 @@ export class SocketIOQuestionService {
     };
   }
 
+  /**
+   * TODO: Not implemented yet
+   */
   public async handleAnswerSubmitted(socketId: string) {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
@@ -110,22 +128,21 @@ export class SocketIOQuestionService {
   }
 
   public async handleAnswerResult(socketId: string, data: AnswerResultData) {
+    // Context & Validation
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
     const game = context.game;
     const currentPlayer = context.currentPlayer;
 
-    GameStateValidator.validateGameInProgress(game);
-    this.socketGameValidationService.validateQuestionAction(
-      currentPlayer,
+    QuestionActionValidator.validateAnswerResultAction({
       game,
-      QuestionAction.RESULT
-    );
+      currentPlayer,
+      action: QuestionAction.RESULT,
+    });
 
+    // Execution
     const isCorrect = data.answerType === AnswerResultType.CORRECT;
-
-    // Keep showing question on Wrong answer or on answer skip
     const nextState = isCorrect
       ? QuestionState.CHOOSING
       : QuestionState.SHOWING;
@@ -137,28 +154,30 @@ export class SocketIOQuestionService {
     );
 
     let question = null;
-
-    if (
+    const correctAnswerSimpleRound =
       isCorrect &&
-      game.gameState.currentRound?.type === PackageRoundType.SIMPLE
-    ) {
+      game.gameState.currentRound?.type === PackageRoundType.SIMPLE;
+
+    if (correctAnswerSimpleRound) {
       // Update current turn player ID to the one who answered correctly
       const answeringPlayerId = playerAnswerResult.player;
       game.gameState.currentTurnPlayerId = answeringPlayerId;
     }
 
+    // Same logic for all rounds types
     if (isCorrect) {
       question = await this.getCurrentQuestion(game);
       game.gameState.currentQuestion = null;
     }
 
     let timer: GameStateTimerDTO | null = null;
-
     if (nextState === QuestionState.SHOWING) {
       timer = await this.gameService.getTimer(game.id, QuestionState.SHOWING);
     }
 
     game.setTimer(timer);
+
+    // Save
     await this.gameService.updateGame(game);
     if (timer) {
       await this.gameService.saveTimer(
@@ -167,6 +186,7 @@ export class SocketIOQuestionService {
         timer.durationMs - timer.elapsedMs
       );
     } else {
+      // Always make sure all timers are cleared if not meant to be running
       await this.gameService.clearTimer(game.id);
     }
 
@@ -190,7 +210,8 @@ export class SocketIOQuestionService {
     return { isGameFinished, nextGameState };
   }
 
-  public async handleQuestionSkip(socketId: string) {
+  public async handleQuestionForceSkip(socketId: string) {
+    // Context & Validation
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
@@ -198,15 +219,13 @@ export class SocketIOQuestionService {
     const currentPlayer = context.currentPlayer;
     const gameState = game.gameState;
 
-    // Validation
-    GameStateValidator.validateGameInProgress(game);
-    this.socketGameValidationService.validateQuestionAction(
-      currentPlayer,
+    QuestionActionValidator.validateForceSkipAction({
       game,
-      QuestionAction.SKIP
-    );
-    this.socketGameValidationService.validateQuestionSkipping(game);
+      currentPlayer,
+      action: QuestionAction.SKIP,
+    });
 
+    // Execution & Save
     const questionData = GameQuestionMapper.getQuestionAndTheme(
       game.package,
       gameState.currentRound!.id,
@@ -218,90 +237,69 @@ export class SocketIOQuestionService {
     }
 
     await this.socketQuestionStateService.resetToChoosingState(game);
+
     return { game, question: questionData.question };
   }
 
   public async handlePlayerSkip(socketId: string) {
+    // Context & Validation
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
     const game = context.game;
     const currentPlayer = context.currentPlayer;
 
-    if (!currentPlayer) {
-      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
-    }
-
-    // Validation
-    GameStateValidator.validateGameInProgress(game);
-    this.socketGameValidationService.validateQuestionSkipping(game);
-    this.socketGameValidationService.validateQuestionAction(
-      currentPlayer,
+    QuestionActionValidator.validatePlayerSkipAction({
       game,
-      QuestionAction.PLAYER_SKIP
-    );
+      currentPlayer,
+      action: QuestionAction.PLAYER_SKIP,
+    });
 
-    // Check if player is currently answering - they can't skip while answering
-    if (game.gameState.answeringPlayer === currentPlayer.meta.id) {
-      throw new ClientError(ClientResponse.CANNOT_SKIP_WHILE_ANSWERING);
-    }
+    // Execution
+    game.addSkippedPlayer(currentPlayer!.meta.id);
 
-    // Check if player has already answered this question
-    const hasAnswered = game.gameState.answeredPlayers?.some(
-      (answeredPlayer) => answeredPlayer.player === currentPlayer.meta.id
-    );
-
-    if (hasAnswered) {
-      throw new ClientError(ClientResponse.ALREADY_ANSWERED_QUESTION);
-    }
-
-    // Add player to skipped players list
-    game.addSkippedPlayer(currentPlayer.meta.id);
+    // Save
     await this.gameService.updateGame(game);
 
-    return { game, playerId: currentPlayer.meta.id };
+    return { game, playerId: currentPlayer!.meta.id };
   }
 
   public async handlePlayerUnskip(socketId: string) {
+    // Context & Validation
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
     const game = context.game;
     const currentPlayer = context.currentPlayer;
 
-    // Validation
-    GameStateValidator.validateGameInProgress(game);
-    this.socketGameValidationService.validateQuestionUnskipping(game);
+    QuestionActionValidator.validateUnskipAction({
+      game,
+      currentPlayer,
+      action: QuestionAction.PLAYER_SKIP,
+    });
 
-    if (!currentPlayer) {
-      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
-    }
+    // Execution
+    game.removeSkippedPlayer(currentPlayer!.meta.id);
 
-    if (!game.hasPlayerSkipped(currentPlayer.meta.id)) {
-      throw new ClientError(ClientResponse.PLAYER_NOT_SKIPPED);
-    }
-
-    // Remove player from skipped players list
-    game.removeSkippedPlayer(currentPlayer.meta.id);
+    // Save
     await this.gameService.updateGame(game);
 
-    return { game, playerId: currentPlayer.meta.id };
+    return { game, playerId: currentPlayer!.meta.id };
   }
 
   public async handleQuestionPick(socketId: string, questionId: number) {
+    // Context & Validation
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
     const game = context.game;
     const currentPlayer = context.currentPlayer;
 
-    GameStateValidator.validateGameInProgress(game);
-    this.socketGameValidationService.validateQuestionAction(
-      currentPlayer,
+    QuestionActionValidator.validatePickAction({
       game,
-      QuestionAction.PICK
-    );
-    this.socketGameValidationService.validateQuestionPicking(game);
+      currentPlayer,
+      action: QuestionAction.PICK,
+    });
 
     const currentRound = game.gameState.currentRound!;
 
@@ -321,20 +319,59 @@ export class SocketIOQuestionService {
       throw new ClientError(ClientResponse.QUESTION_ALREADY_PLAYED);
     }
 
-    const timer = await this.socketQuestionStateService.setupQuestionTimer(
-      game,
-      GAME_QUESTION_ANSWER_TIME,
-      QuestionState.SHOWING
-    );
+    // Execution
+    let isSecretQuestion = false;
+    let isStakeQuestion = false;
+    let timer: GameStateTimer | null = null;
+    let secretQuestionData: SecretQuestionGameData | null = null;
+    let stakeQuestionData: StakeQuestionGameData | null = null;
+    let automaticNominalBid: PlayerBidData | null = null;
+
+    if (question.type === PackageQuestionType.SECRET) {
+      isSecretQuestion = true;
+      secretQuestionData = this._setupSecretQuestion(
+        game,
+        question,
+        currentPlayer!
+      );
+    } else if (question.type === PackageQuestionType.STAKE) {
+      isStakeQuestion = true;
+
+      const stakeSetupResult = await this._setupStakeQuestion(
+        game,
+        question,
+        currentPlayer!
+      );
+      stakeQuestionData = stakeSetupResult.stakeQuestionData;
+      timer = stakeSetupResult.timer;
+      automaticNominalBid = stakeSetupResult.automaticNominalBid;
+    } else {
+      // Normal question flow - set up timer and showing state
+      timer = await this.socketQuestionStateService.setupQuestionTimer(
+        game,
+        GAME_QUESTION_ANSWER_TIME,
+        QuestionState.SHOWING
+      );
+    }
 
     game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
       questionData.question
     );
     GameQuestionMapper.setQuestionPlayed(game, question.id!, theme.id!);
 
+    // Save
     await this.gameService.updateGame(game);
 
-    return { question, game, timer };
+    return {
+      question,
+      game,
+      timer,
+      secretQuestionData,
+      isSecretQuestion,
+      stakeQuestionData,
+      isStakeQuestion,
+      automaticNominalBid,
+    };
   }
 
   public async getCurrentQuestion(game: Game) {
@@ -363,6 +400,10 @@ export class SocketIOQuestionService {
     return question;
   }
 
+  /**
+   * Returns a map of socket IDs to either full (for showman) or
+   * simple (for others) question data
+   */
   public async getPlayersBroadcastMap(
     socketsIds: string[],
     game: Game,
@@ -372,11 +413,18 @@ export class SocketIOQuestionService {
     const simpleQuestionPayload =
       GameQuestionMapper.mapToSimpleQuestion(question);
 
+    // Map socketId to question payload
     const resultMap: Map<
       string,
       PackageQuestionDTO | SimplePackageQuestionDTO
     > = new Map();
 
+    const log = this.logger.performance("Get players broadcast map", {
+      prefix: "[SOCKET]: ",
+      operationsCount: socketsIds.length,
+    });
+
+    // TODO: This probably can be rewritten in Redis pipeline if needed
     const userDataPromises = socketsIds.map((socketId) =>
       this.socketGameContextService
         .fetchUserSocketData(socketId)
@@ -387,6 +435,8 @@ export class SocketIOQuestionService {
     );
 
     const userDataResults = await Promise.all(userDataPromises);
+
+    log.finish();
 
     for (const { socketId, userSession } of userDataResults) {
       const player = game.getPlayer(userSession.id, {
@@ -404,11 +454,10 @@ export class SocketIOQuestionService {
   }
 
   public async getGameStateBroadcastMap(
-    socketIds: string[],
+    socketsIds: string[],
     game: Game,
     gameState: GameStateDTO
   ): Promise<Map<string, GameStateDTO>> {
-    // SocketID to GameStateDTO map
     const resultMap = new Map<string, GameStateDTO>();
 
     const isFinalRound =
@@ -416,13 +465,19 @@ export class SocketIOQuestionService {
 
     // If not final round, everyone gets same state
     if (!isFinalRound) {
-      for (const socketId of socketIds) {
+      for (const socketId of socketsIds) {
         resultMap.set(socketId, gameState);
       }
       return resultMap;
     }
 
-    const userDataPromises = socketIds.map((socketId) =>
+    const log = this.logger.performance("Get players broadcast map", {
+      prefix: "[SOCKET]: ",
+      operationsCount: socketsIds.length,
+    });
+
+    // TODO: This probably can be rewritten in Redis pipeline if needed
+    const userDataPromises = socketsIds.map((socketId) =>
       this.socketGameContextService
         .fetchUserSocketData(socketId)
         .then((userSession) => ({
@@ -432,6 +487,8 @@ export class SocketIOQuestionService {
     );
 
     const userDataResults = await Promise.all(userDataPromises);
+
+    log.finish();
 
     // For each socket, provide appropriate game state based on role
     for (const { socketId, userSession } of userDataResults) {
@@ -466,9 +523,6 @@ export class SocketIOQuestionService {
 
   /**
    * Handle automatic question skip when all players have skipped
-   * This method bypasses socket-based authorization checks since it's triggered automatically
-   * @param game - Game instance
-   * @returns Game instance and question data
    */
   public async handleAutomaticQuestionSkip(game: Game) {
     const gameState = game.gameState;
@@ -495,5 +549,332 @@ export class SocketIOQuestionService {
     await this.socketQuestionStateService.resetToChoosingState(game);
 
     return { game, question: questionData.question };
+  }
+
+  public async handleSecretQuestionTransfer(
+    socketId: string,
+    data: SecretQuestionTransferInputData
+  ) {
+    // Context & Validation
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
+
+    const secretData = game.gameState.secretQuestionData;
+    SecretQuestionValidator.validateTransfer({
+      game,
+      currentPlayer,
+      secretData: secretData ?? null,
+      targetPlayerId: data.targetPlayerId,
+    });
+
+    // Execution
+    const timer = await this.socketQuestionStateService.setupQuestionTimer(
+      game,
+      GAME_QUESTION_ANSWER_TIME,
+      QuestionState.SHOWING
+    );
+
+    game.gameState.secretQuestionData = null;
+    game.gameState.questionState = QuestionState.SHOWING;
+
+    // Save
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      fromPlayerId: currentPlayer!.meta.id,
+      toPlayerId: data.targetPlayerId,
+      questionId: secretData!.questionId,
+      timer,
+    };
+  }
+
+  public async handleStakeBidSubmit(
+    socketId: string,
+    inputData: StakeBidSubmitInputData
+  ): Promise<StakeBidSubmitResult> {
+    const bid: number | StakeBidType =
+      inputData.bidType === StakeBidType.NORMAL && inputData.bidAmount !== null
+        ? inputData.bidAmount
+        : inputData.bidType;
+
+    // Context & Validation
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
+
+    StakeQuestionValidator.validateBidSubmission({
+      game,
+      currentPlayer,
+      stakeData: game.gameState.stakeQuestionData ?? null,
+    });
+
+    // Execution
+    const stakeData = game.gameState.stakeQuestionData!;
+    const question = await this.getCurrentQuestion(game);
+    const allPlayers = game.getInGamePlayers().map((player) => player.toDTO());
+
+    const bidResult = StakeBiddingMapper.placeBid({
+      playerId: currentPlayer!.meta.id,
+      bid,
+      stakeData,
+      currentPlayer: currentPlayer!.toDTO(),
+      questionPrice: question.price || 1, // Default to 1 if somehow price is null
+      allPlayers,
+    });
+
+    game.gameState.stakeQuestionData = bidResult.updatedStakeData;
+
+    const bidType = bidResult.bidType;
+    const bidAmount = bidResult.bidAmount;
+    const isPhaseComplete = bidResult.isPhaseComplete ?? false;
+    const nextBidderId = bidResult.nextBidderId ?? null;
+
+    const { questionData, timer } = await this._handleStakeBidTimers(
+      game,
+      isPhaseComplete,
+      bidResult.updatedStakeData.winnerPlayerId,
+      nextBidderId
+    );
+
+    // Save
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      playerId: currentPlayer!.meta.id,
+      bidAmount,
+      bidType,
+      isPhaseComplete,
+      nextBidderId,
+      winnerPlayerId: bidResult.updatedStakeData.winnerPlayerId,
+      questionData,
+      timer,
+    };
+  }
+
+  /**
+   * Determines if an auto-bid should immediately end the bidding phase
+   * This happens when:
+   * 1. Auto-bid reaches maxPrice, OR
+   * 2. No other players can afford to outbid the auto-bid amount
+   */
+  private shouldAutoBidEndBidding(
+    stakeQuestionData: StakeQuestionGameData,
+    autoBidAmount: number,
+    allPlayers: PlayerDTO[]
+  ): boolean {
+    // If auto-bid reaches maxPrice, bidding ends immediately
+    if (
+      stakeQuestionData.maxPrice !== null &&
+      autoBidAmount >= stakeQuestionData.maxPrice
+    ) {
+      return true;
+    }
+
+    // Check if any other players can afford to outbid the auto-bid
+    const otherPlayerIds = stakeQuestionData.biddingOrder.filter(
+      (playerId) => playerId !== stakeQuestionData.pickerPlayerId
+    );
+
+    for (const playerId of otherPlayerIds) {
+      const player = allPlayers.find((p) => p.meta.id === playerId);
+      if (player) {
+        // Check if player can make a bid higher than auto-bid
+        const minimumOutbid = autoBidAmount + 1;
+        if (player.score >= minimumOutbid) {
+          // This player can afford to outbid - bidding should continue
+          return false;
+        }
+      }
+    }
+
+    // No other players can afford to outbid - auto-bid wins
+    return true;
+  }
+
+  /**
+   * Sets up secret question data and game state
+   */
+  private _setupSecretQuestion(
+    game: Game,
+    question: PackageQuestionDTO,
+    currentPlayer: Player
+  ): SecretQuestionGameData {
+    const secretQuestionData = {
+      pickerPlayerId: currentPlayer.meta.id,
+      transferType: question.transferType!,
+      questionId: question.id!,
+      transferPhase: true,
+    } satisfies SecretQuestionGameData;
+
+    // Set the game state to secret transfer phase
+    game.gameState.questionState = QuestionState.SECRET_TRANSFER;
+    game.gameState.secretQuestionData = secretQuestionData;
+
+    return secretQuestionData;
+  }
+
+  /**
+   * Sets up stake question data, bidding order, and handles automatic bidding logic
+   */
+  private async _setupStakeQuestion(
+    game: Game,
+    question: PackageQuestionDTO,
+    currentPlayer: Player
+  ) {
+    const eligiblePlayers = game.players.filter(
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
+    );
+
+    // Create bidding order (picker goes first)
+    const pickerIndex = eligiblePlayers.findIndex(
+      (p) => p.meta.id === currentPlayer.meta.id
+    );
+
+    // Create bidding order: picker first, then remaining players in order
+    // Example: if picker is player 3 in [1,2,3,4], order becomes [3,4,1,2]
+    const biddingOrder = [
+      ...eligiblePlayers.slice(pickerIndex),
+      ...eligiblePlayers.slice(0, pickerIndex),
+    ].map((p) => p.meta.id);
+
+    // Set up stake question data
+    const stakeQuestionData = {
+      pickerPlayerId: currentPlayer.meta.id,
+      questionId: question.id!,
+      maxPrice: question.maxPrice ?? null,
+      bids: {},
+      passedPlayers: [],
+      biddingOrder,
+      currentBidderIndex: 0,
+      highestBid: null,
+      winnerPlayerId: null,
+      biddingPhase: true,
+    } satisfies StakeQuestionGameData;
+
+    // Set the game state to bidding phase
+    game.gameState.questionState = QuestionState.BIDDING;
+    game.gameState.stakeQuestionData = stakeQuestionData;
+
+    // Setup bidding timer
+    const timer = await this.socketQuestionStateService.setupQuestionTimer(
+      game,
+      STAKE_QUESTION_BID_TIME,
+      QuestionState.BIDDING
+    );
+
+    let automaticNominalBid: PlayerBidData | null = null;
+
+    // Check if picker has insufficient score for automatic nominal bid
+    const nominalBidAmount = question.price ?? 1;
+
+    if (currentPlayer.score < nominalBidAmount) {
+      automaticNominalBid = this._handleAutomaticBid(
+        stakeQuestionData,
+        currentPlayer,
+        game.players.map((player) => player.toDTO()),
+        nominalBidAmount
+      );
+    }
+
+    return { stakeQuestionData, timer, automaticNominalBid };
+  }
+
+  /**
+   * Handles automatic bidding when player cannot afford nominal bid
+   */
+  private _handleAutomaticBid(
+    stakeQuestionData: StakeQuestionGameData,
+    currentPlayer: Player,
+    allPlayers: PlayerDTO[],
+    questionPrice: number
+  ): PlayerBidData {
+    // Player cannot afford nominal bid - automatically bid the question price
+    const autoBidAmount = questionPrice;
+    stakeQuestionData.bids[currentPlayer.meta.id] = autoBidAmount;
+    stakeQuestionData.highestBid = autoBidAmount;
+    stakeQuestionData.winnerPlayerId = currentPlayer.meta.id;
+
+    // Check if auto-bid should immediately end bidding phase
+    const shouldEndBidding = this.shouldAutoBidEndBidding(
+      stakeQuestionData,
+      autoBidAmount,
+      allPlayers
+    );
+
+    if (shouldEndBidding) {
+      stakeQuestionData.biddingPhase = false;
+      stakeQuestionData.currentBidderIndex = 0;
+    } else {
+      // Move to next bidder for continuation
+      // Increment current bidder index with circular rotation
+      stakeQuestionData.currentBidderIndex =
+        (stakeQuestionData.currentBidderIndex + 1) %
+        stakeQuestionData.biddingOrder.length;
+    }
+
+    return {
+      playerId: currentPlayer.meta.id,
+      bidAmount: autoBidAmount,
+    };
+  }
+
+  /**
+   * Handles timer setup for stake bid submissions based on phase completion
+   * - If bidding is complete, starts the answer phase timer
+   * - If there's a next bidder, sets up the timer for the next bid
+   */
+  private async _handleStakeBidTimers(
+    game: Game,
+    isPhaseComplete: boolean,
+    winnerPlayerId: number | null,
+    nextBidderId: number | null
+  ) {
+    let questionData: PackageQuestionDTO | undefined;
+    let timer: GameStateTimerDTO | undefined;
+
+    // If bidding is complete, start the answer phase
+    if (isPhaseComplete && winnerPlayerId) {
+      // Clear any existing timer
+      await this.gameService.clearTimer(game.id);
+
+      game.gameState.questionState = QuestionState.SHOWING;
+
+      if (game.gameState.currentQuestion) {
+        questionData = game.gameState.currentQuestion;
+      }
+
+      const timerEntity =
+        await this.socketQuestionStateService.setupQuestionTimer(
+          game,
+          GAME_QUESTION_ANSWER_TIME,
+          QuestionState.SHOWING
+        );
+
+      timer = timerEntity.start();
+    } else if (nextBidderId !== null) {
+      // If there's a next bidder, set up timer for next bid (30 seconds)
+      await this.gameService.clearTimer(game.id);
+
+      // Setup timer for next bid
+      const timerEntity =
+        await this.socketQuestionStateService.setupQuestionTimer(
+          game,
+          STAKE_QUESTION_BID_TIME,
+          QuestionState.BIDDING
+        );
+
+      timer = timerEntity.start();
+    }
+
+    return { questionData, timer };
   }
 }

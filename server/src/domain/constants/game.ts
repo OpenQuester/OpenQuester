@@ -24,3 +24,8 @@ export const GAME_FINAL_ANSWER_TIME = SECOND_MS * 75;
 /** 45 seconds */
 export const FINAL_ROUND_BID_TIME = SECOND_MS * 45;
 export const FINAL_ROUND_MIN_BID = 1;
+
+// Stake Question Constants
+/** 30 seconds per bid for stake questions */
+export const STAKE_QUESTION_BID_TIME = SECOND_MS * 30;
+export const STAKE_QUESTION_MIN_BID = 1;

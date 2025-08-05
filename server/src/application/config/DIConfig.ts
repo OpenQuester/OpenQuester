@@ -342,7 +342,8 @@ export class DIConfig {
         Container.get<SocketGameTimerService>(
           CONTAINER_TYPES.SocketGameTimerService
         ),
-        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        this.logger
       ),
       "service"
     );
