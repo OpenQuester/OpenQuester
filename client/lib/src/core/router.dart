@@ -70,16 +70,27 @@ class BlurDialogRoute<R> extends CustomRoute<R> {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
+    // Combine both animations for more advanced transitions
+    final combinedAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOut,
+      ),
+    );
+    final reverseFade = Tween<double>(begin: 1, end: 0).animate(
+      CurvedAnimation(
+        parent: secondaryAnimation,
+        curve: Curves.easeIn,
+      ),
+    );
     return AnimatedBuilder(
-      animation: animation,
+      animation: Listenable.merge([animation, secondaryAnimation]),
       child: child,
       builder: (context, child) {
         final sigma = animation.value * 2;
-
-        // Slide animation: from 20px down to 0
         final slideOffset =
             Tween<Offset>(
-              begin: const Offset(0, 0.05), // 20px equivalent in relative units
+              begin: const Offset(0, 0.05),
               end: Offset.zero,
             ).animate(
               CurvedAnimation(
@@ -87,19 +98,14 @@ class BlurDialogRoute<R> extends CustomRoute<R> {
                 curve: Curves.easeOutCubic,
               ),
             );
-
-        // Fade animation
-        final fadeAnimation = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOut,
-        );
-
+        // Fade in with animation, fade out with secondaryAnimation
+        final fadeValue = combinedAnimation.value * reverseFade.value;
         return BackdropFilter(
           filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
           child: SlideTransition(
             position: slideOffset,
             child: FadeTransition(
-              opacity: fadeAnimation,
+              opacity: AlwaysStoppedAnimation(fadeValue),
               child: child,
             ),
           ),

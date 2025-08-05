@@ -25,9 +25,9 @@ class CreateGameDialog extends WatchingWidget {
               Container(
                 padding: 16.all,
                 decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  color: context.theme.colorScheme.primaryContainer.withValues(
+                    alpha: 0.3,
+                  ),
                   borderRadius: const BorderRadius.vertical(
                     top: Radius.circular(12),
                   ),
@@ -37,7 +37,7 @@ class CreateGameDialog extends WatchingWidget {
                     Icon(
                       Icons.rocket_launch_rounded,
                       size: 36,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: context.theme.colorScheme.primary,
                     ).paddingBottom(8),
                     Text(
                       LocaleKeys.start_game.tr(),
@@ -48,7 +48,7 @@ class CreateGameDialog extends WatchingWidget {
                       textAlign: TextAlign.center,
                     ).paddingBottom(4),
                     Text(
-                      'Set up your game and invite players to join',
+                      LocaleKeys.create_game_hint.tr(),
                       style: context.textTheme.bodyMedium?.copyWith(
                         color: Theme.of(
                           context,
@@ -59,37 +59,33 @@ class CreateGameDialog extends WatchingWidget {
                   ],
                 ),
               ),
+              // Main content
+              Form(
+                key: controller.formKey,
+                child: Column(
+                  spacing: 20,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Package selection section
+                    _PackageSelectionSection(
+                      controller: controller,
+                      state: state,
+                    ),
 
-              // Main content with better spacing
-              Padding(
-                padding: 20.all,
-                child: Form(
-                  key: controller.formKey,
-                  child: Column(
-                    spacing: 20,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Package selection section
-                      _PackageSelectionSection(
-                        controller: controller,
-                        state: state,
-                      ),
+                    // Game configuration section
+                    _GameConfigSection(
+                      controller: controller,
+                      state: state,
+                    ),
 
-                      // Game configuration section
-                      _GameConfigSection(
-                        controller: controller,
-                        state: state,
-                      ),
-
-                      // Action buttons with better styling
-                      _ActionButtons(
-                        controller: controller,
-                        stateValid: state.valid,
-                      ),
-                    ],
-                  ),
+                    // Action buttons with better styling
+                    _ActionButtons(
+                      controller: controller,
+                      stateValid: state.valid,
+                    ),
+                  ],
                 ),
-              ),
+              ).paddingAll(16),
             ],
           ),
         ),
@@ -109,10 +105,10 @@ class _MaxPlayersSelect extends StatelessWidget {
     return Container(
       padding: 14.all,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        color: context.theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          color: context.theme.colorScheme.outline.withValues(alpha: 0.2),
         ),
       ),
       child: Column(
@@ -122,7 +118,7 @@ class _MaxPlayersSelect extends StatelessWidget {
               Icon(
                 Icons.group_rounded,
                 size: 20,
-                color: Theme.of(context).colorScheme.primary,
+                color: context.theme.colorScheme.primary,
               ).paddingRight(12),
               Expanded(
                 child: Text(
@@ -176,10 +172,10 @@ class _PrivateGameSelect extends StatelessWidget {
     return Container(
       padding: 14.all,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        color: context.theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          color: context.theme.colorScheme.outline.withValues(alpha: 0.2),
         ),
       ),
       child: Row(
@@ -236,10 +232,10 @@ class _AgeRestrictionSelect extends StatelessWidget {
     return Container(
       padding: 14.all,
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        color: context.theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          color: context.theme.colorScheme.outline.withValues(alpha: 0.2),
         ),
       ),
       child: Column(
@@ -366,7 +362,7 @@ class _AnimatedPackageButtonState extends State<_AnimatedPackageButton>
     );
     _scaleAnimation =
         Tween<double>(
-          begin: 1.0,
+          begin: 1,
           end: 0.97,
         ).animate(
           CurvedAnimation(
@@ -422,7 +418,9 @@ class _SearchPackageButton extends StatelessWidget {
       },
       icon: Icon(hasPackage ? Icons.edit_rounded : Icons.search_rounded),
       label: Text(
-        hasPackage ? 'Change Package' : LocaleKeys.select_game_package.tr(),
+        hasPackage
+            ? LocaleKeys.change_package.tr()
+            : LocaleKeys.select_game_package.tr(),
       ),
     );
   }
@@ -452,7 +450,7 @@ class _PackageSelectionSection extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary,
             ).paddingRight(8),
             Text(
-              'Game Package',
+              LocaleKeys.game_package.tr(),
               style: context.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -509,7 +507,7 @@ class _SelectedPackageIndicator extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Selected Package',
+                  LocaleKeys.selected_package.tr(),
                   style: context.textTheme.labelSmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
                     fontWeight: FontWeight.w500,
@@ -527,7 +525,7 @@ class _SelectedPackageIndicator extends StatelessWidget {
             ),
           ),
           Text(
-            'Ready to play',
+            LocaleKeys.ready_to_play.tr(),
             style: context.textTheme.labelMedium?.copyWith(
               color: Theme.of(
                 context,
@@ -562,7 +560,7 @@ class _GameConfigSection extends StatelessWidget {
               color: Theme.of(context).colorScheme.primary,
             ).paddingRight(8),
             Text(
-              'Game Settings',
+              LocaleKeys.game_settings.tr(),
               style: context.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -614,7 +612,7 @@ class _ActionButtons extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            const Icon(
               Icons.play_arrow_rounded,
               size: 24,
             ).paddingRight(8),
@@ -663,7 +661,7 @@ class _AnimatedButtonState extends State<_AnimatedButton>
     );
     _scaleAnimation =
         Tween<double>(
-          begin: 1.0,
+          begin: 1,
           end: 0.95,
         ).animate(
           CurvedAnimation(

@@ -180,7 +180,6 @@ class _ProfileContent extends WatchingWidget {
                           color: context.theme.colorScheme.outline.withValues(
                             alpha: 0.2,
                           ),
-                          width: 1,
                         ),
                       ),
                       child: IconButton(
