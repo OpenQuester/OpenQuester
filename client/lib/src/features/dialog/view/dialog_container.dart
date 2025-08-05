@@ -15,7 +15,7 @@ class DialogContainer extends StatelessWidget {
           maxWidth: UiModeUtils.maximumDialogWidth,
           child: ScaffoldMessenger(
             child: GestureDetector(
-              onHorizontalDragEnd: (_) => Navigator.pop(context),
+              onVerticalDragEnd: (_) => Navigator.pop(context),
               child: Scaffold(
                 backgroundColor: Colors.transparent,
                 appBar: AppBar(
