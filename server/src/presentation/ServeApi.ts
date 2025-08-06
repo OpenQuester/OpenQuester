@@ -6,6 +6,7 @@ import { type Server as IOServer } from "socket.io";
 import { DIConfig } from "application/config/DIConfig";
 import { Container, CONTAINER_TYPES } from "application/Container";
 import { type ApiContext } from "application/context/ApiContext";
+import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { FileService } from "application/services/file/FileService";
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
@@ -14,6 +15,7 @@ import { SocketIOChatService } from "application/services/socket/SocketIOChatSer
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
+import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { UserService } from "application/services/user/UserService";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
@@ -165,6 +167,13 @@ export class ServeApi {
       userNotificationRoomService: Container.get<UserNotificationRoomService>(
         CONTAINER_TYPES.UserNotificationRoomService
       ),
+      statisticsWorkerFactory: Container.get<StatisticsWorkerFactory>(
+        CONTAINER_TYPES.StatisticsWorkerFactory
+      ),
+      gameStatisticsCollectorService:
+        Container.get<GameStatisticsCollectorService>(
+          CONTAINER_TYPES.GameStatisticsCollectorService
+        ),
     };
 
     // REST
@@ -208,6 +217,7 @@ export class ServeApi {
       deps.socketIOQuestionService,
       deps.finalRoundService,
       deps.userNotificationRoomService,
+      deps.gameStatisticsCollectorService,
       this._context.logger
     );
   }

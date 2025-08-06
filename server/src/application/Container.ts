@@ -59,6 +59,7 @@ export const CONTAINER_TYPES = {
   SocketUserDataRepository: Symbol("SocketUserDataRepository"),
   RedisRepository: Symbol("RedisRepository"),
   SocketChatRepository: Symbol("SocketChatRepository"),
+  GameStatisticsRepository: Symbol("GameStatisticsRepository"),
 
   // Services
   UserService: Symbol("UserService"),
@@ -82,9 +83,14 @@ export const CONTAINER_TYPES = {
   SocketGameValidationService: Symbol("SocketGameValidationService"),
   SocketQuestionStateService: Symbol("SocketQuestionStateService"),
   UserNotificationRoomService: Symbol("UserNotificationRoomService"),
+  GameStatisticsCollectorService: Symbol("GameStatisticsCollectorService"),
+  GameStatisticsService: Symbol("GameStatisticsService"),
+  PlayerGameStatsService: Symbol("PlayerGameStatsService"),
+  PlayerGameStatsRepository: Symbol("PlayerGameStatsRepository"),
 
   // Factories
   RoundHandlerFactory: Symbol("RoundHandlerFactory"),
+  StatisticsWorkerFactory: Symbol("StatisticsWorkerFactory"),
 
   // Use cases
   UserCacheUseCase: Symbol("UserCacheUseCase"),

@@ -228,6 +228,27 @@ export class GameRepository {
     return this._parseGameToListItemDTO(game, createdBy, packageDTO);
   }
 
+  /**
+   * **Warning:** This method bypasses host check, so it can be used only in
+   * automated flows (e.g. when everyone leaves and game is finished)
+   */
+  public async deleteInternally(gameId: string): Promise<void> {
+    const log = this.logger.performance("Delete game internally", {
+      prefix: "[GameRepository]: ",
+      gameId,
+    });
+
+    const key = this.getGameKey(gameId);
+    const game = await this.getGameEntity(gameId);
+    await this.redisService.del(key);
+    await this.gameIndexManager.removeGameFromIndexes(
+      gameId,
+      game.toIndexData()
+    );
+
+    log.finish();
+  }
+
   public async deleteGame(user: number, gameId: string) {
     const key = this.getGameKey(gameId);
     const game = await this.getGameEntity(gameId);

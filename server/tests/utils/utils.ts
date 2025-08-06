@@ -12,6 +12,7 @@ import { PackageRound } from "infrastructure/database/models/package/PackageRoun
 import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { PackageTheme } from "infrastructure/database/models/package/PackageTheme";
 import { Permission } from "infrastructure/database/models/Permission";
+import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
 import { User } from "infrastructure/database/models/User";
 
 export function setTestEnvDefaults() {
@@ -20,7 +21,8 @@ export function setTestEnvDefaults() {
   process.env.DB_TYPE = "pg";
   process.env.DB_NAME = "test_db";
   process.env.DB_USER = "postgres";
-  process.env.DB_PASS = "postgres";
+  // process.env.DB_PASS = "postgres";
+  process.env.DB_PASS = "Asdf1234!";
   process.env.DB_HOST = "localhost";
   process.env.DB_PORT = "5432";
   process.env.DB_LOGGER = "false";
@@ -66,6 +68,7 @@ export function createTestAppDataSource() {
       PackageTag,
       PackageTheme,
       PackageQuestionChoiceAnswer,
+      GameStatistics,
     ],
     migrations: [],
     synchronize: true,

@@ -17,6 +17,8 @@ import { PackageRound } from "infrastructure/database/models/package/PackageRoun
 import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { PackageTheme } from "infrastructure/database/models/package/PackageTheme";
 import { Permission } from "infrastructure/database/models/Permission";
+import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
+import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { User } from "infrastructure/database/models/User";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
@@ -30,6 +32,9 @@ import { AddTypeToPackageRound_1747924851733 as AddTypeToPackageRound } from "in
 import { MakePackageQuestionPriceNullable_1747925123456 as MakePackageQuestionPriceNullable } from "infrastructure/database/migrations/0.15.2_MakePackageQuestionPriceNullable";
 import { MakeAnswerAndQuestionDisplayTimeNullable_1747925123456 as MakeDisplayTimeNullable } from "infrastructure/database/migrations/0.15.2_Part2MakeDisplayTimeNullable";
 import { AddSearchIndexes_0_15_3_1752686138751 as AddSearchIndexes } from "infrastructure/database/migrations/0.15.3_AddSearchIndexes";
+import { ExtendGameStatisticsTable_0_17_0_2_1754379301456 as ExtendGameStatistics } from "infrastructure/database/migrations/0.17.0-2_ExtendGameStatisticsTable";
+import { AddPlayerGameStatsTable_0_17_0_3_1754379351456 as AddPlayerGameStats } from "infrastructure/database/migrations/0.17.0-3_AddPlayerGameStatsTable";
+import { AddGameStatisticsTable_0_17_0_1754379291456 as AddGameStatistics } from "infrastructure/database/migrations/0.17.0_AddGameStatisticsTable";
 import { WriteMoreInfoToDB_0_2_9_1725692779638 as writeMoreToDB } from "infrastructure/database/migrations/0.2.9_WriteMoreInfoToDB";
 import { ChangePermissionValidation_0_3_0_1729181792142 as changePermissionValidation } from "infrastructure/database/migrations/0.3.0_ChangePermissionValidation";
 import { AddDeleteFilePermission_0_3_9_1730832569761 as addDeletePermission } from "infrastructure/database/migrations/0.3.9_AddDeleteFilePermission";
@@ -83,6 +88,8 @@ export const AppDataSource = new DataSource({
     PackageTag,
     PackageTheme,
     PackageQuestionChoiceAnswer,
+    GameStatistics,
+    PlayerGameStats,
   ],
   migrations: [
     createUserAndFileTables,
@@ -105,6 +112,9 @@ export const AppDataSource = new DataSource({
     MakePackageQuestionPriceNullable,
     MakeDisplayTimeNullable,
     AddSearchIndexes,
+    AddGameStatistics,
+    ExtendGameStatistics,
+    AddPlayerGameStats,
   ],
   poolSize: 25,
   migrationsRun: true,

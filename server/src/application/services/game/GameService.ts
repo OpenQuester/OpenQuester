@@ -77,6 +77,23 @@ export class GameService {
     this.io.emit(SocketIOEvents.GAMES, eventDataDTO);
   }
 
+  /**
+   * **Warning:** This method bypasses host check, so it can be used only in
+   * automated flows (e.g. when everyone leaves and game is finished)
+   */
+  public async deleteInternally(gameId: string) {
+    await this.gameRepository.deleteInternally(gameId);
+
+    const eventDataDTO: GameEventDTO = {
+      event: GameEvent.DELETED,
+      data: {
+        id: gameId,
+      },
+    };
+
+    this.io.emit(SocketIOEvents.GAMES, eventDataDTO);
+  }
+
   public async create(req: Request, gameData: GameCreateDTO) {
     const createdByUser = await this.userService.getUserByRequest(req, {
       select: ["id", "username"],

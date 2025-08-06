@@ -1,6 +1,7 @@
 import { Socket } from "socket.io";
 
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -29,7 +30,8 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
-    private readonly socketIOQuestionService: SocketIOQuestionService
+    private readonly socketIOQuestionService: SocketIOQuestionService,
+    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService
   ) {
     super(socket, eventEmitter, logger);
   }
@@ -100,6 +102,17 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
           target: SocketBroadcastTarget.GAME,
           gameId: game.id,
         });
+
+        // Finish statistics collection and trigger persistence
+        try {
+          await this.gameStatisticsCollectorService.finishCollection(game.id);
+        } catch (error) {
+          this.logger.warn("Failed to execute statistics persistence", {
+            gameId: game.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+
         return {
           success: true,
           broadcast: broadcasts,

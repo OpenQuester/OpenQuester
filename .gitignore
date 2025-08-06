@@ -21,6 +21,7 @@ content.xml
 *.pfx
 
 .github/copilot-instructions.md
+.github/COPILOT.md
 
 # Generated files
 **/*_generated.dart

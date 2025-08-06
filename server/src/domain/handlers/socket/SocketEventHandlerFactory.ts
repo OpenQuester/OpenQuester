@@ -5,6 +5,7 @@ import { SocketIOChatService } from "application/services/socket/SocketIOChatSer
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
+import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { BaseSocketEventHandler } from "domain/handlers/socket/BaseSocketEventHandler";
 import { FinalAnswerReviewEventHandler } from "domain/handlers/socket/finalround/FinalAnswerReviewEventHandler";
 import { FinalAnswerSubmitEventHandler } from "domain/handlers/socket/finalround/FinalAnswerSubmitEventHandler";
@@ -50,6 +51,7 @@ export class SocketEventHandlerFactory {
     private readonly finalRoundService: FinalRoundService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
     private readonly socketIOQuestionService: SocketIOQuestionService,
+    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly logger: ILogger
   ) {
     //
@@ -89,7 +91,8 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
-        this.socketIOGameService
+        this.socketIOGameService,
+        this.gameStatisticsCollectorService
       ),
       new PauseGameEventHandler(
         socket,
@@ -211,13 +214,15 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
-        this.socketIOQuestionService
+        this.socketIOQuestionService,
+        this.gameStatisticsCollectorService
       ),
       new SkipQuestionEventHandler(
         socket,
         eventEmitter,
         this.logger,
-        this.socketIOQuestionService
+        this.socketIOQuestionService,
+        this.gameStatisticsCollectorService
       ),
       new QuestionSkipEventHandler(
         socket,
@@ -276,7 +281,8 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
-        this.finalRoundService
+        this.finalRoundService,
+        this.gameStatisticsCollectorService
       ),
     ];
   }

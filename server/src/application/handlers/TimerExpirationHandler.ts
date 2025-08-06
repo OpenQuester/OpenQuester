@@ -4,6 +4,7 @@ import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { REDIS_LOCK_EXPIRATION_KEY } from "domain/constants/redis";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
@@ -45,6 +46,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly roundHandlerFactory: RoundHandlerFactory,
     private readonly finalRoundService: FinalRoundService,
+    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly logger: ILogger
   ) {
     //
@@ -101,6 +103,16 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
         }
 
         if (isGameFinished) {
+          // Finish statistics collection and trigger persistence
+          try {
+            await this.gameStatisticsCollectorService.finishCollection(gameId);
+          } catch (error) {
+            this.logger.warn("Failed to execute statistics persistence", {
+              gameId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+
           this._gameNamespace
             .to(gameId)
             .emit(SocketIOGameEvents.GAME_FINISHED, true);
