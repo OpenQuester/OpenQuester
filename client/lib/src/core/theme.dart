@@ -3,6 +3,18 @@ import 'package:flutter/services.dart';
 import 'package:openquester/common_imports.dart';
 
 class AppTheme {
+  static ThemeData build(Color seed, Brightness brightness) {
+    final base = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: seed,
+        brightness: brightness,
+      ),
+      brightness: brightness,
+      useMaterial3: true,
+    );
+    return change(base);
+  }
+
   static ThemeData change(ThemeData theme) {
     return theme.copyWith(
       bottomNavigationBarTheme: theme.bottomNavigationBarTheme.copyWith(
@@ -20,6 +32,10 @@ class AppTheme {
       ],
     );
   }
+
+  // Backward compatibility default themes (using indigo seed)
+  static ThemeData get light => build(Colors.indigo, Brightness.light);
+  static ThemeData get dark => build(Colors.indigo, Brightness.dark);
 
   static AppBarTheme appBarTheme(ThemeData theme) {
     return AppBarTheme(
@@ -40,7 +56,6 @@ class AppTheme {
   static PageTransitionsTheme get pageTransitionsTheme {
     return const PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
-        // Set the predictive back transitions for Android.
         TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
       },
     );
@@ -54,9 +69,6 @@ class AppTheme {
       statusBarBrightness: theme.brightness,
     );
   }
-
-  static ThemeData get light => change(ThemeData.light());
-  static ThemeData get dark => change(ThemeData.dark());
 }
 
 class ExtraColors extends ThemeExtension<ExtraColors> {
