@@ -4,8 +4,13 @@ import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
+import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
-import { REDIS_LOCK_EXPIRATION_KEY } from "domain/constants/redis";
+import {
+  REDIS_LOCK_EXPIRATION_KEY,
+  REDIS_LOCK_QUESTION_ANSWER,
+} from "domain/constants/redis";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { TIMER_NSP } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
@@ -45,9 +50,15 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly roundHandlerFactory: RoundHandlerFactory,
     private readonly finalRoundService: FinalRoundService,
+    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
+    private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly logger: ILogger
   ) {
     //
+  }
+
+  private _getQuestionAnswerLockKey(gameId: string) {
+    return `${REDIS_LOCK_QUESTION_ANSWER}:${gameId}`;
   }
 
   public supports(key: string): boolean {
@@ -55,8 +66,8 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
   }
 
   public async handle(key: string): Promise<void> {
-    const lockKey = `${REDIS_LOCK_EXPIRATION_KEY}:${key}`;
-    const acquired = await this.redisService.setLockKey(lockKey);
+    const expirationLockKey = `${REDIS_LOCK_EXPIRATION_KEY}:${key}`;
+    const acquired = await this.redisService.setLockKey(expirationLockKey);
 
     if (!acquired) {
       this.logger.debug(
@@ -101,6 +112,16 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
         }
 
         if (isGameFinished) {
+          // Finish statistics collection and trigger persistence
+          try {
+            await this.gameStatisticsCollectorService.finishCollection(gameId);
+          } catch (error) {
+            this.logger.warn("Failed to execute statistics persistence", {
+              gameId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+
           this._gameNamespace
             .to(gameId)
             .emit(SocketIOGameEvents.GAME_FINISHED, true);
@@ -138,6 +159,8 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
           question
         );
 
+        // Release the question answer lock
+
         this._gameNamespace.to(gameId).emit(SocketIOGameEvents.ANSWER_RESULT, {
           answerResult,
           timer,
@@ -149,6 +172,19 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       this._gameNamespace.to(gameId).emit(SocketIOEvents.ERROR, {
         message: error.message,
       });
+    } finally {
+      // Always release all locks
+      try {
+        await this.redisService.del(expirationLockKey);
+
+        const questionLockKey = this._getQuestionAnswerLockKey(gameId);
+        await this.gameService.gameUnlock(questionLockKey);
+      } catch (error) {
+        this.logger.warn("Failed to release timer expiration lock", {
+          lockKey: expirationLockKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
@@ -168,6 +204,24 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       AnswerResultType.WRONG,
       nextState
     );
+
+    // Update player answer statistics for timeout (wrong answer)
+    try {
+      await this.playerGameStatsService.updatePlayerAnswerStats(
+        game.id,
+        playerAnswerResult.player,
+        AnswerResultType.WRONG, // timeout is always wrong
+        playerAnswerResult.score
+      );
+    } catch (error) {
+      // Log but don't throw - statistics shouldn't break game flow
+      this.logger.warn("Failed to update player answer statistics on timeout", {
+        prefix: "[TIMER_EXPIRATION_HANDLER]: ",
+        gameId: game.id,
+        playerId: playerAnswerResult.player,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     const timer = await this.gameService.getTimer(
       game.id,

@@ -12,6 +12,8 @@ import { PackageRound } from "infrastructure/database/models/package/PackageRoun
 import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { PackageTheme } from "infrastructure/database/models/package/PackageTheme";
 import { Permission } from "infrastructure/database/models/Permission";
+import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
+import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { User } from "infrastructure/database/models/User";
 
 export function setTestEnvDefaults() {
@@ -66,6 +68,8 @@ export function createTestAppDataSource() {
       PackageTag,
       PackageTheme,
       PackageQuestionChoiceAnswer,
+      GameStatistics,
+      PlayerGameStats,
     ],
     migrations: [],
     synchronize: true,

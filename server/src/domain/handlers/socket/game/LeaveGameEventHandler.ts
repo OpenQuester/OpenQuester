@@ -9,6 +9,7 @@ import {
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import {
   EmptyInputData,
   GameLeaveBroadcastData,
@@ -113,6 +114,14 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
             context.gameId,
             result.data.user
           );
+        }
+
+        const activePlayers = game.players.filter(
+          (p) => p.gameStatus === PlayerGameStatus.IN_GAME
+        );
+
+        if (activePlayers.length === 0) {
+          await this.socketIOGameService.deleteGameInternally(context.gameId);
         }
       } catch (error) {
         // Game might not exist anymore, just clean up socket room

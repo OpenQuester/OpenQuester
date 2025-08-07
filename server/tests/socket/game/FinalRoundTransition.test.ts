@@ -12,6 +12,7 @@ import { Repository } from "typeorm";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
@@ -158,7 +159,7 @@ describe("Final Round Transition Test", () => {
       const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
         showmanSocket,
         SocketIOGameEvents.NEXT_ROUND,
-        15000
+        2000
       );
 
       // Complete all questions in the regular round to trigger transition
@@ -174,7 +175,7 @@ describe("Final Round Transition Test", () => {
 
       // Verify round structure
       expect(gameState.currentRound).toBeDefined();
-      expect(gameState.currentRound!.type).toBe("final");
+      expect(gameState.currentRound!.type).toBe(PackageRoundType.FINAL);
       expect(gameState.currentRound!.themes.length).toBe(3);
     } finally {
       await cleanupTestSetup(setup);
@@ -198,7 +199,7 @@ describe("Final Round Transition Test", () => {
       const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
         setup.showmanSocket,
         SocketIOGameEvents.NEXT_ROUND,
-        5000
+        2000
       );
 
       await utils.progressToNextRound(setup.showmanSocket);
@@ -228,22 +229,27 @@ describe("Final Round Transition Test", () => {
         SocketIOGameEvents.NEXT_ROUND
       );
 
-      // Skip all but the last question
-      const currentRoundQuestionCount =
-        await utils.getCurrentRoundQuestionCount(setup.gameId);
-      const questionsToSkip = currentRoundQuestionCount - 1; // Leave only the last question
-      for (let i = 0; i < questionsToSkip; i++) {
+      // Get all available questions ordered by their order field
+      const allQuestionIds = await utils.getAllAvailableQuestionIds(
+        setup.gameId
+      );
+      const questionsToSkip = allQuestionIds.slice(0, -1); // All but the last
+      const lastQuestionId = allQuestionIds[allQuestionIds.length - 1];
+
+      // Skip all but the last question by their specific IDs
+      for (const questionId of questionsToSkip) {
         await utils.pickAndCompleteQuestion(
           setup.showmanSocket,
-          setup.playerSockets
+          setup.playerSockets,
+          questionId
         );
       }
 
-      // Answer last question correctly using the complete workflow
+      // Answer the specific last question correctly
       await utils.pickAndCompleteQuestion(
         setup.showmanSocket,
         setup.playerSockets,
-        undefined,
+        lastQuestionId,
         true
       );
 

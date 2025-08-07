@@ -3,6 +3,7 @@ import { Server as IOServer } from "socket.io";
 
 import { Container, CONTAINER_TYPES } from "application/Container";
 import { StorageContextBuilder } from "application/context/storage/StorageContextBuilder";
+import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { GameExpirationHandler } from "application/handlers/GameExpirationHandler";
 import { TimerExpirationHandler } from "application/handlers/TimerExpirationHandler";
 import { FileService } from "application/services/file/FileService";
@@ -19,6 +20,9 @@ import { SocketIOGameService } from "application/services/socket/SocketIOGameSer
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
+import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
+import { GameStatisticsService } from "application/services/statistics/GameStatisticsService";
+import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { TranslateService } from "application/services/text/TranslateService";
 import { UserService } from "application/services/user/UserService";
 import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
@@ -34,6 +38,8 @@ import { FileUsage } from "infrastructure/database/models/FileUsage";
 import { Package } from "infrastructure/database/models/package/Package";
 import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { Permission } from "infrastructure/database/models/Permission";
+import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
+import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { User } from "infrastructure/database/models/User";
 import { FileRepository } from "infrastructure/database/repositories/FileRepository";
 import { FileUsageRepository } from "infrastructure/database/repositories/FileUsageRepository";
@@ -44,6 +50,8 @@ import { PermissionRepository } from "infrastructure/database/repositories/Permi
 import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
 import { SocketUserDataRepository } from "infrastructure/database/repositories/socket/SocketUserDataRepository";
+import { GameStatisticsRepository } from "infrastructure/database/repositories/statistics/GameStatisticsRepository";
+import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { DependencyService } from "infrastructure/services/dependency/DependencyService";
@@ -169,6 +177,74 @@ export class DIConfig {
         Container.get<RedisCache>(CONTAINER_TYPES.RedisCache)
       ),
       "useCase"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.GameStatisticsRepository,
+      new GameStatisticsRepository(
+        db.getRepository(GameStatistics),
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
+      ),
+      "repository"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.GameStatisticsService,
+      new GameStatisticsService(
+        Container.get<GameStatisticsRepository>(
+          CONTAINER_TYPES.GameStatisticsRepository
+        )
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.PlayerGameStatsRepository,
+      new PlayerGameStatsRepository(
+        db.getRepository(PlayerGameStats),
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
+        this.logger
+      ),
+      "repository"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.PlayerGameStatsService,
+      new PlayerGameStatsService(
+        Container.get<PlayerGameStatsRepository>(
+          CONTAINER_TYPES.PlayerGameStatsRepository
+        ),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.StatisticsWorkerFactory,
+      new StatisticsWorkerFactory(
+        Container.get<GameStatisticsRepository>(
+          CONTAINER_TYPES.GameStatisticsRepository
+        ),
+        Container.get<PlayerGameStatsService>(
+          CONTAINER_TYPES.PlayerGameStatsService
+        ),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.GameStatisticsCollectorService,
+      new GameStatisticsCollectorService(
+        Container.get<GameStatisticsService>(
+          CONTAINER_TYPES.GameStatisticsService
+        ),
+        Container.get<StatisticsWorkerFactory>(
+          CONTAINER_TYPES.StatisticsWorkerFactory
+        ),
+        this.logger
+      ),
+      "service"
     );
 
     Container.register(
@@ -343,6 +419,9 @@ export class DIConfig {
           CONTAINER_TYPES.SocketGameTimerService
         ),
         Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        Container.get<PlayerGameStatsService>(
+          CONTAINER_TYPES.PlayerGameStatsService
+        ),
         this.logger
       ),
       "service"
@@ -383,6 +462,12 @@ export class DIConfig {
         ),
         Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
         Container.get<FinalRoundService>(CONTAINER_TYPES.FinalRoundService),
+        Container.get<GameStatisticsCollectorService>(
+          CONTAINER_TYPES.GameStatisticsCollectorService
+        ),
+        Container.get<PlayerGameStatsService>(
+          CONTAINER_TYPES.PlayerGameStatsService
+        ),
         this.logger
       ),
     ];
@@ -417,7 +502,14 @@ export class DIConfig {
         Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
         Container.get<SocketIOQuestionService>(
           CONTAINER_TYPES.SocketIOQuestionService
-        )
+        ),
+        Container.get<GameStatisticsCollectorService>(
+          CONTAINER_TYPES.GameStatisticsCollectorService
+        ),
+        Container.get<PlayerGameStatsService>(
+          CONTAINER_TYPES.PlayerGameStatsService
+        ),
+        this.logger
       ),
       "service"
     );

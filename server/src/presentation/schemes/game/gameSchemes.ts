@@ -1,12 +1,14 @@
 import Joi from "joi";
 
 import {
+  GAME_ID_CHARACTERS_LENGTH,
   GAME_MAX_PLAYERS,
   GAME_TITLE_MAX_CHARS,
   GAME_TITLE_MIN_CHARS,
 } from "domain/constants/game";
 import { LIMIT_MAX, LIMIT_MIN, OFFSET_MIN } from "domain/constants/pagination";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { GameRedisHashDTO } from "domain/types/dto/game/GameRedisHashDTO";
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 
@@ -43,4 +45,32 @@ export const gamePaginationScheme = () =>
     createdAtMin: Joi.date().optional(),
     isPrivate: Joi.boolean().optional(),
     titlePrefix: Joi.string().optional(),
+  });
+
+/**
+ * Joi schema for validating Game Redis data
+ * All values in Redis are strings, so we validate string formats
+ */
+export const gameRedisDataScheme = () =>
+  Joi.object<GameRedisHashDTO>({
+    id: Joi.string().length(GAME_ID_CHARACTERS_LENGTH).required(),
+    createdBy: Joi.string().pattern(/^\d+$/).required(), // Numeric string
+    title: Joi.string().min(1).max(255).required(),
+    createdAt: Joi.string().pattern(/^\d+$/).required(), // Timestamp string
+    isPrivate: Joi.string().valid("0", "1").required(), // Boolean as string
+    ageRestriction: Joi.string()
+      .valid(...Object.values(AgeRestriction))
+      .required(),
+    players: Joi.string().required(),
+    maxPlayers: Joi.string().pattern(/^\d+$/).required(), // Numeric string
+    startedAt: Joi.alternatives()
+      .try(Joi.string().allow(""), Joi.date().iso())
+      .optional(),
+    finishedAt: Joi.alternatives()
+      .try(Joi.string().allow(""), Joi.date().iso())
+      .optional(),
+    package: Joi.string().required(),
+    roundsCount: Joi.string().pattern(/^\d+$/).required(), // Numeric string
+    questionsCount: Joi.string().pattern(/^\d+$/).required(), // Numeric string
+    gameState: Joi.string().required(),
   });

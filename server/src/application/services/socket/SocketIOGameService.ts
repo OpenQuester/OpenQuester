@@ -3,6 +3,8 @@ import { SocketGameContextService } from "application/services/socket/SocketGame
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
+import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { UserService } from "application/services/user/UserService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
@@ -25,6 +27,7 @@ import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { GameJoinResult } from "domain/types/socket/game/GameJoinResult";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -37,7 +40,10 @@ export class SocketIOGameService {
     private readonly socketGameTimerService: SocketGameTimerService,
     private readonly socketGameValidationService: SocketGameValidationService,
     private readonly roundHandlerFactory: RoundHandlerFactory,
-    private readonly socketIOQuestionService: SocketIOQuestionService
+    private readonly socketIOQuestionService: SocketIOQuestionService,
+    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
+    private readonly playerGameStatsService: PlayerGameStatsService,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -96,7 +102,36 @@ export class SocketIOGameService {
     });
     await this.gameService.updateGame(game);
 
+    // Initialize or clear player statistics in Redis for live tracking
+    if (data.role === PlayerRole.PLAYER) {
+      await this.managePlayerLiveSession(existingPlayer, data, user);
+    }
+
     return { game, player };
+  }
+
+  /**
+   * Manages player live session in Redis when player joins
+   */
+  private async managePlayerLiveSession(
+    existingPlayer: Player | null,
+    data: GameJoinData,
+    user: UserDTO
+  ): Promise<void> {
+    if (!existingPlayer) {
+      // New player - initialize session
+      await this.playerGameStatsService.initializePlayerSession(
+        data.gameId,
+        user.id,
+        new Date()
+      );
+    } else {
+      // Existing player rejoining as player - clear leftAt time
+      await this.playerGameStatsService.clearPlayerLeftAtTime(
+        data.gameId,
+        user.id
+      );
+    }
   }
 
   public async startGame(socketId: string) {
@@ -133,6 +168,21 @@ export class SocketIOGameService {
     game.gameState = gameState;
     await this.gameService.updateGame(game);
 
+    // Start collecting game statistics
+    try {
+      await this.gameStatisticsCollectorService.startCollection(
+        game.id,
+        game.startedAt,
+        game.createdBy,
+        game
+      );
+    } catch (error) {
+      this.logger.warn("Failed to start statistics collection", {
+        gameId: game.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     return game;
   }
 
@@ -162,6 +212,13 @@ export class SocketIOGameService {
       gameId: JSON.stringify(null),
     });
     await this.gameService.updateGame(game);
+
+    // Clean up player statistics session in Redis
+    await this.playerGameStatsService.endPlayerSession(
+      gameId,
+      userSession.id,
+      new Date()
+    );
 
     return { emit: true, data: { userId: userSession.id, gameId } };
   }
@@ -201,6 +258,11 @@ export class SocketIOGameService {
 
     if (isGameFinished || nextGameState) {
       await this.gameService.updateGame(game);
+    }
+
+    // If game is finished, complete the statistics collection
+    if (isGameFinished) {
+      await this.gameStatisticsCollectorService.finishCollection(game.id);
     }
 
     return { game, isGameFinished, nextGameState, questionData };
@@ -346,6 +408,9 @@ export class SocketIOGameService {
       game
     );
 
+    // Store original role before changing it
+    const originalRole = targetPlayer.role;
+
     // Update player role
     targetPlayer.role = newRole;
 
@@ -356,8 +421,23 @@ export class SocketIOGameService {
         throw new ClientError(ClientResponse.GAME_IS_FULL);
       }
       targetPlayer.gameSlot = firstFreeSlot;
+
+      // Clear leftAt time if changing to player role
+      await this.playerGameStatsService.clearPlayerLeftAtTime(
+        game.id,
+        targetPlayerId
+      );
     } else if (newRole === PlayerRole.SPECTATOR) {
       targetPlayer.gameSlot = null;
+
+      // End player session if they were previously a player
+      if (originalRole === PlayerRole.PLAYER) {
+        await this.playerGameStatsService.endPlayerSession(
+          game.id,
+          targetPlayerId,
+          new Date()
+        );
+      }
     }
 
     await this.gameService.updateGame(game);
@@ -418,6 +498,18 @@ export class SocketIOGameService {
 
     await this.gameService.updateGame(game);
 
+    // Clean up player statistics session in Redis if they were banned and were a player
+    if (
+      (restrictions.banned || restrictions.restricted) &&
+      targetPlayer.role === PlayerRole.PLAYER
+    ) {
+      await this.playerGameStatsService.endPlayerSession(
+        game.id,
+        targetPlayerId,
+        new Date()
+      );
+    }
+
     return {
       game,
       targetPlayer: targetPlayer.toDTO(),
@@ -462,6 +554,15 @@ export class SocketIOGameService {
     }
 
     await this.gameService.updateGame(game);
+
+    // Clean up player statistics session in Redis if they were a player
+    if (targetPlayer.role === PlayerRole.PLAYER) {
+      await this.playerGameStatsService.endPlayerSession(
+        game.id,
+        targetPlayerId,
+        new Date()
+      );
+    }
 
     return {
       game,
@@ -564,9 +665,7 @@ export class SocketIOGameService {
     // Determine which player's slot to change
     let targetPlayer: Player | null;
 
-    if (
-      targetPlayerId !== currentPlayer.meta.id
-    ) {
+    if (targetPlayerId !== currentPlayer.meta.id) {
       // Showman changing another player's slot
       targetPlayer = game.getPlayer(targetPlayerId, {
         fetchDisconnected: false,
@@ -601,6 +700,14 @@ export class SocketIOGameService {
       newSlot: targetSlot,
       updatedPlayers: game.players.map((p) => p.toDTO()),
     };
+  }
+
+  /**
+   * **Warning:** This method bypasses host check, so it can be used only in
+   * automated flows (e.g. when everyone leaves and game is finished)
+   */
+  public async deleteGameInternally(gameId: string) {
+    await this.gameService.deleteInternally(gameId);
   }
 
   /**
