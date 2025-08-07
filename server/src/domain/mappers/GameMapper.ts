@@ -34,7 +34,7 @@ export class GameMapper {
    * @returns Game instance
    */
   public static deserializeGameHash(
-    data: Record<string, string>,
+    data: GameRedisHashDTO,
     logger: ILogger
   ): Game {
     return new Game(

@@ -1,3 +1,4 @@
+import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { GameStatisticsData } from "domain/types/statistics/GameStatisticsData";
 import { GameStatisticsRepository } from "infrastructure/database/repositories/statistics/GameStatisticsRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -9,6 +10,7 @@ import { ILogger } from "infrastructure/logger/ILogger";
 export class GameStatisticsPersistenceWorker {
   constructor(
     private readonly repository: GameStatisticsRepository,
+    private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly logger: ILogger
   ) {
     //
@@ -48,6 +50,22 @@ export class GameStatisticsPersistenceWorker {
         gameId: gameStats.gameId,
         statisticsId: savedStats.id,
         gameDuration: `${(gameStats.duration ?? 0) * 1000 * 60} minutes`,
+      });
+
+      // Collect and persist player statistics before cleaning up Redis
+      this.logger.debug(`Collecting player statistics for persistence`, {
+        prefix: "[GAME_STATISTICS_WORKER]: ",
+        gameId: gameStats.gameId,
+      });
+
+      await this.playerGameStatsService.collectGamePlayerStats(
+        gameStats.gameId,
+        savedStats.id
+      );
+
+      this.logger.info(`Player statistics collected and saved to DB`, {
+        prefix: "[GAME_STATISTICS_WORKER]: ",
+        gameId: gameStats.gameId,
       });
 
       // Clean up live statistics from Redis after successful persistence

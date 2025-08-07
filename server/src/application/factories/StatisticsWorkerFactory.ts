@@ -1,3 +1,4 @@
+import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { GameStatisticsPersistenceWorker } from "application/workers/GameStatisticsPersistenceWorker";
 import { GameStatisticsData } from "domain/types/statistics/GameStatisticsData";
 import { GameStatisticsRepository } from "infrastructure/database/repositories/statistics/GameStatisticsRepository";
@@ -6,6 +7,7 @@ import { ILogger } from "infrastructure/logger/ILogger";
 export class StatisticsWorkerFactory {
   constructor(
     private readonly gameStatisticsRepository: GameStatisticsRepository,
+    private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly logger: ILogger
   ) {
     //
@@ -14,6 +16,7 @@ export class StatisticsWorkerFactory {
   public createGameStatisticsPersistenceWorker(): GameStatisticsPersistenceWorker {
     return new GameStatisticsPersistenceWorker(
       this.gameStatisticsRepository,
+      this.playerGameStatsService,
       this.logger
     );
   }

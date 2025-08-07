@@ -14,6 +14,7 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
+import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
@@ -26,6 +27,7 @@ describe("Game Statistics Persistence Tests", () => {
   let _app: Express;
   let userRepo: Repository<User>;
   let gameStatsRepo: Repository<GameStatistics>;
+  let playerGameStatsRepo: Repository<PlayerGameStats>;
   let serverUrl: string;
   let utils: SocketGameTestUtils;
   let logger: ILogger;
@@ -38,6 +40,7 @@ describe("Game Statistics Persistence Tests", () => {
     _app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     gameStatsRepo = testEnv.getDatabase().getRepository(GameStatistics);
+    playerGameStatsRepo = testEnv.getDatabase().getRepository(PlayerGameStats);
     cleanup = boot.cleanup;
     serverUrl = `http://localhost:${process.env.PORT || 3000}`;
     utils = new SocketGameTestUtils(serverUrl);
@@ -50,7 +53,9 @@ describe("Game Statistics Persistence Tests", () => {
     if (keys.length > 0) {
       await redisClient.del(...keys);
     }
-    await gameStatsRepo.clear();
+    // Clear dependent tables first due to foreign key constraints
+    await playerGameStatsRepo.delete({});
+    await gameStatsRepo.delete({});
   });
 
   afterAll(async () => {

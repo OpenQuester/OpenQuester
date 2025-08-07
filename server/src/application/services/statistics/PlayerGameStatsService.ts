@@ -1,7 +1,6 @@
-import { Game } from "domain/entities/game/Game";
-import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
-import { PlayerRole } from "domain/types/game/PlayerRole";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerGameStatsData } from "domain/types/statistics/PlayerGameStatsData";
+import { PlayerGameStatsRedisUpdate } from "domain/types/statistics/PlayerGameStatsRedisData";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
 
@@ -32,10 +31,10 @@ export class PlayerGameStatsService {
     });
 
     // Create initial session data in Redis for live tracking
-    const sessionData = {
+    const sessionData: PlayerGameStatsRedisUpdate = {
       gameId,
-      userId,
-      joinedAt,
+      userId: userId.toString(),
+      joinedAt: joinedAt.toISOString(),
       leftAt: null,
       currentScore: 0,
       questionsAnswered: 0,
@@ -72,7 +71,9 @@ export class PlayerGameStatsService {
 
     try {
       // Update session with leave time and finalize
-      await this.repository.updateStats(gameId, userId, { leftAt });
+      await this.repository.updateStats(gameId, userId, {
+        leftAt: leftAt.toISOString(),
+      });
     } catch (error) {
       this.logger.error("Failed to end player session", {
         prefix: "[PLAYER_GAME_STATS]: ",
@@ -102,41 +103,88 @@ export class PlayerGameStatsService {
   }
 
   /**
-   * Collect and save player statistics for a finished game
+   * Update player answer statistics when they answer a question
+   * Should be called whenever a player submits an answer
+   */
+  public async updatePlayerAnswerStats(
+    gameId: string,
+    userId: number,
+    answerType: AnswerResultType,
+    newScore: number
+  ): Promise<void> {
+    try {
+      const playerStats = await this.repository.getStats(gameId, userId);
+      const questionsAnswered = parseInt(playerStats?.questionsAnswered || "0");
+      const correctAnswers = parseInt(playerStats?.correctAnswers || "0");
+      const wrongAnswers = parseInt(playerStats?.wrongAnswers || "0");
+
+      // For skip we don't increment correct/wrong answers
+      const isCorrect = answerType === AnswerResultType.CORRECT;
+      const isWrong = answerType === AnswerResultType.WRONG;
+
+      const updates: PlayerGameStatsRedisUpdate = {
+        currentScore: newScore,
+        questionsAnswered: questionsAnswered + 1,
+        correctAnswers: isCorrect ? correctAnswers + 1 : correctAnswers,
+        wrongAnswers: isWrong ? wrongAnswers + 1 : wrongAnswers,
+      };
+
+      await this.repository.updateStats(gameId, userId, updates);
+    } catch (error) {
+      this.logger.error("Failed to update player answer statistics", {
+        prefix: "[PLAYER_GAME_STATS]: ",
+        gameId,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Collect and save player statistics for a finished game from Redis data
    */
   public async collectGamePlayerStats(
-    gameStatsId: number,
-    game: Game,
-    gameStartedAt: Date
+    gameId: string,
+    gameStatsId: number
   ): Promise<void> {
-    this.logger.debug("Collecting player game statistics", {
-      prefix: "[PLAYER_GAME_STATS]: ",
-      gameId: game.id,
-      gameStatsId,
-    });
+    // Get all player stats from Redis before cleanup
+    const livePlayerStats = await this.repository.getAllStatsForGame(gameId);
 
-    const players = game.players.filter((p) => p.role === PlayerRole.PLAYER);
+    if (livePlayerStats.length === 0) {
+      this.logger.warn("No player statistics found in Redis", {
+        prefix: "[PLAYER_GAME_STATS]: ",
+        gameId,
+      });
+      return;
+    }
+
     const playerStatsData: PlayerGameStatsData[] = [];
 
-    for (const player of players) {
-      // Calculate basic performance metrics
-      const correctAnswers = this._calculateCorrectAnswers(
-        game,
-        player.meta.id
-      );
-      const wrongAnswers = this._calculateWrongAnswers(game, player.meta.id);
-      const questionsAnswered = correctAnswers + wrongAnswers;
+    for (const { userId, data } of livePlayerStats) {
+      // Parse Redis data fields
+      const finalScore = parseInt(data.currentScore || "0");
+      const joinedAt = data.joinedAt ? new Date(data.joinedAt) : new Date();
+      const leftAt =
+        data.leftAt && data.leftAt !== "" ? new Date(data.leftAt) : null;
+      const questionsAnswered = parseInt(data.questionsAnswered || "0");
+      const correctAnswers = parseInt(data.correctAnswers || "0");
+      const wrongAnswers = parseInt(data.wrongAnswers || "0");
+
+      // Filter out showman-only users who never became players
+      const wasEverAPlayer = leftAt === null || questionsAnswered > 0;
+
+      if (!wasEverAPlayer) {
+        continue;
+      }
 
       const playerData: PlayerGameStatsData = {
         gameStatsId,
-        userId: player.meta.id,
-        finalScore: player.score,
+        userId,
+        finalScore,
         placement: null, // Will be calculated after all players are saved
-        joinedAt: gameStartedAt, // For now, use game start time
-        leftAt:
-          player.gameStatus === PlayerGameStatus.DISCONNECTED
-            ? new Date() // If disconnected, mark as left
-            : null,
+        joinedAt,
+        leftAt,
         questionsAnswered,
         correctAnswers,
         wrongAnswers,
@@ -145,17 +193,45 @@ export class PlayerGameStatsService {
       playerStatsData.push(playerData);
     }
 
-    // Save all player statistics
-    await this.repository.saveMany(playerStatsData);
+    // Save all player statistics with calculated placements
+    await this.repository.saveMany(this._calculatePlacements(playerStatsData));
 
-    // Calculate and update placements based on final scores
-    await this.repository.updatePlacements(gameStatsId);
+    this.logger.info(
+      "Player game statistics collected successfully from Redis",
+      {
+        prefix: "[PLAYER_GAME_STATS]: ",
+        gameId,
+        playersCount: playerStatsData.length,
+      }
+    );
+  }
 
-    this.logger.info("Player game statistics collected successfully", {
-      prefix: "[PLAYER_GAME_STATS]: ",
-      gameId: game.id,
-      playersCount: playerStatsData.length,
-    });
+  /**
+   * Calculate placements for players based on final scores
+   * Handles ties correctly - players with same score get same placement
+   */
+  private _calculatePlacements(
+    playerStats: PlayerGameStatsData[]
+  ): PlayerGameStatsData[] {
+    // Sort players by final score (descending - highest score first)
+    const sorted = [...playerStats].sort((a, b) => b.finalScore - a.finalScore);
+
+    let currentPlacement = 1;
+    let lastScore: number | null = null;
+
+    for (let i = 0; i < sorted.length; i++) {
+      const player = sorted[i];
+
+      // If score is different from previous player, update placement to current index + 1
+      if (lastScore !== null && player.finalScore !== lastScore) {
+        currentPlacement = i + 1;
+      }
+
+      player.placement = currentPlacement;
+      lastScore = player.finalScore;
+    }
+
+    return sorted;
   }
 
   /**
@@ -170,36 +246,5 @@ export class PlayerGameStatsService {
    */
   public async getUserPlayerStats(userId: number, limit = 50) {
     return this.repository.getByUserId(userId, limit);
-  }
-
-  /**
-   * Calculate number of correct answers for a player in a game
-   */
-  private _calculateCorrectAnswers(game: Game, playerId: number): number {
-    // For now, we'll use a simple heuristic since we don't have detailed answer tracking yet
-    // This can be enhanced when we implement more detailed event tracking
-
-    if (!game.gameState?.answeredPlayers) {
-      return 0;
-    }
-
-    // Count correct answers from the answered players array
-    return game.gameState.answeredPlayers.filter(
-      (ap) => ap.player === playerId && ap.result > 0
-    ).length;
-  }
-
-  /**
-   * Calculate number of wrong answers for a player in a game
-   */
-  private _calculateWrongAnswers(game: Game, playerId: number): number {
-    if (!game.gameState?.answeredPlayers) {
-      return 0;
-    }
-
-    // Count wrong answers from the answered players array
-    return game.gameState.answeredPlayers.filter(
-      (ap) => ap.player === playerId && ap.result < 0
-    ).length;
   }
 }

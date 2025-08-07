@@ -15,6 +15,7 @@ import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
+import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
@@ -264,14 +265,20 @@ export class SocketGameTestUtils {
     app: Express,
     playerCount: number,
     spectatorCount: number,
-    includeFinalRound: boolean = true
+    includeFinalRound: boolean = true,
+    additionalSimpleQuestions: number = 0
   ): Promise<GameTestSetup> {
     // Create showman
     const {
       socket: showmanSocket,
       gameId,
       user: showmanUser,
-    } = await this.createGameWithShowman(app, userRepo, includeFinalRound);
+    } = await this.createGameWithShowman(
+      app,
+      userRepo,
+      includeFinalRound,
+      additionalSimpleQuestions
+    );
 
     // Create players
     const playerSockets: GameClientSocket[] = [];
@@ -304,7 +311,8 @@ export class SocketGameTestUtils {
   async createGameWithShowman(
     app: Express,
     userRepo: Repository<User>,
-    includeFinalRound: boolean = true
+    includeFinalRound: boolean = true,
+    additionalSimpleQuestions: number = 0
   ): Promise<{ socket: ClientSocket; gameId: string; user: User }> {
     // Create a test user and get authenticated socket
     const { socket, user, cookie } = await this.createGameClient(app, userRepo);
@@ -315,7 +323,8 @@ export class SocketGameTestUtils {
         id: user.id,
         username: user.username,
       },
-      includeFinalRound
+      includeFinalRound,
+      additionalSimpleQuestions
     );
 
     const packageRes = await request(app)
@@ -465,6 +474,62 @@ export class SocketGameTestUtils {
     throw new Error("No available questions found");
   }
 
+  /**
+   * Get all available question IDs ordered by their order field
+   */
+  public async getAllAvailableQuestionIds(gameId: string): Promise<number[]> {
+    const game = await this.gameService.getGameEntity(gameId);
+    if (!game || !game.gameState.currentRound) {
+      throw new Error("Game or current round not found");
+    }
+
+    const currentRound = game.gameState.currentRound;
+
+    if (!currentRound.themes || currentRound.themes.length === 0) {
+      return [];
+    }
+
+    const questionIds: Array<{ id: number; order: number }> = [];
+
+    // Collect all unplayed questions with their order
+    for (const theme of currentRound.themes) {
+      if (theme.questions && theme.questions.length > 0) {
+        for (const question of theme.questions) {
+          if (question.id && !question.isPlayed) {
+            // Get question order from package data
+            const questionOrder = this.getQuestionOrderFromPackage(
+              game.package,
+              question.id
+            );
+            questionIds.push({ id: question.id, order: questionOrder });
+          }
+        }
+      }
+    }
+
+    // Sort by order and return just the IDs
+    return questionIds.sort((a, b) => a.order - b.order).map((q) => q.id);
+  }
+
+  /**
+   * Get question order from package data
+   */
+  private getQuestionOrderFromPackage(
+    packageData: PackageDTO,
+    questionId: number
+  ): number {
+    for (const round of packageData.rounds || []) {
+      for (const theme of round.themes || []) {
+        for (const question of theme.questions || []) {
+          if (question.id === questionId) {
+            return question.order || 0;
+          }
+        }
+      }
+    }
+    return 0; // fallback
+  }
+
   public async startGame(
     showmanSocket: GameClientSocket
   ): Promise<GameStartEventPayload> {
@@ -560,14 +625,16 @@ export class SocketGameTestUtils {
   }
 
   /**
-   * Picks and completes any type of question (regular, secret, etc.)
-   * This method handles the full flow including secret question transfers
+   * Picks and completes any type of question (regular, secret, stake, etc.)
+   * This method handles the full flow including secret question transfers and stake bidding
    */
   public async pickAndCompleteQuestion(
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[],
     questionId?: number,
-    shouldAnswer = false // New parameter to control answering vs skipping
+    shouldAnswer = false,
+    answerType = AnswerResultType.CORRECT,
+    scoreResult = 100
   ): Promise<void> {
     const socketUserData = await this.getSocketUserData(showmanSocket);
     if (!socketUserData?.gameId) {
@@ -618,6 +685,12 @@ export class SocketGameTestUtils {
 
       await secretPickedPromise;
 
+      if (!shouldAnswer) {
+        // Skip the question
+        await this.skipQuestion(showmanSocket);
+        return;
+      }
+
       // Transfer to first player
       const questionDataPromise = this.waitForEvent(
         playerSockets[0],
@@ -630,16 +703,24 @@ export class SocketGameTestUtils {
 
       await questionDataPromise;
 
-      if (shouldAnswer) {
-        // Answer correctly
-        await this.answerQuestion(playerSockets[0], showmanSocket);
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-          scoreResult: 100,
-          answerType: AnswerResultType.CORRECT,
-        });
+      // Answer correctly
+      await this.answerQuestion(playerSockets[0], showmanSocket);
+      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scoreResult: scoreResult,
+        answerType: answerType,
+      });
+
+      // Wait for appropriate event based on answer type
+      if (answerType === AnswerResultType.CORRECT) {
+        await this.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_FINISH
+        );
       } else {
-        // Skip the question
-        await this.skipQuestion(showmanSocket);
+        await this.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_RESULT
+        );
       }
     } else if (questionType === PackageQuestionType.STAKE) {
       // Handle stake question flow
@@ -654,6 +735,12 @@ export class SocketGameTestUtils {
 
       await stakePickedPromise;
 
+      if (!shouldAnswer) {
+        // Skip the question
+        await this.skipQuestion(showmanSocket);
+        return;
+      }
+
       // Complete the bidding phase by having all players pass
       const stakeWinnerPromise = this.waitForEvent(
         showmanSocket,
@@ -666,7 +753,7 @@ export class SocketGameTestUtils {
         const stakeData = game.gameState.stakeQuestionData;
         const biddingOrder = stakeData.biddingOrder;
 
-        // Have all players in bidding order pass sequentially
+        // Have all players in bidding order participate realistically
         for (let i = 0; i < biddingOrder.length; i++) {
           const playerId = biddingOrder[i];
 
@@ -680,8 +767,20 @@ export class SocketGameTestUtils {
             }
           }
 
-          if (playerSocket) {
-            // Wait for the bidding turn to be this player's turn before bidding
+          if (playerSocket && i === 0) {
+            // First player (picker) must bid at least nominal amount - use normal bid for testing
+            const game = await this.gameService.getGameEntity(
+              socketUserData.gameId
+            );
+            const currentQuestion = game?.gameState.currentQuestion;
+            const nominalAmount = currentQuestion?.price || 100; // fallback to 100
+
+            playerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+              bidType: StakeBidType.NORMAL,
+              bidAmount: nominalAmount,
+            });
+          } else if (playerSocket) {
+            // Other players pass to keep test simple but realistic
             playerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
               bidType: StakeBidType.PASS,
               bidAmount: null,
@@ -690,34 +789,69 @@ export class SocketGameTestUtils {
         }
       }
 
-      await stakeWinnerPromise;
+      const stakeWinnerData = await stakeWinnerPromise;
 
-      if (shouldAnswer) {
-        // Answer correctly
-        await this.answerQuestion(playerSockets[0], showmanSocket);
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-          scoreResult: 100,
-          answerType: AnswerResultType.CORRECT,
-        });
+      // Find the socket of the winning bidder
+      let winnerSocket = playerSockets[0]; // fallback
+      if (stakeWinnerData?.winnerPlayerId) {
+        for (const socket of playerSockets) {
+          const socketUserId = await this.getUserIdFromSocket(socket);
+          if (socketUserId === stakeWinnerData.winnerPlayerId) {
+            winnerSocket = socket;
+            break;
+          }
+        }
+      }
+
+      // Answer correctly - winner should answer
+      await this.answerQuestion(winnerSocket, showmanSocket);
+      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scoreResult: scoreResult,
+        answerType: answerType,
+      });
+
+      // Wait for appropriate event based on answer type
+      if (answerType === AnswerResultType.CORRECT) {
+        await this.waitForEvent(
+          winnerSocket,
+          SocketIOGameEvents.QUESTION_FINISH
+        );
       } else {
-        // Skip the question
-        await this.skipQuestion(showmanSocket);
+        await this.waitForEvent(winnerSocket, SocketIOGameEvents.ANSWER_RESULT);
       }
     } else {
-      // Handle regular question flow
+      // Handle regular question flow (SIMPLE, NO_RISK, HIDDEN, CHOICE)
+      // These question types follow the standard question flow for socket events
+      // - NO_RISK: same flow, but backend prevents negative scoring
+      // - HIDDEN: same flow, price revealed during play
+      // - CHOICE: same flow, multiple answer options available
       await this.pickQuestion(showmanSocket, actualQuestionId);
 
-      if (shouldAnswer) {
-        // Answer correctly
-        // For regular questions, a player should answer, not the showman
-        await this.answerQuestion(playerSockets[0], showmanSocket);
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-          scoreResult: 100,
-          answerType: AnswerResultType.CORRECT,
-        });
-      } else {
+      if (!shouldAnswer) {
         // Skip the question
         await this.skipQuestion(showmanSocket);
+        return;
+      }
+
+      // Answer correctly
+      // For regular questions, any player can answer
+      await this.answerQuestion(playerSockets[0], showmanSocket);
+      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scoreResult: scoreResult,
+        answerType: answerType,
+      });
+
+      // Wait for appropriate event based on answer type
+      if (answerType === AnswerResultType.CORRECT) {
+        await this.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_FINISH
+        );
+      } else {
+        await this.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_RESULT
+        );
       }
     }
   }
@@ -1083,19 +1217,8 @@ export class SocketGameTestUtils {
 
       const fullQuestion = questionData.question;
 
-      // Check for Choice questions
-      if (questionType === PackageQuestionType.CHOICE) {
-        if (
-          fullQuestion.answers &&
-          fullQuestion.answers.length > 0 &&
-          fullQuestion.showDelay !== undefined &&
-          fullQuestion.showDelay !== null
-        ) {
-          return question;
-        }
-      }
-      // Check for other question types by direct type comparison
-      else if (fullQuestion.type === questionType) {
+      // Direct type comparison for all question types
+      if (fullQuestion.type === questionType) {
         return question;
       }
     }
@@ -1106,26 +1229,44 @@ export class SocketGameTestUtils {
   /**
    * Find all questions by type in the game state
    */
-  public findAllQuestionsByType(
+  public async findAllQuestionsByType(
     gameState: GameStateDTO,
-    questionType: PackageQuestionType
-  ): GameStateQuestionDTO[] {
+    questionType: PackageQuestionType,
+    gameId: string
+  ): Promise<GameStateQuestionDTO[]> {
     const results: GameStateQuestionDTO[] = [];
 
     if (!gameState.currentRound?.themes) {
       return results;
     }
 
+    // Get the full game to access package data
+    const game = await this.gameService.getGameEntity(gameId);
+    if (!game) {
+      throw new Error("Game not found");
+    }
+
+    // For other question types, we need to check the package data
     for (const theme of gameState.currentRound.themes) {
       if (theme.questions) {
         for (const question of theme.questions) {
-          // Same workaround as above - hidden questions have null price
-          if (
-            questionType === PackageQuestionType.HIDDEN &&
-            question.price === null &&
-            !question.isPlayed
-          ) {
-            results.push(question);
+          if (!question.isPlayed) {
+            const questionData = GameQuestionMapper.getQuestionAndTheme(
+              game.package,
+              gameState.currentRound.id,
+              question.id
+            );
+
+            if (!questionData?.question) {
+              continue;
+            }
+
+            const fullQuestion = questionData.question;
+
+            // Direct type comparison for all question types
+            if (fullQuestion.type === questionType) {
+              results.push(question);
+            }
           }
         }
       }

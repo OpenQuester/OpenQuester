@@ -252,9 +252,10 @@ describe("Hidden Question Flow Tests", () => {
         const initialGameState = await utils.getGameState(gameId);
 
         // Find all hidden questions
-        const hiddenQuestions = utils.findAllQuestionsByType(
+        const hiddenQuestions = await utils.findAllQuestionsByType(
           initialGameState!,
-          PackageQuestionType.HIDDEN
+          PackageQuestionType.HIDDEN,
+          gameId
         );
 
         if (hiddenQuestions.length < 2) {
@@ -289,9 +290,10 @@ describe("Hidden Question Flow Tests", () => {
         expect(afterFirstState!.questionState).toBe(QuestionState.CHOOSING);
 
         // Check that remaining hidden questions still have null price in game state
-        const remainingHiddenQuestions = utils.findAllQuestionsByType(
+        const remainingHiddenQuestions = await utils.findAllQuestionsByType(
           afterFirstState!,
-          PackageQuestionType.HIDDEN
+          PackageQuestionType.HIDDEN,
+          gameId
         );
 
         const unplayedHiddenQuestion = remainingHiddenQuestions.find(

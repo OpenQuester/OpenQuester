@@ -162,6 +162,10 @@ export class GameService {
     return this.gameRepository.gameLock(key, expire);
   }
 
+  public async gameUnlock(key: string): Promise<number> {
+    return this.gameRepository.gameUnlock(key);
+  }
+
   private _emitSocketGameCreated(gameData: GameListItemDTO) {
     const eventDataDTO: GameEventDTO = {
       event: GameEvent.CREATED,

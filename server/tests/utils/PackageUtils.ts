@@ -16,7 +16,8 @@ export class PackageUtils {
 
   public createTestPackageData(
     author: ShortUserInfo,
-    includeFinalRound: boolean = true
+    includeFinalRound: boolean = true,
+    additionalSimpleQuestions: number = 0
   ): PackageDTO {
     const rounds = [
       {
@@ -220,6 +221,21 @@ export class PackageUtils {
           },
         ],
       });
+    }
+
+    if (additionalSimpleQuestions > 0) {
+      rounds[0].themes[0].questions.push(
+        ...(Array.from({ length: additionalSimpleQuestions }, (_, index) => ({
+          type: PackageQuestionType.SIMPLE,
+          subType: PackageQuestionSubType.SIMPLE,
+          order: rounds[0].themes[0].questions.length + index,
+          price: 100 + index * 50,
+          text: `Additional simple question ${index + 1}`,
+          answerText: `Additional answer ${index + 1}`,
+          answerDelay: 5000,
+          isHidden: false,
+        })) satisfies PackageQuestionDTO[])
+      );
     }
 
     return {

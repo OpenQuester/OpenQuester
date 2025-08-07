@@ -3,6 +3,7 @@ import { SocketGameContextService } from "application/services/socket/SocketGame
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import {
   GAME_QUESTION_ANSWER_SUBMIT_TIME,
   GAME_QUESTION_ANSWER_TIME,
@@ -55,6 +56,7 @@ export class SocketIOQuestionService {
     private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly socketGameTimerService: SocketGameTimerService,
     private readonly roundHandlerFactory: RoundHandlerFactory,
+    private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly logger: ILogger
   ) {
     //
@@ -153,6 +155,24 @@ export class SocketIOQuestionService {
       nextState
     );
 
+    // Update player answer statistics for persistence
+    try {
+      await this.playerGameStatsService.updatePlayerAnswerStats(
+        game.id,
+        playerAnswerResult.player,
+        data.answerType,
+        playerAnswerResult.score
+      );
+    } catch (error) {
+      // Log but don't throw - statistics shouldn't break game flow
+      this.logger.warn("Failed to update player answer statistics", {
+        prefix: "[SOCKET_QUESTION_SERVICE]: ",
+        gameId: game.id,
+        playerId: playerAnswerResult.player,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     let question = null;
     const correctAnswerSimpleRound =
       isCorrect &&
@@ -189,6 +209,10 @@ export class SocketIOQuestionService {
       // Always make sure all timers are cleared if not meant to be running
       await this.gameService.clearTimer(game.id);
     }
+
+    // Release the question answer lock
+    const lockKey = this._getQuestionAnswerLockKey(game.id);
+    await this.gameService.gameUnlock(lockKey);
 
     return {
       playerAnswerResult,

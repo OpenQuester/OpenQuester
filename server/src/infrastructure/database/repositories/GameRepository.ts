@@ -22,6 +22,7 @@ import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
+import { GameRedisValidator } from "domain/validators/GameRedisValidator";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -60,7 +61,8 @@ export class GameRepository {
       );
     }
 
-    return GameMapper.deserializeGameHash(data, this.logger);
+    const validatedData = GameRedisValidator.validateRedisData(data);
+    return GameMapper.deserializeGameHash(validatedData, this.logger);
   }
 
   public async updateGame(game: Game): Promise<void> {
@@ -472,12 +474,16 @@ export class GameRepository {
     return results
       .map(([, data]) => {
         try {
-          return GameMapper.deserializeGameHash(
-            data as Record<string, string>,
-            this.logger
+          const validatedData = GameRedisValidator.validateRedisData(
+            data as Record<string, string>
           );
-        } catch {
-          // Ignore invalid games
+          return GameMapper.deserializeGameHash(validatedData, this.logger);
+        } catch (error) {
+          // Log validation error and ignore invalid games
+          this.logger.warn("Skipping invalid game Redis data", {
+            prefix: "[GAME_REPOSITORY]: ",
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       })
       .filter((g): g is Game => !!g);
@@ -489,5 +495,12 @@ export class GameRepository {
   public async gameLock(key: string, expire: number): Promise<boolean> {
     const acquired = await this.redisService.setLockKey(key, expire);
     return acquired === "OK";
+  }
+
+  /**
+   * Releases a game lock by deleting the lock key from Redis
+   */
+  public async gameUnlock(key: string): Promise<number> {
+    return this.redisService.del(key);
   }
 }

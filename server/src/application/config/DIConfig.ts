@@ -199,10 +199,34 @@ export class DIConfig {
     );
 
     Container.register(
+      CONTAINER_TYPES.PlayerGameStatsRepository,
+      new PlayerGameStatsRepository(
+        db.getRepository(PlayerGameStats),
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
+        this.logger
+      ),
+      "repository"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.PlayerGameStatsService,
+      new PlayerGameStatsService(
+        Container.get<PlayerGameStatsRepository>(
+          CONTAINER_TYPES.PlayerGameStatsRepository
+        ),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
       CONTAINER_TYPES.StatisticsWorkerFactory,
       new StatisticsWorkerFactory(
         Container.get<GameStatisticsRepository>(
           CONTAINER_TYPES.GameStatisticsRepository
+        ),
+        Container.get<PlayerGameStatsService>(
+          CONTAINER_TYPES.PlayerGameStatsService
         ),
         this.logger
       ),
@@ -217,26 +241,6 @@ export class DIConfig {
         ),
         Container.get<StatisticsWorkerFactory>(
           CONTAINER_TYPES.StatisticsWorkerFactory
-        ),
-        this.logger
-      ),
-      "service"
-    );
-
-    Container.register(
-      CONTAINER_TYPES.PlayerGameStatsRepository,
-      new PlayerGameStatsRepository(
-        db.getRepository(PlayerGameStats),
-        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
-      ),
-      "repository"
-    );
-
-    Container.register(
-      CONTAINER_TYPES.PlayerGameStatsService,
-      new PlayerGameStatsService(
-        Container.get<PlayerGameStatsRepository>(
-          CONTAINER_TYPES.PlayerGameStatsRepository
         ),
         this.logger
       ),
@@ -415,6 +419,9 @@ export class DIConfig {
           CONTAINER_TYPES.SocketGameTimerService
         ),
         Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        Container.get<PlayerGameStatsService>(
+          CONTAINER_TYPES.PlayerGameStatsService
+        ),
         this.logger
       ),
       "service"
@@ -457,6 +464,9 @@ export class DIConfig {
         Container.get<FinalRoundService>(CONTAINER_TYPES.FinalRoundService),
         Container.get<GameStatisticsCollectorService>(
           CONTAINER_TYPES.GameStatisticsCollectorService
+        ),
+        Container.get<PlayerGameStatsService>(
+          CONTAINER_TYPES.PlayerGameStatsService
         ),
         this.logger
       ),

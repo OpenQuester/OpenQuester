@@ -4,8 +4,15 @@ import {
   PLAYER_STATISTICS_REDIS_NSP,
   PLAYER_STATISTICS_TTL,
 } from "domain/constants/statistics";
+import { ServerError } from "domain/errors/ServerError";
 import { PlayerGameStatsData } from "domain/types/statistics/PlayerGameStatsData";
+import {
+  PlayerGameStatsRedisData,
+  PlayerGameStatsRedisUpdate,
+} from "domain/types/statistics/PlayerGameStatsRedisData";
+import { PlayerGameStatsRedisValidator } from "domain/validators/PlayerGameStatsRedisValidator";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 
 /**
@@ -14,7 +21,8 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
 export class PlayerGameStatsRepository {
   constructor(
     private readonly repository: Repository<PlayerGameStats>,
-    private readonly redisService: RedisService
+    private readonly redisService: RedisService,
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -25,7 +33,7 @@ export class PlayerGameStatsRepository {
   public async initializeStats(
     gameId: string,
     userId: number,
-    sessionData: Record<string, unknown>
+    sessionData: PlayerGameStatsRedisUpdate
   ): Promise<void> {
     const key = this._getStatsRedisKey(gameId, userId);
     await this.redisService.hset(key, sessionData, PLAYER_STATISTICS_TTL);
@@ -37,7 +45,7 @@ export class PlayerGameStatsRepository {
   public async updateStats(
     gameId: string,
     userId: number,
-    updates: Record<string, any>
+    updates: PlayerGameStatsRedisUpdate
   ): Promise<void> {
     const key = this._getStatsRedisKey(gameId, userId);
     await this.redisService.hset(key, updates, PLAYER_STATISTICS_TTL);
@@ -49,7 +57,7 @@ export class PlayerGameStatsRepository {
   public async getStats(
     gameId: string,
     userId: number
-  ): Promise<Record<string, any> | null> {
+  ): Promise<PlayerGameStatsRedisData | null> {
     const key = this._getStatsRedisKey(gameId, userId);
     const data = await this.redisService.hgetall(key);
 
@@ -57,7 +65,56 @@ export class PlayerGameStatsRepository {
       return null;
     }
 
-    return data;
+    try {
+      return PlayerGameStatsRedisValidator.validateRedisData(data);
+    } catch (error) {
+      throw new ServerError(
+        `Failed to validate PlayerGameStats Redis data for game ${gameId}, user ${userId}, data ${JSON.stringify(
+          data
+        )}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  /**
+   * Get all player stats for a game from Redis
+   */
+  public async getAllStatsForGame(
+    gameId: string
+  ): Promise<Array<{ userId: number; data: PlayerGameStatsRedisData }>> {
+    const pattern = `${PLAYER_STATISTICS_REDIS_NSP}:${gameId}:*`;
+    const keys = await this.redisService.scan(pattern);
+
+    const playerStats: Array<{
+      userId: number;
+      data: PlayerGameStatsRedisData;
+    }> = [];
+
+    for (const key of keys) {
+      const data = await this.redisService.hgetall(key);
+      if (data && Object.keys(data).length > 0) {
+        // Extract userId from key: "player_stats:gameId:userId"
+        const userId = parseInt(key.split(":").pop() || "-1");
+        if (userId !== -1) {
+          try {
+            const validatedData =
+              PlayerGameStatsRedisValidator.validateRedisData(data);
+
+            playerStats.push({ userId, data: validatedData });
+          } catch (error) {
+            // Log validation error but continue processing other players
+            this.logger.error(
+              `Skipping invalid Redis data for user: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+              { data, key, userId }
+            );
+          }
+        }
+      }
+    }
+
+    return playerStats;
   }
 
   /**
