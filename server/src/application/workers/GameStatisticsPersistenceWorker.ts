@@ -49,7 +49,7 @@ export class GameStatisticsPersistenceWorker {
         prefix: "[GAME_STATISTICS_WORKER]: ",
         gameId: gameStats.gameId,
         statisticsId: savedStats.id,
-        gameDuration: `${(gameStats.duration ?? 0) * 1000 * 60} minutes`,
+        gameDuration: `${(gameStats.duration ?? 0) / (1000 * 60)} minutes`,
       });
 
       // Collect and persist player statistics before cleaning up Redis
