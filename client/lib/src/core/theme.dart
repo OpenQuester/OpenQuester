@@ -22,16 +22,16 @@ class AppTheme {
         landscapeLayout: BottomNavigationBarLandscapeLayout.centered,
         selectedItemColor: theme.colorScheme.onPrimary,
         unselectedItemColor: theme.colorScheme.primary,
-        backgroundColor: puroBlackColor,
+        backgroundColor: pureDarkColor,
       ),
-      scaffoldBackgroundColor: puroBlackColor,
+      scaffoldBackgroundColor: pureDarkColor,
       appBarTheme: appBarTheme(theme),
       pageTransitionsTheme: pageTransitionsTheme,
       inputDecorationTheme: inputDecorationTheme,
       tooltipTheme: tooltipTheme,
       expansionTileTheme: expansionTileTheme(theme),
       colorScheme: theme.colorScheme.copyWith(
-        surface: puroBlackColor,
+        surface: pureDarkColor,
         surfaceContainer: pureDark
             ? theme.colorScheme.surfaceContainer.withValues(alpha: 0.6)
             : null,
@@ -48,7 +48,7 @@ class AppTheme {
 
   static bool get pureDark =>
       getIt<SettingsController>().settings.themeMode == AppThemeMode.pureDark;
-  static Color? get puroBlackColor {
+  static Color? get pureDarkColor {
     return pureDark ? Colors.black : null;
   }
 

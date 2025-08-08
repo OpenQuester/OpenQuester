@@ -416,15 +416,11 @@ class _SearchPackageButton extends StatelessWidget {
       },
       icon: Icon(hasPackage ? Icons.edit_rounded : Icons.search_rounded),
       label: Text(
-        hasPackage
-            ? LocaleKeys.change_package.tr()
-            : LocaleKeys.select_game_package.tr(),
+        hasPackage ? LocaleKeys.change.tr() : LocaleKeys.select.tr(),
       ),
     );
   }
 }
-
-// New organized sections for better UI structure
 
 class _PackageSelectionSection extends StatelessWidget {
   const _PackageSelectionSection({

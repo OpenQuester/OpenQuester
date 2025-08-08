@@ -37,7 +37,7 @@ class UploadPackageButton extends WatchingWidget {
           onPressed: onPressed,
           label: Text(
             [
-              LocaleKeys.upload_package.tr(),
+              LocaleKeys.upload.tr(),
               if (controller.loading && controller.progress != 0)
                 [(100 * controller.progress).ceil(), '%'].join(),
             ].join(' '),
