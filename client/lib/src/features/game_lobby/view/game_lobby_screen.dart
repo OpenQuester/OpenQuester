@@ -1,3 +1,4 @@
+import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
@@ -33,7 +34,6 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final showChat = watchValue((GameLobbyController e) => e.showChat);
-    final gameData = watchValue((GameLobbyController e) => e.gameListData);
     final chatWideModeOn = GameLobbyStyles.desktopChat(context);
     final showDesktopChat = chatWideModeOn && showChat;
     final settings = watchPropertyValue<SettingsController, AppSettings>(
@@ -61,7 +61,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           child: Scaffold(
             extendBody: true,
             appBar: AppBar(
-              title: Text(gameData?.title ?? widget.gameId),
+              title: const GameLobbyTitle(),
               leading: IconButton(
                 onPressed: _onExit,
                 icon: const Icon(Icons.exit_to_app),
@@ -124,17 +124,17 @@ class _BodyBuilder extends WatchingWidget {
     Widget body;
 
     if (lobbyEditorMode) {
-      body = const GameLobbyEditor();
+      body = const GameLobbyEditor().fadeIn();
     } else if (gameData?.gameState.currentRound == null) {
-      body = const CircularProgressIndicator().center();
+      body = const CircularProgressIndicator().fadeIn().center();
     } else if (isPaused) {
-      body = const _GamePausedScreen();
+      body = const _GamePausedScreen().fadeIn();
     } else if (gameFinished) {
-      body = const _GameFinishedScreen();
+      body = const _GameFinishedScreen().fadeIn();
     } else if (currentQuestion != null) {
-      body = const GameQuestionScreen();
+      body = const GameQuestionScreen().fadeIn();
     } else {
-      body = const GameLobbyThemes();
+      body = const GameLobbyThemes().fadeIn();
     }
 
     return Column(
