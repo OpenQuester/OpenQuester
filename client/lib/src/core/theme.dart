@@ -16,24 +16,25 @@ class AppTheme {
   }
 
   static ThemeData change(ThemeData theme) {
-    final pureDark =
-        getIt<SettingsController>().settings.themeMode == AppThemeMode.pureDark;
-
     return theme.copyWith(
       bottomNavigationBarTheme: theme.bottomNavigationBarTheme.copyWith(
         type: BottomNavigationBarType.shifting,
         landscapeLayout: BottomNavigationBarLandscapeLayout.centered,
         selectedItemColor: theme.colorScheme.onPrimary,
         unselectedItemColor: theme.colorScheme.primary,
+        backgroundColor: pureDarkColor,
       ),
-      scaffoldBackgroundColor: pureDark ? Colors.black : null,
+      scaffoldBackgroundColor: pureDarkColor,
       appBarTheme: appBarTheme(theme),
       pageTransitionsTheme: pageTransitionsTheme,
       inputDecorationTheme: inputDecorationTheme,
       tooltipTheme: tooltipTheme,
       expansionTileTheme: expansionTileTheme(theme),
       colorScheme: theme.colorScheme.copyWith(
-        surface: pureDark ? Colors.black : null,
+        surface: pureDarkColor,
+        surfaceContainer: pureDark
+            ? theme.colorScheme.surfaceContainer.withValues(alpha: 0.6)
+            : null,
       ),
       extensions: const [
         ExtraColors(success: Color(0xFF7CE883), warning: Color(0xFFFFE078)),
@@ -44,6 +45,12 @@ class AppTheme {
   // Backward compatibility default themes (using indigo seed)
   static ThemeData get light => build(Colors.indigo, Brightness.light);
   static ThemeData get dark => build(Colors.indigo, Brightness.dark);
+
+  static bool get pureDark =>
+      getIt<SettingsController>().settings.themeMode == AppThemeMode.pureDark;
+  static Color? get pureDarkColor {
+    return pureDark ? Colors.black : null;
+  }
 
   static AppBarTheme appBarTheme(ThemeData theme) {
     return AppBarTheme(

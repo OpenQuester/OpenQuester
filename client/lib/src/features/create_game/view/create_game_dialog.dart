@@ -70,13 +70,13 @@ class CreateGameDialog extends WatchingWidget {
                     controller: controller,
                     state: state,
                   ),
-        
+
                   // Game configuration section
                   _GameConfigSection(
                     controller: controller,
                     state: state,
                   ),
-        
+
                   // Action buttons with better styling
                   _ActionButtons(
                     controller: controller,
@@ -416,15 +416,11 @@ class _SearchPackageButton extends StatelessWidget {
       },
       icon: Icon(hasPackage ? Icons.edit_rounded : Icons.search_rounded),
       label: Text(
-        hasPackage
-            ? LocaleKeys.change_package.tr()
-            : LocaleKeys.select_game_package.tr(),
+        hasPackage ? LocaleKeys.change.tr() : LocaleKeys.select.tr(),
       ),
     );
   }
 }
-
-// New organized sections for better UI structure
 
 class _PackageSelectionSection extends StatelessWidget {
   const _PackageSelectionSection({
@@ -604,7 +600,11 @@ class _ActionButtons extends StatelessWidget {
     return Container(
       padding: 16.vertical,
       child: LoadingButtonBuilder(
-        onPressed: () => controller.createGame(context),
+        onPressed: () async {
+          await const ProfileDialog().showIfUnauthorized(context);
+          if (!context.mounted) return;
+          await controller.createGame(context);
+        },
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

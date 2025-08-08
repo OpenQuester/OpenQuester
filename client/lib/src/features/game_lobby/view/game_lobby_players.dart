@@ -105,90 +105,92 @@ class GameLobbyPlayer extends WatchingWidget {
       ),
       padding: 4.all,
       constraints: GameLobbyStyles.playerTileConstrains(context),
-      child: IconTheme(
-        data: const IconThemeData(size: 16, color: Colors.white),
-        child: Stack(
-          alignment: Alignment.center,
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(
-              child: Container(
-                foregroundDecoration: BoxDecoration(
-                  color: foregroundColor,
-                  borderRadius: 8.circular,
+      child: DefaultTextStyle(
+        style: context.textTheme.bodySmall!.copyWith(
+          color: Colors.white,
+        ),
+        child: IconTheme(
+          data: const IconThemeData(size: 16, color: Colors.white),
+          child: Stack(
+            alignment: Alignment.center,
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(
+                child: Container(
+                  foregroundDecoration: BoxDecoration(
+                    color: foregroundColor,
+                    borderRadius: 8.circular,
+                  ),
+                  decoration: BoxDecoration(borderRadius: 8.circular),
+                  clipBehavior: Clip.antiAlias,
+                  child: ImageWidget(url: player.meta.avatar),
                 ),
-                decoration: BoxDecoration(borderRadius: 8.circular),
-                clipBehavior: Clip.antiAlias,
-                child: ImageWidget(url: player.meta.avatar),
               ),
-            ),
-            Stack(
-              alignment: Alignment.topRight,
-              fit: StackFit.expand,
-              children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      player.meta.username,
-                      style: GameLobbyStyles.playerTextStyle(context),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (player.role == PlayerRole.player)
-                      _PlayerScoreText(score: player.score)
-                    else if (player.role == PlayerRole.showman)
-                      Text(
-                        LocaleKeys.showman.tr(),
-                        style: context.textTheme.bodySmall,
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            if (player.role == PlayerRole.showman)
-              Align(
+              Stack(
                 alignment: Alignment.topRight,
-                child: Assets.icons.crown
-                    .svg(
-                      width: 16,
-                      height: 16,
-                      colorFilter: const ColorFilter.mode(
-                        Colors.white,
-                        BlendMode.srcIn,
+                fit: StackFit.expand,
+                children: [
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        player.meta.username,
+                        style: GameLobbyStyles.playerTextStyle(context),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    )
-                    .withTooltip(msg: LocaleKeys.showman.tr())
-                    .paddingAll(2),
+                      if (player.role == PlayerRole.player)
+                        _PlayerScoreText(score: player.score)
+                      else if (player.role == PlayerRole.showman)
+                        Text(LocaleKeys.showman.tr()),
+                    ],
+                  ),
+                ],
               ),
-            if (player.status == PlayerDataStatus.disconnected ||
-                customIcon != null)
-              Align(
-                alignment: Alignment.topLeft,
-                child:
-                    customIcon ??
-                    const Icon(Icons.signal_wifi_off).paddingAll(2),
-              ),
-            if (answering || picking)
-              Align(
-                alignment: Alignment.bottomRight,
-                child: Icon(
-                  picking ? Icons.star_border_rounded : Icons.more_horiz,
-                ).paddingAll(2),
-              ),
-            if (!{
-              PlayerAnswerState.skip,
-              PlayerAnswerState.none,
-            }.contains(playerAnswerState))
-              Align(
-                alignment: Alignment.bottomLeft,
-                child: Icon(
-                  playerAnswerState == PlayerAnswerState.correct
-                      ? Icons.check
-                      : Icons.close,
-                ).paddingAll(2),
-              ),
-          ],
-        ).center(),
+              if (player.role == PlayerRole.showman)
+                Align(
+                  alignment: Alignment.topRight,
+                  child: Assets.icons.crown
+                      .svg(
+                        width: 16,
+                        height: 16,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
+                      )
+                      .withTooltip(msg: LocaleKeys.showman.tr())
+                      .paddingAll(2),
+                ),
+              if (player.status == PlayerDataStatus.disconnected ||
+                  customIcon != null)
+                Align(
+                  alignment: Alignment.topLeft,
+                  child:
+                      customIcon ??
+                      const Icon(Icons.signal_wifi_off).paddingAll(2),
+                ),
+              if (answering || picking)
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: Icon(
+                    picking ? Icons.star_border_rounded : Icons.more_horiz,
+                  ).paddingAll(2),
+                ),
+              if (!{
+                PlayerAnswerState.skip,
+                PlayerAnswerState.none,
+              }.contains(playerAnswerState))
+                Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Icon(
+                    playerAnswerState == PlayerAnswerState.correct
+                        ? Icons.check
+                        : Icons.close,
+                  ).paddingAll(2),
+                ),
+            ],
+          ).center(),
+        ),
       ),
     );
 

@@ -57,6 +57,7 @@ class _GamePreviewScreenState extends State<GamePreviewScreen> {
   Widget build(BuildContext context) {
     final game = getIt<GamePreviewController>().game;
     final child = Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         if (loading || game == null)
           const CircularProgressIndicator().center()

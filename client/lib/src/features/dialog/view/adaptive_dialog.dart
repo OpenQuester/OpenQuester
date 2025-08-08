@@ -39,29 +39,31 @@ class _AdaptiveDialogState extends State<AdaptiveDialog>
       color: Colors.transparent,
       child: GestureDetector(
         onTap: () => Navigator.pop(context),
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          body: showDialog
-              ? widget.constraints != null
-                    ? ConstrainedBox(
-                        constraints: widget.constraints!,
-                        child: DialogContainer(child: builder(context, null)),
-                      ).center()
-                    : DialogContainer(child: builder(context, null))
-              : Align(
-                  alignment: Alignment.bottomCenter,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 8,
-                    children: [
-                      const Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [CloseButton()],
-                      ).paddingTop(8),
-                      builder(context, null).flexible(),
-                    ],
+        child: SafeArea(
+          child: Scaffold(
+            backgroundColor: Colors.transparent,
+            body: showDialog
+                ? widget.constraints != null
+                      ? ConstrainedBox(
+                          constraints: widget.constraints!,
+                          child: DialogContainer(child: builder(context, null)),
+                        ).center()
+                      : DialogContainer(child: builder(context, null))
+                : Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 8,
+                      children: [
+                        const Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [CloseButton()],
+                        ).paddingTop(8),
+                        builder(context, null).flexible(),
+                      ],
+                    ),
                   ),
-                ),
+          ),
         ),
       ),
     );
