@@ -6,8 +6,6 @@ import 'package:fvp/fvp.dart' as fvp;
 import 'package:openquester/common_imports.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import 'controllers/theme_controller.dart';
-
 class AppInit {
   static Future<void> init() async {
     final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
@@ -22,10 +20,6 @@ class AppInit {
     setUrlStrategy(PathUrlStrategy());
 
     await configureDependencies();
-    // Theme controller manual init (not injectable yet)
-    final themeController = ThemeController();
-    await themeController.init();
-    getIt.registerSingleton<ThemeController>(themeController);
 
     // Init fvp plugin for video_player to support hardware decoding
     fvp.registerWith(

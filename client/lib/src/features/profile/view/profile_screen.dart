@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
-import '../../../core/controllers/theme_controller.dart';
-
 // Keep for backward compatibility, but primary access is through ProfileDialog
 @RoutePage()
 class ProfileScreen extends WatchingWidget {
@@ -111,13 +109,7 @@ class _LoginContent extends WatchingWidget {
           ],
         ),
         LoadingButtonBuilder(
-          onPressed: () async {
-            try {
-              await getIt.get<AuthController>().loginUser();
-            } catch (e) {
-              await getIt<ToastController>().show(e.toString());
-            }
-          },
+          onPressed: getIt.get<AuthController>().loginUser,
           builder: (context, child, onPressed) {
             return FilledButton.icon(
               onPressed: onPressed,
@@ -317,100 +309,112 @@ class _ThemeSettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = getIt<ThemeController>();
     return ExpansionTile(
-      initiallyExpanded: false,
-      title: const Text('Appearance'),
+      title: Text(LocaleKeys.theme_appearance.tr()),
       leading: const Icon(Icons.palette_outlined),
       childrenPadding: 16.horizontal + 12.bottom,
       children: [
-        _ThemeModeSelector(controller: controller),
+        const _ThemeModeSelector(),
         12.height,
-        _SeedSelector(controller: controller),
+        const _SeedSelector(),
       ],
     );
   }
 }
 
-class _ThemeModeSelector extends StatelessWidget {
-  const _ThemeModeSelector({required this.controller});
-  final ThemeController controller;
+class _ThemeModeSelector extends WatchingWidget {
+  const _ThemeModeSelector();
 
   @override
   Widget build(BuildContext context) {
-    final modes = ThemeMode.values;
-    return ValueListenableBuilder(
-      valueListenable: controller.themeMode,
-      builder: (context, ThemeMode mode, _) {
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: modes.map((m) {
-            final selected = m == mode;
-            return ChoiceChip(
-              label: Text(_label(m)),
-              selected: selected,
-              onSelected: (_) => controller.setThemeMode(m),
-            );
-          }).toList(),
+    const modes = ThemeMode.values;
+    final controller = watchIt<SettingsController>();
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: modes.map((m) {
+        final selected = m == controller.settings.themeMode;
+        return ChoiceChip(
+          label: Text(_label(m)),
+          selected: selected,
+          onSelected: (_) => controller.updateSettings(
+            controller.settings.copyWith(
+              themeMode: m,
+            ),
+          ),
         );
-      },
+      }).toList(),
     );
   }
 
   String _label(ThemeMode mode) => switch (mode) {
-    ThemeMode.system => 'System',
-    ThemeMode.light => 'Light',
-    ThemeMode.dark => 'Dark',
+    ThemeMode.system => LocaleKeys.theme_system.tr(),
+    ThemeMode.light => LocaleKeys.theme_light.tr(),
+    ThemeMode.dark => LocaleKeys.theme_dark.tr(),
   };
 }
 
-class _SeedSelector extends StatelessWidget {
-  const _SeedSelector({required this.controller});
-  final ThemeController controller;
+class _SeedSelector extends WatchingWidget {
+  const _SeedSelector();
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: controller.seed,
-      builder: (context, AppThemeSeed current, _) {
-        return Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: AppThemeSeed.values.map((AppThemeSeed s) {
-            final selected = s == current;
-            final color = s.color;
-            return InkWell(
-              onTap: () => controller.setSeed(s),
+    final controller = watchIt<SettingsController>();
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: AppThemeSeed.values.map((AppThemeSeed s) {
+        final selected = s == controller.settings.themeSeed;
+        final color = s.color;
+        return InkWell(
+          onTap: () => controller.updateSettings(
+            controller.settings.copyWith(
+              themeSeed: s,
+            ),
+          ),
+          borderRadius: 12.circular,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
               borderRadius: 12.circular,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: 12.circular,
-                  color: color.withValues(alpha: .12),
-                  border: Border.all(
-                    color: selected ? color : color.withValues(alpha: .4),
-                    width: selected ? 2 : 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 6,
-                  children: [
-                    CircleAvatar(radius: 6, backgroundColor: color),
-                    Text(s.label),
-                    if (selected) Icon(Icons.check, size: 14, color: color),
-                  ],
-                ),
+              color: color.withValues(alpha: .12),
+              border: Border.all(
+                color: selected ? color : color.withValues(alpha: .4),
+                width: selected ? 2 : 1,
               ),
-            );
-          }).toList(),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 6,
+              children: [
+                CircleAvatar(radius: 6, backgroundColor: color),
+                Text(
+                  switch (s) {
+                    AppThemeSeed.indigo =>
+                      LocaleKeys.theme_color_seeds_indigo.tr(),
+                    AppThemeSeed.deepPurple =>
+                      LocaleKeys.theme_color_seeds_deep_purple.tr(),
+                    AppThemeSeed.teal => LocaleKeys.theme_color_seeds_teal.tr(),
+                    AppThemeSeed.orange =>
+                      LocaleKeys.theme_color_seeds_orange.tr(),
+                    AppThemeSeed.pink => LocaleKeys.theme_color_seeds_pink.tr(),
+                    AppThemeSeed.green =>
+                      LocaleKeys.theme_color_seeds_green.tr(),
+                    AppThemeSeed.blueGrey =>
+                      LocaleKeys.theme_color_seeds_blue_grey.tr(),
+                  },
+                ),
+                if (selected) Icon(Icons.check, size: 14, color: color),
+              ],
+            ),
+          ),
         );
-      },
+      }).toList(),
     );
   }
 }
