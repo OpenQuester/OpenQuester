@@ -28,55 +28,53 @@ class ProfileDialog extends WatchingWidget {
 
     return AdaptiveDialog(
       constraints: const BoxConstraints(maxWidth: 400),
-      builder: (context) => SingleChildScrollView(
-        child: Card(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header
-              Container(
-                padding: 20.all,
-                decoration: BoxDecoration(
-                  color: context.theme.colorScheme.primaryContainer.withValues(
-                    alpha: 0.3,
-                  ),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
+      builder: (context) => Card(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header
+            Container(
+              padding: 20.all,
+              decoration: BoxDecoration(
+                color: context.theme.colorScheme.primaryContainer.withValues(
+                  alpha: 0.3,
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.account_circle_outlined,
-                      color: context.theme.colorScheme.primary,
-                    ),
-                    Text(
-                      LocaleKeys.profile.tr(),
-                      style: context.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ).paddingLeft(8),
-                  ],
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
                 ),
               ),
-
-              // Content
-              Padding(
-                padding: 24.all,
-                child: user == null
-                    ? const _LoginContent()
-                    : _ProfileContent(user: user),
-              ),
-              const Column(
-                spacing: 12,
+              child: Row(
                 children: [
-                  _ThemeSettingsSection(),
-                  _GameSettingsSection(),
-                  _AppInfo(),
+                  Icon(
+                    Icons.account_circle_outlined,
+                    color: context.theme.colorScheme.primary,
+                  ),
+                  Text(
+                    LocaleKeys.profile.tr(),
+                    style: context.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ).paddingLeft(8),
                 ],
-              ).paddingSymmetric(horizontal: 12).paddingBottom(12),
-            ],
-          ),
+              ),
+            ),
+      
+            // Content
+            Padding(
+              padding: 24.all,
+              child: user == null
+                  ? const _LoginContent()
+                  : _ProfileContent(user: user),
+            ),
+            const Column(
+              spacing: 12,
+              children: [
+                _ThemeSettingsSection(),
+                _GameSettingsSection(),
+                _AppInfo(),
+              ],
+            ).paddingSymmetric(horizontal: 12).paddingBottom(12),
+          ],
         ),
       ),
     );
