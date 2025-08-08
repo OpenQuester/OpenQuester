@@ -22,7 +22,6 @@ class PaginatedListWidget<
               PagedListView<int, ListItem>(
                 state: state,
                 fetchNextPage: fetchNextPage,
-                padding: const EdgeInsets.only(bottom: 8),
                 builderDelegate: PagedChildBuilderDelegate<ListItem>(
                   animateTransitions: true,
                   itemBuilder: itemBuilder,

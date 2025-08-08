@@ -21,10 +21,12 @@ class GameQuestionController {
     questionData.value = null;
     error.value = null;
     showMedia.value = false;
-
-    final asyncActions = [?_tmpFile?.delete(), clearVideoControllers()];
-    await Future.wait(asyncActions);
-
+    await clearVideoControllers();
+    try {
+      await _tmpFile?.delete();
+    } catch (e) {
+      logger.w(e);
+    }
     _tmpFile = null;
   }
 
