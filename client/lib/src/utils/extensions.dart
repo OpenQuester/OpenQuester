@@ -192,3 +192,17 @@ extension PackageResponseX on PackageResponse {
     );
   }
 }
+
+extension ColorX on Color {
+  /// Change color brightness
+  /// [amount] is the amount to change the brightness. From -1 to 1.
+  /// Positive values will lighten the color, while negative values
+  /// will darken it.
+  Color withBrightness(double amount) {
+    assert(amount >= -1 && amount <= 1, 'Amount must be between -1 and 1');
+
+    final hsl = HSLColor.fromColor(this);
+    final hslDark = hsl.withLightness((hsl.lightness + amount).clamp(0.0, 1.0));
+    return hslDark.toColor();
+  }
+}
