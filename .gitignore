@@ -1,6 +1,8 @@
 # Vscode files
 .vscode/settings.json
+
 .history/
+*.log
 
 # Env files
 .env*

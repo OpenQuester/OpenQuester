@@ -4,19 +4,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 @Singleton(order: 0)
 class Storage {
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
-  Future<void> put(String key, String value) async {
+  Future<void> put(StorageKeys key, String value) async {
     final prefs = await _prefs;
-    await prefs.setString(key, value);
+    await prefs.setString(key.name, value);
   }
 
-  Future<Object?> get(String key) async {
+  Future<Object?> get(StorageKeys key) async {
     final prefs = await _prefs;
-    return prefs.get(key);
+    return prefs.get(key.name);
   }
 
-  Future<void> rm(String key) async {
+  Future<void> rm(StorageKeys key) async {
     final prefs = await _prefs;
-    await prefs.remove(key);
+    await prefs.remove(key.name);
     return;
   }
+}
+
+enum StorageKeys {
+  appSettings,
 }

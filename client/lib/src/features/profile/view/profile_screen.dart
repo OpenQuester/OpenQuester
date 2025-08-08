@@ -29,7 +29,6 @@ class ProfileDialog extends WatchingWidget {
     return AdaptiveDialog(
       constraints: const BoxConstraints(maxWidth: 400),
       builder: (context) => Card(
-        elevation: 0,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -59,7 +58,7 @@ class ProfileDialog extends WatchingWidget {
                 ],
               ),
             ),
-
+      
             // Content
             Padding(
               padding: 24.all,
@@ -67,6 +66,14 @@ class ProfileDialog extends WatchingWidget {
                   ? const _LoginContent()
                   : _ProfileContent(user: user),
             ),
+            const Column(
+              spacing: 12,
+              children: [
+                _ThemeSettingsSection(),
+                _GameSettingsSection(),
+                _AppInfo(),
+              ],
+            ).paddingSymmetric(horizontal: 12).paddingBottom(12),
           ],
         ),
       ),
@@ -108,13 +115,7 @@ class _LoginContent extends WatchingWidget {
           ],
         ),
         LoadingButtonBuilder(
-          onPressed: () async {
-            try {
-              await getIt.get<AuthController>().loginUser();
-            } catch (e) {
-              await getIt<ToastController>().show(e.toString());
-            }
-          },
+          onPressed: getIt.get<AuthController>().loginUser,
           builder: (context, child, onPressed) {
             return FilledButton.icon(
               onPressed: onPressed,
@@ -246,20 +247,6 @@ class _ProfileContent extends WatchingWidget {
                 minimumSize: const Size.fromHeight(40),
               ),
             ),
-
-            // App info
-            Column(
-              spacing: 4,
-              children: [
-                const UpdateBtn(),
-                Text(
-                  getIt<AutoUpdateController>().getCurrentVersion,
-                  style: context.textTheme.bodySmall?.copyWith(
-                    color: context.theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
           ],
         ),
       ],
@@ -304,6 +291,180 @@ class _InfoRow extends StatelessWidget {
             ),
           ],
         ).paddingLeft(8).expand(),
+      ],
+    );
+  }
+}
+
+class _ThemeSettingsSection extends StatelessWidget {
+  const _ThemeSettingsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      title: Text(LocaleKeys.theme_appearance.tr()),
+      leading: const Icon(Icons.palette_outlined),
+      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _ThemeModeSelector(),
+        12.height,
+        const _SeedSelector(),
+      ],
+    );
+  }
+}
+
+class _GameSettingsSection extends WatchingWidget {
+  const _GameSettingsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = getIt<SettingsController>();
+
+    return ExpansionTile(
+      title: Text(LocaleKeys.game_settings.tr()),
+      leading: const Icon(Icons.palette_outlined),
+      expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _BoolSetting(
+          title: LocaleKeys.settings_limit_desktop_width.tr(),
+          state: watchPropertyValue(
+            (SettingsController m) => m.settings.limitDesktopWidth,
+          ),
+          onChanged: (value) => controller.updateSettings(
+            controller.settings.copyWith(
+              limitDesktopWidth: value,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BoolSetting extends StatelessWidget {
+  const _BoolSetting({
+    required this.title,
+    required this.state,
+    required this.onChanged,
+  });
+  final String title;
+  final bool state;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      title: Text(title),
+      trailing: Switch(
+        value: state,
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+class _ThemeModeSelector extends WatchingWidget {
+  const _ThemeModeSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = watchIt<SettingsController>();
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: AppThemeMode.values.map((m) {
+        final selected = m == controller.settings.themeMode;
+        return ChoiceChip(
+          label: Text(_label(m)),
+          selected: selected,
+          onSelected: (_) => controller.updateSettings(
+            controller.settings.copyWith(
+              themeMode: m,
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  String _label(AppThemeMode mode) => switch (mode) {
+    AppThemeMode.system => LocaleKeys.theme_system.tr(),
+    AppThemeMode.light => LocaleKeys.theme_light.tr(),
+    AppThemeMode.dark => LocaleKeys.theme_dark.tr(),
+    AppThemeMode.pureDark => LocaleKeys.theme_pure_dark.tr(),
+  };
+}
+
+class _SeedSelector extends WatchingWidget {
+  const _SeedSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = watchIt<SettingsController>();
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: AppThemeSeed.values.map((AppThemeSeed s) {
+        final selected = s == controller.settings.themeSeed;
+        final color = s.color;
+        return InkWell(
+          onTap: () => controller.updateSettings(
+            controller.settings.copyWith(
+              themeSeed: s,
+            ),
+          ),
+          borderRadius: 12.circular,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: 12.circular,
+              color: color.withValues(alpha: .12),
+              border: Border.all(
+                color: selected ? color : color.withValues(alpha: .4),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 6,
+              children: [
+                CircleAvatar(radius: 6, backgroundColor: color),
+                Text(s.label),
+                Visibility(
+                  visible: selected,
+                  child: Icon(Icons.check, size: 14, color: color),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _AppInfo extends StatelessWidget {
+  const _AppInfo();
+
+  @override
+  Widget build(BuildContext context) {
+    return // App info
+    Column(
+      spacing: 4,
+      children: [
+        const UpdateBtn(),
+        Text(
+          getIt<AutoUpdateController>().getCurrentVersion,
+          style: context.textTheme.bodySmall?.copyWith(
+            color: context.theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
       ],
     );
   }

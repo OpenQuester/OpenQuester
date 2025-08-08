@@ -23,12 +23,17 @@ class _AdaptiveDialogState extends State<AdaptiveDialog>
     final showDialog =
         !widget.allowBottomSheet || UiModeUtils.wideModeOn(context);
 
-    final child = GestureDetector(
-      child: widget.builder(context),
-      onTap: () {
-        /* do nothing—this swallows the tap */
-      },
-    );
+    Widget builder(BuildContext context, ScrollController? scrollController) =>
+        GestureDetector(
+          child: ListView(
+            controller: scrollController,
+            shrinkWrap: true,
+            children: [widget.builder(context)],
+          ),
+          onTap: () {
+            /* do nothing—this swallows the tap */
+          },
+        );
 
     return Material(
       color: Colors.transparent,
@@ -40,20 +45,22 @@ class _AdaptiveDialogState extends State<AdaptiveDialog>
               ? widget.constraints != null
                     ? ConstrainedBox(
                         constraints: widget.constraints!,
-                        child: DialogContainer(child: child),
+                        child: DialogContainer(child: builder(context, null)),
                       ).center()
-                    : DialogContainer(child: child)
-              : GestureDetector(onTap: () => Navigator.pop(context)),
-          bottomSheet: showDialog
-              ? const SizedBox() // Fixes child dublicates
-              : BottomSheet(
-                  elevation: 0,
-                  onClosing: () {},
-                  showDragHandle: true,
-                  animationController: BottomSheet.createAnimationController(
-                    this,
+                    : DialogContainer(child: builder(context, null))
+              : Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [CloseButton()],
+                      ).paddingTop(8),
+                      builder(context, null).flexible(),
+                    ],
                   ),
-                  builder: (_) => child,
                 ),
         ),
       ),

@@ -106,10 +106,30 @@
   "create_game_hint": "Set up your game and invite players to join",
   "email": "Email",
   "member_since": "Member Since",
+  "theme": {
+    "color_seeds": {
+      "indigo": "Indigo",
+      "deep_purple": "Deep Purple",
+      "teal": "Teal",
+      "orange": "Orange",
+      "pink": "Pink",
+      "green": "Green",
+      "blue_grey": "Blue Grey"
+    },
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark",
+    "pure_dark": "Pure Dark",
+    "appearance": "Appearance"
+  },
+
   "game_package": "Game Package",
   "selected_package": "Selected Package",
   "ready_to_play": "Ready to play",
   "change_package": "Change Package",
   "game_settings": "Game Settings",
-  "connect_discord": "Connect your Discord account to get started"
+  "connect_discord": "Connect your Discord account to get started",
+  "settings": {
+    "limit_desktop_width": "Limit game lobby width"
+  }
 }

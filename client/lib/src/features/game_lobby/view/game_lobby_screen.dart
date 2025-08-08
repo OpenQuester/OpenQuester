@@ -36,6 +36,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     final gameData = watchValue((GameLobbyController e) => e.gameListData);
     final chatWideModeOn = GameLobbyStyles.desktopChat(context);
     final showDesktopChat = chatWideModeOn && showChat;
+    final settings = watchPropertyValue<SettingsController, AppSettings>(
+      (e) => e.settings,
+    );
 
     callOnce((context) {
       // Set init value for showing chat to [false] for mobile
@@ -53,6 +56,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       child: ColoredBox(
         color: context.theme.colorScheme.surface,
         child: MaxSizeContainer(
+          enabled: settings.limitDesktopWidth,
           maxWidth: UiModeUtils.extraLarge,
           child: Scaffold(
             extendBody: true,

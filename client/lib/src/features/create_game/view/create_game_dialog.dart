@@ -17,77 +17,75 @@ class CreateGameDialog extends WatchingWidget {
     return AdaptiveDialog(
       builder: (context) => Card(
         elevation: 0,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header section with title and icon
-              Container(
-                padding: 16.all,
-                decoration: BoxDecoration(
-                  color: context.theme.colorScheme.primaryContainer.withValues(
-                    alpha: 0.3,
-                  ),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header section with title and icon
+            Container(
+              padding: 16.all,
+              decoration: BoxDecoration(
+                color: context.theme.colorScheme.primaryContainer.withValues(
+                  alpha: 0.3,
                 ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.rocket_launch_rounded,
-                      size: 36,
-                      color: context.theme.colorScheme.primary,
-                    ).paddingBottom(8),
-                    Text(
-                      LocaleKeys.start_game.tr(),
-                      style: context.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: context.theme.colorScheme.onSurface,
-                      ),
-                      textAlign: TextAlign.center,
-                    ).paddingBottom(4),
-                    Text(
-                      LocaleKeys.create_game_hint.tr(),
-                      style: context.textTheme.bodyMedium?.copyWith(
-                        color: context.theme.colorScheme.onSurface.withValues(
-                          alpha: 0.7,
-                        ),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
                 ),
               ),
-              // Main content
-              Form(
-                key: controller.formKey,
-                child: Column(
-                  spacing: 20,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Package selection section
-                    _PackageSelectionSection(
-                      controller: controller,
-                      state: state,
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.rocket_launch_rounded,
+                    size: 36,
+                    color: context.theme.colorScheme.primary,
+                  ).paddingBottom(8),
+                  Text(
+                    LocaleKeys.start_game.tr(),
+                    style: context.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: context.theme.colorScheme.onSurface,
                     ),
-
-                    // Game configuration section
-                    _GameConfigSection(
-                      controller: controller,
-                      state: state,
+                    textAlign: TextAlign.center,
+                  ).paddingBottom(4),
+                  Text(
+                    LocaleKeys.create_game_hint.tr(),
+                    style: context.textTheme.bodyMedium?.copyWith(
+                      color: context.theme.colorScheme.onSurface.withValues(
+                        alpha: 0.7,
+                      ),
                     ),
-
-                    // Action buttons with better styling
-                    _ActionButtons(
-                      controller: controller,
-                      stateValid: state.valid,
-                    ),
-                  ],
-                ),
-              ).paddingAll(16),
-            ],
-          ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            // Main content
+            Form(
+              key: controller.formKey,
+              child: Column(
+                spacing: 20,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Package selection section
+                  _PackageSelectionSection(
+                    controller: controller,
+                    state: state,
+                  ),
+        
+                  // Game configuration section
+                  _GameConfigSection(
+                    controller: controller,
+                    state: state,
+                  ),
+        
+                  // Action buttons with better styling
+                  _ActionButtons(
+                    controller: controller,
+                    stateValid: state.valid,
+                  ),
+                ],
+              ),
+            ).paddingAll(16),
+          ],
         ),
       ),
     );

@@ -3,7 +3,22 @@ import 'package:flutter/services.dart';
 import 'package:openquester/common_imports.dart';
 
 class AppTheme {
+  static ThemeData build(Color seed, Brightness brightness) {
+    final base = ThemeData(
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: seed,
+        brightness: brightness,
+      ),
+      brightness: brightness,
+      useMaterial3: true,
+    );
+    return change(base);
+  }
+
   static ThemeData change(ThemeData theme) {
+    final pureDark =
+        getIt<SettingsController>().settings.themeMode == AppThemeMode.pureDark;
+
     return theme.copyWith(
       bottomNavigationBarTheme: theme.bottomNavigationBarTheme.copyWith(
         type: BottomNavigationBarType.shifting,
@@ -11,15 +26,24 @@ class AppTheme {
         selectedItemColor: theme.colorScheme.onPrimary,
         unselectedItemColor: theme.colorScheme.primary,
       ),
+      scaffoldBackgroundColor: pureDark ? Colors.black : null,
       appBarTheme: appBarTheme(theme),
       pageTransitionsTheme: pageTransitionsTheme,
       inputDecorationTheme: inputDecorationTheme,
       tooltipTheme: tooltipTheme,
+      expansionTileTheme: expansionTileTheme(theme),
+      colorScheme: theme.colorScheme.copyWith(
+        surface: pureDark ? Colors.black : null,
+      ),
       extensions: const [
         ExtraColors(success: Color(0xFF7CE883), warning: Color(0xFFFFE078)),
       ],
     );
   }
+
+  // Backward compatibility default themes (using indigo seed)
+  static ThemeData get light => build(Colors.indigo, Brightness.light);
+  static ThemeData get dark => build(Colors.indigo, Brightness.dark);
 
   static AppBarTheme appBarTheme(ThemeData theme) {
     return AppBarTheme(
@@ -40,7 +64,6 @@ class AppTheme {
   static PageTransitionsTheme get pageTransitionsTheme {
     return const PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
-        // Set the predictive back transitions for Android.
         TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
       },
     );
@@ -55,8 +78,22 @@ class AppTheme {
     );
   }
 
-  static ThemeData get light => change(ThemeData.light());
-  static ThemeData get dark => change(ThemeData.dark());
+  static ExpansionTileThemeData expansionTileTheme(ThemeData theme) {
+    final shape = RoundedRectangleBorder(
+      borderRadius: 12.circular,
+      side: BorderSide(
+        color: theme.colorScheme.outline.withValues(alpha: 0.1),
+      ),
+    );
+
+    return ExpansionTileThemeData(
+      shape: shape,
+      collapsedShape: shape,
+      childrenPadding: 12.bottom,
+
+      clipBehavior: Clip.antiAlias,
+    );
+  }
 }
 
 class ExtraColors extends ThemeExtension<ExtraColors> {
