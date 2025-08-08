@@ -1,3 +1,4 @@
+import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 import 'package:video_player/video_player.dart';
@@ -31,12 +32,12 @@ class GameQuestionMediaWidget extends WatchingWidget {
         child = ImageWidget(url: url);
       } else if (mediaController != null) {
         if (fileType == PackageFileType.audio) {
-          child = const Icon(Icons.music_note, size: 60);
+          child = const Icon(Icons.music_note, size: 60).fadeOut();
         } else {
           child = AspectRatio(
             aspectRatio: mediaController.value.aspectRatio,
             child: VideoPlayer(mediaController),
-          );
+          ).fadeIn();
         }
       }
     }
