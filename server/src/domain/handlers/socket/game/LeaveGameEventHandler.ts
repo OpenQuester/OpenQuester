@@ -120,7 +120,10 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
           (p) => p.gameStatus === PlayerGameStatus.IN_GAME
         );
 
-        if (activePlayers.length === 0) {
+        const gameNotStartedOrFinished =
+          game.startedAt === null || game.finishedAt !== null;
+
+        if (activePlayers.length === 0 && gameNotStartedOrFinished) {
           await this.socketIOGameService.deleteGameInternally(context.gameId);
         }
       } catch (error) {
