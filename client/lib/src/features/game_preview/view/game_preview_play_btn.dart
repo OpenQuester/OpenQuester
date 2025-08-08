@@ -8,7 +8,10 @@ class GamePreviewPlayButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return FadeInAnimationWidget(
       child: LoadingButtonBuilder(
-        onPressed: () => getIt<GamePreviewController>().onPressPlay(context),
+        onPressed: () async {
+          await const ProfileDialog().showIfUnauthorized(context);
+          await getIt<GamePreviewController>().onPressPlay();
+        },
         child: const Icon(Icons.play_arrow),
         builder: (context, child, onPressed) => FilledButton(
           onPressed: onPressed,

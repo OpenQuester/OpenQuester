@@ -22,6 +22,12 @@ class ProfileDialog extends WatchingWidget {
     );
   }
 
+  Future<void> showIfUnauthorized(BuildContext context) async {
+    final isAuthorized = getIt<AuthController>().authorized;
+    if (isAuthorized) return;
+    await show(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = watchValue((ProfileController m) => m.user);
@@ -58,7 +64,7 @@ class ProfileDialog extends WatchingWidget {
                 ],
               ),
             ),
-      
+
             // Content
             Padding(
               padding: 24.all,
@@ -305,10 +311,11 @@ class _ThemeSettingsSection extends StatelessWidget {
       title: Text(LocaleKeys.theme_appearance.tr()),
       leading: const Icon(Icons.palette_outlined),
       expandedCrossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _ThemeModeSelector(),
-        12.height,
-        const _SeedSelector(),
+      childrenPadding: 12.horizontal,
+      children: const [
+        _ThemeModeSelector(),
+        Divider(),
+        _SeedSelector(),
       ],
     );
   }
@@ -323,7 +330,7 @@ class _GameSettingsSection extends WatchingWidget {
 
     return ExpansionTile(
       title: Text(LocaleKeys.game_settings.tr()),
-      leading: const Icon(Icons.palette_outlined),
+      leading: const Icon(Icons.settings_outlined),
       expandedCrossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _BoolSetting(

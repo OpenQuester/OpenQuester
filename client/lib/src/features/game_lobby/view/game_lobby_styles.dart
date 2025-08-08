@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
 class GameLobbyStyles {
@@ -13,7 +13,10 @@ class GameLobbyStyles {
 
   static TextStyle? playerTextStyle(BuildContext context) {
     final wideMode = playersOnLeft(context);
-    return wideMode ? context.textTheme.bodyLarge : context.textTheme.bodySmall;
+    final style = wideMode
+        ? context.textTheme.bodyLarge
+        : context.textTheme.bodySmall;
+    return style?.copyWith(color: Colors.white);
   }
 
   static bool desktopChat(BuildContext context) =>

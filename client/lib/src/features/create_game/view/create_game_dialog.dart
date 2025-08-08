@@ -70,13 +70,13 @@ class CreateGameDialog extends WatchingWidget {
                     controller: controller,
                     state: state,
                   ),
-        
+
                   // Game configuration section
                   _GameConfigSection(
                     controller: controller,
                     state: state,
                   ),
-        
+
                   // Action buttons with better styling
                   _ActionButtons(
                     controller: controller,
@@ -604,7 +604,11 @@ class _ActionButtons extends StatelessWidget {
     return Container(
       padding: 16.vertical,
       child: LoadingButtonBuilder(
-        onPressed: () => controller.createGame(context),
+        onPressed: () async {
+          await const ProfileDialog().showIfUnauthorized(context);
+          if (!context.mounted) return;
+          await controller.createGame(context);
+        },
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

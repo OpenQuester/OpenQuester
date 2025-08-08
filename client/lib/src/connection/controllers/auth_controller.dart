@@ -25,10 +25,7 @@ class AuthController extends ChangeNotifier {
         tokenSchema: accessTokenResponse.tokenType,
       );
 
-      getIt<ProfileController>().user.value = await getIt
-          .get<Api>()
-          .api
-          .auth
+      getIt<ProfileController>().user.value = await Api.I.api.auth
           .postV1AuthOauth2(body: inputOauthLogin);
 
       notifyListeners();

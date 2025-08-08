@@ -102,7 +102,7 @@ class GameLobbyController {
     try {
       logger.d('GameLobbyController._onConnect: $gameId');
 
-      await getIt<Api>().api.auth.postV1AuthSocket(
+      await Api.I.api.auth.postV1AuthSocket(
         body: InputSocketIOAuth(socketId: socket!.id!),
       );
 
