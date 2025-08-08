@@ -32,7 +32,7 @@ class _AppState extends State<App> {
         restorationScopeId: 'app',
         theme: settings.lightTheme,
         darkTheme: settings.darkTheme,
-        themeMode: settings.themeMode,
+        themeMode: settings.themeMode.material,
         routerConfig: getIt<AppRouter>().config(
           deepLinkTransformer: getIt<AppRouter>().deepLinkTransformer,
         ),

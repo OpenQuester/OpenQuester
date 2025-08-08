@@ -16,15 +16,22 @@ class SettingsController extends ChangeNotifier {
   Future<AppSettings> getSettings() async {
     final storage = getIt<Storage>();
     final settingsJson = await storage.get(StorageKeys.appSettings);
+    const defaultSettings = AppSettings();
 
     if (settingsJson != null) {
-      return AppSettings.fromJson(settingsJson as Map<String, dynamic>);
-    } else {
-      return const AppSettings(
-        themeSeed: AppThemeSeed.indigo,
-        themeMode: ThemeMode.system,
-      );
+      // Attempt to parse the settings JSON
+      // If it fails, log the error and return default settings
+      try {
+        return AppSettings.fromJson(
+          jsonDecode(settingsJson.toString()) as Map<String, dynamic>,
+        );
+      } catch (e) {
+        logger.e(e);
+        return defaultSettings;
+      }
     }
+    // If no settings are found, return default settings
+    return defaultSettings;
   }
 
   void updateSettings(AppSettings newSettings) {
