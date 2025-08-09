@@ -75,13 +75,37 @@ class ContentXmlParser {
     final scenario = question.getElement('scenario');
     final params = question.getElement('params') ?? scenario;
 
-    final questionType =
-        QuestionType.values.firstWhereOrNull(
-          (e) => e.name == question.getAttribute('type'),
-        ) ??
-        QuestionType.simple;
+    final questionTypeValue =
+        question.getAttribute('type') ??
+        question.getElement('type')?.getAttribute('name');
+    var questionType = QuestionType.simple;
+    if (questionTypeValue != null) {
+      for (final type in QuestionType.values.where(
+        (e) => e != QuestionType.$unknown,
+      )) {
+        if (type.json == questionTypeValue) {
+          questionType = type;
+          break;
+        }
+        final extraKey = extraQuestionTypesNames.entries.firstWhereOrNull(
+          (e) => e.key.contains(questionTypeValue),
+        );
+        if (extraKey != null) {
+          questionType = extraKey.value;
+          break;
+        }
+      }
+    }
 
-    final paramsChildren = params?.childElements ?? [];
+    if (questionType == QuestionType.$unknown) {
+      throw Exception('Unknown question type: $questionTypeValue');
+    }
+
+    if (params == null) {
+      throw Exception('Params not found for question: $question');
+    }
+
+    final paramsChildren = params.childElements;
     final questionParam =
         paramsChildren.firstWhereOrNull(
           (e) => e.getAttribute('name') == 'question',
@@ -96,14 +120,14 @@ class ContentXmlParser {
         ?.value;
 
     String? questionText;
-    final questionItem = questionParam?.getElement('item');
+    final questionItem = questionParam.getElement('item');
     final questionItemType =
-        questionParam?.getElement('atom')?.getAttribute('type') ??
+        questionParam.getElement('atom')?.getAttribute('type') ??
         questionItem?.getAttribute('type');
     if (questionItemType == null) {
-      questionText ??= questionItem?.innerText ?? questionParam?.innerText;
+      questionText ??= questionItem?.innerText ?? questionParam.innerText;
     } else if (questionItemType == 'say') {
-      questionText ??= questionParam?.children
+      questionText ??= questionParam.children
           .where((e) => {null, 'say'}.contains(e.getAttribute('type')))
           .map((e) => e.innerText)
           .join(' ');
@@ -115,7 +139,7 @@ class ContentXmlParser {
     final transferType = selectionModeString == 'exceptCurrent'
         ? QuestionTransferType.exceptCurrent
         : QuestionTransferType.any;
-    final answerParam = params?.children.firstWhereOrNull(
+    final answerParam = params.children.firstWhereOrNull(
       (p0) => p0.getAttribute('name') == 'answer',
     );
     final answerItems = _getFileItems(answerParam);
@@ -396,3 +420,9 @@ class ContentXmlParser {
   Archive? _archive;
   Map<String, List<ArchiveFile>> filesMD5 = {};
 }
+
+const Map<List<String>, QuestionType> extraQuestionTypesNames = {
+  ['auction']: QuestionType.stake,
+  ['sponsored']: QuestionType.noRisk,
+  ['cat', 'bagcat']: QuestionType.secret,
+};

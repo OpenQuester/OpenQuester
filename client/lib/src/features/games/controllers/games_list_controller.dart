@@ -12,8 +12,8 @@ class GamesListController extends ListControllerBase<GameListItem> {
     await super.init();
     getIt<SocketController>().general
       ..on(SocketIOEvents.games.name, _onSocketEvent)
-      // Refresh list on connection
-      ..onConnect((_) => pagingController.refresh());
+      // Refresh list on reconnect
+      ..onReconnect((_) => pagingController.refresh());
     queryFilter = null;
   }
 
