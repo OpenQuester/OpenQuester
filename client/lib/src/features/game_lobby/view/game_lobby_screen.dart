@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
@@ -119,7 +121,6 @@ class _BodyBuilder extends WatchingWidget {
       (GameQuestionController e) => e.questionData,
     );
     final gameFinished = watchValue((GameLobbyController e) => e.gameFinished);
-    final isPaused = gameData?.gameState.isPaused ?? false;
 
     Widget body;
 
@@ -127,8 +128,6 @@ class _BodyBuilder extends WatchingWidget {
       body = const GameLobbyEditor().fadeIn();
     } else if (gameData?.gameState.currentRound == null) {
       body = const CircularProgressIndicator().fadeIn().center();
-    } else if (isPaused) {
-      body = const _GamePausedScreen().fadeIn();
     } else if (gameFinished) {
       body = const _GameFinishedScreen().fadeIn();
     } else if (currentQuestion != null) {
@@ -152,16 +151,36 @@ class _BodyBuilder extends WatchingWidget {
   }
 }
 
-class _GamePausedScreen extends StatelessWidget {
+class _GamePausedScreen extends WatchingWidget {
   const _GamePausedScreen();
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      LocaleKeys.game_is_paused.tr(),
-      style: context.textTheme.displaySmall,
-      textAlign: TextAlign.center,
-    ).paddingAll(16).center();
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final imShowman = gameData?.me.role == PlayerRole.showman;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.pause, size: 54),
+        Text(
+          LocaleKeys.game_is_paused.tr(),
+          style: context.textTheme.displaySmall,
+          textAlign: TextAlign.center,
+        ),
+        if (imShowman)
+          TextButton(
+            onPressed: () =>
+                getIt<GameLobbyController>().setPause(pauseState: false),
+            style: ButtonStyle(
+              foregroundColor: WidgetStatePropertyAll(
+                context.theme.colorScheme.onSurface,
+              ),
+            ),
+            child: Text(LocaleKeys.resume_game.tr()),
+          ).paddingTop(16),
+      ],
+    ).paddingAll(16).paddingBottom(32).center();
   }
 }
 
@@ -183,13 +202,11 @@ class _BodyLayoutBuilder extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
     final playersOnLeft = GameLobbyStyles.playersOnLeft(context);
     final lobbyEditorMode = watchValue(
       (GameLobbyController e) => e.lobbyEditorMode,
     );
-
-    Widget child;
-    final body = const _BodyBuilder().expand();
 
     Widget playersList({required Axis axis}) {
       if (lobbyEditorMode) {
@@ -197,6 +214,9 @@ class _BodyLayoutBuilder extends WatchingWidget {
       }
       return GameLobbyPlayers(axis: axis);
     }
+
+    Widget child;
+    final body = const _BodyBuilder().expand();
 
     if (playersOnLeft) {
       child = Row(
@@ -223,6 +243,29 @@ class _BodyLayoutBuilder extends WatchingWidget {
         ],
       );
     }
+
+    final isPaused = gameData?.gameState.isPaused ?? false;
+    if (isPaused) {
+      child = Stack(
+        alignment: Alignment.center,
+        children: [
+          // disables mouse/touch events
+          IgnorePointer(
+            child: Container(
+              foregroundDecoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: .4),
+              ),
+              child: body,
+            ),
+          ),
+          BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+            child: const _GamePausedScreen(),
+          ).fadeIn(),
+        ],
+      );
+    }
+
     return child;
   }
 }
