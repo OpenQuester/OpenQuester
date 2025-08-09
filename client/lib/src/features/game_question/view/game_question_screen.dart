@@ -14,10 +14,15 @@ class GameQuestionScreen extends WatchingWidget {
     final questionText = fileData?.text;
     final questionMediaOnLeft = GameLobbyStyles.questionMediaOnLeft(context);
 
+    final scrollController = createOnce(
+      ScrollController.new,
+      dispose: (c) => c.dispose(),
+    );
     final questionTextWidget = _questionTextAndButtons(
       context: context,
       text: questionText,
       file: file,
+      scrollController: scrollController,
     );
 
     final column = Column(
@@ -86,6 +91,7 @@ class GameQuestionScreen extends WatchingWidget {
 
   Widget? _questionTextAndButtons({
     required BuildContext context,
+    required ScrollController scrollController,
     required String? text,
     required PackageQuestionFile? file,
   }) {
@@ -96,10 +102,12 @@ class GameQuestionScreen extends WatchingWidget {
       child: Scrollbar(
         trackVisibility: true,
         thumbVisibility: true,
+        controller: scrollController,
         child: Row(
           children: [
             ListView(
               shrinkWrap: true,
+              controller: scrollController,
               children: [
                 Text(
                   text ?? '',
