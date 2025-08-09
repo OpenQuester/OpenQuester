@@ -255,7 +255,7 @@ class _BodyLayoutBuilder extends WatchingWidget {
               foregroundDecoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: .4),
               ),
-              child: body,
+              child: child,
             ),
           ),
           BackdropFilter(
