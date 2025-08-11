@@ -1055,7 +1055,7 @@
           },
           "currentQuestion": {
             "type": ["integer", "null"],
-            "description": "Index (or id) of the currently active question in round if any",
+            "description": "ID of the currently active question in round if any",
             "examples": [0]
           },
           "playedQuestions": {

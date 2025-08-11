@@ -1,8 +1,4 @@
-export enum UserStatus {
-  ACTIVE = "active",
-  BANNED = "banned",
-  DELETED = "deleted",
-}
+import { UserStatus } from "@server-dto";
 
 export const userStatusOptions: { label: string; value: UserStatus }[] = [
   { label: "Active Only", value: UserStatus.ACTIVE },

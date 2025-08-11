@@ -56,7 +56,6 @@ export const verifySession =
     const dateExpired =
       new Date(String(req.session.cookie.expires)) < new Date();
 
-    logger.trace(JSON.stringify(req.session, null, 2));
     if (
       !req.session.userId ||
       dateExpired ||

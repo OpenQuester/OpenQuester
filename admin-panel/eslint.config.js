@@ -39,7 +39,31 @@ export default [
       "@typescript-eslint/ban-ts-comment": "off",
       "react/react-in-jsx-scope": "off",
       // plugin rules opt-in (sample)
-      "@typescript-eslint/consistent-type-imports": "warn",
+      "@typescript-eslint/consistent-type-imports": [
+        "warn",
+        {
+          prefer: "type-imports",
+          disallowTypeAnnotations: false,
+          fixStyle: "separate-type-imports",
+        },
+      ],
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["../server/*", "../../server/*"],
+              message: "Import shared types via @server-dto barrel only.",
+            },
+            {
+              group: ["@server-dto/*"],
+              importNames: ["default"],
+              message:
+                "Default imports not allowed from @server-dto; use named type imports.",
+            },
+          ],
+        },
+      ],
     },
   },
   {
