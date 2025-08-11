@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy server package manifests first (better layer cache)
 COPY server/package*.json ./
 
-# Install app dependencies with clean cache for multi-arch compatibility
-RUN npm cache clean --force && npm ci --no-audit --no-fund
+# Install app dependencies
+RUN npm ci
 
 # Bundle server source
 COPY server ./
@@ -35,9 +35,8 @@ RUN sed -i 's|"exclude": \[".history/\*\*/\*", "\*\*/\*.md"\]|"exclude": [".hist
 # --- Build admin-panel (static) ---
 # Copy only manifests first for caching
 COPY admin-panel/package*.json ./admin-panel/
-# Clear npm cache and force clean install to avoid esbuild version conflicts in multi-arch builds
-# The --prefer-offline=false ensures we don't use potentially corrupted cached binaries
-RUN cd admin-panel && npm cache clean --force && npm ci --no-audit --no-fund --prefer-offline=false
+# Simple cache bust for multi-arch esbuild compatibility
+RUN cd admin-panel && npm ci --prefer-offline=false
 
 # Copy admin-panel source and build
 COPY admin-panel ./admin-panel
@@ -61,8 +60,7 @@ COPY openapi/schema.json /app/openapi/
 
 COPY server/storage/ /app/server/storage/
 
-# Install production dependencies with clean cache for multi-arch compatibility
-RUN npm cache clean --force && npm ci --omit=dev --no-audit --no-fund
+RUN npm ci --omit=dev
 
 # Copy built server files
 COPY --from=build /app/dist ./dist
