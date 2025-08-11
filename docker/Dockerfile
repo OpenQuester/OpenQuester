@@ -1,22 +1,23 @@
 # Build stage
 FROM node:24-alpine AS build
 
-WORKDIR /app
+WORKDIR /app/server
 
 # Copy package.json and package-lock.json
-COPY server/package*.json ./server
+COPY server/package*.json ./
 
 # Install app dependencies
 RUN npm ci
 
 # Bundle app source
-COPY server server
-COPY admin-panel admin-panel
+COPY server .
+COPY admin-panel ../admin-panel
 
 ENV NODE_ENV=production
 
 # Build the TypeScript files
-RUN cd server && npm run build
+RUN npm run build
+
 
 # Production stage
 FROM node:24-alpine AS production
