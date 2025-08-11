@@ -35,8 +35,8 @@ RUN sed -i 's|"exclude": \[".history/\*\*/\*", "\*\*/\*.md"\]|"exclude": [".hist
 # --- Build admin-panel (static) ---
 # Copy only manifests first for caching
 COPY admin-panel/package*.json ./admin-panel/
-# Simple cache bust for multi-arch esbuild compatibility
-RUN cd admin-panel && npm ci --prefer-offline=false
+# Force fresh install to avoid cross-platform esbuild binary issues
+RUN cd admin-panel && rm -f package-lock.json && npm install --no-audit --no-fund
 
 # Copy admin-panel source and build
 COPY admin-panel ./admin-panel
