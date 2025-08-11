@@ -1,3 +1,5 @@
+import { freemem } from "os";
+
 import { UserService } from "application/services/user/UserService";
 import {
   ADMIN_AVERAGE_REDIS_KEY_SIZE_KB,
@@ -52,6 +54,7 @@ export class AdminService {
           "id",
           "username",
           "email",
+          "discord_id",
           "created_at",
           "updated_at",
           "is_banned",
@@ -106,7 +109,7 @@ export class AdminService {
         uptime: process.uptime(),
         memory: {
           used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-          total: Math.round(process.memoryUsage().rss / 1024 / 1024),
+          total: Math.round(freemem() / 1024 / 1024),
         },
       },
       timestamp: new Date(),

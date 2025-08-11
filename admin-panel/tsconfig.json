@@ -23,7 +23,9 @@
     /* Path mapping */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@server-dto": ["../server/src/domain/types/dto/index.ts"],
+      "@server-dto/*": ["../server/src/domain/types/dto/*"]
     }
   },
   "include": ["src"],
