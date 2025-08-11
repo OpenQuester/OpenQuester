@@ -33,7 +33,7 @@ class AppTheme {
       colorScheme: theme.colorScheme.copyWith(
         surface: pureDarkColor,
         surfaceContainer: pureDark
-            ? theme.colorScheme.surfaceContainer.withValues(alpha: 0.6)
+            ? theme.colorScheme.surfaceContainer.withBrightness(-0.1)
             : null,
       ),
       extensions: const [

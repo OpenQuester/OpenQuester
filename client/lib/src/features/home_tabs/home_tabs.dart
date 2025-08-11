@@ -34,6 +34,7 @@ class _MobileHomeState extends State<_MobileHome> {
       appBar: AppBar(
         leading: const ProfileBtn(),
         title: Text(_destionations[index].$2.label),
+        scrolledUnderElevation: 0,
         actions: [
           IconButton(
             onPressed: () => setState(() => showSearch = !showSearch),

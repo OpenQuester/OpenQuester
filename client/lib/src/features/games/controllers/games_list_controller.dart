@@ -1,4 +1,5 @@
 import 'package:openquester/common_imports.dart';
+import 'package:socket_io_client/socket_io_client.dart';
 import 'package:throttling/throttling.dart';
 
 @Singleton(order: 5)
@@ -9,10 +10,10 @@ class GamesListController extends ListControllerBase<GameListItem> {
   @PostConstruct(preResolve: true)
   Future<void> init() async {
     await super.init();
-    getIt<SocketController>().general.on(
-      SocketIOEvents.games.name,
-      _onSocketEvent,
-    );
+    getIt<SocketController>().general
+      ..on(SocketIOEvents.games.name, _onSocketEvent)
+      // Refresh list on connection
+      ..onConnect((_) => pagingController.refresh());
     queryFilter = null;
   }
 

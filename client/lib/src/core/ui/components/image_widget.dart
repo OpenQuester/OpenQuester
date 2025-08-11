@@ -1,3 +1,4 @@
+import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
@@ -27,7 +28,7 @@ class _ImageWidgetState extends State<ImageWidget> {
     }
 
     imageProvider = await getImageProvider(widget.url!);
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   @override
@@ -47,12 +48,12 @@ class _ImageWidgetState extends State<ImageWidget> {
   @override
   Widget build(BuildContext context) {
     final child = imageProvider == null
-        ? placeholder()
+        ? placeholder().fadeOut()
         : Image(
             image: imageProvider!,
             fit: widget.fit,
             errorBuilder: (_, _, _) => placeholder(),
-          );
+          ).fadeIn();
 
     final size = widget.avatarRadius != null
         ? (widget.avatarRadius! * 2)
