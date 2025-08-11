@@ -12,6 +12,16 @@ RUN npm ci
 # Bundle server source
 COPY server ./
 
+# Prepare a local copy of server shared types for admin-panel build (so Vite can resolve without traversing outside root in constrained build env)
+RUN mkdir -p admin-panel/.server-types \
+	&& mkdir -p admin-panel/.server-types/dto \
+	&& cp -r server/src/domain/types/dto admin-panel/.server-types/ \
+	&& mkdir -p admin-panel/.server-types/enums/user \
+	&& cp server/src/domain/enums/user/UserStatus.ts admin-panel/.server-types/enums/user/ \
+	&& mkdir -p admin-panel/.server-types/pagination \
+	&& cp server/src/domain/types/pagination/PaginatedResult.ts admin-panel/.server-types/pagination/ \
+	&& cp server/src/domain/types/pagination/PaginationOpts.ts admin-panel/.server-types/pagination/ || true
+
 # --- Build admin-panel (static) ---
 # Copy only manifests first for caching
 COPY admin-panel/package*.json ./admin-panel/
