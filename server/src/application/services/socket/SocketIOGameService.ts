@@ -5,12 +5,10 @@ import { SocketGameValidationService } from "application/services/socket/SocketG
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import { UserService } from "application/services/user/UserService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
-import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
@@ -35,7 +33,6 @@ export class SocketIOGameService {
   constructor(
     private readonly socketUserDataService: SocketUserDataService,
     private readonly gameService: GameService,
-    private readonly userService: UserService,
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketGameTimerService: SocketGameTimerService,
     private readonly socketGameValidationService: SocketGameValidationService,
@@ -54,9 +51,9 @@ export class SocketIOGameService {
 
   public async joinPlayer(
     data: GameJoinData,
+    user: UserDTO,
     socketId: string
   ): Promise<GameJoinResult> {
-    const user = await this._fetchUser(socketId);
     const game = await this.gameService.getGameEntity(
       data.gameId,
       GAME_TTL_IN_SECONDS
@@ -727,21 +724,6 @@ export class SocketIOGameService {
     }
 
     return -1;
-  }
-
-  private async _fetchUser(socketId: string): Promise<UserDTO> {
-    const userData = await this.socketGameContextService.fetchUserSocketData(
-      socketId
-    );
-
-    const user = await this.userService.get(userData.id);
-    if (!user) {
-      throw new ClientError(
-        ClientResponse.USER_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
-    }
-    return user;
   }
 
   public async getGameStateBroadcastMap(

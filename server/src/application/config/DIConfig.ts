@@ -6,6 +6,7 @@ import { StorageContextBuilder } from "application/context/storage/StorageContex
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { GameExpirationHandler } from "application/handlers/GameExpirationHandler";
 import { TimerExpirationHandler } from "application/handlers/TimerExpirationHandler";
+import { AdminService } from "application/services/admin/AdminService";
 import { FileService } from "application/services/file/FileService";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { GameService } from "application/services/game/GameService";
@@ -97,6 +98,20 @@ export class DIConfig {
     );
 
     Container.register(
+      CONTAINER_TYPES.RedisRepository,
+      new RedisRepository(this.logger),
+      "repository"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.RedisService,
+      new RedisService(
+        Container.get<RedisRepository>(CONTAINER_TYPES.RedisRepository)
+      ),
+      "service"
+    );
+
+    Container.register(
       CONTAINER_TYPES.PackageTagRepository,
       new PackageTagRepository(db.getRepository(PackageTag)),
       "repository"
@@ -113,6 +128,18 @@ export class DIConfig {
     );
 
     Container.register(
+      CONTAINER_TYPES.SocketGameValidationService,
+      new SocketGameValidationService(),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.RoundHandlerFactory,
+      new RoundHandlerFactory(),
+      "service"
+    );
+
+    Container.register(
       CONTAINER_TYPES.FileRepository,
       new FileRepository(db.getRepository(File)),
       "repository"
@@ -122,6 +149,24 @@ export class DIConfig {
       CONTAINER_TYPES.FileService,
       new FileService(
         Container.get<FileRepository>(CONTAINER_TYPES.FileRepository)
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.SocketUserDataRepository,
+      new SocketUserDataRepository(
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
+      ),
+      "repository"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.SocketUserDataService,
+      new SocketUserDataService(
+        Container.get<SocketUserDataRepository>(
+          CONTAINER_TYPES.SocketUserDataRepository
+        )
       ),
       "service"
     );
@@ -150,20 +195,6 @@ export class DIConfig {
     // Initialize TranslateService to preload translations
     TranslateService.setLogger(this.logger);
     await TranslateService.initialize();
-
-    Container.register(
-      CONTAINER_TYPES.RedisRepository,
-      new RedisRepository(this.logger),
-      "repository"
-    );
-
-    Container.register(
-      CONTAINER_TYPES.RedisService,
-      new RedisService(
-        Container.get<RedisRepository>(CONTAINER_TYPES.RedisRepository)
-      ),
-      "service"
-    );
 
     Container.register(
       CONTAINER_TYPES.RedisCache,
@@ -234,28 +265,12 @@ export class DIConfig {
     );
 
     Container.register(
-      CONTAINER_TYPES.GameStatisticsCollectorService,
-      new GameStatisticsCollectorService(
-        Container.get<GameStatisticsService>(
-          CONTAINER_TYPES.GameStatisticsService
-        ),
-        Container.get<StatisticsWorkerFactory>(
-          CONTAINER_TYPES.StatisticsWorkerFactory
-        ),
+      CONTAINER_TYPES.UserNotificationRoomService,
+      new UserNotificationRoomService(
+        Container.get<IOServer>(CONTAINER_TYPES.IO).of(SOCKET_GAME_NAMESPACE),
         this.logger
       ),
       "service"
-    );
-
-    Container.register(
-      CONTAINER_TYPES.PackageRepository,
-      new PackageRepository(
-        db,
-        db.getRepository(Package),
-        Container.get<PackageTagService>(CONTAINER_TYPES.PackageTagService),
-        Container.get<FileService>(CONTAINER_TYPES.FileService)
-      ),
-      "repository"
     );
 
     Container.register(
@@ -270,12 +285,27 @@ export class DIConfig {
     );
 
     Container.register(
-      CONTAINER_TYPES.UserNotificationRoomService,
-      new UserNotificationRoomService(
-        Container.get<IOServer>(CONTAINER_TYPES.IO).of(SOCKET_GAME_NAMESPACE),
+      CONTAINER_TYPES.GameStatisticsCollectorService,
+      new GameStatisticsCollectorService(
+        Container.get<GameStatisticsService>(
+          CONTAINER_TYPES.GameStatisticsService
+        ),
+        Container.get<StatisticsWorkerFactory>(
+          CONTAINER_TYPES.StatisticsWorkerFactory
+        ),
         this.logger
       ),
       "service"
+    );
+    Container.register(
+      CONTAINER_TYPES.PackageRepository,
+      new PackageRepository(
+        db,
+        db.getRepository(Package),
+        Container.get<PackageTagService>(CONTAINER_TYPES.PackageTagService),
+        Container.get<FileService>(CONTAINER_TYPES.FileService)
+      ),
+      "repository"
     );
 
     Container.register(
@@ -286,6 +316,7 @@ export class DIConfig {
         Container.get<UserNotificationRoomService>(
           CONTAINER_TYPES.UserNotificationRoomService
         ),
+        Container.get<IOServer>(CONTAINER_TYPES.IO).of(SOCKET_GAME_NAMESPACE),
         this.logger
       ),
       "service"
@@ -304,11 +335,6 @@ export class DIConfig {
       "service"
     );
 
-    const gameIndexManager = new GameIndexManager(
-      Container.get<RedisService>(CONTAINER_TYPES.RedisService),
-      this.logger
-    );
-
     Container.register(
       CONTAINER_TYPES.PackageService,
       new PackageService(
@@ -317,6 +343,11 @@ export class DIConfig {
         Container.get<S3StorageService>(CONTAINER_TYPES.S3StorageService)
       ),
       "service"
+    );
+
+    const gameIndexManager = new GameIndexManager(
+      Container.get<RedisService>(CONTAINER_TYPES.RedisService),
+      this.logger
     );
 
     Container.register(
@@ -344,29 +375,8 @@ export class DIConfig {
     );
 
     Container.register(
-      CONTAINER_TYPES.SocketUserDataRepository,
-      new SocketUserDataRepository(
-        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
-      ),
-      "repository"
-    );
-
-    Container.register(
-      CONTAINER_TYPES.SocketUserDataService,
-      new SocketUserDataService(
-        Container.get<SocketUserDataRepository>(
-          CONTAINER_TYPES.SocketUserDataRepository
-        )
-      ),
-      "service"
-    );
-
-    Container.register(
-      CONTAINER_TYPES.SocketGameContextService,
-      new SocketGameContextService(
-        Container.get<SocketUserDataService>(
-          CONTAINER_TYPES.SocketUserDataService
-        ),
+      CONTAINER_TYPES.SocketQuestionStateService,
+      new SocketQuestionStateService(
         Container.get<GameService>(CONTAINER_TYPES.GameService),
         this.logger
       ),
@@ -382,23 +392,14 @@ export class DIConfig {
     );
 
     Container.register(
-      CONTAINER_TYPES.SocketGameValidationService,
-      new SocketGameValidationService(),
-      "service"
-    );
-
-    Container.register(
-      CONTAINER_TYPES.SocketQuestionStateService,
-      new SocketQuestionStateService(
+      CONTAINER_TYPES.SocketGameContextService,
+      new SocketGameContextService(
+        Container.get<SocketUserDataService>(
+          CONTAINER_TYPES.SocketUserDataService
+        ),
         Container.get<GameService>(CONTAINER_TYPES.GameService),
         this.logger
       ),
-      "service"
-    );
-
-    Container.register(
-      CONTAINER_TYPES.RoundHandlerFactory,
-      new RoundHandlerFactory(),
       "service"
     );
 
@@ -422,6 +423,52 @@ export class DIConfig {
         Container.get<PlayerGameStatsService>(
           CONTAINER_TYPES.PlayerGameStatsService
         ),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.SocketIOGameService,
+      new SocketIOGameService(
+        Container.get<SocketUserDataService>(
+          CONTAINER_TYPES.SocketUserDataService
+        ),
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        ),
+        Container.get<SocketGameTimerService>(
+          CONTAINER_TYPES.SocketGameTimerService
+        ),
+        Container.get<SocketGameValidationService>(
+          CONTAINER_TYPES.SocketGameValidationService
+        ),
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        Container.get<SocketIOQuestionService>(
+          CONTAINER_TYPES.SocketIOQuestionService
+        ),
+        Container.get<GameStatisticsCollectorService>(
+          CONTAINER_TYPES.GameStatisticsCollectorService
+        ),
+        Container.get<PlayerGameStatsService>(
+          CONTAINER_TYPES.PlayerGameStatsService
+        ),
+        this.logger
+      ),
+      "service"
+    );
+
+    // Late-bind lobby leaver after SocketIOGameService registration
+    Container.get<UserService>(CONTAINER_TYPES.UserService).setGameLobbyLeaver(
+      Container.get<SocketIOGameService>(CONTAINER_TYPES.SocketIOGameService)
+    );
+
+    Container.register(
+      CONTAINER_TYPES.AdminService,
+      new AdminService(
+        Container.get<UserService>(CONTAINER_TYPES.UserService),
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
         this.logger
       ),
       "service"
@@ -477,38 +524,6 @@ export class DIConfig {
       new RedisPubSubService(
         Container.get<RedisService>(CONTAINER_TYPES.RedisService),
         handlers,
-        this.logger
-      ),
-      "service"
-    );
-
-    Container.register(
-      CONTAINER_TYPES.SocketIOGameService,
-      new SocketIOGameService(
-        Container.get<SocketUserDataService>(
-          CONTAINER_TYPES.SocketUserDataService
-        ),
-        Container.get<GameService>(CONTAINER_TYPES.GameService),
-        Container.get<UserService>(CONTAINER_TYPES.UserService),
-        Container.get<SocketGameContextService>(
-          CONTAINER_TYPES.SocketGameContextService
-        ),
-        Container.get<SocketGameTimerService>(
-          CONTAINER_TYPES.SocketGameTimerService
-        ),
-        Container.get<SocketGameValidationService>(
-          CONTAINER_TYPES.SocketGameValidationService
-        ),
-        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
-        Container.get<SocketIOQuestionService>(
-          CONTAINER_TYPES.SocketIOQuestionService
-        ),
-        Container.get<GameStatisticsCollectorService>(
-          CONTAINER_TYPES.GameStatisticsCollectorService
-        ),
-        Container.get<PlayerGameStatsService>(
-          CONTAINER_TYPES.PlayerGameStatsService
-        ),
         this.logger
       ),
       "service"

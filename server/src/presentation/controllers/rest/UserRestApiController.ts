@@ -46,10 +46,8 @@ export class UserRestApiController {
     this.app.use("/v1/users", router);
 
     meRouter.get("/", asyncHandler(this.getUser));
-
     meRouter.patch("/", asyncHandler(this.updateUser));
-
-    meRouter.get("/", asyncHandler(this.deleteUser));
+    meRouter.delete("/", asyncHandler(this.deleteUser));
 
     router.get(
       "/",
@@ -61,18 +59,6 @@ export class UserRestApiController {
       "/:id",
       checkPermissionWithId(Permissions.GET_ANOTHER_USER, this.logger),
       asyncHandler(this.getUser)
-    );
-
-    router.patch(
-      "/:id",
-      checkPermissionWithId(Permissions.CHANGE_ANOTHER_USER, this.logger),
-      asyncHandler(this.updateUser)
-    );
-
-    router.delete(
-      "/:id",
-      checkPermissionWithId(Permissions.DELETE_ANOTHER_USER, this.logger),
-      asyncHandler(this.deleteUser)
     );
   }
 
@@ -102,7 +88,13 @@ export class UserRestApiController {
   };
 
   private updateUser = async (req: Request, res: Response) => {
-    const id: number = this._getUserId(req);
+    const id = req.session.userId;
+    if (!id) {
+      throw new ClientError(
+        ClientResponse.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
+    }
 
     const userInputDTO = new RequestDataValidator<UpdateUserInputDTO>(
       { ...req.body },
@@ -154,7 +146,13 @@ export class UserRestApiController {
   };
 
   private deleteUser = async (req: Request, res: Response) => {
-    const id: number = this._getUserId(req);
+    const id = req.session.userId;
+    if (!id) {
+      throw new ClientError(
+        ClientResponse.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
+    }
 
     const validatedData = new RequestDataValidator<UserInputDTO>(
       { userId: id },

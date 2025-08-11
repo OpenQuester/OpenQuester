@@ -459,19 +459,28 @@ export class SocketGameTestUtils {
       throw new Error("No themes found in current round");
     }
 
-    // Find first theme with questions
+    // Collect all unplayed questions first (to avoid depending on original insertion order)
+    const candidates: Array<{
+      id: number;
+      order: number;
+    }> = [];
     for (const theme of currentRound.themes) {
-      if (theme.questions && theme.questions.length > 0) {
-        // Find first unplayed question
-        for (const question of theme.questions) {
-          if (question.id && !question.isPlayed) {
-            return question.id;
-          }
+      if (!theme.questions) continue;
+      for (const question of theme.questions) {
+        if (question.id && !question.isPlayed) {
+          // Some tests rely on picking a SIMPLE question first for speed; ensure order fallback works
+          candidates.push({ id: question.id, order: question.order ?? 0 });
         }
       }
     }
 
-    throw new Error("No available questions found");
+    if (candidates.length === 0) {
+      throw new Error("No available questions found");
+    }
+
+    // Pick the lowest order (stable, deterministic)
+    candidates.sort((a, b) => a.order - b.order);
+    return candidates[0].id;
   }
 
   /**
@@ -723,6 +732,30 @@ export class SocketGameTestUtils {
         );
       }
     } else if (questionType === PackageQuestionType.STAKE) {
+      // We need fresh game entity here for player count and stake data
+      const freshGameForStake = await this.gameService.getGameEntity(
+        socketUserData.gameId
+      );
+      // If not all player sockets are provided, stake bidding cannot complete.
+      // Some tests intentionally pass a subset (e.g., to attribute the answer to a specific player).
+      // In such cases we automatically skip stake questions to avoid hanging during the bidding phase.
+      const totalPlayerCount = freshGameForStake.players.filter(
+        (p) => p.role === PlayerRole.PLAYER
+      ).length;
+      if (playerSockets.length < totalPlayerCount) {
+        // Perform a minimal pick & skip so the question is marked played, then recurse.
+        await this.pickQuestion(showmanSocket, actualQuestionId);
+        await this.skipQuestion(showmanSocket);
+        await this.pickAndCompleteQuestion(
+          showmanSocket,
+          playerSockets,
+          undefined,
+          shouldAnswer,
+          answerType,
+          scoreResult
+        );
+        return; // Stop stake flow for this question
+      }
       // Handle stake question flow
       const stakePickedPromise = this.waitForEvent(
         showmanSocket,

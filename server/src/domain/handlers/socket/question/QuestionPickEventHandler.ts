@@ -3,6 +3,7 @@ import { Socket } from "socket.io";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -68,7 +69,7 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
     context.userId = this.socket.userId;
 
     // Check if this is a secret question
-    if (result.isSecretQuestion) {
+    if (result.question.type === PackageQuestionType.SECRET) {
       // For secret questions, we need to emit a different event
       // Return an empty successful result and handle the secret question event separately
       return {
@@ -83,21 +84,22 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
           customData: {
             game: result.game,
             isSecretQuestion: true,
-            secretQuestionData: result.secretQuestionData,
+            secretQuestionData:
+              result.specialQuestionData as SecretQuestionGameData,
           },
         },
       };
     }
 
     // Check if this is a stake question
-    if (result.isStakeQuestion) {
+    if (result.question.type === PackageQuestionType.STAKE) {
       // For stake questions, we need to emit a different event
       // Return an empty successful result and handle the stake question event separately
       return {
         success: true,
         data: {
           data: result.question,
-          timer: result.timer?.value() || {
+          timer: result.timer?.value() ?? {
             durationMs: 0,
             elapsedMs: 0,
             startedAt: new Date(),
@@ -109,7 +111,8 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
           customData: {
             game: result.game,
             isStakeQuestion: true,
-            stakeQuestionData: result.stakeQuestionData,
+            stakeQuestionData:
+              result.specialQuestionData as StakeQuestionGameData,
             timer: result.timer,
             automaticNominalBid: result.automaticNominalBid,
             questionData: result.question,

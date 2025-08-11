@@ -35,6 +35,8 @@ import { AddSearchIndexes_0_15_3_1752686138751 as AddSearchIndexes } from "infra
 import { ExtendGameStatisticsTable_0_17_0_2_1754379301456 as ExtendGameStatistics } from "infrastructure/database/migrations/0.17.0-2_ExtendGameStatisticsTable";
 import { AddPlayerGameStatsTable_0_17_0_3_1754379351456 as AddPlayerGameStats } from "infrastructure/database/migrations/0.17.0-3_AddPlayerGameStatsTable";
 import { AddGameStatisticsTable_0_17_0_1754379291456 as AddGameStatistics } from "infrastructure/database/migrations/0.17.0_AddGameStatisticsTable";
+import { AddAdminPermissions_0_18_0_1754499351456 as AddAdminPermissions } from "infrastructure/database/migrations/0.18.0_AddAdminPermissions";
+import { AddUserBannedField_0_18_1_1754817772725 as AddUserBannedField } from "infrastructure/database/migrations/0.18.1_AddUserBannedField_1754817772725";
 import { WriteMoreInfoToDB_0_2_9_1725692779638 as writeMoreToDB } from "infrastructure/database/migrations/0.2.9_WriteMoreInfoToDB";
 import { ChangePermissionValidation_0_3_0_1729181792142 as changePermissionValidation } from "infrastructure/database/migrations/0.3.0_ChangePermissionValidation";
 import { AddDeleteFilePermission_0_3_9_1730832569761 as addDeletePermission } from "infrastructure/database/migrations/0.3.9_AddDeleteFilePermission";
@@ -115,6 +117,8 @@ export const AppDataSource = new DataSource({
     AddGameStatistics,
     ExtendGameStatistics,
     AddPlayerGameStats,
+    AddAdminPermissions,
+    AddUserBannedField,
   ],
   poolSize: 25,
   migrationsRun: true,

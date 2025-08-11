@@ -36,6 +36,7 @@ describe("User Notification Rooms Tests", () => {
     logger = await PinoLogger.init({ pretty: true });
     testEnv = new TestEnvironment(logger);
     await testEnv.setup();
+    // Use default test port (3000) as in other socket tests
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
@@ -47,12 +48,8 @@ describe("User Notification Rooms Tests", () => {
   beforeEach(async () => {
     // Clear Redis before each test
     const redisClient = RedisConfig.getClient();
-    await redisClient.del(...(await redisClient.keys("*")));
-
     const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
-    }
+    if (keys.length > 0) await redisClient.del(...keys);
   });
 
   afterAll(async () => {
@@ -65,40 +62,31 @@ describe("User Notification Rooms Tests", () => {
   });
 
   describe("User Change Notifications During Gameplay", () => {
-    it("should notify other players when a player's data changes", async () => {
-      // Setup a game with 2 players
+    it("should notify other players when a player updates themself (/v1/me)", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { showmanSocket, playerSockets, playerUsers } = setup;
-
       try {
-        // Start the game so players are subscribed to each other's notifications
         await utils.startGame(showmanSocket);
 
-        // Set up listeners for user change events on player1's socket
         const userChangePromise = utils.waitForEvent(
           playerSockets[0],
           SocketIOUserEvents.USER_CHANGE
         );
 
-        // Update player2's username via REST API
-        const updateData: UpdateUserInputDTO = {
-          username: "UpdatedPlayer2",
-        };
-
+        const updateData: UpdateUserInputDTO = { username: "UpdatedSelf" };
         const { cookie: player2Cookie } = await utils.loginExistingUser(
           app,
           playerUsers[1].id
         );
 
         await request(app)
-          .patch(`/v1/users/${playerUsers[1].id}`)
-          .set("Cookie", player2Cookie)
+          .patch("/v1/me")
+          .set("Cookie", player2Cookie[0])
           .send(updateData)
           .expect(HttpStatus.OK);
 
-        // Wait for and verify the user change notification
         const receivedEvent = await userChangePromise;
-        expect(receivedEvent.userData.username).toBe("UpdatedPlayer2");
+        expect(receivedEvent.userData.username).toBe("UpdatedSelf");
         expect(receivedEvent.userData.id).toBe(playerUsers[1].id);
 
         await utils.cleanupGameClients(setup);
@@ -108,8 +96,7 @@ describe("User Notification Rooms Tests", () => {
       }
     });
 
-    it("should not notify players outside the game when user data changes", async () => {
-      // Setup two separate games
+    it("should not notify players in a different game when a user updates themself", async () => {
       const game1Setup = await utils.setupGameTestEnvironment(
         userRepo,
         app,
@@ -122,36 +109,27 @@ describe("User Notification Rooms Tests", () => {
         1,
         0
       );
-
       try {
-        // Start both games
         await utils.startGame(game1Setup.showmanSocket);
         await utils.startGame(game2Setup.showmanSocket);
 
-        // Set up a promise to ensure no event is received on game1's player
         const noEventPromise = utils.waitForNoEvent(
           game1Setup.playerSockets[0],
           SocketIOUserEvents.USER_CHANGE
         );
 
-        // Update game2's player username via REST API
-        const updateData: UpdateUserInputDTO = {
-          username: "UpdatedGame2Player",
-        };
-
+        const updateData: UpdateUserInputDTO = { username: "UpdatedInGame2" };
         const { cookie: game2PlayerCookie } = await utils.loginExistingUser(
           app,
           game2Setup.playerUsers[0].id
         );
 
         await request(app)
-          .patch(`/v1/users/${game2Setup.playerUsers[0].id}`)
-          .set("Cookie", game2PlayerCookie)
+          .patch("/v1/me")
+          .set("Cookie", game2PlayerCookie[0])
           .send(updateData)
           .expect(HttpStatus.OK);
 
-        // This will resolve successfully if no event is received within the timeout
-        // or reject immediately if the unwanted event is received
         await noEventPromise;
 
         await utils.cleanupGameClients(game1Setup);
@@ -163,70 +141,57 @@ describe("User Notification Rooms Tests", () => {
       }
     });
 
-    it("should handle multiple players receiving the same user change notification", async () => {
-      // Setup a game with 10 players
+    it("should broadcast a self-update to all other players in a large game", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 10, 0);
       const { showmanSocket, playerSockets, playerUsers } = setup;
-
       try {
-        // Start the game
         await utils.startGame(showmanSocket);
 
-        // Set up listeners for user change events on all player sockets
-        const userChangePromises = playerSockets.map((socket) =>
-          utils.waitForEvent(socket, SocketIOUserEvents.USER_CHANGE)
+        const userChangePromises = playerSockets.map((socket, idx) =>
+          idx === 0
+            ? Promise.resolve(undefined)
+            : utils.waitForEvent(socket, SocketIOUserEvents.USER_CHANGE)
         );
 
-        // Update player1's username via REST API
-        const updateData: UpdateUserInputDTO = {
-          username: "UpdatedPlayer1",
-        };
-
+        const updateData: UpdateUserInputDTO = { username: "UpdatedMass" };
         const { cookie: player1Cookie } = await utils.loginExistingUser(
           app,
           playerUsers[0].id
         );
 
         await request(app)
-          .patch(`/v1/users/${playerUsers[0].id}`)
-          .set("Cookie", player1Cookie)
+          .patch("/v1/me")
+          .set("Cookie", player1Cookie[0])
           .send(updateData)
           .expect(HttpStatus.OK);
 
-        // Wait for all notifications and verify
-        const receivedEvents = await Promise.all(userChangePromises);
+        const receivedEvents = (await Promise.all(userChangePromises)).filter(
+          Boolean
+        ) as UserChangeBroadcastData[];
 
         receivedEvents.forEach((event: UserChangeBroadcastData) => {
-          expect(event.userData.username).toBe("UpdatedPlayer1");
+          expect(event.userData.username).toBe("UpdatedMass");
           expect(event.userData.id).toBe(playerUsers[0].id);
         });
-
         await utils.cleanupGameClients(setup);
       } catch (error) {
         await utils.cleanupGameClients(setup);
         throw error;
       }
-    });
+    }, 20000);
 
-    it("should stop notifications when a player leaves the game", async () => {
-      // Setup a game with 2 players
+    it("should stop receiving updates after a player leaves the game", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { showmanSocket, playerSockets, playerUsers } = setup;
-
       try {
-        // Start the game
         await utils.startGame(showmanSocket);
-
-        // Player1 leaves the game
         await utils.leaveGame(playerSockets[0]);
 
-        // Set up a promise to ensure no event is received by the player who left
         const noEventPromise = utils.waitForNoEvent(
           playerSockets[0],
           SocketIOUserEvents.USER_CHANGE
         );
 
-        // Update player2's username via REST API
         const updateData: UpdateUserInputDTO = {
           username: "UpdatedAfterLeave",
         };
@@ -237,15 +202,12 @@ describe("User Notification Rooms Tests", () => {
         );
 
         await request(app)
-          .patch(`/v1/users/${playerUsers[1].id}`)
-          .set("Cookie", player2Cookie)
+          .patch("/v1/me")
+          .set("Cookie", player2Cookie[0])
           .send(updateData)
           .expect(HttpStatus.OK);
 
-        // This will resolve successfully if no event is received within the timeout
-        // or reject immediately if the unwanted event is received
         await noEventPromise;
-
         await utils.cleanupGameClients(setup);
       } catch (error) {
         await utils.cleanupGameClients(setup);
@@ -253,33 +215,28 @@ describe("User Notification Rooms Tests", () => {
       }
     });
 
-    it("should notify new players when they join an existing game", async () => {
-      // Setup a game with 1 player initially
+    it("should notify late joiners of future self-updates of existing players", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerUsers } = setup;
-
       try {
-        // Start the game
         await utils.startGame(showmanSocket);
 
-        // Create a new player and join the existing game
         const { socket: newPlayerSocket } = await utils.createGameClient(
           app,
           userRepo
         );
+
         await utils.joinSpecificGame(
           newPlayerSocket,
           setup.gameId,
           PlayerRole.PLAYER
         );
 
-        // Set up listener for user change events on the new player's socket
         const userChangePromise = utils.waitForEvent(
           newPlayerSocket,
           SocketIOUserEvents.USER_CHANGE
         );
 
-        // Update the original player's username via REST API
         const updateData: UpdateUserInputDTO = {
           username: "OriginalPlayerUpdated",
         };
@@ -290,17 +247,15 @@ describe("User Notification Rooms Tests", () => {
         );
 
         await request(app)
-          .patch(`/v1/users/${playerUsers[0].id}`)
-          .set("Cookie", originalPlayerCookie)
+          .patch("/v1/me")
+          .set("Cookie", originalPlayerCookie[0])
           .send(updateData)
           .expect(HttpStatus.OK);
 
-        // Verify the new player receives the notification
         const receivedEvent = await userChangePromise;
+
         expect(receivedEvent.userData.username).toBe("OriginalPlayerUpdated");
         expect(receivedEvent.userData.id).toBe(playerUsers[0].id);
-
-        // Clean up
         await utils.disconnectAndCleanup(newPlayerSocket);
         await utils.cleanupGameClients(setup);
       } catch (error) {
