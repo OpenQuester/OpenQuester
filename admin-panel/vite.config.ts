@@ -8,8 +8,11 @@ export default defineConfig({
   base: "/v1/admin/",
   resolve: {
     alias: {
-      // Provide explicit alias so build (Docker) doesn't rely solely on tsconfig-paths plugin
-      "@server-dto": resolve(__dirname, "../server/src/domain/types/dto"),
+      // Point directly to index.ts to avoid directory resolution issues in build (no implicit index resolution in some Rollup cases)
+      "@server-dto": resolve(
+        __dirname,
+        "../server/src/domain/types/dto/index.ts"
+      ),
     },
   },
   server: {
