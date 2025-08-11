@@ -21,7 +21,7 @@ RUN npm run build
 # Build stage
 FROM node:24-alpine AS build-admin-panel
 
-WORKDIR /app
+WORKDIR /app/admin-panel
 
 # Copy package.json and package-lock.json
 COPY admin-panel/package*.json ./
@@ -57,7 +57,7 @@ RUN npm ci --omit=dev
 
 # Copy builded files
 COPY --from=build-server /app/dist ./dist
-COPY --from=build-admin-panel /app/dist /app/admin-panel/dist
+COPY --from=build-admin-panel /app/admin-panel/dist /app/admin-panel/dist
 
 ENV NODE_ENV=production
 
