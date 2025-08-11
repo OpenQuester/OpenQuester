@@ -11,4 +11,5 @@ export interface UserModel extends BaseModel {
   birthday?: Date | null;
   avatar?: File | null;
   permissions?: Permission[];
+  is_banned?: boolean;
 }

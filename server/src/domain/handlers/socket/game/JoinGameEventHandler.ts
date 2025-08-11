@@ -1,10 +1,13 @@
 import { Socket } from "socket.io";
 
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
+import { UserService } from "application/services/user/UserService";
 import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
 import {
@@ -13,6 +16,7 @@ import {
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
+import { UserDTO } from "domain/types/dto/user/UserDTO";
 import {
   GameJoinInputData,
   GameJoinOutputData,
@@ -33,7 +37,9 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     private readonly socketIOGameService: SocketIOGameService,
     private readonly socketIOChatService: SocketIOChatService,
     private readonly socketUserDataService: SocketUserDataService,
-    private readonly userNotificationRoomService: UserNotificationRoomService
+    private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly userService: UserService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger);
   }
@@ -76,6 +82,21 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     // Could add pre-join logging, metrics, etc.
   }
 
+  private async _fetchUser(): Promise<UserDTO> {
+    const userData = await this.socketGameContextService.fetchUserSocketData(
+      this.socket.id
+    );
+
+    const user = await this.userService.get(userData.id);
+    if (!user) {
+      throw new ClientError(
+        ClientResponse.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
+    }
+    return user;
+  }
+
   protected async execute(
     data: GameJoinInputData,
     context: SocketEventContext
@@ -87,6 +108,7 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
 
     const result = await this.socketIOGameService.joinPlayer(
       data,
+      await this._fetchUser(),
       this.socket.id
     );
     const { player, game } = result;

@@ -7,4 +7,10 @@ export enum Permissions {
 
   // File related
   DELETE_FILE = "delete_file",
+
+  // Admin panel related
+  ADMIN_PANEL_ACCESS = "admin_panel_access",
+  VIEW_SYSTEM_HEALTH = "view_system_health",
+  VIEW_USERS_INFO = "view_users_info",
+  BAN_USERS = "ban_users",
 }

@@ -6,19 +6,30 @@ import { ILogger } from "infrastructure/logger/ILogger";
  */
 export const performanceLogMiddleware =
   (logger: ILogger) => (req: Request, res: Response, next: NextFunction) => {
+    // Decode percent-encoded (e.g. Cyrillic) characters for readability; keep raw
+    const rawUrl = req.originalUrl;
+    let decodedUrl = rawUrl;
+    try {
+      decodedUrl = decodeURI(rawUrl);
+    } catch {
+      // Fallback silently if malformed encoding
+    }
+
     const log = logger.performance(`API request`, {
       method: req.method,
-      url: req.originalUrl,
+      url: decodedUrl,
+      rawUrl,
       userAgent: req.get("User-Agent"),
       clientIp: req.ip,
       userId: req.session?.userId,
     });
 
     // Log request start
-    logger.trace(`Request started: ${req.method} ${req.originalUrl}`, {
+    logger.trace(`Request started: ${req.method} ${decodedUrl}`, {
       prefix: "[PERF]: ",
       method: req.method,
-      url: req.originalUrl,
+      url: decodedUrl,
+      rawUrl,
       userAgent: req.get("User-Agent"),
       clientIp: req.ip,
       userId: req.session?.userId,

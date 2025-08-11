@@ -55,6 +55,9 @@ export class User implements UserModel {
   @Column()
   is_deleted!: boolean;
 
+  @Column({ default: false })
+  is_banned!: boolean;
+
   @OneToMany(() => Package, (packageEntity) => packageEntity.author)
   packages!: Package[];
 
@@ -78,6 +81,7 @@ export class User implements UserModel {
     this.created_at = data.created_at;
     this.updated_at = data.updated_at;
     this.is_deleted = data.is_deleted;
+    this.is_banned = data.is_banned ?? this.is_banned ?? false;
     this.permissions = data.permissions ?? this.permissions ?? [];
   }
 
@@ -101,6 +105,7 @@ export class User implements UserModel {
       createdAt: this.created_at,
       updatedAt: this.updated_at,
       isDeleted: this.is_deleted,
+      isBanned: this.is_banned,
     };
   }
 }

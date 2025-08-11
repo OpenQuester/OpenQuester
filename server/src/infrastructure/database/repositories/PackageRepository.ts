@@ -1,11 +1,7 @@
-import { FindManyOptions, ILike, In, Repository } from "typeorm";
+import { In, Repository } from "typeorm";
 
 import { FileService } from "application/services/file/FileService";
 import { PackageTagService } from "application/services/package/PackageTagService";
-import {
-  PACKAGE_SELECT_FIELDS,
-  PACKAGE_SELECT_RELATIONS,
-} from "domain/constants/package";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FileSource } from "domain/enums/file/FileSource";
 import { ClientError } from "domain/errors/ClientError";
@@ -67,26 +63,26 @@ export class PackageRepository {
       title,
     } = paginationOpts;
 
-    const findOptions: FindManyOptions<Package> = {
-      relations: PACKAGE_SELECT_RELATIONS,
-      select: PACKAGE_SELECT_FIELDS,
-      order: { [sortBy]: order.toUpperCase() },
-      skip: offset,
-      take: limit,
-    };
+    // Shallow fetch only data required by toSimpleDTO (author, logo, tags)
+    const qb = this.repository
+      .createQueryBuilder("package")
+      .leftJoinAndSelect("package.author", "author")
+      .leftJoinAndSelect("package.logo", "logo")
+      .leftJoinAndSelect("package.tags", "tag")
+      .skip(offset)
+      .take(limit);
 
     if (title && title.length > 0) {
-      findOptions.where = {
-        title: ILike(`%${title}%`),
-      };
+      qb.andWhere("package.title ILIKE :title", { title: `%${title}%` });
     }
 
-    const [data, total] = await this.repository.findAndCount(findOptions);
+    const sortColumn =
+      sortBy === "author" ? "author.username" : `package.${sortBy}`;
+    qb.orderBy(sortColumn, order.toUpperCase() as "ASC" | "DESC");
 
-    return {
-      data,
-      pageInfo: { total },
-    };
+    const [data, total] = await qb.getManyAndCount();
+
+    return { data, pageInfo: { total } };
   }
 
   public findByIds(

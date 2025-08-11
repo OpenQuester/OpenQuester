@@ -3,14 +3,23 @@ FROM node:24-alpine AS build
 
 WORKDIR /app
 
-# Copy package.json and package-lock.json
+# Copy server package manifests first (better layer cache)
 COPY server/package*.json ./
 
 # Install app dependencies
 RUN npm ci
 
-# Bundle app source
-COPY server .
+# Bundle server source
+COPY server ./
+
+# --- Build admin-panel (static) ---
+# Copy only manifests first for caching
+COPY admin-panel/package*.json ./admin-panel/
+RUN cd admin-panel && npm ci
+
+# Copy admin-panel source and build
+COPY admin-panel ./admin-panel
+RUN cd admin-panel && npm run build
 
 ENV NODE_ENV=production
 
@@ -32,8 +41,11 @@ COPY server/storage/ /app/server/storage/
 
 RUN npm ci --omit=dev
 
-# Copy builded files
+# Copy built server files
 COPY --from=build /app/dist ./dist
+
+# Copy built admin-panel static assets (only dist)
+COPY --from=build /app/admin-panel/dist /app/admin-panel/dist
 
 ENV NODE_ENV=production
 

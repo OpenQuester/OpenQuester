@@ -85,8 +85,12 @@ describe("Choice Question Flow Tests", () => {
         if (initialGameState?.currentRound?.themes) {
           for (const theme of initialGameState.currentRound.themes) {
             for (const question of theme.questions) {
-              // Choice question in our test data has price 300 and order 5
-              if (question.price === 300 && !question.isPlayed) {
+              // Choice question has unique combination price 300 & order 5 in test data
+              if (
+                question.price === 300 &&
+                question.order === 5 &&
+                !question.isPlayed
+              ) {
                 choiceQuestionId = question.id;
                 break;
               }
@@ -156,7 +160,11 @@ describe("Choice Question Flow Tests", () => {
         if (initialGameState?.currentRound?.themes) {
           for (const theme of initialGameState.currentRound.themes) {
             for (const question of theme.questions) {
-              if (question.price === 300 && !question.isPlayed) {
+              if (
+                question.price === 300 &&
+                question.order === 5 &&
+                !question.isPlayed
+              ) {
                 choiceQuestionId = question.id;
                 break;
               }
@@ -240,7 +248,11 @@ describe("Choice Question Flow Tests", () => {
         if (initialGameState?.currentRound?.themes) {
           for (const theme of initialGameState.currentRound.themes) {
             for (const question of theme.questions) {
-              if (question.price === 300 && !question.isPlayed) {
+              if (
+                question.price === 300 &&
+                question.order === 5 &&
+                !question.isPlayed
+              ) {
                 choiceQuestionId = question.id;
                 break;
               }
@@ -319,7 +331,11 @@ describe("Choice Question Flow Tests", () => {
         if (initialGameState?.currentRound?.themes) {
           for (const theme of initialGameState.currentRound.themes) {
             for (const question of theme.questions) {
-              if (question.price === 300 && !question.isPlayed) {
+              if (
+                question.price === 300 &&
+                question.order === 5 &&
+                !question.isPlayed
+              ) {
                 choiceQuestionId = question.id;
                 break;
               }

@@ -11,5 +11,6 @@ export interface UserDTO {
   createdAt: Date;
   updatedAt: Date;
   isDeleted: boolean;
+  isBanned: boolean;
   permissions: PermissionDTO[] | [];
 }

@@ -1,16 +1,19 @@
 import { type Request } from "express";
+import { Namespace } from "socket.io";
 import { FindOptionsWhere } from "typeorm";
 
 import { FileUsageService } from "application/services/file/FileUsageService";
+import { IGameLobbyLeaver } from "application/services/socket/IGameLobbyLeaver";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
 import { UpdateUserDTO } from "domain/types/dto/user/UpdateUserDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
-import { PaginationOptsBase } from "domain/types/pagination/PaginationOpts";
+import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { SelectOptions } from "domain/types/SelectOptions";
 import { RegisterUser } from "domain/types/user/RegisterUser";
 import { User } from "infrastructure/database/models/User";
@@ -23,20 +26,23 @@ export class UserService {
     private readonly userRepository: UserRepository,
     private readonly fileUsageService: FileUsageService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly gameNamespace: Namespace,
     private readonly logger: ILogger
   ) {
     //
   }
+  private _gameLobbyLeaver: IGameLobbyLeaver | null = null;
+
+  public setGameLobbyLeaver(leaver: IGameLobbyLeaver): void {
+    this._gameLobbyLeaver = leaver;
+  }
+
   /**
    * Get list of all available users in DB
    */
   public async list(
-    paginationOpts: PaginationOptsBase<User>
+    paginationOpts: UserPaginationOpts
   ): Promise<PaginatedResult<UserDTO[]>> {
-    this.logger.trace("User listing started", {
-      paginationOpts,
-    });
-
     this.logger.debug("Users listing with pagination options: ", {
       paginationOpts,
     });
@@ -63,6 +69,14 @@ export class UserService {
     return { data: usersData, pageInfo: usersListPaginated.pageInfo };
   }
 
+  public async listRecent(
+    limit: number,
+    selectOptions: SelectOptions<User>,
+    since?: Date
+  ) {
+    return this.userRepository.listRecent(limit, selectOptions, since);
+  }
+
   /**
    * Retrieve one user
    */
@@ -77,11 +91,6 @@ export class UserService {
     userId: number,
     selectOptions?: SelectOptions<User>
   ): Promise<User> {
-    this.logger.trace("User retrieval started", {
-      userId,
-      selectOptions,
-    });
-
     this.logger.debug("Retrieving user with options: ", {
       userId,
       selectOptions,
@@ -105,6 +114,8 @@ export class UserService {
       this.logger.trace(`User not found: ${userId}`, {
         userId,
       });
+      log.finish();
+
       throw new ClientError(
         ClientResponse.USER_NOT_FOUND,
         HttpStatus.NOT_FOUND
@@ -149,6 +160,10 @@ export class UserService {
     return this.userRepository.find(where, selectOptions);
   }
 
+  public async count(where: FindOptionsWhere<User>): Promise<number> {
+    return this.userRepository.count(where);
+  }
+
   /**
    * Same as `get` method, but with custom `where` condition and avoids cache
    */
@@ -177,14 +192,57 @@ export class UserService {
    * Delete user by params id
    */
   public async delete(userId: number) {
-    return this.performDelete(userId);
+    const result = await this.performDelete(userId);
+    await this.forceLeaveAllGames(userId);
+    return result;
+  }
+
+  public async ban(userId: number) {
+    await this.userRepository.ban(userId);
+    await this.forceLeaveAllGames(userId);
+  }
+
+  public async unban(userId: number) {
+    await this.userRepository.unban(userId);
+  }
+
+  public async restore(userId: number) {
+    await this.userRepository.restore(userId);
+  }
+
+  private async forceLeaveAllGames(userId: number): Promise<void> {
+    const userSockets = Array.from(this.gameNamespace.sockets.values()).filter(
+      (s) => s.userId === userId
+    );
+    if (userSockets.length === 0) return;
+
+    const processedGameIds = new Set<string>();
+    for (const socket of userSockets) {
+      if (!this._gameLobbyLeaver) {
+        this.logger.warn("Game lobby leaver not set; skipping forced leave.", {
+          userId,
+        });
+        return;
+      }
+      const leaveResult = await this._gameLobbyLeaver.leaveLobby(socket.id);
+      if (leaveResult.emit && leaveResult.data) {
+        const gameId = leaveResult.data.gameId;
+
+        if (gameId && !processedGameIds.has(gameId)) {
+          this.gameNamespace
+            .to(gameId)
+            .emit(SocketIOGameEvents.LEAVE, { user: userId });
+          processedGameIds.add(gameId);
+        }
+      }
+    }
   }
 
   /**
    * User deletion logic
    */
   private async performDelete(userId: number) {
-    this.logger.trace("User deletion started", {
+    this.logger.debug("User deletion started", {
       userId,
     });
 

@@ -33,7 +33,12 @@ const isPublicEndpoint = (
     { url: "v1/auth/oauth2", method: "POST" },
   ];
 
+  // Allow admin panel static files (but not API endpoints)
+  const isAdminStaticFile =
+    url.startsWith("/v1/admin") && !url.includes("/v1/admin/api/");
+
   return (
+    isAdminStaticFile ||
     publicEndpoints.some((endpoint) => url.includes(endpoint)) ||
     conditionalEndpoints.some(
       (endpoint) => url.includes(endpoint.url) && method === endpoint.method
@@ -51,6 +56,7 @@ export const verifySession =
     const dateExpired =
       new Date(String(req.session.cookie.expires)) < new Date();
 
+    logger.trace(JSON.stringify(req.session, null, 2));
     if (
       !req.session.userId ||
       dateExpired ||
