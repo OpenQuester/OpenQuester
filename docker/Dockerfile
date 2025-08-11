@@ -13,14 +13,24 @@ RUN npm ci
 COPY server ./
 
 # Prepare a local copy of server shared types for admin-panel build (so Vite can resolve without traversing outside root in constrained build env)
-RUN mkdir -p admin-panel/.server-types \
-	&& mkdir -p admin-panel/.server-types/dto \
-	&& cp -r server/src/domain/types/dto admin-panel/.server-types/ \
+RUN mkdir -p admin-panel/.server-types/dto \
 	&& mkdir -p admin-panel/.server-types/enums/user \
-	&& cp server/src/domain/enums/user/UserStatus.ts admin-panel/.server-types/enums/user/ \
-	&& mkdir -p admin-panel/.server-types/pagination \
-	&& cp server/src/domain/types/pagination/PaginatedResult.ts admin-panel/.server-types/pagination/ \
-	&& cp server/src/domain/types/pagination/PaginationOpts.ts admin-panel/.server-types/pagination/ || true
+	&& mkdir -p admin-panel/.server-types/types/admin \
+	&& mkdir -p admin-panel/.server-types/types/pagination \
+	&& cp -r src/domain/types/dto/. admin-panel/.server-types/dto/ \
+	&& cp src/domain/enums/user/UserStatus.ts admin-panel/.server-types/enums/user/ \
+	&& cp src/domain/types/admin/AdminTypes.ts admin-panel/.server-types/types/admin/ \
+	&& cp src/domain/types/pagination/PaginatedResult.ts admin-panel/.server-types/types/pagination/ \
+	&& cp src/domain/types/pagination/PaginationOpts.ts admin-panel/.server-types/types/pagination/
+
+# Fix relative import paths in the copied index.ts to match the new structure
+RUN sed -i 's|../../enums/user/UserStatus|../enums/user/UserStatus|g' admin-panel/.server-types/dto/index.ts \
+	&& sed -i 's|../../types/admin/AdminTypes|../types/admin/AdminTypes|g' admin-panel/.server-types/dto/index.ts \
+	&& sed -i 's|../../types/pagination/PaginatedResult|../types/pagination/PaginatedResult|g' admin-panel/.server-types/dto/index.ts \
+	&& sed -i 's|../../types/pagination/PaginationOpts|../types/pagination/PaginationOpts|g' admin-panel/.server-types/dto/index.ts
+
+# Exclude admin-panel from server TypeScript compilation to avoid JSX conflicts
+RUN sed -i 's|"exclude": \[".history/\*\*/\*", "\*\*/\*.md"\]|"exclude": [".history/**/*", "**/*.md", "admin-panel/**/*"]|g' tsconfig.json
 
 # --- Build admin-panel (static) ---
 # Copy only manifests first for caching
@@ -42,7 +52,7 @@ FROM node:24-alpine AS production
 
 WORKDIR /app/server
 
-COPY server/package*.json .
+COPY server/package*.json ./
 
 # Copy openapi schema
 COPY openapi/schema.json /app/openapi/
