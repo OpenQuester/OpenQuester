@@ -19,10 +19,20 @@ class GameLobbyPlayerPicker extends WatchingWidget {
         [];
 
     if (controller.selectingPlayerId != ProfileController.getUser()?.id) {
+      final selectingPlayer = gameData?.players.getById(
+        controller.selectingPlayerId,
+      );
       return Column(
         mainAxisSize: MainAxisSize.min,
         spacing: 8,
         children: [
+          if (selectingPlayer != null)
+            GameLobbyPlayer(
+              player: selectingPlayer,
+              playerAnswerState: PlayerAnswerState.none,
+              answering: false,
+              picking: true,
+            ),
           Text(LocaleKeys.game_lobby_secret_question_wait_for_player.tr()),
           const CircularProgressIndicator(),
         ],
@@ -32,7 +42,10 @@ class GameLobbyPlayerPicker extends WatchingWidget {
     return Column(
       spacing: 8,
       children: [
-        Text(LocaleKeys.game_lobby_secret_question_choose_player.tr()),
+        Text(
+          LocaleKeys.game_lobby_secret_question_choose_player.tr(),
+          style: context.textTheme.headlineMedium,
+        ).paddingBottom(16),
         ListView.builder(
           itemCount: players.length,
           itemBuilder: (context, index) {
