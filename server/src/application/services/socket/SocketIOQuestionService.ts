@@ -344,29 +344,26 @@ export class SocketIOQuestionService {
     }
 
     // Execution
-    let isSecretQuestion = false;
-    let isStakeQuestion = false;
     let timer: GameStateTimer | null = null;
-    let secretQuestionData: SecretQuestionGameData | null = null;
-    let stakeQuestionData: StakeQuestionGameData | null = null;
+    let specialQuestionData:
+      | SecretQuestionGameData
+      | StakeQuestionGameData
+      | null = null;
     let automaticNominalBid: PlayerBidData | null = null;
 
     if (question.type === PackageQuestionType.SECRET) {
-      isSecretQuestion = true;
-      secretQuestionData = this._setupSecretQuestion(
+      specialQuestionData = this._setupSecretQuestion(
         game,
         question,
         currentPlayer!
       );
     } else if (question.type === PackageQuestionType.STAKE) {
-      isStakeQuestion = true;
-
       const stakeSetupResult = await this._setupStakeQuestion(
         game,
         question,
         currentPlayer!
       );
-      stakeQuestionData = stakeSetupResult.stakeQuestionData;
+      specialQuestionData = stakeSetupResult.stakeQuestionData;
       timer = stakeSetupResult.timer;
       automaticNominalBid = stakeSetupResult.automaticNominalBid;
     } else {
@@ -390,10 +387,7 @@ export class SocketIOQuestionService {
       question,
       game,
       timer,
-      secretQuestionData,
-      isSecretQuestion,
-      stakeQuestionData,
-      isStakeQuestion,
+      specialQuestionData,
       automaticNominalBid,
     };
   }
@@ -771,7 +765,7 @@ export class SocketIOQuestionService {
     ].map((p) => p.meta.id);
 
     // Set up stake question data
-    const stakeQuestionData = {
+    const stakeQuestionData: StakeQuestionGameData = {
       pickerPlayerId: currentPlayer.meta.id,
       questionId: question.id!,
       maxPrice: question.maxPrice ?? null,
@@ -782,7 +776,7 @@ export class SocketIOQuestionService {
       highestBid: null,
       winnerPlayerId: null,
       biddingPhase: true,
-    } satisfies StakeQuestionGameData;
+    };
 
     // Set the game state to bidding phase
     game.gameState.questionState = QuestionState.BIDDING;

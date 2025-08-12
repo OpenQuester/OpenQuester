@@ -9,10 +9,6 @@ export class SocketUserDataService {
     //
   }
 
-  public async getRaw(socketId: string) {
-    return this.socketUserDataRepository.getRaw(socketId);
-  }
-
   public async getSocketData(
     socketId: string
   ): Promise<SocketRedisUserData | null> {

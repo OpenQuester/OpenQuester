@@ -7,16 +7,19 @@ import { DIConfig } from "application/config/DIConfig";
 import { Container, CONTAINER_TYPES } from "application/Container";
 import { type ApiContext } from "application/context/ApiContext";
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
+import { AdminService } from "application/services/admin/AdminService";
 import { FileService } from "application/services/file/FileService";
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { UserService } from "application/services/user/UserService";
+import { DEFAULT_API_PORT } from "domain/constants/admin";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { ErrorController } from "domain/errors/ErrorController";
@@ -29,6 +32,7 @@ import { SocketUserDataService } from "infrastructure/services/socket/SocketUser
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 import { SocketIOInitializer } from "presentation/controllers/io/SocketIOInitializer";
 import { MiddlewareController } from "presentation/controllers/middleware/MiddlewareController";
+import { AdminRestApiController } from "presentation/controllers/rest/AdminRestApiController";
 import { AuthRestApiController } from "presentation/controllers/rest/AuthRestApiController";
 import { DevelopmentRestApiController } from "presentation/controllers/rest/DevelopmentRestApiController";
 import { FileRestApiController } from "presentation/controllers/rest/FileRestApiController";
@@ -59,7 +63,7 @@ export class ServeApi {
     this._app = this._context.app;
     this._io = this._context.io;
     this._redis = RedisConfig.getClient();
-    this._port = 3000;
+    this._port = DEFAULT_API_PORT;
   }
 
   public async init() {
@@ -174,6 +178,10 @@ export class ServeApi {
         Container.get<GameStatisticsCollectorService>(
           CONTAINER_TYPES.GameStatisticsCollectorService
         ),
+      adminService: Container.get<AdminService>(CONTAINER_TYPES.AdminService),
+      socketGameContextService: Container.get<SocketGameContextService>(
+        CONTAINER_TYPES.SocketGameContextService
+      ),
     };
 
     // REST
@@ -196,6 +204,13 @@ export class ServeApi {
     new PackageRestApiController(deps.app, deps.packageService);
     new FileRestApiController(deps.app, deps.storage);
     new GameRestApiController(deps.app, deps.game);
+    new AdminRestApiController(
+      deps.app,
+      deps.userService,
+      deps.redisService,
+      this._context.logger,
+      deps.adminService
+    );
     new SwaggerRestApiController(deps.app, this._context.logger);
 
     if (this._context.env.ENV === EnvType.DEV) {
@@ -218,6 +233,8 @@ export class ServeApi {
       deps.finalRoundService,
       deps.userNotificationRoomService,
       deps.gameStatisticsCollectorService,
+      deps.socketGameContextService,
+      deps.userService,
       this._context.logger
     );
   }

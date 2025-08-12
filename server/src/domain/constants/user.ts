@@ -12,6 +12,7 @@ export const USER_SELECT_FIELDS: Array<keyof User> = [
   "created_at",
   "updated_at",
   "is_deleted",
+  "is_banned",
 ];
 
 export const USER_RELATIONS: Array<keyof User> = ["avatar", "permissions"];

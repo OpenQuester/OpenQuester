@@ -1,0 +1,40 @@
+{
+  "name": "openquester-admin-panel",
+  "version": "1.0.0",
+  "description": "React-based admin panel for OpenQuester",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:dev": "vite build --watch",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.59.0",
+    "autoprefixer": "^10.4.20",
+    "axios": "^1.7.9",
+    "lucide-react": "^0.468.0",
+    "postcss": "^8.5.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.54.0",
+    "react-router-dom": "^6.28.0",
+    "tailwindcss": "^3.4.15"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.15.0",
+    "@typescript-eslint/parser": "^8.15.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "eslint": "^9.15.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-refresh": "^0.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.1",
+    "vite-tsconfig-paths": "^4.3.2"
+  }
+}

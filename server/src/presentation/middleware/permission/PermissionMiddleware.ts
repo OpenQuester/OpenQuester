@@ -23,7 +23,7 @@ export function checkPermission(permission: Permissions, logger: ILogger) {
         relationSelects: { permissions: ["id", "name"] },
       });
 
-      if (!user) {
+      if (!user || user.is_deleted || user.is_banned) {
         throw new ClientError(
           ClientResponse.ACCESS_DENIED,
           HttpStatus.UNAUTHORIZED

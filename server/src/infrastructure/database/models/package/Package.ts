@@ -129,6 +129,12 @@ export class Package {
 
     const logoDTO = this.logoDTO(storage);
 
+    if (!this.rounds) {
+      throw new ClientError(ClientResponse.PACKAGE_CORRUPTED, undefined, {
+        id: this.id,
+        missing: "rounds:notLoaded",
+      });
+    }
     if (this.rounds.length < 1) {
       throw new ClientError(ClientResponse.PACKAGE_CORRUPTED, undefined, {
         id: this.id,
@@ -137,7 +143,7 @@ export class Package {
     }
 
     const roundsDTO = this.rounds
-      .sort((a, b) => a.order - b.order) // Sort by order
+      .sort((a, b) => a.order - b.order)
       .map((round) => round.toDTO(storage, options));
 
     const tagsDTO = this.tags.map((tag) => tag.toDTO());

@@ -8,6 +8,7 @@ export enum SocketIOEvents {
 
 export enum SocketIOUserEvents {
   USER_CHANGE = "user-change",
+  USER_UPDATED = "user-updated",
 }
 
 export enum SocketIOGameEvents {

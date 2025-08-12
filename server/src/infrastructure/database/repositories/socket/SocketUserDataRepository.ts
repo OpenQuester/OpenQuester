@@ -14,7 +14,13 @@ export class SocketUserDataRepository {
   }
 
   public async getRaw(socketId: string) {
-    return this.redisService.hgetall(this._getKey(socketId));
+    const pattern = this._getKey(socketId, null); // will contain wildcard in place of userId
+    const keys = await this.redisService.scan(pattern);
+    if (!keys.length) {
+      return {} as Record<string, string>;
+    }
+    // Expect exactly one key; if multiple (edge case), pick first.
+    return this.redisService.hgetall(keys[0]);
   }
 
   public async getSocketData(
@@ -34,8 +40,9 @@ export class SocketUserDataRepository {
     socketId: string,
     data: { userId: number; language: string }
   ) {
-    return this.redisService.hset(
-      this._getKey(socketId),
+    // Store only under the userId-inclusive key: <nsp>:<userId>:<socketId>
+    await this.redisService.hset(
+      this._getKey(socketId, data.userId),
       {
         id: data.userId,
         language: data.language,
@@ -45,15 +52,39 @@ export class SocketUserDataRepository {
   }
 
   public async update(socketId: string, data: SocketRedisUserUpdateDTO) {
-    return this.redisService.hset(
-      this._getKey(socketId),
-      data,
-      SOCKET_GAME_AUTH_TTL
-    );
+    // Require id presence for update to ensure we can target the correct composite key
+    let userId: number | null = null;
+    if (data.id) {
+      try {
+        userId = parseInt(
+          JSON.parse((data.id as unknown as string) || (data.id as string))
+        );
+      } catch {
+        userId = parseInt(data.id as string);
+      }
+    }
+
+    if (userId && !Number.isNaN(userId)) {
+      await this.redisService.hset(
+        this._getKey(socketId, userId),
+        data,
+        SOCKET_GAME_AUTH_TTL
+      );
+    }
   }
 
   public async remove(socketId: string) {
-    return this.redisService.del(this._getKey(socketId));
+    // Single key deletion: need to resolve userId via scan since we only have socketId
+    const pattern = `${SOCKET_USER_REDIS_NSP}:*:${socketId}`;
+    const keys = await this.redisService.scan(pattern);
+    if (keys.length === 0) return 0;
+
+    let deleted = 0;
+    for (const k of keys) {
+      deleted += await this.redisService.del(k);
+    }
+
+    return deleted;
   }
 
   /**
@@ -68,10 +99,13 @@ export class SocketUserDataRepository {
       return; // Another instance acquired the lock
     }
 
-    return this.redisService.cleanupKeys(this._getKey("*"), "socket session");
+    return this.redisService.cleanupKeys(
+      `${SOCKET_USER_REDIS_NSP}:*:*`,
+      "socket session"
+    );
   }
 
-  private _getKey(socketId: string) {
-    return `${SOCKET_USER_REDIS_NSP}:${socketId}`;
+  private _getKey(socketId: string, userId: number | null) {
+    return `${SOCKET_USER_REDIS_NSP}:${userId ? userId : "*"}:${socketId}`;
   }
 }

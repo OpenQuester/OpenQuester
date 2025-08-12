@@ -1053,6 +1053,11 @@
             "type": ["integer", "null"],
             "examples": [0]
           },
+          "currentQuestion": {
+            "type": ["integer", "null"],
+            "description": "ID of the currently active question in round if any",
+            "examples": [0]
+          },
           "playedQuestions": {
             "type": ["integer", "null"],
             "examples": [0]

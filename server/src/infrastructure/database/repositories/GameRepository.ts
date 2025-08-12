@@ -6,6 +6,7 @@ import {
   GAME_NAMESPACE,
   GAME_TTL_IN_SECONDS,
 } from "domain/constants/game";
+import { PACKAGE_DETAILED_RELATIONS } from "domain/constants/package";
 import { REDIS_LOCK_GAMES_CLEANUP } from "domain/constants/redis";
 import { TIMER_NSP } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
@@ -157,7 +158,9 @@ export class GameRepository {
     createdBy: User
   ): Promise<GameListItemDTO> {
     const packageData = await this.packageService.getPackageRaw(
-      gameData.packageId
+      gameData.packageId,
+      undefined,
+      PACKAGE_DETAILED_RELATIONS
     );
 
     if (!packageData) {

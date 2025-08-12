@@ -1,6 +1,7 @@
 import { type Request } from "express";
 
 import {
+  PACKAGE_DETAILED_RELATIONS,
   PACKAGE_SELECT_FIELDS,
   PACKAGE_SELECT_RELATIONS,
 } from "domain/constants/package";
@@ -33,12 +34,15 @@ export class PackageService {
     select?: (keyof Package)[],
     relations?: string[]
   ): Promise<PackageDTO> {
-    return (await this.getPackageRaw(packId, select, relations)).toDTO(
-      this.storage,
-      {
-        fetchIds: true,
-      }
-    );
+    return (
+      await this.getPackageRaw(
+        packId,
+        select,
+        relations ?? PACKAGE_DETAILED_RELATIONS
+      )
+    ).toDTO(this.storage, {
+      fetchIds: true,
+    });
   }
 
   public async getPackageRaw(
