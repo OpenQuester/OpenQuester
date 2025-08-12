@@ -114,6 +114,9 @@ class _BodyBuilder extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final isPickingPlayer = watchPropertyValue(
+      (GameLobbyPlayerPickerController e) => e.isPicking,
+    );
     final lobbyEditorMode = watchValue(
       (GameLobbyController e) => e.lobbyEditorMode,
     );
@@ -123,8 +126,9 @@ class _BodyBuilder extends WatchingWidget {
     final gameFinished = watchValue((GameLobbyController e) => e.gameFinished);
 
     Widget body;
-
-    if (lobbyEditorMode) {
+    if (isPickingPlayer) {
+      body = const GameLobbyPlayerPicker();
+    } else if (lobbyEditorMode) {
       body = const GameLobbyEditor().fadeIn();
     } else if (gameData?.gameState.currentRound == null) {
       body = const CircularProgressIndicator().fadeIn().center();

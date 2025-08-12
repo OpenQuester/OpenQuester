@@ -122,7 +122,6 @@
     "pure_dark": "Pure Dark",
     "appearance": "Appearance"
   },
-
   "game_package": "Game Package",
   "selected_package": "Selected Package",
   "ready_to_play": "Ready to play",
@@ -137,5 +136,10 @@
     "waiting_for_players": "Wait for user answer",
     "no_risk_question": "No-risk question",
     "select_question": "Select question"
+  },
+  "confirm": "Confirm",
+  "game_lobby_secret_question": {
+    "wait_for_player": "Wait for player to select who will answer",
+    "choose_player": "Choose player to pass this question to"
   }
 }
