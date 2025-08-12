@@ -8,6 +8,8 @@ class GameLobbyPlayer extends WatchingWidget {
     required this.answering,
     required this.picking,
     this.customIcon,
+    this.constraints,
+    this.playerTextStyle,
     super.key,
   });
 
@@ -16,6 +18,8 @@ class GameLobbyPlayer extends WatchingWidget {
   final bool picking;
   final PlayerAnswerState playerAnswerState;
   final Widget? customIcon;
+  final BoxConstraints? constraints;
+  final TextStyle? playerTextStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +32,8 @@ class GameLobbyPlayer extends WatchingWidget {
       PlayerAnswerState.skip => null,
     };
     final playerSkipped = playerAnswerState == PlayerAnswerState.skip;
+    final playerTextStyle =
+        this.playerTextStyle ?? GameLobbyStyles.playerTextStyle(context);
 
     final child = Container(
       decoration: BoxDecoration(
@@ -36,7 +42,7 @@ class GameLobbyPlayer extends WatchingWidget {
         color: context.theme.colorScheme.surface,
       ),
       padding: 4.all,
-      constraints: GameLobbyStyles.playerTileConstrains(context),
+      constraints: constraints ?? GameLobbyStyles.playerTileConstrains(context),
       child: DefaultTextStyle(
         style: context.textTheme.bodySmall!.copyWith(
           color: Colors.white,
@@ -70,13 +76,13 @@ class GameLobbyPlayer extends WatchingWidget {
                     children: [
                       Text(
                         player.meta.username,
-                        style: GameLobbyStyles.playerTextStyle(context),
+                        style: playerTextStyle,
                         overflow: TextOverflow.ellipsis,
                       ),
                       if (player.role == PlayerRole.player)
                         ScoreText(
                           score: player.score,
-                          textStyle: GameLobbyStyles.playerTextStyle(context),
+                          textStyle: playerTextStyle,
                         )
                       else if (player.role == PlayerRole.showman)
                         Text(LocaleKeys.showman.tr()),

@@ -12,19 +12,28 @@ class GameLobbyPlayerPicker extends WatchingWidget {
         gameData?.players.where(
           (e) {
             return e.role == PlayerRole.player &&
-                    controller.type == QuestionTransferType.any ||
-                e.meta.id != controller.selectingPlayerId;
+                (controller.type == QuestionTransferType.any ||
+                    e.meta.id != controller.selectingPlayerId);
           },
         ).toList() ??
         [];
 
-    if (controller.selectingPlayerId != ProfileController.getUser()?.id) {
+    final playerBoxConstraints = BoxConstraints.expand(
+      width: 350,
+      height: GameLobbyStyles.players.height,
+    );
+    final playerTextStyle = GameLobbyStyles.playerTextStyleDesktop(
+      context,
+    );
+
+    if (controller.selectingPlayerId != ProfileController.getUser()?.id ||
+        gameData?.me.role == PlayerRole.showman) {
       final selectingPlayer = gameData?.players.getById(
         controller.selectingPlayerId,
       );
       return Column(
         mainAxisSize: MainAxisSize.min,
-        spacing: 8,
+        spacing: 24,
         children: [
           if (selectingPlayer != null)
             GameLobbyPlayer(
@@ -32,37 +41,55 @@ class GameLobbyPlayerPicker extends WatchingWidget {
               playerAnswerState: PlayerAnswerState.none,
               answering: false,
               picking: true,
+              constraints: playerBoxConstraints,
+              playerTextStyle: playerTextStyle,
             ),
-          Text(LocaleKeys.game_lobby_secret_question_wait_for_player.tr()),
-          const CircularProgressIndicator(),
+          Text(
+            LocaleKeys.game_lobby_secret_question_wait_for_player.tr(),
+            textAlign: TextAlign.center,
+            style: context.textTheme.headlineSmall,
+          ),
+          //TODO: Add animation for waiting icon
+          const Icon(
+            Icons.more_horiz,
+            size: 42,
+          ),
         ],
-      ).center();
+      ).paddingAll(16).center();
     }
 
     return Column(
       spacing: 8,
       children: [
         Text(
-          LocaleKeys.game_lobby_secret_question_choose_player.tr(),
-          style: context.textTheme.headlineMedium,
+          [
+            LocaleKeys.game_lobby_secret_question_choose_player.tr(),
+            ':',
+          ].join(),
+          style: context.textTheme.headlineSmall,
+          textAlign: TextAlign.center,
         ).paddingBottom(16),
-        ListView.builder(
+        ListView.separated(
           itemCount: players.length,
+          separatorBuilder: (_, _) => 8.height,
           itemBuilder: (context, index) {
             final player = players[index];
             final selected = player.meta.id == controller.selectedPlayerId;
+
             return InkWell(
               onTap: () => controller.pickPlayer(player.meta.id),
               borderRadius: GameLobbyStyles.playerTileRadius.circular,
               child: GameLobbyPlayer(
                 player: player,
                 playerAnswerState: selected
-                    ? PlayerAnswerState.skip
+                    ? PlayerAnswerState.correct
                     : PlayerAnswerState.none,
+                playerTextStyle: playerTextStyle,
                 answering: false,
                 picking: false,
+                constraints: playerBoxConstraints,
               ),
-            );
+            ).center();
           },
         ).expand(),
         FilledButton(
