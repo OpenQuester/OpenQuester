@@ -12,6 +12,9 @@ class GameLobbyTitle extends WatchingWidget {
     final imShowman = gameData?.me.role == PlayerRole.showman;
     final question = gameData?.gameState.currentQuestion;
     final questionPicked = question != null;
+    final isPickingPlayer = watchPropertyValue(
+      (GameLobbyPlayerPickerController e) => e.isPicking,
+    );
 
     var title = '';
 
@@ -23,6 +26,8 @@ class GameLobbyTitle extends WatchingWidget {
       } else {
         title = LocaleKeys.game_lobby_title_answer_question.tr();
       }
+    } else if (isPickingPlayer) {
+      title = '';
     } else if (fileData == null) {
       title = LocaleKeys.game_lobby_title_select_question.tr();
     }

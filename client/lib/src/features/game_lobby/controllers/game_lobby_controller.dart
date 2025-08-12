@@ -490,12 +490,19 @@ class GameLobbyController {
       currentTurnPlayerId: questionData.nextTurnPlayerId,
       skippedPlayers: null,
     );
+
     _showAnswer();
   }
 
   Future<void> _showAnswer() async {
     final controller = getIt<GameQuestionController>();
     final currentQuestion = gameData.value?.gameState.currentQuestion;
+
+    // Check for empty answer
+    if (currentQuestion?.answerFiles?.isEmpty ??
+        true && (currentQuestion?.answerText.isEmptyOrNull ?? true)) {
+      return;
+    }
 
     // Clear question
     gameData.value = gameData.value?.copyWith.gameState(
