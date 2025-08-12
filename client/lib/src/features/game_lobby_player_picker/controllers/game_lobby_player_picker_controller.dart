@@ -49,4 +49,6 @@ class GameLobbyPlayerPickerController extends ChangeNotifier {
     _onPlayerSelected = null;
     notifyListeners();
   }
+
+  void clear() => stopSelection();
 }

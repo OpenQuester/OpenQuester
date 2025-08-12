@@ -26,8 +26,8 @@ class GameLobbyPlayerPicker extends WatchingWidget {
       context,
     );
 
-    if (controller.selectingPlayerId != ProfileController.getUser()?.id ||
-        gameData?.me.role == PlayerRole.showman) {
+    if (controller.selectingPlayerId != ProfileController.getUser()?.id &&
+        gameData?.me.role != PlayerRole.showman) {
       final selectingPlayer = gameData?.players.getById(
         controller.selectingPlayerId,
       );

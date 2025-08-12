@@ -175,6 +175,7 @@ class GameLobbyController {
       themeScrollPosition = null;
       getIt<SocketChatController>().clear();
       getIt<GameQuestionController>().clear();
+      getIt<GameLobbyPlayerPickerController>().clear();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
     }
