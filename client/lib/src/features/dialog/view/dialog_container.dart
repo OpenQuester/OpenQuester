@@ -14,19 +14,16 @@ class DialogContainer extends StatelessWidget {
         child: MaxSizeContainer(
           maxWidth: UiModeUtils.maximumDialogWidth,
           child: ScaffoldMessenger(
-            child: GestureDetector(
-              onVerticalDragEnd: (_) => Navigator.pop(context),
-              child: Scaffold(
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              appBar: AppBar(
+                actions: const [CloseButton()],
+                automaticallyImplyLeading: false,
                 backgroundColor: Colors.transparent,
-                appBar: AppBar(
-                  actions: const [CloseButton()],
-                  automaticallyImplyLeading: false,
-                  backgroundColor: Colors.transparent,
-                  scrolledUnderElevation: 0,
-                  elevation: 0,
-                ),
-                body: child,
+                scrolledUnderElevation: 0,
+                elevation: 0,
               ),
+              body: child,
             ),
           ),
         ),
