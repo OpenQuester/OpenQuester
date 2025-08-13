@@ -1,18 +1,14 @@
 import { Socket } from "socket.io";
 
+import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
-import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
-import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
@@ -26,7 +22,7 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     private readonly socketIOGameService: SocketIOGameService,
-    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService
+    private readonly gameProgressionCoordinator: GameProgressionCoordinator
   ) {
     super(socket, eventEmitter, logger);
   }
@@ -61,74 +57,25 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
     context.gameId = game.id;
     context.userId = this.socket.userId;
 
-    const broadcasts: SocketEventBroadcast[] = [];
-
-    // Always emit question finish if there was a current question
-    if (questionData) {
-      broadcasts.push({
-        event: SocketIOGameEvents.QUESTION_FINISH,
-        data: {
-          answerFiles: questionData.answerFiles ?? null,
-          answerText: questionData.answerText ?? null,
-          nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-        } satisfies QuestionFinishEventPayload,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
+    // Use the game progression coordinator to handle the complete flow
+    const progressionResult =
+      await this.gameProgressionCoordinator.processGameProgression({
+        game,
+        isGameFinished,
+        nextGameState,
+        questionFinishData: questionData
+          ? {
+              answerFiles: questionData.answerFiles ?? null,
+              answerText: questionData.answerText ?? null,
+              nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+            }
+          : null,
       });
-    }
-
-    // Handle game finished scenario
-    if (isGameFinished) {
-      broadcasts.push({
-        event: SocketIOGameEvents.GAME_FINISHED,
-        data: true,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      });
-
-      // Trigger statistics persistence
-      try {
-        await this.gameStatisticsCollectorService.finishCollection(game.id);
-      } catch (error) {
-        this.logger.warn("Failed to execute statistics persistence", {
-          gameId: game.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-
-      return {
-        success: true,
-        data: undefined,
-        broadcast: broadcasts,
-      };
-    }
-
-    // Handle next round scenario
-    if (nextGameState) {
-      const nextRoundPayload: GameNextRoundEventPayload = {
-        gameState: nextGameState,
-      };
-
-      broadcasts.push({
-        event: SocketIOGameEvents.NEXT_ROUND,
-        data: nextRoundPayload,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-        useRoleBasedBroadcast:
-          nextGameState.currentRound?.type === PackageRoundType.FINAL,
-      });
-
-      return {
-        success: true,
-        data: nextRoundPayload,
-        broadcast: broadcasts,
-      };
-    }
 
     return {
-      success: true,
-      data: undefined,
-      broadcast: broadcasts,
+      success: progressionResult.success,
+      data: progressionResult.data as GameNextRoundEventPayload,
+      broadcast: progressionResult.broadcasts,
     };
   }
 }

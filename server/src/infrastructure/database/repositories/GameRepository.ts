@@ -428,7 +428,10 @@ export class GameRepository {
       ageRestriction: game.ageRestriction,
       isPrivate: game.isPrivate,
       maxPlayers: game.maxPlayers,
-      players: game.playersCount,
+      players: game.players.map((p) => ({
+        id: p.meta.id,
+        role: p.role,
+      })),
       createdBy: {
         id: createdBy.id,
         username: createdBy.username,

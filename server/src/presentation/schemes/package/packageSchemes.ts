@@ -1,5 +1,6 @@
 import Joi from "joi";
 
+import { MAX_QUESTION_PRICE_UPLOAD } from "domain/constants/game";
 import { LIMIT_MAX, LIMIT_MIN, OFFSET_MIN } from "domain/constants/pagination";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
@@ -33,7 +34,7 @@ const packageFileSchema = Joi.object({
 
 // Base question schema with common fields
 const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
-  price: Joi.number().allow(null).required(), // Final round questions have null price - players bid after theme selection
+  price: Joi.number().allow(null).max(MAX_QUESTION_PRICE_UPLOAD).required(), // Final round questions have null price - players bid after theme selection
   order: Joi.number().min(0).required(),
   type: Joi.string()
     .valid(...Object.values(PackageQuestionType))
@@ -87,14 +88,18 @@ const questionSchema = baseQuestionSchema.keys({
   }),
   maxPrice: Joi.when("type", {
     is: "stake",
-    then: Joi.number().allow(null).required(),
+    then: Joi.number().allow(null).max(MAX_QUESTION_PRICE_UPLOAD).required(),
     otherwise: Joi.forbidden(),
   }),
   allowedPrices: Joi.when("type", {
     is: "secret",
     then: Joi.when("subType", {
       is: PackageQuestionSubType.CUSTOM_PRICE,
-      then: Joi.array().items(Joi.number()).min(2).max(5).required(),
+      then: Joi.array()
+        .items(Joi.number().max(MAX_QUESTION_PRICE_UPLOAD))
+        .min(2)
+        .max(5)
+        .required(),
       otherwise: Joi.optional().valid(null),
     }),
     otherwise: Joi.optional().valid(null),

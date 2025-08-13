@@ -160,6 +160,15 @@ export class TestUtils {
   }
 
   /**
+   * Get game entity
+   */
+  public async getGameEntity(
+    gameId: string
+  ): Promise<import("domain/entities/game/Game").Game> {
+    return this.socketGameTestUtils.getGameFromGameService(gameId);
+  }
+
+  /**
    * Wait for specified time
    */
   public async wait(ms: number): Promise<void> {

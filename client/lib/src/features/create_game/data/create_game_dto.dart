@@ -11,6 +11,7 @@ abstract class CreateGameDto with _$CreateGameDto {
     @Default(AgeRestriction.none) AgeRestriction ageRestriction,
     @Default(false) bool private,
     @Default(10) int maxPlayers,
+    @Default(PlayerRole.showman) PlayerRole selectedRole,
   }) = _CreateGameDto;
 }
 

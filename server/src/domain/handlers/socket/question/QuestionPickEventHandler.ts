@@ -68,8 +68,11 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
     context.gameId = result.game.id;
     context.userId = this.socket.userId;
 
-    // Check if this is a secret question
-    if (result.question.type === PackageQuestionType.SECRET) {
+    // Check if this is a secret question with special data (not auto-skipped)
+    if (
+      result.question.type === PackageQuestionType.SECRET &&
+      result.specialQuestionData
+    ) {
       // For secret questions, we need to emit a different event
       // Return an empty successful result and handle the secret question event separately
       return {
@@ -91,8 +94,11 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
       };
     }
 
-    // Check if this is a stake question
-    if (result.question.type === PackageQuestionType.STAKE) {
+    // Check if this is a stake question with special data (not auto-skipped)
+    if (
+      result.question.type === PackageQuestionType.STAKE &&
+      result.specialQuestionData
+    ) {
       // For stake questions, we need to emit a different event
       // Return an empty successful result and handle the stake question event separately
       return {

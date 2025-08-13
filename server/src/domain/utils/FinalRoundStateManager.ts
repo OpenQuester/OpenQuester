@@ -1,4 +1,8 @@
-import { FINAL_ROUND_MIN_BID } from "domain/constants/game";
+import {
+  FINAL_ROUND_MIN_BID,
+  MAX_SCORE_DELTA,
+  SCORE_ABS_LIMIT,
+} from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
@@ -191,12 +195,14 @@ export class FinalRoundStateManager {
 
     // Calculate score change based on bid and correctness
     const bidAmount = data.bids[answer.playerId] || FINAL_ROUND_MIN_BID;
-    const scoreChange = isCorrect ? bidAmount : -bidAmount;
+    const rawChange = isCorrect ? bidAmount : -bidAmount;
+    const scoreChange = ValueUtils.clampAbs(rawChange, MAX_SCORE_DELTA);
 
-    // Update player score
+    // Update player score with saturation to absolute score limit (soft cap)
     const player = game.players.find((p) => p.meta.id === answer.playerId);
     if (player) {
-      player.score += scoreChange;
+      const tentative = player.score + scoreChange;
+      player.score = ValueUtils.clampAbs(tentative, SCORE_ABS_LIMIT);
     }
 
     this.updateFinalRoundData(game, data);

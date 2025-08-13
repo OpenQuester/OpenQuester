@@ -153,4 +153,24 @@ export class ValueUtils {
   public static generateUUID() {
     return uuidv4();
   }
+
+  /**
+   * Clamp by absolute magnitude while preserving the sign.
+   * Useful for limiting deltas (e.g., per-answer score change) to a maximum size
+   * regardless of direction, while still allowing negative values.
+   *
+   * Differences vs clamp:
+   * - clamp requires an explicit [min, max] window and can asymmetrically bound values.
+   * - clampAbs enforces a symmetric bound [-maxAbs, +maxAbs] and keeps the sign of input.
+   *
+   * Examples with maxAbs = 2_000_000:
+   * - clampAbs(3_500_000, 2_000_000) -> 2_000_000
+   * - clampAbs(-5_000_000, 2_000_000) -> -2_000_000
+   * - clampAbs(150, 2_000_000) -> 150
+   */
+  public static clampAbs(value: number, maxAbs: number): number {
+    if (!this.isNumber(value)) return 0;
+    const sign = Math.sign(value);
+    return sign * Math.min(Math.abs(value), Math.abs(maxAbs));
+  }
 }

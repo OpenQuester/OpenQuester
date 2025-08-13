@@ -9,6 +9,7 @@ import {
 import { type Express } from "express";
 import request from "supertest";
 
+import { Container, CONTAINER_TYPES } from "application/Container";
 import {
   SocketIOEvents,
   SocketIOGameEvents,
@@ -21,6 +22,7 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
+import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
@@ -34,6 +36,7 @@ describe("PlayerRestrictions", () => {
   let serverUrl: string;
   let utils: SocketGameTestUtils;
   let logger: ILogger;
+  let playerGameStatsRepository: PlayerGameStatsRepository;
 
   beforeAll(async () => {
     logger = await PinoLogger.init({ pretty: true });
@@ -44,6 +47,10 @@ describe("PlayerRestrictions", () => {
     cleanup = boot.cleanup;
     serverUrl = `http://localhost:${process.env.PORT || 3000}`;
     utils = new SocketGameTestUtils(serverUrl);
+
+    playerGameStatsRepository = Container.get<PlayerGameStatsRepository>(
+      CONTAINER_TYPES.PlayerGameStatsRepository
+    );
   });
 
   afterAll(async () => {
@@ -370,6 +377,56 @@ describe("PlayerRestrictions", () => {
       expect(kickData.playerId).toBe(targetPlayerId);
       expect(leaveData.user).toBe(targetPlayerId);
       expect(playerLeaveData.user).toBe(targetPlayerId);
+    } finally {
+      await utils.cleanupGameClients(setup);
+    }
+  });
+
+  it("should end player session in Redis when restricting a player", async () => {
+    const userRepo = testEnv.getDatabase().getRepository(User);
+    const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+
+    try {
+      const targetPlayerId = setup.playerUsers[0].id;
+      const gameId = setup.gameId;
+
+      // Verify initial session has no leftAt timestamp
+      const initialSessionData = await playerGameStatsRepository.getStats(
+        gameId,
+        targetPlayerId
+      );
+      expect(initialSessionData).toBeTruthy();
+      expect(initialSessionData!.leftAt).toBe("");
+
+      // Wait for PLAYER_RESTRICTED event
+      const restrictionEventPromise = utils.waitForEvent(
+        setup.showmanSocket,
+        SocketIOGameEvents.PLAYER_RESTRICTED
+      );
+
+      // Showman restricts the player (should end their session)
+      setup.showmanSocket.emit(SocketIOGameEvents.PLAYER_RESTRICTED, {
+        playerId: targetPlayerId,
+        muted: false,
+        restricted: true,
+        banned: false,
+      });
+
+      await restrictionEventPromise;
+
+      // Verify session now has leftAt timestamp (session was ended)
+      const finalSessionData = await playerGameStatsRepository.getStats(
+        gameId,
+        targetPlayerId
+      );
+      expect(finalSessionData).toBeTruthy();
+      expect(finalSessionData!.leftAt).not.toBe("");
+
+      // Verify leftAt is a recent timestamp
+      const leftAt = new Date(finalSessionData!.leftAt);
+      const now = new Date();
+      const timeDiff = now.getTime() - leftAt.getTime();
+      expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
     } finally {
       await utils.cleanupGameClients(setup);
     }

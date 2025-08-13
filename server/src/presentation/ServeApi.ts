@@ -9,6 +9,7 @@ import { type ApiContext } from "application/context/ApiContext";
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { AdminService } from "application/services/admin/AdminService";
 import { FileService } from "application/services/file/FileService";
+import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
@@ -182,6 +183,9 @@ export class ServeApi {
       socketGameContextService: Container.get<SocketGameContextService>(
         CONTAINER_TYPES.SocketGameContextService
       ),
+      gameProgressionCoordinator: Container.get<GameProgressionCoordinator>(
+        CONTAINER_TYPES.GameProgressionCoordinator
+      ),
     };
 
     // REST
@@ -235,6 +239,7 @@ export class ServeApi {
       deps.gameStatisticsCollectorService,
       deps.socketGameContextService,
       deps.userService,
+      deps.gameProgressionCoordinator,
       this._context.logger
     );
   }

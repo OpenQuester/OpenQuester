@@ -92,6 +92,79 @@ class CreateGameDialog extends WatchingWidget {
   }
 }
 
+class _RoleSelector extends StatelessWidget {
+  const _RoleSelector({required this.state, required this.controller});
+
+  final CreateGameDto state;
+  final CreateGameController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    const roles = <PlayerRole>[
+      PlayerRole.showman,
+      PlayerRole.player,
+      PlayerRole.spectator,
+    ];
+    return Container(
+      padding: 14.all,
+      decoration: BoxDecoration(
+        color: context.theme.colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: context.theme.colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.person_rounded,
+                size: 20,
+                color: context.theme.colorScheme.primary,
+              ).paddingRight(12),
+              Text(
+                LocaleKeys.your_role.tr(), // Using existing key temporarily
+                style: context.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ).paddingBottom(10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final role in roles)
+                ChoiceChip(
+                  label: Text(_getRoleName(role)),
+                  selected: state.selectedRole == role,
+                  onSelected: (_) => controller.state.value = state.copyWith(
+                    selectedRole: role,
+                  ),
+                  showCheckmark: false,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getRoleName(PlayerRole role) {
+    return switch (role) {
+      PlayerRole.showman => LocaleKeys.showman.tr(),
+      PlayerRole.player => LocaleKeys.player.tr(),
+      PlayerRole.spectator => LocaleKeys.spectator.tr(),
+      PlayerRole.$unknown => '',
+    };
+  }
+}
+
 class _MaxPlayersSelect extends StatelessWidget {
   const _MaxPlayersSelect({required this.state, required this.controller});
 
@@ -579,6 +652,7 @@ class _GameConfigSection extends StatelessWidget {
               ],
             ),
             _MaxPlayersSelect(state: state, controller: controller),
+            _RoleSelector(state: state, controller: controller),
           ],
         ),
       ],

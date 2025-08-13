@@ -42,6 +42,7 @@ import {
 } from "domain/types/socket/game/AnswerResultData";
 import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
 import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
+import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
 import { SecretQuestionValidator } from "domain/validators/SecretQuestionValidator";
@@ -279,13 +280,13 @@ export class SocketIOQuestionService {
       action: QuestionAction.PLAYER_SKIP,
     });
 
-    // Execution
-    game.addSkippedPlayer(currentPlayer!.meta.id);
+    // Check if this skip should be treated as a "give up" with penalty
+    if (SpecialQuestionUtils.isGiveUpScenario(game)) {
+      return await this._handleGiveUp(game, currentPlayer!);
+    }
 
-    // Save
-    await this.gameService.updateGame(game);
-
-    return { game, playerId: currentPlayer!.meta.id };
+    // Default skip behavior: just mark player as skipped
+    return await this._handleRegularSkip(game, currentPlayer!);
   }
 
   public async handlePlayerUnskip(socketId: string) {
@@ -357,15 +358,34 @@ export class SocketIOQuestionService {
         question,
         currentPlayer!
       );
+      // If no special question data (no active players), proceed as normal question
+      if (!specialQuestionData) {
+        game.gameState.secretQuestionData = null;
+        timer = await this.socketQuestionStateService.setupQuestionTimer(
+          game,
+          GAME_QUESTION_ANSWER_TIME,
+          QuestionState.SHOWING
+        );
+      }
     } else if (question.type === PackageQuestionType.STAKE) {
       const stakeSetupResult = await this._setupStakeQuestion(
         game,
         question,
         currentPlayer!
       );
-      specialQuestionData = stakeSetupResult.stakeQuestionData;
-      timer = stakeSetupResult.timer;
-      automaticNominalBid = stakeSetupResult.automaticNominalBid;
+      // If no stake setup result (no active players), proceed as normal question
+      if (stakeSetupResult) {
+        specialQuestionData = stakeSetupResult.stakeQuestionData;
+        timer = stakeSetupResult.timer;
+        automaticNominalBid = stakeSetupResult.automaticNominalBid;
+      } else {
+        game.gameState.stakeQuestionData = null;
+        timer = await this.socketQuestionStateService.setupQuestionTimer(
+          game,
+          GAME_QUESTION_ANSWER_TIME,
+          QuestionState.SHOWING
+        );
+      }
     } else {
       // Normal question flow - set up timer and showing state
       timer = await this.socketQuestionStateService.setupQuestionTimer(
@@ -592,11 +612,11 @@ export class SocketIOQuestionService {
     const timer = await this.socketQuestionStateService.setupQuestionTimer(
       game,
       GAME_QUESTION_ANSWER_TIME,
-      QuestionState.SHOWING
+      QuestionState.ANSWERING
     );
 
     game.gameState.secretQuestionData = null;
-    game.gameState.questionState = QuestionState.SHOWING;
+    game.gameState.questionState = QuestionState.ANSWERING;
 
     // Save
     await this.gameService.updateGame(game);
@@ -718,12 +738,20 @@ export class SocketIOQuestionService {
 
   /**
    * Sets up secret question data and game state
+   * Returns null if no active players exist (only showman), causing question to proceed as normal
    */
   private _setupSecretQuestion(
     game: Game,
     question: PackageQuestionDTO,
     currentPlayer: Player
-  ): SecretQuestionGameData {
+  ): SecretQuestionGameData | null {
+    // Check if there are any active in-game players to transfer to
+    const activeInGamePlayers = game.getInGamePlayers();
+    if (activeInGamePlayers.length === 0) {
+      // No active players to transfer to, skip secret transfer phase
+      return null;
+    }
+
     const secretQuestionData = {
       pickerPlayerId: currentPlayer.meta.id,
       transferType: question.transferType!,
@@ -740,6 +768,7 @@ export class SocketIOQuestionService {
 
   /**
    * Sets up stake question data, bidding order, and handles automatic bidding logic
+   * Returns null if no active players exist (only showman), causing question to proceed as normal
    */
   private async _setupStakeQuestion(
     game: Game,
@@ -751,6 +780,12 @@ export class SocketIOQuestionService {
         p.role === PlayerRole.PLAYER &&
         p.gameStatus === PlayerGameStatus.IN_GAME
     );
+
+    // Check if there are any active in-game players to bid
+    if (eligiblePlayers.length === 0) {
+      // No active players to bid, skip stake bidding phase
+      return null;
+    }
 
     // Create bidding order (picker goes first)
     const pickerIndex = eligiblePlayers.findIndex(
@@ -894,5 +929,111 @@ export class SocketIOQuestionService {
     }
 
     return { questionData, timer };
+  }
+
+  /**
+   * Handles give up scenario: applies penalty and transitions to SHOWING
+   */
+  private async _handleGiveUp(game: Game, currentPlayer: Player) {
+    // Calculate penalty based on current question price
+    const penalty = SpecialQuestionUtils.calculateGiveUpPenalty(game);
+
+    // Set up game state for wrong answer
+    game.gameState.answeringPlayer = currentPlayer.meta.id;
+    this._clearSpecialQuestionData(game);
+
+    // Process the wrong answer
+    const playerAnswerResult = game.handleQuestionAnswer(
+      penalty,
+      AnswerResultType.WRONG,
+      QuestionState.SHOWING
+    );
+
+    // Update statistics
+    await this._updatePlayerStatsForGiveUp(game, playerAnswerResult);
+
+    // Set up timer for SHOWING state
+    const timer = await this._setupShowingTimer(game);
+
+    // Save game state
+    await this.gameService.updateGame(game);
+    await this.gameService.saveTimer(timer, game.id);
+
+    return {
+      game,
+      playerId: currentPlayer.meta.id,
+      gaveUp: true as const,
+      answerResult: playerAnswerResult,
+      timer,
+    };
+  }
+
+  /**
+   * Handles regular skip: just marks player as skipped
+   */
+  private async _handleRegularSkip(game: Game, currentPlayer: Player) {
+    game.addSkippedPlayer(currentPlayer.meta.id);
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      playerId: currentPlayer.meta.id,
+      gaveUp: false as const,
+    };
+  }
+
+  /**
+   * Clears special question data based on current state
+   */
+  private _clearSpecialQuestionData(game: Game): void {
+    if (game.gameState.secretQuestionData) {
+      game.gameState.secretQuestionData = null;
+    }
+    if (game.gameState.stakeQuestionData) {
+      game.gameState.stakeQuestionData = null;
+    }
+  }
+
+  /**
+   * Updates player statistics for give up scenario
+   */
+  private async _updatePlayerStatsForGiveUp(
+    game: Game,
+    playerAnswerResult: { player: number; score: number }
+  ): Promise<void> {
+    try {
+      await this.playerGameStatsService.updatePlayerAnswerStats(
+        game.id,
+        playerAnswerResult.player,
+        AnswerResultType.WRONG,
+        playerAnswerResult.score
+      );
+    } catch (error) {
+      this.logger.warn("Failed to update player answer statistics on give up", {
+        prefix: "[SOCKET_QUESTION_SERVICE]: ",
+        gameId: game.id,
+        playerId: playerAnswerResult.player,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Sets up timer for SHOWING state after give up
+   */
+  private async _setupShowingTimer(game: Game): Promise<GameStateTimerDTO> {
+    await this.gameService.clearTimer(game.id);
+
+    const timerEntity =
+      await this.socketQuestionStateService.setupQuestionTimer(
+        game,
+        GAME_QUESTION_ANSWER_TIME,
+        QuestionState.SHOWING
+      );
+
+    const timer = timerEntity.start();
+    game.setTimer(timer);
+
+    return timer;
   }
 }

@@ -12,6 +12,7 @@ import 'package:socket_io_client/socket_io_client.dart';
 class GameLobbyController {
   Socket? socket;
   String? _gameId;
+  PlayerRole? _joinRole; // Store the role to join with
 
   final gameData = ValueNotifier<SocketIOGameJoinEventPayload?>(null);
   final gameListData = ValueNotifier<GameListItem?>(null);
@@ -27,7 +28,7 @@ class GameLobbyController {
   int get myId => ProfileController.getUser()!.id;
   bool get gameStarted => gameData.value?.gameState.currentRound != null;
 
-  Future<void> join({required String gameId}) async {
+  Future<void> join({required String gameId, PlayerRole? role}) async {
     // Check if already joined
     if (_gameId == gameId) return;
 
@@ -35,6 +36,8 @@ class GameLobbyController {
 
     try {
       _gameId = gameId;
+      // Default to spectator if no role specified
+      _joinRole = role ?? PlayerRole.spectator;
 
       // Get list game data
       unawaited(
@@ -108,7 +111,7 @@ class GameLobbyController {
 
       final ioGameJoinInput = SocketIOGameJoinInput(
         gameId: _gameId!,
-        role: SocketIOGameJoinInputRole.spectator,
+        role: _mapPlayerRoleToSocketRole(_joinRole ?? PlayerRole.spectator),
       );
 
       socket?.emit(SocketIOGameSendEvents.join.json!, ioGameJoinInput.toJson());
@@ -125,6 +128,20 @@ class GameLobbyController {
 
       // Close game
       await AppRouter.I.replace(const HomeTabsRoute());
+    }
+  }
+
+  SocketIOGameJoinInputRole _mapPlayerRoleToSocketRole(PlayerRole role) {
+    switch (role) {
+      case PlayerRole.showman:
+        return SocketIOGameJoinInputRole.showman;
+      case PlayerRole.player:
+        return SocketIOGameJoinInputRole.player;
+      case PlayerRole.spectator:
+        return SocketIOGameJoinInputRole.spectator;
+      case PlayerRole.$unknown:
+        // Default to spectator for unknown roles
+        return SocketIOGameJoinInputRole.spectator;
     }
   }
 

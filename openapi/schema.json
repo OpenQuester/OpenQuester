@@ -1023,6 +1023,18 @@
           }
         }
       },
+      "GameListItemPlayersStats": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "examples": [1]
+          },
+          "role": {
+            "$ref": "#/components/schemas/PlayerRole"
+          }
+        }
+      },
       "GameListItem": {
         "type": "object",
         "properties": {
@@ -1063,7 +1075,10 @@
             "examples": [0]
           },
           "players": {
-            "type": "integer",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameListItemPlayersStats"
+            },
             "examples": [5]
           },
           "maxPlayers": {
