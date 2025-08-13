@@ -490,7 +490,7 @@ describe("Secret Question Flow Tests", () => {
         expect(playerData.data.type).toBe(PackageQuestionType.SECRET);
 
         // Answer data should be excluded for players
-        // Use `as any` since SimplePackageQuestionDTO doesn't have these fields (and should'nt)
+        // Use `as any` since SimplePackageQuestionDTO doesn't have these fields (and shouldn't)
         expect((playerData.data as any).answerText).toBeUndefined();
         expect((playerData.data as any).answerFiles).toBeUndefined();
         expect((playerData.data as any).answerHint).toBeUndefined();
