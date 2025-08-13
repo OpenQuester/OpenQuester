@@ -5,7 +5,7 @@ import { SocketGameValidationService } from "application/services/socket/SocketG
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
+import { GAME_TTL_IN_SECONDS, SCORE_ABS_LIMIT } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -469,6 +469,9 @@ export class SocketIOGameService {
 
     this.socketGameValidationService.validatePlayerManagement(currentPlayer);
 
+    // Store original role before making any changes
+    const originalRole = targetPlayer.role;
+
     // Update restrictions
     targetPlayer.isMuted = restrictions.muted;
     targetPlayer.isRestricted = restrictions.restricted;
@@ -495,10 +498,10 @@ export class SocketIOGameService {
 
     await this.gameService.updateGame(game);
 
-    // Clean up player statistics session in Redis if they were banned and were a player
+    // Clean up player statistics session in Redis if they were banned or restricted and were previously a player
     if (
       (restrictions.banned || restrictions.restricted) &&
-      targetPlayer.role === PlayerRole.PLAYER
+      originalRole === PlayerRole.PLAYER
     ) {
       await this.playerGameStatsService.endPlayerSession(
         game.id,
@@ -591,14 +594,15 @@ export class SocketIOGameService {
     this.socketGameValidationService.validatePlayerScoreChange(currentPlayer);
 
     // Update score
-    targetPlayer.score = newScore;
+    const appliedScore = ValueUtils.clampAbs(newScore, SCORE_ABS_LIMIT);
+    targetPlayer.score = appliedScore;
 
     await this.gameService.updateGame(game);
 
     return {
       game,
       targetPlayerId,
-      newScore,
+      newScore: appliedScore,
     };
   }
 

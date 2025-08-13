@@ -15,6 +15,7 @@ import {
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { SecretQuestionPickedBroadcastData } from "domain/types/socket/events/game/SecretQuestionPickedEventPayload";
@@ -178,7 +179,7 @@ describe("Secret Question Flow Tests", () => {
 
         // Verify game state is back to SHOWING
         const showingState = await utils.getGameState(gameId);
-        expect(showingState!.questionState).toBe(QuestionState.SHOWING);
+        expect(showingState!.questionState).toBe(QuestionState.ANSWERING);
         expect(showingState!.secretQuestionData).toBeNull();
         expect(showingState!.currentQuestion).toBeDefined();
 
@@ -418,6 +419,81 @@ describe("Secret Question Flow Tests", () => {
 
         const error = await errorPromise;
         expect(error.message).toBeDefined();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should not send answer data to players while sending full data to showman", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets, gameId } = setup;
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        const gameState = await utils.getGameState(gameId);
+        const secretQuestion = await utils.findQuestionByType(
+          gameState!,
+          PackageQuestionType.SECRET,
+          gameId
+        );
+
+        expect(secretQuestion).toBeDefined();
+
+        // Pick the secret question
+        const secretPickedPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.SECRET_QUESTION_PICKED
+        );
+
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: secretQuestion!.id,
+        });
+
+        await secretPickedPromise;
+
+        // Set up promises to capture data sent to both showman and player
+        const showmanDataPromise =
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          );
+
+        const playerDataPromise =
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            playerSockets[0],
+            SocketIOGameEvents.QUESTION_DATA
+          );
+
+        // Transfer question to player
+        showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+          targetPlayerId: setup.playerUsers[0].id,
+        });
+
+        const [showmanData, playerData] = await Promise.all([
+          showmanDataPromise,
+          playerDataPromise,
+        ]);
+
+        // Showman should receive full question data including answer
+        expect(showmanData.data).toBeDefined();
+        expect(
+          (showmanData.data as PackageQuestionDTO).answerText
+        ).toBeDefined();
+        expect((showmanData.data as PackageQuestionDTO).answerText).toBe(
+          "Secret answer"
+        );
+
+        // Player should receive question data but WITHOUT answer information
+        expect(playerData.data).toBeDefined();
+        expect(playerData.data.text).toBe("Secret question text"); // Question text should be present
+        expect(playerData.data.type).toBe(PackageQuestionType.SECRET);
+
+        // Answer data should be excluded for players
+        // Use `as any` since SimplePackageQuestionDTO doesn't have these fields (and shouldn't)
+        expect((playerData.data as any).answerText).toBeUndefined();
+        expect((playerData.data as any).answerFiles).toBeUndefined();
+        expect((playerData.data as any).answerHint).toBeUndefined();
       } finally {
         await utils.cleanupGameClients(setup);
       }

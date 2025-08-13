@@ -29,3 +29,10 @@ export const FINAL_ROUND_MIN_BID = 1;
 /** 30 seconds per bid for stake questions */
 export const STAKE_QUESTION_BID_TIME = SECOND_MS * 30;
 export const STAKE_QUESTION_MIN_BID = 1;
+
+/** Absolute cap for player score magnitude (soft cap below exact int32 bounds) */
+export const SCORE_ABS_LIMIT = 2_100_000_000;
+/** Max price allowed for a question on package upload */
+export const MAX_QUESTION_PRICE_UPLOAD = 1_000_000;
+/** Max absolute score delta that can be applied per answer (+/-) */
+export const MAX_SCORE_DELTA = 2_000_000;

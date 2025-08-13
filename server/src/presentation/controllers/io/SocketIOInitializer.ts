@@ -1,5 +1,6 @@
 import { Server as IOServer, Namespace, Socket } from "socket.io";
 
+import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
@@ -30,6 +31,7 @@ export class SocketIOInitializer {
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly socketGameContextService: SocketGameContextService,
     private readonly userService: UserService,
+    private readonly gameProgressionCoordinator: GameProgressionCoordinator,
     private readonly logger: ILogger
   ) {
     this.handlerFactory = new SocketEventHandlerFactory(
@@ -42,6 +44,7 @@ export class SocketIOInitializer {
       this.gameStatisticsCollectorService,
       this.socketGameContextService,
       this.userService,
+      this.gameProgressionCoordinator,
       this.logger
     );
 

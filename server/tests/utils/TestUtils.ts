@@ -1,5 +1,6 @@
 import { Container, CONTAINER_TYPES } from "application/Container";
 import { GameService } from "application/services/game/GameService";
+import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -157,6 +158,13 @@ export class TestUtils {
       throw new Error(`Game ${gameId} not found`);
     }
     return gameState;
+  }
+
+  /**
+   * Get game entity
+   */
+  public async getGameEntity(gameId: string): Promise<Game> {
+    return this.socketGameTestUtils.getGameFromGameService(gameId);
   }
 
   /**

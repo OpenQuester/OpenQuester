@@ -1,17 +1,14 @@
 import { Socket } from "socket.io";
 
+import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
   SocketBroadcastTarget,
-  SocketEventBroadcast,
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
-import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import {
@@ -31,7 +28,7 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService
+    private readonly gameProgressionCoordinator: GameProgressionCoordinator
   ) {
     super(socket, eventEmitter, logger);
   }
@@ -67,20 +64,38 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
       const { isGameFinished, nextGameState } =
         await this.socketIOQuestionService.handleRoundProgression(game);
 
-      const finishPayload: QuestionFinishWithAnswerEventPayload = {
-        answerResult: playerAnswerResult,
-        answerFiles: question!.answerFiles ?? null,
-        answerText: question!.answerText ?? null,
-        // nextTurnPlayerId is set to next turn player in handleAnswerResult
-        nextTurnPlayerId: game.gameState.currentTurnPlayerId!,
-      };
-
       const answerResultPayload: QuestionAnswerResultEventPayload = {
         answerResult: playerAnswerResult,
         timer: null,
       };
 
-      const broadcasts: SocketEventBroadcast[] = [
+      // Use the progression coordinator to handle the complete flow
+      const progressionResult =
+        await this.gameProgressionCoordinator.processGameProgression({
+          game,
+          isGameFinished,
+          nextGameState,
+          questionFinishData: {
+            answerFiles: question?.answerFiles ?? null,
+            answerText: question?.answerText ?? null,
+            nextTurnPlayerId: game.gameState.currentTurnPlayerId!,
+          },
+        });
+
+      // Create a special question finish event with answer result for correct answers
+      const questionFinishWithAnswer: QuestionFinishWithAnswerEventPayload = {
+        answerFiles: question?.answerFiles ?? null,
+        answerText: question?.answerText ?? null,
+        nextTurnPlayerId: game.gameState.currentTurnPlayerId!,
+        answerResult: playerAnswerResult,
+      };
+
+      // Replace the basic question finish broadcast with the enhanced one
+      const filteredBroadcasts = progressionResult.broadcasts.filter(
+        (broadcast) => broadcast.event !== SocketIOGameEvents.QUESTION_FINISH
+      );
+
+      const allBroadcasts = [
         {
           event: SocketIOGameEvents.ANSWER_RESULT,
           data: answerResultPayload,
@@ -89,60 +104,17 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
         },
         {
           event: SocketIOGameEvents.QUESTION_FINISH,
-          data: finishPayload,
+          data: questionFinishWithAnswer,
           target: SocketBroadcastTarget.GAME,
           gameId: game.id,
         },
+        ...filteredBroadcasts,
       ];
 
-      if (isGameFinished) {
-        broadcasts.push({
-          event: SocketIOGameEvents.GAME_FINISHED,
-          data: true,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        });
-
-        // Finish statistics collection and trigger persistence
-        try {
-          await this.gameStatisticsCollectorService.finishCollection(game.id);
-        } catch (error) {
-          this.logger.warn("Failed to execute statistics persistence", {
-            gameId: game.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
-
-        return {
-          success: true,
-          broadcast: broadcasts,
-        };
-      }
-
-      if (nextGameState) {
-        const nextRoundPayload: GameNextRoundEventPayload = {
-          gameState: nextGameState,
-        };
-        broadcasts.push({
-          event: SocketIOGameEvents.NEXT_ROUND,
-          data: nextRoundPayload,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-          useRoleBasedBroadcast:
-            nextGameState.currentRound?.type === PackageRoundType.FINAL,
-        });
-        return {
-          success: true,
-          data: answerResultPayload,
-          broadcast: broadcasts,
-        };
-      }
-
-      // For correct answers that don't trigger game finish or next round
       return {
         success: true,
         data: answerResultPayload,
-        broadcast: broadcasts,
+        broadcast: allBroadcasts,
       };
     }
 

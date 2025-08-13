@@ -31,6 +31,7 @@ export class GameQuestionMapper {
     return null;
   }
 
+  /** Excludes answerText, answerFiles, and answerHint */
   public static mapToSimpleQuestion(
     question: PackageQuestionDTO
   ): SimplePackageQuestionDTO {

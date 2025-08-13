@@ -2,9 +2,11 @@ import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export interface QuestionActionContext {
@@ -37,7 +39,38 @@ export class QuestionActionValidator {
     this._validateBasicRequirements(context);
     this._validateQuestionAction(context);
     this._validateQuestionSkipping(context.game);
-    this._validatePlayerCanSkip(context.game, context.currentPlayer!);
+
+    const { game, currentPlayer } = context;
+
+    // Check if current question is a special question type (noRisk, secret, stake)
+    const isSpecialQuestion = SpecialQuestionUtils.isSpecialQuestion(game);
+
+    if (isSpecialQuestion) {
+      // Special questions: different rules based on phase
+      if (game.gameState.questionState === QuestionState.ANSWERING) {
+        // During ANSWERING phase: only answering player can skip (give up)
+        if (game.gameState.answeringPlayer !== currentPlayer!.meta.id) {
+          throw new ClientError(ClientResponse.CANNOT_SKIP_WHILE_NOT_ANSWERING);
+        }
+      } else {
+        // Other phases (BIDDING, SECRET_TRANSFER, etc.): no skipping allowed
+        throw new ClientError(ClientResponse.CANNOT_SKIP_WHILE_NOT_ANSWERING);
+      }
+    } else {
+      // Regular questions: all players can skip during SHOWING phase
+      if (game.gameState.questionState !== QuestionState.SHOWING) {
+        throw new ClientError(ClientResponse.CANNOT_SKIP_WHILE_ANSWERING);
+      }
+
+      // Prevent skipping if player has already answered
+      const hasAnswered = game.gameState.answeredPlayers?.some(
+        (answeredPlayer) => answeredPlayer.player === currentPlayer!.meta.id
+      );
+
+      if (hasAnswered) {
+        throw new ClientError(ClientResponse.ALREADY_ANSWERED_QUESTION);
+      }
+    }
   }
 
   /**

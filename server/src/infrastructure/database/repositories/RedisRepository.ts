@@ -3,6 +3,10 @@ import Redis, { Callback, RedisKey, RedisValue } from "ioredis";
 import { REDIS_LOCK_KEY_EXPIRE_DEFAULT } from "domain/constants/redis";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { ILogger } from "infrastructure/logger/ILogger";
+import {
+  RedisLogSanitizer,
+  type RedisLogData,
+} from "infrastructure/utils/RedisLogSanitizer";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class RedisRepository {
@@ -50,6 +54,13 @@ export class RedisRepository {
   }
 
   /**
+   * Sanitizes log data for Redis operations using the dedicated sanitization service
+   */
+  private sanitizeLogData<T extends RedisLogData>(data: T): T {
+    return RedisLogSanitizer.sanitize(data);
+  }
+
+  /**
    * Private wrapper method to handle consistent logging for Redis operations
    * @param operationName The name of the Redis operation (e.g., "Redis GET")
    * @param traceLogData Object containing data to log
@@ -58,18 +69,24 @@ export class RedisRepository {
    */
   private async executeWithLogging<T>(
     operationName: string,
-    traceLogData: object,
+    traceLogData: RedisLogData,
     operation: () => Promise<T>,
-    performanceLogData: object | null = null
+    performanceLogData: RedisLogData | null = null
   ): Promise<T> {
+    const sanitizedTraceData = this.sanitizeLogData(traceLogData);
+
     this.logger.trace(operationName, {
       prefix: "[REDIS]: ",
-      ...traceLogData,
+      ...sanitizedTraceData,
     });
+
+    const sanitizedPerformanceData = performanceLogData
+      ? this.sanitizeLogData(performanceLogData)
+      : sanitizedTraceData;
 
     const log = this.logger.performance(
       operationName,
-      performanceLogData ? performanceLogData : traceLogData
+      sanitizedPerformanceData
     );
 
     try {
@@ -240,7 +257,7 @@ export class RedisRepository {
 
   public async hset(
     key: string,
-    fields: any,
+    fields: Record<string, string>,
     expire?: number
   ): Promise<number> {
     return this.executeWithLogging(
