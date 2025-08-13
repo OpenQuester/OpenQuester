@@ -12,7 +12,6 @@ import 'package:socket_io_client/socket_io_client.dart';
 class GameLobbyController {
   Socket? socket;
   String? _gameId;
-  PlayerRole? _joinRole; // Store the role to join with
 
   final gameData = ValueNotifier<SocketIOGameJoinEventPayload?>(null);
   final gameListData = ValueNotifier<GameListItem?>(null);
