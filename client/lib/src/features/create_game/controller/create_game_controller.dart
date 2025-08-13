@@ -26,13 +26,6 @@ class CreateGameController {
       body: state.value.toRequestData(),
     );
 
-    // Join the game with the selected role
-    await getIt<GameLobbyController>().join(
-      gameId: game.id,
-      role: state.value.selectedRole,
-    );
-
-    // Navigate to the game lobby
     await AppRouter.I.replace(GameLobbyRoute(gameId: game.id));
   }
 }
