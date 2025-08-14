@@ -43,7 +43,7 @@ const discordUsernameValidation = Joi.string()
  * - No consecutive whitespaces
  * - Trims leading/trailing whitespace
  */
-const nameValidation = Joi.string()
+export const nameValidation = Joi.string()
   .min(USER_NAME_MIN_CHARS)
   .max(USER_NAME_MAX_CHARS)
   .pattern(/^[\p{L}\p{N}\s]*$/u, "Name pattern")
