@@ -33,6 +33,9 @@ export class User implements UserModel {
   @Column({ type: "varchar", unique: true, nullable: false })
   username!: string;
 
+  @Column({ type: "varchar", nullable: true })
+  name?: string | null;
+
   @Column({ type: "varchar", unique: true, nullable: true })
   email?: string | null;
 
@@ -58,6 +61,9 @@ export class User implements UserModel {
   @Column({ default: false })
   is_banned!: boolean;
 
+  @Column({ default: false })
+  is_guest!: boolean;
+
   @OneToMany(() => Package, (packageEntity) => packageEntity.author)
   packages!: Package[];
 
@@ -74,6 +80,7 @@ export class User implements UserModel {
       this.id = data.id;
     }
     this.username = data.username;
+    this.name = data.name;
     this.email = data.email;
     this.discord_id = data.discord_id ?? null;
     this.birthday = data.birthday;
@@ -82,6 +89,7 @@ export class User implements UserModel {
     this.updated_at = data.updated_at;
     this.is_deleted = data.is_deleted;
     this.is_banned = data.is_banned ?? this.is_banned ?? false;
+    this.is_guest = data.is_guest ?? this.is_guest ?? false;
     this.permissions = data.permissions ?? this.permissions ?? [];
   }
 
@@ -97,6 +105,7 @@ export class User implements UserModel {
     return {
       id: this.id,
       username: this.username,
+      name: this.name,
       email: this.email,
       birthday: this.birthday,
       discordId: this.discord_id,
@@ -106,6 +115,7 @@ export class User implements UserModel {
       updatedAt: this.updated_at,
       isDeleted: this.is_deleted,
       isBanned: this.is_banned,
+      isGuest: this.is_guest,
     };
   }
 }

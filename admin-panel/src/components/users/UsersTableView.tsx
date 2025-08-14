@@ -9,9 +9,12 @@ import {
 } from "@/components/common/IconButton";
 import { SortButton } from "@/components/common/SortButton";
 import { AdminBadge } from "@/components/ui/badges/AdminBadge";
+import { GuestBadge } from "@/components/ui/badges/GuestBadge";
+import { NewBadge } from "@/components/ui/badges/NewBadge";
 import { Permissions } from "@/constants/permissions";
 import { ONE_WEEK_MS } from "@/constants/time";
 import type { PaginationOrder, UserDTO } from "@/types/dto";
+import { truncateWithTooltip } from "@/utils/text";
 
 interface UsersTableViewProps {
   users: UserDTO[];
@@ -94,6 +97,13 @@ export const UsersTableView: React.FC<UsersTableViewProps> = ({
                 const isNew =
                   Date.now() - new Date(user.createdAt).getTime() <
                   2 * ONE_WEEK_MS;
+
+                const displayName = user.name || user.username;
+                const nameData = truncateWithTooltip(displayName, 12);
+                const usernameData = user.name
+                  ? truncateWithTooltip(user.username, 12)
+                  : null;
+
                 return (
                   <tr
                     key={user.id}
@@ -102,22 +112,44 @@ export const UsersTableView: React.FC<UsersTableViewProps> = ({
                     <td className="table-cell font-mono text-xs">#{user.id}</td>
                     <td className="table-cell">
                       <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center">
+                        <div className="w-8 h-8 flex-shrink-0 rounded-full bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center">
                           <span className="text-white font-medium text-xs">
-                            {user.username.charAt(0).toUpperCase()}
+                            {displayName.charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <span className="font-medium flex items-center gap-2 flex-wrap">
-                          <span>{user.username}</span>
-                          {isNew && (
-                            <span className="inline-flex items-center rounded-full bg-primary-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-700">
-                              New
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-medium flex items-center gap-2 flex-wrap">
+                            <span
+                              title={
+                                nameData.isTruncated
+                                  ? nameData.title
+                                  : undefined
+                              }
+                              className={
+                                nameData.isTruncated ? "cursor-help" : ""
+                              }
+                            >
+                              {nameData.displayText}
                             </span>
-                          )}
-                          {user.permissions?.some(
-                            (p) => p.name === Permissions.ADMIN_PANEL_ACCESS
-                          ) && <AdminBadge />}
-                        </span>
+                            {usernameData && (
+                              <span
+                                className="text-xs text-mutedText font-normal"
+                                title={
+                                  usernameData.isTruncated
+                                    ? usernameData.title
+                                    : undefined
+                                }
+                              >
+                                @{usernameData.displayText}
+                              </span>
+                            )}
+                            {isNew && <NewBadge />}
+                            {user.permissions?.some(
+                              (p) => p.name === Permissions.ADMIN_PANEL_ACCESS
+                            ) && <AdminBadge />}
+                            {user.isGuest && <GuestBadge />}
+                          </span>
+                        </div>
                       </div>
                     </td>
                     <td className="table-cell">

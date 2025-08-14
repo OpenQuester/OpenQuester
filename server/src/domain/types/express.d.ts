@@ -6,6 +6,7 @@ import { type User } from "infrastructure/database/models/User";
 declare module "express-session" {
   interface SessionData {
     userId: number;
+    isGuest?: boolean;
   }
 }
 

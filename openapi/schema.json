@@ -635,6 +635,44 @@
         }
       }
     },
+    "/v1/auth/guest": {
+      "post": {
+        "summary": "Login as guest user",
+        "tags": ["Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InputGuestLogin"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Guest user logged in successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid guest login data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/logout": {
       "get": {
         "summary": "Logout user",
@@ -919,7 +957,13 @@
           },
           "username": {
             "type": "string",
-            "examples": ["John"]
+            "description": "Unique username, needed for identification like user search, package author",
+            "examples": ["john.crazy"]
+          },
+          "name": {
+            "type": ["string", "null"],
+            "description": "Display name of the user",
+            "examples": ["John Doe", "测试用户", null]
           },
           "email": {
             "type": ["string", "null"],
@@ -954,6 +998,11 @@
           "isDeleted": {
             "type": "boolean",
             "examples": [false]
+          },
+          "isGuest": {
+            "type": "boolean",
+            "description": "Whether this is a guest user account",
+            "examples": [false, true]
           },
           "permissions": {
             "type": "array",
@@ -991,12 +1040,29 @@
           }
         }
       },
+      "InputGuestLogin": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Display name for the guest user (1-50 characters, allows Unicode letters, numbers, spaces)",
+            "examples": ["Guest Player", "测试用户", "Гість123"],
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "required": ["username"]
+      },
       "InputUpdateUser": {
         "type": "object",
         "properties": {
           "username": {
             "type": ["string", "null"],
-            "examples": ["John Doe"]
+            "examples": ["john.doe"],
+            "minLength": 2,
+            "maxLength": 32,
+            "description": "Rules: lowercase letters, numbers, underscores, periods only",
+            "pattern": "^[a-z0-9_.]{2,32}$"
           },
           "email": {
             "type": ["string", "null"],

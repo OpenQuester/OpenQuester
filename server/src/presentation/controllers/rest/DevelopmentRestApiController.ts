@@ -65,6 +65,7 @@ export class DevelopmentRestApiController {
           });
         }
         req.session.userId = user.id;
+        req.session.isGuest = user.is_guest;
         req.session.save((err) => {
           if (err) {
             this.logger.error(`Session save error: ${err}`, {

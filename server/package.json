@@ -12,6 +12,7 @@
     "build:dev": "tsup --watch",
     "build": "tsc && tsup",
     "test": "jest --detectOpenHandles",
+    "test:pipeline": "jest --detectOpenHandles > /dev/null",
     "lint": "eslint ./"
   },
   "keywords": [],
