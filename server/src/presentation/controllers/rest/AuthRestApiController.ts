@@ -327,7 +327,7 @@ export class AuthRestApiController {
       performanceLog?: PerformanceLog;
     }
   ): void {
-    const clientIp = req.ip || req.connection.remoteAddress;
+    const clientIp = req.ip || req.socket.remoteAddress;
 
     req.session.userId = userData.id;
     req.session.isGuest = userData.isGuest;
