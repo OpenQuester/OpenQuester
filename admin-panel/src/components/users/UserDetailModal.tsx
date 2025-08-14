@@ -10,6 +10,7 @@ import {
 import React, { memo, useState } from "react";
 
 import { Modal } from "@/components/common/Modal";
+import { Avatar } from "@/components/ui/Avatar";
 import { type UserDTO } from "@/types/dto";
 
 interface UserDetailModalProps {
@@ -27,9 +28,12 @@ export const UserDetailModal = memo(
       <Modal isOpen={!!user} title={`User #${user.id}`} onClose={onClose}>
         <section className="space-y-3">
           <div className="flex items-start space-x-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg">
-              {user.username.charAt(0).toUpperCase()}
-            </div>
+            <Avatar
+              src={user.avatar}
+              fallback={user.name || user.username}
+              size="md"
+              alt={`${user.name || user.username}'s avatar`}
+            />
             <div className="flex-1">
               <h4 className="text-base font-semibold text-primaryText flex items-center space-x-2">
                 <span>{user.name || user.username}</span>
