@@ -86,7 +86,7 @@ describe("User Notification Rooms Tests", () => {
           .expect(HttpStatus.OK);
 
         const receivedEvent = await userChangePromise;
-        expect(receivedEvent.userData.username).toBe("UpdatedSelf");
+        expect(receivedEvent.userData.username).toBe("updatedself");
         expect(receivedEvent.userData.id).toBe(playerUsers[1].id);
 
         await utils.cleanupGameClients(setup);
@@ -170,7 +170,7 @@ describe("User Notification Rooms Tests", () => {
         ) as UserChangeBroadcastData[];
 
         receivedEvents.forEach((event: UserChangeBroadcastData) => {
-          expect(event.userData.username).toBe("UpdatedMass");
+          expect(event.userData.username).toBe("updatedmass");
           expect(event.userData.id).toBe(playerUsers[0].id);
         });
         await utils.cleanupGameClients(setup);
@@ -254,7 +254,7 @@ describe("User Notification Rooms Tests", () => {
 
         const receivedEvent = await userChangePromise;
 
-        expect(receivedEvent.userData.username).toBe("OriginalPlayerUpdated");
+        expect(receivedEvent.userData.username).toBe("originalplayerupdated");
         expect(receivedEvent.userData.id).toBe(playerUsers[0].id);
         await utils.disconnectAndCleanup(newPlayerSocket);
         await utils.cleanupGameClients(setup);

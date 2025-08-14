@@ -20,20 +20,27 @@ import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 const discordUsernameValidation = Joi.string()
   .min(USER_USERNAME_MIN_CHARS)
   .max(USER_USERNAME_MAX_CHARS)
-  .pattern(/^[a-z0-9_.]+$/, "Discord username pattern")
   .custom((value, helpers) => {
+    // Convert to lowercase first
+    const lowercase = value.toLowerCase();
+
+    // Check pattern on lowercase version
+    if (!/^[a-z0-9_.]+$/.test(lowercase)) {
+      return helpers.error("string.pattern.name");
+    }
+
     // Check for consecutive periods
-    if (value.includes("..")) {
+    if (lowercase.includes("..")) {
       return helpers.error("username.consecutivePeriods");
     }
-    // Convert to lowercase
-    return value.toLowerCase();
+
+    return lowercase;
   }, "Discord username normalization")
   .messages({
     "username.consecutivePeriods":
       "Username cannot contain consecutive periods",
     "string.pattern.name":
-      "Username can only contain lowercase letters, numbers, underscores, and periods",
+      "Username can only contain letters, numbers, underscores, and periods",
   });
 
 /**
