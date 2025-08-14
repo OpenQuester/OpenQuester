@@ -73,7 +73,7 @@ describe("User Notification Rooms Tests", () => {
           SocketIOUserEvents.USER_CHANGE
         );
 
-        const updateData: UpdateUserInputDTO = { username: "UpdatedSelf" };
+        const updateData: UpdateUserInputDTO = { username: "updatedself" };
         const { cookie: player2Cookie } = await utils.loginExistingUser(
           app,
           playerUsers[1].id
@@ -118,7 +118,7 @@ describe("User Notification Rooms Tests", () => {
           SocketIOUserEvents.USER_CHANGE
         );
 
-        const updateData: UpdateUserInputDTO = { username: "UpdatedInGame2" };
+        const updateData: UpdateUserInputDTO = { username: "updatedingame2" };
         const { cookie: game2PlayerCookie } = await utils.loginExistingUser(
           app,
           game2Setup.playerUsers[0].id
@@ -153,7 +153,7 @@ describe("User Notification Rooms Tests", () => {
             : utils.waitForEvent(socket, SocketIOUserEvents.USER_CHANGE)
         );
 
-        const updateData: UpdateUserInputDTO = { username: "UpdatedMass" };
+        const updateData: UpdateUserInputDTO = { username: "updatedmass" };
         const { cookie: player1Cookie } = await utils.loginExistingUser(
           app,
           playerUsers[0].id
@@ -193,7 +193,7 @@ describe("User Notification Rooms Tests", () => {
         );
 
         const updateData: UpdateUserInputDTO = {
-          username: "UpdatedAfterLeave",
+          username: "updatedafterleave",
         };
 
         const { cookie: player2Cookie } = await utils.loginExistingUser(
@@ -238,7 +238,7 @@ describe("User Notification Rooms Tests", () => {
         );
 
         const updateData: UpdateUserInputDTO = {
-          username: "OriginalPlayerUpdated",
+          username: "originalplayerupdated",
         };
 
         const { cookie: originalPlayerCookie } = await utils.loginExistingUser(

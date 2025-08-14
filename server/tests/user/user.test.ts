@@ -295,14 +295,23 @@ describe("UserRestApiController", () => {
       .send({ userId: user.id });
     const cookies = loginRes.headers["set-cookie"];
 
-    // Test uppercase username gets normalized to lowercase (valid behavior)
-    const normalizedData1 = { username: "Invalid.Username" };
+    // Test uppercase username gets rejected (invalid behavior)
+    const invalidData1 = { username: "Invalid.Username" };
     const res1 = await request(app)
       .patch("/v1/me")
       .set("Cookie", cookies)
-      .send(normalizedData1);
-    expect(res1.status).toBe(200);
-    expect(res1.body.username).toBe("invalid.username"); // Should be normalized to lowercase
+      .send(invalidData1);
+    expect(res1.status).toBe(400);
+    expect(res1.body.error).toContain("can only contain lowercase letters");
+
+    // Test valid lowercase username
+    const validData = { username: "valid.username" };
+    const res1valid = await request(app)
+      .patch("/v1/me")
+      .set("Cookie", cookies)
+      .send(validData);
+    expect(res1valid.status).toBe(200);
+    expect(res1valid.body.username).toBe("valid.username");
 
     // Test invalid username with consecutive periods
     const invalidData2 = { username: "user..name" };

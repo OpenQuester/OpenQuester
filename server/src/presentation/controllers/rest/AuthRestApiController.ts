@@ -109,7 +109,7 @@ export class AuthRestApiController {
     let userData: UserDTO | null = null;
 
     switch (authDTO.oauthProvider) {
-      case "discord":
+      case EOauthProvider.DISCORD:
         userData = await this.getDiscordUser(authDTO);
 
         this.saveUserSession(req, res, userData, {

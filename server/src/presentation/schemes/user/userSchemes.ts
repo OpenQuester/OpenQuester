@@ -15,13 +15,12 @@ import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
  * - 2-32 characters
  * - Lowercase letters, numbers, underscore, period only
  * - No consecutive periods
- * - Case insensitive (converted to lowercase)
  */
 const usernameScheme = Joi.string()
   .min(USER_USERNAME_MIN_CHARS)
   .max(USER_USERNAME_MAX_CHARS)
   .custom((value, helpers) => {
-    // Check pattern on lowercase version
+    // Check pattern
     if (!/^[a-z0-9_.]+$/.test(value)) {
       return helpers.error("string.pattern.name");
     }
@@ -32,7 +31,7 @@ const usernameScheme = Joi.string()
     }
 
     return value;
-  }, "Discord username normalization")
+  }, "Username normalization")
   .messages({
     "username.consecutivePeriods":
       "Username cannot contain consecutive periods",
