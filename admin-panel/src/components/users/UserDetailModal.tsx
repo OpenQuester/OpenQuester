@@ -5,6 +5,7 @@ import {
   Shield,
   ShieldOff,
   User,
+  UserCheck,
 } from "lucide-react";
 import React, { memo, useState } from "react";
 
@@ -31,7 +32,12 @@ export const UserDetailModal = memo(
             </div>
             <div className="flex-1">
               <h4 className="text-base font-semibold text-primaryText flex items-center space-x-2">
-                <span>{user.username}</span>
+                <span>{user.name || user.username}</span>
+                {user.name && (
+                  <span className="text-sm text-mutedText font-normal">
+                    @{user.username}
+                  </span>
+                )}
                 {user.isBanned ? (
                   <span className="badge badge-error">Banned</span>
                 ) : user.isDeleted ? (
@@ -39,13 +45,23 @@ export const UserDetailModal = memo(
                 ) : (
                   <span className="badge badge-success">Active</span>
                 )}
+                {user.isGuest && (
+                  <span className="badge badge-warning">Guest</span>
+                )}
               </h4>
               <p className="text-xs text-mutedText">
-                Discord ID: {user.discordId || "—"}
+                Discord ID: {user.discordId || "-"}
               </p>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            {
+              <DetailItem
+                icon={<User className="h-4 w-4" />}
+                label="Display Name"
+                value={user.name ? user.name : "-"}
+              />
+            }
             <DetailItem
               icon={<User className="h-4 w-4" />}
               label="Username"
@@ -54,7 +70,12 @@ export const UserDetailModal = memo(
             <DetailItem
               icon={<Mail className="h-4 w-4" />}
               label="Email"
-              value={user.email}
+              value={user.email || "-"}
+            />
+            <DetailItem
+              icon={<UserCheck className="h-4 w-4" />}
+              label="Account Type"
+              value={user.isGuest ? "Guest" : "Registered"}
             />
             <DetailItem
               icon={<Calendar className="h-4 w-4" />}
@@ -133,7 +154,7 @@ const DetailItem = ({ icon, label, value }: DetailItemProps) => (
       <span>{label}</span>
     </div>
     <p className="text-sm font-medium text-primaryText break-all">
-      {value || "—"}
+      {value || "-"}
     </p>
   </div>
 );

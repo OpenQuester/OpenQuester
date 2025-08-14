@@ -16,6 +16,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { DiscordProfile } from "domain/types/discord/DiscordProfile";
 import { DiscordProfileDTO } from "domain/types/dto/auth/DiscordProfileDTO";
+import { GuestLoginDTO } from "domain/types/dto/auth/GuestLoginDTO";
 import {
   EOauthProvider,
   Oauth2LoginDTO,
@@ -25,11 +26,15 @@ import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { RegisterUser } from "domain/types/user/RegisterUser";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { PerformanceLog } from "infrastructure/logger/PinoLogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
-import { socketAuthScheme } from "presentation/schemes/auth/authSchemes";
+import {
+  guestLoginScheme,
+  socketAuthScheme,
+} from "presentation/schemes/auth/authSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
 export class AuthRestApiController {
@@ -50,6 +55,7 @@ export class AuthRestApiController {
     router.get("/logout", asyncHandler(this.logout));
     router.post("/socket", asyncHandler(this.socketAuth));
     router.post("/oauth2", asyncHandler(this.handleOauthLogin));
+    router.post("/guest", asyncHandler(this.handleGuestLogin));
   }
 
   private socketAuth = async (req: Request, res: Response) => {
@@ -106,31 +112,13 @@ export class AuthRestApiController {
       case "discord":
         userData = await this.getDiscordUser(authDTO);
 
-        req.session.userId = userData.id;
-
-        req.session.save((err) => {
-          if (err) {
-            this.logger.error(`Session save error: ${err}`, {
-              prefix: "[AUTH]: ",
-              userId: userData?.id,
-              clientIp,
-            });
-            log.finish();
-            throw new ClientError(ClientResponse.SESSION_SAVING_ERROR);
-          }
-
-          log.finish();
-
-          this.logger.audit(`User logged in via ${authDTO.oauthProvider}`, {
-            userId: userData?.id,
+        this.saveUserSession(req, res, userData, {
+          successMessage: `User logged in via ${authDTO.oauthProvider}`,
+          auditData: {
             email: userData?.email,
             provider: authDTO.oauthProvider,
-            clientIp,
-            userAgent: req.get("User-Agent"),
-            loginTime: new Date(),
-          });
-
-          res.status(HttpStatus.OK).json(userData);
+          },
+          performanceLog: log,
         });
         break;
       default:
@@ -287,5 +275,85 @@ export class AuthRestApiController {
     }
 
     return user.toDTO();
+  }
+
+  private handleGuestLogin = async (req: Request, res: Response) => {
+    const clientIp = req.ip;
+    const log = this.logger.performance(`Guest login`);
+
+    this.logger.trace("Guest login attempt started", {
+      prefix: "[AUTH]: ",
+      clientIp,
+      userAgent: req.get("User-Agent"),
+    });
+
+    const guestData = new RequestDataValidator<GuestLoginDTO>(
+      req.body,
+      guestLoginScheme
+    ).validate();
+
+    const registerData: RegisterUser = {
+      username: guestData.username, // This will be replaced with auto-generated username
+      name: guestData.username, // Store as display name
+      email: null,
+      discord_id: null,
+      birthday: null,
+      avatar: null,
+      is_guest: true,
+    };
+
+    const createdUser = await this.userService.create(registerData);
+    const userData = createdUser.toDTO();
+
+    this.saveUserSession(req, res, userData, {
+      successMessage: "Guest user logged in",
+      auditData: {
+        username: userData?.username,
+      },
+      performanceLog: log,
+    });
+  };
+
+  /**
+   * Unified session saving method with error handling and audit logging
+   */
+  private saveUserSession(
+    req: Request,
+    res: Response,
+    userData: UserDTO,
+    options: {
+      successMessage: string;
+      auditData: Record<string, any>;
+      performanceLog?: PerformanceLog;
+    }
+  ): void {
+    const clientIp = req.ip || req.connection.remoteAddress;
+
+    req.session.userId = userData.id;
+    req.session.isGuest = userData.isGuest;
+
+    req.session.save((err) => {
+      if (err) {
+        this.logger.error(`Session save error: ${err}`, {
+          prefix: "[AUTH]: ",
+          userId: userData?.id,
+          clientIp,
+        });
+        options.performanceLog?.finish();
+        throw new ClientError(ClientResponse.SESSION_SAVING_ERROR);
+      }
+
+      options.performanceLog?.finish();
+
+      this.logger.audit(options.successMessage, {
+        userId: userData?.id,
+        ...options.auditData,
+        clientIp,
+        userAgent: req.get("User-Agent"),
+        loginTime: new Date(),
+      });
+
+      res.status(HttpStatus.OK).json(userData);
+    });
   }
 }

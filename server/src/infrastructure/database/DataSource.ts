@@ -48,6 +48,7 @@ import { MakeAuthorNullable_1742725198044 as MakeAuthorNullable } from "infrastr
 import { UpdatePackageTypesAndFields_1742727260372 as UpdatePackageTypesAndFields } from "infrastructure/database/migrations/0.9.7_Part3UpdatePackageTypesAndFields";
 import { AddPackageLogoFileForeignKey_1743338225856 as AddPackageLogoFK } from "infrastructure/database/migrations/0.9.7_Part4AddPackageLogoFileFK";
 import { AddTypeColumnForChoiceFile_1743660505666 as AddTypeColumnForChoiceFile } from "infrastructure/database/migrations/0.9.7_Part5AddTypeColumnForChoiceFile";
+import { AddIsGuestAndNameField_1755120048973 as AddGuestAndNameField } from "./migrations/0.19.0_AddIsGuestAndNameField_1755120048973";
 
 // Init env synchronously for migration scripts
 /* eslint-disable-next-line node/no-sync */
@@ -119,6 +120,7 @@ export const AppDataSource = new DataSource({
     AddPlayerGameStats,
     AddAdminPermissions,
     AddUserBannedField,
+    AddGuestAndNameField,
   ],
   poolSize: 25,
   migrationsRun: true,

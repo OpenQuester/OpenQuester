@@ -222,7 +222,13 @@ export class UserRepository {
   }
 
   public async create(data: RegisterUser) {
-    const whereOpts: FindOptionsWhere<User>[] = [{ username: data.username }];
+    // If this is a guest user, generate unique username
+    let username = data.username;
+    if (data.is_guest) {
+      username = await this.generateGuestUsername();
+    }
+
+    const whereOpts: FindOptionsWhere<User>[] = [{ username: username }];
 
     if (data.email) {
       whereOpts.push({ email: data.email });
@@ -244,7 +250,8 @@ export class UserRepository {
     // Set all data to new user instance
     let user = new User();
     user.import({
-      username: data.username,
+      username: username,
+      name: data.is_guest ? data.username : null, // Store original name for guests
       email: data.email,
       discord_id: data.discord_id,
       birthday: data.birthday ? new Date(data.birthday) : undefined,
@@ -254,6 +261,7 @@ export class UserRepository {
       updated_at: new Date(),
       is_deleted: false,
       is_banned: false,
+      is_guest: data.is_guest ?? false,
     });
 
     // Save new user
@@ -263,6 +271,36 @@ export class UserRepository {
     }
     await this.cache.delete(user.id);
     return user;
+  }
+
+  /**
+   * Generates the next available guest username in format guest_001, guest_002, etc.
+   */
+  private async generateGuestUsername(): Promise<string> {
+    const result = await this.repository
+      .createQueryBuilder("user")
+      .select("user.username")
+      .where("user.username LIKE :pattern", { pattern: "guest_%" })
+      .orderBy("LENGTH(user.username)", "DESC")
+      .addOrderBy("user.username", "DESC")
+      .limit(1)
+      .getOne();
+
+    let nextNumber = 1;
+    if (result) {
+      const match = result.username.match(/guest_(\d+)/);
+      if (match) {
+        nextNumber = parseInt(match[1], 10) + 1;
+      }
+    }
+
+    // Pad with leading zeros only if number is less than 1000
+    const paddedNumber =
+      nextNumber < 1000
+        ? nextNumber.toString().padStart(3, "0")
+        : nextNumber.toString();
+
+    return `guest_${paddedNumber}`;
   }
 
   public async delete(user: User) {
@@ -332,6 +370,7 @@ export class UserRepository {
       { id: user.id },
       {
         username: user.username,
+        name: user.name,
         email: user.email,
         birthday: user.birthday ?? null,
         avatar: user.avatar ?? null,
