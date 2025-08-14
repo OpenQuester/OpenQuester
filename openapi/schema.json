@@ -957,7 +957,8 @@
           },
           "username": {
             "type": "string",
-            "examples": ["John"]
+            "description": "Unique username, needed for identification like user search, package author",
+            "examples": ["john.crazy"]
           },
           "name": {
             "type": ["string", "null"],
@@ -1057,7 +1058,11 @@
         "properties": {
           "username": {
             "type": ["string", "null"],
-            "examples": ["John Doe"]
+            "examples": ["john.doe"],
+            "minLength": 2,
+            "maxLength": 32,
+            "description": "Rules: lowercase letters, numbers, underscores, periods only",
+            "pattern": "^[a-z0-9_.]{2,32}$"
           },
           "email": {
             "type": ["string", "null"],

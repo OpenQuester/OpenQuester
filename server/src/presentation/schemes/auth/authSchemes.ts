@@ -1,7 +1,7 @@
 import Joi from "joi";
 
 import { GuestLoginDTO } from "domain/types/dto/auth/GuestLoginDTO";
-import { nameValidation } from "../user/userSchemes";
+import { nameScheme } from "../user/userSchemes";
 
 export const socketAuthScheme = Joi.object({
   socketId: Joi.string().required(),
@@ -15,5 +15,5 @@ export const socketAuthScheme = Joi.object({
  * - Trims leading/trailing whitespace
  */
 export const guestLoginScheme = Joi.object<GuestLoginDTO>({
-  username: nameValidation.required(),
+  username: nameScheme.required(),
 });

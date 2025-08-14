@@ -17,30 +17,27 @@ import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
  * - No consecutive periods
  * - Case insensitive (converted to lowercase)
  */
-const discordUsernameValidation = Joi.string()
+const usernameScheme = Joi.string()
   .min(USER_USERNAME_MIN_CHARS)
   .max(USER_USERNAME_MAX_CHARS)
   .custom((value, helpers) => {
-    // Convert to lowercase first
-    const lowercase = value.toLowerCase();
-
     // Check pattern on lowercase version
-    if (!/^[a-z0-9_.]+$/.test(lowercase)) {
+    if (!/^[a-z0-9_.]+$/.test(value)) {
       return helpers.error("string.pattern.name");
     }
 
     // Check for consecutive periods
-    if (lowercase.includes("..")) {
+    if (value.includes("..")) {
       return helpers.error("username.consecutivePeriods");
     }
 
-    return lowercase;
+    return value;
   }, "Discord username normalization")
   .messages({
     "username.consecutivePeriods":
       "Username cannot contain consecutive periods",
     "string.pattern.name":
-      "Username can only contain letters, numbers, underscores, and periods",
+      "Username can only contain lowercase letters, numbers, underscores, and periods",
   });
 
 /**
@@ -50,7 +47,7 @@ const discordUsernameValidation = Joi.string()
  * - No consecutive whitespaces
  * - Trims leading/trailing whitespace
  */
-export const nameValidation = Joi.string()
+export const nameScheme = Joi.string()
   .min(USER_NAME_MIN_CHARS)
   .max(USER_NAME_MAX_CHARS)
   .pattern(/^[\p{L}\p{N}\s]*$/u, "Name pattern")
@@ -77,8 +74,8 @@ export const userIdScheme = () =>
 export const userUpdateScheme = () =>
   Joi.object<UpdateUserInputDTO>({
     email: Joi.string().email().allow(null),
-    username: discordUsernameValidation.allow(null),
-    name: nameValidation.allow(null),
+    username: usernameScheme.allow(null),
+    name: nameScheme.allow(null),
     avatar: Joi.string().allow(null),
     birthday: Joi.alternatives().try(Joi.date(), Joi.string()).allow(null),
   });
