@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
-import 'package:openquester/src/core/ui/components/one_field_dialog.dart';
 
 // Keep for backward compatibility, but primary access is through ProfileDialog
 @RoutePage()
