@@ -635,6 +635,44 @@
         }
       }
     },
+    "/v1/auth/guest": {
+      "post": {
+        "summary": "Login as guest user",
+        "tags": ["Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InputGuestLogin"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Guest user logged in successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseUser"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid guest login data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/logout": {
       "get": {
         "summary": "Logout user",
@@ -921,6 +959,11 @@
             "type": "string",
             "examples": ["John"]
           },
+          "name": {
+            "type": ["string", "null"],
+            "description": "Display name of the user",
+            "examples": ["John Doe", "测试用户", null]
+          },
           "email": {
             "type": ["string", "null"],
             "examples": ["john.doe@gmail.com"]
@@ -954,6 +997,11 @@
           "isDeleted": {
             "type": "boolean",
             "examples": [false]
+          },
+          "isGuest": {
+            "type": "boolean",
+            "description": "Whether this is a guest user account",
+            "examples": [false, true]
           },
           "permissions": {
             "type": "array",
@@ -990,6 +1038,19 @@
             "enum": ["discord"]
           }
         }
+      },
+      "InputGuestLogin": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Display name for the guest user (1-50 characters, allows Unicode letters, numbers, spaces)",
+            "examples": ["Guest Player", "测试用户", "Гість123"],
+            "minLength": 1,
+            "maxLength": 50
+          }
+        },
+        "required": ["username"]
       },
       "InputUpdateUser": {
         "type": "object",
