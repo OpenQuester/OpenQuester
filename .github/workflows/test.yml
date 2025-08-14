@@ -70,7 +70,7 @@ jobs:
           until pg_isready -h localhost -p 5432; do sleep 1; done
       - run: |
           until docker run --rm --network host redis:7 redis-cli -h localhost -p 6379 ping; do sleep 1; done
-      - run: npm test
+      - run: npm run test:pipeline
 
   test_client:
     runs-on: ubuntu-latest

@@ -88,6 +88,9 @@ export const CONTAINER_TYPES = {
   PlayerGameStatsService: Symbol("PlayerGameStatsService"),
   PlayerGameStatsRepository: Symbol("PlayerGameStatsRepository"),
   AdminService: Symbol("AdminService"),
+  GameProgressionCoordinator: Symbol("GameProgressionCoordinator"),
+  GameLifecycleService: Symbol("GameLifecycleService"),
+  GameEventBroadcastService: Symbol("GameEventBroadcastService"),
 
   // Factories
   RoundHandlerFactory: Symbol("RoundHandlerFactory"),

@@ -8,7 +8,6 @@ import {
   MoonStar,
   Sun,
   Users,
-  X,
 } from "lucide-react";
 import { memo, type ReactNode, useCallback, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -67,7 +66,7 @@ const NavItem = memo(
         </>
       )}
       {collapsed && (
-        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+        <div className="absolute left-full ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-60">
           {item.name}
         </div>
       )}
@@ -108,25 +107,18 @@ export const Layout = ({ children }: LayoutProps) => {
     <div className="min-h-screen bg-bg bg-diagonal-lines bg-vignette text-primaryText relative overflow-hidden">
       {/* Global subtle diagonal background pattern applied via utility class (see index.css). */}
 
-      {/* Mobile sidebar overlay */}
+      {/* Mobile sidebar overlay - blur background */}
       {sidebarOpen && (
-        <div className="fixed inset-0 flex z-60 lg:hidden">
-          <div
-            className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm"
-            onClick={closeMobile}
-          />
-          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-surface shadow-xl animate-slide-up">
-            {/* Mobile header close */}
-            <div className="absolute top-0 right-0 -mr-12 pt-2">
-              <IconButton
-                ariaLabel="Close sidebar"
-                onClick={closeMobile}
-                className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white hover:bg-white/10 transition-colors"
-              >
-                <X className="h-6 w-6 text-white" />
-              </IconButton>
-            </div>
+        <div
+          className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-40 lg:hidden"
+          onClick={closeMobile}
+        />
+      )}
 
+      {/* Mobile sidebar */}
+      {sidebarOpen && (
+        <div className="fixed inset-y-0 left-0 flex z-50 lg:hidden">
+          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-surface shadow-xl animate-slide-up">
             {/* Mobile sidebar content */}
             <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
               <div className="flex-shrink-0 flex items-center px-4 mb-8">
@@ -213,9 +205,9 @@ export const Layout = ({ children }: LayoutProps) => {
 
       {/* Main content wrapper (accounts for sidebar + fixed header) */}
       <div
-        className={`pt-16 transition-all duration-300 ${
+        className={`transition-all duration-300 ${
           sidebarCollapsed ? "lg:pl-16" : "lg:pl-64"
-        }`}
+        } relative z-10`}
       >
         {/* Mobile header */}
         <div className="lg:hidden bg-surface border-b border-border shadow-sm">
@@ -255,7 +247,7 @@ export const Layout = ({ children }: LayoutProps) => {
         <div
           className={`hidden lg:flex fixed top-0 right-0 h-16 items-center justify-between backdrop-blur-sm bg-surface/80 border-b border-border shadow-sm transition-all duration-300 px-6 lg:px-8 ${
             sidebarCollapsed ? "left-20" : "left-64"
-          } z-40`}
+          } z-30`}
         >
           <div className="flex items-center">
             <h2 className="text-lg font-semibold text-primaryText">

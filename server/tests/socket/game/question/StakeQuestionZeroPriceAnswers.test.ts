@@ -258,7 +258,7 @@ describe("Stake Question Zero Price Answer Tests", () => {
     try {
       playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
         bidType: StakeBidType.NORMAL,
-          bidAmount: 1,
+        bidAmount: 1,
       });
 
       const player0BidResult =
@@ -284,7 +284,7 @@ describe("Stake Question Zero Price Answer Tests", () => {
         if (!player1BidResult.isPhaseComplete) {
           playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
             bidType: StakeBidType.PASS,
-          bidAmount: null,
+            bidAmount: null,
           });
 
           await utils.waitForEvent<StakeBidSubmitOutputData>(
@@ -441,24 +441,26 @@ describe("Stake Question Zero Price Answer Tests", () => {
       }
     });
 
-    it("should continue showing question when player skips", async () => {
+    it("should reject skip attempt during showing phase", async () => {
       const {
         setup,
         stakeQuestionId,
         cleanup: testCleanup,
       } = await setupZeroPriceStakeTest();
-      const { showmanSocket, playerSockets } = setup;
+      const { playerSockets } = setup;
 
       try {
         await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
+        // Listen for error when trying to skip during showing phase
+        const errorPromise = utils.waitForEvent(playerSockets[0], "error");
+
         playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
-        await utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.QUESTION_SKIP
-        );
+        const error = await errorPromise;
+        expect(error.message).toContain("cannot skip while not answering");
 
+        // Verify game state remains unchanged
         const gameState = await utils.getGameState(setup.gameId);
         expect(gameState?.questionState).toBe(QuestionState.SHOWING);
         expect(gameState?.currentQuestion).not.toBeNull();

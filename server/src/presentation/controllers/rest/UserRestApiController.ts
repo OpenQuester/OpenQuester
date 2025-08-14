@@ -133,6 +133,7 @@ export class UserRestApiController {
     const userUpdateDTO: UpdateUserDTO = {
       email: userInputDTO.email,
       username: userInputDTO.username,
+      name: userInputDTO.name,
       birthday: userInputDTO.birthday,
     };
 

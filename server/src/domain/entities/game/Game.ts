@@ -1,3 +1,4 @@
+import { MAX_SCORE_DELTA, SCORE_ABS_LIMIT } from "domain/constants/game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
@@ -397,7 +398,8 @@ export class Game {
     }
 
     // Check if current question is NoRisk type and prevent score loss
-    let modifiedScoreResult = scoreResult;
+    // Clamp incoming score result to configured per-answer limit
+    let modifiedScoreResult = ValueUtils.clampAbs(scoreResult, MAX_SCORE_DELTA);
     if (this.gameState.currentQuestion && scoreResult < 0) {
       const questionData = GameQuestionMapper.getQuestionAndTheme(
         this._package,
@@ -411,7 +413,8 @@ export class Game {
       }
     }
 
-    const score = player.score + modifiedScoreResult;
+    const preClampedScore = player.score + modifiedScoreResult;
+    const score = ValueUtils.clampAbs(preClampedScore, SCORE_ABS_LIMIT);
 
     // Update the player's score in the _players array
     const idx = this._players.findIndex((p) => p.meta.id === player.meta.id);

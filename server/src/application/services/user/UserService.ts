@@ -291,7 +291,20 @@ export class UserService {
 
     const updateData = updateUserData;
 
+    // Check username uniqueness if username is being changed
+    if (updateData.username && updateData.username !== user.username) {
+      const existingUser = await this.userRepository.findOne(
+        { username: updateData.username },
+        { select: ["id"], relations: [], relationSelects: {} }
+      );
+
+      if (existingUser) {
+        throw new ClientError(ClientResponse.USER_ALREADY_EXISTS);
+      }
+    }
+
     user.username = updateData.username ?? user.username;
+    user.name = updateData.name ?? user.name;
 
     const previousAvatar = user.avatar;
 

@@ -155,7 +155,7 @@ class _GameListItemBadges extends StatelessWidget {
             _Badge(
               icon: Icons.person_outline,
               tooltip: LocaleKeys.game_tile_tooltips_players.tr(),
-              label: [item.players, item.maxPlayers].join('/'),
+              label: [item.players.length, item.maxPlayers].join('/'),
             ),
             _Badge(
               icon: Icons.check,

@@ -1,5 +1,6 @@
 import { Socket } from "socket.io";
 
+import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -23,7 +24,8 @@ export class QuestionSkipEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
-    private readonly socketIOQuestionService: SocketIOQuestionService
+    private readonly socketIOQuestionService: SocketIOQuestionService,
+    private readonly gameProgressionCoordinator: GameProgressionCoordinator
   ) {
     super(socket, eventEmitter, logger);
   }
@@ -49,39 +51,28 @@ export class QuestionSkipEventHandler extends BaseSocketEventHandler<
     _data: EmptyInputData,
     context: SocketEventContext
   ): Promise<SocketEventResult<QuestionSkipBroadcastData>> {
-    const { game, playerId } =
-      await this.socketIOQuestionService.handlePlayerSkip(this.socket.id);
+    const result = await this.socketIOQuestionService.handlePlayerSkip(
+      this.socket.id
+    );
+    const { game, playerId } = result;
 
     // Assign context variables for logging
     context.gameId = game.id;
     context.userId = this.socket.userId;
 
-    const broadcastData: QuestionSkipBroadcastData = {
-      playerId,
-    };
+    const broadcastData: QuestionSkipBroadcastData = { playerId };
 
-    if (game.haveAllPlayersSkipped()) {
-      // All players have skipped, trigger automatic question skip
-      const { question, game: updatedGame } =
-        await this.socketIOQuestionService.handleAutomaticQuestionSkip(game);
-
+    // If player gave up (treated as wrong answer), broadcast ANSWER_RESULT first
+    if (result.gaveUp) {
       return {
         success: true,
         data: broadcastData,
         broadcast: [
           {
-            event: SocketIOGameEvents.QUESTION_SKIP,
-            data: broadcastData,
-            target: SocketBroadcastTarget.GAME,
-            gameId: game.id,
-          },
-          {
-            event: SocketIOGameEvents.QUESTION_FINISH,
+            event: SocketIOGameEvents.ANSWER_RESULT,
             data: {
-              answerFiles: question?.answerFiles ?? null,
-              answerText: question?.answerText ?? null,
-              nextTurnPlayerId:
-                updatedGame.gameState.currentTurnPlayerId ?? null,
+              answerResult: result.answerResult,
+              timer: result.timer,
             },
             target: SocketBroadcastTarget.GAME,
             gameId: game.id,
@@ -90,6 +81,50 @@ export class QuestionSkipEventHandler extends BaseSocketEventHandler<
       };
     }
 
+    if (game.haveAllPlayersSkipped()) {
+      // All players have skipped, trigger automatic question skip
+      const { question, game: updatedGame } =
+        await this.socketIOQuestionService.handleAutomaticQuestionSkip(game);
+
+      // Handle round progression after automatic skip using the coordinator
+      const { isGameFinished, nextGameState } =
+        await this.socketIOQuestionService.handleRoundProgression(updatedGame);
+
+      // Use the progression coordinator to handle the complete flow
+      const progressionResult =
+        await this.gameProgressionCoordinator.processGameProgression({
+          game: updatedGame,
+          isGameFinished,
+          nextGameState,
+          questionFinishData: question
+            ? {
+                answerFiles: question.answerFiles ?? null,
+                answerText: question.answerText ?? null,
+                nextTurnPlayerId:
+                  updatedGame.gameState.currentTurnPlayerId ?? null,
+              }
+            : null,
+        });
+
+      // Add the question skip broadcast first, then progression broadcasts
+      const allBroadcasts = [
+        {
+          event: SocketIOGameEvents.QUESTION_SKIP,
+          data: broadcastData,
+          target: SocketBroadcastTarget.GAME,
+          gameId: game.id,
+        },
+        ...progressionResult.broadcasts,
+      ];
+
+      return {
+        success: true,
+        data: broadcastData,
+        broadcast: allBroadcasts,
+      };
+    }
+
+    // Normal skip - no additional progression logic needed
     return {
       success: true,
       data: broadcastData,

@@ -65,7 +65,7 @@ export class PlayerScoreChangeEventHandler extends BaseSocketEventHandler<
 
     const broadcastData: PlayerScoreChangeBroadcastData = {
       playerId: data.playerId,
-      newScore: data.newScore,
+      newScore: result.newScore,
     };
 
     return {

@@ -9,6 +9,7 @@ import {
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
+import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import {
@@ -107,11 +108,18 @@ export class SecretQuestionTransferEventHandler extends BaseSocketEventHandler<
       return;
     }
 
-    // Get current question from game state
-    const currentQuestion = game.gameState.currentQuestion;
-    if (!currentQuestion) {
+    // Get full question from the package (not from game state, which only has SimplePackageQuestionDTO)
+    const questionData = GameQuestionMapper.getQuestionAndTheme(
+      game.package,
+      game.gameState.currentRound!.id,
+      game.gameState.currentQuestion!.id!
+    );
+
+    if (!questionData) {
       return;
     }
+
+    const currentQuestion = questionData.question;
 
     // Get all sockets in the game for personalized question data
     const sockets = await this.socket.nsp.in(game.id).fetchSockets();

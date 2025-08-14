@@ -108,5 +108,7 @@
   "secret_question_data_not_found": "Secret question data not found",
   "cannot_transfer_secret_question": "Cannot transfer secret question",
   "invalid_transfer_target": "Invalid transfer target",
-  "cannot_transfer_to_self": "Cannot transfer secret question to yourself"
+  "cannot_transfer_to_self": "Cannot transfer secret question to yourself",
+  "cannot_skip_while_not_answering": "You cannot skip while not answering",
+  "cannot_upload_package_as_guest": "You cannot upload package as guest"
 }

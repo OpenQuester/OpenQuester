@@ -1,5 +1,6 @@
 import { Socket } from "socket.io";
 
+import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
@@ -56,6 +57,7 @@ export class SocketEventHandlerFactory {
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly socketGameContextService: SocketGameContextService,
     private readonly userService: UserService,
+    private readonly gameProgressionCoordinator: GameProgressionCoordinator,
     private readonly logger: ILogger
   ) {
     //
@@ -98,7 +100,7 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.socketIOGameService,
-        this.gameStatisticsCollectorService
+        this.gameProgressionCoordinator
       ),
       new PauseGameEventHandler(
         socket,
@@ -221,20 +223,21 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.socketIOQuestionService,
-        this.gameStatisticsCollectorService
+        this.gameProgressionCoordinator
       ),
       new SkipQuestionEventHandler(
+        this.socketIOQuestionService,
+        this.gameProgressionCoordinator,
         socket,
         eventEmitter,
-        this.logger,
-        this.socketIOQuestionService,
-        this.gameStatisticsCollectorService
+        this.logger
       ),
       new QuestionSkipEventHandler(
         socket,
         eventEmitter,
         this.logger,
-        this.socketIOQuestionService
+        this.socketIOQuestionService,
+        this.gameProgressionCoordinator
       ),
       new QuestionUnskipEventHandler(
         socket,

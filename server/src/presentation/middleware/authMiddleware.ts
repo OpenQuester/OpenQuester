@@ -11,6 +11,7 @@ import { ServerResponse } from "domain/enums/ServerResponse";
 import { Session } from "domain/types/auth/session";
 import { SessionDTO } from "domain/types/dto/auth/SessionDTO";
 import { Environment, EnvType } from "infrastructure/config/Environment";
+import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
@@ -31,6 +32,7 @@ const isPublicEndpoint = (
     { url: "v1/games", method: "GET" },
     { url: "v1/auth/logout", method: "GET" },
     { url: "v1/auth/oauth2", method: "POST" },
+    { url: "v1/auth/guest", method: "POST" },
   ];
 
   // Allow admin panel static files (but not API endpoints)
@@ -64,17 +66,6 @@ export const verifySession =
       return unauthorizedError(req, res);
     }
 
-    let session: SessionDTO;
-    try {
-      session = validateSession(req.session);
-    } catch (err: unknown) {
-      return handleSessionValidationError(err, req, res, logger);
-    }
-
-    if (!session || !session.userId) {
-      return unauthorizedError(req, res);
-    }
-
     const user = await Container.get<UserService>(
       CONTAINER_TYPES.UserService
     ).getUserByRequest(req, {
@@ -90,6 +81,18 @@ export const verifySession =
       return unauthorizedError(req, res);
     }
 
+    // Validate session with user data
+    let validatedSession: SessionDTO;
+    try {
+      validatedSession = validateSession(req.session, user);
+    } catch (err: unknown) {
+      return handleSessionValidationError(err, req, res, logger);
+    }
+
+    if (!validatedSession || !validatedSession.userId) {
+      return unauthorizedError(req, res);
+    }
+
     // Refresh session expire time
     req.session.touch();
     req.user = user;
@@ -97,13 +100,15 @@ export const verifySession =
     next();
   };
 
-function validateSession(session: Session) {
+function validateSession(session: Session, user?: User) {
   return new RequestDataValidator<SessionDTO>(
     {
       userId: session.userId,
+      isGuest: user ? user.is_guest : false,
     },
     Joi.object({
       userId: Joi.number().required(),
+      isGuest: Joi.boolean().required(),
     })
   ).validate();
 }

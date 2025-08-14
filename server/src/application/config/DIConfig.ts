@@ -9,6 +9,9 @@ import { TimerExpirationHandler } from "application/handlers/TimerExpirationHand
 import { AdminService } from "application/services/admin/AdminService";
 import { FileService } from "application/services/file/FileService";
 import { FileUsageService } from "application/services/file/FileUsageService";
+import { GameEventBroadcastService } from "application/services/game/GameEventBroadcastService";
+import { GameLifecycleService } from "application/services/game/GameLifecycleService";
+import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
 import { PackageTagService } from "application/services/package/PackageTagService";
@@ -82,6 +85,12 @@ export class DIConfig {
     Container.register(CONTAINER_TYPES.IO, this.io, "infrastructure");
 
     const db = Container.get<Database>(CONTAINER_TYPES.Database);
+
+    Container.register(
+      CONTAINER_TYPES.GameEventBroadcastService,
+      new GameEventBroadcastService(),
+      "service"
+    );
 
     Container.register(
       CONTAINER_TYPES.FileUsageRepository,
@@ -297,6 +306,32 @@ export class DIConfig {
       ),
       "service"
     );
+
+    Container.register(
+      CONTAINER_TYPES.GameLifecycleService,
+      new GameLifecycleService(
+        Container.get<GameStatisticsCollectorService>(
+          CONTAINER_TYPES.GameStatisticsCollectorService
+        ),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.GameProgressionCoordinator,
+      new GameProgressionCoordinator(
+        Container.get<GameLifecycleService>(
+          CONTAINER_TYPES.GameLifecycleService
+        ),
+        Container.get<GameEventBroadcastService>(
+          CONTAINER_TYPES.GameEventBroadcastService
+        ),
+        this.logger
+      ),
+      "service"
+    );
+
     Container.register(
       CONTAINER_TYPES.PackageRepository,
       new PackageRepository(
