@@ -1044,7 +1044,7 @@
         "type": "object",
         "properties": {
           "username": {
-            "type": "string",
+            "type": ["string", "null"],
             "description": "Display name for the guest user (1-50 characters, allows Unicode letters, numbers, spaces)",
             "examples": ["Guest Player", "测试用户", "Гість123"],
             "minLength": 1,

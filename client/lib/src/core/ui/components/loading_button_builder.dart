@@ -49,6 +49,8 @@ class _LoadingButtonBuilderState extends State<LoadingButtonBuilder> {
       setState(() => loading = true);
       try {
         await onPressed?.call();
+      } catch (e) {
+        await getIt<ToastController>().show(e);
       } finally {
         if (context.mounted) setState(() => loading = false);
       }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
+import 'package:openquester/src/core/ui/components/one_field_dialog.dart';
 
 // Keep for backward compatibility, but primary access is through ProfileDialog
 @RoutePage()
@@ -96,47 +97,102 @@ class _LoginContent extends WatchingWidget {
       mainAxisSize: MainAxisSize.min,
       spacing: 20,
       children: [
-        Icon(
-          Icons.discord,
-          size: 48,
-          color: context.theme.colorScheme.primary,
+        Text(
+          LocaleKeys.login_login_description.tr(),
+          textAlign: TextAlign.center,
+          style: context.textTheme.bodyLarge,
         ),
-        Column(
-          spacing: 8,
-          children: [
-            Text(
-              LocaleKeys.login_with_discord.tr(),
-              style: context.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            Text(
-              LocaleKeys.connect_discord.tr(),
-              style: context.textTheme.bodySmall?.copyWith(
-                color: context.theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+        Text(
+          LocaleKeys.login_login_description_guest.tr(),
+          textAlign: TextAlign.center,
+          style: context.textTheme.bodySmall?.copyWith(
+            color: context.theme.colorScheme.onSurfaceVariant,
+          ),
         ),
+        const _DiscordLoginBtn(),
         LoadingButtonBuilder(
-          onPressed: getIt.get<AuthController>().loginUser,
+          onPressed: () => _loginAndGetUsername(context, GuestAuthType()),
           builder: (context, child, onPressed) {
-            return FilledButton.icon(
+            return FilledButton.tonalIcon(
               onPressed: onPressed,
               icon: child,
-              label: Text(LocaleKeys.login_with_discord.tr()),
+              label: Text(LocaleKeys.login_as_guest.tr()),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(40),
               ),
             );
           },
-          child: const Icon(Icons.discord),
+          child: const Icon(Icons.account_circle_outlined),
         ),
       ],
     );
   }
+}
+
+class _DiscordLoginBtn extends StatelessWidget {
+  const _DiscordLoginBtn();
+
+  @override
+  Widget build(BuildContext context) {
+    return LoadingButtonBuilder(
+      onPressed: () => _loginAndGetUsername(context, Oauth2AuthType()),
+      builder: (context, child, onPressed) {
+        return FilledButton.icon(
+          onPressed: onPressed,
+          icon: child,
+          label: Text(LocaleKeys.login_with_discord.tr()),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(40),
+          ),
+        );
+      },
+      child: const Icon(Icons.discord),
+    );
+  }
+}
+
+Future<void> _loginAndGetUsername(
+  BuildContext context,
+  AuthType auth,
+) async {
+  final controller = getIt.get<AuthController>();
+
+  String? username;
+  if (auth is GuestAuthType) {
+    if (!context.mounted) return;
+    username = await _UsernameDialog(
+      initText: getIt<AuthController>().lastUsername,
+    ).show(context);
+    if (username == null) return;
+  }
+
+  await controller.loginUser(
+    auth: auth,
+    username: username,
+  );
+}
+
+class _UsernameDialog extends OneFieldDialog {
+  _UsernameDialog({
+    required super.initText,
+  }) : super(
+         title: LocaleKeys.username.tr(),
+         subtitle: LocaleKeys.login_set_your_username.tr(),
+         hintText: 'Chill Dude',
+         maxLength: 50,
+         validator: (value) {
+           if (value == null || value.trim().isEmpty) {
+             return LocaleKeys.field_required.tr();
+           }
+
+           final regex = RegExp(r'^[a-zA-Z0-9\s]*$');
+           if (!regex.hasMatch(value)) {
+             return LocaleKeys.login_username_validation.tr();
+           }
+
+           return null;
+         },
+       );
 }
 
 class _ProfileContent extends WatchingWidget {
@@ -155,60 +211,24 @@ class _ProfileContent extends WatchingWidget {
         Column(
           spacing: 12,
           children: [
-            Stack(
-              clipBehavior: Clip.none,
+            if (!user.isGuest)
+              _ProfileAvatar(user: user).withSize(width: 80, height: 80),
+            Column(
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: context.theme.colorScheme.outline.withValues(
-                        alpha: 0.2,
-                      ),
-                      width: 2,
-                    ),
-                  ),
-                  child: ImageWidget(
-                    url: user.avatar,
-                    avatarRadius: 40,
+                Text(
+                  user.name ?? user.username,
+                  style: context.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                Positioned(
-                  bottom: -4,
-                  right: -4,
-                  child: LoadingButtonBuilder(
-                    builder: (context, child, onPressed) => Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: context.theme.colorScheme.primaryContainer,
-                        border: Border.all(
-                          color: context.theme.colorScheme.outline.withValues(
-                            alpha: 0.2,
-                          ),
-                        ),
-                      ),
-                      child: IconButton(
-                        onPressed: onPressed,
-                        icon: child,
-                        iconSize: 16,
-                        style: IconButton.styleFrom(
-                          foregroundColor:
-                              context.theme.colorScheme.onPrimaryContainer,
-                          padding: 6.all,
-                        ),
-                      ),
+                if (!user.name.isEmptyOrNull && user.name != user.username)
+                  Text(
+                    user.username,
+                    style: context.textTheme.bodyMedium?.copyWith(
+                      color: context.theme.colorScheme.onSurfaceVariant,
                     ),
-                    onPressed: getIt<ProfileController>().changeAvatar,
-                    child: const Icon(Icons.edit_outlined),
                   ),
-                ),
               ],
-            ).withSize(width: 80, height: 80),
-            Text(
-              user.username,
-              style: context.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
             ),
           ],
         ),
@@ -245,15 +265,73 @@ class _ProfileContent extends WatchingWidget {
         Column(
           spacing: 12,
           children: [
+            if (user.isGuest) const _DiscordLoginBtn(),
             FilledButton.tonalIcon(
               onPressed: getIt.get<AuthController>().logOut,
               icon: const Icon(Icons.logout_outlined),
-              label: Text(LocaleKeys.logout.tr()),
+              label: Text(LocaleKeys.login_logout.tr()),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(40),
               ),
             ),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileAvatar extends StatelessWidget {
+  const _ProfileAvatar({required this.user});
+  final ResponseUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: context.theme.colorScheme.outline.withValues(
+                alpha: 0.2,
+              ),
+              width: 2,
+            ),
+          ),
+          child: ImageWidget(
+            url: user.avatar,
+            avatarRadius: 40,
+          ),
+        ),
+        Positioned(
+          bottom: -4,
+          right: -4,
+          child: LoadingButtonBuilder(
+            builder: (context, child, onPressed) => Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: context.theme.colorScheme.primaryContainer,
+                border: Border.all(
+                  color: context.theme.colorScheme.outline.withValues(
+                    alpha: 0.2,
+                  ),
+                ),
+              ),
+              child: IconButton(
+                onPressed: onPressed,
+                icon: child,
+                iconSize: 16,
+                style: IconButton.styleFrom(
+                  foregroundColor: context.theme.colorScheme.onPrimaryContainer,
+                  padding: 6.all,
+                ),
+              ),
+            ),
+            onPressed: getIt<ProfileController>().changeAvatar,
+            child: const Icon(Icons.edit_outlined),
+          ),
         ),
       ],
     );

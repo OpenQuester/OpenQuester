@@ -37,7 +37,9 @@ class SocketChatController extends ChangeNotifier {
     chatController = InMemoryChatController(messages: messages);
 
     final restUser = ProfileController.getUser();
-    if (restUser == null) throw UserError(LocaleKeys.user_unauthorized.tr());
+    if (restUser == null) {
+      throw UserError(LocaleKeys.login_user_unauthorized.tr());
+    }
 
     // Set chat user
     user = User(
