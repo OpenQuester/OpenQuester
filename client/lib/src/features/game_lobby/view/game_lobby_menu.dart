@@ -55,13 +55,13 @@ class GameLobbyMenu extends WatchingWidget {
             },
           ),
           PopupMenuItem<void>(
-            child: Text(LocaleKeys.delete_game.tr()),
+            child: Text(LocaleKeys.delete_lobby.tr()),
             onTap: () async {
               final result = await ConfirmDialog(
-                title: LocaleKeys.delete_game_confirmation.tr(),
+                title: LocaleKeys.delete_lobby_confirmation.tr(),
               ).show(context);
               if (!result) return;
-              await getIt<GamesListController>().deleteGame(
+              await getIt<GamesListController>().deleteLobby(
                 getIt<GameLobbyController>().gameListData.value!.id,
               );
             },

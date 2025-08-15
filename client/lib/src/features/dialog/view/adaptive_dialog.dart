@@ -25,14 +25,13 @@ class _AdaptiveDialogState extends State<AdaptiveDialog>
 
     Widget builder(BuildContext context, ScrollController? scrollController) =>
         GestureDetector(
+          // do nothing to swallows the tap
+          onTap: () {},
           child: ListView(
             controller: scrollController,
             shrinkWrap: true,
             children: [widget.builder(context)],
           ),
-          onTap: () {
-            /* do nothing—this swallows the tap */
-          },
         );
 
     return Material(
