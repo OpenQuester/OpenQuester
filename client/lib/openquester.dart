@@ -34,6 +34,7 @@ export 'src/core/ui/components/diagonal_lines_background.dart';
 export 'src/core/ui/components/image_widget.dart';
 export 'src/core/ui/components/list_header.dart';
 export 'src/core/ui/components/loading_button_builder.dart';
+export 'src/core/ui/components/one_field_dialog.dart';
 export 'src/core/ui/dialogs.dart';
 export 'src/core/ui/max_size_container.dart';
 export 'src/core/ui/ui_mode_utils.dart';

@@ -127,7 +127,7 @@ class GameLobbyController {
       // Show error toast
       await getIt<ToastController>().show(
         e is DioException && e.response?.statusCode == 401
-            ? LocaleKeys.user_unauthorized.tr()
+            ? LocaleKeys.login_user_unauthorized.tr()
             : e,
       );
 
