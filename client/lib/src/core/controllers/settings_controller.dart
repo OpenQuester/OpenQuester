@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
-@singleton
+@Singleton(order: 1)
 class SettingsController extends ChangeNotifier {
   late AppSettings settings;
 
