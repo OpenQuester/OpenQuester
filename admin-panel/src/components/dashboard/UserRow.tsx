@@ -13,12 +13,13 @@ import {
   IconButtonVariant,
   IconButton as SharedIconButton,
 } from "@/components/common/IconButton";
+import { Avatar } from "@/components/ui/Avatar";
+import { AdminBadge } from "@/components/ui/badges/AdminBadge";
 import { LabelNew } from "@/components/ui/LabelNew";
 import { Permissions } from "@/constants/permissions";
 import { ONE_WEEK_MS } from "@/constants/time";
 import { useAuth } from "@/contexts/AuthContext";
 import { type UserDTO } from "@/types/dto";
-import { AdminBadge } from "../ui/badges/AdminBadge";
 
 interface UserRowProps {
   user: UserDTO;
@@ -38,7 +39,7 @@ export const UserRow = memo(
     const { hasPermission } = useAuth();
     const canBan = hasPermission(Permissions.BAN_USERS);
     const canDelete = hasPermission(Permissions.DELETE_ANOTHER_USER);
-    const initial = user.username.charAt(0).toUpperCase();
+    const displayName = user.name || user.username;
     return (
       <div
         className="p-6 group hover:bg-hover transition-colors/75"
@@ -47,17 +48,21 @@ export const UserRow = memo(
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="relative">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center shadow-sm group-hover:scale-[1.03] transition-transform">
-                <span className="text-sm font-semibold text-white select-none">
-                  {initial}
-                </span>
+              <div className="group-hover:scale-[1.03] transition-transform">
+                <Avatar
+                  src={user.avatar}
+                  fallback={displayName}
+                  size="sm"
+                  alt={`${displayName}'s avatar`}
+                  className="shadow-sm"
+                />
               </div>
               <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-success-500 rounded-full border-2 border-surface" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <p className="text-sm font-medium text-primaryText flex items-center gap-2 flex-wrap">
-                  <span>{user.username}</span>
+                  <span>{displayName}</span>
                   {user.permissions?.some(
                     (p) => p.name === Permissions.ADMIN_PANEL_ACCESS
                   ) && <AdminBadge />}
@@ -67,7 +72,7 @@ export const UserRow = memo(
               <div className="flex flex-wrap items-center gap-4 mt-1">
                 <UserMeta
                   icon={<Mail className="h-3 w-3" />}
-                  label={user.email}
+                  label={user.email || "No email"}
                 />
                 <UserMeta
                   icon={<Calendar className="h-3 w-3" />}
