@@ -184,7 +184,7 @@ class _UsernameDialog extends OneFieldDialog {
              return LocaleKeys.field_required.tr();
            }
 
-           final regex = RegExp(r'^[a-zA-Z0-9\s]*$');
+           final regex = RegExp(r'^(?!.*  )[a-zA-Z0-9\s]*$');
            if (!regex.hasMatch(value)) {
              return LocaleKeys.login_username_validation.tr();
            }
