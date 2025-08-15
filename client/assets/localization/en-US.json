@@ -31,10 +31,18 @@
   },
   "hosted_by": "hosted by {}",
   "close": "Close",
-  "user_unauthorized": "User unauthorized",
-  "authorization_canceled": "Authorization canceled",
-  "login_with_discord": "Login with Discord",
-  "logout": "Logout",
+  "login": {
+    "user_unauthorized": "User unauthorized",
+    "authorization_canceled": "Authorization canceled",
+    "with_discord": "Login with Discord",
+    "as_guest": "Login as Guest",
+    "logout": "Logout",
+    "set_your_username": "Set your username",
+    "username_validation": "Username must be from 1 to 50 characters. Dots, underscores and double spaces not allowed.",
+    "login_description": "Log in to your account to be able to create games, play with friends",
+    "login_description_guest": "You can also play as a guest, but you will not be able to upload packages."
+  },
+  "username": "Username",
   "start_game": "Start Game",
   "select": "Select",
   "game_name": "Game name",
@@ -128,8 +136,10 @@
   "ready_to_play": "Ready to play",
   "change": "Change",
   "game_settings": "Game Settings",
-  "connect_discord": "Connect your Discord account to get started",
   "settings": {
     "limit_desktop_width": "Limit game lobby width"
-  }
+  },
+  "cancel": "Cancel",
+  "ok": "OK",
+  "field_required": "Field is required"
 }
