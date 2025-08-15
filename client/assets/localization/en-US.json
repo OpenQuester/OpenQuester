@@ -58,7 +58,7 @@
   "user_joined_the_game": "User {} joined the game",
   "showman": "Showman",
   "join_game": "Join game",
-  "leave_game_confirmation": "Leave Game?",
+  "leave_game_confirmation": "Are you sure you want to leave?",
   "yes": "Yes",
   "no": "No",
   "openquester": "OpenQuester",
@@ -73,7 +73,7 @@
     "correct_answer_is": "Correct answer is: {}",
     "hint": "Hint: {}",
     "skip_round": "Skip this round",
-    "sure_skip_round": "Sure want to skip this round?"
+    "sure_skip_round": "Are you sure you want to skip this round?"
   },
   "delete_game": "Delete game",
   "delete_game_confirmation": "Do you want to delete the game?",
