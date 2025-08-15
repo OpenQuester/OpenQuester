@@ -62,8 +62,11 @@ export class AdminService {
           "is_deleted",
           "is_guest",
         ],
-        relations: ["permissions"],
-        relationSelects: { permissions: ["id", "name"] },
+        relations: ["permissions", "avatar"],
+        relationSelects: {
+          permissions: ["id", "name"],
+          avatar: ["id", "filename"],
+        },
       },
       since
     );

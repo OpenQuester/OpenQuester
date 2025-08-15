@@ -8,6 +8,7 @@ import {
   IconButtonVariant,
 } from "@/components/common/IconButton";
 import { SortButton } from "@/components/common/SortButton";
+import { Avatar } from "@/components/ui/Avatar";
 import { AdminBadge } from "@/components/ui/badges/AdminBadge";
 import { GuestBadge } from "@/components/ui/badges/GuestBadge";
 import { NewBadge } from "@/components/ui/badges/NewBadge";
@@ -112,11 +113,12 @@ export const UsersTableView: React.FC<UsersTableViewProps> = ({
                     <td className="table-cell font-mono text-xs">#{user.id}</td>
                     <td className="table-cell">
                       <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 flex-shrink-0 rounded-full bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center">
-                          <span className="text-white font-medium text-xs">
-                            {displayName.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
+                        <Avatar
+                          src={user.avatar}
+                          fallback={displayName}
+                          size="sm"
+                          alt={`${displayName}'s avatar`}
+                        />
                         <div className="flex flex-col min-w-0">
                           <span className="font-medium flex items-center gap-2 flex-wrap">
                             <span
