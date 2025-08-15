@@ -72,7 +72,7 @@ class GamesListController extends ListControllerBase<GameListItem> {
     duration: const Duration(milliseconds: 500),
   );
 
-  Future<void> deleteGame(String gameId) async {
+  Future<void> deleteLobby(String gameId) async {
     await Api.I.api.games.deleteV1GamesGameId(gameId: gameId);
   }
 }

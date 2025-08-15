@@ -75,8 +75,8 @@
     "skip_round": "Skip this round",
     "sure_skip_round": "Are you sure you want to skip this round?"
   },
-  "delete_game": "Delete game",
-  "delete_game_confirmation": "Do you want to delete the game?",
+  "delete_lobby": "Delete lobby",
+  "delete_lobby_confirmation": "Do you want to delete the lobby?",
   "volume": "Volume",
   "game_is_finished": "Game is finished. Thanks for playing :)",
   "game_is_paused": "Game is paused",
