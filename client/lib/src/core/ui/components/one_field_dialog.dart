@@ -52,7 +52,6 @@ class _OneFieldDialogState extends State<OneFieldDialog> {
           children: [
             if (widget.subtitle != null) Text(widget.subtitle!),
             TextFormField(
-              initialValue: widget.initText,
               controller: controller,
               autofocus: true,
               validator: widget.validator,
