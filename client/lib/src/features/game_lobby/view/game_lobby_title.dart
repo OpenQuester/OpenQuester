@@ -9,7 +9,6 @@ class GameLobbyTitle extends WatchingWidget {
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final fileData = watchValue((GameQuestionController e) => e.questionData);
-    final imShowman = gameData?.me.role == PlayerRole.showman;
     final question = gameData?.gameState.currentQuestion;
     final questionPicked = question != null;
     final isPickingPlayer = watchPropertyValue(
@@ -19,12 +18,10 @@ class GameLobbyTitle extends WatchingWidget {
     var title = '';
 
     if (questionPicked) {
-      if (imShowman) {
-        title = LocaleKeys.game_lobby_title_waiting_for_players.tr();
-      } else if (question.type == QuestionType.noRisk) {
+      if (question.type == QuestionType.noRisk) {
         title = LocaleKeys.game_lobby_title_no_risk_question.tr();
       } else {
-        title = LocaleKeys.game_lobby_title_answer_question.tr();
+        title = LocaleKeys.game_lobby_title_waiting_for_answer.tr();
       }
     } else if (isPickingPlayer) {
       title = '';

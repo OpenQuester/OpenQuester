@@ -13,16 +13,16 @@ class ScoreText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final compactFormat = score >= 1_000_000;
-    final decimalFormater = NumberFormat.decimalPattern();
-    final formater = compactFormat ? NumberFormat.compact() : decimalFormater;
+    final decimalFormatter = NumberFormat.decimalPattern();
+    final formatter = compactFormat ? NumberFormat.compact() : decimalFormatter;
 
     final text = Text(
-      formater.format(score),
+      formatter.format(score),
       style: textStyle,
     );
 
     if (!compactFormat) return text;
 
-    return Tooltip(message: decimalFormater.format(score), child: text);
+    return Tooltip(message: decimalFormatter.format(score), child: text);
   }
 }

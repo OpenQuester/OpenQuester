@@ -73,10 +73,10 @@
     "correct_answer_is": "Correct answer is: {}",
     "hint": "Hint: {}",
     "skip_round": "Skip this round",
-    "sure_skip_round": "Sure wanna skip this round?"
+    "sure_skip_round": "Sure want to skip this round?"
   },
   "delete_game": "Delete game",
-  "delete_game_confirmation": "Sure wanna delete the game?",
+  "delete_game_confirmation": "Do you want to delete the game?",
   "volume": "Volume",
   "game_is_finished": "Game is finished. Thanks for playing :)",
   "game_is_paused": "Game is paused",
@@ -132,8 +132,7 @@
     "limit_desktop_width": "Limit game lobby width"
   },
   "game_lobby_title": {
-    "answer_question": "Answer question",
-    "waiting_for_players": "Wait for user answer",
+    "waiting_for_answer": "Lets hear the answer",
     "no_risk_question": "No-risk question",
     "select_question": "Select question"
   },
