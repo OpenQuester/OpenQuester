@@ -39,7 +39,28 @@ export class MiddlewareController {
   public async initialize() {
     this.ctx.app.use(express.json({ limit: "800kb" }));
     this.ctx.app.use(express.urlencoded({ limit: "800kb", extended: true }));
-    this.ctx.app.use(helmet());
+
+    // Configure helmet with custom CSP to allow S3/MinIO images
+    const s3Endpoint = this.ctx.env.getEnvVar(
+      "S3_ENDPOINT",
+      "string",
+      "",
+      true
+    );
+    const imgSrcDirectives = ["'self'", "data:"];
+    if (s3Endpoint) {
+      imgSrcDirectives.push(s3Endpoint);
+    }
+
+    this.ctx.app.use(
+      helmet({
+        contentSecurityPolicy: {
+          directives: {
+            imgSrc: imgSrcDirectives,
+          },
+        },
+      })
+    );
     this.ctx.app.use(
       cors({
         credentials: true,

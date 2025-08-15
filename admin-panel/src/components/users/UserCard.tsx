@@ -2,6 +2,7 @@ import { Ban, Check, Eye, RotateCcw, UserX } from "lucide-react";
 import { memo } from "react";
 
 import { IconButton, IconButtonVariant } from "@/components/common/IconButton";
+import { Avatar } from "@/components/ui/Avatar";
 import { AdminBadge } from "@/components/ui/badges/AdminBadge";
 import { GuestBadge } from "@/components/ui/badges/GuestBadge";
 import { NewBadge } from "@/components/ui/badges/NewBadge";
@@ -40,11 +41,12 @@ export const UserCard = memo(
             <div className="flex-1 min-w-0">
               {/* Avatar, Name, Username Row */}
               <div className="flex items-center space-x-3 mb-4">
-                <div className="w-12 h-12 flex-shrink-0 rounded-full bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center">
-                  <span className="text-white font-semibold text-lg">
-                    {user.username.charAt(0).toUpperCase()}
-                  </span>
-                </div>
+                <Avatar
+                  src={user.avatar}
+                  fallback={displayName}
+                  size="md"
+                  alt={`${displayName}'s avatar`}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-medium text-primaryText flex items-center gap-2 flex-wrap">
