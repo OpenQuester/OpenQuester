@@ -45,7 +45,7 @@ class GameLobbyPlayerPicker extends WatchingWidget {
               playerTextStyle: playerTextStyle,
             ),
           Text(
-            LocaleKeys.game_lobby_secret_question_wait_for_player.tr(),
+            LocaleKeys.game_secret_question_wait_for_player_to_select_next.tr(),
             textAlign: TextAlign.center,
             style: context.textTheme.headlineSmall,
           ),
@@ -63,7 +63,7 @@ class GameLobbyPlayerPicker extends WatchingWidget {
       children: [
         Text(
           [
-            LocaleKeys.game_lobby_secret_question_choose_player.tr(),
+            LocaleKeys.game_secret_question_choose_player.tr(),
             ':',
           ].join(),
           style: context.textTheme.headlineSmall,

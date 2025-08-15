@@ -19,14 +19,14 @@ class GameLobbyTitle extends WatchingWidget {
 
     if (questionPicked) {
       if (question.type == QuestionType.noRisk) {
-        title = LocaleKeys.game_lobby_title_no_risk_question.tr();
+        title = LocaleKeys.game_title_no_risk_question.tr();
       } else {
-        title = LocaleKeys.game_lobby_title_waiting_for_answer.tr();
+        title = LocaleKeys.game_title_waiting_for_answer.tr();
       }
     } else if (isPickingPlayer) {
       title = '';
     } else if (fileData == null) {
-      title = LocaleKeys.game_lobby_title_select_question.tr();
+      title = LocaleKeys.game_title_select_question.tr();
     }
 
     if (title.isEmpty) return const SizedBox.shrink();

@@ -131,14 +131,14 @@
   "settings": {
     "limit_desktop_width": "Limit game lobby width"
   },
-  "game_lobby_title": {
+  "game_title": {
     "waiting_for_answer": "Lets hear the answer",
     "no_risk_question": "No-risk question",
     "select_question": "Select question"
   },
   "confirm": "Confirm",
-  "game_lobby_secret_question": {
-    "wait_for_player": "Wait for player to select who will answer",
+  "game_secret_question": {
+    "wait_for_player_to_select_next": "Wait for player to select who will answer",
     "choose_player": "Choose player to pass this question to"
   }
 }
