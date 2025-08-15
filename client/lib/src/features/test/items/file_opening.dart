@@ -72,7 +72,7 @@ class _FileOpeningState extends State<FileOpening> {
     parseTime: $parseTime;
     pickedTime: $pickedTime;
     rounds: ${siqFile?.rounds.length}''';
-    
+
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
