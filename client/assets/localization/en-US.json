@@ -66,7 +66,7 @@
   "user_joined_the_game": "User {} joined the game",
   "showman": "Showman",
   "join_game": "Join game",
-  "leave_game_confirmation": "Leave Game?",
+  "leave_game_confirmation": "Are you sure you want to leave?",
   "yes": "Yes",
   "no": "No",
   "openquester": "OpenQuester",
@@ -81,10 +81,10 @@
     "correct_answer_is": "Correct answer is: {}",
     "hint": "Hint: {}",
     "skip_round": "Skip this round",
-    "sure_skip_round": "Sure wanna skip this round?"
+    "sure_skip_round": "Are you sure you want to skip this round?"
   },
-  "delete_game": "Delete game",
-  "delete_game_confirmation": "Sure wanna delete the game?",
+  "delete_lobby": "Delete lobby",
+  "delete_lobby_confirmation": "Do you want to delete the lobby?",
   "volume": "Volume",
   "game_is_finished": "Game is finished. Thanks for playing :)",
   "game_is_paused": "Game is paused",
@@ -130,7 +130,6 @@
     "pure_dark": "Pure Dark",
     "appearance": "Appearance"
   },
-
   "game_package": "Game Package",
   "selected_package": "Selected Package",
   "ready_to_play": "Ready to play",
@@ -138,6 +137,16 @@
   "game_settings": "Game Settings",
   "settings": {
     "limit_desktop_width": "Limit game lobby width"
+  },
+  "game_title": {
+    "waiting_for_answer": "Lets hear the answer",
+    "no_risk_question": "No-risk question",
+    "select_question": "Select question"
+  },
+  "confirm": "Confirm",
+  "game_secret_question": {
+    "wait_for_player_to_select_next": "Wait for player to select who will answer",
+    "choose_player": "Choose player to pass this question to"
   },
   "cancel": "Cancel",
   "ok": "OK",

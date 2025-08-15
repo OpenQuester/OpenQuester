@@ -70,6 +70,14 @@ class GameLobbyController {
           _onPlayerRoleChange,
         )
         ..on(SocketIOGameReceiveEvents.playerReady.json!, _onPlayerReady)
+        ..on(
+          SocketIOGameReceiveEvents.secretQuestionPicked.json!,
+          _onSecretQuestionPicked,
+        )
+        ..on(
+          SocketIOGameReceiveEvents.secretQuestionTransfer.json!,
+          _onSecretQuestionTransfer,
+        )
         ..connect();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
@@ -167,6 +175,7 @@ class GameLobbyController {
       themeScrollPosition = null;
       getIt<SocketChatController>().clear();
       getIt<GameQuestionController>().clear();
+      getIt<GameLobbyPlayerPickerController>().clear();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
     }
@@ -365,6 +374,8 @@ class GameLobbyController {
       ),
     );
 
+    getIt<GameLobbyPlayerPickerController>().stopSelection();
+
     // Pass the question to controller to show the question
     _showQuestion();
   }
@@ -480,6 +491,7 @@ class GameLobbyController {
       currentTurnPlayerId: questionData.nextTurnPlayerId,
       skippedPlayers: null,
     );
+
     _showAnswer();
   }
 
@@ -487,11 +499,18 @@ class GameLobbyController {
     final controller = getIt<GameQuestionController>();
     final currentQuestion = gameData.value?.gameState.currentQuestion;
 
+    // Check for empty answer
+    if (currentQuestion?.answerFiles?.isEmpty ??
+        true && (currentQuestion?.answerText.isEmptyOrNull ?? true)) {
+      return;
+    }
+
     // Clear question
     gameData.value = gameData.value?.copyWith.gameState(
       currentQuestion: null,
       timer: null,
     );
+    getIt<GameLobbyPlayerPickerController>().stopSelection();
 
     try {
       var mediaPlaytimeMs = 0;
@@ -707,5 +726,40 @@ class GameLobbyController {
           ? SocketIOGameSendEvents.playerReady.json!
           : SocketIOGameSendEvents.playerUnready.json!,
     );
+  }
+
+  void _onSecretQuestionPicked(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOSecretQuestionPickedEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    getIt<GameLobbyPlayerPickerController>().startSelect(
+      players: gameData.value?.players ?? [],
+      selectingPlayerId: data.pickerPlayerId,
+      type: data.transferType,
+      onPlayerSelected: (selectedPlayerId) {
+        socket?.emit(
+          SocketIOGameSendEvents.secretQuestionTransfer.json!,
+          SocketIOSecretQuestionTransferInputData(
+            targetPlayerId: selectedPlayerId,
+          ).toJson(),
+        );
+      },
+    );
+  }
+
+  void _onSecretQuestionTransfer(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOSecretQuestionTransferEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith.gameState(
+      answeringPlayer: data.toPlayerId,
+    );
+    getIt<GameLobbyPlayerPickerController>().stopSelection();
   }
 }

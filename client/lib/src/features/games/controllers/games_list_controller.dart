@@ -12,8 +12,8 @@ class GamesListController extends ListControllerBase<GameListItem> {
     await super.init();
     getIt<SocketController>().general
       ..on(SocketIOEvents.games.name, _onSocketEvent)
-      // Refresh list on connection
-      ..onConnect((_) => pagingController.refresh());
+      // Refresh list on reconnect
+      ..onReconnect((_) => pagingController.refresh());
     queryFilter = null;
   }
 
@@ -72,7 +72,7 @@ class GamesListController extends ListControllerBase<GameListItem> {
     duration: const Duration(milliseconds: 500),
   );
 
-  Future<void> deleteGame(String gameId) async {
+  Future<void> deleteLobby(String gameId) async {
     await Api.I.api.games.deleteV1GamesGameId(gameId: gameId);
   }
 }

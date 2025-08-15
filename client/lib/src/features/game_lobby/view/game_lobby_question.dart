@@ -39,7 +39,7 @@ class GameQuestion extends WatchingWidget {
         minimumSize: WidgetStatePropertyAll(
           GameLobbyStyles.questionSize(context),
         ),
-        padding: WidgetStatePropertyAll(0.all),
+        padding: WidgetStatePropertyAll(8.horizontal),
         backgroundBuilder: (context, states, child) {
           if (child != null && states.contains(WidgetState.disabled)) {
             return DiagonalLineBackground(child: child);
@@ -47,7 +47,9 @@ class GameQuestion extends WatchingWidget {
           return child ?? const SizedBox();
         },
       ),
-      child: Text('${question.price}'),
+      child: question.price == null
+          ? const Text('-')
+          : ScoreText(score: question.price!),
     );
   }
 }

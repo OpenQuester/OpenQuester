@@ -14,10 +14,15 @@ class GameLobbyStyles {
   static TextStyle? playerTextStyle(BuildContext context) {
     final wideMode = playersOnLeft(context);
     final style = wideMode
-        ? context.textTheme.bodyLarge
-        : context.textTheme.bodySmall;
+        ? playerTextStyleDesktop(context)
+        : playerTextStyleMobile(context);
     return style?.copyWith(color: Colors.white);
   }
+
+  static TextStyle? playerTextStyleMobile(BuildContext context) =>
+      context.textTheme.bodySmall?.copyWith(color: Colors.white);
+  static TextStyle? playerTextStyleDesktop(BuildContext context) =>
+      context.textTheme.bodyLarge;
 
   static bool desktopChat(BuildContext context) =>
       UiModeUtils.wideModeOn(context, UiModeUtils.large);

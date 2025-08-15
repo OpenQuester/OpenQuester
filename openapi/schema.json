@@ -2770,7 +2770,10 @@
         "description": "Data sent to all players when the game is paused",
         "properties": {
           "timer": {
-            "$ref": "#/components/schemas/GameStateTimer"
+            "oneOf": [
+              { "$ref": "#/components/schemas/GameStateTimer" },
+              { "type": "null" }
+            ]
           }
         }
       },
@@ -2779,7 +2782,10 @@
         "description": "Data sent to all players when the game is unpaused",
         "properties": {
           "timer": {
-            "$ref": "#/components/schemas/GameStateTimer"
+            "oneOf": [
+              { "$ref": "#/components/schemas/GameStateTimer" },
+              { "type": "null" }
+            ]
           }
         }
       },
