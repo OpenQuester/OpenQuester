@@ -26,7 +26,9 @@ class GamePreviewController {
   Future<void> onPressPlay() async {
     final authorized = getIt<AuthController>().authorized;
     if (!authorized) {
-      await getIt<ToastController>().show(LocaleKeys.user_unauthorized.tr());
+      await getIt<ToastController>().show(
+        LocaleKeys.login_user_unauthorized.tr(),
+      );
       return;
     }
 
