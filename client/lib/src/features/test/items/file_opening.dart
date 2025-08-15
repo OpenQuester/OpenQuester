@@ -73,6 +73,7 @@ class _FileOpeningState extends State<FileOpening> {
     pickedTime: $pickedTime;
     rounds: ${siqFile?.rounds.length}''';
 
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(debugText)));
