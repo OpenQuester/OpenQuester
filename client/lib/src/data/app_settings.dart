@@ -10,7 +10,7 @@ abstract class AppSettings with _$AppSettings {
   const factory AppSettings({
     @Default(AppThemeSeed.indigo) AppThemeSeed themeSeed,
     @Default(AppThemeMode.system) AppThemeMode themeMode,
-    @Default(false) bool limitDesktopWidth,
+    @Default(true) bool limitDesktopWidth,
   }) = _AppSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>

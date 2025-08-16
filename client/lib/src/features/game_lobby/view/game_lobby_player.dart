@@ -8,6 +8,7 @@ class GameLobbyPlayer extends WatchingWidget {
     required this.answering,
     required this.picking,
     this.customIcon,
+    this.actionButton,
     this.constraints,
     this.playerTextStyle,
     super.key,
@@ -18,6 +19,7 @@ class GameLobbyPlayer extends WatchingWidget {
   final bool picking;
   final PlayerAnswerState playerAnswerState;
   final Widget? customIcon;
+  final Widget? actionButton;
   final BoxConstraints? constraints;
   final TextStyle? playerTextStyle;
 
@@ -113,12 +115,14 @@ class GameLobbyPlayer extends WatchingWidget {
                       customIcon ??
                       const Icon(Icons.signal_wifi_off).paddingAll(2),
                 ),
-              if (answering || picking)
+              if (answering || picking || actionButton != null)
                 Align(
                   alignment: Alignment.bottomRight,
-                  child: Icon(
-                    picking ? Icons.star_border_rounded : Icons.more_horiz,
-                  ).paddingAll(2),
+                  child:
+                      actionButton ??
+                      Icon(
+                        picking ? Icons.star_border_rounded : Icons.more_horiz,
+                      ).paddingAll(2),
                 ),
               if (!{
                 PlayerAnswerState.skip,

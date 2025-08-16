@@ -27,9 +27,11 @@ class GameLobbyController {
   int get myId => ProfileController.getUser()!.id;
   bool get gameStarted => gameData.value?.gameState.currentRound != null;
 
-  Future<void> join({required String gameId}) async {
+  JoinCompleter _joinCompleter = JoinCompleter();
+
+  Future<bool> join({required String gameId}) async {
     // Check if already joined
-    if (_gameId == gameId) return;
+    if (_gameId == gameId) return true;
 
     clear();
 
@@ -37,10 +39,8 @@ class GameLobbyController {
       _gameId = gameId;
 
       // Get list game data
-      unawaited(
-        Api.I.api.games
-            .getV1GamesGameId(gameId: gameId)
-            .then((value) => gameListData.value = value),
+      gameListData.value = await Api.I.api.games.getV1GamesGameId(
+        gameId: gameId,
       );
 
       socket = await getIt<SocketController>().createConnection(path: '/games');
@@ -79,6 +79,8 @@ class GameLobbyController {
           _onSecretQuestionTransfer,
         )
         ..connect();
+
+      return await _joinCompleter.future;
     } catch (e, s) {
       logger.e(e, stackTrace: s);
       clear();
@@ -110,13 +112,18 @@ class GameLobbyController {
     try {
       logger.d('GameLobbyController._onConnect: $gameId');
 
+      // Authenticate socket connection
       await Api.I.api.auth.postV1AuthSocket(
         body: InputSocketIOAuth(socketId: socket!.id!),
       );
 
+      final lastRole = gameListData.value?.players
+          .firstWhereOrNull((e) => e.id == myId)
+          ?.role;
+
       final ioGameJoinInput = SocketIOGameJoinInput(
         gameId: _gameId!,
-        role: SocketIOGameJoinInputRole.spectator,
+        role: lastRole ?? PlayerRole.spectator,
       );
 
       socket?.emit(SocketIOGameSendEvents.join.json!, ioGameJoinInput.toJson());
@@ -176,6 +183,7 @@ class GameLobbyController {
       getIt<SocketChatController>().clear();
       getIt<GameQuestionController>().clear();
       getIt<GameLobbyPlayerPickerController>().clear();
+      _joinCompleter = JoinCompleter();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
     }
@@ -201,6 +209,8 @@ class GameLobbyController {
     gameData.value = SocketIOGameJoinEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
+
+    _joinCompleter.complete(true);
 
     // Set editor mode after loading game but not starting
     if (!gameStarted) {
@@ -263,6 +273,12 @@ class GameLobbyController {
     }
 
     getIt<ToastController>().show(errorText);
+
+    // Complete the join completer with false if not already completed
+    if (!_joinCompleter.isCompleted) {
+      _joinCompleter.complete(false);
+    }
+
     return errorText;
   }
 
@@ -763,3 +779,5 @@ class GameLobbyController {
     getIt<GameLobbyPlayerPickerController>().stopSelection();
   }
 }
+
+typedef JoinCompleter = Completer<bool>;

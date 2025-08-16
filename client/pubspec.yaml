@@ -87,8 +87,6 @@ dev_dependencies:
   inno_bundle: ^0.9.0
 
 dependency_overrides:
-  archive: ^4.0.7 # Force for 'updat' package
-
   # Fixes linux build
   # Remove after [PR](https://github.com/juliansteenbakker/flutter_secure_storage/pull/923) merged
   # Issue: https://github.com/juliansteenbakker/flutter_secure_storage/issues/920

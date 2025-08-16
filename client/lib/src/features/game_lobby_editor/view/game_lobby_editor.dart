@@ -81,7 +81,6 @@ class _ReadyButton extends WatchingWidget {
 
 class _RoleGroup extends WatchingWidget {
   const _RoleGroup(this.role);
-
   final PlayerRole role;
 
   @override
@@ -89,7 +88,7 @@ class _RoleGroup extends WatchingWidget {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final groupPlayers =
         gameData?.players
-            .where((e) => e.role == role)
+            .where((e) => e.role == role && e.status == PlayerDataStatus.inGame)
             .sortedBy((p) => p.slot ?? 0) ??
         [];
 
@@ -138,12 +137,18 @@ class _Player extends WatchingWidget {
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final playerAvailableToChange = _playerAvailableToChange(gameData, player);
+    final playerBoxConstraints = BoxConstraints.expand(
+      width: 350,
+      height: GameLobbyStyles.players.height,
+    );
 
     final child = GameLobbyPlayer(
       player: player,
       playerAnswerState: PlayerAnswerState.none,
       answering: false,
       picking: false,
+      constraints: playerBoxConstraints,
+      playerTextStyle: GameLobbyStyles.playerTextStyleDesktop(context),
       customIcon: playerAvailableToChange
           ? Icon(
               Icons.drag_handle,
@@ -189,8 +194,13 @@ class _PlayerDragTarget extends WatchingWidget {
       PlayerRole.$unknown => '',
     };
 
+    final playerBoxConstraints = BoxConstraints.expand(
+      width: 350,
+      height: GameLobbyStyles.players.height,
+    );
+
     return ConstrainedBox(
-      constraints: GameLobbyStyles.playerTileConstrains(context),
+      constraints: playerBoxConstraints,
       child: DragTarget<PlayerData>(
         onAcceptWithDetails: (details) => onChange(details.data),
         onWillAcceptWithDetails: (details) {
