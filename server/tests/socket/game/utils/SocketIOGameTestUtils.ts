@@ -565,29 +565,17 @@ export class SocketGameTestUtils {
       );
     }
 
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Timeout waiting for QUESTION_DATA event"));
-      }, 5000);
+    // Use waitForEvent for better timeout handling and cleanup
+    const questionDataPromise = this.waitForEvent(
+      showmanSocket,
+      SocketIOGameEvents.QUESTION_DATA
+    );
 
-      const cleanup = () => {
-        clearTimeout(timeout);
-        showmanSocket.removeListener(
-          SocketIOGameEvents.QUESTION_DATA,
-          onQuestionData
-        );
-      };
-
-      const onQuestionData = () => {
-        cleanup();
-        resolve();
-      };
-
-      showmanSocket.once(SocketIOGameEvents.QUESTION_DATA, onQuestionData);
-      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: actualQuestionId,
-      });
+    showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+      questionId: actualQuestionId,
     });
+
+    await questionDataPromise;
   }
 
   public async answerQuestion(
