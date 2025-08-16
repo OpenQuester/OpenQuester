@@ -522,7 +522,7 @@ describe("Socket Game Chat Tests", () => {
 
         // Clean up by clearing the answering state
         game.gameState.answeringPlayer = null;
-        game.gameState.questionState = null;
+        game.gameState.questionState = QuestionState.CHOOSING;
         await utils.updateGame(game);
       });
 
