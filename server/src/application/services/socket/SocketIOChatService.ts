@@ -1,6 +1,7 @@
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { ChatMessageDTO } from "domain/types/dto/game/chat/ChatMessageDTO";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatSaveInputData } from "domain/types/socket/chat/ChatSaveInputData";
 import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
 import { SocketGameContextService } from "./SocketGameContextService";
@@ -29,9 +30,25 @@ export class SocketIOChatService {
       socketId
     );
 
+    const player = context.game.getPlayer(context.userSession.id, {
+      fetchDisconnected: true,
+    });
+
     const isMuted = context.game.isPlayerMuted(context.userSession.id);
+
+    // Check if player is muted first
     if (isMuted) {
       throw new ClientError(ClientResponse.YOU_ARE_MUTED);
+    }
+
+    // Check spectator restrictions only when someone is answering
+    const isSpectator = player?.role === PlayerRole.SPECTATOR;
+    const someoneIsAnswering = context.game.gameState.answeringPlayer !== null;
+
+    if (isSpectator && someoneIsAnswering) {
+      throw new ClientError(
+        ClientResponse.SPECTATORS_CANNOT_CHAT_WHILE_ANSWERING
+      );
     }
 
     const chatMessage = await this.saveChatMessage({

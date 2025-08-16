@@ -3,6 +3,7 @@ import Redis from "ioredis";
 import { Repository } from "typeorm";
 
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
 import { ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -488,14 +489,72 @@ describe("Socket Game Chat Tests", () => {
     });
 
     describe("Chat Permission Edge Cases", () => {
-      it.skip("should handle spectator chat restrictions", () => {
-        // TODO: Test spectator chat limitations during gameplay
-        // TODO: Not implemented. Restrict chat for spectators during questions
-        // Expected: Should restrict spectator chat appropriately
-        // Flow:
-        // 1. Join as spectator
-        // 2. Attempt chat during restricted periods
-        // 3. Verify appropriate restrictions
+      it("should handle spectator chat restrictions during player answers", async () => {
+        // Start the game first
+        await utils.startGame(showmanSocket);
+
+        const game = await utils.getGameFromGameService(showmanSocket.gameId!);
+        if (!game) throw new Error("Game not found");
+
+        // Manually set answeringPlayer to simulate answering state
+        const playerUserId = await utils.getUserIdFromSocket(playerSockets[0]);
+        game.gameState.answeringPlayer = playerUserId;
+        game.gameState.questionState = QuestionState.ANSWERING;
+
+        // Update the game state directly in Redis
+        await utils.updateGame(game);
+
+        // Now try to send a chat message from a spectator while player is answering
+        const spectatorSocket = spectatorSockets[0];
+        const errorPromise = utils.waitForEvent(
+          spectatorSocket,
+          SocketIOEvents.ERROR
+        );
+
+        spectatorSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
+          message: "This should be blocked while player is answering",
+        });
+
+        const errorResult = await errorPromise;
+        expect(errorResult).toMatchObject({
+          message: "Spectators cannot chat while player is answering",
+        });
+
+        // Clean up by clearing the answering state
+        game.gameState.answeringPlayer = null;
+        game.gameState.questionState = null;
+        await utils.updateGame(game);
+      });
+
+      it("should allow spectators to chat when no player is answering", async () => {
+        // Start the game
+        await utils.startGame(showmanSocket);
+
+        // Verify game is started
+        const gameState = await utils.getGameState(showmanSocket.gameId!);
+        expect(gameState).toBeDefined();
+        expect(gameState!.questionState).toBe("choosing");
+
+        // In choosing state, no player is answering, so spectators should be able to chat
+        const allSockets = [
+          showmanSocket,
+          ...playerSockets,
+          ...spectatorSockets,
+        ];
+        const spectatorSocket = spectatorSockets[0];
+        const message = "Spectator chat during choosing state";
+
+        const receivePromises = allSockets.map((socket) =>
+          utils
+            .waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE)
+            .then((response) => {
+              expect(response.message).toBe(message);
+              expect(response.user).toBeDefined();
+            })
+        );
+
+        spectatorSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message });
+        await Promise.all(receivePromises);
       });
     });
 
