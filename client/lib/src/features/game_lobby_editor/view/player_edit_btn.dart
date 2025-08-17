@@ -47,9 +47,9 @@ class PlayerEditBtn extends WatchingWidget {
 
     Future<void> changeScore() async {
       final newScoreText = await OneFieldDialog(
-        keyboardType: TextInputType.number,
+        keyboardType: const TextInputType.numberWithOptions(signed: true),
         initText: player.score.toString(),
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[-0-9]'))],
       ).show(context);
       if (newScoreText == null) return;
 
