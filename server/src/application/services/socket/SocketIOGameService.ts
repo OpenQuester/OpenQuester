@@ -80,7 +80,14 @@ export class SocketIOGameService {
       throw new ClientError(ClientResponse.GAME_IS_FULL);
     }
 
-    if (data.role === PlayerRole.SHOWMAN && game.checkShowmanSlotIsTaken()) {
+    const showman = game
+      .getInGamePlayers()
+      .find((p) => p.role === PlayerRole.SHOWMAN);
+
+    // Joining player is showman and showman is taken
+    const showmanAndTaken = data.role === PlayerRole.SHOWMAN && !!showman;
+
+    if (showmanAndTaken && existingPlayer?.meta.id !== showman.meta.id) {
       throw new ClientError(ClientResponse.SHOWMAN_IS_TAKEN);
     }
 

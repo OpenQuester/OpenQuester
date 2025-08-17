@@ -95,6 +95,7 @@ export enum ClientResponse {
   ALREADY_ANSWERED_QUESTION = "already_answered_question",
   PLAYER_NOT_SKIPPED = "player_not_skipped",
   ONLY_PLAYERS_CAN_SET_READY = "only_players_can_set_ready",
+  SPECTATORS_CANNOT_CHAT_WHILE_ANSWERING = "spectators_cannot_chat_while_answering",
 
   // Player Management
   ONLY_SHOWMAN_CAN_MANAGE_PLAYERS = "only_showman_can_manage_players",

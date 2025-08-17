@@ -335,20 +335,18 @@ export class GameRepository {
 
     await Promise.all(gamesPromises);
 
-    for (const game of games) {
-      let playerDisconnected = false;
-      for (const player of game.players) {
-        if (player.gameStatus === PlayerGameStatus.IN_GAME) {
-          player.gameStatus = PlayerGameStatus.DISCONNECTED;
-          playerDisconnected = true;
-        }
-      }
+    const gamesUpdates = [];
 
-      if (playerDisconnected) {
-        gamesCounter++;
-        await this.updateGame(game);
-      }
+    for (const game of games) {
+      game.players.forEach((player) => {
+        player.gameStatus = PlayerGameStatus.DISCONNECTED;
+      });
+
+      gamesCounter++;
+      gamesUpdates.push(this.updateGame(game));
     }
+
+    await Promise.all(gamesUpdates);
 
     this.logger.info(
       `Games updated: ${gamesCounter}, in ${Date.now() - startTime} ms`,
