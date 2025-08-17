@@ -81,7 +81,6 @@ class _ReadyButton extends WatchingWidget {
 
 class _RoleGroup extends WatchingWidget {
   const _RoleGroup(this.role);
-
   final PlayerRole role;
 
   @override
@@ -118,16 +117,16 @@ class _RoleGroup extends WatchingWidget {
       ],
     ).paddingBottom(16);
   }
-}
 
-Future<void> _playerRoleChange(
-  PlayerData data,
-  PlayerRole newRole,
-) async {
-  await getIt<GameLobbyController>().playerRoleChange(
-    newRole,
-    data.meta.id,
-  );
+  void _playerRoleChange(
+    PlayerData data,
+    PlayerRole newRole,
+  ) {
+    getIt<GameLobbyEditorController>().playerRoleChange(
+      newRole,
+      data.meta.id,
+    );
+  }
 }
 
 class _Player extends WatchingWidget {
@@ -138,12 +137,20 @@ class _Player extends WatchingWidget {
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final playerAvailableToChange = _playerAvailableToChange(gameData, player);
+    final playerBoxConstraints = BoxConstraints.expand(
+      width: 350,
+      height: GameLobbyStyles.players.height,
+    );
 
     final child = GameLobbyPlayer(
       player: player,
-      playerAnswerState: PlayerAnswerState.none,
-      answering: false,
-      picking: false,
+      settings: const PlayerTileSettings.empty(),
+      constraints: playerBoxConstraints,
+      playerTextStyle: GameLobbyStyles.playerTextStyleDesktop(context),
+      actionButton:
+          playerAvailableToChange && gameData?.me.meta.id != player.meta.id
+          ? PlayerEditBtn(player: player)
+          : null,
       customIcon: playerAvailableToChange
           ? Icon(
               Icons.drag_handle,
@@ -189,8 +196,13 @@ class _PlayerDragTarget extends WatchingWidget {
       PlayerRole.$unknown => '',
     };
 
+    final playerBoxConstraints = BoxConstraints.expand(
+      width: 350,
+      height: GameLobbyStyles.players.height,
+    );
+
     return ConstrainedBox(
-      constraints: GameLobbyStyles.playerTileConstrains(context),
+      constraints: playerBoxConstraints,
       child: DragTarget<PlayerData>(
         onAcceptWithDetails: (details) => onChange(details.data),
         onWillAcceptWithDetails: (details) {

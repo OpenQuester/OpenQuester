@@ -150,5 +150,16 @@
   },
   "cancel": "Cancel",
   "ok": "OK",
-  "field_required": "Field is required"
+  "field_required": "Field is required",
+  "player_edit": {
+    "title": "Edit Player",
+    "change_score": "Change score",
+    "give_turn": "Give turn",
+    "kick": "Kick",
+    "ban": "Ban",
+    "mute": "Mute",
+    "remove_status": "Remove {}",
+    "showman_changed_score": "Showman changed score for {username} from {old} to {new}"
+  },
+  "system": "System"
 }

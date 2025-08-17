@@ -2310,9 +2310,7 @@
             "examples": ["Q31X"]
           },
           "role": {
-            "type": "string",
-            "enum": ["showman", "player", "spectator"],
-            "examples": ["player"]
+            "$ref": "#/components/schemas/PlayerRole"
           }
         }
       },

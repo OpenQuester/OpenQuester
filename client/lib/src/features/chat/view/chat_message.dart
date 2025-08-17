@@ -204,7 +204,8 @@ class TimeAndStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final timeFormat = DateFormat.Hm();
-    final itsMe = userId == getIt<SocketChatController>().user?.id;
+    final socketChatController = getIt<SocketChatController>();
+    final itsMe = userId == socketChatController.user?.id;
 
     return Row(
       spacing: 4,
@@ -215,12 +216,16 @@ class TimeAndStatus extends StatelessWidget {
             future: getIt<SocketChatController>().resolveUser(userId),
             builder: (context, snapshot) {
               final avatar = snapshot.data?.imageSource;
+              final name = userId == SocketChatController.systemMessageId
+                  ? LocaleKeys.system.tr()
+                  : snapshot.data?.name ?? '-';
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 spacing: 4,
                 children: [
-                  ImageWidget(url: avatar, avatarRadius: 10),
-                  Text(snapshot.data?.name ?? '-', style: textStyle),
+                  if (!avatar.isEmptyOrNull)
+                    ImageWidget(url: avatar, avatarRadius: 10),
+                  Text(name, style: textStyle),
                 ],
               );
             },

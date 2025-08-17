@@ -35,7 +35,9 @@ class GamePreviewController {
     if (game == null) throw Exception('game == null');
 
     final gameId = game!.id;
-    await getIt<GameLobbyController>().join(gameId: gameId);
+    final isJoined = await getIt<GameLobbyController>().join(gameId: gameId);
+    if (!isJoined) return;
+
     // Using popAndPush to avoid animation bug
     // when page with preview is not pop'ed Here widget is not returning
     // to his place

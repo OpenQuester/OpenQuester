@@ -27,9 +27,11 @@ class GameLobbyController {
   int get myId => ProfileController.getUser()!.id;
   bool get gameStarted => gameData.value?.gameState.currentRound != null;
 
-  Future<void> join({required String gameId}) async {
+  JoinCompleter _joinCompleter = JoinCompleter();
+
+  Future<bool> join({required String gameId}) async {
     // Check if already joined
-    if (_gameId == gameId) return;
+    if (_gameId == gameId) return true;
 
     clear();
 
@@ -37,10 +39,8 @@ class GameLobbyController {
       _gameId = gameId;
 
       // Get list game data
-      unawaited(
-        Api.I.api.games
-            .getV1GamesGameId(gameId: gameId)
-            .then((value) => gameListData.value = value),
+      gameListData.value = await Api.I.api.games.getV1GamesGameId(
+        gameId: gameId,
       );
 
       socket = await getIt<SocketController>().createConnection(path: '/games');
@@ -65,6 +65,15 @@ class GameLobbyController {
         ..on(SocketIOGameReceiveEvents.gameUnpause.json!, _onGameUnPause)
         ..on(SocketIOGameReceiveEvents.questionSkip.json!, _onQuestionSkip)
         ..on(SocketIOGameReceiveEvents.questionUnskip.json!, _onQuestionUnSkip)
+        ..on(SocketIOGameReceiveEvents.scoreChanged.json!, _onScoreChanged)
+        ..on(
+          SocketIOGameReceiveEvents.playerRestricted.json!,
+          _onPlayerRestricted,
+        )
+        ..on(
+          SocketIOGameReceiveEvents.turnPlayerChanged.json!,
+          _onPlayerTurnChanged,
+        )
         ..on(
           SocketIOGameReceiveEvents.playerRoleChange.json!,
           _onPlayerRoleChange,
@@ -79,12 +88,28 @@ class GameLobbyController {
           _onSecretQuestionTransfer,
         )
         ..connect();
+
+      return await _joinCompleter.future;
     } catch (e, s) {
       logger.e(e, stackTrace: s);
       clear();
 
       rethrow;
     }
+  }
+
+
+
+  void _showLoggedInChatEvent(String text) {
+    getIt<ToastController>().show(text, type: ToastType.info);
+    getIt<SocketChatController>().chatController?.messages.add(
+      TextMessage(
+        id: UniqueKey().toString(),
+        authorId: SocketChatController.systemMessageId,
+        text: text,
+        createdAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> _onDisconnect(dynamic data) async {
@@ -110,13 +135,24 @@ class GameLobbyController {
     try {
       logger.d('GameLobbyController._onConnect: $gameId');
 
+      // Authenticate socket connection
       await Api.I.api.auth.postV1AuthSocket(
         body: InputSocketIOAuth(socketId: socket!.id!),
       );
 
+      // Check for other showman who joined when you wore out
+      final otherShowman = gameListData.value?.players.firstWhereOrNull(
+        (e) => e.id != myId && e.role == PlayerRole.showman,
+      );
+      final lastRole = otherShowman != null
+          ? null
+          : gameListData.value?.players
+                .firstWhereOrNull((e) => e.id == myId)
+                ?.role;
+
       final ioGameJoinInput = SocketIOGameJoinInput(
         gameId: _gameId!,
-        role: SocketIOGameJoinInputRole.spectator,
+        role: lastRole ?? PlayerRole.spectator,
       );
 
       socket?.emit(SocketIOGameSendEvents.join.json!, ioGameJoinInput.toJson());
@@ -176,6 +212,7 @@ class GameLobbyController {
       getIt<SocketChatController>().clear();
       getIt<GameQuestionController>().clear();
       getIt<GameLobbyPlayerPickerController>().clear();
+      _joinCompleter = JoinCompleter();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
     }
@@ -201,6 +238,8 @@ class GameLobbyController {
     gameData.value = SocketIOGameJoinEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
+
+    _joinCompleter.complete(true);
 
     // Set editor mode after loading game but not starting
     if (!gameStarted) {
@@ -263,6 +302,12 @@ class GameLobbyController {
     }
 
     getIt<ToastController>().show(errorText);
+
+    // Complete the join completer with false if not already completed
+    if (!_joinCompleter.isCompleted) {
+      _joinCompleter.complete(false);
+    }
+
     return errorText;
   }
 
@@ -688,6 +733,24 @@ class GameLobbyController {
     );
   }
 
+  void _onPlayerRestricted(dynamic data) {
+    if (data is! Map) return;
+
+    final restrictedPlayer = SocketIOPlayerRestrictionEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+    gameData.value = gameData.value?.changePlayer(
+      id: restrictedPlayer.playerId,
+      onChange: (player) => player.copyWith(
+        restrictionData: RestrictionsEventData(
+          banned: restrictedPlayer.banned,
+          muted: restrictedPlayer.muted,
+          restricted: restrictedPlayer.restricted,
+        ),
+      ),
+    );
+  }
+
   void _onPlayerRoleChange(dynamic json) {
     if (json is! Map) return;
 
@@ -698,13 +761,49 @@ class GameLobbyController {
     gameData.value = gameData.value?.copyWith(players: data.players);
   }
 
-  Future<void> playerRoleChange(PlayerRole newRole, [int? playerId]) async {
-    await socket?.emitWithAckAsync(
-      SocketIOGameSendEvents.playerRoleChange.json!,
-      SocketIOPlayerRoleChangeInput(
-        newRole: newRole,
-        playerId: playerId ?? gameData.value!.me.meta.id,
-      ).toJson(),
+  void _onPlayerTurnChanged(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOTurnPlayerChangeEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith.gameState(
+      currentTurnPlayerId: data.newTurnPlayerId,
+    );
+  }
+
+  void _onScoreChanged(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOPlayerScoreChangeEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    final player = gameData.value?.players.getById(data.playerId);
+
+    gameData.value = gameData.value?.changePlayer(
+      id: data.playerId,
+      onChange: (player) => player.copyWith(
+        score: data.newScore,
+      ),
+    );
+
+    if (player?.score == data.newScore) return;
+
+    String formatScore(int? score) {
+      final (formattedScore, compactFormat) = ScoreText.formatScore(score);
+      return formattedScore;
+    }
+
+    _showLoggedInChatEvent(
+      LocaleKeys.player_edit_showman_changed_score.tr(
+        namedArgs: {
+          'username': player?.meta.username ?? '',
+          'old': formatScore(player?.score),
+          'new': formatScore(data.newScore),
+        },
+      ),
     );
   }
 
@@ -763,3 +862,5 @@ class GameLobbyController {
     getIt<GameLobbyPlayerPickerController>().stopSelection();
   }
 }
+
+typedef JoinCompleter = Completer<bool>;

@@ -38,9 +38,7 @@ class GameLobbyPlayerPicker extends WatchingWidget {
           if (selectingPlayer != null)
             GameLobbyPlayer(
               player: selectingPlayer,
-              playerAnswerState: PlayerAnswerState.none,
-              answering: false,
-              picking: true,
+              settings: const PlayerTileSettings.empty(),
               constraints: playerBoxConstraints,
               playerTextStyle: playerTextStyle,
             ),
@@ -81,13 +79,12 @@ class GameLobbyPlayerPicker extends WatchingWidget {
               borderRadius: GameLobbyStyles.playerTileRadius.circular,
               child: GameLobbyPlayer(
                 player: player,
-                playerAnswerState: selected
-                    ? PlayerAnswerState.correct
-                    : PlayerAnswerState.none,
-                playerTextStyle: playerTextStyle,
-                answering: false,
-                picking: false,
                 constraints: playerBoxConstraints,
+                settings: PlayerTileSettings.empty(
+                  playerAnswerState: selected
+                      ? PlayerAnswerState.correct
+                      : PlayerAnswerState.none,
+                ),
               ),
             ).center();
           },

@@ -388,7 +388,7 @@ class _ThemeSettingsSection extends StatelessWidget {
       title: Text(LocaleKeys.theme_appearance.tr()),
       leading: const Icon(Icons.palette_outlined),
       expandedCrossAxisAlignment: CrossAxisAlignment.start,
-      childrenPadding: 12.horizontal,
+      childrenPadding: 12.horizontal + 12.bottom,
       children: const [
         _ThemeModeSelector(),
         Divider(),

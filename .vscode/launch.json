@@ -26,7 +26,6 @@
         "chrome",
         "--web-port",
         "10000",
-        "--web-experimental-hot-reload"
       ]
     },
     {

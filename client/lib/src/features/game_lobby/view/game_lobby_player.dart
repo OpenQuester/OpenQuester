@@ -4,20 +4,18 @@ import 'package:openquester/openquester.dart';
 class GameLobbyPlayer extends WatchingWidget {
   const GameLobbyPlayer({
     required this.player,
-    required this.playerAnswerState,
-    required this.answering,
-    required this.picking,
+    required this.settings,
     this.customIcon,
+    this.actionButton,
     this.constraints,
     this.playerTextStyle,
     super.key,
   });
 
   final PlayerData player;
-  final bool answering;
-  final bool picking;
-  final PlayerAnswerState playerAnswerState;
+  final PlayerTileSettings settings;
   final Widget? customIcon;
+  final Widget? actionButton;
   final BoxConstraints? constraints;
   final TextStyle? playerTextStyle;
 
@@ -25,13 +23,13 @@ class GameLobbyPlayer extends WatchingWidget {
   Widget build(BuildContext context) {
     final extraColors = Theme.of(context).extension<ExtraColors>()!;
     final foregroundColor = Colors.black.withValues(alpha: .4);
-    final borderColor = switch (playerAnswerState) {
+    final borderColor = switch (settings.playerAnswerState) {
       PlayerAnswerState.wrong => Colors.red,
       PlayerAnswerState.correct => extraColors.success,
       PlayerAnswerState.none => context.theme.colorScheme.surfaceContainerHigh,
       PlayerAnswerState.skip => null,
     };
-    final playerSkipped = playerAnswerState == PlayerAnswerState.skip;
+    final playerSkipped = settings.playerAnswerState == PlayerAnswerState.skip;
     final playerTextStyle =
         this.playerTextStyle ?? GameLobbyStyles.playerTextStyle(context);
 
@@ -105,29 +103,40 @@ class GameLobbyPlayer extends WatchingWidget {
                       .withTooltip(msg: LocaleKeys.showman.tr())
                       .paddingAll(2),
                 ),
-              if (player.status == PlayerDataStatus.disconnected ||
-                  customIcon != null)
-                Align(
-                  alignment: Alignment.topLeft,
-                  child:
-                      customIcon ??
-                      const Icon(Icons.signal_wifi_off).paddingAll(2),
+              Align(
+                alignment: Alignment.topLeft,
+                child:
+                    customIcon ??
+                    Row(
+                      children: [
+                        if (customIcon != null) customIcon!,
+                        if (player.status == PlayerDataStatus.disconnected)
+                          const Icon(Icons.signal_wifi_off),
+                      ],
+                    ).paddingAll(2),
+              ),
+              Align(
+                alignment: Alignment.bottomRight,
+                child: Row(
+                  children: [
+                    if (actionButton != null) actionButton!,
+                    if (settings.hasTurn)
+                      Icon(
+                        settings.picking
+                            ? Icons.star_border_rounded
+                            : Icons.more_horiz,
+                      ).paddingAll(2),
+                  ],
                 ),
-              if (answering || picking)
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: Icon(
-                    picking ? Icons.star_border_rounded : Icons.more_horiz,
-                  ).paddingAll(2),
-                ),
+              ),
               if (!{
                 PlayerAnswerState.skip,
                 PlayerAnswerState.none,
-              }.contains(playerAnswerState))
+              }.contains(settings.playerAnswerState))
                 Align(
                   alignment: Alignment.bottomLeft,
                   child: Icon(
-                    playerAnswerState == PlayerAnswerState.correct
+                    settings.playerAnswerState == PlayerAnswerState.correct
                         ? Icons.check
                         : Icons.close,
                   ).paddingAll(2),
@@ -148,4 +157,25 @@ class GameLobbyPlayer extends WatchingWidget {
 
     return child;
   }
+}
+
+class PlayerTileSettings {
+  const PlayerTileSettings({
+    required this.answering,
+    required this.picking,
+    required this.hasTurn,
+    required this.playerAnswerState,
+  });
+
+  const PlayerTileSettings.empty({
+    this.answering = false,
+    this.picking = false,
+    this.hasTurn = false,
+    this.playerAnswerState = PlayerAnswerState.none,
+  });
+
+  final bool answering;
+  final bool picking;
+  final bool hasTurn;
+  final PlayerAnswerState playerAnswerState;
 }
