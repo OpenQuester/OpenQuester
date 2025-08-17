@@ -50,10 +50,19 @@ class GameLobbyPlayers extends WatchingWidget {
         return Builder(
           builder: (context) {
             final constrains = GameLobbyStyles.playerTileConstrains(context);
+            final playerTileSettings = PlayerTileSettings(
+              hasTurn:
+                  gameData?.gameState.currentTurnPlayerId == player.meta.id,
+              answering: answeringPlayer == player.meta.id,
+              picking: currentTurnPlayerId == player.meta.id,
+              playerAnswerState: showUserAnsweredCorrect,
+            );
+
+            final allowEdit =
+                gameData?.me.role == PlayerRole.showman &&
+                player.role == PlayerRole.player;
             return InkWell(
-              onTap:
-                  gameData?.me.role == PlayerRole.showman &&
-                      player.role == PlayerRole.player
+              onTap: allowEdit
                   ? () => PlayerEditBtn.showEditMenu(
                       context: context,
                       player: player,
@@ -66,9 +75,7 @@ class GameLobbyPlayers extends WatchingWidget {
               borderRadius: 16.circular,
               child: GameLobbyPlayer(
                 player: player,
-                answering: answeringPlayer == player.meta.id,
-                picking: currentTurnPlayerId == player.meta.id,
-                playerAnswerState: showUserAnsweredCorrect,
+                settings: playerTileSettings,
               ),
             );
           },

@@ -84,4 +84,6 @@ class SocketChatController extends ChangeNotifier {
   Future<User?> resolveUser(String id) async {
     return _users?.firstWhereOrNull((e) => e.id == id);
   }
+
+  static const String systemMessageId = '-1';
 }

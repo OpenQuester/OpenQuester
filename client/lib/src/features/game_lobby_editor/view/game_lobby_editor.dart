@@ -88,7 +88,7 @@ class _RoleGroup extends WatchingWidget {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final groupPlayers =
         gameData?.players
-            .where((e) => e.role == role && e.status == PlayerDataStatus.inGame)
+            .where((e) => e.role == role)
             .sortedBy((p) => p.slot ?? 0) ??
         [];
 
@@ -144,9 +144,7 @@ class _Player extends WatchingWidget {
 
     final child = GameLobbyPlayer(
       player: player,
-      playerAnswerState: PlayerAnswerState.none,
-      answering: false,
-      picking: false,
+      settings: const PlayerTileSettings.empty(),
       constraints: playerBoxConstraints,
       playerTextStyle: GameLobbyStyles.playerTextStyleDesktop(context),
       actionButton:

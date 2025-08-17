@@ -160,5 +160,6 @@
     "mute": "Mute",
     "remove_status": "Remove {}",
     "showman_changed_score": "Showman changed score for {username} from {old} to {new}"
-  }
+  },
+  "system": "System"
 }

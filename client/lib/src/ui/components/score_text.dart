@@ -20,14 +20,18 @@ class ScoreText extends StatelessWidget {
 
     if (!compactFormat) return text;
 
-    return Tooltip(message: formattedScore, child: text);
+    return Tooltip(message: longNumberFormatter.format(score), child: text);
   }
 
   static (String, bool) formatScore(int? score) {
     final compactFormat = (score ?? 0) >= 1_000_000;
-    final decimalFormatter = NumberFormat.decimalPattern();
-    final formatter = compactFormat ? NumberFormat.compact() : decimalFormatter;
+    final formatter = compactFormat
+        ? compactNumberFormatter
+        : longNumberFormatter;
 
     return (formatter.format(score ?? 0), compactFormat);
   }
+
+  static final longNumberFormatter = NumberFormat.decimalPattern();
+  static final compactNumberFormatter = NumberFormat.compact();
 }
