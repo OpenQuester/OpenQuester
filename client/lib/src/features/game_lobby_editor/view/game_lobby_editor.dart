@@ -117,16 +117,16 @@ class _RoleGroup extends WatchingWidget {
       ],
     ).paddingBottom(16);
   }
-}
 
-Future<void> _playerRoleChange(
-  PlayerData data,
-  PlayerRole newRole,
-) async {
-  await getIt<GameLobbyController>().playerRoleChange(
-    newRole,
-    data.meta.id,
-  );
+  void _playerRoleChange(
+    PlayerData data,
+    PlayerRole newRole,
+  ) {
+    getIt<GameLobbyEditorController>().playerRoleChange(
+      newRole,
+      data.meta.id,
+    );
+  }
 }
 
 class _Player extends WatchingWidget {
@@ -149,6 +149,10 @@ class _Player extends WatchingWidget {
       picking: false,
       constraints: playerBoxConstraints,
       playerTextStyle: GameLobbyStyles.playerTextStyleDesktop(context),
+      actionButton:
+          playerAvailableToChange && gameData?.me.meta.id != player.meta.id
+          ? PlayerEditBtn(player: player)
+          : null,
       customIcon: playerAvailableToChange
           ? Icon(
               Icons.drag_handle,

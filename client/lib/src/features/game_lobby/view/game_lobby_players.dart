@@ -46,11 +46,32 @@ class GameLobbyPlayers extends WatchingWidget {
           passQuestion,
         );
 
-        return GameLobbyPlayer(
-          player: player,
-          answering: answeringPlayer == player.meta.id,
-          picking: currentTurnPlayerId == player.meta.id,
-          playerAnswerState: showUserAnsweredCorrect,
+        // Builder needed for menu context
+        return Builder(
+          builder: (context) {
+            final constrains = GameLobbyStyles.playerTileConstrains(context);
+            return InkWell(
+              onTap:
+                  gameData?.me.role == PlayerRole.showman &&
+                      player.role == PlayerRole.player
+                  ? () => PlayerEditBtn.showEditMenu(
+                      context: context,
+                      player: player,
+                      offset: Offset(
+                        constrains.maxWidth,
+                        constrains.maxHeight / 2,
+                      ),
+                    )
+                  : null,
+              borderRadius: 16.circular,
+              child: GameLobbyPlayer(
+                player: player,
+                answering: answeringPlayer == player.meta.id,
+                picking: currentTurnPlayerId == player.meta.id,
+                playerAnswerState: showUserAnsweredCorrect,
+              ),
+            );
+          },
         );
       },
     );

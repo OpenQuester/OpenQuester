@@ -65,6 +65,15 @@ class GameLobbyController {
         ..on(SocketIOGameReceiveEvents.gameUnpause.json!, _onGameUnPause)
         ..on(SocketIOGameReceiveEvents.questionSkip.json!, _onQuestionSkip)
         ..on(SocketIOGameReceiveEvents.questionUnskip.json!, _onQuestionUnSkip)
+        ..on(SocketIOGameReceiveEvents.scoreChanged.json!, _onScoreChanged)
+        ..on(
+          SocketIOGameReceiveEvents.playerRestricted.json!,
+          _onPlayerRestricted,
+        )
+        ..on(
+          SocketIOGameReceiveEvents.turnPlayerChanged.json!,
+          _onPlayerTurnChanged,
+        )
         ..on(
           SocketIOGameReceiveEvents.playerRoleChange.json!,
           _onPlayerRoleChange,
@@ -87,6 +96,22 @@ class GameLobbyController {
 
       rethrow;
     }
+  }
+
+  void _showLoggedInChatEvent(String text) {
+    getIt<ToastController>().show(
+      text,
+      type: ToastType.info,
+    );
+    final chatController = getIt<SocketChatController>().chatController;
+    chatController?.messages.add(
+      SystemMessage(
+        id: UniqueKey().toString(),
+        authorId: '-1',
+        text: text,
+        createdAt: DateTime.now(),
+      ),
+    );
   }
 
   Future<void> _onDisconnect(dynamic data) async {
@@ -117,9 +142,15 @@ class GameLobbyController {
         body: InputSocketIOAuth(socketId: socket!.id!),
       );
 
-      final lastRole = gameListData.value?.players
-          .firstWhereOrNull((e) => e.id == myId)
-          ?.role;
+      // Check for other showman who joined when you wore out
+      final otherShowman = gameListData.value?.players.firstWhereOrNull(
+        (e) => e.id != myId && e.role == PlayerRole.showman,
+      );
+      final lastRole = otherShowman != null
+          ? null
+          : gameListData.value?.players
+                .firstWhereOrNull((e) => e.id == myId)
+                ?.role;
 
       final ioGameJoinInput = SocketIOGameJoinInput(
         gameId: _gameId!,
@@ -704,6 +735,24 @@ class GameLobbyController {
     );
   }
 
+  void _onPlayerRestricted(dynamic data) {
+    if (data is! Map) return;
+
+    final restrictedPlayer = SocketIOPlayerRestrictionEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+    gameData.value = gameData.value?.changePlayer(
+      id: restrictedPlayer.playerId,
+      onChange: (player) => player.copyWith(
+        restrictionData: RestrictionsEventData(
+          banned: restrictedPlayer.banned,
+          muted: restrictedPlayer.muted,
+          restricted: restrictedPlayer.restricted,
+        ),
+      ),
+    );
+  }
+
   void _onPlayerRoleChange(dynamic json) {
     if (json is! Map) return;
 
@@ -714,13 +763,49 @@ class GameLobbyController {
     gameData.value = gameData.value?.copyWith(players: data.players);
   }
 
-  Future<void> playerRoleChange(PlayerRole newRole, [int? playerId]) async {
-    await socket?.emitWithAckAsync(
-      SocketIOGameSendEvents.playerRoleChange.json!,
-      SocketIOPlayerRoleChangeInput(
-        newRole: newRole,
-        playerId: playerId ?? gameData.value!.me.meta.id,
-      ).toJson(),
+  void _onPlayerTurnChanged(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOTurnPlayerChangeEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith.gameState(
+      currentTurnPlayerId: data.newTurnPlayerId,
+    );
+  }
+
+  void _onScoreChanged(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOPlayerScoreChangeEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    final player = gameData.value?.players.getById(data.playerId);
+
+    gameData.value = gameData.value?.changePlayer(
+      id: data.playerId,
+      onChange: (player) => player.copyWith(
+        score: data.newScore,
+      ),
+    );
+
+    if (player?.score == data.newScore) return;
+
+    String formatScore(int? score) {
+      final (formattedScore, compactFormat) = ScoreText.formatScore(score);
+      return formattedScore;
+    }
+
+    _showLoggedInChatEvent(
+      LocaleKeys.player_edit_showman_changed_score.tr(
+        namedArgs: {
+          'username': player?.meta.username ?? '',
+          'old': formatScore(player?.score),
+          'new': formatScore(data.newScore),
+        },
+      ),
     );
   }
 

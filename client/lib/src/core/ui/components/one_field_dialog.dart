@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:openquester/common_imports.dart';
 
 class OneFieldDialog extends StatefulWidget {
@@ -9,6 +10,8 @@ class OneFieldDialog extends StatefulWidget {
     this.initText,
     this.validator,
     this.maxLength,
+    this.keyboardType,
+    this.inputFormatters,
     super.key,
   });
 
@@ -18,6 +21,8 @@ class OneFieldDialog extends StatefulWidget {
   final String? initText;
   final String? Function(String?)? validator;
   final int? maxLength;
+  final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
 
   Future<String?> show(BuildContext context) async {
     return showDialog<String>(
@@ -56,6 +61,8 @@ class _OneFieldDialogState extends State<OneFieldDialog> {
               autofocus: true,
               validator: widget.validator,
               maxLength: widget.maxLength,
+              keyboardType: widget.keyboardType,
+              inputFormatters: widget.inputFormatters,
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
                 hintText: widget.hintText,
