@@ -710,11 +710,18 @@
             "description": "User logged in successfully"
           },
           "400": {
-            "description": "User have error during logging",
+            "description": "Socket authentication error",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GeneralErrorResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/GeneralErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/SocketAlreadyLoggedInResponse"
+                    }
+                  ]
                 }
               }
             }
@@ -1638,6 +1645,14 @@
           "error": {
             "type": "string",
             "examples": ["Game not found"]
+          }
+        }
+      },
+      "SocketAlreadyLoggedInResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
           }
         }
       },

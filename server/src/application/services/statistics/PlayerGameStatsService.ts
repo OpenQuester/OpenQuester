@@ -35,7 +35,7 @@ export class PlayerGameStatsService {
       gameId,
       userId: userId.toString(),
       joinedAt: joinedAt.toISOString(),
-      leftAt: null,
+      leftAt: "",
       currentScore: 0,
       questionsAnswered: 0,
       correctAnswers: 0,
@@ -90,7 +90,8 @@ export class PlayerGameStatsService {
     userId: number
   ): Promise<void> {
     try {
-      await this.repository.updateStats(gameId, userId, { leftAt: null });
+      // Use empty string instead of null for Redis storage consistency
+      await this.repository.updateStats(gameId, userId, { leftAt: "" });
     } catch (error) {
       this.logger.error("Failed to clear player left time", {
         prefix: "[PLAYER_GAME_STATS]: ",

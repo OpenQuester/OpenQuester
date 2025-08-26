@@ -31,6 +31,7 @@ export type { FileUsageDTO } from "./file/FileUsageDTO";
 
 // Pagination & Admin related
 export { UserStatus } from "../../enums/user/UserStatus";
+export { UserType } from "../../enums/user/UserType";
 export type {
   AdminDashboardData,
   AdminPingData,

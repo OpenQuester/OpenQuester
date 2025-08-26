@@ -489,7 +489,8 @@ export class DIConfig {
         Container.get<PlayerGameStatsService>(
           CONTAINER_TYPES.PlayerGameStatsService
         ),
-        this.logger
+        this.logger,
+        Container.get<IOServer>(CONTAINER_TYPES.IO).of(SOCKET_GAME_NAMESPACE)
       ),
       "service"
     );

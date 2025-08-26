@@ -8,9 +8,13 @@ import type {
   UserDTO,
 } from "@server-dto";
 // Runtime enums (value imports)
-import { DashboardRecentTimeframe, PaginationOrder } from "@server-dto";
+import {
+  DashboardRecentTimeframe,
+  PaginationOrder,
+  UserType,
+} from "@server-dto";
 
-export { DashboardRecentTimeframe, PaginationOrder };
+export { DashboardRecentTimeframe, PaginationOrder, UserType };
 export type {
   AdminDashboardData,
   AdminUserListData,

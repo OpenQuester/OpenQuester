@@ -14,8 +14,7 @@ export class SocketUserDataRepository {
   }
 
   public async getRaw(socketId: string) {
-    const pattern = this._getKey(socketId, null); // will contain wildcard in place of userId
-    const keys = await this.redisService.scan(pattern);
+    const keys = await this._findKeysBySocketId(socketId);
     if (!keys.length) {
       return {} as Record<string, string>;
     }
@@ -75,8 +74,7 @@ export class SocketUserDataRepository {
 
   public async remove(socketId: string) {
     // Single key deletion: need to resolve userId via scan since we only have socketId
-    const pattern = `${SOCKET_USER_REDIS_NSP}:*:${socketId}`;
-    const keys = await this.redisService.scan(pattern);
+    const keys = await this._findKeysBySocketId(socketId);
     if (keys.length === 0) return 0;
 
     let deleted = 0;
@@ -103,6 +101,41 @@ export class SocketUserDataRepository {
       `${SOCKET_USER_REDIS_NSP}:*:*`,
       "socket session"
     );
+  }
+
+  /**
+   * Find the socket ID for a specific user ID
+   * Since users can only have one socket in the game, this is more efficient than scanning all sockets
+   */
+  public async findSocketIdByUserId(userId: number): Promise<string | null> {
+    const keys = await this._findKeysByUserId(userId);
+
+    if (keys.length === 0) {
+      return null;
+    }
+
+    // Extract socket ID from the Redis key: socket:user:${userId}:${socketId}
+    // Since users can only have one socket, we take the first (and should be only) match
+    const socketId = keys[0].split(":").pop();
+    return socketId || null;
+  }
+
+  /**
+   * Helper method to find Redis keys by socketId (reverse lookup: socketId -> userId)
+   * Used by getRaw() and remove() methods
+   */
+  private async _findKeysBySocketId(socketId: string): Promise<string[]> {
+    const pattern = `${SOCKET_USER_REDIS_NSP}:*:${socketId}`;
+    return this.redisService.scan(pattern);
+  }
+
+  /**
+   * Helper method to find Redis keys by userId (forward lookup: userId -> socketId)
+   * Used by findSocketIdByUserId() method
+   */
+  private async _findKeysByUserId(userId: number): Promise<string[]> {
+    const pattern = `${SOCKET_USER_REDIS_NSP}:${userId}:*`;
+    return this.redisService.scan(pattern);
   }
 
   private _getKey(socketId: string, userId: number | null) {

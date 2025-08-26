@@ -36,4 +36,12 @@ export class SocketUserDataService {
   public async cleanupAllSession(): Promise<void> {
     return this.socketUserDataRepository.cleanupAllSession();
   }
+
+  /**
+   * Find the socket ID for a specific user ID
+   * Since users can only have one socket in the game, this returns the single socket ID
+   */
+  public async findSocketIdByUserId(userId: number): Promise<string | null> {
+    return this.socketUserDataRepository.findSocketIdByUserId(userId);
+  }
 }

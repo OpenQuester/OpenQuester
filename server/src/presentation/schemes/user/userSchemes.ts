@@ -7,6 +7,7 @@ import {
   USER_USERNAME_MIN_CHARS,
 } from "domain/constants/user";
 import { UserStatus } from "domain/enums/user/UserStatus";
+import { UserType } from "domain/enums/user/UserType";
 import { UpdateUserInputDTO } from "domain/types/dto/user/UpdateUserInputDTO";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 
@@ -95,5 +96,8 @@ export const userPaginationScheme = () =>
     search: Joi.string().min(1).max(128).optional(),
     status: Joi.string()
       .valid(...Object.values(UserStatus))
+      .optional(),
+    userType: Joi.string()
+      .valid(...Object.values(UserType))
       .optional(),
   });

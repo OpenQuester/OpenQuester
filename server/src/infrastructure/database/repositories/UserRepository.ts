@@ -3,7 +3,9 @@ import { FindOptionsWhere, In, type Repository } from "typeorm";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { UserType } from "domain/enums/user/UserType";
 import { ClientError } from "domain/errors/ClientError";
+import { UserStatus } from "domain/types/dto";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { SelectOptions } from "domain/types/SelectOptions";
@@ -109,6 +111,7 @@ export class UserRepository {
       offset,
       search,
       status,
+      userType,
     } = paginationOpts;
 
     const qbBase = this.repository.createQueryBuilder(alias);
@@ -120,14 +123,21 @@ export class UserRepository {
       );
     }
 
-    if (status === "banned") {
+    if (status === UserStatus.BANNED) {
       qbBase.andWhere(`${alias}.is_banned = :banned`, { banned: true });
-    } else if (status === "active") {
+    } else if (status === UserStatus.ACTIVE) {
       qbBase.andWhere(`${alias}.is_banned = :banned`, { banned: false });
       qbBase.andWhere(`${alias}.is_deleted = :deleted`, { deleted: false });
-    } else if (status === "deleted") {
+    } else if (status === UserStatus.DELETED) {
       qbBase.andWhere(`${alias}.is_deleted = :deleted`, { deleted: true });
     }
+
+    if (userType === UserType.GUEST) {
+      qbBase.andWhere(`${alias}.is_guest = :isGuest`, { isGuest: true });
+    } else if (userType === UserType.REGISTERED) {
+      qbBase.andWhere(`${alias}.is_guest = :isGuest`, { isGuest: false });
+    }
+    // UserType.ALL doesn't need any additional filtering
 
     const [idRows, total] = await qbBase
       .select([`${alias}.id`, `${alias}.${String(sortBy)}`])

@@ -16,16 +16,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toastMessageFromError, useToast } from "@/contexts/ToastContext";
 import { useTableSort } from "@/hooks/useTableSort";
 import {
-  type AdminUserListData,
   PaginationOrder,
+  type AdminUserListData,
+  type PaginatedResult,
   type UserDTO,
+  type UserType,
 } from "@/types/dto";
 import type { UserStatus } from "@/types/userStatus";
 import { userStatusOptions } from "@/types/userStatus";
+import { userTypeOptions } from "@/types/userType";
 
 const PAGE_LIMIT = 9;
 
 enum FilterStatusLocal {
+  ALL = "all",
+}
+enum FilterUserTypeLocal {
   ALL = "all",
 }
 enum ViewMode {
@@ -48,6 +54,9 @@ export const UsersPage = () => {
   const [filterStatus, setFilterStatus] = useState<
     UserStatus | FilterStatusLocal
   >(FilterStatusLocal.ALL);
+  const [filterUserType, setFilterUserType] = useState<
+    UserType | FilterUserTypeLocal
+  >(FilterUserTypeLocal.ALL);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.CARDS);
   const [selectedUser, setSelectedUser] = useState<UserDTO | null>(null);
   const { hasPermission } = useAuth();
@@ -65,8 +74,10 @@ export const UsersPage = () => {
         offset,
         search: searchTerm.trim() || undefined,
         status:
-          filterStatus !== FilterStatusLocal.ALL
-            ? (filterStatus as UserStatus)
+          filterStatus !== FilterStatusLocal.ALL ? filterStatus : undefined,
+        userType:
+          filterUserType !== FilterUserTypeLocal.ALL
+            ? filterUserType
             : undefined,
       },
     ],
@@ -78,30 +89,38 @@ export const UsersPage = () => {
         offset,
         search: searchTerm.trim() || undefined,
         status:
-          filterStatus !== FilterStatusLocal.ALL
-            ? (filterStatus as UserStatus)
+          filterStatus !== FilterStatusLocal.ALL ? filterStatus : undefined,
+        userType:
+          filterUserType !== FilterUserTypeLocal.ALL
+            ? filterUserType
             : undefined,
       }),
     placeholderData: (prev) => prev, // treat previous data as placeholder to remove empty flashes
   });
 
+  // Type assertion to ensure proper interface inheritance recognition
+  const typedData = data as AdminUserListData & PaginatedResult<UserDTO[]>;
+
   // Derive pagination helpers (fallback if server does not send hasNext/limit)
-  const total = data?.pageInfo?.total ?? 0;
-  const effectiveLimit = data?.pageInfo?.limit ?? limit;
+  const total = typedData?.pageInfo?.total ?? 0;
+  const effectiveLimit = limit; // Use our component's limit since pageInfo doesn't include limit
   const hasNext = offset + effectiveLimit < total;
   const hasPrev = offset > 0;
 
   // Keep offset in valid range when total shrinks
   useEffect(() => {
-    if (data?.pageInfo?.total != null && offset >= data.pageInfo.total) {
+    if (
+      typedData?.pageInfo?.total != null &&
+      offset >= typedData.pageInfo.total
+    ) {
       setOffset(0);
     }
-  }, [data?.pageInfo?.total, offset]);
+  }, [typedData?.pageInfo?.total, offset]);
 
   // Reset offset on search/filter change
   useEffect(() => {
     setOffset(0);
-  }, [searchTerm, filterStatus]);
+  }, [searchTerm, filterStatus, filterUserType]);
 
   // Stable callback passed to isolated search input component
   const handleSearch = useCallback((val: string) => {
@@ -197,7 +216,7 @@ export const UsersPage = () => {
   );
 
   // Server-driven users list (search & filter are UI-only placeholders until backend supports them)
-  const users = data?.data ?? [];
+  const users = typedData?.data ?? [];
 
   // Precompute stats (no hook to avoid conditional hook ordering issues)
   const statsCards = [
@@ -300,6 +319,14 @@ export const UsersPage = () => {
           { value: FilterStatusLocal.ALL, label: "All Users" },
           ...userStatusOptions.map((o) => ({ value: o.value, label: o.label })),
         ]}
+        filterUserType={filterUserType}
+        onUserTypeChange={(v) =>
+          setFilterUserType(v as UserType | FilterUserTypeLocal)
+        }
+        userTypeOptions={[
+          { value: FilterUserTypeLocal.ALL, label: "All Users" },
+          ...userTypeOptions.map((o) => ({ value: o.value, label: o.label })),
+        ]}
       />
 
       {/* Users List or Loading Skeleton */}
@@ -335,9 +362,9 @@ export const UsersPage = () => {
       />
 
       {/* Pagination */}
-      {data?.pageInfo && (
+      {typedData?.pageInfo && (
         <UsersPagination
-          total={data.pageInfo.total || 0}
+          total={typedData.pageInfo.total || 0}
           offset={offset}
           limit={effectiveLimit}
           count={users.length}

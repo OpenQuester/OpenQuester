@@ -24,10 +24,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@server-dto": ["../server/src/domain/types/dto/index.ts"],
-      "@server-dto/*": ["../server/src/domain/types/dto/*"]
+      "@server-dto": ["../server/src/domain/types/dto/index.ts"]
     }
   },
   "include": ["src"],
+  "exclude": ["../server"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

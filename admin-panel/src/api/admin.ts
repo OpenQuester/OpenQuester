@@ -4,6 +4,7 @@ import type {
   AdminUserListData,
   PaginationOrder,
   SystemHealthData,
+  UserType,
 } from "@/types/dto";
 import type { UserStatus } from "@/types/userStatus";
 
@@ -20,6 +21,7 @@ interface GetUserParams {
   offset?: number;
   search?: string;
   status?: UserStatus;
+  userType?: UserType;
 }
 
 interface PingData {
@@ -134,6 +136,8 @@ function normalizeDashboard(raw: any): AdminDashboardData {
       redisConnected:
         systemRaw.redisConnected ?? systemRaw.redis_connected ?? false,
       redisKeys: systemRaw.redisKeys ?? systemRaw.redis_keys ?? 0,
+      serverUptimeSeconds:
+        systemRaw.serverUptimeSeconds ?? systemRaw.server_uptime_seconds ?? 0,
     },
   };
 }
