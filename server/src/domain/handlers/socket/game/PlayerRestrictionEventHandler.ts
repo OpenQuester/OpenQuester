@@ -13,6 +13,7 @@ import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeave
 import {
   PlayerRestrictionBroadcastData,
   PlayerRestrictionInputData,
+  PlayerRoleChangeBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -78,7 +79,9 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
 
     const broadcasts: Array<
       SocketEventBroadcast<
-        PlayerRestrictionBroadcastData | GameLeaveEventPayload
+        | PlayerRestrictionBroadcastData
+        | GameLeaveEventPayload
+        | PlayerRoleChangeBroadcastData
       >
     > = [
       {
@@ -94,6 +97,23 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
       broadcasts.push({
         event: SocketIOGameEvents.LEAVE,
         data: { user: data.playerId } satisfies GameLeaveEventPayload,
+        target: SocketBroadcastTarget.GAME,
+        gameId: result.game.id,
+      });
+    }
+
+    // If role was changed due to restriction, also emit role change event
+    const roleChanged = !!result.newRole;
+    if (roleChanged && result.newRole) {
+      const roleChangeBroadcastData: PlayerRoleChangeBroadcastData = {
+        playerId: data.playerId,
+        newRole: result.newRole,
+        players: result.game.players.map((p) => p.toDTO()),
+      };
+
+      broadcasts.push({
+        event: SocketIOGameEvents.PLAYER_ROLE_CHANGE,
+        data: roleChangeBroadcastData,
         target: SocketBroadcastTarget.GAME,
         gameId: result.game.id,
       });

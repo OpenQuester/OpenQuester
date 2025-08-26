@@ -1,3 +1,5 @@
+import { type Namespace } from "socket.io";
+
 import { GameService } from "application/services/game/GameService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
@@ -20,6 +22,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { GameLobbyLeaveData } from "domain/types/game/GameRoomLeaveData";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
@@ -40,7 +43,8 @@ export class SocketIOGameService {
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly playerGameStatsService: PlayerGameStatsService,
-    private readonly logger: ILogger
+    private readonly logger: ILogger,
+    private readonly gameNamespace: Namespace
   ) {
     //
   }
@@ -80,9 +84,12 @@ export class SocketIOGameService {
       throw new ClientError(ClientResponse.GAME_IS_FULL);
     }
 
-    const showman = game
-      .getInGamePlayers()
-      .find((p) => p.role === PlayerRole.SHOWMAN);
+    // Check if showman slot is taken - use proper filtering that includes showmen
+    const showman = game.players.find(
+      (p) =>
+        p.role === PlayerRole.SHOWMAN &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
+    );
 
     // Joining player is showman and showman is taken
     const showmanAndTaken = data.role === PlayerRole.SHOWMAN && !!showman;
@@ -460,7 +467,12 @@ export class SocketIOGameService {
     socketId: string,
     targetPlayerId: number,
     restrictions: { muted: boolean; restricted: boolean; banned: boolean }
-  ): Promise<{ game: Game; targetPlayer: PlayerDTO; wasRemoved: boolean }> {
+  ): Promise<{
+    game: Game;
+    targetPlayer: PlayerDTO;
+    wasRemoved: boolean;
+    newRole?: PlayerRole;
+  }> {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
@@ -478,6 +490,7 @@ export class SocketIOGameService {
 
     // Store original role before making any changes
     const originalRole = targetPlayer.role;
+    let newRole: PlayerRole | undefined;
 
     // Update restrictions
     targetPlayer.isMuted = restrictions.muted;
@@ -501,6 +514,7 @@ export class SocketIOGameService {
       // If player is restricted (but not banned), change role to spectator
       targetPlayer.role = PlayerRole.SPECTATOR;
       targetPlayer.gameSlot = null;
+      newRole = PlayerRole.SPECTATOR;
     }
 
     await this.gameService.updateGame(game);
@@ -517,11 +531,52 @@ export class SocketIOGameService {
       );
     }
 
+    // Force disconnect banned user's socket
+    if (restrictions.banned) {
+      await this.forceDisconnectUserSocket(targetPlayerId);
+    }
+
     return {
       game,
       targetPlayer: targetPlayer.toDTO(),
       wasRemoved: restrictions.banned,
+      newRole,
     };
+  }
+
+  /**
+   * Forces disconnection of the socket for a specific user
+   */
+  private async forceDisconnectUserSocket(userId: number): Promise<void> {
+    try {
+      // Find the user's socket ID efficiently using Redis lookup
+      const socketId = await this.socketUserDataService.findSocketIdByUserId(
+        userId
+      );
+
+      if (!socketId) {
+        this.logger.debug(`No active socket found for banned user ${userId}`);
+        return;
+      }
+
+      // Get the specific socket and disconnect it
+      const socket = this.gameNamespace.sockets.get(socketId);
+      if (socket) {
+        this.logger.debug(
+          `Force disconnecting socket ${socketId} for banned user ${userId}`
+        );
+        socket.disconnect(true); // Force disconnect
+      } else {
+        this.logger.debug(
+          `Socket ${socketId} not found in namespace for user ${userId}`
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Failed to force disconnect user ${userId}:`,
+        error as object
+      );
+    }
   }
 
   /**
