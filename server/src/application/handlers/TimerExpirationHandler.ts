@@ -231,11 +231,11 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     game.setTimer(timer);
     await this.gameService.updateGame(game);
     if (timer) {
-      await this.gameService.saveTimer(
-        timer,
-        game.id,
-        timer.durationMs - timer.elapsedMs
-      );
+      // Ensure the TTL is positive to avoid Redis "ERR invalid expire time" error
+      const remainingTimeMs = timer.durationMs - timer.elapsedMs;
+      const ttlMs = Math.max(remainingTimeMs, 1000); // Minimum 1 second TTL
+
+      await this.gameService.saveTimer(timer, game.id, ttlMs);
     }
 
     return { answerResult: playerAnswerResult, timer };

@@ -72,15 +72,37 @@ export class AuthRestApiController {
       throw new ClientError(ClientResponse.SOCKET_LOGGED_IN);
     }
 
+    const userId = req.user!.id; // Null safety approved by auth middleware
+
+    // Check if user already has an active socket connection (prevent duplicate connections)
+    const existingSocketId =
+      await this.socketUserDataService.findSocketIdByUserId(userId);
+
+    if (existingSocketId && existingSocketId !== authDTO.socketId) {
+      this.logger.debug(
+        `User ${userId} has existing socket ${existingSocketId}, disconnecting it before allowing new connection ${authDTO.socketId}`,
+        { prefix: "[SOCKET]: " }
+      );
+
+      // Force disconnect the existing socket
+      const existingSocket = this.gameNamespace.sockets.get(existingSocketId);
+      if (existingSocket) {
+        existingSocket.disconnect(true);
+      }
+
+      // Clean up Redis data for the old socket
+      await this.socketUserDataService.remove(existingSocketId);
+    }
+
     const socket = this.gameNamespace.sockets.get(authDTO.socketId);
 
     // Apply userId to socket for later use
     if (socket) {
-      socket.userId = req.user!.id; // Null safety approved by auth middleware
+      socket.userId = userId;
     }
 
     await this.socketUserDataService.set(authDTO.socketId, {
-      userId: req.user!.id,
+      userId: userId,
       language: ts.parseHeaders(req.headers),
     });
 

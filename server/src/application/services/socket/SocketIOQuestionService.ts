@@ -691,7 +691,9 @@ export class SocketIOQuestionService {
       isPhaseComplete,
       nextBidderId,
       winnerPlayerId: bidResult.updatedStakeData.winnerPlayerId,
-      questionData,
+      questionData: questionData
+        ? GameQuestionMapper.mapToSimpleQuestion(questionData)
+        : null,
       timer,
     };
   }
