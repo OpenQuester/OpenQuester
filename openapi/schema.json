@@ -2504,6 +2504,20 @@
               { "type": "null" }
             ],
             "examples": [[1, 2, 3]]
+          },
+          "secretQuestionData": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/SecretQuestionGameData" },
+              { "type": "null" }
+            ],
+            "description": "Secret question specific data - only set when a secret question is picked"
+          },
+          "stakeQuestionData": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/StakeQuestionGameData" },
+              { "type": "null" }
+            ],
+            "description": "Stake question specific data - only set when a stake question is picked"
           }
         }
       },
@@ -3855,6 +3869,210 @@
           }
         },
         "required": ["winnerPlayerId", "finalBid"]
+      },
+      "SecretQuestionGameData": {
+        "type": "object",
+        "description": "Data saved to game state in order to understand current secret question state",
+        "properties": {
+          "pickerPlayerId": {
+            "type": "integer",
+            "description": "The player who originally picked the secret question",
+            "examples": [123]
+          },
+          "transferType": {
+            "$ref": "#/components/schemas/QuestionTransferType",
+            "description": "Transfer restrictions for the question"
+          },
+          "questionId": {
+            "type": "integer",
+            "description": "Question ID being transferred",
+            "examples": [456]
+          },
+          "transferPhase": {
+            "type": "boolean",
+            "description": "Whether currently in transfer phase (waiting for transfer decision)",
+            "examples": [true]
+          }
+        },
+        "required": [
+          "pickerPlayerId",
+          "transferType",
+          "questionId",
+          "transferPhase"
+        ]
+      },
+      "StakeQuestionGameData": {
+        "type": "object",
+        "description": "Data saved to game state in order to understand current stake question state",
+        "properties": {
+          "pickerPlayerId": {
+            "type": "integer",
+            "description": "The player who originally picked the stake question",
+            "examples": [123]
+          },
+          "questionId": {
+            "type": "integer",
+            "description": "Question ID being bid on",
+            "examples": [456]
+          },
+          "maxPrice": {
+            "type": ["integer", "null"],
+            "description": "Maximum bid allowed for this question (null means no limit)",
+            "examples": [1000, null]
+          },
+          "bids": {
+            "type": "object",
+            "additionalProperties": {
+              "type": ["integer", "null"]
+            },
+            "description": "Current bids from all players (playerId -> highest bid amount)",
+            "examples": [{ "123": 500, "124": 300, "125": null }]
+          },
+          "passedPlayers": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Players who have passed and are out of bidding",
+            "examples": [[125, 126]]
+          },
+          "biddingOrder": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Order of players for sequential bidding",
+            "examples": [[123, 124, 125]]
+          },
+          "currentBidderIndex": {
+            "type": "integer",
+            "description": "Current player's turn to bid (index in biddingOrder)",
+            "examples": [1]
+          },
+          "highestBid": {
+            "type": ["integer", "null"],
+            "description": "Highest bid amount so far",
+            "examples": [500, null]
+          },
+          "winnerPlayerId": {
+            "type": ["integer", "null"],
+            "description": "Player ID who placed the highest bid (winner)",
+            "examples": [123, null]
+          },
+          "biddingPhase": {
+            "type": "boolean",
+            "description": "Whether currently in bidding phase",
+            "examples": [true]
+          }
+        },
+        "required": [
+          "pickerPlayerId",
+          "questionId",
+          "maxPrice",
+          "bids",
+          "passedPlayers",
+          "biddingOrder",
+          "currentBidderIndex",
+          "highestBid",
+          "winnerPlayerId",
+          "biddingPhase"
+        ]
+      },
+      "SocketIOStakeQuestionSubmittedEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a player submited a bid",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who submited the bid",
+            "examples": [123]
+          },
+          "bidAmount": {
+            "type": ["integer", "null"],
+            "examples": [456]
+          },
+          "bidType": {
+            "$ref": "#/components/schemas/StakeBidType"
+          },
+          "isPhaseComplete": {
+            "type": "boolean"
+          },
+          "nextBidderId": {
+            "type": ["integer", "null"]
+          },
+          "timer": {
+            "$ref": "#/components/schemas/GameStateTimer"
+          }
+        },
+        "required": [
+          "playerId",
+          "bidAmount",
+          "isPhaseComplete",
+          "nextBidderId",
+          "timer"
+        ]
+      },
+      "SocketIOStakeQuestionPickedEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a stake question is picked",
+        "properties": {
+          "pickerPlayerId": {
+            "type": "integer",
+            "description": "ID of the player who picked the question",
+            "examples": [123]
+          },
+          "questionId": {
+            "type": "integer",
+            "description": "ID of the transferred secret question",
+            "examples": [456]
+          },
+          "maxPrice": {
+            "type": ["integer", "null"],
+            "description": "Max bid price",
+            "examples": [1000]
+          },
+          "biddingOrder": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "List of ID's of the players in order of bidding",
+            "examples": [[23, 123, 3]]
+          },
+          "timer": {
+            "$ref": "#/components/schemas/GameStateTimer"
+          }
+        },
+        "required": ["pickerPlayerId", "questionId", "timer", "maxPrice"]
+      },
+      "SocketIOStakeQuestionWinnerEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a bid is finished",
+        "properties": {
+          "winnerPlayerId": {
+            "type": "integer",
+            "description": "ID of the player who win the bid",
+            "examples": [123]
+          },
+          "finalBid": {
+            "type": "integer",
+            "examples": [2000]
+          }
+        },
+        "required": ["winnerPlayerId", "finalBid"]
+      },
+      "SocketIOStakeQuestionBidInput": {
+        "type": "object",
+        "properties": {
+          "bidAmount": {
+            "type": ["integer", "null"],
+            "examples": [456]
+          },
+          "bidType": {
+            "$ref": "#/components/schemas/StakeBidType"
+          }
+        },
+        "required": ["bidAmount", "bidType"]
       }
     }
   }

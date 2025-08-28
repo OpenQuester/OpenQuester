@@ -49,7 +49,7 @@ class GameQuestion extends WatchingWidget {
       ),
       child: question.price == null
           ? const Text('-')
-          : ScoreText(score: question.price!),
+          : ScoreText(score: question.price),
     );
   }
 }
