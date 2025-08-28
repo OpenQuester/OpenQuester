@@ -151,7 +151,8 @@
   },
   "game_stake_question": {
     "player_win_the_bid": "Player {username} win bid with {value}",
-    "allIn": "All-in"
+    "allIn": "All-in",
+    "players_stake": "Players stakes"
   },
   "cancel": "Cancel",
   "ok": "OK",

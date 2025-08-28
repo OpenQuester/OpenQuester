@@ -134,10 +134,10 @@ class _BodyBuilder extends WatchingWidget {
       body = const CircularProgressIndicator().fadeIn().center();
     } else if (gameFinished) {
       body = const _GameFinishedScreen().fadeIn();
+    } else if (gameData?.gameState.stakeQuestionData?.biddingPhase ?? false) {
+      body = const GameStakeQuestionBody().fadeIn();
     } else if (currentQuestion != null) {
       body = const GameQuestionScreen().fadeIn();
-    } else if (gameData?.gameState.stakeQuestionData != null) {
-      body = const GameStakeQuestionBody().fadeIn();
     } else {
       body = const GameLobbyThemes().fadeIn();
     }

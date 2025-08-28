@@ -7,12 +7,14 @@ class AppAnimatedSwitcher extends StatelessWidget {
     required this.child,
     this.visible,
     this.disableSizeTransition = false,
+    this.sizeTransitionAxis = Axis.horizontal,
     super.key,
   });
 
   final Widget child;
   final bool? visible;
   final bool disableSizeTransition;
+  final Axis sizeTransitionAxis;
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +41,7 @@ class AppAnimatedSwitcher extends StatelessWidget {
 
         return SizeTransition(
           sizeFactor: animation,
-          axis: Axis.horizontal,
+          axis: sizeTransitionAxis,
           child: transition,
         );
       },

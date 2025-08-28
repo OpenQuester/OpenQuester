@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
-class GameStakeQuestionBids extends StatelessWidget {
+class GameStakeQuestionBids extends WatchingWidget {
   const GameStakeQuestionBids({super.key});
 
   @override
@@ -10,8 +10,7 @@ class GameStakeQuestionBids extends StatelessWidget {
     final stakeData = gameData?.gameState.stakeQuestionData;
 
     int getPlayerBid(PlayerData player) {
-      return stakeData?.bids[player.meta.id.toString()] ??
-          double.negativeInfinity.toInt();
+      return stakeData?.bids[player.meta.id.toString()] ?? -1;
     }
 
     final players = (gameData?.players ?? [])
@@ -22,13 +21,18 @@ class GameStakeQuestionBids extends StatelessWidget {
         )
         .sorted((a, b) => getPlayerBid(b).compareTo(getPlayerBid(a)));
 
-    return Wrap(
+    return Column(
       spacing: 8,
-      runSpacing: 8,
       children: [
+        Text(
+          LocaleKeys.game_stake_question_players_stake.tr(),
+          textAlign: TextAlign.center,
+          style: context.textTheme.headlineSmall,
+        ),
         for (var index = 0; index < players.length; index++)
           _PlayerStake(
             index: index,
+            bidding: stakeData?.currentBidderIndex == index,
             playerData: players[index],
             stake: stakeData?.bids[players[index].meta.id.toString()],
           ),
@@ -42,20 +46,22 @@ class _PlayerStake extends StatelessWidget {
     required this.playerData,
     required this.stake,
     required this.index,
+    required this.bidding,
   });
   final PlayerData playerData;
   final int? stake;
   final int index;
+  final bool bidding;
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: BoxConstraints.tight(GameLobbyStyles.players),
-      child: Card(
-        child: ListTile(
-          title: Text([index + 1, playerData.meta.username].join('. ')),
-          trailing: ScoreText(score: stake),
+    return Card(
+      child: ListTile(
+        selected: bidding,
+        title: Text(
+          [(index + 1).toString(), playerData.meta.username].join('. '),
         ),
+        trailing: ScoreText(score: stake),
       ),
     );
   }

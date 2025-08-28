@@ -11,11 +11,13 @@ class GameQuestionTimer extends WatchingWidget {
 
     if (timer == null) return const SizedBox.shrink();
 
-    final timeLeft = Duration(milliseconds: timer.durationMs - timer.elapsedMs);
-    final beginPoint = (1 / (timer.durationMs / timer.elapsedMs)).clamp(0, 1);
+    final diff = DateTime.now().difference(timer.startedAt);
+    final elapsedMs = timer.elapsedMs + diff.inMilliseconds;
+    final timeLeft = Duration(milliseconds: timer.durationMs - elapsedMs);
+    final beginPoint = (1 / (timer.durationMs / elapsedMs)).clamp(0, 1);
 
     return ConstrainedBox(
-      key: ValueKey(timer),
+      key: ValueKey(beginPoint),
       constraints: const BoxConstraints(
         maxWidth: GameLobbyStyles.maxTimerWidth,
       ),

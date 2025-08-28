@@ -20,7 +20,12 @@ class ScoreText extends StatelessWidget {
 
     if (!compactFormat) return text;
 
-    return Tooltip(message: longNumberFormatter.format(score), child: text);
+    return Tooltip(
+      message: score == null
+          ? formattedScore
+          : longNumberFormatter.format(score),
+      child: text,
+    );
   }
 
   static (String formatedText, bool isCompact) formatScore(int? score) {
