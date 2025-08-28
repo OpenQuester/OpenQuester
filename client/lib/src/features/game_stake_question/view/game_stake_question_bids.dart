@@ -21,6 +21,10 @@ class GameStakeQuestionBids extends WatchingWidget {
         )
         .sorted((a, b) => getPlayerBid(b).compareTo(getPlayerBid(a)));
 
+    final bidderId = stakeData?.biddingOrder.tryByIndex(
+      stakeData.currentBidderIndex,
+    );
+
     return Column(
       spacing: 8,
       children: [
@@ -32,7 +36,7 @@ class GameStakeQuestionBids extends WatchingWidget {
         for (var index = 0; index < players.length; index++)
           _PlayerStake(
             index: index,
-            bidding: stakeData?.currentBidderIndex == index,
+            bidding: bidderId == players[index].meta.id,
             playerData: players[index],
             stake: stakeData?.bids[players[index].meta.id.toString()],
           ),
