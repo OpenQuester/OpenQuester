@@ -419,7 +419,10 @@ class GameLobbyController {
       timer: questionData.timer,
       currentQuestion: questionData.data,
       answeredPlayers: null,
-      answeringPlayer: null,
+      // Dont clear answeringPlayer for stake question
+      answeringPlayer: questionData.data.type == QuestionType.stake
+          ? gameData.value?.gameState.answeringPlayer
+          : null,
     );
 
     gameData.value = gameData.value!.copyWith.gameState(
@@ -943,7 +946,7 @@ class GameLobbyController {
         '';
 
     _showLoggedInChatEvent(
-      LocaleKeys.player_edit_showman_changed_score.tr(
+      LocaleKeys.game_stake_question_player_win_the_bid.tr(
         namedArgs: {
           'username': winnerUsername,
           'value': ScoreText.formatScore(data.finalBid).$1,

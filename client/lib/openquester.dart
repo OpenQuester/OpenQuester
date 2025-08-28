@@ -81,6 +81,7 @@ export 'src/features/game_question/data/game_question_data.dart';
 export 'src/features/game_question/view/game_question_file.dart';
 export 'src/features/game_question/view/game_question_screen.dart';
 export 'src/features/game_question/view/game_question_timer.dart';
+export 'src/features/game_stake_question/view/game_stake_player_bid_controls.dart';
 export 'src/features/game_stake_question/view/game_stake_question.dart';
 export 'src/features/game_stake_question/view/game_stake_question_bids.dart';
 export 'src/features/games/controllers/games_list_controller.dart';

@@ -152,7 +152,8 @@
   "game_stake_question": {
     "player_win_the_bid": "Player {username} win bid with {value}",
     "allIn": "All-in",
-    "players_stake": "Players stakes"
+    "players_stake": "Players stakes",
+    "question_bid": "Question bid"
   },
   "cancel": "Cancel",
   "ok": "OK",
@@ -168,5 +169,6 @@
     "showman_changed_score": "Showman changed score for {username} from {old} to {new}"
   },
   "system": "System",
-  "pass": "Pass"
+  "pass": "Pass",
+  "custom": "Custom"
 }
