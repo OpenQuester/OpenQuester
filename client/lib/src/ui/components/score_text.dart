@@ -28,7 +28,7 @@ class ScoreText extends StatelessWidget {
     );
   }
 
-  static (String formatedText, bool isCompact) formatScore(int? score) {
+  static (String formattedText, bool isCompact) formatScore(int? score) {
     if (score == null) return ('...', true);
 
     final compactFormat = score >= 1_000_000;

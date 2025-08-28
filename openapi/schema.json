@@ -3980,11 +3980,11 @@
       },
       "SocketIOStakeQuestionSubmittedEventPayload": {
         "type": "object",
-        "description": "Data sent to all players when a player submited a bid",
+        "description": "Data sent to all players when a player submitted a bid",
         "properties": {
           "playerId": {
             "type": "integer",
-            "description": "ID of the player who submited the bid",
+            "description": "ID of the player who submitted the bid",
             "examples": [123]
           },
           "bidAmount": {
@@ -4023,7 +4023,6 @@
           },
           "questionId": {
             "type": "integer",
-            "description": "ID of the transferred secret question",
             "examples": [456]
           },
           "maxPrice": {
@@ -4051,7 +4050,7 @@
         "properties": {
           "winnerPlayerId": {
             "type": "integer",
-            "description": "ID of the player who win the bid",
+            "description": "ID of the player who won the bid",
             "examples": [123]
           },
           "finalBid": {
