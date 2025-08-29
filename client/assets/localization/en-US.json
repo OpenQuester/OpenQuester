@@ -150,9 +150,9 @@
     "choose_player": "Choose player to pass this question to"
   },
   "game_stake_question": {
-    "player_win_the_bid": "Player {username} win bid with {value}",
+    "player_win_the_bid": "Player {username} won bidding with {value}",
     "allIn": "All-in",
-    "players_stake": "Players stakes",
+    "players_stakes": "Players stakes",
     "question_bid": "Question bid"
   },
   "cancel": "Cancel",

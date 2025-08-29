@@ -29,7 +29,7 @@ class GameStakeQuestionBids extends WatchingWidget {
       spacing: 8,
       children: [
         Text(
-          LocaleKeys.game_stake_question_players_stake.tr(),
+          LocaleKeys.game_stake_question_players_stakes.tr(),
           textAlign: TextAlign.center,
           style: context.textTheme.headlineSmall,
         ),

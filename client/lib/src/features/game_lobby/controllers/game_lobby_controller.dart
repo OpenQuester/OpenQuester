@@ -907,19 +907,16 @@ class GameLobbyController {
       json as Map<String, dynamic>,
     );
 
-    var index = gameData.value?.gameState.stakeQuestionData?.biddingOrder
+    final index = gameData.value?.gameState.stakeQuestionData?.biddingOrder
         .indexOf(data.nextBidderId ?? -1);
-    if (index == -1) index = null;
 
-    gameData.value = gameData.value?.copyWith.gameState(
-      timer: data.timer,
-    );
-    final stakeData = gameData.value!.gameState.stakeQuestionData!;
-    gameData.value = gameData.value!.copyWith.gameState.stakeQuestionData!(
+    gameData.value = gameData.value?.copyWith.gameState(timer: data.timer);
+    final stakeData = gameData.value?.gameState.stakeQuestionData;
+    gameData.value = gameData.value?.copyWith.gameState.stakeQuestionData!(
       biddingPhase: !data.isPhaseComplete,
       currentBidderIndex: index ?? -1,
       bids: {
-        ...stakeData.bids,
+        ...?stakeData?.bids,
         data.playerId.toString(): data.bidAmount,
       },
     );
@@ -936,7 +933,7 @@ class GameLobbyController {
       timer: null,
       answeringPlayer: data.winnerPlayerId,
     );
-    gameData.value = gameData.value!.copyWith.gameState.stakeQuestionData!(
+    gameData.value = gameData.value?.copyWith.gameState.stakeQuestionData?.call(
       winnerPlayerId: data.winnerPlayerId,
       highestBid: data.finalBid,
     );
