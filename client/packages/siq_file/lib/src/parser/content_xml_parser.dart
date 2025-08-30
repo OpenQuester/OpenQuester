@@ -28,6 +28,7 @@ class ContentXmlParser {
     final description = (attributeDescription ?? comment).nullOnEmpty;
     final themesXml = round.getElement('themes');
     final themes = themesXml?.childElements.mapIndexed(_parseTheme).toList();
+    final isFinal = round.getAttribute('type') == 'final';
 
     return PackageRound(
       id: null,
@@ -35,7 +36,7 @@ class ContentXmlParser {
       themes: await Future.wait(themes ?? []),
       description: description,
       order: index,
-      type: PackageRoundType.simple, // TODO: Add PackageRoundType parsing
+      type: isFinal ? PackageRoundType.valueFinal : PackageRoundType.simple,
     );
   }
 

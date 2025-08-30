@@ -123,10 +123,15 @@ class _BodyBuilder extends WatchingWidget {
     final currentQuestion = watchValue(
       (GameQuestionController e) => e.questionData,
     );
+    final isPickingTheme = watchPropertyValue(
+      (GameLobbyThemePickerController e) => e.isPicking,
+    );
     final gameFinished = watchValue((GameLobbyController e) => e.gameFinished);
 
     Widget body;
-    if (isPickingPlayer) {
+    if (isPickingTheme) {
+      body = const GameFinalRoundBody();
+    } else if (isPickingPlayer) {
       body = const GameLobbyPlayerPicker();
     } else if (lobbyEditorMode) {
       body = const GameLobbyEditor().fadeIn();

@@ -10,13 +10,11 @@ class GameLobbyPlayerPickerController extends ChangeNotifier {
   void Function(int selectedPlayerId)? _onPlayerSelected;
 
   /// Show selection UI
-  /// [players] - list of players to select from
   /// [onPlayerSelected] - callback when a player is selected
   /// [type] - type of selection, can be [QuestionTransferType.exceptCurrent]
   /// to exclude current user
   /// [selectingPlayerId] - the ID of the player who selects
   void startSelect({
-    required List<PlayerData> players,
     required int selectingPlayerId,
     required QuestionTransferType type,
     required void Function(int selectedPlayerId) onPlayerSelected,

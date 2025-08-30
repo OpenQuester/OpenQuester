@@ -99,6 +99,14 @@ class GameLobbyController {
           SocketIOGameReceiveEvents.stakeQuestionWinner.json!,
           _onStakeQuestionWinner,
         )
+        ..on(
+          SocketIOGameReceiveEvents.themeEliminate.json!,
+          _onThemeEliminate,
+        )
+        ..on(
+          SocketIOGameReceiveEvents.finalPhaseComplete.json!,
+          _onFinalPhaseComplete,
+        )
         ..connect();
 
       return await _joinCompleter.future;
@@ -222,6 +230,7 @@ class GameLobbyController {
       getIt<SocketChatController>().clear();
       getIt<GameQuestionController>().clear();
       getIt<GameLobbyPlayerPickerController>().clear();
+      getIt<GameLobbyThemePickerController>().clear();
       _joinCompleter = JoinCompleter();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
@@ -253,6 +262,7 @@ class GameLobbyController {
     await _initChat();
 
     _showQuestion();
+    _showFinalRound();
   }
 
   Future<void> _initChat() async {
@@ -594,7 +604,7 @@ class GameLobbyController {
   Future<void> answerQuestion({String? answerText}) async {
     await socket?.emitWithAckAsync(
       SocketIOGameSendEvents.answerSubmitted.json!,
-      SocketIOAnswerSubmittedEventData(answerText: answerText ?? '').toJson(),
+      SocketIOAnswerSubmittedInput(answerText: answerText ?? '').toJson(),
     );
   }
 
@@ -840,7 +850,6 @@ class GameLobbyController {
     );
 
     getIt<GameLobbyPlayerPickerController>().startSelect(
-      players: gameData.value?.players ?? [],
       selectingPlayerId: data.pickerPlayerId,
       type: data.transferType,
       onPlayerSelected: (selectedPlayerId) {
@@ -944,10 +953,47 @@ class GameLobbyController {
     );
   }
 
+  void _onThemeEliminate(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOThemeEliminatePayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith.gameState.finalRoundData?.call(
+      eliminatedThemes: {
+        ...?gameData.value?.gameState.finalRoundData?.eliminatedThemes,
+        data.themeId,
+      }.toList(),
+    );
+    gameData.value = gameData.value?.copyWith.gameState(
+      currentTurnPlayerId: data.nextPlayerId,
+    );
+  }
+
   void submitQuestionBid(SocketIOStakeQuestionBidInput input) {
     socket?.emit(
       SocketIOGameSendEvents.stakeBidSubmit.json!,
       input.toJson(),
+    );
+  }
+
+  void _showFinalRound() {
+    getIt<GameLobbyThemePickerController>().startSelect(
+      onSelected: (themeId) {
+        socket?.emit(
+          SocketIOGameSendEvents.themeEliminate.json!,
+          SocketIOThemeEliminateInput(themeId: themeId).toJson(),
+        );
+      },
+    );
+  }
+
+  void _onFinalPhaseComplete(dynamic json) {
+    if (json is! Map) return;
+
+    final data = FinalPhaseCompleteEventData.fromJson(
+      json as Map<String, dynamic>,
     );
   }
 }
