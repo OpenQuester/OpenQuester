@@ -191,7 +191,12 @@ export class QuestionActionValidator {
       throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
     }
 
-    if (!ValueUtils.isBad(game.gameState.answeringPlayer)) {
+    // For secret questions where a specific player is designated to answer,
+    // allow that player to answer even if answeringPlayer is set
+    if (
+      !ValueUtils.isBad(game.gameState.answeringPlayer) &&
+      game.gameState.answeringPlayer !== currentPlayerId
+    ) {
       throw new ClientError(ClientResponse.SOMEONE_ALREADY_ANSWERING);
     }
 
@@ -207,7 +212,11 @@ export class QuestionActionValidator {
   private static _validateQuestionSkipping(game: Game): void {
     this._validateCurrentRound(game);
 
-    if (!game.gameState.currentQuestion) {
+    // Allow skipping if there's a current question OR if there's an active stake question
+    if (
+      !game.gameState.currentQuestion &&
+      !(game.gameState.stakeQuestionData || game.gameState.secretQuestionData)
+    ) {
       throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
     }
   }
