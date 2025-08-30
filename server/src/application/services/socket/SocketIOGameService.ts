@@ -8,6 +8,7 @@ import { SocketIOQuestionService } from "application/services/socket/SocketIOQue
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { GAME_TTL_IN_SECONDS, SCORE_ABS_LIMIT } from "domain/constants/game";
+import { REDIS_LOCK_USER_LEAVE } from "domain/constants/redis";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -47,6 +48,10 @@ export class SocketIOGameService {
     private readonly gameNamespace: Namespace
   ) {
     //
+  }
+
+  private _getUserLeaveLockKey(gameId: string, userId: number): string {
+    return `${REDIS_LOCK_USER_LEAVE}:${gameId}:${userId}`;
   }
 
   public getGameEntity(gameId: string, updatedTTL?: number): Promise<Game> {
@@ -205,33 +210,48 @@ export class SocketIOGameService {
     const gameId = game.id;
     const userSession = context.userSession;
 
-    if (!game.hasPlayer(userSession.id)) {
+    // Distributed lock to prevent race conditions from multiple simultaneous leave events
+    const lockKey = this._getUserLeaveLockKey(gameId, userSession.id);
+    const acquired = await this.gameService.gameLock(lockKey, 5); // 5 second timeout
+
+    if (!acquired) {
+      // Another leave operation is already in progress for this user
       return { emit: false };
     }
 
-    game.removePlayer(userSession.id);
+    try {
+      // Check if player is still in the game (after acquiring lock)
+      if (!game.hasPlayer(userSession.id)) {
+        return { emit: false };
+      }
 
-    // Remove player from ready list if they were ready
-    if (game.gameState.readyPlayers) {
-      game.gameState.readyPlayers = game.gameState.readyPlayers.filter(
-        (playerId) => playerId !== userSession.id
+      game.removePlayer(userSession.id);
+
+      // Remove player from ready list if they were ready
+      if (game.gameState.readyPlayers) {
+        game.gameState.readyPlayers = game.gameState.readyPlayers.filter(
+          (playerId) => playerId !== userSession.id
+        );
+      }
+
+      await this.socketUserDataService.update(socketId, {
+        id: JSON.stringify(userSession.id),
+        gameId: JSON.stringify(null),
+      });
+      await this.gameService.updateGame(game);
+
+      // Clean up player statistics session in Redis
+      await this.playerGameStatsService.endPlayerSession(
+        gameId,
+        userSession.id,
+        new Date()
       );
+
+      return { emit: true, data: { userId: userSession.id, gameId } };
+    } finally {
+      // Always release the lock
+      await this.gameService.gameUnlock(lockKey);
     }
-
-    await this.socketUserDataService.update(socketId, {
-      id: JSON.stringify(userSession.id),
-      gameId: JSON.stringify(null),
-    });
-    await this.gameService.updateGame(game);
-
-    // Clean up player statistics session in Redis
-    await this.playerGameStatsService.endPlayerSession(
-      gameId,
-      userSession.id,
-      new Date()
-    );
-
-    return { emit: true, data: { userId: userSession.id, gameId } };
   }
 
   public async handleNextRound(socketId: string) {
