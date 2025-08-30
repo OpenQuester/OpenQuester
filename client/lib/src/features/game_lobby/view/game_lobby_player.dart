@@ -39,7 +39,7 @@ class GameLobbyPlayer extends WatchingWidget {
         borderRadius: GameLobbyStyles.playerTileRadius.circular,
         color: context.theme.colorScheme.surface,
       ),
-      padding: 4.all,
+      padding: borderColor == null ? null : 4.all,
       constraints: constraints ?? GameLobbyStyles.playerTileConstrains(context),
       child: DefaultTextStyle(
         style: context.textTheme.bodySmall!.copyWith(
@@ -108,6 +108,7 @@ class GameLobbyPlayer extends WatchingWidget {
                 child:
                     customIcon ??
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         if (customIcon != null) customIcon!,
                         if (player.status == PlayerDataStatus.disconnected)
@@ -118,6 +119,7 @@ class GameLobbyPlayer extends WatchingWidget {
               Align(
                 alignment: Alignment.bottomRight,
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     if (actionButton != null) actionButton!,
                     if (settings.hasTurn)

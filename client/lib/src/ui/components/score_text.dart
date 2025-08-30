@@ -5,14 +5,20 @@ class ScoreText extends StatelessWidget {
   const ScoreText({
     required this.score,
     this.textStyle,
+    this.longLimit = 1_000_000,
+
     super.key,
   });
   final int? score;
   final TextStyle? textStyle;
+  final int longLimit;
 
   @override
   Widget build(BuildContext context) {
-    final (formattedScore, compactFormat) = formatScore(score);
+    final (formattedScore, compactFormat) = formatScore(
+      score,
+      longLimit: longLimit,
+    );
     final text = Text(
       formattedScore,
       style: textStyle,
@@ -28,10 +34,13 @@ class ScoreText extends StatelessWidget {
     );
   }
 
-  static (String formattedText, bool isCompact) formatScore(int? score) {
+  static (String formattedText, bool isCompact) formatScore(
+    int? score, {
+    int longLimit = 1_000_000,
+  }) {
     if (score == null) return ('...', true);
 
-    final compactFormat = score >= 1_000_000;
+    final compactFormat = score >= longLimit;
     final formatter = compactFormat
         ? compactNumberFormatter
         : longNumberFormatter;

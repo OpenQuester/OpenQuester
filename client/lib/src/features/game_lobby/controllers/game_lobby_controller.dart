@@ -112,7 +112,7 @@ class GameLobbyController {
 
   void _showLoggedInChatEvent(String text) {
     getIt<ToastController>().show(text, type: ToastType.info);
-    getIt<SocketChatController>().chatController?.messages.add(
+    getIt<SocketChatController>().chatController?.insertMessage(
       TextMessage(
         id: UniqueKey().toString(),
         authorId: SocketChatController.systemMessageId,
@@ -230,13 +230,7 @@ class GameLobbyController {
 
   Future<void> leave({bool force = false}) async {
     socket?.emit(SocketIOGameSendEvents.userLeave.json!);
-    if (force) {
-      _leave();
-    } else {
-      Future<void>.delayed(const Duration(seconds: 1), () {
-        if (socket != null) clear();
-      });
-    }
+    _leave();
   }
 
   void toggleDesktopChat() {
@@ -349,8 +343,6 @@ class GameLobbyController {
   }
 
   void _leave() {
-    socket?.dispose();
-
     // Close only game page
     if (AppRouter.I.current.name == GameLobbyRoute.page.name) {
       AppRouter.I.replace(const HomeTabsRoute());

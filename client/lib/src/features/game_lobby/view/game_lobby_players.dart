@@ -57,10 +57,10 @@ class GameLobbyPlayers extends WatchingWidget {
               picking: currentTurnPlayerId == player.meta.id,
               playerAnswerState: showUserAnsweredCorrect,
             );
-
             final allowEdit =
                 gameData?.me.role == PlayerRole.showman &&
                 player.role == PlayerRole.player;
+                
             return InkWell(
               onTap: allowEdit
                   ? () => PlayerEditBtn.showEditMenu(
