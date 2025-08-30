@@ -370,12 +370,19 @@ export class StakeBiddingMapper {
 
   /**
    * Checks if a bid amount does not exceed the current highest bid
+   * Once there's a highest bid, all subsequent bids must be strictly higher
    */
   private static doesNotExceedHighestBid(
     amount: number,
     highestBid: number | null
   ): boolean {
-    return highestBid !== null && amount <= highestBid;
+    // No highest bid yet - any bid >= question price is allowed (question price validation is handled separately)
+    if (highestBid === null) {
+      return false;
+    }
+
+    // Once there's a highest bid, all subsequent bids must be strictly higher
+    return amount <= highestBid;
   }
 
   /**

@@ -188,12 +188,31 @@ export class SocketIOQuestionService {
     // Same logic for all rounds types
     if (isCorrect) {
       question = await this.getCurrentQuestion(game);
+
+      // Mark question as played so round progression can happen
+      const questionData = GameQuestionMapper.getQuestionAndTheme(
+        game.package,
+        game.gameState.currentRound!.id,
+        question.id!
+      );
+
+      if (questionData) {
+        GameQuestionMapper.setQuestionPlayed(
+          game,
+          question.id!,
+          questionData.theme.id!
+        );
+      }
+
       game.gameState.currentQuestion = null;
     }
 
     let timer: GameStateTimerDTO | null = null;
     if (nextState === QuestionState.SHOWING) {
       timer = await this.gameService.getTimer(game.id, QuestionState.SHOWING);
+    } else if (nextState === QuestionState.CHOOSING) {
+      // For correct answers, properly reset to choosing state
+      await this.socketQuestionStateService.resetToChoosingState(game);
     }
 
     game.setTimer(timer);
@@ -251,15 +270,43 @@ export class SocketIOQuestionService {
     });
 
     // Execution & Save
-    const questionData = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      gameState.currentRound!.id,
-      gameState.currentQuestion!.id!
-    );
+    let questionData;
+
+    if (gameState.currentQuestion) {
+      // Normal question flow
+      questionData = GameQuestionMapper.getQuestionAndTheme(
+        game.package,
+        gameState.currentRound!.id,
+        gameState.currentQuestion.id!
+      );
+    } else if (gameState.stakeQuestionData) {
+      // Stake question flow - get question from stake data
+      questionData = GameQuestionMapper.getQuestionAndTheme(
+        game.package,
+        gameState.currentRound!.id,
+        gameState.stakeQuestionData.questionId
+      );
+    } else if (gameState.secretQuestionData) {
+      // Secret question flow - get question from secret data
+      questionData = GameQuestionMapper.getQuestionAndTheme(
+        game.package,
+        gameState.currentRound!.id,
+        gameState.secretQuestionData.questionId
+      );
+    } else {
+      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+    }
 
     if (!questionData?.question) {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
     }
+
+    // Mark question as played so round progression can happen
+    GameQuestionMapper.setQuestionPlayed(
+      game,
+      questionData.question.id!,
+      questionData.theme.id!
+    );
 
     await this.socketQuestionStateService.resetToChoosingState(game);
 
@@ -366,6 +413,10 @@ export class SocketIOQuestionService {
           GAME_QUESTION_ANSWER_TIME,
           QuestionState.SHOWING
         );
+        // For normal question fallback, set currentQuestion
+        game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
+          questionData.question
+        );
       }
     } else if (question.type === PackageQuestionType.STAKE) {
       const stakeSetupResult = await this._setupStakeQuestion(
@@ -385,6 +436,10 @@ export class SocketIOQuestionService {
           GAME_QUESTION_ANSWER_TIME,
           QuestionState.SHOWING
         );
+        // For normal question fallback, set currentQuestion
+        game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
+          questionData.question
+        );
       }
     } else {
       // Normal question flow - set up timer and showing state
@@ -393,11 +448,11 @@ export class SocketIOQuestionService {
         GAME_QUESTION_ANSWER_TIME,
         QuestionState.SHOWING
       );
+      // For normal questions, set currentQuestion immediately
+      game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
+        questionData.question
+      );
     }
-
-    game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
-      questionData.question
-    );
     GameQuestionMapper.setQuestionPlayed(game, question.id!, theme.id!);
 
     // Save
@@ -615,8 +670,26 @@ export class SocketIOQuestionService {
       QuestionState.ANSWERING
     );
 
+    // Get the question data from the secret question data
+    const questionData = GameQuestionMapper.getQuestionAndTheme(
+      game.package,
+      game.gameState.currentRound!.id,
+      secretData!.questionId
+    );
+
+    if (!questionData) {
+      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+    }
+
+    // Set currentQuestion now that the question is being transferred and shown
+    game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
+      questionData.question
+    );
+
     game.gameState.secretQuestionData = null;
     game.gameState.questionState = QuestionState.ANSWERING;
+    // Set the target player as the answering player
+    game.gameState.answeringPlayer = data.targetPlayerId;
 
     // Save
     await this.gameService.updateGame(game);
@@ -654,7 +727,20 @@ export class SocketIOQuestionService {
 
     // Execution
     const stakeData = game.gameState.stakeQuestionData!;
-    const question = await this.getCurrentQuestion(game);
+
+    // For stake questions, get question using the questionId from stake data
+    // Because currentQuestion is not set to gameState while bidding phase
+    const stakeQuestionData = GameQuestionMapper.getQuestionAndTheme(
+      game.package,
+      game.gameState.currentRound!.id,
+      stakeData.questionId
+    );
+
+    if (!stakeQuestionData) {
+      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+    }
+
+    const question = stakeQuestionData.question;
     const allPlayers = game.getInGamePlayers().map((player) => player.toDTO());
 
     const bidResult = StakeBiddingMapper.placeBid({
@@ -902,9 +988,25 @@ export class SocketIOQuestionService {
       await this.gameService.clearTimer(game.id);
 
       game.gameState.questionState = QuestionState.SHOWING;
+      // For stake questions, answeringPlayer should be null during SHOWING phase
+      // It will be set when someone actually attempts to answer
+      game.gameState.answeringPlayer = null;
 
-      if (game.gameState.currentQuestion) {
-        questionData = game.gameState.currentQuestion;
+      // Get the question data from stake question data
+      const stakeData = game.gameState.stakeQuestionData;
+      if (stakeData) {
+        const questionAndTheme = GameQuestionMapper.getQuestionAndTheme(
+          game.package,
+          game.gameState.currentRound!.id,
+          stakeData.questionId
+        );
+
+        if (questionAndTheme) {
+          // Set currentQuestion now that bidding is complete and question is being shown
+          game.gameState.currentQuestion =
+            GameQuestionMapper.mapToSimpleQuestion(questionAndTheme.question);
+          questionData = questionAndTheme.question;
+        }
       }
 
       const timerEntity =
