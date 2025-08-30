@@ -153,7 +153,10 @@ class _QuestionBottom extends WatchingWidget {
 
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 150),
-      child: child,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [child.flexible()],
+      ),
     );
   }
 }
@@ -226,13 +229,13 @@ class _AnsweringWidget extends WatchingWidget {
     final answeringPlayer = gameData?.players.getById(answeringPlayerId);
     final answeringPlayerNickname = answeringPlayer?.meta.username;
     final playerAnswering = answeringPlayer != null;
-
     final answer = [
       if (!answerText.isEmptyOrNull)
         LocaleKeys.question_correct_answer_is.tr(args: [answerText!]),
       if (!answerHint.isEmptyOrNull)
         LocaleKeys.question_hint.tr(args: [answerHint!]),
     ].join('\n');
+    final showAnswer = !answer.isEmptyOrNull;
 
     return Container(
       decoration: BoxDecoration(
@@ -243,7 +246,7 @@ class _AnsweringWidget extends WatchingWidget {
       child: OverflowBar(
         spacing: 16,
         overflowSpacing: 16,
-        alignment: MainAxisAlignment.start,
+        alignment: MainAxisAlignment.center,
         overflowAlignment: OverflowBarAlignment.center,
         children: [
           ConstrainedBox(
@@ -252,16 +255,27 @@ class _AnsweringWidget extends WatchingWidget {
               spacing: 16,
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (!answeringPlayerNickname.isEmptyOrNull)
-                  Text(
-                    LocaleKeys.question_user_is_answering.tr(
-                      args: [answeringPlayerNickname ?? ''],
-                    ),
-                    textAlign: TextAlign.center,
-                    style: context.textTheme.bodyLarge,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        LocaleKeys.question_user_is_answering.tr(
+                          args: [answeringPlayerNickname ?? ''],
+                        ),
+                        textAlign: TextAlign.center,
+                        style: context.textTheme.bodyLarge?.copyWith(
+                          fontWeight: showAnswer
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ).expand(),
+                    ],
                   ),
-                if (!answer.isEmptyOrNull)
+                if (showAnswer)
                   playerAnswering
                       ? _answerText(context, answer)
                       : HiddenBuilder(
@@ -284,6 +298,7 @@ class _AnsweringWidget extends WatchingWidget {
   Text _answerText(BuildContext context, String answer) {
     return Text(
       answer,
+      textAlign: TextAlign.center,
       style: context.textTheme.bodySmall?.copyWith(
         color: context.theme.colorScheme.onSurfaceVariant,
       ),
@@ -301,11 +316,17 @@ class _ShowmanControls extends WatchingWidget {
 
     final extraColors = Theme.of(context).extension<ExtraColors>();
 
-    ButtonStyle buttonStyle({required bool correctAnswer}) => ButtonStyle(
-      backgroundColor: WidgetStatePropertyAll(
-        correctAnswer ? extraColors?.success : context.theme.colorScheme.error,
-      ),
-    );
+    ButtonStyle buttonStyle({required bool correctAnswer}) {
+      final background = correctAnswer
+          ? extraColors?.success
+          : context.theme.colorScheme.error;
+      return ButtonStyle(
+        backgroundColor: WidgetStatePropertyAll(background),
+        foregroundColor: WidgetStatePropertyAll(
+          Colors.black.withBrightness(-.4),
+        ),
+      );
+    }
 
     List<Widget> multiplierBtns({required bool playerAnswerIsRight}) {
       return [0.5, 2.0].map((e) {

@@ -8,7 +8,7 @@ class GameLobbyStyles {
 
   static Size questionSize(BuildContext context) {
     final wideMode = UiModeUtils.wideModeOn(context);
-    return wideMode ? const Size(100, 64) : const Size.square(64);
+    return wideMode ? const Size(100, 64) : const Size(86, 64);
   }
 
   static TextStyle? playerTextStyle(BuildContext context) {
@@ -22,7 +22,7 @@ class GameLobbyStyles {
   static TextStyle? playerTextStyleMobile(BuildContext context) =>
       context.textTheme.bodySmall?.copyWith(color: Colors.white);
   static TextStyle? playerTextStyleDesktop(BuildContext context) =>
-      context.textTheme.bodyLarge;
+      context.textTheme.bodyLarge?.copyWith(color: Colors.white);
 
   static bool desktopChat(BuildContext context) =>
       UiModeUtils.wideModeOn(context, UiModeUtils.large);

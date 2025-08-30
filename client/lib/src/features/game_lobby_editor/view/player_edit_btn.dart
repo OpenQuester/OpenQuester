@@ -47,6 +47,7 @@ class PlayerEditBtn extends WatchingWidget {
 
     Future<void> changeScore() async {
       final newScoreText = await OneFieldDialog(
+        title: LocaleKeys.player_edit_change_score.tr(),
         keyboardType: const TextInputType.numberWithOptions(signed: true),
         initText: player.score.toString(),
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[-0-9]'))],

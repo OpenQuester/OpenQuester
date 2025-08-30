@@ -112,7 +112,7 @@ class GameLobbyController {
 
   void _showLoggedInChatEvent(String text) {
     getIt<ToastController>().show(text, type: ToastType.info);
-    getIt<SocketChatController>().chatController?.messages.add(
+    getIt<SocketChatController>().chatController?.insertMessage(
       TextMessage(
         id: UniqueKey().toString(),
         authorId: SocketChatController.systemMessageId,

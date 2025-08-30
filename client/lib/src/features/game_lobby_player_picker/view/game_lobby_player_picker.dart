@@ -22,9 +22,7 @@ class GameLobbyPlayerPicker extends WatchingWidget {
       width: 350,
       height: GameLobbyStyles.players.height,
     );
-    final playerTextStyle = GameLobbyStyles.playerTextStyleDesktop(
-      context,
-    );
+    final playerTextStyle = GameLobbyStyles.playerTextStyleDesktop(context);
 
     if (controller.selectingPlayerId != ProfileController.getUser()?.id &&
         gameData?.me.role != PlayerRole.showman) {
