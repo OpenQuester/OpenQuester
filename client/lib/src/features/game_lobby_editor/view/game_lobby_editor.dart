@@ -159,11 +159,7 @@ class _Player extends WatchingWidget {
           ? PlayerEditBtn(player: player)
           : null,
       customIcon: playerAvailableToChange
-          ? Icon(
-              Icons.drag_handle,
-              size: 28,
-              color: context.theme.colorScheme.onSurfaceVariant,
-            )
+          ? const Icon(Icons.drag_handle, size: 28)
           : null,
     );
 

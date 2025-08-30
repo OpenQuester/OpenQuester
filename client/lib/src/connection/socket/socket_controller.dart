@@ -69,7 +69,7 @@ class SocketController {
     bool outgoing = false,
   }) async {
     final logData = data is Map ? jsonEncode(data) : data.toString();
-    log('event', [event, logData].join('\n'));
+    log(outgoing ? 'request' : 'response', [event, logData].join('\n'));
   }
 
   static void log(String event, [dynamic data = '']) {

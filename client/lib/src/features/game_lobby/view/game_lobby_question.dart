@@ -8,6 +8,7 @@ class GameQuestion extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final borderRadius = 12.circular;
+    final wideMode = GameLobbyStyles.playersOnLeft(context);
 
     return FilledButton(
       onPressed: question.isPlayed
@@ -49,7 +50,10 @@ class GameQuestion extends WatchingWidget {
       ),
       child: question.price == null
           ? const Text('-')
-          : ScoreText(score: question.price),
+          : ScoreText(
+              score: question.price,
+              longLimit: wideMode ? 1_000_000 : 999,
+            ),
     );
   }
 }
