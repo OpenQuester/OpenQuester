@@ -188,12 +188,31 @@ export class SocketIOQuestionService {
     // Same logic for all rounds types
     if (isCorrect) {
       question = await this.getCurrentQuestion(game);
+
+      // Mark question as played so round progression can happen
+      const questionData = GameQuestionMapper.getQuestionAndTheme(
+        game.package,
+        game.gameState.currentRound!.id,
+        question.id!
+      );
+
+      if (questionData) {
+        GameQuestionMapper.setQuestionPlayed(
+          game,
+          question.id!,
+          questionData.theme.id!
+        );
+      }
+
       game.gameState.currentQuestion = null;
     }
 
     let timer: GameStateTimerDTO | null = null;
     if (nextState === QuestionState.SHOWING) {
       timer = await this.gameService.getTimer(game.id, QuestionState.SHOWING);
+    } else if (nextState === QuestionState.CHOOSING) {
+      // For correct answers, properly reset to choosing state
+      await this.socketQuestionStateService.resetToChoosingState(game);
     }
 
     game.setTimer(timer);
@@ -251,15 +270,43 @@ export class SocketIOQuestionService {
     });
 
     // Execution & Save
-    const questionData = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      gameState.currentRound!.id,
-      gameState.currentQuestion!.id!
-    );
+    let questionData;
+
+    if (gameState.currentQuestion) {
+      // Normal question flow
+      questionData = GameQuestionMapper.getQuestionAndTheme(
+        game.package,
+        gameState.currentRound!.id,
+        gameState.currentQuestion.id!
+      );
+    } else if (gameState.stakeQuestionData) {
+      // Stake question flow - get question from stake data
+      questionData = GameQuestionMapper.getQuestionAndTheme(
+        game.package,
+        gameState.currentRound!.id,
+        gameState.stakeQuestionData.questionId
+      );
+    } else if (gameState.secretQuestionData) {
+      // Secret question flow - get question from secret data
+      questionData = GameQuestionMapper.getQuestionAndTheme(
+        game.package,
+        gameState.currentRound!.id,
+        gameState.secretQuestionData.questionId
+      );
+    } else {
+      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+    }
 
     if (!questionData?.question) {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
     }
+
+    // Mark question as played so round progression can happen
+    GameQuestionMapper.setQuestionPlayed(
+      game,
+      questionData.question.id!,
+      questionData.theme.id!
+    );
 
     await this.socketQuestionStateService.resetToChoosingState(game);
 
@@ -941,8 +988,9 @@ export class SocketIOQuestionService {
       await this.gameService.clearTimer(game.id);
 
       game.gameState.questionState = QuestionState.SHOWING;
-      // Set the winner as the answering player for answer result validation
-      game.gameState.answeringPlayer = winnerPlayerId;
+      // For stake questions, answeringPlayer should be null during SHOWING phase
+      // It will be set when someone actually attempts to answer
+      game.gameState.answeringPlayer = null;
 
       // Get the question data from stake question data
       const stakeData = game.gameState.stakeQuestionData;
