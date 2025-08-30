@@ -20,6 +20,8 @@ class GameLobbyTitle extends WatchingWidget {
     if (questionPicked) {
       if (question.type == QuestionType.noRisk) {
         title = LocaleKeys.game_title_no_risk_question.tr();
+      } else if (question.type == QuestionType.stake) {
+        title = LocaleKeys.game_title_stake_question.tr();
       } else {
         title = LocaleKeys.game_title_waiting_for_answer.tr();
       }

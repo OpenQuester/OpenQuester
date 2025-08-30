@@ -141,12 +141,19 @@
   "game_title": {
     "waiting_for_answer": "Lets hear the answer",
     "no_risk_question": "No-risk question",
-    "select_question": "Select question"
+    "select_question": "Select question",
+    "stake_question": "Stake question"
   },
   "confirm": "Confirm",
   "game_secret_question": {
     "wait_for_player_to_select_next": "Wait for player to select who will answer",
     "choose_player": "Choose player to pass this question to"
+  },
+  "game_stake_question": {
+    "player_win_the_bid": "Player {username} won bidding with {value}",
+    "allIn": "All-in",
+    "players_stakes": "Players stakes",
+    "question_bid": "Question bid"
   },
   "cancel": "Cancel",
   "ok": "OK",
@@ -161,5 +168,7 @@
     "remove_status": "Remove {}",
     "showman_changed_score": "Showman changed score for {username} from {old} to {new}"
   },
-  "system": "System"
+  "system": "System",
+  "pass": "Pass",
+  "custom": "Custom"
 }

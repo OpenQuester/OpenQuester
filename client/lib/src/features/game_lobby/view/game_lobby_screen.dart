@@ -134,6 +134,8 @@ class _BodyBuilder extends WatchingWidget {
       body = const CircularProgressIndicator().fadeIn().center();
     } else if (gameFinished) {
       body = const _GameFinishedScreen().fadeIn();
+    } else if (gameData?.gameState.stakeQuestionData?.biddingPhase ?? false) {
+      body = const GameStakeQuestionBody().fadeIn();
     } else if (currentQuestion != null) {
       body = const GameQuestionScreen().fadeIn();
     } else {
@@ -249,7 +251,7 @@ class _BodyLayoutBuilder extends WatchingWidget {
     }
 
     final isPaused = gameData?.gameState.isPaused ?? false;
-    if (isPaused) {
+    if (isPaused && !lobbyEditorMode) {
       child = Stack(
         alignment: Alignment.center,
         children: [

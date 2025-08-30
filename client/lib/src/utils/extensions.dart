@@ -206,3 +206,12 @@ extension ColorX on Color {
     return hslDark.toColor();
   }
 }
+
+extension ListX<T> on List<T> {
+  T? tryByIndex(int? index) {
+    if (index == null) return null;
+    if (index > length) return null;
+    if (isEmpty) return null;
+    return this[index];
+  }
+}

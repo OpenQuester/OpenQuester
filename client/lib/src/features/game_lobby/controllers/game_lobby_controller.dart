@@ -87,6 +87,18 @@ class GameLobbyController {
           SocketIOGameReceiveEvents.secretQuestionTransfer.json!,
           _onSecretQuestionTransfer,
         )
+        ..on(
+          SocketIOGameReceiveEvents.stakeQuestionPicked.json!,
+          _onStakeQuestionPicked,
+        )
+        ..on(
+          SocketIOGameReceiveEvents.stakeBidSubmit.json!,
+          _onStakeQuestionSubmitted,
+        )
+        ..on(
+          SocketIOGameReceiveEvents.stakeQuestionWinner.json!,
+          _onStakeQuestionWinner,
+        )
         ..connect();
 
       return await _joinCompleter.future;
@@ -97,8 +109,6 @@ class GameLobbyController {
       rethrow;
     }
   }
-
-
 
   void _showLoggedInChatEvent(String text) {
     getIt<ToastController>().show(text, type: ToastType.info);
@@ -409,7 +419,10 @@ class GameLobbyController {
       timer: questionData.timer,
       currentQuestion: questionData.data,
       answeredPlayers: null,
-      answeringPlayer: null,
+      // Dont clear answeringPlayer for stake question
+      answeringPlayer: questionData.data.type == QuestionType.stake
+          ? gameData.value?.gameState.answeringPlayer
+          : null,
     );
 
     gameData.value = gameData.value!.copyWith.gameState(
@@ -860,6 +873,90 @@ class GameLobbyController {
       answeringPlayer: data.toPlayerId,
     );
     getIt<GameLobbyPlayerPickerController>().stopSelection();
+  }
+
+  void _onStakeQuestionPicked(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOStakeQuestionPickedEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith.gameState(
+      timer: data.timer,
+      questionState: GameStateQuestionState.bidding,
+      stakeQuestionData: StakeQuestionGameData(
+        pickerPlayerId: data.pickerPlayerId,
+        questionId: data.questionId,
+        maxPrice: data.maxPrice,
+        bids: {},
+        passedPlayers: [],
+        biddingOrder: data.biddingOrder,
+        currentBidderIndex: data.biddingOrder.first,
+        highestBid: null,
+        winnerPlayerId: null,
+        biddingPhase: true,
+      ),
+    );
+  }
+
+  void _onStakeQuestionSubmitted(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOStakeQuestionSubmittedEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    final index = gameData.value?.gameState.stakeQuestionData?.biddingOrder
+        .indexOf(data.nextBidderId ?? -1);
+
+    gameData.value = gameData.value?.copyWith.gameState(timer: data.timer);
+    final stakeData = gameData.value?.gameState.stakeQuestionData;
+    gameData.value = gameData.value?.copyWith.gameState.stakeQuestionData!(
+      biddingPhase: !data.isPhaseComplete,
+      currentBidderIndex: index ?? -1,
+      bids: {
+        ...?stakeData?.bids,
+        data.playerId.toString(): data.bidAmount,
+      },
+    );
+  }
+
+  void _onStakeQuestionWinner(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOStakeQuestionWinnerEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith.gameState(
+      timer: null,
+      answeringPlayer: data.winnerPlayerId,
+    );
+    gameData.value = gameData.value?.copyWith.gameState.stakeQuestionData?.call(
+      winnerPlayerId: data.winnerPlayerId,
+      highestBid: data.finalBid,
+    );
+
+    final winnerUsername =
+        gameData.value?.players.getById(data.winnerPlayerId)?.meta.username ??
+        '';
+
+    _showLoggedInChatEvent(
+      LocaleKeys.game_stake_question_player_win_the_bid.tr(
+        namedArgs: {
+          'username': winnerUsername,
+          'value': ScoreText.formatScore(data.finalBid).$1,
+        },
+      ),
+    );
+  }
+
+  void submitQuestionBid(SocketIOStakeQuestionBidInput input) {
+    socket?.emit(
+      SocketIOGameSendEvents.stakeBidSubmit.json!,
+      input.toJson(),
+    );
   }
 }
 

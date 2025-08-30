@@ -7,7 +7,7 @@ class ScoreText extends StatelessWidget {
     this.textStyle,
     super.key,
   });
-  final int score;
+  final int? score;
   final TextStyle? textStyle;
 
   @override
@@ -20,16 +20,23 @@ class ScoreText extends StatelessWidget {
 
     if (!compactFormat) return text;
 
-    return Tooltip(message: longNumberFormatter.format(score), child: text);
+    return Tooltip(
+      message: score == null
+          ? formattedScore
+          : longNumberFormatter.format(score),
+      child: text,
+    );
   }
 
-  static (String, bool) formatScore(int? score) {
-    final compactFormat = (score ?? 0) >= 1_000_000;
+  static (String formattedText, bool isCompact) formatScore(int? score) {
+    if (score == null) return ('...', true);
+
+    final compactFormat = score >= 1_000_000;
     final formatter = compactFormat
         ? compactNumberFormatter
         : longNumberFormatter;
 
-    return (formatter.format(score ?? 0), compactFormat);
+    return (formatter.format(score), compactFormat);
   }
 
   static final longNumberFormatter = NumberFormat.decimalPattern();

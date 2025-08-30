@@ -10,7 +10,7 @@ class GameLobbyEditor extends WatchingWidget {
       padding: 16.all,
       children: const [
         _ReadyButton(),
-        _RoleGroup(PlayerRole.showman),
+        _RoleGroup(PlayerRole.showman, showDisconnected: false),
         _RoleGroup(PlayerRole.player),
         _RoleGroup(PlayerRole.spectator),
       ],
@@ -33,6 +33,7 @@ class _ReadyButton extends WatchingWidget {
     final readyPlayers = gameData?.gameState.readyPlayers;
     final imReady = readyPlayers?.contains(gameData?.me.meta.id) ?? false;
     final imShowman = gameData?.me.role == PlayerRole.showman;
+    final imSpectator = gameData?.me.role == PlayerRole.spectator;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -43,52 +44,58 @@ class _ReadyButton extends WatchingWidget {
             LocaleKeys.game_lobby_hint.tr(),
             style: context.textTheme.bodyMedium,
           ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FilledButton.tonal(
-              onPressed: () {
-                final controller = getIt<GameLobbyController>();
-                if (imShowman) {
-                  controller.startGame();
-                } else {
-                  controller.playerReady(ready: !imReady);
-                }
-              },
-              child: Text(
-                imShowman
-                    ? [
-                        LocaleKeys.start_game.tr(),
-                        ' ',
-                        '(',
-                        LocaleKeys.game_lobby_editor_ready.tr(),
-                        ' ',
-                        ':',
-                        ' ${readyPlayers?.length ?? 0}/$playerCount',
-                        ')',
-                      ].join()
-                    : imReady
-                    ? LocaleKeys.game_lobby_editor_not_ready.tr()
-                    : LocaleKeys.game_lobby_editor_ready.tr(),
+        if (!imSpectator)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FilledButton.tonal(
+                onPressed: () {
+                  final controller = getIt<GameLobbyController>();
+                  if (imShowman) {
+                    controller.startGame();
+                  } else {
+                    controller.playerReady(ready: !imReady);
+                  }
+                },
+                child: Text(
+                  imShowman
+                      ? [
+                          LocaleKeys.start_game.tr(),
+                          ' ',
+                          '(',
+                          LocaleKeys.game_lobby_editor_ready.tr(),
+                          ' ',
+                          ':',
+                          ' ${readyPlayers?.length ?? 0}/$playerCount',
+                          ')',
+                        ].join()
+                      : imReady
+                      ? LocaleKeys.game_lobby_editor_not_ready.tr()
+                      : LocaleKeys.game_lobby_editor_ready.tr(),
+                ),
               ),
-            ),
-          ],
-        ).paddingAll(16),
+            ],
+          ).paddingAll(16),
       ],
     );
   }
 }
 
 class _RoleGroup extends WatchingWidget {
-  const _RoleGroup(this.role);
+  const _RoleGroup(this.role, {this.showDisconnected = true});
   final PlayerRole role;
+  final bool showDisconnected;
 
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final groupPlayers =
         gameData?.players
-            .where((e) => e.role == role)
+            .where(
+              (e) =>
+                  e.role == role &&
+                  (showDisconnected || e.status == PlayerDataStatus.inGame),
+            )
             .sortedBy((p) => p.slot ?? 0) ??
         [];
 
