@@ -719,6 +719,7 @@ export class SocketIOQuestionService {
     const game = context.game;
     const currentPlayer = context.currentPlayer;
 
+    // Also validates that current player is not null
     StakeQuestionValidator.validateBidSubmission({
       game,
       currentPlayer,
@@ -729,7 +730,7 @@ export class SocketIOQuestionService {
     const stakeData = game.gameState.stakeQuestionData!;
 
     // When showman is bidding, they bid on behalf of the current bidding player
-    const isShowmanOverride = currentPlayer?.role === PlayerRole.SHOWMAN;
+    const isShowmanOverride = currentPlayer!.role === PlayerRole.SHOWMAN;
     let biddingPlayer: Player;
 
     if (isShowmanOverride) {
@@ -744,10 +745,8 @@ export class SocketIOQuestionService {
         throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
       }
 
-      // Validate that this player can actually bid
       biddingPlayer = targetPlayer;
     } else {
-      // Player is bidding for themselves
       biddingPlayer = currentPlayer!;
     }
 

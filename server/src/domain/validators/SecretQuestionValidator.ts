@@ -37,7 +37,6 @@ export class SecretQuestionValidator {
       throw new ClientError(ClientResponse.SECRET_QUESTION_DATA_NOT_FOUND);
     }
 
-    // Allow showman to transfer on behalf of picker player, or picker player themselves
     const isShowmanOverride = currentPlayer.role === PlayerRole.SHOWMAN;
     const isPickerPlayer = secretData.pickerPlayerId === currentPlayer.meta.id;
 

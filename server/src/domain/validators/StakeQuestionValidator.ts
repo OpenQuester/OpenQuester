@@ -28,7 +28,6 @@ export class StakeQuestionValidator {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
 
-    // Allow showman to bid on behalf of current bidding player, or players to bid themselves
     const isShowmanOverride = currentPlayer.role === PlayerRole.SHOWMAN;
     const isPlayer = currentPlayer.role === PlayerRole.PLAYER;
 
