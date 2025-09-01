@@ -398,6 +398,39 @@
   .status-warning {
     @apply status-dot bg-warning-500;
   }
+
+  /* Permission item styles for EditPermissionsModal */
+  .permission-item {
+    @apply relative text-left p-3 rounded-lg border transition-all duration-200;
+    @apply bg-card border-border text-primaryText hover:bg-hover hover:border-primary-200;
+  }
+
+  .permission-item-selected {
+    /* Light theme - use blue colors for all categories */
+    @apply bg-blue-50 border-blue-300 text-blue-900 hover:bg-blue-100 hover:border-blue-400;
+  }
+
+  .permission-item-indicator {
+    @apply w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center;
+  }
+
+  /* Dark theme permission item styles */
+  .theme-dark .permission-item-selected {
+    @apply bg-blue-950/30 border-blue-700 text-blue-100 hover:bg-blue-950/40 hover:border-blue-600;
+  }
+
+  .theme-dark .permission-item-indicator {
+    @apply bg-blue-400 text-blue-950;
+  }
+
+  /* Pure dark theme permission item styles */
+  .theme-pure-dark .permission-item-selected {
+    @apply bg-blue-950/40 border-blue-800 text-blue-200 hover:bg-blue-950/50 hover:border-blue-700;
+  }
+
+  .theme-pure-dark .permission-item-indicator {
+    @apply bg-blue-300 text-blue-950;
+  }
 }
 
 /* Utility layer - Helper classes */

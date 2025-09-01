@@ -124,6 +124,7 @@ export const EditPermissionsModal = memo(
                       const isSelected = selectedPermissions.has(
                         permission.name
                       );
+
                       return (
                         <button
                           key={permission.name}
@@ -131,14 +132,9 @@ export const EditPermissionsModal = memo(
                             handleTogglePermission(permission.name)
                           }
                           disabled={isSaving}
-                          className={`
-                          relative group text-left p-3 rounded-lg border transition-all duration-200 
-                          ${
-                            isSelected
-                              ? "bg-blue-50 border-blue-300 text-blue-900 hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-700 dark:text-blue-100 dark:hover:bg-blue-950/40"
-                              : "bg-card border-border text-primaryText hover:bg-hover hover:border-primary-200"
-                          }
-                          ${
+                          className={`permission-item ${
+                            isSelected ? "permission-item-selected" : ""
+                          } ${
                             isSaving
                               ? "opacity-50 cursor-not-allowed"
                               : "cursor-pointer"
@@ -157,7 +153,7 @@ export const EditPermissionsModal = memo(
                             </div>
                             {isSelected && (
                               <div className="flex-shrink-0 ml-2">
-                                <div className="w-5 h-5 rounded-full bg-primary-500 text-white flex items-center justify-center">
+                                <div className="permission-item-indicator">
                                   <X className="h-3 w-3" />
                                 </div>
                               </div>

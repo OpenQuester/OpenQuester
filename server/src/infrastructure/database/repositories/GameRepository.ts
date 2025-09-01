@@ -164,11 +164,17 @@ export class GameRepository {
     );
 
     if (!packageData) {
-      throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.PACKAGE_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     if (!packageData.author) {
-      throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.PACKAGE_AUTHOR_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     let gameId = "";
@@ -287,15 +293,24 @@ export class GameRepository {
     const packData = game.package;
 
     if (!packData) {
-      throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.PACKAGE_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     if (!packData.author) {
-      throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.PACKAGE_AUTHOR_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     if (!createdBy) {
-      throw new ClientError(ClientResponse.USER_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     return this._parseGameToListItemDTO(game, createdBy, packData);

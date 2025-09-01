@@ -66,7 +66,10 @@ export class PackageService {
     );
 
     if (!pack) {
-      throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.PACKAGE_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     return pack;
