@@ -48,6 +48,7 @@ import { QuestionActionValidator } from "domain/validators/QuestionActionValidat
 import { SecretQuestionValidator } from "domain/validators/SecretQuestionValidator";
 import { StakeQuestionValidator } from "domain/validators/StakeQuestionValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class SocketIOQuestionService {
   constructor(
@@ -736,6 +737,15 @@ export class SocketIOQuestionService {
     if (isShowmanOverride) {
       // Get the current bidding player from stake data
       const currentBidderIndex = stakeData.currentBidderIndex;
+
+      if (
+        !ValueUtils.isNumber(currentBidderIndex) ||
+        currentBidderIndex < 0 ||
+        currentBidderIndex >= stakeData.biddingOrder.length
+      ) {
+        throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+      }
+
       const biddingPlayerId = stakeData.biddingOrder[currentBidderIndex];
 
       const targetPlayer = game.getPlayer(biddingPlayerId, {

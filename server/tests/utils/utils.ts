@@ -22,7 +22,8 @@ export function setTestEnvDefaults() {
   process.env.DB_TYPE = "pg";
   process.env.DB_NAME = "test_db";
   process.env.DB_USER = "postgres";
-  process.env.DB_PASS = "postgres";
+  // process.env.DB_PASS = "postgres";
+  process.env.DB_PASS = "Asdf1234!";
   process.env.DB_HOST = "localhost";
   process.env.DB_PORT = "5432";
   process.env.DB_LOGGER = "false";
@@ -34,7 +35,7 @@ export function setTestEnvDefaults() {
   process.env.REDIS_DB_NUMBER = "0";
   process.env.CORS_ORIGINS = "localhost";
   process.env.SOCKET_IO_CORS_ORIGINS = "localhost";
-  process.env.LOG_LEVEL = "trace";
+  process.env.LOG_LEVEL = "info";
   // Dummy S3, we don't check S3 in tests, used just to avoid errors
   process.env.S3_ENDPOINT = "http://localhost:9000";
   process.env.S3_URL_PREFIX = "http://bucket.localhost:9000";
