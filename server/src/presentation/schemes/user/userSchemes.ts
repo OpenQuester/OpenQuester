@@ -101,3 +101,12 @@ export const userPaginationScheme = () =>
       .valid(...Object.values(UserType))
       .optional(),
   });
+
+export const userPermissionsUpdateScheme = () =>
+  Joi.object({
+    permissions: Joi.array()
+      .items(Joi.string())
+      .min(0)
+      .required()
+      .description("Array of permission names to assign to the user"),
+  });

@@ -375,7 +375,10 @@ export class DIConfig {
       new PackageService(
         Container.get<PackageRepository>(CONTAINER_TYPES.PackageRepository),
         Container.get<UserService>(CONTAINER_TYPES.UserService),
-        Container.get<S3StorageService>(CONTAINER_TYPES.S3StorageService)
+        Container.get<S3StorageService>(CONTAINER_TYPES.S3StorageService),
+        Container.get<PackageTagService>(CONTAINER_TYPES.PackageTagService),
+        Container.get<DependencyService>(CONTAINER_TYPES.DependencyService),
+        this.logger
       ),
       "service"
     );

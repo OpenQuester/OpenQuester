@@ -10,6 +10,7 @@ import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { SelectOptions } from "domain/types/SelectOptions";
 import { RegisterUser } from "domain/types/user/RegisterUser";
+import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { QueryBuilder } from "infrastructure/database/QueryBuilder";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -422,5 +423,31 @@ export class UserRepository {
     this.logger.audit(`User '${user.id} | ${user.email}' is restored`, {
       prefix: "[USER_REPOSITORY]: ",
     });
+  }
+
+  /**
+   * Update user with permissions using TypeORM's save method which handles many-to-many relationships
+   */
+  public async updateWithPermissions(user: User): Promise<void> {
+    // Clear cache before update
+    await this.cache.delete(user.id);
+    await this.repository.save(user);
+  }
+
+  /**
+   * Get permission entities by their names
+   */
+  public async getPermissionsByNames(
+    permissionNames: string[]
+  ): Promise<Permission[]> {
+    const permissionRepository =
+      this.repository.manager.getRepository(Permission);
+
+    const permissions = await permissionRepository
+      .createQueryBuilder("permission")
+      .where("permission.name IN (:...names)", { names: permissionNames })
+      .getMany();
+
+    return permissions;
   }
 }

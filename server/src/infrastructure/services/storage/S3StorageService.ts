@@ -321,6 +321,13 @@ export class S3StorageService {
       return;
     }
 
+    await this.deleteFileFromStorage(filename);
+  }
+
+  /**
+   * Delete file from S3 storage and remove from database (used for package deletion)
+   */
+  public async deleteFileFromStorage(filename: string): Promise<void> {
     const filePath = StorageUtils.parseFilePath(filename);
     await this.fileService.removeFile(filename);
 

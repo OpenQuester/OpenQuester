@@ -373,6 +373,10 @@ export const DashboardPage = () => {
         <UserDetailModal
           user={selectedUser}
           onClose={() => setSelectedUser(null)}
+          onUserUpdated={(updatedUser) => {
+            setSelectedUser(updatedUser);
+            invalidateDashboard();
+          }}
         />
       )}
     </div>
