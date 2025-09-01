@@ -728,6 +728,29 @@ export class SocketIOQuestionService {
     // Execution
     const stakeData = game.gameState.stakeQuestionData!;
 
+    // When showman is bidding, they bid on behalf of the current bidding player
+    const isShowmanOverride = currentPlayer?.role === PlayerRole.SHOWMAN;
+    let biddingPlayer: Player;
+
+    if (isShowmanOverride) {
+      // Get the current bidding player from stake data
+      const currentBidderIndex = stakeData.currentBidderIndex;
+      const biddingPlayerId = stakeData.biddingOrder[currentBidderIndex];
+
+      const targetPlayer = game.getPlayer(biddingPlayerId, {
+        fetchDisconnected: false,
+      });
+      if (!targetPlayer) {
+        throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+      }
+
+      // Validate that this player can actually bid
+      biddingPlayer = targetPlayer;
+    } else {
+      // Player is bidding for themselves
+      biddingPlayer = currentPlayer!;
+    }
+
     // For stake questions, get question using the questionId from stake data
     // Because currentQuestion is not set to gameState while bidding phase
     const stakeQuestionData = GameQuestionMapper.getQuestionAndTheme(
@@ -744,10 +767,10 @@ export class SocketIOQuestionService {
     const allPlayers = game.getInGamePlayers().map((player) => player.toDTO());
 
     const bidResult = StakeBiddingMapper.placeBid({
-      playerId: currentPlayer!.meta.id,
+      playerId: biddingPlayer.meta.id,
       bid,
       stakeData,
-      currentPlayer: currentPlayer!.toDTO(),
+      currentPlayer: biddingPlayer.toDTO(),
       questionPrice: question.price || 1, // Default to 1 if somehow price is null
       allPlayers,
     });
@@ -771,7 +794,7 @@ export class SocketIOQuestionService {
 
     return {
       game,
-      playerId: currentPlayer!.meta.id,
+      playerId: biddingPlayer.meta.id,
       bidAmount,
       bidType,
       isPhaseComplete,

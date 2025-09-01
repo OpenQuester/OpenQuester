@@ -19,6 +19,7 @@ export interface StakeQuestionContext {
 export class StakeQuestionValidator {
   /**
    * Validates stake question bid submission requirements
+   * Allows showman to bid on behalf of current bidding player
    */
   public static validateBidSubmission(context: StakeQuestionContext): void {
     const { currentPlayer, stakeData } = context;
@@ -27,7 +28,11 @@ export class StakeQuestionValidator {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
 
-    if (currentPlayer.role !== PlayerRole.PLAYER) {
+    // Allow showman to bid on behalf of current bidding player, or players to bid themselves
+    const isShowmanOverride = currentPlayer.role === PlayerRole.SHOWMAN;
+    const isPlayer = currentPlayer.role === PlayerRole.PLAYER;
+
+    if (!isShowmanOverride && !isPlayer) {
       throw new ClientError(ClientResponse.INSUFFICIENT_PERMISSIONS);
     }
 

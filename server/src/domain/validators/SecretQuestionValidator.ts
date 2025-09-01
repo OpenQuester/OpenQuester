@@ -20,6 +20,7 @@ export interface SecretQuestionContext {
 export class SecretQuestionValidator {
   /**
    * Validates secret question transfer requirements
+   * Allows showman to transfer on behalf of picker player
    */
   public static validateTransfer(context: SecretQuestionContext): void {
     const { game, currentPlayer, secretData, targetPlayerId } = context;
@@ -36,7 +37,11 @@ export class SecretQuestionValidator {
       throw new ClientError(ClientResponse.SECRET_QUESTION_DATA_NOT_FOUND);
     }
 
-    if (secretData.pickerPlayerId !== currentPlayer.meta.id) {
+    // Allow showman to transfer on behalf of picker player, or picker player themselves
+    const isShowmanOverride = currentPlayer.role === PlayerRole.SHOWMAN;
+    const isPickerPlayer = secretData.pickerPlayerId === currentPlayer.meta.id;
+
+    if (!isShowmanOverride && !isPickerPlayer) {
       throw new ClientError(ClientResponse.CANNOT_TRANSFER_SECRET_QUESTION);
     }
 
