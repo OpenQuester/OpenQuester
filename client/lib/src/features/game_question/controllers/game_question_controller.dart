@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:openquester/common_imports.dart';
@@ -100,6 +101,15 @@ class GameQuestionController {
 
   void onChangeVolume(double volume) {
     this.volume.value = volume.clamp(0, 1);
-    mediaController.value?.setVolume(this.volume.value);
+    mediaController.value?.setVolume(_toLogVolume(this.volume.value));
+  }
+
+  double _toLogVolume(double linear) {
+    // map [0,1] to dB range, e.g. -60dB (almost silent) to 0dB (full)
+    if (linear <= 0) return 0.0;
+    const minDb = -60.0;
+    const maxDb = 0.0;
+    final db = minDb + (maxDb - minDb) * linear;
+    return math.pow(10, db / 20).toDouble();
   }
 }
