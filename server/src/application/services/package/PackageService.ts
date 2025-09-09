@@ -300,14 +300,14 @@ export class PackageService {
       }
     });
 
-    // Step 8: Delete files from S3 storage (only for files that were deleted from DB)
-    for (const filename of filesDeletedFromDB) {
+    // Step 8: Delete files from S3 storage in batch (only for files that were deleted from DB)
+    if (filesDeletedFromDB.length > 0) {
       try {
-        await this.storage.deleteFileFromStorage(filename);
+        await this.storage.deleteFilesFromStorage(filesDeletedFromDB);
       } catch (error) {
         // Log error but don't fail the entire operation
-        this.logger.error(`Failed to delete file ${filename} from S3`, {
-          filename,
+        this.logger.error(`Failed to delete files from S3 in batch`, {
+          filenames: filesDeletedFromDB,
           packageId,
           error: error instanceof Error ? error.message : String(error),
         });
