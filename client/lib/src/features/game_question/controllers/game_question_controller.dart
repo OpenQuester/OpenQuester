@@ -106,7 +106,7 @@ class GameQuestionController {
 
   double _toLogVolume(double linear) {
     // map [0,1] to dB range, e.g. -60dB (almost silent) to 0dB (full)
-    if (linear <= 0) return 0.0;
+    if (linear <= 0) return 0;
     const minDb = -60.0;
     const maxDb = 0.0;
     final db = minDb + (maxDb - minDb) * linear;
