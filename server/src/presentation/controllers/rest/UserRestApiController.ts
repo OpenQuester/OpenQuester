@@ -12,6 +12,7 @@ import { UpdateUserDTO } from "domain/types/dto/user/UpdateUserDTO";
 import { UpdateUserInputDTO } from "domain/types/dto/user/UpdateUserInputDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { UserInputDTO } from "domain/types/dto/user/UserInputDTO";
+import { UserPermissionsUpdateDTO } from "domain/types/dto/user/UserPermissionsUpdateDTO";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { File } from "infrastructure/database/models/File";
 import { User } from "infrastructure/database/models/User";
@@ -19,13 +20,14 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import {
-  checkPermission,
+  checkPermissionMiddleware,
   checkPermissionWithId,
 } from "presentation/middleware/permission/PermissionMiddleware";
 import { PaginationSchema } from "presentation/schemes/pagination/PaginationSchema";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 import {
   userIdScheme,
+  userPermissionsUpdateScheme,
   userUpdateScheme,
 } from "presentation/schemes/user/userSchemes";
 
@@ -51,7 +53,7 @@ export class UserRestApiController {
 
     router.get(
       "/",
-      checkPermission(Permissions.GET_ALL_USERS, this.logger),
+      checkPermissionMiddleware(Permissions.GET_ALL_USERS, this.logger),
       asyncHandler(this.listUsers)
     );
 
@@ -59,6 +61,12 @@ export class UserRestApiController {
       "/:id",
       checkPermissionWithId(Permissions.GET_ANOTHER_USER, this.logger),
       asyncHandler(this.getUser)
+    );
+
+    router.patch(
+      "/:id/permissions",
+      checkPermissionMiddleware(Permissions.MANAGE_PERMISSIONS, this.logger),
+      asyncHandler(this.updateUserPermissions)
     );
   }
 
@@ -191,6 +199,47 @@ export class UserRestApiController {
 
     return res.status(HttpStatus.NOT_FOUND).send({
       message: await ts.localize(ClientResponse.USER_NOT_FOUND, req.headers),
+    });
+  };
+
+  private updateUserPermissions = async (req: Request, res: Response) => {
+    const userId = Number(req.params.id);
+
+    // Validate user ID
+    const validatedUserData = new RequestDataValidator<UserInputDTO>(
+      { userId },
+      userIdScheme()
+    ).validate();
+
+    // Validate permissions update data
+    const validatedPermissionsData =
+      new RequestDataValidator<UserPermissionsUpdateDTO>(
+        req.body,
+        userPermissionsUpdateScheme()
+      ).validate();
+
+    this.logger.info("User permissions update request received", {
+      targetUserId: validatedUserData.userId,
+      requestorUserId: req.user?.id,
+      permissionsCount: validatedPermissionsData.permissions.length,
+      newPermissions: validatedPermissionsData.permissions,
+    });
+
+    // Delegate business logic to service
+    const updatedUser = await this.userService.updateUserPermissionsByNames(
+      validatedUserData.userId,
+      validatedPermissionsData.permissions
+    );
+
+    this.logger.audit("User permissions update completed successfully", {
+      targetUserId: validatedUserData.userId,
+      requestorUserId: req.user?.id,
+    });
+
+    // Return success response with user data
+    return res.status(HttpStatus.OK).send({
+      message: "User permissions updated successfully",
+      data: updatedUser,
     });
   };
 

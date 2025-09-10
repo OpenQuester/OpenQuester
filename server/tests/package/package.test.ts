@@ -2,10 +2,12 @@ import { type Express } from "express";
 import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
+import { Permissions } from "domain/enums/Permissions";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PackageUploadResponse } from "domain/types/package/PackageUploadResponse";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { Package } from "infrastructure/database/models/package/Package";
+import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -37,6 +39,33 @@ async function createPackages(
   }
 }
 
+async function preparePermission(
+  permRepo: Repository<Permission>,
+  permissionName: string
+): Promise<Permission> {
+  let perm = await permRepo.findOne({ where: { name: permissionName } });
+  if (!perm) {
+    perm = permRepo.create({ name: permissionName });
+    await permRepo.save(perm);
+  }
+  return perm;
+}
+
+async function createUserWithPermissions(
+  userRepo: Repository<User>,
+  username: string,
+  permissions: Permission[]
+): Promise<User> {
+  const user = userRepo.create({
+    username,
+    email: `${username}@test.com`,
+    is_deleted: false,
+    permissions: permissions,
+  });
+  await userRepo.save(user);
+  return user;
+}
+
 function getTimeOfStringDate(dateString: Date | string): number {
   return new Date(dateString).getTime();
 }
@@ -47,6 +76,7 @@ describe("PackageRestApiController", () => {
   let dataSource: DataSource;
   let userRepo: Repository<User>;
   let packageRepo: Repository<Package>;
+  let permRepo: Repository<Permission>;
   let cleanup: (() => Promise<void>) | undefined;
   let packageUtils: PackageUtils;
   let testUtils: TestUtils;
@@ -65,6 +95,7 @@ describe("PackageRestApiController", () => {
     // --- repositories ---
     userRepo = dataSource.getRepository<User>("User");
     packageRepo = dataSource.getRepository<Package>("Package");
+    permRepo = dataSource.getRepository<Permission>("Permission");
     // --- utils ---
     serverUrl = `http://localhost:${process.env.PORT || 3000}`;
     packageUtils = new PackageUtils();
@@ -74,6 +105,7 @@ describe("PackageRestApiController", () => {
   afterEach(async () => {
     await userRepo.delete({});
     await packageRepo.delete({});
+    await permRepo.delete({});
   });
 
   afterAll(async () => {
@@ -90,6 +122,7 @@ describe("PackageRestApiController", () => {
   beforeEach(async () => {
     await userRepo.delete({});
     await packageRepo.delete({});
+    await permRepo.delete({});
   });
 
   it("should create package successfully", async () => {
@@ -213,5 +246,225 @@ describe("PackageRestApiController", () => {
     expect(getTimeOfStringDate(result.data[1].createdAt)).toBeGreaterThan(
       getTimeOfStringDate(result.data[2].createdAt)
     );
+  });
+
+  describe("Package Deletion", () => {
+    it("should successfully delete package when user is the author", async () => {
+      const loginData = await testUtils.createAndLoginUser("author");
+      const packageData = packageUtils.createTestPackageData(
+        loginData.user,
+        false
+      );
+
+      // Create package
+      const createRes = await request(app)
+        .post("/v1/packages")
+        .send({
+          content: packageData,
+        })
+        .set("Cookie", loginData.cookie);
+
+      const packageId = createRes.body.id;
+
+      // Verify package exists
+      const getRes = await request(app)
+        .get(`/v1/packages/${packageId}`)
+        .set("Cookie", loginData.cookie);
+      expect(getRes.status).toBe(200);
+
+      // Delete package as author
+      const deleteRes = await request(app)
+        .delete(`/v1/packages/${packageId}`)
+        .set("Cookie", loginData.cookie);
+
+      expect(deleteRes.status).toBe(200);
+      expect(deleteRes.body.message).toBe("Package deleted successfully");
+
+      // Verify package is deleted
+      const getAfterDeleteRes = await request(app)
+        .get(`/v1/packages/${packageId}`)
+        .set("Cookie", loginData.cookie);
+
+      expect(getAfterDeleteRes.status).toBe(404);
+      expect(getAfterDeleteRes.body.error).toBe("Package not found");
+    });
+
+    it("should successfully delete package when user has DELETE_PACKAGE permission", async () => {
+      // Create author and package
+      const authorData = await testUtils.createAndLoginUser("author");
+      const packageData = packageUtils.createTestPackageData(
+        authorData.user,
+        false
+      );
+
+      const createRes = await request(app)
+        .post("/v1/packages")
+        .send({
+          content: packageData,
+        })
+        .set("Cookie", authorData.cookie);
+
+      const packageId = createRes.body.id;
+
+      // Create user with DELETE_PACKAGE permission
+      const deletePermission = await preparePermission(
+        permRepo,
+        Permissions.DELETE_PACKAGE
+      );
+      const privilegedUser = await createUserWithPermissions(
+        userRepo,
+        "privileged",
+        [deletePermission]
+      );
+
+      // Login as this user using the standard test login
+      const loginRes = await request(app)
+        .post("/v1/test/login")
+        .send({ userId: privilegedUser.id });
+      expect(loginRes.status).toBe(200);
+      const privilegedCookie = loginRes.headers["set-cookie"];
+
+      // Delete package with permission
+      const deleteRes = await request(app)
+        .delete(`/v1/packages/${packageId}`)
+        .set("Cookie", privilegedCookie);
+
+      expect(deleteRes.status).toBe(200);
+      expect(deleteRes.body.message).toBe("Package deleted successfully");
+
+      // Verify package is deleted
+      const getAfterDeleteRes = await request(app)
+        .get(`/v1/packages/${packageId}`)
+        .set("Cookie", authorData.cookie);
+      expect(getAfterDeleteRes.status).toBe(404);
+      expect(getAfterDeleteRes.body.error).toBe("Package not found");
+    });
+
+    it("should reject package deletion when user lacks permission and is not author", async () => {
+      // Create author and package
+      const authorData = await testUtils.createAndLoginUser("author");
+      const packageData = packageUtils.createTestPackageData(
+        authorData.user,
+        false
+      );
+
+      const createRes = await request(app)
+        .post("/v1/packages")
+        .send({
+          content: packageData,
+        })
+        .set("Cookie", authorData.cookie);
+
+      const packageId = createRes.body.id;
+
+      // Create user without DELETE_PACKAGE permission
+      const unprivilegedUser = await createUserWithPermissions(
+        userRepo,
+        "unprivileged",
+        []
+      );
+      // Login as this user
+      const loginRes = await request(app)
+        .post("/v1/test/login")
+        .send({ userId: unprivilegedUser.id });
+      const unprivilegedCookie = loginRes.headers["set-cookie"];
+
+      // Attempt to delete package without permission
+      const deleteRes = await request(app)
+        .delete(`/v1/packages/${packageId}`)
+        .set("Cookie", unprivilegedCookie);
+
+      expect(deleteRes.status).toBe(403);
+      expect(deleteRes.body.error).toBe(
+        "You don't have permission to perform this action"
+      );
+
+      // Verify package still exists
+      const getAfterDeleteRes = await request(app)
+        .get(`/v1/packages/${packageId}`)
+        .set("Cookie", authorData.cookie);
+      expect(getAfterDeleteRes.status).toBe(200);
+    });
+
+    it("should reject package deletion when user is not authenticated", async () => {
+      // Create package as authenticated user
+      const authorData = await testUtils.createAndLoginUser("author");
+      const packageData = packageUtils.createTestPackageData(
+        authorData.user,
+        false
+      );
+
+      const createRes = await request(app)
+        .post("/v1/packages")
+        .send({
+          content: packageData,
+        })
+        .set("Cookie", authorData.cookie);
+
+      const packageId = createRes.body.id;
+
+      // Attempt to delete package without authentication
+      const deleteRes = await request(app).delete(`/v1/packages/${packageId}`);
+
+      expect(deleteRes.status).toBe(401);
+      expect(deleteRes.body.error).toBe("Access denied");
+
+      // Verify package still exists
+      const getAfterDeleteRes = await request(app)
+        .get(`/v1/packages/${packageId}`)
+        .set("Cookie", authorData.cookie);
+      expect(getAfterDeleteRes.status).toBe(200);
+    });
+
+    it("should return 404 when trying to delete non-existent package", async () => {
+      // Create user with DELETE_PACKAGE permission
+      const deletePermission = await preparePermission(
+        permRepo,
+        Permissions.DELETE_PACKAGE
+      );
+      const privilegedUser = await createUserWithPermissions(
+        userRepo,
+        "privileged",
+        [deletePermission]
+      );
+      // Login as this user
+      const loginRes = await request(app)
+        .post("/v1/test/login")
+        .send({ userId: privilegedUser.id });
+      const privilegedCookie = loginRes.headers["set-cookie"];
+
+      // Attempt to delete non-existent package
+      const deleteRes = await request(app)
+        .delete(`/v1/packages/999999`)
+        .set("Cookie", privilegedCookie);
+
+      expect(deleteRes.status).toBe(404);
+      expect(deleteRes.body.error).toBe("Package not found");
+    });
+
+    it("should return 400 for invalid package ID", async () => {
+      // Create user with DELETE_PACKAGE permission
+      const deletePermission = await preparePermission(
+        permRepo,
+        Permissions.DELETE_PACKAGE
+      );
+      const privilegedUser = await createUserWithPermissions(
+        userRepo,
+        "privileged",
+        [deletePermission]
+      );
+      // Login as this user
+      const loginRes = await request(app)
+        .post("/v1/test/login")
+        .send({ userId: privilegedUser.id });
+      const privilegedCookie = loginRes.headers["set-cookie"];
+
+      // Attempt to delete package with invalid ID
+      const deleteRes = await request(app)
+        .delete(`/v1/packages/invalid`)
+        .set("Cookie", privilegedCookie);
+
+      expect(deleteRes.status).toBe(400);
+    });
   });
 });

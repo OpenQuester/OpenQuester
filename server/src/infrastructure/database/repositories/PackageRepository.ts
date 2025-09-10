@@ -1,4 +1,4 @@
-import { In, Repository } from "typeorm";
+import { EntityManager, In, Repository } from "typeorm";
 
 import { FileService } from "application/services/file/FileService";
 import { PackageTagService } from "application/services/package/PackageTagService";
@@ -195,6 +195,17 @@ export class PackageRepository {
         tags: tagEntities,
       });
       await transaction.save(pack);
+
+      // Create file usage for logo if it exists (for both new and existing files)
+      if (logoFile) {
+        const logoUsage = new FileUsage();
+        logoUsage.import({
+          file: logoFile,
+          user: undefined,
+          package: pack,
+        });
+        await transaction.save(logoUsage);
+      }
 
       // Arrays for bulk upload
       const roundsToSave: PackageRound[] = [];
@@ -474,5 +485,25 @@ export class PackageRepository {
 
       return { pack, files };
     });
+  }
+
+  /**
+   * Execute function within a database transaction
+   */
+  public async executeInTransaction<T>(
+    fn: (transaction: EntityManager) => Promise<T>
+  ): Promise<T> {
+    return this.db.dataSource.transaction(fn);
+  }
+
+  /**
+   * Delete package and related data within a transaction
+   */
+  public async deleteInTransaction(
+    transaction: EntityManager,
+    packageEntity: Package
+  ): Promise<void> {
+    // Delete the package (CASCADE will handle related entities)
+    await transaction.delete(Package, packageEntity.id);
   }
 }

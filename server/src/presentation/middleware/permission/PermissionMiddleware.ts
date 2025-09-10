@@ -12,7 +12,10 @@ import { Permission } from "infrastructure/database/models/Permission";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
-export function checkPermission(permission: Permissions, logger: ILogger) {
+export function checkPermissionMiddleware(
+  permission: Permissions,
+  logger: ILogger
+) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = await Container.get<UserService>(

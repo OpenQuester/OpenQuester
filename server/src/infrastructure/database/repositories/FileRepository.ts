@@ -1,4 +1,4 @@
-import { type Repository } from "typeorm";
+import { In, type Repository } from "typeorm";
 
 import { FileSource } from "domain/enums/file/FileSource";
 import { FileDTO } from "domain/types/dto/file/FileDTO";
@@ -49,12 +49,24 @@ export class FileRepository {
   }
 
   /**
+   * Get multiple files by their filenames using IN clause for performance
+   */
+  public async getFilesByFilenames(filenames: string[]): Promise<File[]> {
+    if (filenames.length === 0) {
+      return [];
+    }
+    return this.repository.find({
+      where: { filename: In(filenames) },
+    });
+  }
+
+  /**
    * Remove file record from DB if it exists
    */
   public async removeFile(filename: string) {
     const file = await this.getFileByFilename(filename);
     if (file?.id && file.id > 0) {
-      return this.repository.remove(file);
+      return this.repository.delete({ id: file.id });
     }
   }
 }

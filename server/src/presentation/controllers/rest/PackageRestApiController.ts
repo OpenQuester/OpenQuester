@@ -1,13 +1,16 @@
 import { Router, type Express, type Request, type Response } from "express";
 
 import { PackageService } from "application/services/package/PackageService";
+import { UserService } from "application/services/user/UserService";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PackageInputDTO } from "domain/types/dto/package/PackageInputDTO";
 import { PackagePaginationOpts } from "domain/types/pagination/package/PackagePaginationOpts";
+import { ILogger } from "infrastructure/logger/ILogger";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
+import { checkPackDeletePermissionMiddleware } from "presentation/middleware/permission/PackagePermissionMiddleware";
 import {
   packagePaginationScheme,
   packIdScheme,
@@ -18,7 +21,9 @@ import { RequestDataValidator } from "presentation/schemes/RequestDataValidator"
 export class PackageRestApiController {
   constructor(
     private readonly app: Express,
-    private readonly packageService: PackageService
+    private readonly packageService: PackageService,
+    private readonly userService: UserService,
+    private readonly logger: ILogger
   ) {
     const router = Router();
 
@@ -27,6 +32,15 @@ export class PackageRestApiController {
     router.post("/", asyncHandler(this.uploadPackage));
     router.get("/", asyncHandler(this.listPackages));
     router.get("/:id", asyncHandler(this.getPackage));
+    router.delete(
+      "/:id",
+      checkPackDeletePermissionMiddleware(
+        this.packageService,
+        this.userService,
+        this.logger
+      ),
+      asyncHandler(this.deletePackage)
+    );
   }
 
   private uploadPackage = async (req: Request, res: Response) => {
@@ -69,5 +83,23 @@ export class PackageRestApiController {
     const data = await this.packageService.listPackages(paginationOpts);
 
     return res.status(HttpStatus.OK).send(data);
+  };
+
+  private deletePackage = async (req: Request, res: Response) => {
+    const validatedData = new RequestDataValidator<PackageInputDTO>(
+      { packageId: Number(req.params.id) },
+      packIdScheme()
+    ).validate();
+
+    this.logger.info("Package deletion initiated", {
+      packageId: validatedData.packageId,
+      userId: req.user?.id,
+    });
+
+    await this.packageService.deletePackage(validatedData.packageId);
+
+    return res.status(HttpStatus.OK).send({
+      message: "Package deleted successfully",
+    });
   };
 }

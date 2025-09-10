@@ -17,6 +17,9 @@ const DashboardPage = lazy(() =>
 const UsersPage = lazy(() =>
   import("./pages/UsersPage").then((m) => ({ default: m.UsersPage }))
 );
+const PackagesPage = lazy(() =>
+  import("./pages/PackagesPage").then((m) => ({ default: m.PackagesPage }))
+);
 const SystemHealthPage = lazy(() =>
   import("./pages/SystemHealthPage").then((m) => ({
     default: m.SystemHealthPage,
@@ -51,6 +54,12 @@ const appRoutes: AppRouteConfig[] = [
     element: <UsersPage />,
     protected: true,
     requiredPermission: Permissions.VIEW_USERS_INFO,
+  },
+  {
+    path: "/packages",
+    element: <PackagesPage />,
+    protected: true,
+    requiredPermission: Permissions.ADMIN_PANEL_ACCESS,
   },
   {
     path: "/system",

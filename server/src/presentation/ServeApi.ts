@@ -205,7 +205,12 @@ export class ServeApi {
       deps.socketUserDataService,
       this._context.logger
     );
-    new PackageRestApiController(deps.app, deps.packageService);
+    new PackageRestApiController(
+      deps.app,
+      deps.packageService,
+      deps.userService,
+      this._context.logger
+    );
     new FileRestApiController(deps.app, deps.storage);
     new GameRestApiController(deps.app, deps.game);
     new AdminRestApiController(

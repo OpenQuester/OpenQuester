@@ -12,6 +12,13 @@ export class FileUsageService {
     return this.fileUsageRepository.getUsage(file);
   }
 
+  /**
+   * Get usage records for multiple files by their filenames - optimized bulk operation
+   */
+  public async getBulkUsageByFilenames(filenames: string[]) {
+    return this.fileUsageRepository.getBulkUsageByFilenames(filenames);
+  }
+
   public async writeUsage(file: File, user?: User, pack?: Package) {
     return this.fileUsageRepository.writeUsage(file, user, pack);
   }

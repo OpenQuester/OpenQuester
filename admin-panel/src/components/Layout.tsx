@@ -6,6 +6,7 @@ import {
   Menu,
   Moon,
   MoonStar,
+  Package,
   Sun,
   Users,
 } from "lucide-react";
@@ -31,6 +32,7 @@ interface NavigationItem {
 const NAV_ITEMS: ReadonlyArray<NavigationItem> = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Users", href: "/users", icon: Users },
+  { name: "Packages", href: "/packages", icon: Package },
   { name: "System Health", href: "/system", icon: Activity },
 ] as const;
 

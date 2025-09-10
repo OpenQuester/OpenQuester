@@ -2,6 +2,8 @@
 import type {
   AdminDashboardData,
   AdminUserListData,
+  PackageDTO,
+  PackageTagDTO,
   PaginatedResult,
   PermissionDTO,
   AdminSystemHealthData as SystemHealthData,
@@ -18,6 +20,8 @@ export { DashboardRecentTimeframe, PaginationOrder, UserType };
 export type {
   AdminDashboardData,
   AdminUserListData,
+  PackageDTO,
+  PackageTagDTO,
   PaginatedResult,
   PermissionDTO,
   SystemHealthData,

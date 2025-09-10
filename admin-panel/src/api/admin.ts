@@ -1,18 +1,15 @@
 import { createApiClient } from "@/api/client";
+import { wrap } from "@/api/errors";
 import type {
   AdminDashboardData,
   AdminUserListData,
+  PaginatedResult,
   PaginationOrder,
   SystemHealthData,
   UserType,
 } from "@/types/dto";
+import type { AdminPackageDTO } from "@/types/package";
 import type { UserStatus } from "@/types/userStatus";
-
-interface ApiErrorPayload {
-  message?: string;
-  error?: string;
-  [k: string]: unknown;
-}
 
 interface GetUserParams {
   sortBy?: string;
@@ -22,6 +19,14 @@ interface GetUserParams {
   search?: string;
   status?: UserStatus;
   userType?: UserType;
+}
+
+interface GetPackagesParams {
+  sortBy?: string;
+  order?: PaginationOrder;
+  limit?: number;
+  offset?: number;
+  title?: string;
 }
 
 interface PingData {
@@ -35,37 +40,8 @@ interface GetDashboardParams {
   timeframe?: number;
 }
 
-export class ApiError extends Error {
-  public readonly status?: number;
-  public readonly payload?: ApiErrorPayload;
-  public readonly op: string;
-
-  constructor(op: string, raw: unknown) {
-    const res = (raw as any)?.response;
-    const payload: ApiErrorPayload | undefined = res?.data;
-    const base =
-      payload?.message ||
-      payload?.error ||
-      (raw instanceof Error ? raw.message : "Request failed");
-    super(`[${op}] ${base}`);
-    this.op = op;
-    this.status = res?.status;
-    this.payload = payload;
-    if (raw instanceof Error && raw.stack) {
-      this.stack += `\nCaused by: ${raw.stack}`;
-    }
-  }
-}
-
 const adminClient = createApiClient("/v1/admin/api");
-
-async function wrap<T>(op: string, fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn();
-  } catch (err) {
-    throw new ApiError(op, err);
-  }
-}
+const packagesClient = createApiClient("/v1");
 
 export const adminApi = {
   // Summary metrics + recent items
@@ -81,6 +57,15 @@ export const adminApi = {
   getUsers: async (params?: GetUserParams): Promise<AdminUserListData> =>
     wrap("users.list", async () => {
       const { data } = await adminClient.get("/users", { params });
+      return data;
+    }),
+
+  // Packages list - uses existing public packages endpoint
+  getPackages: async (
+    params?: GetPackagesParams
+  ): Promise<PaginatedResult<AdminPackageDTO[]>> =>
+    wrap("packages.list", async () => {
+      const { data } = await packagesClient.get("/packages", { params });
       return data;
     }),
 
@@ -113,6 +98,13 @@ export const adminApi = {
   restoreUser: async (userId: number) =>
     wrap("user.restore", async () => {
       const { data } = await adminClient.post(`/users/restore/${userId}`);
+      return data;
+    }),
+
+  // Delete package
+  deletePackage: async (packageId: number) =>
+    wrap("package.delete", async () => {
+      const { data } = await packagesClient.delete(`/packages/${packageId}`);
       return data;
     }),
 
