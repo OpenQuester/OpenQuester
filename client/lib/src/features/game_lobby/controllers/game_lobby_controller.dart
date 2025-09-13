@@ -118,6 +118,30 @@ class GameLobbyController {
     }
   }
 
+  /// Clear all fields for new game to use
+  void clear() {
+    try {
+      _gameId = null;
+      socket?.dispose();
+      socket = null;
+      gameData.value = null;
+      gameListData.value = null;
+      _chatMessagesSub?.cancel();
+      _chatMessagesSub = null;
+      showChat.value = false;
+      gameFinished.value = false;
+      lobbyEditorMode.value = false;
+      themeScrollPosition = null;
+      getIt<SocketChatController>().clear();
+      getIt<GameQuestionController>().clear();
+      getIt<GameLobbyPlayerPickerController>().clear();
+      getIt<GameLobbyThemePickerController>().clear();
+      _joinCompleter = JoinCompleter();
+    } catch (e, s) {
+      logger.e(e, stackTrace: s);
+    }
+  }
+
   void _showLoggedInChatEvent(String text) {
     getIt<ToastController>().show(text, type: ToastType.info);
     getIt<SocketChatController>().chatController?.insertMessage(
@@ -213,30 +237,6 @@ class GameLobbyController {
     );
   }
 
-  /// Clear all fields for new game to use
-  void clear() {
-    try {
-      _gameId = null;
-      socket?.dispose();
-      socket = null;
-      gameData.value = null;
-      gameListData.value = null;
-      _chatMessagesSub?.cancel();
-      _chatMessagesSub = null;
-      showChat.value = false;
-      gameFinished.value = false;
-      lobbyEditorMode.value = false;
-      themeScrollPosition = null;
-      getIt<SocketChatController>().clear();
-      getIt<GameQuestionController>().clear();
-      getIt<GameLobbyPlayerPickerController>().clear();
-      getIt<GameLobbyThemePickerController>().clear();
-      _joinCompleter = JoinCompleter();
-    } catch (e, s) {
-      logger.e(e, stackTrace: s);
-    }
-  }
-
   Future<void> leave({bool force = false}) async {
     socket?.emit(SocketIOGameSendEvents.userLeave.json!);
     _leave();
@@ -264,6 +264,24 @@ class GameLobbyController {
     _showQuestion();
     _showFinalRound();
   }
+
+  void _onNextRound(dynamic data) {
+    if (data is! Map) return;
+
+    final nextRoundData = SocketIONextRoundEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith(
+      gameState: nextRoundData.gameState,
+    );
+
+    _resetScrollPosition();
+    _showQuestion();
+    _showFinalRound();
+  }
+
+  void _resetScrollPosition() => themeScrollPosition = null;
 
   Future<void> _initChat() async {
     // Get chat messages history
@@ -532,7 +550,7 @@ class GameLobbyController {
   void _onQuestionFinish(dynamic data) {
     if (data is! Map) return;
 
-    final questionData = QuestionFinishEventPayload.fromJson(
+    final questionData = SocketIOQuestionFinishEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
 
@@ -652,22 +670,6 @@ class GameLobbyController {
       ).toJson(),
     );
   }
-
-  void _onNextRound(dynamic data) {
-    if (data is! Map) return;
-
-    final nextRoundData = SocketIONextRoundEventPayload.fromJson(
-      data as Map<String, dynamic>,
-    );
-
-    gameData.value = gameData.value?.copyWith(
-      gameState: nextRoundData.gameState,
-    );
-
-    _resetScrollPosition();
-  }
-
-  void _resetScrollPosition() => themeScrollPosition = null;
 
   void _onGameFinish(dynamic data) {
     gameFinished.value = true;
@@ -979,22 +981,25 @@ class GameLobbyController {
   }
 
   void _showFinalRound() {
+    final finalRoundData = gameData.value?.gameState.finalRoundData;
+    if (finalRoundData == null) return;
+    if (finalRoundData.phase != FinalRoundPhase.themeElimination) return;
+
     getIt<GameLobbyThemePickerController>().startSelect(
-      onSelected: (themeId) {
-        socket?.emit(
-          SocketIOGameSendEvents.themeEliminate.json!,
-          SocketIOThemeEliminateInput(themeId: themeId).toJson(),
-        );
-      },
+      onSelected: (themeId) => socket?.emit(
+        SocketIOGameSendEvents.themeEliminate.json!,
+        SocketIOThemeEliminateInput(themeId: themeId).toJson(),
+      ),
     );
   }
 
   void _onFinalPhaseComplete(dynamic json) {
     if (json is! Map) return;
 
-    final data = FinalPhaseCompleteEventData.fromJson(
+    final data = SocketIOFinalPhaseCompletePayload.fromJson(
       json as Map<String, dynamic>,
     );
+    logger.d(data);
   }
 }
 
