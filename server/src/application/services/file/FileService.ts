@@ -24,6 +24,13 @@ export class FileService {
   }
 
   /**
+   * Get multiple files by their filenames - optimized with IN clause
+   */
+  public async getFilesByFilenames(filenames: string[]) {
+    return this.fileRepository.getFilesByFilenames(filenames);
+  }
+
+  /**
    * Remove file record from DB if it exists
    */
   public async removeFile(filename: string) {

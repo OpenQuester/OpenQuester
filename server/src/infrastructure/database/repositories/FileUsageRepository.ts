@@ -1,4 +1,4 @@
-import { type Repository } from "typeorm";
+import { In, type Repository } from "typeorm";
 
 import { type File } from "infrastructure/database/models/File";
 import { FileUsage } from "infrastructure/database/models/FileUsage";
@@ -13,6 +13,26 @@ export class FileUsageRepository {
   public async getUsage(file: File) {
     return this.repository.find({
       where: { file: { id: file.id } },
+      relations: ["file", "user", "user.avatar", "package", "package.author"],
+    });
+  }
+
+  /**
+   * Get usage records for multiple files by their filenames - optimized with IN clause
+   */
+  public async getBulkUsageByFilenames(
+    filenames: string[]
+  ): Promise<FileUsage[]> {
+    if (filenames.length === 0) {
+      return [];
+    }
+
+    return this.repository.find({
+      where: {
+        file: {
+          filename: In(filenames),
+        },
+      },
       relations: ["file", "user", "user.avatar", "package", "package.author"],
     });
   }

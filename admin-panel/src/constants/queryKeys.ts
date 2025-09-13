@@ -4,6 +4,7 @@ export enum QueryKeys {
   SYSTEM_HEALTH = "admin-system-health",
   PING = "admin-ping",
   USERS = "admin-users",
+  PACKAGES = "admin-packages",
   CURRENT_USER = "current-user",
 }
 

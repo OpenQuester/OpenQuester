@@ -6,6 +6,7 @@ interface ModalProps {
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  size?: "sm" | "md" | "lg" | "xl";
 }
 
 export const Modal = ({
@@ -14,18 +15,41 @@ export const Modal = ({
   onClose,
   children,
   footer,
+  size = "md",
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDivElement | null>(null);
 
+  const getSizeClass = (size: string) => {
+    switch (size) {
+      case "sm":
+        return "max-w-md";
+      case "lg":
+        return "max-w-2xl";
+      case "xl":
+        return "max-w-4xl";
+      case "md":
+      default:
+        return "max-w-lg";
+    }
+  };
+
   useEffect(() => {
     if (!isOpen) return;
+
+    // Prevent body scroll when modal is open
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = "hidden";
+
     const prev = document.activeElement as HTMLElement | null;
     dialogRef.current?.focus();
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", handleKey);
+
     return () => {
+      // Restore original body overflow when modal closes
+      document.body.style.overflow = originalStyle;
       window.removeEventListener("keydown", handleKey);
       prev?.focus();
     };
@@ -46,7 +70,9 @@ export const Modal = ({
         aria-modal="true"
         aria-labelledby="modal-title"
         tabIndex={-1}
-        className="relative w-full max-w-lg bg-surface rounded-xl shadow-xl border border-border animate-scale-in focus:outline-none"
+        className={`relative w-full ${getSizeClass(
+          size
+        )} bg-surface rounded-xl shadow-xl border border-border animate-scale-in focus:outline-none`}
       >
         <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <h3

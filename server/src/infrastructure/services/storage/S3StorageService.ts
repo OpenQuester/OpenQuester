@@ -1,5 +1,6 @@
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
   PutObjectCommand,
   S3Client,
@@ -321,6 +322,13 @@ export class S3StorageService {
       return;
     }
 
+    await this.deleteFileFromStorage(filename);
+  }
+
+  /**
+   * Delete file from S3 storage and remove from database (used for package deletion)
+   */
+  public async deleteFileFromStorage(filename: string): Promise<void> {
     const filePath = StorageUtils.parseFilePath(filename);
     await this.fileService.removeFile(filename);
 
@@ -329,6 +337,55 @@ export class S3StorageService {
       Key: filePath,
     });
     await this._client.send(command);
+  }
+
+  /**
+   * Delete multiple files from S3 storage in batch
+   * Note: Database file records should be removed separately before calling this method
+   */
+  public async deleteFilesFromStorage(filenames: string[]): Promise<void> {
+    if (filenames.length === 0) {
+      return;
+    }
+
+    // S3 DeleteObjects can handle up to 1000 objects per request
+    const BATCH_SIZE = 1000;
+
+    for (let i = 0; i < filenames.length; i += BATCH_SIZE) {
+      const batch = filenames.slice(i, i + BATCH_SIZE);
+      const objects = batch.map((filename) => ({
+        Key: StorageUtils.parseFilePath(filename),
+      }));
+
+      const command = new DeleteObjectsCommand({
+        Bucket: this.s3Context.bucket,
+        Delete: {
+          Objects: objects,
+          Quiet: true, // Don't return info about deleted objects to reduce response size
+        },
+      });
+
+      try {
+        const result = await this._client.send(command);
+
+        // Log any errors that occurred during batch deletion
+        if (result.Errors && result.Errors.length > 0) {
+          for (const error of result.Errors) {
+            this.logger.error(`Failed to delete file from S3 in batch`, {
+              key: error.Key,
+              code: error.Code,
+              message: error.Message,
+            });
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Batch delete failed for files`, {
+          filenames: batch,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
+    }
   }
 
   private async _handleAvatarRemove(

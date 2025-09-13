@@ -34,7 +34,7 @@ export function setTestEnvDefaults() {
   process.env.REDIS_DB_NUMBER = "0";
   process.env.CORS_ORIGINS = "localhost";
   process.env.SOCKET_IO_CORS_ORIGINS = "localhost";
-  process.env.LOG_LEVEL = "trace";
+  process.env.LOG_LEVEL = "info";
   // Dummy S3, we don't check S3 in tests, used just to avoid errors
   process.env.S3_ENDPOINT = "http://localhost:9000";
   process.env.S3_URL_PREFIX = "http://bucket.localhost:9000";

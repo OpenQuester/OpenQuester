@@ -22,7 +22,7 @@ import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationO
 import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
-import { checkPermission } from "presentation/middleware/permission/PermissionMiddleware";
+import { checkPermissionMiddleware } from "presentation/middleware/permission/PermissionMiddleware";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 import { userPaginationScheme } from "presentation/schemes/user/userSchemes";
 
@@ -68,55 +68,55 @@ export class AdminRestApiController {
     // Admin dashboard overview
     router.get(
       "/dashboard",
-      checkPermission(Permissions.ADMIN_PANEL_ACCESS, this.logger),
+      checkPermissionMiddleware(Permissions.ADMIN_PANEL_ACCESS, this.logger),
       asyncHandler(this.getDashboard)
     );
 
     // Enhanced user management for admin
     router.get(
       "/users",
-      checkPermission(Permissions.VIEW_USERS_INFO, this.logger),
+      checkPermissionMiddleware(Permissions.VIEW_USERS_INFO, this.logger),
       asyncHandler(this.getUsers)
     );
 
     // System health check
     router.get(
       "/system/health",
-      checkPermission(Permissions.VIEW_SYSTEM_HEALTH, this.logger),
+      checkPermissionMiddleware(Permissions.VIEW_SYSTEM_HEALTH, this.logger),
       asyncHandler(this.getSystemHealth)
     );
 
     // User ban/unban actions
     router.post(
       "/users/:id/ban",
-      checkPermission(Permissions.BAN_USERS, this.logger),
+      checkPermissionMiddleware(Permissions.BAN_USERS, this.logger),
       asyncHandler(this.banUser)
     );
 
     router.post(
       "/users/:id/unban",
-      checkPermission(Permissions.BAN_USERS, this.logger),
+      checkPermissionMiddleware(Permissions.BAN_USERS, this.logger),
       asyncHandler(this.unbanUser)
     );
 
     // Admin user restore
     router.post(
       "/users/restore/:id",
-      checkPermission(Permissions.DELETE_ANOTHER_USER, this.logger),
+      checkPermissionMiddleware(Permissions.DELETE_ANOTHER_USER, this.logger),
       asyncHandler(this.restoreUser)
     );
 
     // Admin user deletion
     router.delete(
       "/users/:id",
-      checkPermission(Permissions.DELETE_ANOTHER_USER, this.logger),
+      checkPermissionMiddleware(Permissions.DELETE_ANOTHER_USER, this.logger),
       asyncHandler(this.deleteUser)
     );
 
     // Ping endpoint
     router.get(
       "/system/ping",
-      checkPermission(Permissions.VIEW_SYSTEM_HEALTH, this.logger),
+      checkPermissionMiddleware(Permissions.VIEW_SYSTEM_HEALTH, this.logger),
       asyncHandler(this.ping)
     );
 

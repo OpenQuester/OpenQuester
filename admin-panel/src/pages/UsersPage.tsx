@@ -215,6 +215,13 @@ export const UsersPage = () => {
     [hasPermission, pushToast]
   );
 
+  const handleUserUpdated = useCallback((updatedUser: UserDTO) => {
+    // Update the selectedUser state
+    setSelectedUser(updatedUser);
+    // Invalidate the users query to refetch the list
+    invalidateUsers();
+  }, []);
+
   // Server-driven users list (search & filter are UI-only placeholders until backend supports them)
   const users = typedData?.data ?? [];
 
@@ -359,6 +366,7 @@ export const UsersPage = () => {
       <UserDetailModal
         user={selectedUser}
         onClose={() => setSelectedUser(null)}
+        onUserUpdated={handleUserUpdated}
       />
 
       {/* Pagination */}

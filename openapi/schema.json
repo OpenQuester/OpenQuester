@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpenQuester API",
-    "version": "0.20.0"
+    "version": "0.21.0"
   },
   "security": [
     {
@@ -267,6 +267,63 @@
             }
           }
         }
+      },
+      "delete": {
+        "summary": "Delete package by id",
+        "description": "Delete a package. Requires DELETE_PACKAGE permission or being the package author. This will also delete all associated files and cleanup orphaned tags.",
+        "tags": ["Packages"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Package deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageDeleteResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Insufficient permissions to delete this package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Package not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageNotFoundResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidSessionResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/users/{id}": {
@@ -391,6 +448,95 @@
           },
           "403": {
             "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/users/{id}/permissions": {
+      "patch": {
+        "summary": "Update user permissions",
+        "description": "Update a user's permissions. Requires 'manage_permissions' permission.",
+        "tags": ["Users"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "User ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPermissionsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User permissions updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "User permissions updated successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/ResponseUser"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or expired session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidSessionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied - requires manage_permissions permission",
             "content": {
               "application/json": {
                 "schema": {
@@ -946,6 +1092,23 @@
           }
         }
       },
+      "PermissionName": {
+        "type": "string",
+        "enum": [
+          "get_all_users",
+          "get_another_user",
+          "change_another_user",
+          "delete_another_user",
+          "delete_file",
+          "delete_package",
+          "edit_package",
+          "manage_permissions",
+          "admin_panel_access",
+          "view_system_health",
+          "view_users_info",
+          "ban_users"
+        ]
+      },
       "PackageCreationInput": {
         "type": "object",
         "properties": {
@@ -1021,8 +1184,7 @@
                   "examples": [1]
                 },
                 "name": {
-                  "type": "string",
-                  "examples": ["get_all_users"]
+                  "$ref": "#/components/schemas/PermissionName"
                 }
               }
             }
@@ -1084,6 +1246,43 @@
           "avatar": {
             "type": ["string", "null"],
             "examples": ["filename_of_file_in_bucket"]
+          }
+        }
+      },
+      "UserPermissionsUpdate": {
+        "type": "object",
+        "properties": {
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of permission names to assign to the user. Replaces all existing permissions.",
+            "examples": [["edit_package", "delete_package"]]
+          }
+        },
+        "required": ["permissions"]
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "examples": ["Validation failed"]
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       },
@@ -1600,6 +1799,15 @@
           "error": {
             "type": "string",
             "examples": ["Package not found"]
+          }
+        }
+      },
+      "PackageDeleteResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "examples": ["Package deleted successfully"]
           }
         }
       },
