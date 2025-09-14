@@ -7,11 +7,8 @@ class GameStakeQuestionBody extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final stakeData = gameData?.gameState.stakeQuestionData;
-    final currentBidderIndex = stakeData?.currentBidderIndex;
-    final playerMakesABid =
-        getIt<GameLobbyController>().myId ==
-        stakeData?.biddingOrder.tryByIndex(currentBidderIndex);
+    final stakeController = watchIt<GameLobbyPlayerStakesController>();
+    final playerMakesABid = gameData?.me.meta.id == stakeController.bidderId;
     final questionMediaOnLeft = GameLobbyStyles.questionMediaOnLeft(context);
 
     final direction = questionMediaOnLeft ? Axis.horizontal : Axis.vertical;

@@ -3552,7 +3552,7 @@
         },
         "required": ["themeId", "eliminatedBy"]
       },
-      "FinalAnswerSubmitInput": {
+      "SocketIOFinalAnswerSubmitInput": {
         "type": "object",
         "description": "Data sent by player to submit final answer in final round",
         "properties": {
@@ -3565,7 +3565,7 @@
         },
         "required": ["answerText"]
       },
-      "FinalAnswerSubmitOutput": {
+      "SocketIOFinalAnswerSubmitPayload": {
         "type": "object",
         "description": "Data sent to all players when a final answer is submitted",
         "properties": {
@@ -3582,7 +3582,7 @@
         },
         "required": ["playerId", "answerText"]
       },
-      "FinalBidSubmitInput": {
+      "SocketIOFinalBidSubmitInput": {
         "type": "object",
         "description": "Data sent by player to submit bid in final round",
         "properties": {
@@ -3594,7 +3594,7 @@
         },
         "required": ["bid"]
       },
-      "FinalBidSubmitOutput": {
+      "SocketIOFinalBidSubmitPayload": {
         "type": "object",
         "description": "Data sent to all players when a bid is submitted",
         "properties": {
@@ -3611,7 +3611,7 @@
         },
         "required": ["playerId", "bidAmount"]
       },
-      "FinalAnswerReviewInput": {
+      "SocketIOFinalAnswerReviewInput": {
         "type": "object",
         "description": "Data sent by showman to review a final answer",
         "properties": {
@@ -3628,7 +3628,7 @@
         },
         "required": ["answerId", "isCorrect"]
       },
-      "FinalAnswerReviewOutput": {
+      "SocketIOFinalAnswerReviewPayload": {
         "type": "object",
         "description": "Data sent to all players when an answer is reviewed",
         "properties": {

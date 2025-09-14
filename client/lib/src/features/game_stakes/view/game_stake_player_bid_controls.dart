@@ -8,16 +8,15 @@ class PlayerBidControls extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final stakeData = gameData?.gameState.stakeQuestionData;
-    final bidderId = stakeData?.biddingOrder.tryByIndex(
-      stakeData.currentBidderIndex,
-    );
-    final biddingPlayer = gameData?.players.getById(bidderId);
+    final stakeController = watchIt<GameLobbyPlayerStakesController>();
+    final biddingPlayer = gameData?.players.getById(stakeController.bidderId);
 
     Future<void> onCustom() async {
       final bidAmountText = await OneFieldDialog(
         keyboardType: TextInputType.number,
-        initText: stakeData?.bids[bidderId.toString()]?.toString() ?? '',
+        initText:
+            stakeController.getPlayerBid(gameData?.me.meta.id)?.toString() ??
+            '',
         inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[0-9]'))],
         title: LocaleKeys.game_stake_question_question_bid.tr(),
       ).show(context);
@@ -26,7 +25,7 @@ class PlayerBidControls extends WatchingWidget {
       final bidAmount = int.tryParse(bidAmountText);
       if (bidAmount == null) return;
 
-      getIt<GameLobbyController>().submitQuestionBid(
+      stakeController.confirmSelection(
         SocketIOStakeQuestionBidInput(
           bidAmount: bidAmount,
           bidType: StakeBidType.normal,
@@ -36,6 +35,7 @@ class PlayerBidControls extends WatchingWidget {
 
     return Card.outlined(
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Wrap(
             spacing: 8,
@@ -48,7 +48,11 @@ class PlayerBidControls extends WatchingWidget {
                 ),
               ),
               ...[100, 1000]
-                  .where((e) => e <= (biddingPlayer?.score ?? 0))
+                  .where(
+                    (e) =>
+                        gameData?.me.role == PlayerRole.showman ||
+                        e <= (biddingPlayer?.score ?? 0),
+                  )
                   .map(
                     (e) => _BidBtn(
                       SocketIOStakeQuestionBidInput(
@@ -92,7 +96,8 @@ class _BidBtn extends StatelessWidget {
     return FilledButton.tonal(
       onPressed:
           customButtonCallback ??
-          () => getIt<GameLobbyController>().submitQuestionBid(input!),
+          () =>
+              getIt<GameLobbyPlayerStakesController>().confirmSelection(input!),
       style: ButtonStyle(
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(borderRadius: 8.circular),

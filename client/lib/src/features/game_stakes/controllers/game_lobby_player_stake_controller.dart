@@ -5,43 +5,59 @@ import 'package:openquester/common_imports.dart';
 class GameLobbyPlayerStakesController extends ChangeNotifier {
   bool isBidding = false;
   int? bidderId;
-  int bid = 0;
+  Map<int, int?>? bids;
+  SocketIOStakeQuestionBidInput? bid = const SocketIOStakeQuestionBidInput(
+    bidAmount: null,
+    bidType: StakeBidType.normal,
+  );
 
-  void Function(int bid)? _onPlayerBid;
-  Map<int, int> Function()? getPlayerBids;
+  void Function(SocketIOStakeQuestionBidInput bid)? _onPlayerBid;
 
   /// Show selection UI
   void startBidding({
     required int bidderId,
-    required Map<int, int> Function()? getPlayerBids,
-    required void Function(int bid) onPlayerBid,
+    required Map<int, int?> bids,
+    required void Function(SocketIOStakeQuestionBidInput bid) onPlayerBid,
   }) {
     isBidding = true;
     _onPlayerBid = onPlayerBid;
-    this.getPlayerBids = getPlayerBids;
+    this.bids = bids;
     this.bidderId = bidderId;
-
     notifyListeners();
   }
 
-  void changeBid(int bid) {
+  void changeBid(SocketIOStakeQuestionBidInput bid) {
     this.bid = bid;
     notifyListeners();
   }
 
-  void confirmSelection(int bid) {
+  void changeBidder(int bidderId) {
+    this.bidderId = bidderId;
+    notifyListeners();
+  }
+
+  void changeBids(Map<int, int?>? bids) {
+    this.bids = bids;
+    notifyListeners();
+  }
+
+  void confirmSelection(SocketIOStakeQuestionBidInput bid) {
     isBidding = false;
+    this.bid = bid;
     _onPlayerBid?.call(bid);
     notifyListeners();
   }
 
   void stopSelection() {
+    bid = null;
     isBidding = false;
     bidderId = null;
     _onPlayerBid = null;
-    getPlayerBids = null;
+    bids = null;
     notifyListeners();
   }
+
+  int? getPlayerBid(int? playerId) => bids?[playerId];
 
   void clear() => stopSelection();
 }
