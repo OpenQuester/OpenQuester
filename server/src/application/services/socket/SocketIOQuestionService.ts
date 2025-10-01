@@ -456,6 +456,9 @@ export class SocketIOQuestionService {
     }
     GameQuestionMapper.setQuestionPlayed(game, question.id!, theme.id!);
 
+    // Reset media download status for all players
+    this.resetMediaDownloadStatus(game);
+
     // Save
     await this.gameService.updateGame(game);
 
@@ -1171,5 +1174,49 @@ export class SocketIOQuestionService {
     game.setTimer(timer);
 
     return timer;
+  }
+
+  /**
+   * Handle media downloaded event from a player
+   */
+  public async handleMediaDownloaded(socketId: string) {
+    // Context & Validation
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
+
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    // Mark player as having downloaded media
+    currentPlayer.mediaDownloaded = true;
+
+    // Check if all active players have downloaded media
+    const activePlayers = game.players.filter(
+      (p) => p.gameStatus === PlayerGameStatus.IN_GAME
+    );
+    const allPlayersReady = activePlayers.every((p) => p.mediaDownloaded);
+
+    // Save game state
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      playerId: currentPlayer.meta.id,
+      allPlayersReady,
+    };
+  }
+
+  /**
+   * Reset media download status for all players
+   */
+  public resetMediaDownloadStatus(game: Game): void {
+    const players = game.players;
+    for (const player of players) {
+      player.mediaDownloaded = false;
+    }
   }
 }
