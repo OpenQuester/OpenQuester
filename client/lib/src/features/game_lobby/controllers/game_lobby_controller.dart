@@ -969,16 +969,15 @@ class GameLobbyController {
   void _onMediaDownloadStatus(dynamic data) {
     if (data is! Map) return;
 
-    final statusData = data as Map<String, dynamic>;
-    final playerId = statusData['playerId'] as int?;
-    final mediaDownloaded = statusData['mediaDownloaded'] as bool? ?? false;
-
-    if (playerId == null) return;
+    final statusData = MediaDownloadStatusEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
 
     // Update the player's media download status in game data
     gameData.value = gameData.value?.changePlayer(
-      id: playerId,
-      onChange: (player) => player.copyWith(mediaDownloaded: mediaDownloaded),
+      id: statusData.playerId,
+      onChange: (player) =>
+          player.copyWith(mediaDownloaded: statusData.mediaDownloaded),
     );
   }
 }

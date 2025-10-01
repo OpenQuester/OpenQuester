@@ -110,9 +110,11 @@ Legend:
   - Calls `notifyMediaDownloaded()` after media loads or immediately if no media
 - `client/lib/src/features/game_lobby/controllers/game_lobby_controller.dart` - Handle status events
   - `notifyMediaDownloaded()` - Emits MEDIA_DOWNLOADED event to server
-  - `_onMediaDownloadStatus()` - Updates player state when receiving status broadcasts
+  - `_onMediaDownloadStatus()` - Updates player state when receiving status broadcasts using `MediaDownloadStatusEventPayload` model
 - `client/lib/src/features/game_lobby/view/game_lobby_player.dart` - Visual indicators
   - `_MediaDownloadIndicator` widget shows download status icons
+- `openapi/dart_sdk/lib/src/models/media_download_status_event_payload.dart` - Event payload model (temporary manual implementation)
+  - This file should be replaced when running `make build` to regenerate the full SDK from OpenAPI schema
 
 ## API Usage Examples
 
@@ -123,9 +125,13 @@ socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
 
 // Listen for status updates (handled in GameLobbyController)
 socket?.on(SocketIOGameReceiveEvents.mediaDownloadStatus.json!, (data) {
-  final playerId = data['playerId'];
-  final mediaDownloaded = data['mediaDownloaded'];
-  final allPlayersReady = data['allPlayersReady'];
+  final statusData = MediaDownloadStatusEventPayload.fromJson(
+    data as Map<String, dynamic>,
+  );
+  // Access typed fields
+  final playerId = statusData.playerId;
+  final mediaDownloaded = statusData.mediaDownloaded;
+  final allPlayersReady = statusData.allPlayersReady;
   // Update UI
 });
 ```
