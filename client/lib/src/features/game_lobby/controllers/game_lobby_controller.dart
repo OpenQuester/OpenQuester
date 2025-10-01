@@ -99,6 +99,10 @@ class GameLobbyController {
           SocketIOGameReceiveEvents.stakeQuestionWinner.json!,
           _onStakeQuestionWinner,
         )
+        ..on(
+          SocketIOGameReceiveEvents.mediaDownloadStatus.json!,
+          _onMediaDownloadStatus,
+        )
         ..connect();
 
       return await _joinCompleter.future;
@@ -407,7 +411,14 @@ class GameLobbyController {
       data as Map<String, dynamic>,
     );
 
-    gameData.value = gameData.value?.copyWith.gameState(
+    // Reset media download status for all players
+    final playersWithResetStatus = gameData.value?.players.map((player) {
+      return player.copyWith(mediaDownloaded: false);
+    }).toList();
+
+    gameData.value = gameData.value?.copyWith(
+      players: playersWithResetStatus,
+    ).copyWith.gameState(
       timer: questionData.timer,
       currentQuestion: questionData.data,
       answeredPlayers: null,
@@ -948,6 +959,26 @@ class GameLobbyController {
     socket?.emit(
       SocketIOGameSendEvents.stakeBidSubmit.json!,
       input.toJson(),
+    );
+  }
+
+  void notifyMediaDownloaded() {
+    socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
+  }
+
+  void _onMediaDownloadStatus(dynamic data) {
+    if (data is! Map) return;
+
+    final statusData = data as Map<String, dynamic>;
+    final playerId = statusData['playerId'] as int?;
+    final mediaDownloaded = statusData['mediaDownloaded'] as bool? ?? false;
+
+    if (playerId == null) return;
+
+    // Update the player's media download status in game data
+    gameData.value = gameData.value?.changePlayer(
+      id: playerId,
+      onChange: (player) => player.copyWith(mediaDownloaded: mediaDownloaded),
     );
   }
 }

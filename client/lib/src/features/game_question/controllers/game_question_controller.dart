@@ -71,6 +71,9 @@ class GameQuestionController {
       mediaController.value = controller;
       await controller?.play();
       showMedia.value = true;
+
+      // Notify server that media is downloaded
+      getIt<GameLobbyController>().notifyMediaDownloaded();
     } catch (e) {
       error.value = getIt<GameLobbyController>().onError(e);
     }

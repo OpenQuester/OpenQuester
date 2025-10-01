@@ -113,6 +113,7 @@ class GameLobbyPlayer extends WatchingWidget {
                         if (customIcon != null) customIcon!,
                         if (player.status == PlayerDataStatus.disconnected)
                           const Icon(Icons.signal_wifi_off),
+                        _MediaDownloadIndicator(player: player),
                       ],
                     ).paddingAll(2),
               ),
@@ -180,4 +181,34 @@ class PlayerTileSettings {
   final bool picking;
   final bool hasTurn;
   final PlayerAnswerState playerAnswerState;
+}
+
+class _MediaDownloadIndicator extends WatchingWidget {
+  const _MediaDownloadIndicator({required this.player});
+
+  final PlayerData player;
+
+  @override
+  Widget build(BuildContext context) {
+    final questionData = watchValue(
+      (GameQuestionController e) => e.questionData,
+    );
+
+    // Only show indicator if there's an active question with media
+    final hasMedia = questionData?.file != null;
+    if (!hasMedia) return const SizedBox.shrink();
+
+    // Show check icon if downloaded, loading icon if not
+    final mediaDownloaded = player.mediaDownloaded ?? false;
+    
+    return Icon(
+      mediaDownloaded ? Icons.check_circle : Icons.downloading,
+      color: mediaDownloaded ? Colors.green : Colors.orange,
+      size: 16,
+    ).withTooltip(
+      msg: mediaDownloaded 
+          ? 'Media Downloaded'
+          : 'Downloading Media...',
+    );
+  }
 }
