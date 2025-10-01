@@ -36,7 +36,11 @@ class GameQuestionController {
 
       final file = questionData.value?.file?.file;
 
-      if (file == null) return;
+      if (file == null) {
+        // No media, notify immediately
+        getIt<GameLobbyController>().notifyMediaDownloaded();
+        return;
+      }
 
       VideoPlayerController? controller;
       if (file.type != PackageFileType.image) {
