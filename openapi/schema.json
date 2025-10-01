@@ -2522,6 +2522,11 @@
           "status": {
             "type": "string",
             "enum": ["in-game", "disconnected"]
+          },
+          "mediaDownloaded": {
+            "type": "boolean",
+            "description": "Whether the player has downloaded the current question's media",
+            "examples": [true, false]
           }
         }
       },
@@ -2932,7 +2937,9 @@
           "secret-question-transfer",
           "stake-question-picked",
           "stake-bid-submit",
-          "stake-question-winner"
+          "stake-question-winner",
+          "media-downloaded",
+          "media-download-status"
         ],
         "examples": ["join"]
       },
@@ -2974,7 +2981,9 @@
           "secret-question-transfer",
           "stake-question-picked",
           "stake-bid-submit",
-          "stake-question-winner"
+          "stake-question-winner",
+          "media-downloaded",
+          "media-download-status"
         ],
         "examples": ["join"]
       },
@@ -2988,6 +2997,28 @@
             "examples": [727]
           }
         }
+      },
+      "MediaDownloadStatusEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a player downloads media",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who downloaded media",
+            "examples": [123]
+          },
+          "mediaDownloaded": {
+            "type": "boolean",
+            "description": "Whether the player has downloaded media",
+            "examples": [true]
+          },
+          "allPlayersReady": {
+            "type": "boolean",
+            "description": "Whether all active players have downloaded media",
+            "examples": [true, false]
+          }
+        },
+        "required": ["playerId", "mediaDownloaded", "allPlayersReady"]
       },
       "SocketIOGameUnskipEventPayload": {
         "type": "object",
