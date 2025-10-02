@@ -1,6 +1,7 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
+import 'package:openquester/src/features/game_question/view/waiting_for_others_loader.dart';
 import 'package:video_player/video_player.dart';
 
 class GameQuestionMediaWidget extends WatchingWidget {
@@ -11,6 +12,9 @@ class GameQuestionMediaWidget extends WatchingWidget {
   Widget build(BuildContext context) {
     final mediaController = watchValue(
       (GameQuestionController e) => e.mediaController,
+    );
+    final waitingForPlayers = watchValue(
+      (GameQuestionController e) => e.waitingForPlayers,
     );
     final showMedia = watchValue((GameQuestionController e) => e.showMedia);
     final error = watchValue((GameQuestionController e) => e.error);
@@ -29,18 +33,34 @@ class GameQuestionMediaWidget extends WatchingWidget {
       child = Text(error).paddingAll(24);
     } else if (showMedia) {
       if (fileType == PackageFileType.image) {
-        child = ImageWidget(url: url);
+        child = ImageWidget(
+          url: url,
+          afterLoad: getIt<GameQuestionController>().onImageLoaded,
+          forcedLoader: ValueListenableBuilder(
+            valueListenable: getIt<GameQuestionController>().waitingForPlayers,
+            builder: (context, value, child) {
+              if (value) return const WaitingForOthersLoader();
+              return const SizedBox.shrink();
+            },
+          ),
+        );
       } else if (mediaController != null) {
-        if (fileType == PackageFileType.audio) {
-          child = const Icon(Icons.music_note, size: 60).fadeOut();
+        if (waitingForPlayers) {
+          child = const WaitingForOthersLoader();
         } else {
-          child = AspectRatio(
-            aspectRatio: mediaController.value.aspectRatio,
-            child: VideoPlayer(mediaController),
-          ).fadeIn();
+          if (fileType == PackageFileType.audio) {
+            child = const Icon(Icons.music_note, size: 60).fadeOut();
+          } else {
+            child = AspectRatio(
+              aspectRatio: mediaController.value.aspectRatio,
+              child: VideoPlayer(mediaController),
+            ).fadeIn();
+          }
         }
       }
     }
+
+    if (waitingForPlayers) return child;
 
     return AspectRatio(
       aspectRatio: 1,

@@ -519,6 +519,7 @@ class GameLobbyController {
     final controller = questionController.mediaController.value;
     if (controller == null) return;
 
+    questionController.ignoreWaitingForPlayers = false;
     final question = questionController.questionData.value;
     if (question == null) return;
 
@@ -580,6 +581,8 @@ class GameLobbyController {
       var mediaPlaytimeMs = 0;
       if (currentQuestion != null) {
         final file = currentQuestion.answerFiles?.firstOrNull;
+        
+        controller.ignoreWaitingForPlayers = true;
         controller.questionData.value = GameQuestionData(
           file: file,
           text: currentQuestion.answerText,

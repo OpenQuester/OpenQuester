@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:openquester/openquester.dart';
+import 'package:openquester/src/features/game_question/view/waiting_for_others_loader.dart';
 
 class GameQuestionScreen extends WatchingWidget {
   const GameQuestionScreen({super.key});
@@ -69,9 +70,7 @@ class GameQuestionScreen extends WatchingWidget {
               onSecondaryTapDown: (_) =>
                   getIt<GameLobbyController>().onAnswer(),
               supportedDevices: const {PointerDeviceKind.mouse},
-              child: waitingForPlayers
-                  ? const _WaitingForOthersLoader()
-                  : column.paddingAll(16),
+              child: column.paddingAll(16),
             ),
           ),
         ),
@@ -127,26 +126,6 @@ class GameQuestionScreen extends WatchingWidget {
         ),
       ),
     );
-  }
-}
-
-class _WaitingForOthersLoader extends StatelessWidget {
-  const _WaitingForOthersLoader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      spacing: 16,
-      children: [
-        const CircularProgressIndicator(),
-        Text(
-          LocaleKeys.question_waiting_for_all_players.tr(),
-          style: context.textTheme.bodyLarge,
-        ),
-      ],
-    ).paddingAll(16).center();
   }
 }
 

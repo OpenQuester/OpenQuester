@@ -17,12 +17,14 @@ class GameQuestionController {
   final waitingForPlayers = ValueNotifier<bool>(false);
 
   File? _tmpFile;
+  bool ignoreWaitingForPlayers = false;
 
   Future<void> clear() async {
     questionData.value = null;
     error.value = null;
     showMedia.value = false;
     waitingForPlayers.value = false;
+    ignoreWaitingForPlayers = false;
     await clearVideoControllers();
     try {
       await _tmpFile?.delete();
@@ -40,24 +42,21 @@ class GameQuestionController {
 
       if (file == null) {
         // No media, notify immediately
-        getIt<GameLobbyController>().notifyMediaDownloaded();
+        if (!ignoreWaitingForPlayers) {
+          getIt<GameLobbyController>().notifyMediaDownloaded();
+        }
         return;
       }
+
+      // Wait for all players before playing
+      waitingForPlayers.value = !ignoreWaitingForPlayers;
 
       VideoPlayerController? controller;
       if (file.type != PackageFileType.image) {
         final uri = Uri.parse(file.link!);
 
         // Platform-specific media handling for proper preloading
-        if (kIsWeb) {
-          // Web: Use network URL (cannot save to file system)
-          controller = VideoPlayerController.networkUrl(uri);
-        } else {
-          // Mobile/Desktop: Download and use local file for reliable preloading
-          await _setTmpFile(file);
-          await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
-          controller = VideoPlayerController.file(_tmpFile!);
-        }
+        controller = await _loadController(uri, file);
 
         await controller.setVolume(volume.value);
         await controller.initialize();
@@ -75,13 +74,37 @@ class GameQuestionController {
       showMedia.value = true;
 
       // Notify server that media is downloaded
-      // Wait for all players before playing
-      waitingForPlayers.value = true;
-      getIt<GameLobbyController>().notifyMediaDownloaded();
+      if (!ignoreWaitingForPlayers) {
+        getIt<GameLobbyController>().notifyMediaDownloaded();
+      } else {
+        await mediaController.value?.play();
+      }
     } catch (e) {
       error.value = getIt<GameLobbyController>().onError(e);
     }
     // TODO: Start slideshow timer
+  }
+
+  Future<VideoPlayerController> _loadController(
+    Uri uri,
+    FileItem file,
+  ) async {
+    // Platform-specific media handling for proper preloading
+    if (kIsWeb) {
+      // Web: Use network URL (cannot save to file system)
+      // so load to cache
+      await _cacheFile(uri);
+      return VideoPlayerController.networkUrl(uri);
+    } else {
+      // Mobile/Desktop: Download and use local file for reliable preloading
+      await _setTmpFile(file);
+      await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
+      return VideoPlayerController.file(_tmpFile!);
+    }
+  }
+
+  Future<void> _cacheFile(Uri uri) async {
+    await getIt<DioController>().client.getUri<void>(uri);
   }
 
   /// Called by GameLobbyController when all players have downloaded media
@@ -116,5 +139,11 @@ class GameQuestionController {
   void onChangeVolume(double volume) {
     this.volume.value = volume.clamp(0, 1);
     mediaController.value?.setVolume(this.volume.value);
+  }
+
+  Future<void> onImageLoaded() async {
+    // Notify server that media is downloaded
+    // Wait for all players before showing
+    getIt<GameLobbyController>().notifyMediaDownloaded();
   }
 }
