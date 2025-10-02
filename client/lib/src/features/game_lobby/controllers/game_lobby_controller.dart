@@ -965,9 +965,8 @@ class GameLobbyController {
     );
   }
 
-  void notifyMediaDownloaded() {
-    socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
-  }
+  void notifyMediaDownloaded() =>
+      socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
 
   void _onMediaDownloadStatus(dynamic data) {
     if (data is! Map) return;

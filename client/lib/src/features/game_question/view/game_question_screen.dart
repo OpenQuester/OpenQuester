@@ -69,31 +69,9 @@ class GameQuestionScreen extends WatchingWidget {
               onSecondaryTapDown: (_) =>
                   getIt<GameLobbyController>().onAnswer(),
               supportedDevices: const {PointerDeviceKind.mouse},
-              child: Stack(
-                children: [
-                  column.paddingAll(16),
-                  if (waitingForPlayers)
-                    Container(
-                      color: Colors.black.withOpacity(0.7),
-                      child: const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
-                            Text(
-                              'Waiting for all players to download media...',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+              child: waitingForPlayers
+                  ? const _WaitingForOthersLoader()
+                  : column.paddingAll(16),
             ),
           ),
         ),
@@ -149,6 +127,26 @@ class GameQuestionScreen extends WatchingWidget {
         ),
       ),
     );
+  }
+}
+
+class _WaitingForOthersLoader extends StatelessWidget {
+  const _WaitingForOthersLoader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      spacing: 16,
+      children: [
+        const CircularProgressIndicator(),
+        Text(
+          LocaleKeys.question_waiting_for_all_players.tr(),
+          style: context.textTheme.bodyLarge,
+        ),
+      ],
+    ).paddingAll(16).center();
   }
 }
 
