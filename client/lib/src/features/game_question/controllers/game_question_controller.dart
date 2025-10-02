@@ -17,14 +17,12 @@ class GameQuestionController {
   final waitingForPlayers = ValueNotifier<bool>(false);
 
   File? _tmpFile;
-  VideoPlayerController? _pendingController;
 
   Future<void> clear() async {
     questionData.value = null;
     error.value = null;
     showMedia.value = false;
     waitingForPlayers.value = false;
-    _pendingController = null;
     await clearVideoControllers();
     try {
       await _tmpFile?.delete();
@@ -74,7 +72,6 @@ class GameQuestionController {
       }
 
       mediaController.value = controller;
-      _pendingController = controller;
       showMedia.value = true;
 
       // Notify server that media is downloaded
@@ -89,10 +86,9 @@ class GameQuestionController {
 
   /// Called by GameLobbyController when all players have downloaded media
   Future<void> onAllPlayersReady() async {
-    if (waitingForPlayers.value && _pendingController != null) {
+    if (waitingForPlayers.value) {
       waitingForPlayers.value = false;
-      await _pendingController?.play();
-      _pendingController = null;
+      await mediaController.value?.play();
     }
   }
 
