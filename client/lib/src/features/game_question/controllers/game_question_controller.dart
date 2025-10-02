@@ -16,11 +16,15 @@ class GameQuestionController {
   final volume = ValueNotifier<double>(.5);
 
   File? _tmpFile;
+  bool _waitingForAllPlayers = false;
+  VideoPlayerController? _pendingController;
 
   Future<void> clear() async {
     questionData.value = null;
     error.value = null;
     showMedia.value = false;
+    _waitingForAllPlayers = false;
+    _pendingController = null;
     await clearVideoControllers();
     try {
       await _tmpFile?.delete();
@@ -70,15 +74,26 @@ class GameQuestionController {
       }
 
       mediaController.value = controller;
-      await controller?.play();
+      _pendingController = controller;
       showMedia.value = true;
 
       // Notify server that media is downloaded
+      // Wait for all players before playing
+      _waitingForAllPlayers = true;
       getIt<GameLobbyController>().notifyMediaDownloaded();
     } catch (e) {
       error.value = getIt<GameLobbyController>().onError(e);
     }
     // TODO: Start slideshow timer
+  }
+
+  /// Called by GameLobbyController when all players have downloaded media
+  Future<void> onAllPlayersReady() async {
+    if (_waitingForAllPlayers && _pendingController != null) {
+      _waitingForAllPlayers = false;
+      await _pendingController?.play();
+      _pendingController = null;
+    }
   }
 
   Future<void> _setTmpFile(FileItem file) async {

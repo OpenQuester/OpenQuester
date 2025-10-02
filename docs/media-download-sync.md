@@ -40,10 +40,14 @@ This feature ensures fair gameplay by tracking when players have downloaded medi
        │  UI: ✓ Player 1                   │                                   │  UI: ✓ Player 1
        │      ✓ Player 2                   │                                   │      ✓ Player 2
        │                                   │                                   │
+       │  8. Start media playback          │                                   │  8. Start media playback
+       │     ▶️                            │                                   │     ▶️
+       │                                   │                                   │
 
 Legend:
 ✓ = Green check (downloaded)
 ⏳ = Orange downloading icon
+▶️ = Media playback starts after all players ready
 ```
 
 ## How It Works
@@ -60,22 +64,29 @@ Legend:
 
 3. **Event Flow**
    - When a question is picked, all players' `mediaDownloaded` status is reset to `false`
-   - Client sends `MEDIA_DOWNLOADED` event after completing download
-   - Server broadcasts `MEDIA_DOWNLOAD_STATUS` to all clients
+   - Client downloads/loads media and sends `MEDIA_DOWNLOADED` event
+   - Server broadcasts `MEDIA_DOWNLOAD_STATUS` to all clients with `allPlayersReady` flag
    - All clients update their UI to show which players have downloaded media
+   - When `allPlayersReady` is `true`, clients start media playback synchronously
 
 ### Frontend (Client)
 
 1. **Media Download Detection**
    - After media (video/audio/image) is loaded, client sends `MEDIA_DOWNLOADED` event
    - For questions without media, event is sent immediately
+   - Media is prepared but NOT played until all players are ready
 
-2. **Visual Indicators**
+2. **Synchronized Playback**
+   - Client waits for `allPlayersReady` signal from server
+   - Only when all active players have downloaded media does playback start
+   - Ensures fair gameplay where all players see content simultaneously
+
+3. **Visual Indicators**
    - Orange downloading icon: Player is still downloading media
    - Green check icon: Player has downloaded media
    - Indicators only shown when active question has media
 
-3. **State Management**
+4. **State Management**
    - Player download status is stored in game state
    - Status is reset when new question is picked
    - UI reactively updates based on status changes

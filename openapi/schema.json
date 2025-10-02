@@ -2526,7 +2526,8 @@
           "mediaDownloaded": {
             "type": "boolean",
             "description": "Whether the player has downloaded the current question's media",
-            "examples": [true, false]
+            "examples": [true, false],
+            "default": false
           }
         }
       },

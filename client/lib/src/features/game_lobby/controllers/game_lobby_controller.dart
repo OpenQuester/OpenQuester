@@ -982,6 +982,11 @@ class GameLobbyController {
       onChange: (player) =>
           player.copyWith(mediaDownloaded: statusData.mediaDownloaded),
     );
+
+    // If all players are ready, notify the question controller to start playback
+    if (statusData.allPlayersReady) {
+      getIt<GameQuestionController>().onAllPlayersReady();
+    }
   }
 }
 
