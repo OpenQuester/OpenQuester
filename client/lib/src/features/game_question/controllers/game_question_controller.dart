@@ -52,17 +52,11 @@ class GameQuestionController {
       if (file.type != PackageFileType.image) {
         final uri = Uri.parse(file.link!);
 
-        // Fixes loading media without file extension
-        final desktopPlatform =
-            !kIsWeb &&
-            (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
-        if (desktopPlatform) {
-          await _setTmpFile(file);
-          await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
-          controller = VideoPlayerController.file(_tmpFile!);
-        } else {
-          controller = VideoPlayerController.networkUrl(uri);
-        }
+        // Always download media file for proper preloading across all platforms
+        await _setTmpFile(file);
+        await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
+        controller = VideoPlayerController.file(_tmpFile!);
+
         await controller.setVolume(volume.value);
         await controller.initialize();
 
