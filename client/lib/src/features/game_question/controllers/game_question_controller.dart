@@ -91,8 +91,8 @@ class GameQuestionController {
   ) async {
     // Platform-specific media handling for proper preloading
     if (kIsWeb) {
-      // Web: Use network URL (cannot save to file system)
-      // so load to cache
+      // Web: Browsers do not support file system access, so we use the network URL.
+      // To improve performance, we preload the media by caching it.
       await _cacheFile(uri);
       return VideoPlayerController.networkUrl(uri);
     } else {
