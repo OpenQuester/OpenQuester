@@ -69,9 +69,6 @@ class GameQuestionController {
         }
       }
 
-      // Delay to let others players to download
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-
       mediaController.value = controller;
       await controller?.play();
       showMedia.value = true;
