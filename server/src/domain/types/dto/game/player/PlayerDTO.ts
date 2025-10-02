@@ -13,4 +13,5 @@ export interface PlayerDTO {
     banned: boolean;
   };
   score: number;
+  mediaDownloaded?: boolean;
 }

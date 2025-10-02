@@ -87,6 +87,27 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
         game
       );
 
+      // Handle media download timeout
+      if (game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING) {
+        // Force all players as ready and transition to SHOWING state
+        const result = await this.socketIOQuestionService.forceAllPlayersReady(
+          gameId
+        );
+        
+        if (result) {
+          // Broadcast that all players are ready with the new timer
+          this._gameNamespace
+            .to(gameId)
+            .emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, {
+              playerId: 0, // System message
+              mediaDownloaded: true,
+              allPlayersReady: true,
+              timer: result.timer,
+            });
+        }
+        return;
+      }
+
       if (game.gameState.questionState === QuestionState.SHOWING) {
         await this.socketQuestionStateService.resetToChoosingState(game);
 

@@ -59,4 +59,8 @@ export enum SocketIOGameEvents {
   STAKE_QUESTION_PICKED = "stake-question-picked",
   STAKE_BID_SUBMIT = "stake-bid-submit",
   STAKE_QUESTION_WINNER = "stake-question-winner",
+
+  // Media Download Events
+  MEDIA_DOWNLOADED = "media-downloaded",
+  MEDIA_DOWNLOAD_STATUS = "media-download-status",
 }

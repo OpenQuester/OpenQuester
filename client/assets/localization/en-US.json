@@ -81,7 +81,8 @@
     "correct_answer_is": "Correct answer is: {}",
     "hint": "Hint: {}",
     "skip_round": "Skip this round",
-    "sure_skip_round": "Are you sure you want to skip this round?"
+    "sure_skip_round": "Are you sure you want to skip this round?",
+    "waiting_for_all_players": "Waiting for all players to download media..."
   },
   "delete_lobby": "Delete lobby",
   "delete_lobby_confirmation": "Do you want to delete the lobby?",
