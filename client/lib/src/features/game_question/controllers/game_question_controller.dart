@@ -50,10 +50,16 @@ class GameQuestionController {
       if (file.type != PackageFileType.image) {
         final uri = Uri.parse(file.link!);
 
-        // Always download media file for proper preloading across all platforms
-        await _setTmpFile(file);
-        await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
-        controller = VideoPlayerController.file(_tmpFile!);
+        // Platform-specific media handling for proper preloading
+        if (kIsWeb) {
+          // Web: Use network URL (cannot save to file system)
+          controller = VideoPlayerController.networkUrl(uri);
+        } else {
+          // Mobile/Desktop: Download and use local file for reliable preloading
+          await _setTmpFile(file);
+          await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
+          controller = VideoPlayerController.file(_tmpFile!);
+        }
 
         await controller.setVolume(volume.value);
         await controller.initialize();
