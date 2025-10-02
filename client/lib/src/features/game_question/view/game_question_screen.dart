@@ -13,6 +13,9 @@ class GameQuestionScreen extends WatchingWidget {
     final file = fileData?.file;
     final questionText = fileData?.text;
     final questionMediaOnLeft = GameLobbyStyles.questionMediaOnLeft(context);
+    final waitingForPlayers = watchValue(
+      (GameQuestionController e) => e.waitingForPlayers,
+    );
 
     final scrollController = createOnce(
       ScrollController.new,
@@ -66,7 +69,31 @@ class GameQuestionScreen extends WatchingWidget {
               onSecondaryTapDown: (_) =>
                   getIt<GameLobbyController>().onAnswer(),
               supportedDevices: const {PointerDeviceKind.mouse},
-              child: column.paddingAll(16),
+              child: Stack(
+                children: [
+                  column.paddingAll(16),
+                  if (waitingForPlayers)
+                    Container(
+                      color: Colors.black.withOpacity(0.7),
+                      child: const Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text(
+                              'Waiting for all players to download media...',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

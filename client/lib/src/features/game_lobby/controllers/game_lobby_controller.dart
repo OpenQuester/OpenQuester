@@ -983,9 +983,15 @@ class GameLobbyController {
           player.copyWith(mediaDownloaded: statusData.mediaDownloaded),
     );
 
-    // If all players are ready, notify the question controller
+    // If all players are ready, update timer and notify the question controller
     // to start playback
     if (statusData.allPlayersReady) {
+      // Update the timer if provided
+      if (statusData.timer != null) {
+        gameData.value = gameData.value?.copyWith.gameState(
+          timer: statusData.timer,
+        );
+      }
       getIt<GameQuestionController>().onAllPlayersReady();
     }
   }

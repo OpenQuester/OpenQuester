@@ -8,6 +8,7 @@ import {
   GAME_QUESTION_ANSWER_SUBMIT_TIME,
   GAME_QUESTION_ANSWER_TIME,
   STAKE_QUESTION_BID_TIME,
+  MEDIA_DOWNLOAD_TIMEOUT,
 } from "domain/constants/game";
 import { REDIS_LOCK_QUESTION_ANSWER } from "domain/constants/redis";
 import { Game } from "domain/entities/game/Game";
@@ -1203,10 +1204,17 @@ export class SocketIOQuestionService {
     // Save game state
     await this.gameService.updateGame(game);
 
+    // If all players are ready, include the timer
+    let timer = null;
+    if (allPlayersReady && game.timer) {
+      timer = game.timer;
+    }
+
     return {
       game,
       playerId: currentPlayer.meta.id,
       allPlayersReady,
+      timer,
     };
   }
 
@@ -1218,5 +1226,28 @@ export class SocketIOQuestionService {
     for (const player of players) {
       player.mediaDownloaded = false;
     }
+  }
+
+  /**
+   * Force all players to be marked as ready (used by timeout)
+   */
+  public async forceAllPlayersReady(gameId: string) {
+    const game = await this.gameService.getGame(gameId);
+    if (!game) return null;
+
+    // Mark all active players as downloaded
+    const activePlayers = game.players.filter(
+      (p) => p.gameStatus === PlayerGameStatus.IN_GAME
+    );
+    for (const player of activePlayers) {
+      player.mediaDownloaded = true;
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      timer: game.timer,
+    };
   }
 }

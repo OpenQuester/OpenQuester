@@ -3017,6 +3017,13 @@
             "type": "boolean",
             "description": "Whether all active players have downloaded media",
             "examples": [true, false]
+          },
+          "timer": {
+            "description": "Question timer (only present when allPlayersReady is true)",
+            "oneOf": [
+              { "$ref": "#/components/schemas/GameStateTimer" },
+              { "type": "null" }
+            ]
           }
         },
         "required": ["playerId", "mediaDownloaded", "allPlayersReady"]

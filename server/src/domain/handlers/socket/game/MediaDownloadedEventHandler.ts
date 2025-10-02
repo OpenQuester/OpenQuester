@@ -65,6 +65,7 @@ export class MediaDownloadedEventHandler extends BaseSocketEventHandler<
       playerId: result.playerId,
       mediaDownloaded: true,
       allPlayersReady: result.allPlayersReady,
+      timer: result.timer || undefined,
     };
 
     const broadcasts: Array<
