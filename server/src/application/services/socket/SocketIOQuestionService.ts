@@ -444,11 +444,12 @@ export class SocketIOQuestionService {
         );
       }
     } else {
-      // Normal question flow - set up timer and showing state
+      // Normal question flow - set up media download timer first
+      // Players need to download media before showing the question
       timer = await this.socketQuestionStateService.setupQuestionTimer(
         game,
-        GAME_QUESTION_ANSWER_TIME,
-        QuestionState.SHOWING
+        MEDIA_DOWNLOAD_TIMEOUT,
+        QuestionState.MEDIA_DOWNLOADING
       );
       // For normal questions, set currentQuestion immediately
       game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
@@ -1201,6 +1202,28 @@ export class SocketIOQuestionService {
     );
     const allPlayersReady = activePlayers.every((p) => p.mediaDownloaded);
 
+    // If all players are ready, transition to SHOWING state
+    if (allPlayersReady && game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING) {
+      // Clear the media download timeout timer
+      await this.gameService.clearTimer(game.id);
+      
+      // Set up the actual question showing timer
+      const timer = await this.socketQuestionStateService.setupQuestionTimer(
+        game,
+        GAME_QUESTION_ANSWER_TIME,
+        QuestionState.SHOWING
+      );
+      
+      await this.gameService.updateGame(game);
+
+      return {
+        game,
+        playerId: currentPlayer.meta.id,
+        allPlayersReady,
+        timer: timer.value(),
+      };
+    }
+
     // Save game state
     await this.gameService.updateGame(game);
 
@@ -1243,11 +1266,21 @@ export class SocketIOQuestionService {
       player.mediaDownloaded = true;
     }
 
+    // Clear the media download timeout timer
+    await this.gameService.clearTimer(game.id);
+    
+    // Set up the actual question showing timer
+    const timer = await this.socketQuestionStateService.setupQuestionTimer(
+      game,
+      GAME_QUESTION_ANSWER_TIME,
+      QuestionState.SHOWING
+    );
+
     await this.gameService.updateGame(game);
 
     return {
       game,
-      timer: game.timer,
+      timer: timer.value(),
     };
   }
 }

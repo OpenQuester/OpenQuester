@@ -351,26 +351,5 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
         socketId
       );
     }
-
-    // Set up media download timeout (10 seconds)
-    // If not all players have downloaded by then, force them as ready
-    setTimeout(async () => {
-      const result = await this.socketIOQuestionService.forceAllPlayersReady(
-        game.id
-      );
-      if (result) {
-        // Broadcast final status with timer to all players
-        this.eventEmitter.emit(
-          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-          {
-            playerId: 0, // System message
-            mediaDownloaded: true,
-            allPlayersReady: true,
-            timer: result.timer,
-          },
-          { emitter: "io" as any, gameId: game.id }
-        );
-      }
-    }, 10000); // 10 seconds
   }
 }
