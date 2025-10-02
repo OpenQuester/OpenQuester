@@ -412,21 +412,24 @@ class GameLobbyController {
     );
 
     // Reset media download status for all players
-    final playersWithResetStatus = gameData.value?.players.map((player) {
-      return player.copyWith(mediaDownloaded: false);
-    }).toList();
+    final playersWithResetStatus =
+        gameData.value?.players.map((player) {
+          return player.copyWith(mediaDownloaded: false);
+        }).toList() ??
+        [];
 
-    gameData.value = gameData.value?.copyWith(
-      players: playersWithResetStatus,
-    ).copyWith.gameState(
-      timer: questionData.timer,
-      currentQuestion: questionData.data,
-      answeredPlayers: null,
-      // Dont clear answeringPlayer for stake question
-      answeringPlayer: questionData.data.type == QuestionType.stake
-          ? gameData.value?.gameState.answeringPlayer
-          : null,
-    );
+    gameData.value = gameData.value
+        ?.copyWith(players: playersWithResetStatus)
+        .copyWith
+        .gameState(
+          timer: questionData.timer,
+          currentQuestion: questionData.data,
+          answeredPlayers: null,
+          // Dont clear answeringPlayer for stake question
+          answeringPlayer: questionData.data.type == QuestionType.stake
+              ? gameData.value?.gameState.answeringPlayer
+              : null,
+        );
 
     gameData.value = gameData.value!.copyWith.gameState(
       currentRound: gameData.value!.gameState.currentRound?.changeQuestion(

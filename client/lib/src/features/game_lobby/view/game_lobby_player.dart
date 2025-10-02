@@ -199,16 +199,14 @@ class _MediaDownloadIndicator extends WatchingWidget {
     if (!hasMedia) return const SizedBox.shrink();
 
     // Show check icon if downloaded, loading icon if not
-    final mediaDownloaded = player.mediaDownloaded ?? false;
-    
+    final mediaDownloaded = player.mediaDownloaded;
+
     return Icon(
       mediaDownloaded ? Icons.check_circle : Icons.downloading,
       color: mediaDownloaded ? Colors.green : Colors.orange,
       size: 16,
     ).withTooltip(
-      msg: mediaDownloaded 
-          ? 'Media Downloaded'
-          : 'Downloading Media...',
+      msg: mediaDownloaded ? 'Media Downloaded' : 'Downloading Media...',
     );
   }
 }
