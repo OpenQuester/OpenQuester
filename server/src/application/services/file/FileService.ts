@@ -36,4 +36,11 @@ export class FileService {
   public async removeFile(filename: string) {
     return this.fileRepository.removeFile(filename);
   }
+
+  /**
+   * Get all filenames from database in batches for memory efficiency
+   */
+  public async getAllFilenames(): Promise<string[]> {
+    return this.fileRepository.getAllFilenames();
+  }
 }

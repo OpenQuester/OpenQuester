@@ -5,7 +5,9 @@ import express from "express";
 import { createServer, type Server } from "http";
 import { Server as IOServer } from "socket.io";
 
+import { Container, CONTAINER_TYPES } from "application/Container";
 import { ApiContext } from "application/context/ApiContext";
+import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { ErrorController } from "domain/errors/ErrorController";
 import { Environment, EnvType } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
@@ -146,6 +148,20 @@ async function gracefulShutdown(
     await logger.close();
     process.exit(1);
   }, 5000);
+
+  // Stop cron jobs
+  try {
+    const cronScheduler = Container.get<CronSchedulerService>(
+      CONTAINER_TYPES.CronSchedulerService
+    );
+    cronScheduler.stopAll();
+    logger.info("Cron scheduler stopped");
+  } catch (error) {
+    logger.warn("Failed to stop cron scheduler", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
   server.close();
   await ctx.db.disconnect();
   await ctx.io.close();
