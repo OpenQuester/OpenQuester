@@ -5,7 +5,9 @@ import { createServer } from "http";
 import { Server as IOServer } from "socket.io";
 import { DataSource } from "typeorm";
 
+import { Container, CONTAINER_TYPES } from "application/Container";
 import { ApiContext } from "application/context/ApiContext";
+import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { Environment } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Database } from "infrastructure/database/Database";
@@ -78,6 +80,13 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
 
   // Provide a cleanup function for Redis, Socket.IO, and HTTP server
   async function cleanup() {
+    // Stop cron scheduler to allow tests to exit cleanly
+    const cronScheduler = Container.get<CronSchedulerService>(
+      CONTAINER_TYPES.CronSchedulerService
+    );
+    cronScheduler.stopAll();
+    logger.info("Cron scheduler stopped");
+
     await io.close();
     await RedisConfig.disconnect();
     if (httpServer.listening) {
