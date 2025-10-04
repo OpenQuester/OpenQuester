@@ -108,14 +108,14 @@ export class CronSchedulerService {
   /**
    * Stop all cron jobs
    */
-  public stopAll(): void {
+  public async stopAll(): Promise<void> {
     this.logger.info("Stopping all cron jobs", {
       prefix: "[CRON_SCHEDULER]: ",
       totalJobs: this.scheduledTasks.size,
     });
 
     for (const [jobName, task] of this.scheduledTasks.entries()) {
-      void task.stop();
+      await task.stop();
       this.logger.debug(`Stopped cron job: ${jobName}`, {
         prefix: "[CRON_SCHEDULER]: ",
         job: jobName,

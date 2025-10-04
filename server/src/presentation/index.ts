@@ -154,8 +154,8 @@ async function gracefulShutdown(
     const cronScheduler = Container.get<CronSchedulerService>(
       CONTAINER_TYPES.CronSchedulerService
     );
-    cronScheduler.stopAll();
-    logger.info("Cron scheduler stopped");
+    logger.info("Stopping cron scheduler...");
+    await cronScheduler.stopAll();
   } catch (error) {
     logger.warn("Failed to stop cron scheduler", {
       error: error instanceof Error ? error.message : String(error),
