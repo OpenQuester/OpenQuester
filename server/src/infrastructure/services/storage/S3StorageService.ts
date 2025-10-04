@@ -398,78 +398,28 @@ export class S3StorageService {
   }
 
   /**
-   * List all files in S3 bucket with efficient pagination
-   * Returns array of all file keys (without bucket prefix)
-   */
-  public async listAllS3Files(): Promise<string[]> {
-    const allKeys: string[] = [];
-    let continuationToken: string | undefined;
-
-    do {
-      const command = new ListObjectsV2Command({
-        Bucket: this.s3Context.bucket,
-        MaxKeys: 1000, // Maximum allowed by S3
-        ContinuationToken: continuationToken,
-      });
-
-      try {
-        const response = await this._client.send(command);
-
-        if (response.Contents) {
-          // Extract keys and convert them back to filenames
-          const keys = response.Contents.filter((obj) => obj.Key) // Filter out undefined keys
-            .map((obj) => {
-              // S3 key format is "a/ab/abcd.jpg", we want just "abcd.jpg"
-              const key = obj.Key!;
-              const parts = key.split("/");
-              return parts[parts.length - 1]; // Get the filename part
-            });
-
-          allKeys.push(...keys);
-        }
-
-        continuationToken = response.NextContinuationToken;
-
-        // Log progress for large buckets
-        if (allKeys.length % 10000 === 0 && allKeys.length > 0) {
-          this.logger.info(
-            `S3 cleanup: Listed ${allKeys.length} files so far...`
-          );
-        }
-      } catch (error) {
-        this.logger.error(`Failed to list S3 objects`, {
-          continuationToken,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      }
-    } while (continuationToken);
-
-    this.logger.info(`S3 cleanup: Total files found in S3: ${allKeys.length}`);
-    return allKeys;
-  }
-
-  /**
-   * List all files in S3 bucket and return both S3 keys and extracted filenames
+   * List all files in S3 bucket as async generator for memory efficiency
+   * Yields batches of files with both S3 keys and extracted filenames
    * This is useful for cleanup operations where we need the original S3 keys
+   * @param batchSize - Number of files to yield per batch (maximum: 1000)
    */
-  public async listAllS3FilesWithKeys(): Promise<
-    { filename: string; s3Key: string }[]
-  > {
-    const allFiles: { filename: string; s3Key: string }[] = [];
+  public async *listS3FilesInBatches(
+    batchSize: number = 1000
+  ): AsyncGenerator<{ filename: string; s3Key: string }[]> {
     let continuationToken: string | undefined;
+    let totalProcessed = 0;
 
     do {
       const command = new ListObjectsV2Command({
         Bucket: this.s3Context.bucket,
-        MaxKeys: 1000, // Maximum allowed by S3
+        MaxKeys: batchSize,
         ContinuationToken: continuationToken,
       });
 
       try {
         const response = await this._client.send(command);
 
-        if (response.Contents) {
+        if (response.Contents && response.Contents.length > 0) {
           const files = response.Contents.filter((obj) => obj.Key) // Filter out undefined keys
             .map((obj) => {
               const s3Key = obj.Key!;
@@ -478,28 +428,27 @@ export class S3StorageService {
               return { filename, s3Key };
             });
 
-          allFiles.push(...files);
+          totalProcessed += files.length;
+          yield files;
+
+          // Log progress for large buckets
+          if (totalProcessed % 10000 === 0) {
+            this.logger.info(
+              `List S3 files in batches: Processed ${totalProcessed} files so far...`
+            );
+          }
         }
 
         continuationToken = response.NextContinuationToken;
-
-        // Log progress for large buckets
-        if (allFiles.length % 10000 === 0 && allFiles.length > 0) {
-          this.logger.info(
-            `S3 cleanup: Listed ${allFiles.length} files so far...`
-          );
-        }
       } catch (error) {
-        this.logger.error(`Failed to list S3 objects with keys`, {
+        this.logger.error(`Failed to list S3 objects in batches`, {
           continuationToken,
+          totalProcessed,
           error: error instanceof Error ? error.message : String(error),
         });
         throw error;
       }
     } while (continuationToken);
-
-    this.logger.info(`S3 cleanup: Total files found in S3: ${allFiles.length}`);
-    return allFiles;
   }
 
   /**

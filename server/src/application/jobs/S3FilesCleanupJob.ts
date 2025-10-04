@@ -35,11 +35,11 @@ export class S3FilesCleanupJob extends BaseCronJob {
   }
 
   /**
-   * Execute the S3 cleanup process
-   * 1. List all files in S3 bucket
-   * 2. Get all filenames from database
-   * 3. Find orphaned files (in S3 but not in DB)
-   * 4. Delete orphaned files from S3 in batches
+   * Execute the S3 cleanup process in batches for memory efficiency
+   * 1. Fetch S3 files in batches (1000 files at a time)
+   * 2. For each batch, check which filenames exist in DB
+   * 3. Collect orphaned files (in S3 but not in DB)
+   * 4. After processing all batches, delete all orphaned files
    */
   protected async run(): Promise<void> {
     const log = this.logger.performance("S3 Files Cleanup Job");
@@ -47,55 +47,64 @@ export class S3FilesCleanupJob extends BaseCronJob {
       prefix: "[S3_CLEANUP]: ",
     });
 
+    const BATCH_SIZE = 1000;
+    const orphanedFiles: { filename: string; s3Key: string }[] = [];
+    const ignoredFolder = this.s3Service.getIgnoredCleanupFolder();
+
+    let totalS3Files = 0;
+    let totalIgnored = 0;
+    let batchNumber = 0;
+
     try {
-      // Step 1: Get all files from S3 with their S3 keys
-      this.logger.info("Listing all files in S3 bucket...", {
+      // Process S3 files in batches
+      for await (const s3Batch of this.s3Service.listS3FilesInBatches(
+        BATCH_SIZE
+      )) {
+        batchNumber++;
+        totalS3Files += s3Batch.length;
+
+        // Filter out files from ignored folder
+        const filteredBatch = ignoredFolder
+          ? s3Batch.filter((file) => !this.shouldIgnoreFile(file.s3Key))
+          : s3Batch;
+
+        totalIgnored += s3Batch.length - filteredBatch.length;
+
+        if (filteredBatch.length === 0) {
+          continue;
+        }
+
+        // Extract filenames for DB check
+        const filenames = filteredBatch.map((file) => file.filename);
+
+        // Check which filenames exist in database
+        const existingFilenames = await this.fileService.getExistingFilenames(
+          filenames
+        );
+        const existingSet = new Set(existingFilenames);
+
+        // Find orphaned files in this batch
+        const batchOrphaned = filteredBatch.filter(
+          (file) => !existingSet.has(file.filename)
+        );
+
+        orphanedFiles.push(...batchOrphaned);
+
+        this.logger.debug(`Batch ${batchNumber} processed`);
+      }
+
+      // Log final statistics
+      this.logger.info("S3 file processing complete", {
         prefix: "[S3_CLEANUP]: ",
-      });
-
-      const s3Log = this.logger.performance("List all files in S3");
-
-      const s3FilesWithKeys = await this.s3Service.listAllS3FilesWithKeys();
-
-      s3Log.finish();
-
-      // Step 2: Get all filenames from database
-      this.logger.info("Fetching all filenames from database...", {
-        prefix: "[S3_CLEANUP]: ",
-      });
-
-      const fileLog = this.logger.performance(
-        "Fetch all filenames from database"
-      );
-
-      const dbFilenames = await this.fileService.getAllFilenames();
-
-      fileLog.finish();
-
-      const dbFilenamesSet = new Set(dbFilenames);
-
-      // Filter out files from ignored folder
-      const ignoredFolder = this.s3Service.getIgnoredCleanupFolder();
-      const filteredS3Files = ignoredFolder
-        ? s3FilesWithKeys.filter((file) => !this.shouldIgnoreFile(file.s3Key))
-        : s3FilesWithKeys;
-
-      const ignoredCount = s3FilesWithKeys.length - filteredS3Files.length;
-
-      this.logger.info("Comparison stats", {
-        prefix: "[S3_CLEANUP]: ",
-        s3Files: s3FilesWithKeys.length,
-        s3FilesAfterFilter: filteredS3Files.length,
-        dbFiles: dbFilenames.length,
+        totalS3Files,
+        totalIgnored,
+        totalProcessed: totalS3Files - totalIgnored,
+        totalOrphaned: orphanedFiles.length,
         ignoredFolder: ignoredFolder || "none",
-        ignoredFilesCount: ignoredCount,
+        batchesProcessed: batchNumber,
       });
 
-      // Step 3: Find orphaned files (exist in S3 but not in database)
-      const orphanedFiles = filteredS3Files.filter(
-        (file) => !dbFilenamesSet.has(file.filename)
-      );
-
+      // Delete orphaned files if any found
       if (orphanedFiles.length === 0) {
         this.logger.info("No orphaned files found in S3", {
           prefix: "[S3_CLEANUP]: ",
@@ -108,8 +117,7 @@ export class S3FilesCleanupJob extends BaseCronJob {
         orphanedCount: orphanedFiles.length,
       });
 
-      // Step 4: Delete ALL orphaned files from S3 using their S3 keys
-      // This handles both valid MD5 files and invalid naming convention files
+      // Delete ALL orphaned files from S3 using their S3 keys
       const s3KeysToDelete = orphanedFiles.map((file) => file.s3Key);
 
       await this.s3Service.deleteFilesByS3Keys(s3KeysToDelete);

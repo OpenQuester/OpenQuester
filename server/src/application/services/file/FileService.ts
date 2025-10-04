@@ -43,4 +43,12 @@ export class FileService {
   public async getAllFilenames(): Promise<string[]> {
     return this.fileRepository.getAllFilenames();
   }
+
+  /**
+   * Check which filenames exist in the database
+   * Returns only the filenames that were found
+   */
+  public async getExistingFilenames(filenames: string[]): Promise<string[]> {
+    return this.fileRepository.getExistingFilenames(filenames);
+  }
 }
