@@ -84,8 +84,8 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     const cronScheduler = Container.get<CronSchedulerService>(
       CONTAINER_TYPES.CronSchedulerService
     );
-    cronScheduler.stopAll();
-    logger.info("Cron scheduler stopped");
+    logger.info("Stopping cron scheduler...");
+    await cronScheduler.stopAll();
 
     await io.close();
     await RedisConfig.disconnect();
