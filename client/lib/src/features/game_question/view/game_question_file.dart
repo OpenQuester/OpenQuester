@@ -32,7 +32,7 @@ class GameQuestionMediaWidget extends WatchingWidget {
         child = ImageWidget(url: url);
       } else if (mediaController != null) {
         if (fileType == PackageFileType.audio) {
-          child = const Icon(Icons.music_note, size: 60).fadeOut();
+          child = const Icon(Icons.music_note, size: 60).fadeIn();
         } else {
           child = AspectRatio(
             aspectRatio: mediaController.value.aspectRatio,

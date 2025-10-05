@@ -150,19 +150,9 @@ class GameLobbyController {
         body: InputSocketIOAuth(socketId: socket!.id!),
       );
 
-      // Check for other showman who joined when you wore out
-      final otherShowman = gameListData.value?.players.firstWhereOrNull(
-        (e) => e.id != myId && e.role == PlayerRole.showman,
-      );
-      final lastRole = otherShowman != null
-          ? null
-          : gameListData.value?.players
-                .firstWhereOrNull((e) => e.id == myId)
-                ?.role;
-
       final ioGameJoinInput = SocketIOGameJoinInput(
         gameId: _gameId!,
-        role: lastRole ?? PlayerRole.spectator,
+        role: _getJoinRole(),
       );
 
       socket?.emit(SocketIOGameSendEvents.join.json!, ioGameJoinInput.toJson());
@@ -180,6 +170,29 @@ class GameLobbyController {
       // Close game
       await AppRouter.I.replace(const HomeTabsRoute());
     }
+  }
+
+  PlayerRole _getJoinRole() {
+    var lastRole = gameListData.value?.players
+        .firstWhereOrNull((e) => e.id == myId)
+        ?.role;
+
+    // Check for other showman who joined when you wore out
+    if (lastRole == PlayerRole.showman) {
+      final otherShowman = gameListData.value?.players.firstWhereOrNull(
+        (e) => e.id != myId && e.role == PlayerRole.showman,
+      );
+      if (otherShowman != null) {
+        lastRole = null;
+        unawaited(
+          getIt<ToastController>().show(
+            LocaleKeys.multiple_showman_warning.tr(),
+            type: ToastType.warning,
+          ),
+        );
+      }
+    }
+    return lastRole ?? PlayerRole.spectator;
   }
 
   Future<void> _onChatMessage(ChatOperation chatOperation) async {
