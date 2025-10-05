@@ -111,7 +111,6 @@ class GameLobbyController {
   }
 
   void _showLoggedInChatEvent(String text) {
-    getIt<ToastController>().show(text, type: ToastType.info);
     getIt<SocketChatController>().chatController?.insertMessage(
       TextMessage(
         id: UniqueKey().toString(),
@@ -206,15 +205,18 @@ class GameLobbyController {
       SystemMessage() => message.text,
       _ => null,
     };
-    if (text.isEmptyOrNull) return;
+    if ((text?.trim()).isEmptyOrNull) return;
 
     final author = gameData.value?.players.getById(
       int.tryParse(message?.authorId ?? ''),
     );
+    final isSystemMessage =
+        message?.authorId == SocketChatController.systemMessageId;
+
     await getIt<ToastController>().show(
       text?.trim(),
       title: author?.meta.username,
-      type: ToastType.chat,
+      type: isSystemMessage ? ToastType.info : ToastType.chat,
     );
   }
 
