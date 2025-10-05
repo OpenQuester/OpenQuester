@@ -138,6 +138,8 @@ extension SocketIOGameStateRoundDataX on SocketIOGameStateRoundData {
 
 extension SocketIOGameJoinEventPayloadX on SocketIOGameJoinEventPayload {
   PlayerData get me => players.getById(ProfileController.getUser()!.id)!;
+  bool get imShowman => me.role == PlayerRole.showman;
+  bool get imSpectator => me.role == PlayerRole.spectator;
 
   SocketIOGameJoinEventPayload changePlayer({
     required int? id,

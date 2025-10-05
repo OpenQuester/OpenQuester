@@ -42,7 +42,6 @@ class GameLobbyPlayerStakesController extends ChangeNotifier {
   }
 
   void confirmSelection(SocketIOStakeQuestionBidInput bid) {
-    isBidding = false;
     this.bid = bid;
     _onPlayerBid?.call(bid);
     notifyListeners();

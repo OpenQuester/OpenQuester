@@ -29,17 +29,17 @@ class GameStakeQuestionBody extends WatchingWidget {
                 child: GameStakeQuestionBids(),
               ),
             ).center().expand(),
-            AppAnimatedSwitcher(
-              sizeTransitionAxis: direction,
-              visible:
-                  playerMakesABid || gameData?.me.role == PlayerRole.showman,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: questionMediaOnLeft ? 250 : double.infinity,
+            if (!(gameData?.imSpectator ?? true))
+              AppAnimatedSwitcher(
+                sizeTransitionAxis: direction,
+                visible: playerMakesABid || (gameData?.imShowman ?? false),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: questionMediaOnLeft ? 250 : double.infinity,
+                  ),
+                  child: const PlayerBidControls().center(),
                 ),
-                child: const PlayerBidControls().center(),
               ),
-            ),
           ],
         ).expand(),
       ],

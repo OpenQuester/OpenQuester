@@ -797,6 +797,8 @@ class GameLobbyController {
     gameData.value = gameData.value?.copyWith.gameState(
       currentTurnPlayerId: data.newTurnPlayerId,
     );
+
+    _syncCurrentUserFromTurn();
   }
 
   void _onScoreChanged(dynamic json) {
@@ -919,7 +921,10 @@ class GameLobbyController {
     if (stakeData == null) return;
 
     final bidderIndex = stakeData.currentBidderIndex;
-    final bidderId = stakeData.biddingOrder.tryByIndex(bidderIndex) ?? -1;
+    final bidderId =
+        gameData.value?.gameState.currentTurnPlayerId ??
+        stakeData.biddingOrder.tryByIndex(bidderIndex) ??
+        -1;
 
     getIt<GameLobbyPlayerStakesController>().startBidding(
       bidderId: bidderId,
@@ -929,6 +934,12 @@ class GameLobbyController {
         bid.toJson(),
       ),
     );
+  }
+
+  void _syncCurrentUserFromTurn() {
+    final currentTurnPlayerId = gameData.value?.gameState.currentTurnPlayerId;
+    if (currentTurnPlayerId == null) return;
+    getIt<GameLobbyPlayerStakesController>().changeBidder(currentTurnPlayerId);
   }
 
   void _onStakeQuestionSubmitted(dynamic json) {
