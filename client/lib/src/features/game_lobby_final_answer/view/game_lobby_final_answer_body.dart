@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
-import 'package:openquester/src/features/game_lobby_final_answer/controllers/game_lobby_final_answer_controller.dart';
 
 class GameFinalAnswerBody extends WatchingWidget {
   const GameFinalAnswerBody({super.key});
