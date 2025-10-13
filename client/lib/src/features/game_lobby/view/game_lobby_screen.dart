@@ -117,19 +117,29 @@ class _BodyBuilder extends WatchingWidget {
     final isPickingPlayer = watchPropertyValue(
       (GameLobbyPlayerPickerController e) => e.isPicking,
     );
+    final isBidding = watchPropertyValue(
+      (GameLobbyPlayerStakesController e) => e.isBidding,
+    );
     final lobbyEditorMode = watchValue(
       (GameLobbyController e) => e.lobbyEditorMode,
     );
     final currentQuestion = watchValue(
       (GameQuestionController e) => e.questionData,
     );
+    final isPickingTheme = watchPropertyValue(
+      (GameLobbyThemePickerController e) => e.isPicking,
+    );
     final gameFinished = watchValue((GameLobbyController e) => e.gameFinished);
 
     Widget body;
-    if (isPickingPlayer) {
-      body = const GameLobbyPlayerPicker();
-    } else if (lobbyEditorMode) {
+    if (lobbyEditorMode) {
       body = const GameLobbyEditor().fadeIn();
+    } else if (isBidding) {
+      body = const GameStakeQuestionBody();
+    } else if (isPickingTheme) {
+      body = const GameFinalRoundBody();
+    } else if (isPickingPlayer) {
+      body = const GameLobbyPlayerPicker();
     } else if (gameData?.gameState.currentRound == null) {
       body = const CircularProgressIndicator().fadeIn().center();
     } else if (gameFinished) {
@@ -144,7 +154,7 @@ class _BodyBuilder extends WatchingWidget {
 
     return Column(
       children: [
-        if (gameData?.me.role == PlayerRole.spectator)
+        if (gameData?.me.isSpectator ?? false)
           Text(
             LocaleKeys.you_are_spectator.tr(),
             style: context.textTheme.bodySmall?.copyWith(
@@ -163,7 +173,7 @@ class _GamePausedScreen extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final imShowman = gameData?.me.role == PlayerRole.showman;
+    final imShowman = gameData?.me.isShowman ?? false;
 
     return Column(
       mainAxisSize: MainAxisSize.min,

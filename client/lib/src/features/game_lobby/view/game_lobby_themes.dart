@@ -22,6 +22,18 @@ class GameLobbyThemes extends WatchingWidget {
 
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final round = gameData?.gameState.currentRound;
+
+    registerHandler(
+      select: (GameLobbyController e) => e.gameData,
+      handler: (context, newValue, cancel) {
+        if (round?.order == newValue?.gameState.currentRound?.order) {
+          return;
+        }
+        // Reset scroll position when round changes
+        scrollController.animToTop();
+      },
+    );
+
     final themes =
         round
             ?.sortedThemes()

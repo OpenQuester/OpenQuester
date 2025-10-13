@@ -99,6 +99,18 @@ class GameLobbyController {
           SocketIOGameReceiveEvents.stakeQuestionWinner.json!,
           _onStakeQuestionWinner,
         )
+        ..on(
+          SocketIOGameReceiveEvents.themeEliminate.json!,
+          _onThemeEliminate,
+        )
+        ..on(
+          SocketIOGameReceiveEvents.finalPhaseComplete.json!,
+          _onFinalPhaseComplete,
+        )
+        ..on(
+          SocketIOGameReceiveEvents.finalBidSubmit.json!,
+          _onFinalBidSubmit,
+        )
         ..connect();
 
       return await _joinCompleter.future;
@@ -107,6 +119,31 @@ class GameLobbyController {
       clear();
 
       rethrow;
+    }
+  }
+
+  /// Clear all fields for new game to use
+  void clear() {
+    try {
+      _gameId = null;
+      socket?.dispose();
+      socket = null;
+      gameData.value = null;
+      gameListData.value = null;
+      _chatMessagesSub?.cancel();
+      _chatMessagesSub = null;
+      showChat.value = false;
+      gameFinished.value = false;
+      lobbyEditorMode.value = false;
+      themeScrollPosition = null;
+      getIt<SocketChatController>().clear();
+      getIt<GameQuestionController>().clear();
+      getIt<GameLobbyPlayerPickerController>().clear();
+      getIt<GameLobbyThemePickerController>().clear();
+      getIt<GameLobbyPlayerStakesController>().clear();
+      _joinCompleter = JoinCompleter();
+    } catch (e, s) {
+      logger.e(e, stackTrace: s);
     }
   }
 
@@ -205,29 +242,6 @@ class GameLobbyController {
     );
   }
 
-  /// Clear all fields for new game to use
-  void clear() {
-    try {
-      _gameId = null;
-      socket?.dispose();
-      socket = null;
-      gameData.value = null;
-      gameListData.value = null;
-      _chatMessagesSub?.cancel();
-      _chatMessagesSub = null;
-      showChat.value = false;
-      gameFinished.value = false;
-      lobbyEditorMode.value = false;
-      themeScrollPosition = null;
-      getIt<SocketChatController>().clear();
-      getIt<GameQuestionController>().clear();
-      getIt<GameLobbyPlayerPickerController>().clear();
-      _joinCompleter = JoinCompleter();
-    } catch (e, s) {
-      logger.e(e, stackTrace: s);
-    }
-  }
-
   Future<void> leave({bool force = false}) async {
     socket?.emit(SocketIOGameSendEvents.userLeave.json!);
     _leave();
@@ -253,7 +267,27 @@ class GameLobbyController {
     await _initChat();
 
     _showQuestion();
+    _showFinalRound();
+    _showStakeQuestion();
   }
+
+  void _onNextRound(dynamic data) {
+    if (data is! Map) return;
+
+    final nextRoundData = SocketIONextRoundEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith(
+      gameState: nextRoundData.gameState,
+    );
+
+    _resetScrollPosition();
+    _showQuestion();
+    _showFinalRound();
+  }
+
+  void _resetScrollPosition() => themeScrollPosition = null;
 
   Future<void> _initChat() async {
     // Get chat messages history
@@ -382,7 +416,7 @@ class GameLobbyController {
     final currentTurnPlayerId = gameData.value?.gameState.currentTurnPlayerId;
     final me = gameData.value?.me;
 
-    if (me?.role == PlayerRole.spectator) return;
+    if (me.isSpectator) return;
 
     final myTurnToPick = currentTurnPlayerId == me?.meta.id;
 
@@ -425,6 +459,7 @@ class GameLobbyController {
     );
 
     getIt<GameLobbyPlayerPickerController>().stopSelection();
+    getIt<GameLobbyPlayerStakesController>().stopSelection();
 
     // Pass the question to controller to show the question
     _showQuestion();
@@ -522,7 +557,7 @@ class GameLobbyController {
   void _onQuestionFinish(dynamic data) {
     if (data is! Map) return;
 
-    final questionData = QuestionFinishEventPayload.fromJson(
+    final questionData = SocketIOQuestionFinishEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
 
@@ -560,7 +595,10 @@ class GameLobbyController {
       currentQuestion: null,
       timer: null,
     );
-    getIt<GameLobbyPlayerPickerController>().stopSelection();
+
+    // Clear selection controllers
+    getIt<GameLobbyPlayerPickerController>().clear();
+    getIt<GameLobbyPlayerStakesController>().clear();
 
     try {
       var mediaPlaytimeMs = 0;
@@ -594,7 +632,7 @@ class GameLobbyController {
   Future<void> answerQuestion({String? answerText}) async {
     await socket?.emitWithAckAsync(
       SocketIOGameSendEvents.answerSubmitted.json!,
-      SocketIOAnswerSubmittedEventData(answerText: answerText ?? '').toJson(),
+      SocketIOAnswerSubmittedInput(answerText: answerText ?? '').toJson(),
     );
   }
 
@@ -642,22 +680,6 @@ class GameLobbyController {
       ).toJson(),
     );
   }
-
-  void _onNextRound(dynamic data) {
-    if (data is! Map) return;
-
-    final nextRoundData = SocketIONextRoundEventPayload.fromJson(
-      data as Map<String, dynamic>,
-    );
-
-    gameData.value = gameData.value?.copyWith(
-      gameState: nextRoundData.gameState,
-    );
-
-    _resetScrollPosition();
-  }
-
-  void _resetScrollPosition() => themeScrollPosition = null;
 
   void _onGameFinish(dynamic data) {
     gameFinished.value = true;
@@ -776,6 +798,8 @@ class GameLobbyController {
     gameData.value = gameData.value?.copyWith.gameState(
       currentTurnPlayerId: data.newTurnPlayerId,
     );
+
+    _syncCurrentUserFromTurn();
   }
 
   void _onScoreChanged(dynamic json) {
@@ -840,7 +864,6 @@ class GameLobbyController {
     );
 
     getIt<GameLobbyPlayerPickerController>().startSelect(
-      players: gameData.value?.players ?? [],
       selectingPlayerId: data.pickerPlayerId,
       type: data.transferType,
       onPlayerSelected: (selectedPlayerId) {
@@ -884,12 +907,41 @@ class GameLobbyController {
         bids: {},
         passedPlayers: [],
         biddingOrder: data.biddingOrder,
-        currentBidderIndex: data.biddingOrder.first,
+        currentBidderIndex: 0,
         highestBid: null,
         winnerPlayerId: null,
         biddingPhase: true,
       ),
     );
+
+    _showStakeQuestion();
+  }
+
+  void _showStakeQuestion() {
+    final stakeData = gameData.value?.gameState.stakeQuestionData;
+    if (stakeData == null) return;
+    if (stakeData.winnerPlayerId != null) return;
+
+    final bidderIndex = stakeData.currentBidderIndex;
+    final bidderId =
+        gameData.value?.gameState.currentTurnPlayerId ??
+        stakeData.biddingOrder.tryByIndex(bidderIndex) ??
+        -1;
+
+    getIt<GameLobbyPlayerStakesController>().startBidding(
+      bidderId: bidderId,
+      bids: stakeData.bids.map((key, value) => MapEntry(int.parse(key), value)),
+      onPlayerBid: (bid) => socket?.emit(
+        SocketIOGameSendEvents.stakeBidSubmit.json!,
+        bid.toJson(),
+      ),
+    );
+  }
+
+  void _syncCurrentUserFromTurn() {
+    final currentTurnPlayerId = gameData.value?.gameState.currentTurnPlayerId;
+    if (currentTurnPlayerId == null) return;
+    getIt<GameLobbyPlayerStakesController>().changeBidder(currentTurnPlayerId);
   }
 
   void _onStakeQuestionSubmitted(dynamic json) {
@@ -904,13 +956,24 @@ class GameLobbyController {
 
     gameData.value = gameData.value?.copyWith.gameState(timer: data.timer);
     final stakeData = gameData.value?.gameState.stakeQuestionData;
+    final bids = {
+      ...?stakeData?.bids,
+      data.playerId.toString(): data.bidAmount,
+    };
     gameData.value = gameData.value?.copyWith.gameState.stakeQuestionData!(
       biddingPhase: !data.isPhaseComplete,
       currentBidderIndex: index ?? -1,
-      bids: {
-        ...?stakeData?.bids,
-        data.playerId.toString(): data.bidAmount,
-      },
+      bids: bids,
+    );
+
+    if (data.nextBidderId != null) {
+      getIt<GameLobbyPlayerStakesController>().changeBidder(data.nextBidderId!);
+    }
+
+    getIt<GameLobbyPlayerStakesController>().changeBids(
+      bids.map(
+        (key, value) => MapEntry(int.parse(key), value),
+      ),
     );
   }
 
@@ -944,10 +1007,84 @@ class GameLobbyController {
     );
   }
 
-  void submitQuestionBid(SocketIOStakeQuestionBidInput input) {
-    socket?.emit(
-      SocketIOGameSendEvents.stakeBidSubmit.json!,
-      input.toJson(),
+  void _onThemeEliminate(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOThemeEliminatePayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith.gameState.finalRoundData?.call(
+      eliminatedThemes: {
+        ...?gameData.value?.gameState.finalRoundData?.eliminatedThemes,
+        data.themeId,
+      }.toList(),
+    );
+    gameData.value = gameData.value?.copyWith.gameState(
+      currentTurnPlayerId: data.nextPlayerId,
+    );
+  }
+
+  void _showFinalRound() {
+    final finalRoundData = gameData.value?.gameState.finalRoundData;
+    if (finalRoundData == null) return;
+    if (finalRoundData.phase == FinalRoundPhase.themeElimination) {
+      getIt<GameLobbyThemePickerController>().startSelect(
+        onSelected: (themeId) => socket?.emit(
+          SocketIOGameSendEvents.themeEliminate.json!,
+          SocketIOThemeEliminateInput(themeId: themeId).toJson(),
+        ),
+      );
+    } else if (finalRoundData.phase == FinalRoundPhase.bidding) {
+      getIt<GameLobbyPlayerStakesController>().startBidding(
+        bidderId: finalRoundData.turnOrder.first,
+        bids: finalRoundData.bids.map(
+          (key, value) => MapEntry(int.parse(key), value),
+        ),
+        onPlayerBid: (bid) => socket?.emit(
+          SocketIOGameSendEvents.finalBidSubmit.json!,
+          SocketIOFinalBidSubmitInput(bid: bid.bidAmount ?? 0).toJson(),
+        ),
+      );
+    } else if (finalRoundData.phase == FinalRoundPhase.answering) {
+      getIt<GameLobbyPlayerStakesController>().clear();
+      getIt<GameLobbyThemePickerController>().clear();
+    }
+  }
+
+  void _onFinalPhaseComplete(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIOFinalPhaseCompletePayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+    if (gameData.value?.copyWith.gameState.finalRoundData == null) return;
+    gameData.value = gameData.value!.copyWith.gameState.finalRoundData!(
+      phase: data.nextPhase,
+    );
+    gameData.value = gameData.value?.copyWith.gameState(timer: data.timer);
+
+    _showFinalRound();
+  }
+
+  void _onFinalBidSubmit(dynamic json) {
+    if (json is! Map) return;
+    final data = SocketIOFinalBidSubmitPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+    final finalRoundData = gameData.value?.gameState.finalRoundData;
+    if (finalRoundData == null) return;
+    final bids = {
+      ...finalRoundData.bids,
+      data.playerId.toString(): data.bidAmount,
+    };
+    gameData.value = gameData.value!.copyWith.gameState.finalRoundData!(
+      bids: bids,
+    );
+    getIt<GameLobbyPlayerStakesController>().changeBids(
+      bids.map(
+        (key, value) => MapEntry(int.parse(key), value),
+      ),
     );
   }
 }

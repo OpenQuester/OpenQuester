@@ -27,13 +27,11 @@ class _ReadyButton extends WatchingWidget {
 
     if (getIt<GameLobbyController>().gameStarted) return const SizedBox();
 
-    final playerCount = gameData?.players
-        .where((p) => p.role == PlayerRole.player)
-        .length;
+    final playerCount = gameData?.players.where((p) => p.isPlayer).length;
     final readyPlayers = gameData?.gameState.readyPlayers;
     final imReady = readyPlayers?.contains(gameData?.me.meta.id) ?? false;
-    final imShowman = gameData?.me.role == PlayerRole.showman;
-    final imSpectator = gameData?.me.role == PlayerRole.spectator;
+    final imShowman = gameData?.me.isShowman ?? false;
+    final imSpectator = gameData?.me.isSpectator ?? false;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -91,11 +89,7 @@ class _RoleGroup extends WatchingWidget {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final groupPlayers =
         gameData?.players
-            .where(
-              (e) =>
-                  e.role == role &&
-                  (showDisconnected || e.status == PlayerDataStatus.inGame),
-            )
+            .where((e) => e.role == role && (showDisconnected || e.isActive))
             .sortedBy((p) => p.slot ?? 0) ??
         [];
 
@@ -244,7 +238,7 @@ bool _playerAvailableToChange(
   PlayerData playerData,
 ) {
   final me = gameData?.me;
-  if (me?.role == PlayerRole.showman) return true;
+  if (me.isShowman) return true;
   if (playerData.meta.id == me?.meta.id) return true;
   return false;
 }

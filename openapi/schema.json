@@ -2840,6 +2840,9 @@
         "type": "object",
         "description": "Info about theme of the round",
         "properties": {
+          "id": {
+            "type": "integer"
+          },
           "order": {
             "$ref": "#/components/schemas/PackageEntitiesOrder"
           },
@@ -3281,7 +3284,7 @@
           }
         }
       },
-      "SocketIOAnswerSubmittedEventData": {
+      "SocketIOAnswerSubmittedInput": {
         "type": "object",
         "description": "Data sent to all players when a player submits an answer. Same data should be sent by answering player to the server",
         "properties": {
@@ -3515,7 +3518,7 @@
           }
         }
       },
-      "ThemeEliminateInput": {
+      "SocketIOThemeEliminateInput": {
         "type": "object",
         "description": "Data sent to eliminate a theme in final round",
         "properties": {
@@ -3527,7 +3530,7 @@
         },
         "required": ["themeId"]
       },
-      "ThemeEliminateOutput": {
+      "SocketIOThemeEliminatePayload": {
         "type": "object",
         "description": "Data sent to all players when a theme is eliminated in final round",
         "properties": {
@@ -3549,7 +3552,7 @@
         },
         "required": ["themeId", "eliminatedBy"]
       },
-      "FinalAnswerSubmitInput": {
+      "SocketIOFinalAnswerSubmitInput": {
         "type": "object",
         "description": "Data sent by player to submit final answer in final round",
         "properties": {
@@ -3562,7 +3565,7 @@
         },
         "required": ["answerText"]
       },
-      "FinalAnswerSubmitOutput": {
+      "SocketIOFinalAnswerSubmitPayload": {
         "type": "object",
         "description": "Data sent to all players when a final answer is submitted",
         "properties": {
@@ -3579,7 +3582,7 @@
         },
         "required": ["playerId", "answerText"]
       },
-      "FinalBidSubmitInput": {
+      "SocketIOFinalBidSubmitInput": {
         "type": "object",
         "description": "Data sent by player to submit bid in final round",
         "properties": {
@@ -3591,7 +3594,7 @@
         },
         "required": ["bid"]
       },
-      "FinalBidSubmitOutput": {
+      "SocketIOFinalBidSubmitPayload": {
         "type": "object",
         "description": "Data sent to all players when a bid is submitted",
         "properties": {
@@ -3608,7 +3611,7 @@
         },
         "required": ["playerId", "bidAmount"]
       },
-      "FinalAnswerReviewInput": {
+      "SocketIOFinalAnswerReviewInput": {
         "type": "object",
         "description": "Data sent by showman to review a final answer",
         "properties": {
@@ -3625,7 +3628,7 @@
         },
         "required": ["answerId", "isCorrect"]
       },
-      "FinalAnswerReviewOutput": {
+      "SocketIOFinalAnswerReviewPayload": {
         "type": "object",
         "description": "Data sent to all players when an answer is reviewed",
         "properties": {
@@ -3760,7 +3763,7 @@
           "eliminatedThemes"
         ]
       },
-      "FinalPhaseCompleteEventData": {
+      "SocketIOFinalPhaseCompletePayload": {
         "type": "object",
         "description": "Data sent when a final round phase is completed",
         "properties": {
@@ -3776,7 +3779,7 @@
         },
         "required": ["phase", "nextPhase"]
       },
-      "FinalQuestionEventData": {
+      "SocketIOFinalQuestionEventDataPayload": {
         "type": "object",
         "description": "Data sent when final round question is revealed",
         "properties": {
@@ -3786,7 +3789,7 @@
         },
         "required": ["questionData"]
       },
-      "FinalSubmitEndEventData": {
+      "SocketIOFinalSubmitEndPayload": {
         "type": "object",
         "description": "Data sent when final round answering phase ends",
         "properties": {
@@ -3812,7 +3815,7 @@
         },
         "required": ["phase"]
       },
-      "QuestionFinishEventPayload": {
+      "SocketIOQuestionFinishEventPayload": {
         "type": "object",
         "description": "Data sent to all players when a question is finished (showing answer)",
         "properties": {
