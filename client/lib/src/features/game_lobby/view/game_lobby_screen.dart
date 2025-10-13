@@ -154,7 +154,7 @@ class _BodyBuilder extends WatchingWidget {
 
     return Column(
       children: [
-        if (gameData?.me.role == PlayerRole.spectator)
+        if (gameData?.me.isSpectator ?? false)
           Text(
             LocaleKeys.you_are_spectator.tr(),
             style: context.textTheme.bodySmall?.copyWith(
@@ -173,7 +173,7 @@ class _GamePausedScreen extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final imShowman = gameData?.me.role == PlayerRole.showman;
+    final imShowman = gameData?.me.isShowman ?? false;
 
     return Column(
       mainAxisSize: MainAxisSize.min,

@@ -416,7 +416,7 @@ class GameLobbyController {
     final currentTurnPlayerId = gameData.value?.gameState.currentTurnPlayerId;
     final me = gameData.value?.me;
 
-    if (me?.role == PlayerRole.spectator) return;
+    if (me.isSpectator) return;
 
     final myTurnToPick = currentTurnPlayerId == me?.meta.id;
 

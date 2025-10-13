@@ -11,7 +11,6 @@ class GameLobbyMenu extends WatchingWidget {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final me = gameData?.me;
     final pauseState = gameData?.gameState.isPaused ?? false;
-    final imShowman = me?.role == PlayerRole.showman;
 
     return PopupMenuButton(
       itemBuilder: (BuildContext context) => [
@@ -36,7 +35,7 @@ class GameLobbyMenu extends WatchingWidget {
                 !controller.lobbyEditorMode.value;
           },
         ),
-        if (imShowman) ...[
+        if (me.isShowman) ...[
           PopupMenuItem<void>(
             child: Text(
               pauseState ? LocaleKeys.resume_game.tr() : LocaleKeys.pause.tr(),

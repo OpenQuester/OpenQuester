@@ -132,7 +132,7 @@ class _QuestionBottom extends WatchingWidget {
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final me = gameData?.me;
-    final imShowman = me?.role == PlayerRole.showman;
+    final imShowman = me.isShowman;
     final answeringPlayer = gameData?.gameState.answeringPlayer;
     final iAlreadyAnswered =
         gameData?.gameState.answeredPlayers?.any(

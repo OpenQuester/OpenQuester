@@ -13,7 +13,7 @@ class GameFinalRoundBody extends WatchingWidget {
         gameData?.gameState.finalRoundData?.eliminatedThemes ?? [];
     final allowToSelect =
         gameData?.gameState.currentTurnPlayerId == gameData?.me.meta.id ||
-        gameData?.me.role == PlayerRole.showman;
+        (gameData?.me.isShowman ?? false);
 
     final body = Column(
       spacing: 16,

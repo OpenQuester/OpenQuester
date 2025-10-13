@@ -77,18 +77,18 @@ class GameLobbyPlayer extends WatchingWidget {
                         style: playerTextStyle,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (player.role == PlayerRole.player)
+                      if (player.isPlayer)
                         ScoreText(
                           score: player.score,
                           textStyle: playerTextStyle,
                         )
-                      else if (player.role == PlayerRole.showman)
+                      else if (player.isShowman)
                         Text(LocaleKeys.showman.tr()),
                     ],
                   ),
                 ],
               ),
-              if (player.role == PlayerRole.showman)
+              if (player.isShowman)
                 Align(
                   alignment: Alignment.topRight,
                   child: Assets.icons.crown
