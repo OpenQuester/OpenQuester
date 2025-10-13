@@ -502,6 +502,8 @@ export class GameRepository {
           this.logger.warn("Skipping invalid game Redis data", {
             prefix: "[GAME_REPOSITORY]: ",
             error: error instanceof Error ? error.message : String(error),
+            gameIds,
+            data,
           });
         }
       })
