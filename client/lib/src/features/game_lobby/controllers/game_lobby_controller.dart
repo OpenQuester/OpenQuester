@@ -459,6 +459,7 @@ class GameLobbyController {
     );
 
     getIt<GameLobbyPlayerPickerController>().stopSelection();
+    getIt<GameLobbyPlayerStakesController>().stopSelection();
 
     // Pass the question to controller to show the question
     _showQuestion();
@@ -919,6 +920,7 @@ class GameLobbyController {
   void _showStakeQuestion() {
     final stakeData = gameData.value?.gameState.stakeQuestionData;
     if (stakeData == null) return;
+    if (stakeData.winnerPlayerId != null) return;
 
     final bidderIndex = stakeData.currentBidderIndex;
     final bidderId =
@@ -1044,6 +1046,9 @@ class GameLobbyController {
           SocketIOFinalBidSubmitInput(bid: bid.bidAmount ?? 0).toJson(),
         ),
       );
+    } else if (finalRoundData.phase == FinalRoundPhase.answering) {
+      getIt<GameLobbyPlayerStakesController>().clear();
+      getIt<GameLobbyThemePickerController>().clear();
     }
   }
 

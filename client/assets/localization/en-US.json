@@ -172,6 +172,7 @@
   "pass": "Pass",
   "custom": "Custom",
   "game_final_round": {
-    "pick_theme_to_eliminate": "Pick theme to eliminate"
+    "pick_theme_to_eliminate": "Pick theme to eliminate",
+    "write_your_answer": "Write your answer here"
   }
 }
