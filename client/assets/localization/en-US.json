@@ -170,5 +170,6 @@
   },
   "system": "System",
   "pass": "Pass",
-  "custom": "Custom"
+  "custom": "Custom",
+  "multiple_showman_warning": "There can be only one showman! You have been changed to a player."
 }

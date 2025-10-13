@@ -50,12 +50,6 @@ class _MobileHomeState extends State<_MobileHome> {
       ),
       floatingActionButton: const _StartGameButton(),
       body: Column(children: [_destionations[index].$1.expand()]),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (newIndex) => setState(() => index = newIndex),
-        destinations: _destionations.map((e) => e.$2).toList(),
-        height: 60,
-      ),
     );
   }
 
