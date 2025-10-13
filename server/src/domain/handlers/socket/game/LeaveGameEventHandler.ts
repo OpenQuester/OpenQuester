@@ -124,6 +124,10 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
           game.startedAt === null || game.finishedAt !== null;
 
         if (activePlayers.length === 0 && gameNotStartedOrFinished) {
+          this.logger.debug(
+            `Deleting empty game ${context.gameId} after last player left`,
+            { prefix: "[USER_NOTIFICATIONS]: " }
+          );
           await this.socketIOGameService.deleteGameInternally(context.gameId);
         }
       } catch (error) {
