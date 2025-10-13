@@ -69,4 +69,22 @@ export class FileRepository {
       return this.repository.delete({ id: file.id });
     }
   }
+  /**
+   * Check which filenames exist in the database
+   * Returns only the filenames that were found in DB
+   * Optimized for batch checking during cleanup operations
+   */
+  public async getExistingFilenames(filenames: string[]): Promise<string[]> {
+    if (filenames.length === 0) {
+      return [];
+    }
+
+    const result = await this.repository
+      .createQueryBuilder("file")
+      .select("file.filename")
+      .where("file.filename IN (:...filenames)", { filenames })
+      .getMany();
+
+    return result.map((file) => file.filename);
+  }
 }

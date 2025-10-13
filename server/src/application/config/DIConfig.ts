@@ -3,10 +3,12 @@ import { Server as IOServer } from "socket.io";
 
 import { Container, CONTAINER_TYPES } from "application/Container";
 import { StorageContextBuilder } from "application/context/storage/StorageContextBuilder";
+import { CronJobFactory } from "application/factories/CronJobFactory";
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { GameExpirationHandler } from "application/handlers/GameExpirationHandler";
 import { TimerExpirationHandler } from "application/handlers/TimerExpirationHandler";
 import { AdminService } from "application/services/admin/AdminService";
+import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { FileService } from "application/services/file/FileService";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { GameEventBroadcastService } from "application/services/game/GameEventBroadcastService";
@@ -365,6 +367,28 @@ export class DIConfig {
         Container.get<FileUsageService>(CONTAINER_TYPES.FileUsageService),
         Container.get<UserService>(CONTAINER_TYPES.UserService),
         Container.get<DependencyService>(CONTAINER_TYPES.DependencyService),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.CronJobFactory,
+      new CronJobFactory(
+        this.logger,
+        Container.get<S3StorageService>(CONTAINER_TYPES.S3StorageService),
+        Container.get<FileService>(CONTAINER_TYPES.FileService),
+        this.env
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.CronSchedulerService,
+      new CronSchedulerService(
+        Container.get<CronJobFactory>(
+          CONTAINER_TYPES.CronJobFactory
+        ).createAllCronJobs(),
         this.logger
       ),
       "service"

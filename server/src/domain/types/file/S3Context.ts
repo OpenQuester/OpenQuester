@@ -6,4 +6,5 @@ export interface S3Context {
   region: string;
   urlPrefix: string;
   useSubDomainBucketFormat: boolean;
+  ignoredCleanupFolder: string;
 }
