@@ -500,12 +500,16 @@ export class GameRepository {
           );
           return GameMapper.deserializeGameHash(validatedData, this.logger);
         } catch (error) {
+          // Log short data without package to avoid large logs
+          const shortData = { ...(data as Record<string, string>) };
+          shortData.package = "";
+
           // Log validation error and ignore invalid games
           this.logger.warn("Skipping invalid game Redis data", {
             prefix: "[GAME_REPOSITORY]: ",
             error: error instanceof Error ? error.message : String(error),
             gameIds,
-            data,
+            shortData,
           });
         }
       })
