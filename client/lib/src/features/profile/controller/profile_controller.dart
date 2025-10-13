@@ -12,7 +12,7 @@ class ProfileController {
     try {
       user.value = await getIt.get<Api>().api.users.getV1Me();
     } catch (e) {
-      logger.d(e);
+      logger.t(e);
     }
   }
 

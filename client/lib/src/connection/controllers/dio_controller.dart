@@ -5,6 +5,7 @@ import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openquester/common_imports.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:talker_dio_logger/talker_dio_logger.dart';
 import 'package:universal_io/io.dart';
 
 @Singleton(order: 0)
@@ -55,8 +56,13 @@ class DioController {
       if (!kIsWeb) CookieManager(_cookieJar),
       _dioCacheInterceptor,
       if (!kIsWeb) _timeoutInterceptor,
+      _talkerInterceptor,
     ];
   }
+
+  final _talkerInterceptor = TalkerDioLogger(
+    talker: getIt<TalkerLogger>().talker,
+  );
 
   final _timeoutInterceptor = InterceptorsWrapper(
     onRequest: (options, handler) {

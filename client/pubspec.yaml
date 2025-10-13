@@ -18,7 +18,6 @@ dependencies:
     path: ../openapi/dart_sdk/
   envied: ^1.2.0
   package_info_plus: ^8.3.1
-  logger: ^2.6.1
   flutter_native_splash: ^2.4.6
   dio: ^5.9.0
   file_picker: ^10.3.1
@@ -66,6 +65,10 @@ dependencies:
   flutter_avif: ^3.0.0
   flutter_cache_manager: ^3.4.1
   animate_do: ^4.2.0
+  talker: ^5.0.2
+  talker_flutter: ^5.0.2
+  talker_bloc_logger: ^5.0.2
+  talker_dio_logger: ^5.0.2
 
 dev_dependencies:
   flutter_test:

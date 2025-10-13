@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
-import 'package:openquester/src/core/logger.dart';
+import 'package:openquester/src/core/logging/logger.dart';
 
 abstract class ListControllerBase<I extends dynamic> extends ChangeNotifier {
   int? _nextPageKey = 0;
