@@ -244,7 +244,7 @@ export class GameRepository {
    * automated flows (e.g. when everyone leaves and game is finished)
    */
   public async deleteInternally(gameId: string): Promise<void> {
-    const log = this.logger.performance("Delete game internally", {
+    this.logger.debug("Delete game internally", {
       prefix: "[GameRepository]: ",
       gameId,
     });
@@ -256,11 +256,13 @@ export class GameRepository {
       gameId,
       game.toIndexData()
     );
-
-    log.finish();
   }
 
   public async deleteGame(user: number, gameId: string) {
+    this.logger.debug("Delete game", {
+      prefix: "[GameRepository]: ",
+      gameId,
+    });
     const key = this.getGameKey(gameId);
     const game = await this.getGameEntity(gameId);
 
