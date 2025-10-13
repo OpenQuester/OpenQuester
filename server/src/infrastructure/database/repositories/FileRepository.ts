@@ -69,20 +69,6 @@ export class FileRepository {
       return this.repository.delete({ id: file.id });
     }
   }
-
-  /**
-   * Get all filenames from database
-   * Uses SELECT filename to minimize memory usage for large datasets
-   */
-  public async getAllFilenames(): Promise<string[]> {
-    const result = await this.repository
-      .createQueryBuilder("file")
-      .select("file.filename")
-      .getMany();
-
-    return result.map((file) => file.filename);
-  }
-
   /**
    * Check which filenames exist in the database
    * Returns only the filenames that were found in DB

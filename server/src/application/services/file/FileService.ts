@@ -38,13 +38,6 @@ export class FileService {
   }
 
   /**
-   * Get all filenames from database in batches for memory efficiency
-   */
-  public async getAllFilenames(): Promise<string[]> {
-    return this.fileRepository.getAllFilenames();
-  }
-
-  /**
    * Check which filenames exist in the database
    * Returns only the filenames that were found
    */

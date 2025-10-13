@@ -48,11 +48,11 @@ export class S3FilesCleanupJob extends BaseCronJob {
     });
 
     const BATCH_SIZE = 1000;
-    const orphanedFiles: { filename: string; s3Key: string }[] = [];
     const ignoredFolder = this.s3Service.getIgnoredCleanupFolder();
 
     let totalS3Files = 0;
     let totalIgnored = 0;
+    let totalOrphaned = 0;
     let batchNumber = 0;
 
     try {
@@ -88,9 +88,20 @@ export class S3FilesCleanupJob extends BaseCronJob {
           (file) => !existingSet.has(file.filename)
         );
 
-        orphanedFiles.push(...batchOrphaned);
+        // Delete orphaned files immediately if any found
+        if (batchOrphaned.length > 0) {
+          const s3KeysToDelete = batchOrphaned.map((file) => file.s3Key);
+          await this.s3Service.deleteFilesByS3Keys(s3KeysToDelete);
+          totalOrphaned += batchOrphaned.length;
 
-        this.logger.debug(`Batch ${batchNumber} processed`);
+          this.logger.debug(
+            `Batch ${batchNumber} processed: deleted ${batchOrphaned.length} orphaned files`
+          );
+        } else {
+          this.logger.debug(
+            `Batch ${batchNumber} processed: no orphaned files`
+          );
+        }
       }
 
       // Log final statistics
@@ -99,34 +110,23 @@ export class S3FilesCleanupJob extends BaseCronJob {
         totalS3Files,
         totalIgnored,
         totalProcessed: totalS3Files - totalIgnored,
-        totalOrphaned: orphanedFiles.length,
+        totalOrphaned,
         ignoredFolder: ignoredFolder || "none",
         batchesProcessed: batchNumber,
       });
 
-      // Delete orphaned files if any found
-      if (orphanedFiles.length === 0) {
+      if (totalOrphaned === 0) {
         this.logger.info("No orphaned files found in S3", {
           prefix: "[S3_CLEANUP]: ",
         });
         return;
       }
 
-      this.logger.info(`Found ${orphanedFiles.length} orphaned files in S3`, {
-        prefix: "[S3_CLEANUP]: ",
-        orphanedCount: orphanedFiles.length,
-      });
-
-      // Delete ALL orphaned files from S3 using their S3 keys
-      const s3KeysToDelete = orphanedFiles.map((file) => file.s3Key);
-
-      await this.s3Service.deleteFilesByS3Keys(s3KeysToDelete);
-
       this.logger.info(
-        `Successfully cleaned up ${orphanedFiles.length} orphaned files from S3`,
+        `Successfully cleaned up ${totalOrphaned} orphaned files from S3`,
         {
           prefix: "[S3_CLEANUP]: ",
-          deletedCount: orphanedFiles.length,
+          deletedCount: totalOrphaned,
         }
       );
     } catch (error) {
