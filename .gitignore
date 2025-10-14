@@ -27,3 +27,6 @@ content.xml
 **/*.freezed.dart
 **/*.g.dart
 **/*.gen.dart
+
+# IntelliJ
+.idea/
