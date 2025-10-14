@@ -60,18 +60,18 @@ class DioController {
     ];
   }
 
-  final _talkerInterceptor = TalkerDioLogger(
+  late final _talkerInterceptor = TalkerDioLogger(
     talker: getIt<TalkerLogger>().talker,
   );
 
-  final _timeoutInterceptor = InterceptorsWrapper(
+  late final _timeoutInterceptor = InterceptorsWrapper(
     onRequest: (options, handler) {
       options.sendTimeout = const Duration(seconds: 5);
       handler.next(options);
     },
   );
 
-  final _dioCacheInterceptor = DioCacheInterceptor(
+  late final _dioCacheInterceptor = DioCacheInterceptor(
     options: CacheOptions(
       // A default store is required for interceptor.
       store: MemCacheStore(),

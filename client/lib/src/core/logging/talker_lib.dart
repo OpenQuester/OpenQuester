@@ -1,7 +1,7 @@
 import 'package:openquester/common_imports.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
-@Singleton(order: 0)
+@Singleton(order: -1)
 class TalkerLogger implements BaseLogger {
   @PostConstruct(preResolve: true)
   Future<void> init() async {
