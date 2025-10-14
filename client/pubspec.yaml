@@ -67,7 +67,6 @@ dependencies:
   animate_do: ^4.2.0
   talker: ^5.0.2
   talker_flutter: ^5.0.2
-  talker_bloc_logger: ^5.0.2
   talker_dio_logger: ^5.0.2
 
 dev_dependencies:

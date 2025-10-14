@@ -73,14 +73,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "10.2.3"
-  bloc:
-    dependency: transitive
-    description:
-      name: bloc
-      sha256: e18b8e7825e9921d67a6d256dba0b6015ece8a577eb0a411845c46a352994d78
-      url: "https://pub.dev"
-    source: hosted
-    version: "9.0.1"
   boolean_selector:
     dependency: transitive
     description:
@@ -1709,14 +1701,6 @@ packages:
     description:
       name: talker
       sha256: "82de443cadfb6c41d457e7774c7890a91c73af3c2f17f3f7c01670bb58d5f5a1"
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.0.2"
-  talker_bloc_logger:
-    dependency: "direct main"
-    description:
-      name: talker_bloc_logger
-      sha256: e631fcc9454cd86639888a9bb4654582bbc8c64c7dcc913401bfecb8892ec759
       url: "https://pub.dev"
     source: hosted
     version: "5.0.2"
