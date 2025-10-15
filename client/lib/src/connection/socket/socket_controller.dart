@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:openquester/common_imports.dart';
 import 'package:socket_io_client/socket_io_client.dart';
+import 'package:talker/talker.dart' hide TalkerLogger;
 
 @Singleton(order: 3)
 class SocketController {
@@ -68,8 +69,22 @@ class SocketController {
     dynamic data, {
     bool outgoing = false,
   }) async {
-    final logData = data is Map ? jsonEncode(data) : data.toString();
-    log(outgoing ? 'request' : 'response', [event, logData].join('\n'));
+    final logData = data is Map
+        ? const JsonEncoder.withIndent('  ').convert(data)
+        : data?.toString();
+
+    getIt<TalkerLogger>().talker.logCustom(
+      TalkerLog(
+        ['[$event]', logData].nonNulls.join('\n'),
+        key: outgoing
+            ? AppTalkerKeys.socketIoRequest.name
+            : AppTalkerKeys.socketIoResponse.name,
+        logLevel: LogLevel.verbose,
+        time: DateTime.now(),
+        title: outgoing ? 'Socket Outgoing' : 'Socket Incoming',
+        pen: outgoing ? (AnsiPen()..cyan()) : (AnsiPen()..green()),
+      ),
+    );
   }
 
   static void log(String event, [dynamic data = '']) {

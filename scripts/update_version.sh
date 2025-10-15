@@ -11,71 +11,72 @@ fi
 # Pull changes
 git pull
 
-# Determine the version to use.
+# Determine the version to use
 if [ -n "$1" ]; then
-  # If a version is passed as $1, use it.
   VERSION="$1"
   GIT_TAG="v$VERSION"
 else
-  # If no argument is passed, get the latest git tag.
   GIT_TAG=$(git describe --tags --abbrev=0)
   if [ -z "$GIT_TAG" ]; then
     echo "No tags found. Exiting."
     exit 1
   fi
-  VERSION=$(echo "$GIT_TAG" | sed 's/^v//')
+  VERSION="${GIT_TAG#v}"
 fi
 
 echo "Using version: $VERSION"
 
-# Detect OS for correct sed syntax
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  SED_CMD="sed -i ''"
-else
-  SED_CMD="sed -i"
-fi
+# Update file function (cross-platform safe)
+update_version_in_file() {
+  local file="$1"
+  local pattern="$2"
+  local replacement="$3"
 
-# Update pubspec.yaml with the new version.
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' -e "s/$pattern/$replacement/" "$file"
+  else
+    sed -i -e "s/$pattern/$replacement/" "$file"
+  fi
+}
+
+# Update pubspec.yaml
 PUBSPEC_FILE="client/pubspec.yaml"
 if grep -q "^version: $VERSION" "$PUBSPEC_FILE"; then
   echo "Version in $PUBSPEC_FILE is already up to date."
 else
-  $SED_CMD "s/^version:.*/version: $VERSION/" "$PUBSPEC_FILE"
+  update_version_in_file "$PUBSPEC_FILE" '^version:.*' "version: $VERSION"
   echo "Updated version in $PUBSPEC_FILE to $VERSION"
 fi
 
-# Update package.json with the new version.
+# Update package.json
 PACKAGE_JSON_FILE="server/package.json"
 if grep -q "\"version\": \"$VERSION\"" "$PACKAGE_JSON_FILE"; then
   echo "Version in $PACKAGE_JSON_FILE is already up to date."
 else
-  $SED_CMD "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" "$PACKAGE_JSON_FILE"
+  update_version_in_file "$PACKAGE_JSON_FILE" '"version": ".*"' "\"version\": \"$VERSION\""
   echo "Updated version in $PACKAGE_JSON_FILE to $VERSION"
 fi
 
-# Update schema.json with the new version.
+# Update schema.json
 SCHEMA_JSON_FILE="openapi/schema.json"
 if grep -q "\"version\": \"$VERSION\"" "$SCHEMA_JSON_FILE"; then
   echo "Version in $SCHEMA_JSON_FILE is already up to date."
 else
-  $SED_CMD "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" "$SCHEMA_JSON_FILE"
+  update_version_in_file "$SCHEMA_JSON_FILE" '"version": ".*"' "\"version\": \"$VERSION\""
   echo "Updated version in $SCHEMA_JSON_FILE to $VERSION"
 fi
 
-# If a version was passed as an argument, commit the changes and create/push a new tag.
+echo "Generating api client..."
+cd client 
+make gen_api
+
+# Commit and tag if version passed
 if [ -n "$1" ]; then
   echo "Creating commit and tag for version $VERSION"
 
-  # Stage the changed files.
   git add "$PUBSPEC_FILE" "$PACKAGE_JSON_FILE" "$SCHEMA_JSON_FILE"
-
-  # Commit the changes.
-  git commit -m "Update version to $VERSION" || echo "No changes to commit."
-
-  # Create a new tag.
+  git commit -m "chore(release): v$VERSION" || echo "No changes to commit."
   git tag "$GIT_TAG"
-
-  # Push the commit and the new tag.
   git push origin HEAD
   git push origin "$GIT_TAG"
 fi

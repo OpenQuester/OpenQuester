@@ -45,6 +45,14 @@ STORAGE_TYPE=
 # e.g. "minio"
 STORAGE_NAME=
 
+# Folder in S3 bucket that will be ignored by the cleanup job (e.g., "protected/" or folders of another project)
+IGNORE_S3_FILES_CLEANUP_FOLDER="protected/"
+
+# Cron expression for S3 cleanup job (default: "0 0 2 * * *" - daily at 2 AM UTC)
+# Format: second minute hour day-of-month month day-of-week
+# Examples: "0 0 2 * * *" (daily 2 AM), "0 0 */6 * * *" (every 6 hours), "0 * * * * *" (every minute - testing only)
+CRON_S3_CLEANUP_EXPRESSION="0 0 2 * * *"
+
 # S3
 
 # Should include http(s). Used to create connection to S3, so this is required even if S3_USE_SUB_DOMAIN_BUCKET_FORMAT is true

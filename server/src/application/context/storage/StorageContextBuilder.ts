@@ -21,6 +21,12 @@ export class StorageContextBuilder {
           false,
           true
         ),
+        ignoredCleanupFolder: env.getEnvVar(
+          "IGNORE_S3_FILES_CLEANUP_FOLDER",
+          "string",
+          "",
+          true
+        ),
       };
     } catch (err: unknown) {
       let text: string;

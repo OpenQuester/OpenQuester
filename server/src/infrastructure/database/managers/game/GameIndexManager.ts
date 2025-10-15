@@ -48,6 +48,10 @@ export class GameIndexManager {
     gameId: string,
     gameData: GameIndexesInputDTO
   ) {
+    this.logger.debug("Removing game from indexes", {
+      prefix: "[GameIndexManager]: ",
+      gameId,
+    });
     return Promise.all([
       this.redisService.zrem(this._createdAtIndexKey, [gameId]),
       this.redisService.srem(this._privacyIndexKey(gameData.isPrivate), gameId),

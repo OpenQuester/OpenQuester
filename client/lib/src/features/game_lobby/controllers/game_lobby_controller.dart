@@ -115,7 +115,6 @@ class GameLobbyController {
   }
 
   void _showLoggedInChatEvent(String text) {
-    getIt<ToastController>().show(text, type: ToastType.info);
     getIt<SocketChatController>().chatController?.insertMessage(
       TextMessage(
         id: UniqueKey().toString(),
@@ -154,19 +153,9 @@ class GameLobbyController {
         body: InputSocketIOAuth(socketId: socket!.id!),
       );
 
-      // Check for other showman who joined when you wore out
-      final otherShowman = gameListData.value?.players.firstWhereOrNull(
-        (e) => e.id != myId && e.role == PlayerRole.showman,
-      );
-      final lastRole = otherShowman != null
-          ? null
-          : gameListData.value?.players
-                .firstWhereOrNull((e) => e.id == myId)
-                ?.role;
-
       final ioGameJoinInput = SocketIOGameJoinInput(
         gameId: _gameId!,
-        role: lastRole ?? PlayerRole.spectator,
+        role: _getJoinRole(),
       );
 
       socket?.emit(SocketIOGameSendEvents.join.json!, ioGameJoinInput.toJson());
@@ -186,6 +175,29 @@ class GameLobbyController {
     }
   }
 
+  PlayerRole _getJoinRole() {
+    var lastRole = gameListData.value?.players
+        .firstWhereOrNull((e) => e.id == myId)
+        ?.role;
+
+    // Check for other showman who joined when you wore out
+    if (lastRole == PlayerRole.showman) {
+      final otherShowman = gameListData.value?.players.firstWhereOrNull(
+        (e) => e.id != myId && e.role == PlayerRole.showman,
+      );
+      if (otherShowman != null) {
+        lastRole = null;
+        unawaited(
+          getIt<ToastController>().show(
+            LocaleKeys.multiple_showman_warning.tr(),
+            type: ToastType.warning,
+          ),
+        );
+      }
+    }
+    return lastRole ?? PlayerRole.spectator;
+  }
+
   Future<void> _onChatMessage(ChatOperation chatOperation) async {
     // Dont show toast if chat is open
     if (showChat.value) return;
@@ -197,15 +209,18 @@ class GameLobbyController {
       SystemMessage() => message.text,
       _ => null,
     };
-    if (text.isEmptyOrNull) return;
+    if ((text?.trim()).isEmptyOrNull) return;
 
     final author = gameData.value?.players.getById(
       int.tryParse(message?.authorId ?? ''),
     );
+    final isSystemMessage =
+        message?.authorId == SocketChatController.systemMessageId;
+
     await getIt<ToastController>().show(
       text?.trim(),
       title: author?.meta.username,
-      type: ToastType.chat,
+      type: isSystemMessage ? ToastType.info : ToastType.chat,
     );
   }
 

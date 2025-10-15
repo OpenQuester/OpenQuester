@@ -173,4 +173,17 @@ export class ValueUtils {
     const sign = Math.sign(value);
     return sign * Math.min(Math.abs(value), Math.abs(maxAbs));
   }
+
+  /**
+   * Escape XML special characters for safe XML construction
+   * Used when building XML payloads (e.g., S3 DeleteObjects requests)
+   */
+  public static escapeXml(str: string): string {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+  }
 }

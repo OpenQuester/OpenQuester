@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
+import 'package:talker_flutter/talker_flutter.dart' hide TalkerLogger;
 
 // Keep for backward compatibility, but primary access is through ProfileDialog
 @RoutePage()
@@ -543,11 +544,26 @@ class _AppInfo extends StatelessWidget {
       spacing: 4,
       children: [
         const UpdateBtn(),
-        Text(
-          getIt<AutoUpdateController>().getCurrentVersion,
-          style: context.textTheme.bodySmall?.copyWith(
-            color: context.theme.colorScheme.onSurfaceVariant,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const SizedBox(width: 42),
+            Text(
+              getIt<AutoUpdateController>().getCurrentVersion,
+              style: context.textTheme.bodySmall?.copyWith(
+                color: context.theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            IconButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                useSafeArea: false,
+                builder: (context) =>
+                    TalkerScreen(talker: getIt<TalkerLogger>().talker),
+              ),
+              icon: const Icon(Icons.bug_report_outlined, size: 16),
+            ),
+          ],
         ),
       ],
     );

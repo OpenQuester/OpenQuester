@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
-import 'package:openquester/src/core/logger.dart';
+import 'package:openquester/src/core/logging/logger.dart';
 
 abstract class ListControllerBase<I extends dynamic> extends ChangeNotifier {
   int? _nextPageKey = 0;
@@ -25,6 +25,12 @@ abstract class ListControllerBase<I extends dynamic> extends ChangeNotifier {
   }
 
   void _setNextPage(ListResponse<dynamic> newItems, ListRequest listRequest) {
+    // If no items were returned, we are at the end of the list
+    if (newItems.list.isEmpty) {
+      _nextPageKey = null;
+      return;
+    }
+
     final currentLenght = pagingController.items?.length ?? 0;
     if (newItems.metadata.total > currentLenght + newItems.list.length) {
       _nextPageKey = listRequest.offset + 1;

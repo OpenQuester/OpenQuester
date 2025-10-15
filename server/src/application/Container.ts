@@ -95,6 +95,10 @@ export const CONTAINER_TYPES = {
   // Factories
   RoundHandlerFactory: Symbol("RoundHandlerFactory"),
   StatisticsWorkerFactory: Symbol("StatisticsWorkerFactory"),
+  CronJobFactory: Symbol("CronJobFactory"),
+
+  // Cron Services
+  CronSchedulerService: Symbol("CronSchedulerService"),
 
   // Use cases
   UserCacheUseCase: Symbol("UserCacheUseCase"),
