@@ -1,5 +1,7 @@
-/// A Calculator.
-class Calculator {
-  /// Returns [value] plus 1.
-  int addOne(int value) => value + 1;
-}
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+library;
+
+export 'controllers/oq_editor_controller.dart';
+export 'models/oq_editor_translations.dart';
+export 'view/oq_editor_screen.dart';

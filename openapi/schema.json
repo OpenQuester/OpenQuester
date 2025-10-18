@@ -251,7 +251,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PackageResponse"
+                  "$ref": "#/components/schemas/OqPackage"
                 }
               }
             }
@@ -1502,7 +1502,7 @@
           }
         }
       },
-      "PackageResponse": {
+      "OqPackage": {
         "type": "object",
         "properties": {
           "id": {

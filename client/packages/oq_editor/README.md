@@ -1,39 +1,77 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# OQ Editor
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
-
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
-
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+A Flutter package for editing quiz content in OpenQuester.
 
 ## Features
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+- Quiz content editor screen
+- Framework-agnostic translation interface
+- Compatible with any i18n solution via dependency injection
 
-## Getting started
+## Translation Setup
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+The package uses an abstract `OqEditorTranslations` interface to stay independent from specific i18n frameworks.
+
+### Implementation with easy_localization
+
+In your parent app, create an implementation:
+
+```dart
+import 'package:easy_localization/easy_localization.dart';
+import 'package:oq_editor/oq_editor_package.dart';
+
+class OqEditorEasyLocalizationTranslations implements OqEditorTranslations {
+  const OqEditorEasyLocalizationTranslations();
+
+  @override
+  String get editorTitle => 'editor.title'.tr();
+
+  @override
+  String get saveButton => 'editor.save'.tr();
+
+  @override
+  String get cancelButton => 'editor.cancel'.tr();
+
+  @override
+  String get closeButton => 'editor.close'.tr();
+}
+```
+
+### Add translation keys to your localization files
+
+```json
+{
+  "editor": {
+    "title": "Quiz Editor",
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close"
+  }
+}
+```
 
 ## Usage
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
-
 ```dart
-const like = 'sample';
+import 'package:oq_editor/oq_editor_package.dart';
+
+// Create controller with translations
+final controller = OqEditorController(
+  translations: OqEditorEasyLocalizationTranslations(),
+);
+
+// Use in widget
+OqEditorScreen(controller: controller);
 ```
 
-## Additional information
+## Testing
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+Use `MockOqEditorTranslations` for tests:
+
+```dart
+import 'package:oq_editor/oq_editor_package.dart';
+
+final controller = OqEditorController(
+  translations: const MockOqEditorTranslations(),
+);
+```

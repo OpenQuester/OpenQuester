@@ -1156,6 +1156,20 @@ packages:
       relative: true
     source: path
     version: "0.0.1"
+  oq_editor:
+    dependency: "direct main"
+    description:
+      path: "packages/oq_editor"
+      relative: true
+    source: path
+    version: "0.0.1"
+  oq_shared:
+    dependency: "direct main"
+    description:
+      path: "packages/oq_shared"
+      relative: true
+    source: path
+    version: "0.0.1"
   package_config:
     dependency: transitive
     description:
@@ -2113,5 +2127,5 @@ packages:
     source: hosted
     version: "3.1.3"
 sdks:
-  dart: ">=3.9.0 <4.0.0"
+  dart: ">=3.9.2 <4.0.0"
   flutter: ">=3.35.2"

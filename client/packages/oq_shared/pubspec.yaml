@@ -1,0 +1,25 @@
+name: oq_shared
+description: "A new Flutter package project."
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.9.2
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cached_network_image: ^3.4.1
+  flutter_avif: ^3.1.0
+  flutter_cache_manager: ^3.4.1
+  cached_network_image_platform_interface: ^4.1.1
+  nb_utils: ^7.1.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^10.0.0
+
+flutter:
+  uses-material-design: true

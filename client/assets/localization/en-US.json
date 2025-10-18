@@ -171,5 +171,8 @@
   "system": "System",
   "pass": "Pass",
   "custom": "Custom",
-  "multiple_showman_warning": "There can be only one showman! You have been changed to a player."
+  "multiple_showman_warning": "There can be only one showman! You have been changed to a player.",
+  "save": "Save",
+  "package_editor": "Package editor",
+  "oq_editor": {}
 }
