@@ -156,6 +156,10 @@ class QuestionsListScreen extends WatchingWidget {
 
     if (result != null) {
       controller.addQuestion(roundIndex, themeIndex, result.question);
+
+      // Media files are stored during editing but not uploaded yet
+      // Upload happens when the full package is saved/published
+      // Files stored as references (file paths), not bytes (memory efficient)
     }
   }
 
@@ -184,6 +188,10 @@ class QuestionsListScreen extends WatchingWidget {
         questionIndex,
         result.question,
       );
+
+      // Media files are stored during editing but not uploaded yet
+      // Upload happens when the full package is saved/published
+      // Files stored as references (file paths), not bytes (memory efficient)
     }
   }
 

@@ -1,15 +1,26 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
+import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
+import 'package:oq_editor/utils/media_type_detector.dart';
+import 'package:oq_editor/view/dialogs/display_time_dialog.dart';
+import 'package:oq_editor/view/widgets/media_files_section.dart';
 
 /// Result data from question editing dialog
 class QuestionEditResult {
   const QuestionEditResult({
     required this.question,
+    required this.questionMediaFiles,
+    required this.answerMediaFiles,
   });
 
   final PackageQuestionUnion question;
+
+  /// Media file references (not bytes) for memory efficiency
+  final List<MediaFileReference> questionMediaFiles;
+  final List<MediaFileReference> answerMediaFiles;
 }
 
 /// Comprehensive question editor dialog supporting all question types
@@ -87,6 +98,10 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   // Choice-specific fields
   int _choiceShowDelay = 3000;
   List<QuestionChoiceAnswers> _choiceAnswers = [];
+
+  // Media files (file references, not bytes, for memory efficiency)
+  final List<MediaFileReference> _questionMediaFiles = [];
+  final List<MediaFileReference> _answerMediaFiles = [];
 
   @override
   void initState() {
@@ -220,6 +235,15 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
   @override
   void dispose() {
+    // Dispose all media file controllers
+    for (final file in _questionMediaFiles) {
+      file.disposeController();
+    }
+    for (final file in _answerMediaFiles) {
+      file.disposeController();
+    }
+
+    // Dispose text controllers
     _textController.dispose();
     _priceController.dispose();
     _answerTextController.dispose();
@@ -410,6 +434,43 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
                 // Type-specific info card
                 _buildTypeSpecificInfo(),
+
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 16),
+
+                // Media files section
+                MediaFilesSection(
+                  title: 'Question Media Files',
+                  files: _questionMediaFiles,
+                  onAdd: () => _addMediaFile(isQuestionMedia: true),
+                  onRemove: (int index) {
+                    setState(() {
+                      // Dispose controller before removing
+                      _questionMediaFiles[index].disposeController();
+                      _questionMediaFiles.removeAt(index);
+                    });
+                  },
+                  onEditDisplayTime: (int index) =>
+                      _editMediaDisplayTime(index, isQuestionMedia: true),
+                ),
+
+                const SizedBox(height: 16),
+
+                MediaFilesSection(
+                  title: 'Answer Media Files',
+                  files: _answerMediaFiles,
+                  onAdd: () => _addMediaFile(isQuestionMedia: false),
+                  onRemove: (int index) {
+                    setState(() {
+                      // Dispose controller before removing
+                      _answerMediaFiles[index].disposeController();
+                      _answerMediaFiles.removeAt(index);
+                    });
+                  },
+                  onEditDisplayTime: (int index) =>
+                      _editMediaDisplayTime(index, isQuestionMedia: false),
+                ),
               ],
             ),
           ),
@@ -902,6 +963,61 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     });
   }
 
+  /// Add media file (stores file reference, not bytes, for memory efficiency)
+  Future<void> _addMediaFile({required bool isQuestionMedia}) async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: MediaTypeDetector.allExtensions,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      final type = MediaTypeDetector.detectType(file.extension);
+
+      if (type == null) {
+        throw Exception('Unsupported file type: ${file.extension}');
+      }
+
+      final targetList = isQuestionMedia
+          ? _questionMediaFiles
+          : _answerMediaFiles;
+
+      final reference = MediaFileReference(
+        platformFile: file,
+        type: type,
+        order: targetList.length,
+      );
+
+      setState(() {
+        targetList.add(reference);
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error adding file: $e')),
+      );
+    }
+  }
+
+  /// Edit media display time
+  Future<void> _editMediaDisplayTime(
+    int index, {
+    required bool isQuestionMedia,
+  }) async {
+    final files = isQuestionMedia ? _questionMediaFiles : _answerMediaFiles;
+    final file = files[index];
+
+    final result = await DisplayTimeDialog.show(context, file.displayTime);
+
+    if (result != null) {
+      setState(() {
+        file.displayTime = result;
+      });
+    }
+  }
+
   void _saveQuestion() {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
@@ -1053,6 +1169,15 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         );
     }
 
-    Navigator.pop(context, QuestionEditResult(question: question));
+    // Return media file references (not bytes) for memory efficiency
+    // The consumer will read bytes when needed for upload
+    Navigator.pop(
+      context,
+      QuestionEditResult(
+        question: question,
+        questionMediaFiles: _questionMediaFiles,
+        answerMediaFiles: _answerMediaFiles,
+      ),
+    );
   }
 }
