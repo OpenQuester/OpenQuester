@@ -29,6 +29,9 @@ class PackageEditorUploadController {
     OqPackage package,
     Map<String, MediaFileReference> mediaFilesByHash,
   ) async {
+    await const ProfileDialog().showIfUnauthorized(
+      AppRouter.I.navigatorKey.currentContext!,
+    );
     final controller = getIt<PackageEditorUploadController>();
 
     // Convert package to PackageCreationInput with MD5 hashes

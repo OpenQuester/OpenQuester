@@ -87,6 +87,7 @@ class OqEditorController {
 
   /// Save the package
   /// Calls the onSave callback with the current package and pending media files
+  /// Normalizes order fields for all questions before saving
   Future<OqPackage> savePackage() async {
     if (onSave == null) {
       throw UnimplementedError(
@@ -94,8 +95,11 @@ class OqEditorController {
       );
     }
 
+    // Normalize order fields before saving
+    final normalizedPackage = _normalizePackageOrder(package.value);
+
     final savedPackage = await onSave!(
-      package.value,
+      normalizedPackage,
       Map.from(_mediaFilesByHash),
     );
 
@@ -103,6 +107,47 @@ class OqEditorController {
     package.value = savedPackage;
 
     return savedPackage;
+  }
+
+  /// Normalize order fields for all questions in the package
+  /// Ensures questions are sorted by order and have sequential
+  /// order values (0, 1, 2, ...)
+  OqPackage _normalizePackageOrder(OqPackage pkg) {
+    final normalizedRounds = pkg.rounds.map((round) {
+      final normalizedThemes = round.themes.map((theme) {
+        // Sort questions by current order field
+        final sortedQuestions = List<PackageQuestionUnion>.from(theme.questions)
+          ..sort((a, b) => a.order.compareTo(b.order));
+
+        // Reassign order values sequentially starting from 0
+        final reorderedQuestions = sortedQuestions
+            .asMap()
+            .entries
+            .map((entry) => _updateQuestionOrder(entry.value, entry.key))
+            .toList();
+
+        return theme.copyWith(questions: reorderedQuestions);
+      }).toList();
+
+      return round.copyWith(themes: normalizedThemes);
+    }).toList();
+
+    return pkg.copyWith(rounds: normalizedRounds);
+  }
+
+  /// Update the order field of a question based on its type
+  PackageQuestionUnion _updateQuestionOrder(
+    PackageQuestionUnion question,
+    int newOrder,
+  ) {
+    return question.map(
+      simple: (q) => q.copyWith(order: newOrder),
+      stake: (q) => q.copyWith(order: newOrder),
+      secret: (q) => q.copyWith(order: newOrder),
+      noRisk: (q) => q.copyWith(order: newOrder),
+      choice: (q) => q.copyWith(order: newOrder),
+      hidden: (q) => q.copyWith(order: newOrder),
+    );
   }
 
   // Navigation methods
@@ -275,6 +320,7 @@ class OqEditorController {
   // Question CRUD operations
 
   /// Add a new question to a theme
+  /// Automatically assigns order based on current position in the list
   void addQuestion(
     int roundIndex,
     int themeIndex,
@@ -284,8 +330,13 @@ class OqEditorController {
     final round = package.value.rounds[roundIndex];
     if (themeIndex < 0 || themeIndex >= round.themes.length) return;
     final theme = round.themes[themeIndex];
+
+    // Assign order based on current question count
+    final newOrder = theme.questions.length;
+    final questionWithOrder = _updateQuestionOrder(question, newOrder);
+
     final updatedQuestions = List<PackageQuestionUnion>.from(theme.questions)
-      ..add(question);
+      ..add(questionWithOrder);
     updateTheme(
       roundIndex,
       themeIndex,
@@ -315,6 +366,7 @@ class OqEditorController {
   }
 
   /// Delete a question from a theme
+  /// Renormalizes order fields for remaining questions
   void deleteQuestion(int roundIndex, int themeIndex, int questionIndex) {
     if (roundIndex < 0 || roundIndex >= package.value.rounds.length) return;
     final round = package.value.rounds[roundIndex];
@@ -324,14 +376,23 @@ class OqEditorController {
 
     final updatedQuestions = List<PackageQuestionUnion>.from(theme.questions)
       ..removeAt(questionIndex);
+
+    // Renormalize order values after deletion
+    final reorderedQuestions = updatedQuestions
+        .asMap()
+        .entries
+        .map((entry) => _updateQuestionOrder(entry.value, entry.key))
+        .toList();
+
     updateTheme(
       roundIndex,
       themeIndex,
-      theme.copyWith(questions: updatedQuestions),
+      theme.copyWith(questions: reorderedQuestions),
     );
   }
 
   /// Reorder questions in a theme
+  /// Updates order fields to reflect new positions
   void reorderQuestions(
     int roundIndex,
     int themeIndex,
@@ -346,10 +407,18 @@ class OqEditorController {
     final updatedQuestions = List<PackageQuestionUnion>.from(theme.questions);
     final question = updatedQuestions.removeAt(oldIndex);
     updatedQuestions.insert(newIndex, question);
+
+    // Reassign order values to match new positions
+    final reorderedQuestions = updatedQuestions
+        .asMap()
+        .entries
+        .map((entry) => _updateQuestionOrder(entry.value, entry.key))
+        .toList();
+
     updateTheme(
       roundIndex,
       themeIndex,
-      theme.copyWith(questions: updatedQuestions),
+      theme.copyWith(questions: reorderedQuestions),
     );
   }
 
