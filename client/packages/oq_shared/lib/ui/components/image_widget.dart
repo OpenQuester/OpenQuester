@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
-import 'package:openquester/openquester.dart';
+import 'package:nb_utils/nb_utils.dart';
+import 'package:oq_shared/oq_shared.dart';
 
 class ImageWidget extends StatefulWidget {
   const ImageWidget({

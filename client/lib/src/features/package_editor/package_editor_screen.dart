@@ -10,7 +10,7 @@ class PackageEditorScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return OqEditorScreen(
       controller: OqEditorController(
-        translations: AppOqEditorTranslations(),
+        translations: const AppOqEditorTranslations(),
       ),
     );
   }

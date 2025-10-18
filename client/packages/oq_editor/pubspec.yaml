@@ -17,6 +17,8 @@ dependencies:
     path: ../siq_file/
   oq_compress:
     path: ../oq_compress/
+  oq_shared:
+    path: ../oq_shared/
   #
 
   injectable: ^2.5.2

@@ -607,6 +607,7 @@ class _ActionButtons extends StatelessWidget {
           if (!context.mounted) return;
           await controller.createGame(context);
         },
+        onError: handleError,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:openquester/openquester.dart';
+import 'package:nb_utils/nb_utils.dart';
 
 class DiagonalLineBackground extends StatelessWidget {
   const DiagonalLineBackground({

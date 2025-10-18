@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:openquester/common_imports.dart';
+import 'package:nb_utils/nb_utils.dart';
+import 'package:oq_shared/ui/ui_mode_utils.dart';
 
 class MaxSizeContainer extends StatelessWidget {
   const MaxSizeContainer({

@@ -1,13 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:openquester/openquester.dart';
+import 'package:nb_utils/nb_utils.dart';
+import 'package:oq_shared/oq_shared.dart';
 
 class LoadingButtonBuilder extends StatefulWidget {
   const LoadingButtonBuilder({
     required this.onPressed,
     required this.child,
     required this.builder,
+    required this.onError,
     super.key,
   });
   final Future<void> Function()? onPressed;
@@ -18,6 +20,7 @@ class LoadingButtonBuilder extends StatefulWidget {
     Future<void> Function()? onPressed,
   )
   builder;
+  final void Function(Object error, StackTrace stackTrace) onError;
 
   @override
   State<LoadingButtonBuilder> createState() => _LoadingButtonBuilderState();
@@ -49,11 +52,9 @@ class _LoadingButtonBuilderState extends State<LoadingButtonBuilder> {
       setState(() => loading = true);
       try {
         await onPressed?.call();
-      } catch (e) {
-        logger.w(e);
-        await getIt<ToastController>().show(e);
-      } finally {
+      } catch (e, s) {
         if (context.mounted) setState(() => loading = false);
+        widget.onError(e, s);
       }
     }
 

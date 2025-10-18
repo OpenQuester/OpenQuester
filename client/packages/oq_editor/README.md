@@ -1,14 +1,160 @@
 # OQ Editor
 
-A Flutter package for editing quiz content in OpenQuester.
+A comprehensive Flutter package for editing OpenQuester quiz packages with a multi-step workflow and reactive state management.
 
 ## Features
 
-- Quiz content editor screen
-- Framework-agnostic translation interface
-- Compatible with any i18n solution via dependency injection
+- ✅ **Multi-step editor flow**: Package Info → Rounds → Themes → Questions
+- ✅ **Reactive state management**: Built on `ValueNotifier` + `watch_it`
+- ✅ **Complete CRUD operations**: Add, Edit, Delete, Reorder for all entities
+- ✅ **Beautiful UI/UX**: Material 3 design with smooth animations
+- ✅ **Framework-agnostic translations**: Compatible with any i18n solution
+- ✅ **Type-safe**: Full null safety with freezed models
+- ✅ **Reorderable lists**: Drag-and-drop support for rounds and questions
+- ✅ **Grid layout**: Visual theme management
+- ✅ **Validation & confirmations**: User-friendly error handling
 
-## Translation Setup
+## Architecture
+
+### Navigation Flow
+
+```
+PackageInfo → RoundsList → RoundEditor → ThemesGrid → ThemeEditor → QuestionsList
+     ↓            ↓            ↓            ↓            ↓            ↓
+  [Basic        [Manage     [Edit        [Grid        [Edit       [Manage
+   Info]        Rounds]      Round]      Themes]       Theme]     Questions]
+```
+
+### Screens
+
+1. **PackageInfoScreen** - Edit package metadata (title, description, age restriction, language)
+2. **RoundsListScreen** - Manage rounds with reorderable list
+3. **RoundEditorScreen** - Edit round details (name, description, type)
+4. **ThemesGridScreen** - Visual grid of themes with question counts
+5. **ThemeEditorScreen** - Edit theme details (name, description)
+6. **QuestionsListScreen** - Manage questions with reorderable list
+
+### State Management
+
+- **Controller**: `OqEditorController` - single source of truth for all editor state
+- **ValueNotifiers**: Reactive state for package, currentStep, navigationContext
+- **watch_it**: Dependency injection and watching state changes
+
+## Usage
+
+### Basic Setup
+
+```dart
+import 'package:oq_editor/oq_editor.dart';
+
+// 1. Implement translations interface
+class MyTranslations implements OqEditorTranslations {
+  @override
+  String get editorTitle => 'Package Editor';
+
+  @override
+  String get saveButton => 'Save';
+
+  @override
+  String get packageInfo => 'Package Info';
+
+  @override
+  String minLengthError(int length) => 'Minimum length: $length';
+
+  @override
+  String deleteConfirmMessage(String itemName) => 'Delete $itemName?';
+
+  // ... implement all required translations
+}
+
+// 2. Create controller
+final controller = OqEditorController(
+  translations: MyTranslations(),
+  initialPackage: existingPackage, // or null for new package
+);
+
+// 3. Show editor
+Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (context) => OqEditorScreen(controller: controller),
+  ),
+);
+
+// 4. Don't forget to dispose
+@override
+void dispose() {
+  controller.dispose();
+  super.dispose();
+}
+```
+
+### Controller API
+
+#### Navigation
+
+```dart
+controller.navigateToPackageInfo()
+controller.navigateToRoundsList()
+controller.navigateToRoundEditor(int roundIndex)
+controller.navigateToThemesGrid(int roundIndex)
+controller.navigateToThemeEditor(int roundIndex, int themeIndex)
+controller.navigateToQuestionsList(int roundIndex, int themeIndex)
+controller.navigateBack()
+```
+
+#### Package Operations
+
+```dart
+controller.updatePackageInfo(
+  title: 'New Title',
+  description: 'Description',
+  ageRestriction: AgeRestriction.a16,
+  language: 'en',
+)
+```
+
+#### Round CRUD
+
+```dart
+controller.addRound(PackageRound(...))
+controller.updateRound(index, PackageRound(...))
+controller.deleteRound(index)
+controller.reorderRounds(oldIndex, newIndex)
+```
+
+#### Theme CRUD
+
+```dart
+controller.addTheme(roundIndex, PackageTheme(...))
+controller.updateTheme(roundIndex, themeIndex, PackageTheme(...))
+controller.deleteTheme(roundIndex, themeIndex)
+controller.reorderThemes(roundIndex, oldIndex, newIndex)
+```
+
+#### Question CRUD
+
+```dart
+controller.addQuestion(roundIndex, themeIndex, PackageQuestionUnion(...))
+controller.updateQuestion(roundIndex, themeIndex, questionIndex, question)
+controller.deleteQuestion(roundIndex, themeIndex, questionIndex)
+controller.reorderQuestions(roundIndex, themeIndex, oldIndex, newIndex)
+```
+
+### Watching State Changes
+
+```dart
+// Listen to package changes
+controller.package.addListener(() {
+  final package = controller.package.value;
+  print('Package updated: ${package.title}');
+});
+
+// Listen to current step
+controller.currentStep.addListener(() {
+  print('Current step: ${controller.currentStep.value}');
+});
+```
 
 The package uses an abstract `OqEditorTranslations` interface to stay independent from specific i18n frameworks.
 
