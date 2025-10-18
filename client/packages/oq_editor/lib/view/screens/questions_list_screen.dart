@@ -23,12 +23,12 @@ class QuestionsListScreen extends WatchingWidget {
     if (roundIndex == null ||
         themeIndex == null ||
         roundIndex >= package.rounds.length) {
-      return const Center(child: Text('Invalid question context'));
+      return Center(child: Text(translations.invalidQuestionContext));
     }
 
     final round = package.rounds[roundIndex];
     if (themeIndex >= round.themes.length) {
-      return const Center(child: Text('Invalid theme'));
+      return Center(child: Text(translations.invalidTheme));
     }
 
     final theme = round.themes[themeIndex];
@@ -203,7 +203,9 @@ class QuestionsListScreen extends WatchingWidget {
       builder: (context) => AlertDialog(
         title: Text(controller.translations.deleteConfirmTitle),
         content: Text(
-          controller.translations.deleteConfirmMessage('this question'),
+          controller.translations.deleteConfirmMessage(
+            controller.translations.thisQuestion,
+          ),
         ),
         actions: [
           TextButton(
@@ -243,13 +245,16 @@ class _QuestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controller = GetIt.I<OqEditorController>();
+    final translations = controller.translations;
+
     final questionText = question.map(
-      simple: (q) => q.text ?? 'Untitled Question',
-      stake: (q) => q.text ?? 'Untitled Question',
-      secret: (q) => q.text ?? 'Untitled Question',
-      noRisk: (q) => q.text ?? 'Untitled Question',
-      hidden: (q) => q.text ?? 'Untitled Question',
-      choice: (q) => q.text ?? 'Untitled Question',
+      simple: (q) => q.text ?? translations.untitledQuestion,
+      stake: (q) => q.text ?? translations.untitledQuestion,
+      secret: (q) => q.text ?? translations.untitledQuestion,
+      noRisk: (q) => q.text ?? translations.untitledQuestion,
+      hidden: (q) => q.text ?? translations.untitledQuestion,
+      choice: (q) => q.text ?? translations.untitledQuestion,
     );
 
     final questionPrice = question.map(
@@ -262,12 +267,12 @@ class _QuestionCard extends StatelessWidget {
     );
 
     final questionType = question.map(
-      simple: (_) => 'Simple',
-      stake: (_) => 'Stake',
-      secret: (_) => 'Secret',
-      noRisk: (_) => 'No Risk',
-      hidden: (_) => 'Hidden',
-      choice: (_) => 'Choice',
+      simple: (_) => translations.questionTypeSimple,
+      stake: (_) => translations.questionTypeStake,
+      secret: (_) => translations.questionTypeSecret,
+      noRisk: (_) => translations.questionTypeNoRisk,
+      hidden: (_) => translations.questionTypeHidden,
+      choice: (_) => translations.questionTypeChoice,
     );
 
     return Card(

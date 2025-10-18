@@ -18,7 +18,7 @@ class RoundEditorScreen extends WatchingWidget {
 
     final roundIndex = navContext.roundIndex;
     if (roundIndex == null || roundIndex >= package.rounds.length) {
-      return const Center(child: Text('Invalid round'));
+      return Center(child: Text(translations.invalidRound));
     }
 
     final round = package.rounds[roundIndex];
@@ -107,7 +107,9 @@ class RoundEditorScreen extends WatchingWidget {
           FilledButton.icon(
             onPressed: () => controller.navigateToThemesGrid(roundIndex),
             icon: const Icon(Icons.grid_view),
-            label: Text('${translations.themes} (${round.themes.length})'),
+            label: Text(
+              '${translations.themes} (${round.themes.length})',
+            ),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
@@ -162,13 +164,16 @@ class _RoundTypeSection extends StatelessWidget {
   }
 
   String _formatRoundType(PackageRoundType type) {
+    final controller = GetIt.I<OqEditorController>();
+    final translations = controller.translations;
+
     switch (type) {
       case PackageRoundType.simple:
-        return 'Simple';
+        return translations.roundTypeSimple;
       case PackageRoundType.valueFinal:
-        return 'Final';
+        return translations.roundTypeFinal;
       case PackageRoundType.$unknown:
-        return 'Unknown';
+        return translations.roundTypeUnknown;
     }
   }
 }

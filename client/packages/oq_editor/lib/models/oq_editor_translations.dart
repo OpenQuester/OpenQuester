@@ -72,4 +72,121 @@ abstract class OqEditorTranslations {
   /// Confirm dialogs
   String get deleteConfirmTitle;
   String deleteConfirmMessage(String itemName);
+
+  /// Error messages
+  String get errorSaving;
+  String get errorGeneric;
+  String get invalidTheme;
+  String get invalidRound;
+  String get invalidQuestionContext;
+  String get enterValidPositiveNumber;
+  String get enterValidNumber;
+  String get required;
+
+  /// Saving dialog
+  String get savingPackage;
+  String get preparingUpload;
+  String get initializing;
+  String get uploading;
+  String get uploadComplete;
+  String get pleaseWait;
+
+  /// Progress info
+  String questionsInTheme(int count);
+  String themesCount(int count);
+
+  /// Question type names
+  String get questionTypeSimple;
+  String get questionTypeStake;
+  String get questionTypeSecret;
+  String get questionTypeNoRisk;
+  String get questionTypeChoice;
+  String get questionTypeHidden;
+  String get questionTypeUnknown;
+  String get questionTypeLabel;
+
+  /// Question type descriptions
+  String get questionTypeSimpleDesc;
+  String get questionTypeStakeDesc;
+  String get questionTypeSecretDesc;
+  String get questionTypeNoRiskDesc;
+  String get questionTypeChoiceDesc;
+  String get questionTypeHiddenDesc;
+  String get questionTypeUnknownDesc;
+
+  /// Question fields
+  String get questionHint;
+  String get questionComment;
+  String get answerDelay;
+  String get isHidden;
+  String get isHiddenDesc;
+  String get pts;
+  String get ms;
+
+  /// Question type-specific fields
+  String get stakeSubType;
+  String get stakeMaxPrice;
+  String get stakeMaxPriceHint;
+  String get secretSubType;
+  String get secretTransferType;
+  String get allowedPrices;
+  String get noPricesSetDefaults;
+  String get noRiskSubType;
+  String get priceMultiplier;
+  String get priceMultiplierHint;
+  String get showDelay;
+  String get showDelayHint;
+  String get choiceAnswers;
+  String get add2to8Choices;
+  String get answerDelayHint;
+  String get questionHintHelper;
+  String get questionCommentHelper;
+
+  /// Media
+  String get questionMediaFiles;
+  String get answerMediaFiles;
+  String get addMediaFile;
+  String get noMediaFiles;
+  String get preview;
+  String get removeFile;
+  String get errorAddingFile;
+  String get failedToLoadImage;
+  String get failedToLoadVideo;
+  String get failedToLoadAudio;
+
+  /// Choice answers
+  String get addChoiceAnswer;
+  String get editChoiceAnswer;
+  String get answerText;
+  String get emptyAnswer;
+  String get addAllowedPrice;
+  String get price;
+  String get optional;
+
+  /// Display time dialog
+  String get editDisplayTime;
+  String get displayTime;
+  String get mustBePositive;
+  String get invalidNumber;
+
+  /// Round types
+  String get roundTypeSimple;
+  String get roundTypeFinal;
+  String get roundTypeUnknown;
+
+  /// Age restrictions
+  String get ageRestrictionNone;
+  String get ageRestrictionUnknown;
+
+  /// Default values
+  String get newRound;
+  String get newTheme;
+  String get newQuestion;
+  String get answer;
+  String get untitledQuestion;
+
+  /// Confirm messages
+  String get thisRound;
+  String get thisTheme;
+  String get thisQuestion;
 }

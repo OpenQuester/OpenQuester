@@ -94,10 +94,10 @@ class RoundsListScreen extends WatchingWidget {
 
   Future<void> _showAddRoundDialog(BuildContext context) async {
     final controller = GetIt.I<OqEditorController>();
-    const newRound = PackageRound(
+    final newRound = PackageRound(
       id: null,
       order: 0,
-      name: 'New Round',
+      name: controller.translations.newRound,
       description: '',
       type: PackageRoundType.simple,
       themes: [],
@@ -123,7 +123,9 @@ class RoundsListScreen extends WatchingWidget {
       builder: (context) => AlertDialog(
         title: Text(controller.translations.deleteConfirmTitle),
         content: Text(
-          controller.translations.deleteConfirmMessage('this round'),
+          controller.translations.deleteConfirmMessage(
+            controller.translations.thisRound,
+          ),
         ),
         actions: [
           TextButton(

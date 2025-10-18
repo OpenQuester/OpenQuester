@@ -129,4 +129,300 @@ class AppOqEditorTranslations implements OqEditorTranslations {
   @override
   String deleteConfirmMessage(String itemName) =>
       LocaleKeys.oq_editor_delete_confirm_message.tr(args: [itemName]);
+
+  @override
+  String get errorSaving => LocaleKeys.oq_editor_error_saving.tr();
+
+  @override
+  String get errorGeneric => LocaleKeys.oq_editor_error_generic.tr();
+
+  @override
+  String get invalidTheme => LocaleKeys.oq_editor_invalid_theme.tr();
+
+  @override
+  String get invalidRound => LocaleKeys.oq_editor_invalid_round.tr();
+
+  @override
+  String get invalidQuestionContext =>
+      LocaleKeys.oq_editor_invalid_question_context.tr();
+
+  @override
+  String get enterValidPositiveNumber =>
+      LocaleKeys.oq_editor_enter_valid_positive_number.tr();
+
+  @override
+  String get enterValidNumber => LocaleKeys.oq_editor_enter_valid_number.tr();
+
+  @override
+  String get required => LocaleKeys.oq_editor_required.tr();
+
+  @override
+  String get savingPackage => LocaleKeys.oq_editor_saving_package.tr();
+
+  @override
+  String get preparingUpload => LocaleKeys.oq_editor_preparing_upload.tr();
+
+  @override
+  String get initializing => LocaleKeys.oq_editor_initializing.tr();
+
+  @override
+  String get uploading => LocaleKeys.oq_editor_uploading.tr();
+
+  @override
+  String get uploadComplete => LocaleKeys.oq_editor_upload_complete.tr();
+
+  @override
+  String get pleaseWait => LocaleKeys.oq_editor_please_wait.tr();
+
+  @override
+  String questionsInTheme(int count) =>
+      LocaleKeys.oq_editor_questions_in_theme.tr(args: [count.toString()]);
+
+  @override
+  String themesCount(int count) =>
+      LocaleKeys.oq_editor_themes_count.tr(args: [count.toString()]);
+
+  @override
+  String get questionTypeSimple =>
+      LocaleKeys.oq_editor_question_type_simple.tr();
+
+  @override
+  String get questionTypeStake => LocaleKeys.oq_editor_question_type_stake.tr();
+
+  @override
+  String get questionTypeSecret =>
+      LocaleKeys.oq_editor_question_type_secret.tr();
+
+  @override
+  String get questionTypeNoRisk =>
+      LocaleKeys.oq_editor_question_type_no_risk.tr();
+
+  @override
+  String get questionTypeChoice =>
+      LocaleKeys.oq_editor_question_type_choice.tr();
+
+  @override
+  String get questionTypeHidden =>
+      LocaleKeys.oq_editor_question_type_hidden.tr();
+
+  @override
+  String get questionTypeUnknown =>
+      LocaleKeys.oq_editor_question_type_unknown.tr();
+
+  @override
+  String get questionTypeLabel => LocaleKeys.oq_editor_question_type_label.tr();
+
+  @override
+  String get questionTypeSimpleDesc =>
+      LocaleKeys.oq_editor_question_type_simple_desc.tr();
+
+  @override
+  String get questionTypeStakeDesc =>
+      LocaleKeys.oq_editor_question_type_stake_desc.tr();
+
+  @override
+  String get questionTypeSecretDesc =>
+      LocaleKeys.oq_editor_question_type_secret_desc.tr();
+
+  @override
+  String get questionTypeNoRiskDesc =>
+      LocaleKeys.oq_editor_question_type_no_risk_desc.tr();
+
+  @override
+  String get questionTypeChoiceDesc =>
+      LocaleKeys.oq_editor_question_type_choice_desc.tr();
+
+  @override
+  String get questionTypeHiddenDesc =>
+      LocaleKeys.oq_editor_question_type_hidden_desc.tr();
+
+  @override
+  String get questionTypeUnknownDesc =>
+      LocaleKeys.oq_editor_question_type_unknown_desc.tr();
+
+  @override
+  String get questionHint => LocaleKeys.oq_editor_question_hint.tr();
+
+  @override
+  String get questionComment => LocaleKeys.oq_editor_question_comment.tr();
+
+  @override
+  String get answerDelay => LocaleKeys.oq_editor_answer_delay.tr();
+
+  @override
+  String get isHidden => LocaleKeys.oq_editor_is_hidden.tr();
+
+  @override
+  String get isHiddenDesc => LocaleKeys.oq_editor_is_hidden_desc.tr();
+
+  @override
+  String get pts => LocaleKeys.oq_editor_pts.tr();
+
+  @override
+  String get ms => LocaleKeys.oq_editor_ms.tr();
+
+  @override
+  String get stakeSubType => LocaleKeys.oq_editor_stake_sub_type.tr();
+
+  @override
+  String get stakeMaxPrice => LocaleKeys.oq_editor_stake_max_price.tr();
+
+  @override
+  String get stakeMaxPriceHint =>
+      LocaleKeys.oq_editor_stake_max_price_hint.tr();
+
+  @override
+  String get secretSubType => LocaleKeys.oq_editor_secret_sub_type.tr();
+
+  @override
+  String get secretTransferType =>
+      LocaleKeys.oq_editor_secret_transfer_type.tr();
+
+  @override
+  String get allowedPrices => LocaleKeys.oq_editor_allowed_prices.tr();
+
+  @override
+  String get noPricesSetDefaults =>
+      LocaleKeys.oq_editor_no_prices_set_defaults.tr();
+
+  @override
+  String get noRiskSubType => LocaleKeys.oq_editor_no_risk_sub_type.tr();
+
+  @override
+  String get priceMultiplier => LocaleKeys.oq_editor_price_multiplier.tr();
+
+  @override
+  String get priceMultiplierHint =>
+      LocaleKeys.oq_editor_price_multiplier_hint.tr();
+
+  @override
+  String get showDelay => LocaleKeys.oq_editor_show_delay.tr();
+
+  @override
+  String get showDelayHint => LocaleKeys.oq_editor_show_delay_hint.tr();
+
+  @override
+  String get choiceAnswers => LocaleKeys.oq_editor_choice_answers.tr();
+
+  @override
+  String get add2to8Choices => LocaleKeys.oq_editor_add_2_to_8_choices.tr();
+
+  @override
+  String get answerDelayHint => LocaleKeys.oq_editor_answer_delay_hint.tr();
+
+  @override
+  String get questionHintHelper =>
+      LocaleKeys.oq_editor_question_hint_helper.tr();
+
+  @override
+  String get questionCommentHelper =>
+      LocaleKeys.oq_editor_question_comment_helper.tr();
+
+  @override
+  String get questionMediaFiles =>
+      LocaleKeys.oq_editor_question_media_files.tr();
+
+  @override
+  String get answerMediaFiles => LocaleKeys.oq_editor_answer_media_files.tr();
+
+  @override
+  String get addMediaFile => LocaleKeys.oq_editor_add_media_file.tr();
+
+  @override
+  String get noMediaFiles => LocaleKeys.oq_editor_no_media_files.tr();
+
+  @override
+  String get preview => LocaleKeys.oq_editor_preview.tr();
+
+  @override
+  String get removeFile => LocaleKeys.oq_editor_remove_file.tr();
+
+  @override
+  String get errorAddingFile => LocaleKeys.oq_editor_error_adding_file.tr();
+
+  @override
+  String get failedToLoadImage =>
+      LocaleKeys.oq_editor_failed_to_load_image.tr();
+
+  @override
+  String get failedToLoadVideo =>
+      LocaleKeys.oq_editor_failed_to_load_video.tr();
+
+  @override
+  String get failedToLoadAudio =>
+      LocaleKeys.oq_editor_failed_to_load_audio.tr();
+
+  @override
+  String get addChoiceAnswer => LocaleKeys.oq_editor_add_choice_answer.tr();
+
+  @override
+  String get editChoiceAnswer => LocaleKeys.oq_editor_edit_choice_answer.tr();
+
+  @override
+  String get answerText => LocaleKeys.oq_editor_answer_text.tr();
+
+  @override
+  String get emptyAnswer => LocaleKeys.oq_editor_empty_answer.tr();
+
+  @override
+  String get addAllowedPrice => LocaleKeys.oq_editor_add_allowed_price.tr();
+
+  @override
+  String get price => LocaleKeys.oq_editor_price.tr();
+
+  @override
+  String get optional => LocaleKeys.oq_editor_optional.tr();
+
+  @override
+  String get editDisplayTime => LocaleKeys.oq_editor_edit_display_time.tr();
+
+  @override
+  String get displayTime => LocaleKeys.oq_editor_display_time.tr();
+
+  @override
+  String get mustBePositive => LocaleKeys.oq_editor_must_be_positive.tr();
+
+  @override
+  String get invalidNumber => LocaleKeys.oq_editor_invalid_number.tr();
+
+  @override
+  String get roundTypeSimple => LocaleKeys.oq_editor_round_type_simple.tr();
+
+  @override
+  String get roundTypeFinal => LocaleKeys.oq_editor_round_type_final.tr();
+
+  @override
+  String get roundTypeUnknown => LocaleKeys.oq_editor_round_type_unknown.tr();
+
+  @override
+  String get ageRestrictionNone =>
+      LocaleKeys.oq_editor_age_restriction_none.tr();
+
+  @override
+  String get ageRestrictionUnknown =>
+      LocaleKeys.oq_editor_age_restriction_unknown.tr();
+
+  @override
+  String get newRound => LocaleKeys.oq_editor_new_round.tr();
+
+  @override
+  String get newTheme => LocaleKeys.oq_editor_new_theme.tr();
+
+  @override
+  String get newQuestion => LocaleKeys.oq_editor_new_question.tr();
+
+  @override
+  String get answer => LocaleKeys.oq_editor_answer.tr();
+
+  @override
+  String get untitledQuestion => LocaleKeys.oq_editor_untitled_question.tr();
+
+  @override
+  String get thisRound => LocaleKeys.oq_editor_this_round.tr();
+
+  @override
+  String get thisTheme => LocaleKeys.oq_editor_this_theme.tr();
+
+  @override
+  String get thisQuestion => LocaleKeys.oq_editor_this_question.tr();
 }

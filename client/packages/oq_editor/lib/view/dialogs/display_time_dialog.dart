@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
+import 'package:oq_editor/controllers/oq_editor_controller.dart';
 
 /// Dialog for editing media display time
 class DisplayTimeDialog extends StatefulWidget {
@@ -39,14 +41,17 @@ class _DisplayTimeDialogState extends State<DisplayTimeDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final controller = GetIt.I<OqEditorController>();
+    final translations = controller.translations;
+
     return AlertDialog(
-      title: const Text('Edit Display Time'),
+      title: Text(translations.editDisplayTime),
       content: TextField(
         controller: _controller,
         decoration: InputDecoration(
-          labelText: 'Display Time (ms)',
+          labelText: '${translations.displayTime} (${translations.ms})',
           border: const OutlineInputBorder(),
-          suffixText: 'ms',
+          suffixText: translations.ms,
           errorText: _error,
         ),
         keyboardType: TextInputType.number,
@@ -60,31 +65,34 @@ class _DisplayTimeDialogState extends State<DisplayTimeDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(translations.cancelButton),
         ),
         FilledButton(
           onPressed: _save,
-          child: const Text('Save'),
+          child: Text(translations.saveButton),
         ),
       ],
     );
   }
 
   void _save() {
+    final controller = GetIt.I<OqEditorController>();
+    final translations = controller.translations;
+
     final text = _controller.text.trim();
     if (text.isEmpty) {
-      setState(() => _error = 'Required');
+      setState(() => _error = translations.required);
       return;
     }
 
     final time = int.tryParse(text);
     if (time == null) {
-      setState(() => _error = 'Invalid number');
+      setState(() => _error = translations.invalidNumber);
       return;
     }
 
     if (time <= 0) {
-      setState(() => _error = 'Must be positive');
+      setState(() => _error = translations.mustBePositive);
       return;
     }
 

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
+import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/view/widgets/media_file_list_tile.dart';
 
@@ -21,6 +23,9 @@ class MediaFilesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controller = GetIt.I<OqEditorController>();
+    final translations = controller.translations;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -40,14 +45,14 @@ class MediaFilesSection extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.add),
                   onPressed: onAdd,
-                  tooltip: 'Add media file',
+                  tooltip: translations.addMediaFile,
                 ),
               ],
             ),
             if (files.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(8),
-                child: Text('No media files added'),
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(translations.noMediaFiles),
               )
             else
               ...files.asMap().entries.map((entry) {

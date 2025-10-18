@@ -153,6 +153,9 @@ class _AgeRestrictionSection extends StatelessWidget {
   }
 
   String _formatAgeRestriction(AgeRestriction restriction) {
+    final controller = GetIt.I<OqEditorController>();
+    final translations = controller.translations;
+
     switch (restriction) {
       case AgeRestriction.a18:
         return '18+';
@@ -161,9 +164,9 @@ class _AgeRestrictionSection extends StatelessWidget {
       case AgeRestriction.a12:
         return '12+';
       case AgeRestriction.none:
-        return 'None';
+        return translations.ageRestrictionNone;
       case AgeRestriction.$unknown:
-        return 'Unknown';
+        return translations.ageRestrictionUnknown;
     }
   }
 }

@@ -18,7 +18,7 @@ class ThemesGridScreen extends WatchingWidget {
 
     final roundIndex = navContext.roundIndex;
     if (roundIndex == null || roundIndex >= package.rounds.length) {
-      return const Center(child: Text('Invalid round'));
+      return Center(child: Text(translations.invalidRound));
     }
 
     final round = package.rounds[roundIndex];
@@ -122,10 +122,10 @@ class ThemesGridScreen extends WatchingWidget {
 
   void _addNewTheme(BuildContext context, int roundIndex) {
     final controller = GetIt.I<OqEditorController>();
-    const newTheme = PackageTheme(
+    final newTheme = PackageTheme(
       id: null,
       order: 0,
-      name: 'New Theme',
+      name: controller.translations.newTheme,
       description: '',
       questions: [],
     );
@@ -143,7 +143,9 @@ class ThemesGridScreen extends WatchingWidget {
       builder: (context) => AlertDialog(
         title: Text(controller.translations.deleteConfirmTitle),
         content: Text(
-          controller.translations.deleteConfirmMessage('this theme'),
+          controller.translations.deleteConfirmMessage(
+            controller.translations.thisTheme,
+          ),
         ),
         actions: [
           TextButton(

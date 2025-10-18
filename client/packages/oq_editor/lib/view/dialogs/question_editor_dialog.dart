@@ -160,9 +160,13 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     if (q == null) {
       // New question - defaults
       _questionType = QuestionType.simple;
-      _textController = TextEditingController(text: 'New Question');
+      _textController = TextEditingController(
+        text: widget.translations.newQuestion,
+      );
       _priceController = TextEditingController(text: '100');
-      _answerTextController = TextEditingController(text: 'Answer');
+      _answerTextController = TextEditingController(
+        text: widget.translations.answer,
+      );
       _answerHintController = TextEditingController();
       _questionCommentController = TextEditingController();
       _answerDelayController = TextEditingController(text: '5000');
@@ -318,9 +322,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 // Question type selector
                 DropdownButtonFormField<QuestionType>(
                   initialValue: _questionType,
-                  decoration: const InputDecoration(
-                    labelText: 'Question Type',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: widget.translations.questionTypeLabel,
+                    border: const OutlineInputBorder(),
                     filled: true,
                   ),
                   items: QuestionType.values
@@ -368,7 +372,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                     labelText: widget.translations.questionPrice,
                     border: const OutlineInputBorder(),
                     filled: true,
-                    suffixText: 'pts',
+                    suffixText: widget.translations.pts,
                   ),
                   keyboardType: TextInputType.number,
                   validator: (value) {
@@ -377,7 +381,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                     }
                     final price = int.tryParse(value);
                     if (price == null || price < 0) {
-                      return 'Enter a valid positive number';
+                      return widget.translations.enterValidPositiveNumber;
                     }
                     return null;
                   },
@@ -409,11 +413,13 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 // Common optional fields
                 TextFormField(
                   controller: _answerHintController,
-                  decoration: const InputDecoration(
-                    labelText: 'Answer Hint (optional)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText:
+                        '${widget.translations.questionHint}'
+                        '(${widget.translations.optional})',
+                    border: const OutlineInputBorder(),
                     filled: true,
-                    helperText: 'Hint to help players answer',
+                    helperText: widget.translations.questionHintHelper,
                   ),
                   maxLines: 2,
                   maxLength: 200,
@@ -422,11 +428,13 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
                 TextFormField(
                   controller: _questionCommentController,
-                  decoration: const InputDecoration(
-                    labelText: 'Question Comment (optional)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText:
+                        '${widget.translations.questionComment} '
+                        '(${widget.translations.optional})',
+                    border: const OutlineInputBorder(),
                     filled: true,
-                    helperText: 'Additional context or notes',
+                    helperText: widget.translations.questionCommentHelper,
                   ),
                   maxLines: 2,
                   maxLength: 200,
@@ -435,21 +443,21 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
                 TextFormField(
                   controller: _answerDelayController,
-                  decoration: const InputDecoration(
-                    labelText: 'Answer Delay',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: widget.translations.answerDelay,
+                    border: const OutlineInputBorder(),
                     filled: true,
-                    suffixText: 'ms',
-                    helperText: 'Time before showing answer',
+                    suffixText: widget.translations.ms,
+                    helperText: widget.translations.answerDelayHint,
                   ),
                   keyboardType: TextInputType.number,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Required';
+                      return widget.translations.required;
                     }
                     final delay = int.tryParse(value);
                     if (delay == null || delay < 0) {
-                      return 'Enter a valid number';
+                      return widget.translations.enterValidNumber;
                     }
                     return null;
                   },
@@ -465,8 +473,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                         _isHidden = value ?? false;
                       });
                     },
-                    title: const Text('Is Hidden'),
-                    subtitle: const Text('Hide this question from players'),
+                    title: Text(widget.translations.isHidden),
+                    subtitle: Text(widget.translations.isHiddenDesc),
                     contentPadding: EdgeInsets.zero,
                   ),
 
@@ -486,7 +494,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
                 // Media files section
                 MediaFilesSection(
-                  title: 'Question Media Files',
+                  title: widget.translations.questionMediaFiles,
                   files: _questionMediaFiles,
                   onAdd: () => _addMediaFile(isQuestionMedia: true),
                   onRemove: (int index) {
@@ -503,7 +511,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 const SizedBox(height: 16),
 
                 MediaFilesSection(
-                  title: 'Answer Media Files',
+                  title: widget.translations.answerMediaFiles,
                   files: _answerMediaFiles,
                   onAdd: () => _addMediaFile(isQuestionMedia: false),
                   onRemove: (int index) {
@@ -536,26 +544,25 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
   String _getQuestionTypeName(QuestionType type) {
     return switch (type) {
-      QuestionType.simple => 'Simple',
-      QuestionType.stake => 'Stake',
-      QuestionType.secret => 'Secret',
-      QuestionType.noRisk => 'No Risk',
-      QuestionType.choice => 'Choice',
-      QuestionType.hidden => 'Hidden',
-      QuestionType.$unknown => 'Unknown',
+      QuestionType.simple => widget.translations.questionTypeSimple,
+      QuestionType.stake => widget.translations.questionTypeStake,
+      QuestionType.secret => widget.translations.questionTypeSecret,
+      QuestionType.noRisk => widget.translations.questionTypeNoRisk,
+      QuestionType.choice => widget.translations.questionTypeChoice,
+      QuestionType.hidden => widget.translations.questionTypeHidden,
+      QuestionType.$unknown => widget.translations.questionTypeUnknown,
     };
   }
 
   Widget _buildTypeSpecificInfo() {
     final info = switch (_questionType) {
-      QuestionType.simple => 'Basic question type with standard answer',
-      QuestionType.stake => 'Players bid on this question before answering',
-      QuestionType.secret => 'Question can be transferred to another player',
-      QuestionType.noRisk => "Wrong answer doesn't subtract points",
-      QuestionType.choice =>
-        'Multiple choice question (add choices in full editor)',
-      QuestionType.hidden => 'Question with hidden answer until revealed',
-      QuestionType.$unknown => 'Unknown question type',
+      QuestionType.simple => widget.translations.questionTypeSimpleDesc,
+      QuestionType.stake => widget.translations.questionTypeStakeDesc,
+      QuestionType.secret => widget.translations.questionTypeSecretDesc,
+      QuestionType.noRisk => widget.translations.questionTypeNoRiskDesc,
+      QuestionType.choice => widget.translations.questionTypeChoiceDesc,
+      QuestionType.hidden => widget.translations.questionTypeHiddenDesc,
+      QuestionType.$unknown => widget.translations.questionTypeUnknownDesc,
     };
 
     return Card(
@@ -606,9 +613,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     return [
       DropdownButtonFormField<StakeQuestionSubType>(
         initialValue: _stakeSubType,
-        decoration: const InputDecoration(
-          labelText: 'Stake SubType',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          labelText: widget.translations.stakeSubType,
+          border: const OutlineInputBorder(),
           filled: true,
         ),
         items: StakeQuestionSubType.values
@@ -629,11 +636,13 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       const SizedBox(height: 16),
       TextFormField(
         initialValue: _stakeMaxPrice?.toString() ?? '',
-        decoration: const InputDecoration(
-          labelText: 'Max Price (optional)',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          labelText:
+              '${widget.translations.stakeMaxPrice} '
+              '(${widget.translations.optional})',
+          border: const OutlineInputBorder(),
           filled: true,
-          helperText: 'Maximum stake allowed',
+          helperText: widget.translations.stakeMaxPriceHint,
         ),
         keyboardType: TextInputType.number,
         onChanged: (value) {
@@ -649,9 +658,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     return [
       DropdownButtonFormField<SecretQuestionSubType>(
         initialValue: _secretSubType,
-        decoration: const InputDecoration(
-          labelText: 'Secret SubType',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          labelText: widget.translations.secretSubType,
+          border: const OutlineInputBorder(),
           filled: true,
         ),
         items: SecretQuestionSubType.values
@@ -672,9 +681,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       const SizedBox(height: 16),
       DropdownButtonFormField<QuestionTransferType>(
         initialValue: _secretTransferType,
-        decoration: const InputDecoration(
-          labelText: 'Transfer Type',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          labelText: widget.translations.secretTransferType,
+          border: const OutlineInputBorder(),
           filled: true,
         ),
         items: QuestionTransferType.values
@@ -703,7 +712,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Allowed Prices',
+                    widget.translations.allowedPrices,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   IconButton(
@@ -713,8 +722,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 ],
               ),
               if (_secretAllowedPrices.isEmpty)
-                const Text(
-                  'No prices set (defaults: 100, 200, 300, 400, 500)',
+                Text(
+                  widget.translations.noPricesSetDefaults,
                 ).paddingAll(8)
               else
                 Wrap(
@@ -743,9 +752,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     return [
       DropdownButtonFormField<NoRiskQuestionSubType>(
         initialValue: _noRiskSubType,
-        decoration: const InputDecoration(
-          labelText: 'NoRisk SubType',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          labelText: widget.translations.noRiskSubType,
+          border: const OutlineInputBorder(),
           filled: true,
         ),
         items: NoRiskQuestionSubType.values
@@ -766,11 +775,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       const SizedBox(height: 16),
       DropdownButtonFormField<String>(
         initialValue: _noRiskPriceMultiplier,
-        decoration: const InputDecoration(
-          labelText: 'Price Multiplier',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          labelText: widget.translations.priceMultiplier,
+          border: const OutlineInputBorder(),
           filled: true,
-          helperText: 'Multiplier for question price',
+          helperText: widget.translations.priceMultiplierHint,
         ),
         items: const [
           DropdownMenuItem(value: '1.0', child: Text('1.0x')),
@@ -794,12 +803,12 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     return [
       TextFormField(
         initialValue: _choiceShowDelay.toString(),
-        decoration: const InputDecoration(
-          labelText: 'Show Delay',
-          border: OutlineInputBorder(),
+        decoration: InputDecoration(
+          labelText: widget.translations.showDelay,
+          border: const OutlineInputBorder(),
           filled: true,
-          suffixText: 'ms',
-          helperText: 'Delay before showing choices',
+          suffixText: widget.translations.ms,
+          helperText: widget.translations.showDelayHint,
         ),
         keyboardType: TextInputType.number,
         onChanged: (value) {
@@ -807,11 +816,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         },
         validator: (value) {
           if (value == null || value.trim().isEmpty) {
-            return 'Required';
+            return widget.translations.required;
           }
           final delay = int.tryParse(value);
           if (delay == null || delay < 0) {
-            return 'Enter a valid number';
+            return widget.translations.enterValidNumber;
           }
           return null;
         },
@@ -827,7 +836,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Choice Answers (${_choiceAnswers.length}/8)',
+                    '${widget.translations.choiceAnswers} (${_choiceAnswers.length}/8)',
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   IconButton(
@@ -839,7 +848,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 ],
               ),
               if (_choiceAnswers.isEmpty)
-                const Text('Add 2-8 answer choices').paddingAll(8)
+                Text(widget.translations.add2to8Choices).paddingAll(8)
               else
                 ..._choiceAnswers.asMap().entries.map((entry) {
                   final index = entry.key;
@@ -848,7 +857,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                     leading: CircleAvatar(
                       child: Text('${index + 1}'),
                     ),
-                    title: Text(answer.text ?? 'Empty'),
+                    title: Text(answer.text ?? widget.translations.emptyAnswer),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete),
                       onPressed: () => _removeChoiceAnswer(index),
@@ -870,12 +879,12 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     final result = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add Allowed Price'),
+        title: Text(widget.translations.addAllowedPrice),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Price',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: widget.translations.price,
+            border: const OutlineInputBorder(),
           ),
           keyboardType: TextInputType.number,
           autofocus: true,
@@ -883,7 +892,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(widget.translations.cancelButton),
           ),
           TextButton(
             onPressed: () {
@@ -892,7 +901,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 Navigator.pop(context, price);
               }
             },
-            child: const Text('Add'),
+            child: Text(widget.translations.addButton),
           ),
         ],
       ),
@@ -914,12 +923,12 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add Choice Answer'),
+        title: Text(widget.translations.addChoiceAnswer),
         content: TextField(
           controller: textController,
-          decoration: const InputDecoration(
-            labelText: 'Answer Text',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: widget.translations.answerText,
+            border: const OutlineInputBorder(),
           ),
           maxLength: 100,
           autofocus: true,
@@ -927,7 +936,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(widget.translations.cancelButton),
           ),
           TextButton(
             onPressed: () {
@@ -936,7 +945,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 Navigator.pop(context, text);
               }
             },
-            child: const Text('Add'),
+            child: Text(widget.translations.addButton),
           ),
         ],
       ),
@@ -966,12 +975,12 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Edit Choice Answer'),
+        title: Text(widget.translations.editChoiceAnswer),
         content: TextField(
           controller: textController,
-          decoration: const InputDecoration(
-            labelText: 'Answer Text',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            labelText: widget.translations.answerText,
+            border: const OutlineInputBorder(),
           ),
           maxLength: 100,
           autofocus: true,
@@ -979,7 +988,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(widget.translations.cancelButton),
           ),
           TextButton(
             onPressed: () {
@@ -988,7 +997,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 Navigator.pop(context, text);
               }
             },
-            child: const Text('Save'),
+            child: Text(widget.translations.saveButton),
           ),
         ],
       ),
@@ -1046,7 +1055,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding file: $e')),
+        SnackBar(content: Text('${widget.translations.errorAddingFile}: $e')),
       );
     }
   }

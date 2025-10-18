@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/models/editor_step.dart';
+import 'package:oq_editor/models/oq_editor_translations.dart';
 import 'package:oq_editor/models/package_upload_state.dart';
 import 'package:oq_editor/view/screens/package_info_screen.dart';
 import 'package:oq_editor/view/screens/questions_list_screen.dart';
@@ -41,7 +42,9 @@ class OqEditorScreen extends WatchingWidget {
                     if (buttonContext.mounted) {
                       ScaffoldMessenger.of(buttonContext).showSnackBar(
                         SnackBar(
-                          content: Text('Error saving: $error'),
+                          content: Text(
+                            '${controller.translations.errorSaving}: $error',
+                          ),
                           backgroundColor: Colors.red,
                         ),
                       );
@@ -92,6 +95,7 @@ class OqEditorScreen extends WatchingWidget {
         barrierDismissible: false,
         builder: (_) => _SavingProgressDialog(
           progressStream: controller.onSaveProgressStream,
+          translations: controller.translations,
         ),
       ),
     );
@@ -113,7 +117,9 @@ class OqEditorScreen extends WatchingWidget {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: $error'),
+          content: Text(
+            '${controller.translations.errorGeneric}: $error',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -142,11 +148,15 @@ class OqEditorScreen extends WatchingWidget {
 /// Progress dialog shown during package save
 /// Shows linear progress bar if progressStream is provided
 class _SavingProgressDialog extends StatelessWidget {
-  const _SavingProgressDialog({this.progressStream});
+  const _SavingProgressDialog({
+    required this.translations,
+    this.progressStream,
+  });
 
   /// Optional stream of upload progress states
   /// If null, shows indeterminate progress
   final Stream<PackageUploadState>? progressStream;
+  final OqEditorTranslations translations;
 
   @override
   Widget build(BuildContext context) {
@@ -167,25 +177,25 @@ class _SavingProgressDialog extends StatelessWidget {
       builder: (context, snapshot) {
         // Default values
         var progress = 0.0;
-        var message = 'Preparing upload...';
+        var message = translations.preparingUpload;
 
         if (snapshot.hasData) {
           snapshot.data!.map(
             idle: (_) {
               progress = 0.0;
-              message = 'Initializing...';
+              message = translations.initializing;
             },
             uploading: (s) {
               progress = s.progress;
-              message = s.message ?? 'Uploading...';
+              message = s.message ?? translations.uploading;
             },
             completed: (_) {
               progress = 1.0;
-              message = 'Upload complete!';
+              message = translations.uploadComplete;
             },
             error: (s) {
               progress = 0.0;
-              message = 'Error: ${s.error}';
+              message = '${translations.errorGeneric}: ${s.error}';
             },
           );
         }
@@ -200,7 +210,7 @@ class _SavingProgressDialog extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'Saving package...',
+              translations.savingPackage,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
@@ -230,12 +240,12 @@ class _SavingProgressDialog extends StatelessWidget {
         const LinearProgressIndicator(),
         const SizedBox(height: 16),
         Text(
-          'Saving package...',
+          translations.savingPackage,
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
         Text(
-          'Please wait...',
+          translations.pleaseWait,
           style: Theme.of(context).textTheme.bodySmall,
           textAlign: TextAlign.center,
         ),

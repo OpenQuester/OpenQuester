@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
+import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/utils/media_utils.dart';
 import 'package:oq_editor/view/dialogs/media_preview_dialog.dart';
@@ -19,6 +21,9 @@ class MediaFileListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controller = GetIt.I<OqEditorController>();
+    final translations = controller.translations;
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4),
       child: ListTile(
@@ -41,17 +46,17 @@ class MediaFileListTile extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.open_in_full),
               onPressed: () => MediaPreviewDialog.show(context, mediaFile),
-              tooltip: 'Preview',
+              tooltip: translations.preview,
             ),
             IconButton(
               icon: const Icon(Icons.timer),
               onPressed: onEditDisplayTime,
-              tooltip: 'Edit display time',
+              tooltip: translations.editDisplayTime,
             ),
             IconButton(
               icon: const Icon(Icons.delete),
               onPressed: onRemove,
-              tooltip: 'Remove file',
+              tooltip: translations.removeFile,
             ),
           ],
         ),

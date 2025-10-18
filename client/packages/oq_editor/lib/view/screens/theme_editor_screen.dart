@@ -21,12 +21,12 @@ class ThemeEditorScreen extends WatchingWidget {
     if (roundIndex == null ||
         themeIndex == null ||
         roundIndex >= package.rounds.length) {
-      return const Center(child: Text('Invalid theme'));
+      return Center(child: Text(translations.invalidTheme));
     }
 
     final round = package.rounds[roundIndex];
     if (themeIndex >= round.themes.length) {
-      return const Center(child: Text('Invalid theme'));
+      return Center(child: Text(translations.invalidTheme));
     }
 
     final theme = round.themes[themeIndex];
@@ -116,7 +116,7 @@ class ThemeEditorScreen extends WatchingWidget {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    '${theme.questions.length} questions in this theme',
+                    translations.questionsInTheme(theme.questions.length),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w500,
                     ),
