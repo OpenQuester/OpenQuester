@@ -1,6 +1,6 @@
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
-import 'package:siq_compress/src/siq_file_encoder.dart';
+import 'package:oq_compress/src/siq_file_encoder.dart';
 import 'package:universal_io/io.dart';
 
 abstract class FileCommand extends Command<int> {
@@ -22,5 +22,5 @@ abstract class FileCommand extends Command<int> {
     return targetFile;
   }
 
-  late final fileEncoder = SiqFileEncoder();
+  late final fileEncoder = OqFileEncoder();
 }

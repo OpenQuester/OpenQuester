@@ -1,7 +1,7 @@
 import 'package:mason_logger/mason_logger.dart';
+import 'package:oq_compress/oq_compress.dart';
+import 'package:oq_compress/src/commands/file_command.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:siq_compress/siq_compress.dart';
-import 'package:siq_compress/src/commands/file_command.dart';
 import 'package:universal_io/io.dart';
 
 class EncodePackageCommand extends FileCommand {
@@ -21,7 +21,7 @@ class EncodePackageCommand extends FileCommand {
       'Processing file: ${inputFile.path.split('/').last}',
     );
 
-    final encoder = SiqFileEncoder();
+    final encoder = OqFileEncoder();
     final tempFolder = await getTemporaryDirectory();
     final workDir = Directory(
       [

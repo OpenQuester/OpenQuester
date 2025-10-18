@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
@@ -676,14 +678,14 @@ class _AnimatedButtonState extends State<_AnimatedButton>
   void _handleTapDown(TapDownDetails details) {
     if (widget.enabled && widget.onPressed != null) {
       setState(() => _isPressed = true);
-      _animationController.forward();
+      unawaited(_animationController.forward());
     }
   }
 
   void _handleTapUp(TapUpDetails details) {
     if (widget.enabled && _isPressed) {
       setState(() => _isPressed = false);
-      _animationController.reverse();
+      unawaited(_animationController.reverse());
       widget.onPressed?.call();
     }
   }
@@ -691,7 +693,7 @@ class _AnimatedButtonState extends State<_AnimatedButton>
   void _handleTapCancel() {
     if (widget.enabled && _isPressed) {
       setState(() => _isPressed = false);
-      _animationController.reverse();
+      unawaited(_animationController.reverse());
     }
   }
 

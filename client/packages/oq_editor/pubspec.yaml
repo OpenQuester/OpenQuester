@@ -1,0 +1,21 @@
+name: oq_editor
+description: "A new Flutter package project."
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.9.2
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  siq_file:
+    path: ../siq_file/
+  oq_compress:
+    path: ../oq_compress/
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  very_good_analysis: ^10.0.0

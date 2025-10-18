@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
@@ -33,14 +35,14 @@ class _ImageWidgetState extends State<ImageWidget> {
 
   @override
   void initState() {
-    _setProvider();
+    unawaited(_setProvider());
     super.initState();
   }
 
   @override
   void didUpdateWidget(covariant ImageWidget oldWidget) {
     if (oldWidget.url != widget.url) {
-      _setProvider();
+      unawaited(_setProvider());
     }
     super.didUpdateWidget(oldWidget);
   }

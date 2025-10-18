@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 import 'package:talker_flutter/talker_flutter.dart' hide TalkerLogger;
@@ -16,7 +18,7 @@ class _AppState extends State<App> {
   @override
   void initState() {
     super.initState();
-    AppInit.buildInit().then((_) => setState(() => loading = false));
+    unawaited(AppInit.buildInit().then((_) => setState(() => loading = false)));
   }
 
   @override

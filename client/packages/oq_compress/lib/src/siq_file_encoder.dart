@@ -4,11 +4,11 @@ import 'dart:typed_data';
 
 import 'package:archive/archive_io.dart';
 import 'package:collection/collection.dart';
-import 'package:siq_compress/src/common/command_wrapper.dart';
-import 'package:siq_compress/src/common/process_utils.dart';
-import 'package:siq_compress/src/models/ffprobe_output.dart';
+import 'package:oq_compress/src/common/command_wrapper.dart';
+import 'package:oq_compress/src/common/process_utils.dart';
+import 'package:oq_compress/src/models/ffprobe_output.dart';
 
-class SiqFileEncoder {
+class OqFileEncoder {
   Future<FfprobeOutput> getMetadata(File file) async {
     final result = await CommandWrapper().metadata(file);
     return result!;
@@ -92,7 +92,7 @@ class SiqFileEncoder {
     await _setDirPermissions(dir: outputDir);
 
     const folders = {'Images', 'Video', 'Audio'};
-    final fileEncoder = SiqFileEncoder();
+    final fileEncoder = OqFileEncoder();
 
     for (final folderName in folders) {
       final mediaInDir = Directory(

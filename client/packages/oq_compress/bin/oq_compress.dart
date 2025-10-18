@@ -1,4 +1,4 @@
-import 'package:siq_compress/src/commands/cli.dart';
+import 'package:oq_compress/src/commands/cli.dart';
 import 'package:universal_io/io.dart';
 
 Future<void> main(List<String> args) async {

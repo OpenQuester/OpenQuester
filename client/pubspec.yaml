@@ -23,8 +23,8 @@ dependencies:
   file_picker: ^10.3.3
   siq_file:
     path: ./packages/siq_file/
-  siq_compress:
-    path: ./packages/siq_compress/
+  oq_compress:
+    path: ./packages/oq_compress/
   injectable: ^2.5.2
   get_it: ^8.2.0
   watch_it: ^1.7.0

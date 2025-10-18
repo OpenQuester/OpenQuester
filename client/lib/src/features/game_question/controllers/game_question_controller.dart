@@ -98,8 +98,8 @@ class GameQuestionController {
     mediaController.value = null;
   }
 
-  void onChangeVolume(double volume) {
+  Future<void> onChangeVolume(double volume) async {
     this.volume.value = volume.clamp(0, 1);
-    mediaController.value?.setVolume(this.volume.value);
+    await mediaController.value?.setVolume(this.volume.value);
   }
 }

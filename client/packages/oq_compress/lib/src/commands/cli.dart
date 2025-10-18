@@ -2,8 +2,8 @@ import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:cli_completion/cli_completion.dart';
 import 'package:mason_logger/mason_logger.dart';
-import 'package:siq_compress/src/commands/commands.dart';
-import 'package:siq_compress/src/version.dart';
+import 'package:oq_compress/src/commands/commands.dart';
+import 'package:oq_compress/src/version.dart';
 
 class SiqCompressCommandRunner extends CompletionCommandRunner<int> {
   SiqCompressCommandRunner({Logger? logger})

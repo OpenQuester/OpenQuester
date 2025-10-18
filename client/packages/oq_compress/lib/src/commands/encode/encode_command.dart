@@ -1,5 +1,5 @@
 import 'package:mason_logger/mason_logger.dart';
-import 'package:siq_compress/src/commands/file_command.dart';
+import 'package:oq_compress/src/commands/file_command.dart';
 
 class EncodeCommand extends FileCommand {
   EncodeCommand({required super.logger});
