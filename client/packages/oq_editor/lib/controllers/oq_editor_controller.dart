@@ -64,6 +64,18 @@ class OqEditorController {
   /// These are converted to MediaFileReference when needed
   final Map<String, Uint8List> _importedFileBytes = {};
 
+  // Last used settings for question creation
+  /// Last used price value (persisted across question creations)
+  int lastUsedPrice = 100;
+
+  /// Last used answer delay in milliseconds (persisted
+  /// across question creations)
+  int lastUsedAnswerDelay = 5000;
+
+  /// Last used display time for media files in milliseconds
+  ///  (persisted across question creations)
+  int lastUsedDisplayTime = 5000;
+
   /// Get media file reference by hash
   MediaFileReference? getMediaFileByHash(String hash) {
     return _mediaFilesByHash[hash];

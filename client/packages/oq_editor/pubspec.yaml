@@ -36,6 +36,7 @@ dependencies:
   video_player_win: ^3.2.0
   fvp: ^0.35.0
   path_provider: ^2.1.5
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:

@@ -224,20 +224,21 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
   void _initializeFromQuestion() {
     final q = widget.question;
+    final controller = GetIt.I<OqEditorController>();
 
     if (q == null) {
-      // New question - defaults
+      // New question - use saved defaults from controller
       _questionType = QuestionType.simple;
-      _textController = TextEditingController(
-        text: widget.translations.newQuestion,
+      _textController = TextEditingController();
+      _priceController = TextEditingController(
+        text: controller.lastUsedPrice.toString(),
       );
-      _priceController = TextEditingController(text: '100');
-      _answerTextController = TextEditingController(
-        text: widget.translations.answer,
-      );
+      _answerTextController = TextEditingController();
       _answerHintController = TextEditingController();
       _questionCommentController = TextEditingController();
-      _answerDelayController = TextEditingController(text: '5000');
+      _answerDelayController = TextEditingController(
+        text: controller.lastUsedAnswerDelay.toString(),
+      );
     } else {
       // Edit existing question - extract all fields
       _questionType = q.map(
@@ -424,12 +425,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   ),
                   maxLines: 3,
                   maxLength: 500,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return widget.translations.fieldRequired;
-                    }
-                    return null;
-                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -1106,6 +1101,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           ? _questionMediaFiles
           : _answerMediaFiles;
 
+      final controller = GetIt.I<OqEditorController>();
+
       final mediaReference = MediaFileReference(
         platformFile: file,
       );
@@ -1114,6 +1111,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         reference: mediaReference,
         type: type,
         order: targetList.length,
+        displayTime: controller.lastUsedDisplayTime,
       );
 
       setState(() {
@@ -1122,7 +1120,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
       // Register with controller for upload tracking
       // (async, after adding to list)
-      final controller = GetIt.I<OqEditorController>();
       await controller.registerMediaFile(mediaReference);
     } catch (e) {
       if (!mounted) return;
@@ -1146,6 +1143,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       setState(() {
         file.displayTime = result;
       });
+
+      // Save to controller for next file
+      GetIt.I<OqEditorController>().lastUsedDisplayTime = result;
     }
   }
 
@@ -1186,7 +1186,10 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     );
 
     // Convert UiMediaFile to PackageQuestionFile with hash
-    final controller = GetIt.I<OqEditorController>();
+    final controller = GetIt.I<OqEditorController>()
+      // Save settings to controller for next question
+      ..lastUsedPrice = price
+      ..lastUsedAnswerDelay = answerDelay;
     final questionFiles = await Future.wait(
       _questionMediaFiles.map((uiFile) async {
         final hash = await controller.registerMediaFile(uiFile.reference);

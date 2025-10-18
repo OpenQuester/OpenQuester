@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
+import 'package:oq_editor/utils/question_templates.dart';
 import 'package:oq_editor/view/dialogs/question_editor_dialog.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -72,6 +73,52 @@ class QuestionsListScreen extends WatchingWidget {
                     _addNewQuestion(context, roundIndex, themeIndex),
                 icon: const Icon(Icons.add),
                 label: Text(translations.addQuestion),
+              ),
+              const SizedBox(width: 8),
+              MenuAnchor(
+                builder: (context, controller, child) {
+                  return FilledButton.tonalIcon(
+                    onPressed: () {
+                      if (controller.isOpen) {
+                        controller.close();
+                      } else {
+                        controller.open();
+                      }
+                    },
+                    icon: const Icon(Icons.auto_awesome),
+                    label: Text(translations.addFromTemplate),
+                  );
+                },
+                menuChildren: [
+                  MenuItemButton(
+                    leadingIcon: const Icon(Icons.file_upload_outlined),
+                    onPressed: () => _addQuestionFromTemplate(
+                      context,
+                      roundIndex,
+                      themeIndex,
+                      QuestionTemplate.openingQuestion,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          translations.templateOpeningQuestion,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        Text(
+                          translations.templateOpeningQuestionDesc,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -152,6 +199,49 @@ class QuestionsListScreen extends WatchingWidget {
       translations: controller.translations,
       roundIndex: roundIndex,
       themeIndex: themeIndex,
+    );
+
+    if (result != null) {
+      controller.addQuestion(
+        roundIndex,
+        themeIndex,
+        result.question,
+      );
+    }
+  }
+
+  Future<void> _addQuestionFromTemplate(
+    BuildContext context,
+    int roundIndex,
+    int themeIndex,
+    QuestionTemplate template,
+  ) async {
+    final controller = GetIt.I<OqEditorController>();
+
+    // Apply template to generate pre-filled question
+    PackageQuestionUnion? prefilledQuestion;
+
+    switch (template) {
+      case QuestionTemplate.none:
+        break;
+      case QuestionTemplate.openingQuestion:
+        prefilledQuestion = await QuestionTemplates.applyFileImportTemplate(
+          context: context,
+          controller: controller,
+          translations: controller.translations,
+        );
+    }
+
+    if (prefilledQuestion == null) return;
+    if (!context.mounted) return;
+
+    // Show dialog with pre-filled question
+    final result = await QuestionEditorDialog.show(
+      context: context,
+      translations: controller.translations,
+      roundIndex: roundIndex,
+      themeIndex: themeIndex,
+      question: prefilledQuestion,
     );
 
     if (result != null) {

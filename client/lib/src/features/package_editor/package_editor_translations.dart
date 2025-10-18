@@ -434,4 +434,84 @@ class AppOqEditorTranslations implements OqEditorTranslations {
 
   @override
   String get thisQuestion => LocaleKeys.oq_editor_this_question.tr();
+
+  @override
+  String get useTemplate => LocaleKeys.oq_editor_use_template.tr();
+
+  @override
+  String get templateNone => LocaleKeys.oq_editor_template_none.tr();
+
+  @override
+  String get templateOpeningQuestion =>
+      LocaleKeys.oq_editor_template_opening_question.tr();
+
+  @override
+  String get templateOpeningQuestionDesc =>
+      LocaleKeys.oq_editor_template_opening_question_desc.tr();
+
+  @override
+  String get selectQuestionFile =>
+      LocaleKeys.oq_editor_select_question_file.tr();
+
+  @override
+  String get selectAnswerFile => LocaleKeys.oq_editor_select_answer_file.tr();
+
+  @override
+  String get templateApplied => LocaleKeys.oq_editor_template_applied.tr();
+
+  @override
+  String get addFromTemplate => LocaleKeys.oq_editor_add_from_template.tr();
+
+  @override
+  String get unsavedChanges => LocaleKeys.oq_editor_unsaved_changes.tr();
+
+  @override
+  String get unsavedChangesMessage =>
+      LocaleKeys.oq_editor_unsaved_changes_message.tr();
+
+  @override
+  String get discardChanges => LocaleKeys.oq_editor_discard_changes.tr();
+
+  @override
+  String get saveToServer => LocaleKeys.oq_editor_save_to_server.tr();
+
+  @override
+  String get saveAsFile => LocaleKeys.oq_editor_save_as_file.tr();
+
+  @override
+  String get continueEditing => LocaleKeys.oq_editor_continue_editing.tr();
+
+  @override
+  String get importPackage => LocaleKeys.oq_editor_import_package.tr();
+
+  @override
+  String get exportPackage => LocaleKeys.oq_editor_export_package.tr();
+
+  @override
+  String get importPackageTooltip =>
+      LocaleKeys.oq_editor_import_package_tooltip.tr();
+
+  @override
+  String get exportPackageTooltip =>
+      LocaleKeys.oq_editor_export_package_tooltip.tr();
+
+  @override
+  String get errorExporting => LocaleKeys.oq_editor_error_exporting.tr();
+
+  @override
+  String get errorImporting => LocaleKeys.oq_editor_error_importing.tr();
+
+  @override
+  String get packageImportedSuccessfully =>
+      LocaleKeys.oq_editor_package_imported_successfully.tr();
+
+  @override
+  String get packageExportedSuccessfully =>
+      LocaleKeys.oq_editor_package_exported_successfully.tr();
+
+  @override
+  String displayTimeValue(int milliseconds) =>
+      LocaleKeys.oq_editor_display_time_value.tr(
+        args: [milliseconds.toString()],
+      );
 }

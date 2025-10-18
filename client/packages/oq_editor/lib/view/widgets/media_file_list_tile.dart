@@ -68,11 +68,14 @@ class MediaFileListTile extends StatelessWidget {
   }
 
   String _buildSubtitle() {
+    final controller = GetIt.I<OqEditorController>();
+    final translations = controller.translations;
+
     final parts = <String>[
       // Type
       mediaFile.type.name,
       // Display time
-      'Display: ${mediaFile.displayTime}ms',
+      translations.displayTimeValue(mediaFile.displayTime),
     ];
 
     // File size

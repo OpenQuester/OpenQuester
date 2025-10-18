@@ -191,4 +191,35 @@ abstract class OqEditorTranslations {
   String get thisRound;
   String get thisTheme;
   String get thisQuestion;
+
+  /// Question templates
+  String get useTemplate;
+  String get templateNone;
+  String get templateOpeningQuestion;
+  String get templateOpeningQuestionDesc;
+  String get selectQuestionFile;
+  String get selectAnswerFile;
+  String get templateApplied;
+  String get addFromTemplate;
+
+  /// Exit dialog
+  String get unsavedChanges;
+  String get unsavedChangesMessage;
+  String get discardChanges;
+  String get saveToServer;
+  String get saveAsFile;
+  String get continueEditing;
+
+  /// Import/Export
+  String get importPackage;
+  String get exportPackage;
+  String get importPackageTooltip;
+  String get exportPackageTooltip;
+  String get errorExporting;
+  String get errorImporting;
+  String get packageImportedSuccessfully;
+  String get packageExportedSuccessfully;
+
+  /// Media file display
+  String displayTimeValue(int milliseconds);
 }

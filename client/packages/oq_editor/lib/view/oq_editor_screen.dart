@@ -29,90 +29,142 @@ class OqEditorScreen extends WatchingWidget {
     final currentStep = watchValue((OqEditorController c) => c.currentStep);
     final refreshKey = watchValue((OqEditorController c) => c.refreshKey);
 
-    return Scaffold(
-      body: MaxSizeContainer(
-        child: Scaffold(
-          appBar: AppBar(
-            title: Text(controller.translations.editorTitle),
-            actions: [
-              // Import button
-              IconButton(
-                icon: const Icon(Icons.upload_file),
-                onPressed: () => _handleImport(context),
-                tooltip: 'Import Package (.oq)',
-              ),
-              // Export button
-              Builder(
-                builder: (buttonContext) => LoadingButtonBuilder(
-                  onPressed: () => _handleExport(buttonContext),
-                  onError: (error, stackTrace) {
-                    if (buttonContext.mounted) {
-                      ScaffoldMessenger.of(buttonContext).showSnackBar(
-                        SnackBar(
-                          content: Text('Error exporting: $error'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  },
-                  builder: (context, child, onPressed) {
-                    return IconButton(
-                      icon: child,
-                      onPressed: onPressed,
-                      tooltip: 'Export Package (.oq)',
-                    );
-                  },
-                  child: const Icon(Icons.download),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        final shouldPop = await _showExitDialog(context);
+        if ((shouldPop ?? false) && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        body: MaxSizeContainer(
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(controller.translations.editorTitle),
+              actions: [
+                // Import button
+                IconButton(
+                  icon: const Icon(Icons.upload_file),
+                  onPressed: () => _handleImport(context),
+                  tooltip: controller.translations.importPackageTooltip,
                 ),
-              ),
-              // Save button
-              Builder(
-                builder: (buttonContext) => LoadingButtonBuilder(
-                  onPressed: () => _handleSave(buttonContext),
-                  onError: (error, stackTrace) {
-                    if (buttonContext.mounted) {
-                      ScaffoldMessenger.of(buttonContext).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            '${controller.translations.errorSaving}: $error',
+                // Export button
+                Builder(
+                  builder: (buttonContext) => LoadingButtonBuilder(
+                    onPressed: () => _handleExport(buttonContext),
+                    onError: (error, stackTrace) {
+                      if (buttonContext.mounted) {
+                        ScaffoldMessenger.of(buttonContext).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '${controller.translations.errorExporting}: '
+                              '$error',
+                            ),
+                            backgroundColor: Colors.red,
                           ),
-                          backgroundColor: Colors.red,
-                        ),
+                        );
+                      }
+                    },
+                    builder: (context, child, onPressed) {
+                      return IconButton(
+                        icon: child,
+                        onPressed: onPressed,
+                        tooltip: controller.translations.exportPackageTooltip,
                       );
-                    }
-                  },
-                  builder: (context, child, onPressed) {
-                    return IconButton(
-                      icon: child,
-                      onPressed: onPressed,
-                      tooltip: controller.translations.saveButton,
-                    );
-                  },
-                  child: const Icon(Icons.save),
+                    },
+                    child: const Icon(Icons.download),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          body: AnimatedSwitcher(
-            key: ValueKey(refreshKey),
-            duration: const Duration(milliseconds: 300),
-            switchInCurve: Curves.easeInOut,
-            switchOutCurve: Curves.easeInOut,
-            transitionBuilder: (child, animation) {
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0.1, 0),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
+                // Save button
+                Builder(
+                  builder: (buttonContext) => LoadingButtonBuilder(
+                    onPressed: () => _handleSave(buttonContext),
+                    onError: (error, stackTrace) {
+                      if (buttonContext.mounted) {
+                        ScaffoldMessenger.of(buttonContext).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              '${controller.translations.errorSaving}: $error',
+                            ),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    builder: (context, child, onPressed) {
+                      return IconButton(
+                        icon: child,
+                        onPressed: onPressed,
+                        tooltip: controller.translations.saveButton,
+                      );
+                    },
+                    child: const Icon(Icons.save),
+                  ),
                 ),
-              );
-            },
-            child: _buildCurrentScreen(currentStep),
+              ],
+            ),
+            body: AnimatedSwitcher(
+              key: ValueKey(refreshKey),
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeInOut,
+              switchOutCurve: Curves.easeInOut,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.1, 0),
+                      end: Offset.zero,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                );
+              },
+              child: _buildCurrentScreen(currentStep),
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Show exit dialog with options to discard, save, or save as file
+  Future<bool?> _showExitDialog(BuildContext context) async {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(controller.translations.unsavedChanges),
+        content: Text(controller.translations.unsavedChangesMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(controller.translations.continueEditing),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+            ),
+            child: Text(controller.translations.discardChanges),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop(false);
+              await _handleExport(context);
+            },
+            child: Text(controller.translations.saveAsFile),
+          ),
+          FilledButton(
+            onPressed: () async {
+              Navigator.of(context).pop(false);
+              await _handleSave(context);
+            },
+            child: Text(controller.translations.saveToServer),
+          ),
+        ],
       ),
     );
   }
@@ -164,8 +216,8 @@ class OqEditorScreen extends WatchingWidget {
       if (!context.mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Package imported successfully'),
+        SnackBar(
+          content: Text(controller.translations.packageImportedSuccessfully),
           backgroundColor: Colors.green,
         ),
       );
@@ -174,7 +226,7 @@ class OqEditorScreen extends WatchingWidget {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error importing package: $error'),
+          content: Text('${controller.translations.errorImporting}: $error'),
           backgroundColor: Colors.red,
         ),
       );
@@ -186,8 +238,8 @@ class OqEditorScreen extends WatchingWidget {
     if (!context.mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Package exported successfully'),
+      SnackBar(
+        content: Text(controller.translations.packageExportedSuccessfully),
         backgroundColor: Colors.green,
       ),
     );
