@@ -84,6 +84,7 @@ export 'src/features/games/view/games_list.dart';
 export 'src/features/home_tabs/home_tabs.dart';
 export 'src/features/package_compress/controllers/package_compress_controller.dart';
 export 'src/features/package_compress/view/package_compress_screen.dart';
+export 'src/features/package_editor/controllers/package_editor_upload_controller.dart';
 export 'src/features/package_editor/package_editor_screen.dart';
 export 'src/features/package_editor/package_editor_translations.dart';
 export 'src/features/package_upload/controllers/package_upload_controller.dart';

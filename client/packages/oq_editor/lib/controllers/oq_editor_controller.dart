@@ -1,19 +1,37 @@
 import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/editor_step.dart';
+import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
+import 'package:oq_editor/models/package_upload_state.dart';
 import 'package:oq_editor/utils/extensions.dart';
 
 class OqEditorController {
   OqEditorController({
     required this.translations,
     OqPackage? initialPackage,
+    this.onSave,
+    this.onSaveProgressStream,
   }) {
     package.value = initialPackage ?? OqPackageX.empty;
   }
 
   /// Translation provider injected from parent app
   final OqEditorTranslations translations;
+
+  /// Save callback function
+  /// Should handle uploading media files and saving the package
+  /// Returns the saved package or throws an error
+  /// Map key is the hash, value is MediaFileReference
+  final Future<OqPackage> Function(
+    OqPackage package,
+    Map<String, MediaFileReference> mediaFilesByHash,
+  )?
+  onSave;
+
+  /// Optional stream of upload progress states
+  /// If provided, the save dialog will show real-time progress
+  final Stream<PackageUploadState>? onSaveProgressStream;
 
   /// Current package being edited
   final ValueNotifier<OqPackage> package = ValueNotifier<OqPackage>(
@@ -30,6 +48,62 @@ class OqEditorController {
       ValueNotifier<EditorNavigationContext>(
         EditorNavigationContext(),
       );
+
+  /// Media file references map by hash
+  /// Key: MD5 hash of file, Value: MediaFileReference for upload
+  final Map<String, MediaFileReference> _mediaFilesByHash = {};
+
+  /// Get media file reference by hash
+  MediaFileReference? getMediaFileByHash(String hash) {
+    return _mediaFilesByHash[hash];
+  }
+
+  /// Register a media file reference for upload
+  /// Returns the hash for the file
+  Future<String> registerMediaFile(MediaFileReference file) async {
+    final hash = await file.calculateHash();
+    _mediaFilesByHash[hash] = file;
+    return hash;
+  }
+
+  /// Remove media file reference by hash
+  void unregisterMediaFile(String hash) {
+    final file = _mediaFilesByHash.remove(hash);
+    file?.disposeController();
+  }
+
+  /// Get all pending media files for upload
+  Map<String, MediaFileReference> get pendingMediaFiles =>
+      Map.unmodifiable(_mediaFilesByHash);
+
+  /// Clear all pending media files
+  void clearPendingMediaFiles() {
+    // Dispose all controllers
+    for (final file in _mediaFilesByHash.values) {
+      file.disposeController();
+    }
+    _mediaFilesByHash.clear();
+  }
+
+  /// Save the package
+  /// Calls the onSave callback with the current package and pending media files
+  Future<OqPackage> savePackage() async {
+    if (onSave == null) {
+      throw UnimplementedError(
+        'onSave callback must be provided to OqEditorController',
+      );
+    }
+
+    final savedPackage = await onSave!(
+      package.value,
+      Map.from(_mediaFilesByHash),
+    );
+
+    // Update the package with the saved version
+    package.value = savedPackage;
+
+    return savedPackage;
+  }
 
   // Navigation methods
 
@@ -247,6 +321,7 @@ class OqEditorController {
     if (themeIndex < 0 || themeIndex >= round.themes.length) return;
     final theme = round.themes[themeIndex];
     if (questionIndex < 0 || questionIndex >= theme.questions.length) return;
+
     final updatedQuestions = List<PackageQuestionUnion>.from(theme.questions)
       ..removeAt(questionIndex);
     updateTheme(
@@ -280,6 +355,7 @@ class OqEditorController {
 
   /// Dispose resources
   void dispose() {
+    clearPendingMediaFiles();
     package.dispose();
     currentStep.dispose();
     navigationContext.dispose();

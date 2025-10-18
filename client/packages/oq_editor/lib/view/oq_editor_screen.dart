@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/models/editor_step.dart';
+import 'package:oq_editor/models/package_upload_state.dart';
 import 'package:oq_editor/view/screens/package_info_screen.dart';
 import 'package:oq_editor/view/screens/questions_list_screen.dart';
 import 'package:oq_editor/view/screens/round_editor_screen.dart';
@@ -30,18 +33,29 @@ class OqEditorScreen extends WatchingWidget {
           appBar: AppBar(
             title: Text(controller.translations.editorTitle),
             actions: [
-              // Save button (placeholder for now)
-              IconButton(
-                icon: const Icon(Icons.save),
-                onPressed: () {
-                  // TODO: Implement save functionality
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Save functionality coming soon'),
-                    ),
-                  );
-                },
-                tooltip: controller.translations.saveButton,
+              // Save button
+              Builder(
+                builder: (buttonContext) => LoadingButtonBuilder(
+                  onPressed: () => _handleSave(buttonContext),
+                  onError: (error, stackTrace) {
+                    if (buttonContext.mounted) {
+                      ScaffoldMessenger.of(buttonContext).showSnackBar(
+                        SnackBar(
+                          content: Text('Error saving: $error'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  builder: (context, child, onPressed) {
+                    return IconButton(
+                      icon: child,
+                      onPressed: onPressed,
+                      tooltip: controller.translations.saveButton,
+                    );
+                  },
+                  child: const Icon(Icons.save),
+                ),
               ),
             ],
           ),
@@ -68,6 +82,44 @@ class OqEditorScreen extends WatchingWidget {
     );
   }
 
+  Future<void> _handleSave(BuildContext context) async {
+    // Show progress dialog
+    if (!context.mounted) return;
+
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => _SavingProgressDialog(
+          progressStream: controller.onSaveProgressStream,
+        ),
+      ),
+    );
+
+    try {
+      await controller.savePackage();
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // Close progress dialog
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(controller.translations.saveButton),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      Navigator.of(context).pop(); // Close progress dialog
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Widget _buildCurrentScreen(EditorStep step) {
     // Use different keys to force AnimatedSwitcher to animate
     switch (step) {
@@ -84,5 +136,110 @@ class OqEditorScreen extends WatchingWidget {
       case EditorStep.questionsList:
         return const QuestionsListScreen(key: ValueKey('questions_list'));
     }
+  }
+}
+
+/// Progress dialog shown during package save
+/// Shows linear progress bar if progressStream is provided
+class _SavingProgressDialog extends StatelessWidget {
+  const _SavingProgressDialog({this.progressStream});
+
+  /// Optional stream of upload progress states
+  /// If null, shows indeterminate progress
+  final Stream<PackageUploadState>? progressStream;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: progressStream != null
+            ? _buildProgressStreamView(context)
+            : _buildIndeterminateView(context),
+      ),
+    );
+  }
+
+  Widget _buildProgressStreamView(BuildContext context) {
+    return StreamBuilder<PackageUploadState>(
+      stream: progressStream,
+      initialData: const PackageUploadState.idle(),
+      builder: (context, snapshot) {
+        // Default values
+        var progress = 0.0;
+        var message = 'Preparing upload...';
+
+        if (snapshot.hasData) {
+          snapshot.data!.map(
+            idle: (_) {
+              progress = 0.0;
+              message = 'Initializing...';
+            },
+            uploading: (s) {
+              progress = s.progress;
+              message = s.message ?? 'Uploading...';
+            },
+            completed: (_) {
+              progress = 1.0;
+              message = 'Upload complete!';
+            },
+            error: (s) {
+              progress = 0.0;
+              message = 'Error: ${s.error}';
+            },
+          );
+        }
+
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: Colors.grey[300],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Saving package...',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${(progress * 100).toInt()}%',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildIndeterminateView(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const LinearProgressIndicator(),
+        const SizedBox(height: 16),
+        Text(
+          'Saving package...',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Please wait...',
+          style: Theme.of(context).textTheme.bodySmall,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
   }
 }

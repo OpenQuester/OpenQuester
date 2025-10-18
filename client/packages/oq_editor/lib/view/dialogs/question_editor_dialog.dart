@@ -1,7 +1,9 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
+import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
 import 'package:oq_editor/utils/media_type_detector.dart';
@@ -12,15 +14,9 @@ import 'package:oq_editor/view/widgets/media_files_section.dart';
 class QuestionEditResult {
   const QuestionEditResult({
     required this.question,
-    required this.questionMediaFiles,
-    required this.answerMediaFiles,
   });
 
   final PackageQuestionUnion question;
-
-  /// Media file references (not bytes) for memory efficiency
-  final List<MediaFileReference> questionMediaFiles;
-  final List<MediaFileReference> answerMediaFiles;
 }
 
 /// Comprehensive question editor dialog supporting all question types
@@ -107,6 +103,55 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   void initState() {
     super.initState();
     _initializeFromQuestion();
+    _loadExistingMediaFiles();
+  }
+
+  void _loadExistingMediaFiles() {
+    // Load existing media files from question if editing
+    final q = widget.question;
+    if (q == null) return;
+
+    final controller = GetIt.I<OqEditorController>();
+
+    // Load question files
+    final questionFiles = q.map(
+      simple: (s) => s.questionFiles,
+      stake: (s) => s.questionFiles,
+      secret: (s) => s.questionFiles,
+      noRisk: (s) => s.questionFiles,
+      choice: (s) => s.questionFiles,
+      hidden: (s) => s.questionFiles,
+    );
+
+    if (questionFiles != null) {
+      for (final file in questionFiles) {
+        if (file == null) continue;
+        final ref = controller.getMediaFileByHash(file.file.md5);
+        if (ref != null) {
+          _questionMediaFiles.add(ref);
+        }
+      }
+    }
+
+    // Load answer files
+    final answerFiles = q.map(
+      simple: (s) => s.answerFiles,
+      stake: (s) => s.answerFiles,
+      secret: (s) => s.answerFiles,
+      noRisk: (s) => s.answerFiles,
+      choice: (s) => s.answerFiles,
+      hidden: (s) => s.answerFiles,
+    );
+
+    if (answerFiles != null) {
+      for (final file in answerFiles) {
+        if (file == null) continue;
+        final ref = controller.getMediaFileByHash(file.file.md5);
+        if (ref != null) {
+          _answerMediaFiles.add(ref);
+        }
+      }
+    }
   }
 
   void _initializeFromQuestion() {
@@ -993,6 +1038,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       setState(() {
         targetList.add(reference);
       });
+
+      // Register with controller for upload tracking
+      // (async, after adding to list)
+      final controller = GetIt.I<OqEditorController>();
+      await controller.registerMediaFile(reference);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1018,7 +1068,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     }
   }
 
-  void _saveQuestion() {
+  Future<void> _saveQuestion() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
@@ -1054,6 +1104,42 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       hidden: (q) => q.id,
     );
 
+    // Convert MediaFileReference to PackageQuestionFile with hash
+    final controller = GetIt.I<OqEditorController>();
+    final questionFiles = await Future.wait(
+      _questionMediaFiles.map((ref) async {
+        final hash = await controller.registerMediaFile(ref);
+        return PackageQuestionFile(
+          id: null,
+          order: ref.order,
+          file: FileItem(
+            id: null,
+            md5: hash,
+            type: ref.type,
+            link: null,
+          ),
+          displayTime: ref.displayTime,
+        );
+      }),
+    );
+
+    final answerFiles = await Future.wait(
+      _answerMediaFiles.map((ref) async {
+        final hash = await controller.registerMediaFile(ref);
+        return PackageQuestionFile(
+          id: null,
+          order: ref.order,
+          file: FileItem(
+            id: null,
+            md5: hash,
+            type: ref.type,
+            link: null,
+          ),
+          displayTime: ref.displayTime,
+        );
+      }),
+    );
+
     PackageQuestionUnion question;
 
     switch (_questionType) {
@@ -1069,6 +1155,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           questionComment: questionComment.isEmpty ? null : questionComment,
           answerDelay: answerDelay,
           isHidden: _isHidden,
+          questionFiles: questionFiles.isEmpty ? null : questionFiles,
+          answerFiles: answerFiles.isEmpty ? null : answerFiles,
         );
 
       case QuestionType.stake:
@@ -1085,6 +1173,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           isHidden: _isHidden,
           subType: _stakeSubType,
           maxPrice: _stakeMaxPrice,
+          questionFiles: questionFiles.isEmpty ? null : questionFiles,
+          answerFiles: answerFiles.isEmpty ? null : answerFiles,
         );
 
       case QuestionType.secret:
@@ -1104,6 +1194,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
               ? null
               : _secretAllowedPrices,
           transferType: _secretTransferType,
+          questionFiles: questionFiles.isEmpty ? null : questionFiles,
+          answerFiles: answerFiles.isEmpty ? null : answerFiles,
         );
 
       case QuestionType.noRisk:
@@ -1120,6 +1212,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           isHidden: _isHidden,
           subType: _noRiskSubType,
           priceMultiplier: _noRiskPriceMultiplier,
+          questionFiles: questionFiles.isEmpty ? null : questionFiles,
+          answerFiles: answerFiles.isEmpty ? null : answerFiles,
         );
 
       case QuestionType.choice:
@@ -1137,6 +1231,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           subType: null,
           showDelay: _choiceShowDelay,
           answers: _choiceAnswers,
+          questionFiles: questionFiles.isEmpty ? null : questionFiles,
+          answerFiles: answerFiles.isEmpty ? null : answerFiles,
         );
 
       case QuestionType.hidden:
@@ -1151,6 +1247,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           questionComment: questionComment.isEmpty ? null : questionComment,
           answerDelay: answerDelay,
           isHidden: _isHidden,
+          questionFiles: questionFiles.isEmpty ? null : questionFiles,
+          answerFiles: answerFiles.isEmpty ? null : answerFiles,
         );
 
       case QuestionType.$unknown:
@@ -1166,18 +1264,18 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           questionComment: questionComment.isEmpty ? null : questionComment,
           answerDelay: answerDelay,
           isHidden: _isHidden,
+          questionFiles: questionFiles.isEmpty ? null : questionFiles,
+          answerFiles: answerFiles.isEmpty ? null : answerFiles,
         );
     }
 
-    // Return media file references (not bytes) for memory efficiency
-    // The consumer will read bytes when needed for upload
-    Navigator.pop(
-      context,
-      QuestionEditResult(
-        question: question,
-        questionMediaFiles: _questionMediaFiles,
-        answerMediaFiles: _answerMediaFiles,
-      ),
-    );
+    if (mounted) {
+      Navigator.pop(
+        context,
+        QuestionEditResult(
+          question: question,
+        ),
+      );
+    }
   }
 }

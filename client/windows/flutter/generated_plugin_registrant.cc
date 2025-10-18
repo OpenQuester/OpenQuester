@@ -6,6 +6,7 @@
 
 #include "generated_plugin_registrant.h"
 
+#include <audioplayers_windows/audioplayers_windows_plugin.h>
 #include <connectivity_plus/connectivity_plus_windows_plugin.h>
 #include <desktop_webview_window/desktop_webview_window_plugin.h>
 #include <flutter_avif_windows/flutter_avif_windows_plugin.h>
@@ -20,6 +21,8 @@
 #include <window_to_front/window_to_front_plugin.h>
 
 void RegisterPlugins(flutter::PluginRegistry* registry) {
+  AudioplayersWindowsPluginRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("AudioplayersWindowsPlugin"));
   ConnectivityPlusWindowsPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("ConnectivityPlusWindowsPlugin"));
   DesktopWebviewWindowPluginRegisterWithRegistrar(
