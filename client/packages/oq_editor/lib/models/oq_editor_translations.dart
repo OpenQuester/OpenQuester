@@ -88,6 +88,8 @@ abstract class OqEditorTranslations {
   String get preparingUpload;
   String get initializing;
   String get uploading;
+  String uploadingFile(int current, int total);
+  String get creatingPackage;
   String get uploadComplete;
   String get pleaseWait;
 

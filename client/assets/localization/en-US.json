@@ -223,6 +223,8 @@
     "preparing_upload": "Preparing upload...",
     "initializing": "Initializing...",
     "uploading": "Uploading...",
+    "uploading_file": "Uploading file {}/{} ...",
+    "creating_package": "Creating package...",
     "upload_complete": "Upload complete!",
     "please_wait": "Please wait...",
     "questions_in_theme": "{} questions in this theme",

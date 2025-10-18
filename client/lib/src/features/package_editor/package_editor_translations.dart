@@ -169,6 +169,15 @@ class AppOqEditorTranslations implements OqEditorTranslations {
   String get uploading => LocaleKeys.oq_editor_uploading.tr();
 
   @override
+  String uploadingFile(int current, int total) =>
+      LocaleKeys.oq_editor_uploading_file.tr(
+        args: [current.toString(), total.toString()],
+      );
+
+  @override
+  String get creatingPackage => LocaleKeys.oq_editor_creating_package.tr();
+
+  @override
   String get uploadComplete => LocaleKeys.oq_editor_upload_complete.tr();
 
   @override

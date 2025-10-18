@@ -63,14 +63,14 @@ class PackageEditorUploadController {
         completed: (s) {
           controller
             .._currentProgress = 1.0
-            .._currentMessage = 'Completed';
+            .._currentMessage = '';
           packageId = s.packageId;
           logger.i('Package uploaded successfully: ${s.packageId}');
         },
         error: (s) {
           controller
             .._currentProgress = 0.0
-            .._currentMessage = 'Error';
+            .._currentMessage = '';
           logger.e('Upload failed', error: s.error, stackTrace: s.stackTrace);
         },
       );
@@ -114,9 +114,9 @@ class PackageEditorUploadController {
   }) async* {
     try {
       // Step 1: Create package on backend
-      yield const PackageUploadState.uploading(
+      yield PackageUploadState.uploading(
         progress: 0.2,
-        message: 'Creating package...',
+        message: LocaleKeys.oq_editor_preparing_upload.tr(),
       );
 
       final result = await Api.I.api.packages.postV1Packages(body: body);
@@ -155,7 +155,9 @@ class PackageEditorUploadController {
 
       yield PackageUploadState.uploading(
         progress: progress,
-        message: 'Uploading file ${i + 1}/${uploadLinks.length}...',
+        message: LocaleKeys.oq_editor_uploading_file.tr(
+          args: ['${i + 1}', '${uploadLinks.length}'],
+        ),
       );
 
       // Get media file by hash and upload
