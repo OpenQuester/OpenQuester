@@ -3,6 +3,8 @@ index_generator:
     - "**.g.dart"
     - "**.freezed.dart"
     - "**_main.dart"
+    - "**_stub.dart"
+    - "**_web.dart"
   # Define the paths of the folders in which to generate the index files
   libraries:
     - directory_path: lib

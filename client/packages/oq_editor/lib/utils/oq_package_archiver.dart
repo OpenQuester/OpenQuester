@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
@@ -21,14 +20,8 @@ class OqPackageArchiver {
     Map<String, MediaFileReference> mediaFilesByHash, [
     Map<String, Uint8List>? importedFileBytes,
   ]) async {
-    final archive = Archive();
-
-    // Add content.json
-    final contentJson = jsonEncode(package.toJson());
-    final contentBytes = utf8.encode(contentJson);
-    archive.addFile(
-      ArchiveFile('content.json', contentBytes.length, contentBytes),
-    );
+    // Prepare media files map by reading bytes from all sources
+    final mediaFilesBytes = <String, Uint8List>{};
 
     // Add media files from MediaFileReference (newly added files)
     for (final entry in mediaFilesByHash.entries) {
@@ -36,18 +29,54 @@ class OqPackageArchiver {
       final mediaFile = entry.value;
 
       // Get file bytes
-      Uint8List fileBytes;
       if (mediaFile.platformFile.bytes != null) {
-        fileBytes = mediaFile.platformFile.bytes!;
+        mediaFilesBytes[hash] = mediaFile.platformFile.bytes!;
       } else if (mediaFile.platformFile.path != null) {
         // Read from path if bytes not available
         final file = File(mediaFile.platformFile.path!);
-        fileBytes = await file.readAsBytes();
+        mediaFilesBytes[hash] = await file.readAsBytes();
       } else {
         throw Exception('Cannot export: file has no bytes or path');
       }
+    }
 
-      // Add to archive with path: files/{hash}
+    // Add imported file bytes (from previous import)
+    if (importedFileBytes != null) {
+      for (final entry in importedFileBytes.entries) {
+        final hash = entry.key;
+        // Skip if already added from mediaFilesByHash
+        if (!mediaFilesBytes.containsKey(hash)) {
+          mediaFilesBytes[hash] = entry.value;
+        }
+      }
+    }
+
+    // Run heavy encoding in isolate
+    return compute(
+      _encodePackageArchive,
+      _EncodeArchiveParams(
+        package: package,
+        mediaFilesBytes: mediaFilesBytes,
+      ),
+    );
+  }
+
+  /// Isolate-safe function to encode package archive
+  static Uint8List _encodePackageArchive(_EncodeArchiveParams params) {
+    final archive = Archive();
+
+    // Add content.json
+    final contentJson = jsonEncode(params.package.toJson());
+    final contentBytes = utf8.encode(contentJson);
+    archive.addFile(
+      ArchiveFile('content.json', contentBytes.length, contentBytes),
+    );
+
+    // Add all media files
+    for (final entry in params.mediaFilesBytes.entries) {
+      final hash = entry.key;
+      final fileBytes = entry.value;
+
       archive.addFile(
         ArchiveFile(
           'files/$hash',
@@ -55,26 +84,6 @@ class OqPackageArchiver {
           fileBytes,
         ),
       );
-    }
-
-    // Add imported file bytes (from previous import)
-    if (importedFileBytes != null) {
-      for (final entry in importedFileBytes.entries) {
-        final hash = entry.key;
-        final fileBytes = entry.value;
-
-        // Skip if already added from mediaFilesByHash
-        if (mediaFilesByHash.containsKey(hash)) continue;
-
-        // Add to archive with path: files/{hash}
-        archive.addFile(
-          ArchiveFile(
-            'files/$hash',
-            fileBytes.length,
-            fileBytes,
-          ),
-        );
-      }
     }
 
     // Encode to zip
@@ -89,6 +98,12 @@ class OqPackageArchiver {
   static Future<PackageImportResult> importPackage(
     Uint8List archiveBytes,
   ) async {
+    // Run heavy decoding in isolate
+    return compute(_decodePackageArchive, archiveBytes);
+  }
+
+  /// Isolate-safe function to decode package archive
+  static PackageImportResult _decodePackageArchive(Uint8List archiveBytes) {
     // Decode zip archive
     final zipDecoder = ZipDecoder();
     final archive = zipDecoder.decodeBytes(archiveBytes);
@@ -147,7 +162,7 @@ class OqPackageArchiver {
         .replaceAll(RegExp(r'\s+'), '_');
 
     final fileName =
-        '${sanitizedTitle}_${DateTime.now().millisecondsSinceEpoch}';
+        '${sanitizedTitle}_${DateTime.now().millisecondsSinceEpoch}.oq';
 
     // Use file_picker to save file
     await FilePicker.platform.saveFile(
@@ -198,4 +213,15 @@ class PackageImportResult {
   /// Raw file bytes keyed by MD5 hash
   /// Type, order, and displayTime metadata are in the package JSON
   final Map<String, Uint8List> filesBytesByHash;
+}
+
+/// Parameters for encoding package archive in isolate
+class _EncodeArchiveParams {
+  _EncodeArchiveParams({
+    required this.package,
+    required this.mediaFilesBytes,
+  });
+
+  final OqPackage package;
+  final Map<String, Uint8List> mediaFilesBytes;
 }
