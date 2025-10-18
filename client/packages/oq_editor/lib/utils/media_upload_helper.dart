@@ -2,6 +2,7 @@ import 'package:crypto/crypto.dart' show md5;
 import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
+import 'package:oq_editor/models/ui_media_file.dart';
 import 'package:universal_io/io.dart';
 
 /// Helper for uploading media files from editor
@@ -26,7 +27,7 @@ class MediaUploadHelper {
   /// Upload media files and create PackageQuestionFile references
   /// Files are read from disk/bytes only when uploading (memory efficient)
   Future<List<PackageQuestionFile>> uploadMediaFiles(
-    List<MediaFileReference> mediaFiles,
+    List<UiMediaFile> mediaFiles,
   ) async {
     final results = <PackageQuestionFile>[];
 
@@ -40,10 +41,10 @@ class MediaUploadHelper {
 
   /// Upload single media file
   Future<PackageQuestionFile> _uploadSingleMedia(
-    MediaFileReference media,
+    UiMediaFile media,
   ) async {
     // Read file bytes (only when needed)
-    final bytes = await _readFileBytes(media);
+    final bytes = await _readFileBytes(media.reference);
 
     // Calculate MD5 hash
     final md5Hash = md5.convert(bytes).toString();

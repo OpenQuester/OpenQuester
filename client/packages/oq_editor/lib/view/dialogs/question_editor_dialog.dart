@@ -6,6 +6,7 @@ import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
+import 'package:oq_editor/models/ui_media_file.dart';
 import 'package:oq_editor/utils/media_type_detector.dart';
 import 'package:oq_editor/view/dialogs/display_time_dialog.dart';
 import 'package:oq_editor/view/widgets/media_files_section.dart';
@@ -95,9 +96,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   int _choiceShowDelay = 3000;
   List<QuestionChoiceAnswers> _choiceAnswers = [];
 
-  // Media files (file references, not bytes, for memory efficiency)
-  final List<MediaFileReference> _questionMediaFiles = [];
-  final List<MediaFileReference> _answerMediaFiles = [];
+  // Media files with UI metadata (type, order, displayTime)
+  final List<UiMediaFile> _questionMediaFiles = [];
+  final List<UiMediaFile> _answerMediaFiles = [];
 
   @override
   void initState() {
@@ -126,9 +127,20 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     if (questionFiles != null) {
       for (final file in questionFiles) {
         if (file == null) continue;
-        final ref = controller.getMediaFileByHash(file.file.md5);
+        final ref = _getOrCreateMediaFileReference(
+          controller,
+          file.file.md5,
+          file.file.type,
+        );
         if (ref != null) {
-          _questionMediaFiles.add(ref);
+          // Wrap MediaFileReference with UI metadata from PackageQuestionFile
+          final uiFile = UiMediaFile(
+            reference: ref,
+            type: file.file.type,
+            order: file.order,
+            displayTime: file.displayTime,
+          );
+          _questionMediaFiles.add(uiFile);
         }
       }
     }
@@ -146,11 +158,67 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     if (answerFiles != null) {
       for (final file in answerFiles) {
         if (file == null) continue;
-        final ref = controller.getMediaFileByHash(file.file.md5);
+        final ref = _getOrCreateMediaFileReference(
+          controller,
+          file.file.md5,
+          file.file.type,
+        );
         if (ref != null) {
-          _answerMediaFiles.add(ref);
+          // Wrap MediaFileReference with UI metadata from PackageQuestionFile
+          final uiFile = UiMediaFile(
+            reference: ref,
+            type: file.file.type,
+            order: file.order,
+            displayTime: file.displayTime,
+          );
+          _answerMediaFiles.add(uiFile);
         }
       }
+    }
+  }
+
+  /// Get existing MediaFileReference or create from imported bytes
+  MediaFileReference? _getOrCreateMediaFileReference(
+    OqEditorController controller,
+    String hash,
+    PackageFileType type,
+  ) {
+    // Try to get existing reference (for newly added files)
+    var ref = controller.getMediaFileByHash(hash);
+    if (ref != null) return ref;
+
+    // Try to create from imported bytes (for imported files)
+    final importedBytes = controller.getImportedFileBytes(hash);
+    if (importedBytes != null) {
+      // Create PlatformFile from bytes with appropriate extension
+      final extension = _getExtensionForType(type);
+      final platformFile = PlatformFile(
+        name: '$hash.$extension',
+        size: importedBytes.length,
+        bytes: importedBytes,
+      );
+
+      // Create and register MediaFileReference
+      ref = MediaFileReference(platformFile: platformFile);
+      // Register it so it's available for future access and export
+      controller.registerMediaFile(ref).ignore();
+      return ref;
+    }
+
+    return null;
+  }
+
+  /// Get file extension for PackageFileType
+  String _getExtensionForType(PackageFileType type) {
+    switch (type) {
+      case PackageFileType.image:
+        return 'jpg';
+      case PackageFileType.video:
+        return 'mp4';
+      case PackageFileType.audio:
+        return 'mp3';
+      case PackageFileType.$unknown:
+        return 'bin';
     }
   }
 
@@ -283,14 +351,15 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   }
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
+    super.dispose();
     // Dispose all media file controllers
-    for (final file in _questionMediaFiles) {
-      file.disposeController();
-    }
-    for (final file in _answerMediaFiles) {
-      file.disposeController();
-    }
+    try {
+      await Future.wait([
+        ..._questionMediaFiles.map((e) => e.disposeController()),
+        ..._answerMediaFiles.map((e) => e.disposeController()),
+      ]);
+    } catch (_) {}
 
     // Dispose text controllers
     _textController.dispose();
@@ -299,7 +368,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     _answerHintController.dispose();
     _questionCommentController.dispose();
     _answerDelayController.dispose();
-    super.dispose();
   }
 
   @override
@@ -498,9 +566,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   files: _questionMediaFiles,
                   onAdd: () => _addMediaFile(isQuestionMedia: true),
                   onRemove: (int index) {
-                    setState(() {
+                    setState(() async {
                       // Dispose controller before removing
-                      _questionMediaFiles[index].disposeController();
+                      await _questionMediaFiles[index].disposeController();
                       _questionMediaFiles.removeAt(index);
                     });
                   },
@@ -515,9 +583,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   files: _answerMediaFiles,
                   onAdd: () => _addMediaFile(isQuestionMedia: false),
                   onRemove: (int index) {
-                    setState(() {
+                    setState(() async {
                       // Dispose controller before removing
-                      _answerMediaFiles[index].disposeController();
+                      await _answerMediaFiles[index].disposeController();
                       _answerMediaFiles.removeAt(index);
                     });
                   },
@@ -1038,20 +1106,24 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           ? _questionMediaFiles
           : _answerMediaFiles;
 
-      final reference = MediaFileReference(
+      final mediaReference = MediaFileReference(
         platformFile: file,
+      );
+
+      final uiFile = UiMediaFile(
+        reference: mediaReference,
         type: type,
         order: targetList.length,
       );
 
       setState(() {
-        targetList.add(reference);
+        targetList.add(uiFile);
       });
 
       // Register with controller for upload tracking
       // (async, after adding to list)
       final controller = GetIt.I<OqEditorController>();
-      await controller.registerMediaFile(reference);
+      await controller.registerMediaFile(mediaReference);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1113,38 +1185,38 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       hidden: (q) => q.id,
     );
 
-    // Convert MediaFileReference to PackageQuestionFile with hash
+    // Convert UiMediaFile to PackageQuestionFile with hash
     final controller = GetIt.I<OqEditorController>();
     final questionFiles = await Future.wait(
-      _questionMediaFiles.map((ref) async {
-        final hash = await controller.registerMediaFile(ref);
+      _questionMediaFiles.map((uiFile) async {
+        final hash = await controller.registerMediaFile(uiFile.reference);
         return PackageQuestionFile(
           id: null,
-          order: ref.order,
+          order: uiFile.order,
           file: FileItem(
             id: null,
             md5: hash,
-            type: ref.type,
+            type: uiFile.type,
             link: null,
           ),
-          displayTime: ref.displayTime,
+          displayTime: uiFile.displayTime,
         );
       }),
     );
 
     final answerFiles = await Future.wait(
-      _answerMediaFiles.map((ref) async {
-        final hash = await controller.registerMediaFile(ref);
+      _answerMediaFiles.map((uiFile) async {
+        final hash = await controller.registerMediaFile(uiFile.reference);
         return PackageQuestionFile(
           id: null,
-          order: ref.order,
+          order: uiFile.order,
           file: FileItem(
             id: null,
             md5: hash,
-            type: ref.type,
+            type: uiFile.type,
             link: null,
           ),
-          displayTime: ref.displayTime,
+          displayTime: uiFile.displayTime,
         );
       }),
     );

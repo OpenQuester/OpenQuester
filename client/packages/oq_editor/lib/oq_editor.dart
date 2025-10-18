@@ -11,6 +11,7 @@ export 'utils/extensions.dart';
 export 'utils/media_type_detector.dart';
 export 'utils/media_upload_helper.dart';
 export 'utils/media_utils.dart';
+export 'utils/oq_package_archiver.dart';
 export 'view/dialogs/display_time_dialog.dart';
 export 'view/dialogs/media_preview_dialog.dart';
 export 'view/dialogs/question_editor_dialog.dart';

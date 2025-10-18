@@ -5,6 +5,7 @@ import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
 import 'package:oq_editor/models/package_upload_state.dart';
 import 'package:oq_editor/utils/extensions.dart';
+import 'package:oq_editor/utils/oq_package_archiver.dart';
 
 class OqEditorController {
   OqEditorController({
@@ -43,6 +44,11 @@ class OqEditorController {
     EditorStep.packageInfo,
   );
 
+  /// Key to force refresh of the editor screen
+  final ValueNotifier<Key> refreshKey = ValueNotifier<Key>(
+    UniqueKey(),
+  );
+
   /// Navigation context tracking which round/theme/question is being edited
   final ValueNotifier<EditorNavigationContext> navigationContext =
       ValueNotifier<EditorNavigationContext>(
@@ -53,9 +59,19 @@ class OqEditorController {
   /// Key: MD5 hash of file, Value: MediaFileReference for upload
   final Map<String, MediaFileReference> _mediaFilesByHash = {};
 
+  /// Imported file bytes storage (from .oq import)
+  /// Key: MD5 hash, Value: raw file bytes
+  /// These are converted to MediaFileReference when needed
+  final Map<String, Uint8List> _importedFileBytes = {};
+
   /// Get media file reference by hash
   MediaFileReference? getMediaFileByHash(String hash) {
     return _mediaFilesByHash[hash];
+  }
+
+  /// Get imported file bytes by hash
+  Uint8List? getImportedFileBytes(String hash) {
+    return _importedFileBytes[hash];
   }
 
   /// Register a media file reference for upload
@@ -67,9 +83,9 @@ class OqEditorController {
   }
 
   /// Remove media file reference by hash
-  void unregisterMediaFile(String hash) {
+  Future<void> unregisterMediaFile(String hash) async {
     final file = _mediaFilesByHash.remove(hash);
-    file?.disposeController();
+    await file?.disposeController();
   }
 
   /// Get all pending media files for upload
@@ -77,12 +93,13 @@ class OqEditorController {
       Map.unmodifiable(_mediaFilesByHash);
 
   /// Clear all pending media files
-  void clearPendingMediaFiles() {
+  Future<void> clearPendingMediaFiles() async {
     // Dispose all controllers
-    for (final file in _mediaFilesByHash.values) {
-      file.disposeController();
-    }
+    await Future.wait(
+      _mediaFilesByHash.values.map((e) => e.disposeController()),
+    );
     _mediaFilesByHash.clear();
+    _importedFileBytes.clear();
   }
 
   /// Save the package
@@ -107,6 +124,54 @@ class OqEditorController {
     package.value = savedPackage;
 
     return savedPackage;
+  }
+
+  /// Export package to .oq file
+  /// Downloads a zip archive with structure:
+  /// /content.json - serialized package
+  /// /files/{md5} - media files with hash as filename
+  Future<void> exportPackage() async {
+    // Normalize package before export
+    final normalizedPackage = _normalizePackageOrder(package.value);
+
+    // Create archive with both new and imported files
+    final archiveBytes = await OqPackageArchiver.exportPackage(
+      normalizedPackage,
+      Map.from(_mediaFilesByHash),
+      Map.from(_importedFileBytes),
+    );
+
+    // Save to file
+    await OqPackageArchiver.saveArchiveToFile(
+      archiveBytes,
+      normalizedPackage.title,
+    );
+  }
+
+  /// Import package from .oq file
+  /// Replaces current package with imported data
+  /// Stores imported file bytes for later upload
+  Future<void> importPackage() async {
+    // Pick file
+    final archiveBytes = await OqPackageArchiver.pickArchiveFile();
+    if (archiveBytes == null) return; // User cancelled
+
+    // Import package
+    final result = await OqPackageArchiver.importPackage(archiveBytes);
+
+    // Clear existing media files
+    await clearPendingMediaFiles();
+
+    // Store imported file bytes
+    // These will be available when editing questions or exporting
+    _importedFileBytes.addAll(result.filesBytesByHash);
+
+    // Update package with imported data
+    package.value = result.package;
+
+    // Navigate to package info screen
+    navigateToPackageInfo();
+    refreshKey.value = UniqueKey();
   }
 
   /// Normalize order fields for all questions in the package
@@ -423,8 +488,8 @@ class OqEditorController {
   }
 
   /// Dispose resources
-  void dispose() {
-    clearPendingMediaFiles();
+  Future<void> dispose() async {
+    await clearPendingMediaFiles();
     package.dispose();
     currentStep.dispose();
     navigationContext.dispose();

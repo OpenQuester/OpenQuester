@@ -1,8 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
+import 'package:oq_editor/utils/blob_helper.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:universal_io/io.dart';
 import 'package:video_player/video_player.dart';
 
 /// Widget to preview video files with playback controls
@@ -45,24 +46,38 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
     try {
       final platformFile = widget.mediaFile.platformFile;
 
-      // Web: use network URL if available, or create blob URL from bytes
       if (kIsWeb) {
         if (platformFile.path != null) {
           widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
             Uri.parse(platformFile.path!),
           );
+        } else if (platformFile.bytes != null) {
+          // Web: Create blob URL from bytes
+          final url = createBlobUrl(platformFile.bytes!);
+          widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
+            Uri.parse(url),
+          );
         } else {
-          // Cannot play from bytes on web without creating blob URL
           setState(() {
             _hasError = true;
           });
           return;
         }
       } else {
-        // Native: use file path
         if (platformFile.path != null) {
           widget.mediaFile.sharedController = VideoPlayerController.file(
             File(platformFile.path!),
+          );
+        } else if (platformFile.bytes != null) {
+          // Native: Create temporary file from bytes
+          final tempDir = await getTemporaryDirectory();
+          final extension = platformFile.extension ?? 'mp4';
+          final tempFile = File(
+            '${tempDir.path}/video_${DateTime.now().millisecondsSinceEpoch}.$extension',
+          );
+          await tempFile.writeAsBytes(platformFile.bytes!);
+          widget.mediaFile.sharedController = VideoPlayerController.file(
+            tempFile,
           );
         } else {
           setState(() {

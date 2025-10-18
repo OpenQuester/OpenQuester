@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
-import 'package:oq_editor/models/media_file_reference.dart';
+import 'package:oq_editor/models/ui_media_file.dart';
 import 'package:oq_editor/view/widgets/media_file_list_tile.dart';
 
 /// Section widget for managing media files
@@ -16,7 +16,7 @@ class MediaFilesSection extends StatelessWidget {
   });
 
   final String title;
-  final List<MediaFileReference> files;
+  final List<UiMediaFile> files;
   final VoidCallback onAdd;
   final void Function(int index) onEditDisplayTime;
   final void Function(int index) onRemove;

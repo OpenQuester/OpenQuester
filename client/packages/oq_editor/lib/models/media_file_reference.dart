@@ -1,31 +1,19 @@
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'package:openapi/openapi.dart';
 import 'package:universal_io/io.dart';
 import 'package:video_player/video_player.dart';
 
 /// Reference to a media file selected for a question
 /// Stores file path instead of bytes for memory efficiency
+/// Type, order, and displayTime are stored in PackageQuestionFile models
 class MediaFileReference {
   MediaFileReference({
     required this.platformFile,
-    required this.type,
-    required this.order,
-    int? displayTime,
-  }) : displayTime = displayTime ?? 5000;
+  });
 
   /// Platform file reference (contains path, not bytes)
   final PlatformFile platformFile;
-
-  /// Media type
-  final PackageFileType type;
-
-  /// Display duration in milliseconds
-  int displayTime;
-
-  /// Order in the list
-  final int order;
 
   /// Shared video player controller for video/audio files
   /// This allows preview and dialog to use the same controller
@@ -66,8 +54,8 @@ class MediaFileReference {
   }
 
   /// Dispose shared controller if exists
-  void disposeController() {
-    sharedController?.dispose().ignore();
+  Future<void> disposeController() async {
+    await sharedController?.dispose();
     sharedController = null;
   }
 

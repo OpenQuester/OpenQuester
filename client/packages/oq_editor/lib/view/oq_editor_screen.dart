@@ -27,6 +27,7 @@ class OqEditorScreen extends WatchingWidget {
     );
 
     final currentStep = watchValue((OqEditorController c) => c.currentStep);
+    final refreshKey = watchValue((OqEditorController c) => c.refreshKey);
 
     return Scaffold(
       body: MaxSizeContainer(
@@ -34,6 +35,36 @@ class OqEditorScreen extends WatchingWidget {
           appBar: AppBar(
             title: Text(controller.translations.editorTitle),
             actions: [
+              // Import button
+              IconButton(
+                icon: const Icon(Icons.upload_file),
+                onPressed: () => _handleImport(context),
+                tooltip: 'Import Package (.oq)',
+              ),
+              // Export button
+              Builder(
+                builder: (buttonContext) => LoadingButtonBuilder(
+                  onPressed: () => _handleExport(buttonContext),
+                  onError: (error, stackTrace) {
+                    if (buttonContext.mounted) {
+                      ScaffoldMessenger.of(buttonContext).showSnackBar(
+                        SnackBar(
+                          content: Text('Error exporting: $error'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  builder: (context, child, onPressed) {
+                    return IconButton(
+                      icon: child,
+                      onPressed: onPressed,
+                      tooltip: 'Export Package (.oq)',
+                    );
+                  },
+                  child: const Icon(Icons.download),
+                ),
+              ),
               // Save button
               Builder(
                 builder: (buttonContext) => LoadingButtonBuilder(
@@ -63,6 +94,7 @@ class OqEditorScreen extends WatchingWidget {
             ],
           ),
           body: AnimatedSwitcher(
+            key: ValueKey(refreshKey),
             duration: const Duration(milliseconds: 300),
             switchInCurve: Curves.easeInOut,
             switchOutCurve: Curves.easeInOut,
@@ -124,6 +156,41 @@ class OqEditorScreen extends WatchingWidget {
         ),
       );
     }
+  }
+
+  Future<void> _handleImport(BuildContext context) async {
+    try {
+      await controller.importPackage();
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Package imported successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error importing package: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleExport(BuildContext context) async {
+    await controller.exportPackage();
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Package exported successfully'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   Widget _buildCurrentScreen(EditorStep step) {

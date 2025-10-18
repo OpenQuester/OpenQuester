@@ -1,8 +1,9 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
+import 'package:oq_editor/utils/blob_helper.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:universal_io/io.dart';
 import 'package:video_player/video_player.dart';
 
 /// Widget to preview audio files with playback controls using VideoPlayer
@@ -45,11 +46,16 @@ class _AudioPreviewWidgetState extends State<AudioPreviewWidget> {
     try {
       final platformFile = widget.mediaFile.platformFile;
 
-      // Web: use network URL if available
       if (kIsWeb) {
         if (platformFile.path != null) {
           widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
             Uri.parse(platformFile.path!),
+          );
+        } else if (platformFile.bytes != null) {
+          // Web: Create blob URL from bytes
+          final url = createBlobUrl(platformFile.bytes!);
+          widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
+            Uri.parse(url),
           );
         } else {
           setState(() {
@@ -58,10 +64,20 @@ class _AudioPreviewWidgetState extends State<AudioPreviewWidget> {
           return;
         }
       } else {
-        // Native: use file path
         if (platformFile.path != null) {
           widget.mediaFile.sharedController = VideoPlayerController.file(
             File(platformFile.path!),
+          );
+        } else if (platformFile.bytes != null) {
+          // Native: Create temporary file from bytes
+          final tempDir = await getTemporaryDirectory();
+          final extension = platformFile.extension ?? 'mp3';
+          final tempFile = File(
+            '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.$extension',
+          );
+          await tempFile.writeAsBytes(platformFile.bytes!);
+          widget.mediaFile.sharedController = VideoPlayerController.file(
+            tempFile,
           );
         } else {
           setState(() {

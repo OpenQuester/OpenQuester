@@ -1,21 +1,22 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/view/widgets/audio_preview_widget.dart';
 import 'package:oq_editor/view/widgets/video_preview_widget.dart';
+import 'package:universal_io/io.dart';
 
 /// Widget to preview media files (images, videos, audio)
 class MediaPreviewWidget extends StatelessWidget {
   const MediaPreviewWidget({
     required this.mediaFile,
+    required this.type,
     this.size = 80,
     super.key,
   });
 
   final MediaFileReference mediaFile;
+  final PackageFileType type;
   final double size;
 
   @override
@@ -35,8 +36,6 @@ class MediaPreviewWidget extends StatelessWidget {
   }
 
   Widget _buildPreviewContent(BuildContext context) {
-    final type = mediaFile.type;
-
     switch (type) {
       case PackageFileType.image:
         return _buildImagePreview();
@@ -50,8 +49,8 @@ class MediaPreviewWidget extends StatelessWidget {
   }
 
   Widget _buildImagePreview() {
-    // On web, use bytes if available
-    if (kIsWeb && mediaFile.platformFile.bytes != null) {
+    // Use bytes if available (works on both web and native)
+    if (mediaFile.platformFile.bytes != null) {
       return Image.memory(
         mediaFile.platformFile.bytes!,
         fit: BoxFit.cover,
@@ -59,7 +58,7 @@ class MediaPreviewWidget extends StatelessWidget {
       );
     }
 
-    // On native platforms, use file path
+    // On native platforms, use file path if bytes not available
     if (!kIsWeb && mediaFile.platformFile.path != null) {
       return Image.file(
         File(mediaFile.platformFile.path!),

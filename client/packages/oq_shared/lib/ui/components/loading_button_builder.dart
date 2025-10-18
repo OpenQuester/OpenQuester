@@ -53,8 +53,11 @@ class _LoadingButtonBuilderState extends State<LoadingButtonBuilder> {
       try {
         await onPressed?.call();
       } catch (e, s) {
-        if (context.mounted) setState(() => loading = false);
         widget.onError(e, s);
+      } finally {
+        if (mounted) {
+          setState(() => loading = false);
+        }
       }
     }
 

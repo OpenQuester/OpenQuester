@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
-import 'package:oq_editor/models/media_file_reference.dart';
+import 'package:oq_editor/models/ui_media_file.dart';
 import 'package:oq_editor/utils/media_utils.dart';
 import 'package:oq_editor/view/dialogs/media_preview_dialog.dart';
 import 'package:oq_editor/view/widgets/media_preview_widget.dart';
@@ -15,7 +15,7 @@ class MediaFileListTile extends StatelessWidget {
     super.key,
   });
 
-  final MediaFileReference mediaFile;
+  final UiMediaFile mediaFile;
   final VoidCallback onEditDisplayTime;
   final VoidCallback onRemove;
 
@@ -29,7 +29,10 @@ class MediaFileListTile extends StatelessWidget {
       child: ListTile(
         leading: GestureDetector(
           onTap: () => MediaPreviewDialog.show(context, mediaFile),
-          child: MediaPreviewWidget(mediaFile: mediaFile),
+          child: MediaPreviewWidget(
+            mediaFile: mediaFile.reference,
+            type: mediaFile.type,
+          ),
         ),
         title: Text(
           mediaFile.fileName,

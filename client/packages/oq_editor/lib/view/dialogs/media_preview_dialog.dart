@@ -1,10 +1,11 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
-import 'package:oq_editor/models/media_file_reference.dart';
+import 'package:oq_editor/models/ui_media_file.dart';
+import 'package:oq_editor/utils/blob_helper.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:universal_io/io.dart';
 import 'package:video_player/video_player.dart';
 
 /// Fullscreen dialog to preview media files (images, videos, audio)
@@ -14,12 +15,12 @@ class MediaPreviewDialog extends StatelessWidget {
     super.key,
   });
 
-  final MediaFileReference mediaFile;
+  final UiMediaFile mediaFile;
 
   /// Show the media preview dialog
   static Future<void> show(
     BuildContext context,
-    MediaFileReference mediaFile,
+    UiMediaFile mediaFile,
   ) {
     return showDialog<void>(
       context: context,
@@ -129,7 +130,7 @@ class MediaPreviewDialog extends StatelessWidget {
 class _ImagePreview extends StatelessWidget {
   const _ImagePreview({required this.mediaFile});
 
-  final MediaFileReference mediaFile;
+  final UiMediaFile mediaFile;
 
   @override
   Widget build(BuildContext context) {
@@ -177,7 +178,7 @@ class _ImagePreview extends StatelessWidget {
 class _VideoPreview extends StatefulWidget {
   const _VideoPreview({required this.mediaFile});
 
-  final MediaFileReference mediaFile;
+  final UiMediaFile mediaFile;
 
   @override
   State<_VideoPreview> createState() => _VideoPreviewState();
@@ -213,6 +214,12 @@ class _VideoPreviewState extends State<_VideoPreview> {
           widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
             Uri.parse(platformFile.path!),
           );
+        } else if (platformFile.bytes != null) {
+          // Web: Create blob URL from bytes
+          final url = createBlobUrl(platformFile.bytes!);
+          widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
+            Uri.parse(url),
+          );
         } else {
           setState(() {
             _hasError = true;
@@ -223,6 +230,16 @@ class _VideoPreviewState extends State<_VideoPreview> {
         if (platformFile.path != null) {
           widget.mediaFile.sharedController = VideoPlayerController.file(
             File(platformFile.path!),
+          );
+        } else if (platformFile.bytes != null) {
+          // Native: Create temporary file from bytes
+          final tempDir = await getTemporaryDirectory();
+          final tempFile = File(
+            '${tempDir.path}/video_${DateTime.now().millisecondsSinceEpoch}.${widget.mediaFile.extension ?? 'mp4'}',
+          );
+          await tempFile.writeAsBytes(platformFile.bytes!);
+          widget.mediaFile.sharedController = VideoPlayerController.file(
+            tempFile,
           );
         } else {
           setState(() {
@@ -378,7 +395,7 @@ class _VideoControls extends StatelessWidget {
 class _AudioPreview extends StatefulWidget {
   const _AudioPreview({required this.mediaFile});
 
-  final MediaFileReference mediaFile;
+  final UiMediaFile mediaFile;
 
   @override
   State<_AudioPreview> createState() => _AudioPreviewState();
@@ -414,6 +431,12 @@ class _AudioPreviewState extends State<_AudioPreview> {
           widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
             Uri.parse(platformFile.path!),
           );
+        } else if (platformFile.bytes != null) {
+          // Web: Create blob URL from bytes
+          final url = createBlobUrl(platformFile.bytes!);
+          widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
+            Uri.parse(url),
+          );
         } else {
           setState(() {
             _hasError = true;
@@ -424,6 +447,16 @@ class _AudioPreviewState extends State<_AudioPreview> {
         if (platformFile.path != null) {
           widget.mediaFile.sharedController = VideoPlayerController.file(
             File(platformFile.path!),
+          );
+        } else if (platformFile.bytes != null) {
+          // Native: Create temporary file from bytes
+          final tempDir = await getTemporaryDirectory();
+          final tempFile = File(
+            '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.${widget.mediaFile.extension ?? 'mp3'}',
+          );
+          await tempFile.writeAsBytes(platformFile.bytes!);
+          widget.mediaFile.sharedController = VideoPlayerController.file(
+            tempFile,
           );
         } else {
           setState(() {
