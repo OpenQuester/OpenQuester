@@ -34,10 +34,10 @@ class SettingsController extends ChangeNotifier {
     return defaultSettings;
   }
 
-  void updateSettings(AppSettings newSettings) {
+  Future<void> updateSettings(AppSettings newSettings) async {
     settings = newSettings;
     notifyListeners();
-    persistSettings();
+    await persistSettings();
   }
 
   Future<void> persistSettings() async {

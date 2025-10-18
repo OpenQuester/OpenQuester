@@ -12,6 +12,7 @@ class GamePreviewPlayButton extends StatelessWidget {
           await const ProfileDialog().showIfUnauthorized(context);
           await getIt<GamePreviewController>().onPressPlay();
         },
+        onError: handleError,
         child: const Icon(Icons.play_arrow),
         builder: (context, child, onPressed) => FilledButton(
           onPressed: onPressed,

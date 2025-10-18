@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:nb_utils/nb_utils.dart';
-import 'package:openquester/src/core/ui/components/loading_button_builder.dart';
-import 'package:openquester/src/features/package_compress/controllers/package_compress_controller.dart';
+import 'package:openquester/common_imports.dart';
 
 class PackageCompressScreen extends StatelessWidget {
   const PackageCompressScreen({super.key});
@@ -12,6 +10,7 @@ class PackageCompressScreen extends StatelessWidget {
       appBar: AppBar(),
       body: LoadingButtonBuilder(
         onPressed: PackageCompressController.pickAndCompress,
+        onError: handleError,
         child: const Icon(Icons.upload_file),
         builder: (context, child, onPressed) {
           return FilledButton.icon(

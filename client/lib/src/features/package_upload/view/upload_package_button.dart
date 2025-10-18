@@ -30,6 +30,7 @@ class UploadPackageButton extends WatchingWidget {
           await getIt<ToastController>().show(e);
         }
       },
+      onError: handleError,
       child: const Icon(Icons.upload),
       builder: (context, child, onPressed) {
         return FilledButton.icon(

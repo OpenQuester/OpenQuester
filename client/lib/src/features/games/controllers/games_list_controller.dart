@@ -35,15 +35,15 @@ class GamesListController extends ListControllerBase<GameListItem> {
         await updateItem(result.data);
       case GameEventSubscriptionUnionDeleted():
         await deleteItem(result.data.id);
-        _leaveCurrentGameOnDelete(result.data.id);
+        await _leaveCurrentGameOnDelete(result.data.id);
     }
   }
 
-  void _leaveCurrentGameOnDelete(String gameId) {
+  Future<void> _leaveCurrentGameOnDelete(String gameId) async {
     final controller = getIt<GameLobbyController>();
     final currentGameId = controller.gameListData.value?.id;
     if (currentGameId != gameId) return;
-    controller.leave(force: true);
+    await controller.leave(force: true);
   }
 
   @override

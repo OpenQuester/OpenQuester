@@ -25,7 +25,7 @@ class _GamePreviewScreenState extends State<GamePreviewScreen> {
 
   @override
   void initState() {
-    _init();
+    unawaited(_init());
     // Fixes rebuilds in during animation
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => Future.delayed(
@@ -36,7 +36,7 @@ class _GamePreviewScreenState extends State<GamePreviewScreen> {
     super.initState();
   }
 
-  FutureOr<void> _init() async {
+  Future<void> _init() async {
     if (widget.item == null) {
       await getIt<GamePreviewController>().initWithId(widget.gameId);
       setState(() {});

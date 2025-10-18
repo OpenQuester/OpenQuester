@@ -112,6 +112,7 @@ class _LoginContent extends WatchingWidget {
         const _DiscordLoginBtn(),
         LoadingButtonBuilder(
           onPressed: () => _loginAndGetUsername(context, GuestAuthType()),
+          onError: handleError,
           builder: (context, child, onPressed) {
             return FilledButton.tonalIcon(
               onPressed: onPressed,
@@ -136,6 +137,7 @@ class _DiscordLoginBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return LoadingButtonBuilder(
       onPressed: () => _loginAndGetUsername(context, Oauth2AuthType()),
+      onError: handleError,
       builder: (context, child, onPressed) {
         return FilledButton.icon(
           onPressed: onPressed,
@@ -309,6 +311,7 @@ class _ProfileAvatar extends StatelessWidget {
           bottom: -4,
           right: -4,
           child: LoadingButtonBuilder(
+            onError: handleError,
             builder: (context, child, onPressed) => Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart' as chat show Composer;
@@ -47,7 +49,7 @@ class _ComposerState extends State<Composer> {
         !HardwareKeyboard.instance.isShiftPressed) {
       final text = textEditingController.text.trim();
       if (text.isNotEmpty) {
-        getIt<SocketChatController>().onSendPressed(text);
+        unawaited(getIt<SocketChatController>().onSendPressed(text));
         textEditingController.clear();
       }
       return KeyEventResult.handled;

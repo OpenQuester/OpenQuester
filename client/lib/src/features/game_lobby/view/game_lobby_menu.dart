@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:openquester/common_imports.dart';
@@ -18,11 +20,11 @@ class GameLobbyMenu extends WatchingWidget {
         const PopupMenuItem<void>(child: _VolumeSlider()),
         PopupMenuItem<void>(
           child: Text(LocaleKeys.copy_game_link.tr()),
-          onTap: () {
+          onTap: () async {
             final gameId = getIt<GameLobbyController>().gameId;
             if (gameId == null) return;
             final link = Env.clientAppUrl.replace(path: '/games/$gameId');
-            Clipboard.setData(ClipboardData(text: link.toString()));
+            await Clipboard.setData(ClipboardData(text: link.toString()));
           },
         ),
         PopupMenuItem<void>(
@@ -104,7 +106,7 @@ class _VolumeSliderState extends State<_VolumeSlider> {
             if (this.volume == volume) return;
             this.volume = volume;
             setState(() {});
-            getIt<GameQuestionController>().onChangeVolume(volume);
+            unawaited(getIt<GameQuestionController>().onChangeVolume(volume));
           },
         ),
       ],
