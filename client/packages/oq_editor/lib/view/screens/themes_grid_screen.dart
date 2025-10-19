@@ -94,7 +94,7 @@ class ThemesGridScreen extends WatchingWidget {
               : GridView.builder(
                   padding: const EdgeInsets.all(16),
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 300,
+                    maxCrossAxisExtent: 450,
                     mainAxisSpacing: 16,
                     crossAxisSpacing: 16,
                     childAspectRatio: 1.2,
@@ -188,6 +188,9 @@ class _ThemeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controller = GetIt.I<OqEditorController>();
+    final translations = controller.translations;
+
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -263,7 +266,8 @@ class _ThemeCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${theme.questions.length} questions',
+                          '${theme.questions.length}'
+                          ' ${translations.questions}',
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 fontWeight: FontWeight.w500,
@@ -288,9 +292,7 @@ class _ThemeCard extends StatelessWidget {
               child: TextButton.icon(
                 onPressed: onViewQuestions,
                 icon: const Icon(Icons.list, size: 16),
-                label: Text(
-                  GetIt.I<OqEditorController>().translations.questions,
-                ),
+                label: Text(translations.questions),
                 style: TextButton.styleFrom(
                   minimumSize: const Size.fromHeight(40),
                   shape: const RoundedRectangleBorder(),

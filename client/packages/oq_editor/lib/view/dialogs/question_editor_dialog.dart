@@ -10,6 +10,7 @@ import 'package:oq_editor/models/ui_media_file.dart';
 import 'package:oq_editor/utils/media_type_detector.dart';
 import 'package:oq_editor/view/dialogs/display_time_dialog.dart';
 import 'package:oq_editor/view/widgets/media_files_section.dart';
+import 'package:oq_shared/oq_shared.dart';
 
 /// Result data from question editing dialog
 class QuestionEditResult {
@@ -379,6 +380,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
             ? widget.translations.addQuestion
             : widget.translations.editQuestion,
       ),
+      contentPadding: 16.all,
+      insetPadding: 16.all,
       content: SizedBox(
         width: 600,
         child: Form(

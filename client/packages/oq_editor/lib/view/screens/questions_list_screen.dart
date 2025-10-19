@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/utils/question_templates.dart';
@@ -42,83 +43,94 @@ class QuestionsListScreen extends WatchingWidget {
         Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: controller.navigateBack,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      translations.questions,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    Text(
-                      theme.name,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    onPressed: controller.navigateBack,
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        translations.questions,
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              FilledButton.icon(
-                onPressed: () =>
-                    _addNewQuestion(context, roundIndex, themeIndex),
-                icon: const Icon(Icons.add),
-                label: Text(translations.addQuestion),
-              ),
-              const SizedBox(width: 8),
-              MenuAnchor(
-                builder: (context, controller, child) {
-                  return FilledButton.tonalIcon(
-                    onPressed: () {
-                      if (controller.isOpen) {
-                        controller.close();
-                      } else {
-                        controller.open();
-                      }
-                    },
-                    icon: const Icon(Icons.auto_awesome),
-                    label: Text(translations.addFromTemplate),
-                  );
-                },
-                menuChildren: [
-                  MenuItemButton(
-                    leadingIcon: const Icon(Icons.file_upload_outlined),
-                    onPressed: () => _addQuestionFromTemplate(
-                      context,
-                      roundIndex,
-                      themeIndex,
-                      QuestionTemplate.openingQuestion,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          translations.templateOpeningQuestion,
-                          style: Theme.of(context).textTheme.bodyMedium,
+                      Text(
+                        theme.name,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
-                        Text(
-                          translations.templateOpeningQuestionDesc,
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Flexible(
+                child: OverflowBar(
+                  overflowAlignment: OverflowBarAlignment.end,
+                  spacing: 8,
+                  overflowSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () =>
+                          _addNewQuestion(context, roundIndex, themeIndex),
+                      icon: const Icon(Icons.add),
+                      label: Text(translations.addQuestion),
+                    ),
+                    MenuAnchor(
+                      crossAxisUnconstrained: false,
+                      builder: (context, controller, child) {
+                        return FilledButton.tonalIcon(
+                          onPressed: () {
+                            if (controller.isOpen) {
+                              controller.close();
+                            } else {
+                              controller.open();
+                            }
+                          },
+                          icon: const Icon(Icons.auto_awesome),
+                          label: Text(translations.addFromTemplate),
+                        );
+                      },
+                      menuChildren: [
+                        MenuItemButton(
+                          leadingIcon: const Icon(Icons.file_upload_outlined),
+                          onPressed: () => _addQuestionFromTemplate(
+                            context,
+                            roundIndex,
+                            themeIndex,
+                            QuestionTemplate.openingQuestion,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                translations.templateOpeningQuestion,
+                                style: Theme.of(context).textTheme.bodyMedium,
                               ),
+                              Text(
+                                translations.templateOpeningQuestionDesc,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                            ],
+                          ).paddingAll(16),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -371,11 +383,6 @@ class _QuestionCard extends StatelessWidget {
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.drag_handle,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 8),
             CircleAvatar(
               backgroundColor: Theme.of(context).colorScheme.primaryContainer,
               child: Text(
