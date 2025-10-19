@@ -280,6 +280,9 @@ class _SavingProgressDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
+      constraints: const BoxConstraints(
+        maxWidth: UiModeUtils.maximumDialogWidth,
+      ),
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: progressStream != null

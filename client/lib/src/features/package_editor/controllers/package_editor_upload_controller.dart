@@ -73,7 +73,7 @@ class PackageEditorUploadController {
         error: (s) {
           controller
             .._currentProgress = 0.0
-            .._currentMessage = '';
+            .._currentMessage = s.error.toString();
           logger.e('Upload failed', error: s.error, stackTrace: s.stackTrace);
         },
       );
