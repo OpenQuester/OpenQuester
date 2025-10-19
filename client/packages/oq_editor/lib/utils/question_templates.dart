@@ -158,7 +158,7 @@ class QuestionTemplates {
         order: 0,
         type: SimpleQuestionType.simple,
         price: controller.lastUsedPrice,
-        text: translations.newQuestion,
+        text: null,
         answerText: fileNameWithoutExt,
         answerHint: null,
         questionComment: null,
