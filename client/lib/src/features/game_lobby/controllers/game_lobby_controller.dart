@@ -609,7 +609,6 @@ class GameLobbyController {
         }
       }
 
-      // Wait to show answer
       final delayForShowingAnswer = mediaPlaytimeMs == null
           ? showMediaForMs ?? 5000
           : min(showMediaForMs ?? 5000, mediaPlaytimeMs);
@@ -620,6 +619,10 @@ class GameLobbyController {
           durationMs: delayForShowingAnswer,
           elapsedMs: 0,
         ),
+      );
+      logger.d(
+        'Waiting for $delayForShowingAnswer ms to hide answer '
+        'mediaPlaytimeMs: $mediaPlaytimeMs, showMediaForMs: $showMediaForMs',
       );
       await Future<void>.delayed(Duration(milliseconds: delayForShowingAnswer));
     } catch (e) {
@@ -748,7 +751,7 @@ class GameLobbyController {
     socket?.emit(SocketIOGameSendEvents.skipQuestionForce.json!);
   }
 
-  void _onQuestionSkip(dynamic data) {
+  Future<void> _onQuestionSkip(dynamic data) async {
     if (data is! Map) return;
 
     final skippedPlayer = SocketIOGameSkipEventPayload.fromJson(
@@ -760,6 +763,8 @@ class GameLobbyController {
         skippedPlayer.playerId,
       }.toList(),
     );
+
+    await _resumeMediaPlay();
   }
 
   void _onQuestionUnSkip(dynamic data) {

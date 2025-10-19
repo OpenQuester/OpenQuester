@@ -18,6 +18,7 @@ class GameQuestionController {
   File? _tmpFile;
 
   Future<void> clear() async {
+    logger.d('Clearing question data');
     questionData.value = null;
     error.value = null;
     showMedia.value = false;
