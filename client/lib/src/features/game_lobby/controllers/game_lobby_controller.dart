@@ -600,12 +600,12 @@ class GameLobbyController {
           final playtimeLeft = mediaValue.duration - mediaValue.position;
           mediaPlaytimeMs = playtimeLeft.inMilliseconds;
           showMediaForMs = file.displayTime;
-        }
-      }
 
-      // Wait for media to play
-      while (controller.mediaController.value?.value.isPlaying != true) {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
+          // Wait for media to play
+          while (controller.mediaController.value?.value.isPlaying != true) {
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+          }
+        }
       }
 
       // Wait to show answer

@@ -35,7 +35,7 @@ class GameQuestionScreen extends WatchingWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           direction: questionMediaOnLeft ? Axis.horizontal : Axis.vertical,
           children: [
-            if (!questionMediaOnLeft)
+            if (!questionMediaOnLeft && questionTextWidget != null)
               questionTextWidget.flexible(flex: file != null ? 0 : 1),
             if (file != null) GameQuestionMediaWidget(file: file).expand(),
             if (questionMediaOnLeft && questionTextWidget != null)
