@@ -87,7 +87,8 @@ class ToastController {
 
   BuildContext? get _context => getIt<AppRouter>().navigatorKey.currentContext;
 
-  ToastificationConfig get config {
-    return const ToastificationConfig(maxToastLimit: 3);
+  ToastificationConfig config(BuildContext context) {
+    final wideMode = UiModeUtils.wideModeOn(context);
+    return ToastificationConfig(maxToastLimit: wideMode ? 3 : 1);
   }
 }

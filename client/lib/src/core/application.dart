@@ -31,7 +31,7 @@ class _AppState extends State<App> {
     return TalkerWrapper(
       talker: getIt<TalkerLogger>().talker,
       child: ToastificationWrapper(
-        config: getIt<ToastController>().config,
+        config: getIt<ToastController>().config(context),
         child: MaterialApp.router(
           title: 'OpenQuester',
           restorationScopeId: 'app',

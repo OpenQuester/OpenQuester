@@ -589,7 +589,8 @@ class GameLobbyController {
       if (currentQuestion != null) {
         final file = currentQuestion.answerFiles?.firstOrNull;
         controller.questionData.value = GameQuestionData(
-          file: file,
+          // Clear display time to avoid auto pause
+          file: file?.copyWith(displayTime: null),
           text: currentQuestion.answerText,
         );
 
