@@ -584,7 +584,7 @@ class GameLobbyController {
     getIt<GameLobbyPlayerPickerController>().stopSelection();
 
     try {
-      var mediaPlaytimeMs = 0;
+      int? mediaPlaytimeMs;
       int? showMediaForMs;
       if (currentQuestion != null) {
         final file = currentQuestion.answerFiles?.firstOrNull;
@@ -596,10 +596,11 @@ class GameLobbyController {
 
         // Wait for user to see answer
         final mediaValue = controller.mediaController.value?.value;
+
+        showMediaForMs = file?.displayTime;
         if (mediaValue != null && file != null) {
           final playtimeLeft = mediaValue.duration - mediaValue.position;
           mediaPlaytimeMs = playtimeLeft.inMilliseconds;
-          showMediaForMs = file.displayTime;
 
           // Wait for media to play
           while (controller.mediaController.value?.value.isPlaying != true) {
@@ -609,10 +610,10 @@ class GameLobbyController {
       }
 
       // Wait to show answer
-      final delayForShowingAnswer = min(
-        showMediaForMs ?? 5000,
-        mediaPlaytimeMs,
-      );
+      final delayForShowingAnswer = mediaPlaytimeMs == null
+          ? showMediaForMs ?? 5000
+          : min(showMediaForMs ?? 5000, mediaPlaytimeMs);
+
       gameData.value = gameData.value?.copyWith.gameState(
         timer: GameStateTimer(
           startedAt: DateTime.now(),
