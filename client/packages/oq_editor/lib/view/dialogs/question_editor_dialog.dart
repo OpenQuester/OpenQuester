@@ -178,49 +178,15 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     }
   }
 
-  /// Get existing MediaFileReference or create from imported bytes
+  /// Get existing MediaFileReference by hash
+  /// Returns null if not found (should not happen for valid package data)
   MediaFileReference? _getOrCreateMediaFileReference(
     OqEditorController controller,
     String hash,
     PackageFileType type,
   ) {
-    // Try to get existing reference (for newly added files)
-    var ref = controller.getMediaFileByHash(hash);
-    if (ref != null) return ref;
-
-    // Try to create from imported bytes (for imported files)
-    final importedBytes = controller.getImportedFileBytes(hash);
-    if (importedBytes != null) {
-      // Create PlatformFile from bytes with appropriate extension
-      final extension = _getExtensionForType(type);
-      final platformFile = PlatformFile(
-        name: '$hash.$extension',
-        size: importedBytes.length,
-        bytes: importedBytes,
-      );
-
-      // Create and register MediaFileReference
-      ref = MediaFileReference(platformFile: platformFile);
-      // Register it so it's available for future access and export
-      controller.registerMediaFile(ref).ignore();
-      return ref;
-    }
-
-    return null;
-  }
-
-  /// Get file extension for PackageFileType
-  String _getExtensionForType(PackageFileType type) {
-    switch (type) {
-      case PackageFileType.image:
-        return 'jpg';
-      case PackageFileType.video:
-        return 'mp4';
-      case PackageFileType.audio:
-        return 'mp3';
-      case PackageFileType.$unknown:
-        return 'bin';
-    }
+    // Get existing reference (works for both newly added and imported files)
+    return controller.getMediaFileByHash(hash);
   }
 
   void _initializeFromQuestion() {
@@ -1114,7 +1080,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         reference: mediaReference,
         type: type,
         order: targetList.length,
-        displayTime: controller.lastUsedDisplayTime,
+        displayTime: isQuestionMedia
+            ? controller.lastUsedQuestionDisplayTime
+            : controller.lastUsedAnswerDisplayTime,
       );
 
       setState(() {
@@ -1148,7 +1116,12 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       });
 
       // Save to controller for next file
-      GetIt.I<OqEditorController>().lastUsedDisplayTime = result;
+      final controller = GetIt.I<OqEditorController>();
+      if (isQuestionMedia) {
+        controller.lastUsedQuestionDisplayTime = result;
+      } else {
+        controller.lastUsedAnswerDisplayTime = result;
+      }
     }
   }
 

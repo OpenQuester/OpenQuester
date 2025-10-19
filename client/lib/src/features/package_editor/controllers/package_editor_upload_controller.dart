@@ -186,13 +186,11 @@ class PackageEditorUploadController {
   Future<Uint8List> _readMediaBytes(MediaFileReference media) async {
     final platformFile = media.platformFile;
 
-    // Web: bytes in memory
-    if (kIsWeb && platformFile.bytes != null) {
+    if (platformFile.bytes != null) {
       return platformFile.bytes!;
     }
 
-    // Native: read from file path
-    if (!kIsWeb && platformFile.path != null) {
+    if (platformFile.path != null) {
       return File(platformFile.path!).readAsBytes();
     }
 

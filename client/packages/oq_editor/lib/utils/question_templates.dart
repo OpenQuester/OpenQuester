@@ -100,7 +100,7 @@ class QuestionTemplates {
             type: questionType,
             link: null,
           ),
-          displayTime: controller.lastUsedDisplayTime,
+          displayTime: controller.lastUsedQuestionDisplayTime,
         ),
       ];
 
@@ -145,7 +145,7 @@ class QuestionTemplates {
                   type: answerType,
                   link: null,
                 ),
-                displayTime: controller.lastUsedDisplayTime,
+                displayTime: controller.lastUsedAnswerDisplayTime,
               ),
             ];
           }

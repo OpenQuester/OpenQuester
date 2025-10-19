@@ -17,13 +17,12 @@ class OqPackageArchiver {
   /// Returns the archive bytes ready for download
   static Future<Uint8List> exportPackage(
     OqPackage package,
-    Map<String, MediaFileReference> mediaFilesByHash, [
-    Map<String, Uint8List>? importedFileBytes,
-  ]) async {
+    Map<String, MediaFileReference> mediaFilesByHash,
+  ) async {
     // Prepare media files map by reading bytes from all sources
     final mediaFilesBytes = <String, Uint8List>{};
 
-    // Add media files from MediaFileReference (newly added files)
+    // Add media files from MediaFileReference (includes both new and imported)
     for (final entry in mediaFilesByHash.entries) {
       final hash = entry.key;
       final mediaFile = entry.value;
@@ -37,17 +36,6 @@ class OqPackageArchiver {
         mediaFilesBytes[hash] = await file.readAsBytes();
       } else {
         throw Exception('Cannot export: file has no bytes or path');
-      }
-    }
-
-    // Add imported file bytes (from previous import)
-    if (importedFileBytes != null) {
-      for (final entry in importedFileBytes.entries) {
-        final hash = entry.key;
-        // Skip if already added from mediaFilesByHash
-        if (!mediaFilesBytes.containsKey(hash)) {
-          mediaFilesBytes[hash] = entry.value;
-        }
       }
     }
 

@@ -44,11 +44,11 @@ const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
     then: Joi.boolean().valid(true).required(), // Must be true
     otherwise: Joi.boolean().allow(null).default(false), // Default false for others
   }),
-  text: Joi.string().allow(null),
-  answerHint: Joi.string().allow(null),
-  answerText: Joi.string().allow(null),
+  text: Joi.string().allow(null, ""),
+  answerHint: Joi.string().allow(null, ""),
+  answerText: Joi.string().allow(null, ""),
   answerDelay: Joi.number().allow(null).default(5000),
-  questionComment: Joi.string().allow(null),
+  questionComment: Joi.string().allow(null, ""),
   questionFiles: Joi.array().items(packageFileSchema).allow(null),
   answerFiles: Joi.array().items(packageFileSchema).allow(null),
 });
@@ -146,7 +146,7 @@ const themes = Joi.array()
     Joi.object<PackageThemeDTO>({
       name: Joi.string().required(),
       order: Joi.number().min(0).required(),
-      description: Joi.string().allow(null),
+      description: Joi.string().allow(null, ""),
       questions,
     }).required()
   )
@@ -158,7 +158,7 @@ const finalRoundThemes = Joi.array()
     Joi.object<PackageThemeDTO>({
       name: Joi.string().required(),
       order: Joi.number().min(0).required(),
-      description: Joi.string().allow(null),
+      description: Joi.string().allow(null, ""),
       questions: Joi.array()
         .items(
           questionSchema.keys({

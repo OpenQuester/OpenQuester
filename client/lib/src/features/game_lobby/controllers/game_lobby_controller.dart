@@ -585,6 +585,7 @@ class GameLobbyController {
 
     try {
       var mediaPlaytimeMs = 0;
+      int? showMediaForMs;
       if (currentQuestion != null) {
         final file = currentQuestion.answerFiles?.firstOrNull;
         controller.questionData.value = GameQuestionData(
@@ -597,13 +598,28 @@ class GameLobbyController {
         if (mediaValue != null && file != null) {
           final playtimeLeft = mediaValue.duration - mediaValue.position;
           mediaPlaytimeMs = playtimeLeft.inMilliseconds;
+          showMediaForMs = file.displayTime;
         }
       }
 
+      // Wait for media to play
+      while (controller.mediaController.value?.value.isPlaying != true) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+
       // Wait to show answer
-      await Future<void>.delayed(
-        Duration(milliseconds: max(5000, mediaPlaytimeMs + 2000)),
+      final delayForShowingAnswer = min(
+        showMediaForMs ?? 5000,
+        mediaPlaytimeMs,
       );
+      gameData.value = gameData.value?.copyWith.gameState(
+        timer: GameStateTimer(
+          startedAt: DateTime.now(),
+          durationMs: delayForShowingAnswer,
+          elapsedMs: 0,
+        ),
+      );
+      await Future<void>.delayed(Duration(milliseconds: delayForShowingAnswer));
     } catch (e) {
       onError(e);
     }
