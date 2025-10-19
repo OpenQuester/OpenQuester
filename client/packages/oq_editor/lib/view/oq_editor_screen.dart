@@ -186,27 +186,30 @@ class OqEditorScreen extends WatchingWidget {
 
     try {
       await controller.savePackage();
-      if (!context.mounted) return;
-      Navigator.of(context).pop(); // Close progress dialog
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(controller.translations.saveButton),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (error) {
-      if (!context.mounted) return;
-      Navigator.of(context).pop(); // Close progress dialog
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${controller.translations.errorGeneric}: $error',
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(controller.translations.saveButton),
+            backgroundColor: Colors.green,
           ),
-          backgroundColor: Colors.red,
-        ),
-      );
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${controller.translations.errorGeneric}: $error',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (context.mounted) {
+        Navigator.of(context).pop(); // Ensure progress dialog is closed
+      }
     }
   }
 
