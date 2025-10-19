@@ -174,6 +174,7 @@
   "multiple_showman_warning": "There can be only one showman! You have been changed to a player.",
   "save": "Save",
   "package_editor": "Package editor",
+  "editor": "Editor",
   "oq_editor": {
     "next": "Next",
     "back": "Back",

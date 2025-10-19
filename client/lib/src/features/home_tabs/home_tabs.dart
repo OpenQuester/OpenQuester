@@ -102,13 +102,14 @@ class _OpenEditorButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FloatingActionButton.small(
+    return FloatingActionButton.extended(
       heroTag: 'open_package_editor',
       foregroundColor: context.theme.colorScheme.onSecondaryContainer,
       backgroundColor: context.theme.colorScheme.secondaryContainer,
       onPressed: () => const PackageEditorRoute().push<void>(context),
       tooltip: LocaleKeys.package_editor.tr(),
-      child: const Icon(Icons.edit),
+      label: Text(LocaleKeys.editor.tr()),
+      icon: const Icon(Icons.edit),
     );
   }
 }
