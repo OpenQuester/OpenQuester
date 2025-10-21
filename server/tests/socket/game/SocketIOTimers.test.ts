@@ -93,7 +93,7 @@ describe("SocketIOTimers", () => {
       try {
         // Start game and pick a question
         await socketUtils.startGame(showmanSocket);
-        await socketUtils.pickQuestion(showmanSocket);
+        await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Player starts answering to get into ANSWERING state
         await socketUtils.answerQuestion(playerSockets[0], showmanSocket);
@@ -150,7 +150,7 @@ describe("SocketIOTimers", () => {
         await socketUtils.startGame(showmanSocket);
 
         // Pick a question to get into SHOWING state
-        await socketUtils.pickQuestion(showmanSocket);
+        await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Verify game is in SHOWING state
         const showingState = await socketUtils.getGameState(gameId);
@@ -209,12 +209,12 @@ describe("SocketIOTimers", () => {
         1,
         0
       );
-      const { showmanSocket, gameId } = setup;
+      const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         // Start game and pick a question to get to SHOWING state
         await socketUtils.startGame(showmanSocket);
-        await socketUtils.pickQuestion(showmanSocket);
+        await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Verify game is in SHOWING state
         const showingState = await socketUtils.getGameState(gameId);

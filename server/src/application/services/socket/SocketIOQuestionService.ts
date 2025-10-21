@@ -7,8 +7,8 @@ import { PlayerGameStatsService } from "application/services/statistics/PlayerGa
 import {
   GAME_QUESTION_ANSWER_SUBMIT_TIME,
   GAME_QUESTION_ANSWER_TIME,
-  STAKE_QUESTION_BID_TIME,
   MEDIA_DOWNLOAD_TIMEOUT,
+  STAKE_QUESTION_BID_TIME,
 } from "domain/constants/game";
 import { REDIS_LOCK_QUESTION_ANSWER } from "domain/constants/redis";
 import { Game } from "domain/entities/game/Game";
@@ -1198,22 +1198,27 @@ export class SocketIOQuestionService {
 
     // Check if all active players have downloaded media
     const activePlayers = game.players.filter(
-      (p) => p.gameStatus === PlayerGameStatus.IN_GAME
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
     );
     const allPlayersReady = activePlayers.every((p) => p.mediaDownloaded);
 
     // If all players are ready, transition to SHOWING state
-    if (allPlayersReady && game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING) {
+    if (
+      allPlayersReady &&
+      game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING
+    ) {
       // Clear the media download timeout timer
       await this.gameService.clearTimer(game.id);
-      
+
       // Set up the actual question showing timer
       const timer = await this.socketQuestionStateService.setupQuestionTimer(
         game,
         GAME_QUESTION_ANSWER_TIME,
         QuestionState.SHOWING
       );
-      
+
       await this.gameService.updateGame(game);
 
       return {
@@ -1255,12 +1260,14 @@ export class SocketIOQuestionService {
    * Force all players to be marked as ready (used by timeout)
    */
   public async forceAllPlayersReady(gameId: string) {
-    const game = await this.gameService.getGame(gameId);
+    const game = await this.gameService.getGameEntity(gameId);
     if (!game) return null;
 
     // Mark all active players as downloaded
     const activePlayers = game.players.filter(
-      (p) => p.gameStatus === PlayerGameStatus.IN_GAME
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
     );
     for (const player of activePlayers) {
       player.mediaDownloaded = true;
@@ -1268,8 +1275,8 @@ export class SocketIOQuestionService {
 
     // Clear the media download timeout timer
     await this.gameService.clearTimer(game.id);
-    
-    // Set up the actual question showing timer
+
+    // Set up the question showing timer
     const timer = await this.socketQuestionStateService.setupQuestionTimer(
       game,
       GAME_QUESTION_ANSWER_TIME,

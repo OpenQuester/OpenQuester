@@ -6,7 +6,7 @@ import { SocketIOQuestionService } from "application/services/socket/SocketIOQue
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
+import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID } from "domain/constants/game";
 import {
   REDIS_LOCK_EXPIRATION_KEY,
   REDIS_LOCK_QUESTION_ANSWER,
@@ -99,7 +99,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
           this._gameNamespace
             .to(gameId)
             .emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, {
-              playerId: 0, // System message
+              playerId: SYSTEM_PLAYER_ID,
               mediaDownloaded: true,
               allPlayersReady: true,
               timer: result.timer,
@@ -314,7 +314,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       // Emit theme elimination event
       this._gameNamespace.to(game.id).emit(SocketIOGameEvents.THEME_ELIMINATE, {
         themeId: result.themeId,
-        eliminatedBy: null, // System elimination
+        eliminatedBy: SYSTEM_PLAYER_ID,
         nextPlayerId: result.nextPlayerId,
       } satisfies ThemeEliminateOutputData);
 

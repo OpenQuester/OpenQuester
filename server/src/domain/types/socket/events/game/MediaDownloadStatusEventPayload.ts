@@ -1,10 +1,8 @@
+import { GameStateTimerDTO } from "domain/types/dto";
+
 export interface MediaDownloadStatusBroadcastData {
   playerId: number;
   mediaDownloaded: boolean;
   allPlayersReady: boolean;
-  timer?: {
-    startedAt: Date;
-    durationMs: number;
-    elapsedMs: number;
-  };
+  timer: GameStateTimerDTO | null;
 }
