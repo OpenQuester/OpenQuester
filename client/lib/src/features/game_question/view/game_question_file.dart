@@ -35,11 +35,11 @@ class GameQuestionMediaWidget extends WatchingWidget {
         child = ImageWidget(
           url: url,
           afterLoad: getIt<GameQuestionController>().onImageLoaded,
-          forcedLoader: ValueListenableBuilder(
+          forcedLoaderBuilder: (context, child) => ValueListenableBuilder(
             valueListenable: getIt<GameQuestionController>().waitingForPlayers,
-            builder: (context, value, child) {
+            builder: (_, value, _) {
               if (value) return const WaitingForOthersLoader();
-              return const SizedBox.shrink();
+              return child;
             },
           ),
         );
@@ -48,7 +48,7 @@ class GameQuestionMediaWidget extends WatchingWidget {
           child = const WaitingForOthersLoader();
         } else {
           if (fileType == PackageFileType.audio) {
-            child = const Icon(Icons.music_note, size: 60).fadeOut();
+            child = const Icon(Icons.music_note, size: 60).fadeIn();
           } else {
             child = AspectRatio(
               aspectRatio: mediaController.value.aspectRatio,

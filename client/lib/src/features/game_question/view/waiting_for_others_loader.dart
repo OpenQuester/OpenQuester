@@ -23,6 +23,7 @@ class _WaitingForOthersLoaderState extends State<WaitingForOthersLoader> {
   // Show loader only after a short delay to avoid flickering
   void _startDelay() {
     Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
       setState(() {
         showLoader = true;
       });

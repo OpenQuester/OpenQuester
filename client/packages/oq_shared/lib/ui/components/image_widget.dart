@@ -11,7 +11,7 @@ class ImageWidget extends StatefulWidget {
     this.avatarRadius,
     this.fit = BoxFit.cover,
     this.afterLoad,
-    this.forcedLoader,
+    this.forcedLoaderBuilder,
     super.key,
   });
 
@@ -19,7 +19,8 @@ class ImageWidget extends StatefulWidget {
   final double? avatarRadius;
   final BoxFit? fit;
   final VoidCallback? afterLoad;
-  final Widget? forcedLoader;
+  final Widget Function(BuildContext context, Widget child)?
+  forcedLoaderBuilder;
 
   @override
   State<ImageWidget> createState() => _ImageWidgetState();
@@ -62,7 +63,9 @@ class _ImageWidgetState extends State<ImageWidget> {
             fit: widget.fit,
             errorBuilder: (_, _, _) => placeholder(),
             frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-              if (widget.forcedLoader != null) return widget.forcedLoader!;
+              if (widget.forcedLoaderBuilder != null) {
+                return widget.forcedLoaderBuilder!(context, child);
+              }
               return child;
             },
             loadingBuilder: (context, child, loadingProgress) {
