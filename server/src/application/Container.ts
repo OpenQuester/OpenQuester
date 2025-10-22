@@ -92,6 +92,11 @@ export const CONTAINER_TYPES = {
   GameLifecycleService: Symbol("GameLifecycleService"),
   GameEventBroadcastService: Symbol("GameEventBroadcastService"),
 
+  // Action Queue System
+  GameActionExecutor: Symbol("GameActionExecutor"),
+  GameActionLockService: Symbol("GameActionLockService"),
+  GameActionQueueService: Symbol("GameActionQueueService"),
+
   // Factories
   RoundHandlerFactory: Symbol("RoundHandlerFactory"),
   StatisticsWorkerFactory: Symbol("StatisticsWorkerFactory"),

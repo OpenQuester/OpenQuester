@@ -1,13 +1,16 @@
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import {
   SocketIOEvents,
   SocketIOGameEvents,
   SocketIOUserEvents,
 } from "domain/enums/SocketIOEvents";
 import { ErrorController } from "domain/errors/ErrorController";
+import { GameAction, GameActionResult } from "domain/types/action/GameAction";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { type ILogger } from "infrastructure/logger/ILogger";
+import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 import { Socket } from "socket.io";
 
@@ -57,15 +60,18 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   protected readonly socket: Socket;
   protected readonly eventEmitter: SocketIOEventEmitter;
   protected readonly logger: ILogger;
+  protected readonly actionExecutor: GameActionExecutor;
 
   constructor(
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
-    logger: ILogger
+    logger: ILogger,
+    actionExecutor: GameActionExecutor
   ) {
     this.socket = socket;
     this.eventEmitter = eventEmitter;
     this.logger = logger;
+    this.actionExecutor = actionExecutor;
   }
 
   /**
@@ -86,25 +92,115 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
       // Authorization check
       await this.authorize(validatedData, context);
 
-      // Business logic execution
-      const result = await this.execute(validatedData, context);
+      // Check if this action should use the action queue system
+      const gameId = await this.getGameIdForAction(validatedData, context);
 
-      // Post-execution hooks
-      await this.afterHandle(result, context);
-
-      // Handle broadcasting if specified
-      if (result.broadcast) {
-        await this.handleBroadcasts(result.broadcast);
+      if (gameId) {
+        // Use action executor with locking and queuing
+        await this.handleWithActionQueue(
+          validatedData,
+          context,
+          gameId,
+          startTime
+        );
+      } else {
+        // Execute directly without locking
+        await this.executeDirectly(validatedData, context, startTime);
       }
-
-      await this.afterBroadcast(result, context);
-
-      // Success logging
-      this.logSuccess(context, Date.now() - startTime);
     } catch (error) {
       // Error handling
       await this.handleError(error, context, Date.now() - startTime);
     }
+  }
+
+  /**
+   * Handle game action with locking and queuing
+   */
+  private async handleWithActionQueue(
+    data: TInput,
+    context: SocketEventContext,
+    gameId: string,
+    startTime: number
+  ): Promise<void> {
+    const action: GameAction = {
+      id: ValueUtils.generateUUID(),
+      type: this.getActionType() as any,
+      gameId: gameId,
+      playerId: this.socket.userId ?? 0,
+      socketId: this.socket.id,
+      timestamp: new Date(),
+      payload: data,
+    };
+
+    const executeCallback = async (
+      queuedAction: GameAction
+    ): Promise<GameActionResult> => {
+      // Use queued action's payload and reconstruct context for re-execution
+      const actionData = queuedAction.payload as TInput;
+      const actionContext: SocketEventContext = {
+        socketId: queuedAction.socketId,
+        userId: queuedAction.playerId,
+        gameId: queuedAction.gameId,
+        startTime: queuedAction.timestamp.getTime(),
+      };
+
+      const result = await this.execute(actionData, actionContext);
+
+      await this.afterHandle(result, actionContext);
+
+      if (result.broadcast) {
+        await this.handleBroadcasts(result.broadcast);
+      }
+
+      await this.afterBroadcast(result, actionContext);
+
+      return { success: result.success, data: result.data };
+    };
+
+    await this.actionExecutor.submitAction(action, executeCallback);
+
+    this.logSuccess(context, Date.now() - startTime);
+  }
+
+  /**
+   * Execute action directly without locking (for non-game actions like chat)
+   */
+  private async executeDirectly(
+    data: TInput,
+    context: SocketEventContext,
+    startTime: number
+  ): Promise<void> {
+    const result = await this.execute(data, context);
+
+    await this.afterHandle(result, context);
+
+    if (result.broadcast) {
+      await this.handleBroadcasts(result.broadcast);
+    }
+
+    await this.afterBroadcast(result, context);
+
+    this.logSuccess(context, Date.now() - startTime);
+  }
+
+  /**
+   * Get game ID for action queue determination
+   * Return null to execute without queue system
+   * Override in subclasses for efficient retrieval
+   */
+  protected async getGameIdForAction(
+    _data: TInput,
+    _context: SocketEventContext
+  ): Promise<string | null> {
+    return null;
+  }
+
+  /**
+   * Get action type string for queue tracking
+   * Override in subclasses that use action queue
+   */
+  protected getActionType(): string {
+    return this.getEventName() as string;
   }
 
   /**

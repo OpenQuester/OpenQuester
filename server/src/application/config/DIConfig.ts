@@ -3,6 +3,7 @@ import { Server as IOServer } from "socket.io";
 
 import { Container, CONTAINER_TYPES } from "application/Container";
 import { StorageContextBuilder } from "application/context/storage/StorageContextBuilder";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { CronJobFactory } from "application/factories/CronJobFactory";
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { GameExpirationHandler } from "application/handlers/GameExpirationHandler";
@@ -61,6 +62,8 @@ import { PlayerGameStatsRepository } from "infrastructure/database/repositories/
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { DependencyService } from "infrastructure/services/dependency/DependencyService";
+import { GameActionLockService } from "infrastructure/services/lock/GameActionLockService";
+import { GameActionQueueService } from "infrastructure/services/queue/GameActionQueueService";
 import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -118,6 +121,35 @@ export class DIConfig {
       CONTAINER_TYPES.RedisService,
       new RedisService(
         Container.get<RedisRepository>(CONTAINER_TYPES.RedisRepository)
+      ),
+      "service"
+    );
+
+    // Action Queue System Services
+    Container.register(
+      CONTAINER_TYPES.GameActionLockService,
+      new GameActionLockService(
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.GameActionQueueService,
+      new GameActionQueueService(
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.GameActionExecutor,
+      new GameActionExecutor(
+        Container.get(CONTAINER_TYPES.GameActionLockService),
+        Container.get(CONTAINER_TYPES.GameActionQueueService),
+        this.logger
       ),
       "service"
     );

@@ -18,6 +18,7 @@ import { QuestionFinishEventPayload } from "domain/types/socket/events/game/Ques
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 /**
  * Handler for showman to review and score final round answers
@@ -32,10 +33,11 @@ export class FinalAnswerReviewEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly finalRoundService: FinalRoundService,
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {

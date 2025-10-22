@@ -18,6 +18,7 @@ import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/St
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class StakeBidSubmitEventHandler extends BaseSocketEventHandler<
   StakeBidSubmitInputData,
@@ -27,9 +28,10 @@ export class StakeBidSubmitEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly questionService: SocketIOQuestionService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {

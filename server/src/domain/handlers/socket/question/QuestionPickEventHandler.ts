@@ -24,6 +24,7 @@ import { QuestionPickInputData } from "domain/types/socket/events/SocketEventInt
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class QuestionPickEventHandler extends BaseSocketEventHandler<
   QuestionPickInputData,
@@ -33,9 +34,10 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly socketIOQuestionService: SocketIOQuestionService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {

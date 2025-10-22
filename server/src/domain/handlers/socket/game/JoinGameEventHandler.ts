@@ -25,6 +25,7 @@ import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class JoinGameEventHandler extends BaseSocketEventHandler<
   GameJoinInputData,
@@ -34,6 +35,7 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly socketIOGameService: SocketIOGameService,
     private readonly socketIOChatService: SocketIOChatService,
     private readonly socketUserDataService: SocketUserDataService,
@@ -41,7 +43,7 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     private readonly userService: UserService,
     private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {

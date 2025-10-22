@@ -18,6 +18,7 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class DisconnectEventHandler extends BaseSocketEventHandler<
   EmptyInputData,
@@ -27,9 +28,10 @@ export class DisconnectEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly socketIOGameService: SocketIOGameService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOEvents {

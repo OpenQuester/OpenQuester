@@ -1,5 +1,6 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
@@ -16,6 +17,7 @@ import { FinalBidSubmitEventHandler } from "domain/handlers/socket/finalround/Fi
 import { ThemeEliminateEventHandler } from "domain/handlers/socket/finalround/ThemeEliminateEventHandler";
 import { JoinGameEventHandler } from "domain/handlers/socket/game/JoinGameEventHandler";
 import { LeaveGameEventHandler } from "domain/handlers/socket/game/LeaveGameEventHandler";
+import { MediaDownloadedEventHandler } from "domain/handlers/socket/game/MediaDownloadedEventHandler";
 import { NextRoundEventHandler } from "domain/handlers/socket/game/NextRoundEventHandler";
 import { PauseGameEventHandler } from "domain/handlers/socket/game/PauseGameEventHandler";
 import { PlayerKickEventHandler } from "domain/handlers/socket/game/PlayerKickEventHandler";
@@ -25,7 +27,6 @@ import { PlayerRoleChangeEventHandler } from "domain/handlers/socket/game/Player
 import { PlayerScoreChangeEventHandler } from "domain/handlers/socket/game/PlayerScoreChangeEventHandler";
 import { PlayerSlotChangeEventHandler } from "domain/handlers/socket/game/PlayerSlotChangeEventHandler";
 import { PlayerUnreadyEventHandler } from "domain/handlers/socket/game/PlayerUnreadyEventHandler";
-import { MediaDownloadedEventHandler } from "domain/handlers/socket/game/MediaDownloadedEventHandler";
 import { StartGameEventHandler } from "domain/handlers/socket/game/StartGameEventHandler";
 import { TurnPlayerChangeEventHandler } from "domain/handlers/socket/game/TurnPlayerChangeEventHandler";
 import { UnpauseGameEventHandler } from "domain/handlers/socket/game/UnpauseGameEventHandler";
@@ -59,6 +60,7 @@ export class SocketEventHandlerFactory {
     private readonly socketGameContextService: SocketGameContextService,
     private readonly userService: UserService,
     private readonly gameProgressionCoordinator: GameProgressionCoordinator,
+    private readonly gameActionExecutor: GameActionExecutor,
     private readonly logger: ILogger
   ) {
     //
@@ -76,6 +78,7 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService,
         this.socketIOChatService,
         this.socketUserDataService,
@@ -87,6 +90,7 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService,
         this.userNotificationRoomService
       ),
@@ -94,12 +98,14 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new NextRoundEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService,
         this.gameProgressionCoordinator
       ),
@@ -107,66 +113,77 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new UnpauseGameEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new PlayerReadyEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new PlayerUnreadyEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new MediaDownloadedEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOQuestionService
       ),
       new PlayerKickEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new PlayerRestrictionEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new PlayerRoleChangeEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new PlayerScoreChangeEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new TurnPlayerChangeEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new PlayerSlotChangeEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
     ];
@@ -184,12 +201,14 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOGameService
       ),
       new ChatMessageEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOChatService
       ),
     ];
@@ -211,24 +230,28 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOQuestionService
       ),
       new QuestionAnswerEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOQuestionService
       ),
       new AnswerSubmittedEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOQuestionService
       ),
       new AnswerResultEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOQuestionService,
         this.gameProgressionCoordinator
       ),
@@ -237,12 +260,14 @@ export class SocketEventHandlerFactory {
         this.gameProgressionCoordinator,
         socket,
         eventEmitter,
-        this.logger
+        this.logger,
+        this.gameActionExecutor
       ),
       new QuestionSkipEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOQuestionService,
         this.gameProgressionCoordinator
       ),
@@ -250,18 +275,21 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOQuestionService
       ),
       new SecretQuestionTransferEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOQuestionService
       ),
       new StakeBidSubmitEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.socketIOQuestionService
       ),
     ];
@@ -279,24 +307,28 @@ export class SocketEventHandlerFactory {
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.finalRoundService
       ),
       new FinalBidSubmitEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.finalRoundService
       ),
       new FinalAnswerSubmitEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.finalRoundService
       ),
       new FinalAnswerReviewEventHandler(
         socket,
         eventEmitter,
         this.logger,
+        this.gameActionExecutor,
         this.finalRoundService,
         this.gameStatisticsCollectorService
       ),

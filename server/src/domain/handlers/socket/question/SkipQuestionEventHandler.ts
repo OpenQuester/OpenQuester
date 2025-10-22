@@ -14,6 +14,7 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class SkipQuestionEventHandler extends BaseSocketEventHandler<
   EmptyInputData,
@@ -24,9 +25,10 @@ export class SkipQuestionEventHandler extends BaseSocketEventHandler<
     private readonly gameProgressionCoordinator: GameProgressionCoordinator,
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
-    logger: ILogger
+    logger: ILogger,
+    actionExecutor: GameActionExecutor,
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {

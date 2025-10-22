@@ -12,6 +12,7 @@ import { QuestionAnswerEventPayload } from "domain/types/socket/events/game/Ques
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class QuestionAnswerEventHandler extends BaseSocketEventHandler<
   EmptyInputData,
@@ -21,9 +22,10 @@ export class QuestionAnswerEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly socketIOQuestionService: SocketIOQuestionService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
