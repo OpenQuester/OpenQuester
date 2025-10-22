@@ -14,14 +14,18 @@ class GameQuestionController {
   final showMedia = ValueNotifier<bool>(false);
   final error = ValueNotifier<String?>(null);
   final volume = ValueNotifier<double>(.5);
+  final waitingForPlayers = ValueNotifier<bool>(false);
 
   File? _tmpFile;
+  bool ignoreWaitingForPlayers = false;
 
   Future<void> clear() async {
     logger.d('Clearing question data');
     questionData.value = null;
     error.value = null;
     showMedia.value = false;
+    waitingForPlayers.value = false;
+    ignoreWaitingForPlayers = false;
     await clearVideoControllers();
     try {
       await _tmpFile?.delete();
@@ -37,23 +41,24 @@ class GameQuestionController {
 
       final file = questionData.value?.file?.file;
 
-      if (file == null) return;
+      if (file == null) {
+        // No media, notify immediately
+        if (!ignoreWaitingForPlayers) {
+          getIt<GameLobbyController>().notifyMediaDownloaded();
+        }
+        return;
+      }
+
+      // Wait for all players before playing
+      waitingForPlayers.value = !ignoreWaitingForPlayers;
 
       VideoPlayerController? controller;
       if (file.type != PackageFileType.image) {
         final uri = Uri.parse(file.link!);
 
-        // Fixes loading media without file extension
-        final desktopPlatform =
-            !kIsWeb &&
-            (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
-        if (desktopPlatform) {
-          await _setTmpFile(file);
-          await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
-          controller = VideoPlayerController.file(_tmpFile!);
-        } else {
-          controller = VideoPlayerController.networkUrl(uri);
-        }
+        // Platform-specific media handling for proper preloading
+        controller = await _loadController(uri, file);
+
         await controller.setVolume(volume.value);
         await controller.initialize();
 
@@ -66,16 +71,50 @@ class GameQuestionController {
         }
       }
 
-      // Delay to let others players to download
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-
       mediaController.value = controller;
-      await controller?.play();
       showMedia.value = true;
+
+      // Notify server that media is downloaded
+      if (!ignoreWaitingForPlayers) {
+        getIt<GameLobbyController>().notifyMediaDownloaded();
+      } else {
+        await mediaController.value?.play();
+      }
     } catch (e) {
       error.value = getIt<GameLobbyController>().onError(e);
     }
     // TODO: Start slideshow timer
+  }
+
+  Future<VideoPlayerController> _loadController(
+    Uri uri,
+    FileItem file,
+  ) async {
+    // Platform-specific media handling for proper preloading
+    if (kIsWeb) {
+      // Web: Browsers do not support file system access,
+      // so we use the network URL.
+      // To improve performance, we preload the media by caching it.
+      await _cacheFile(uri);
+      return VideoPlayerController.networkUrl(uri);
+    } else {
+      // Mobile/Desktop: Download and use local file for reliable preloading
+      await _setTmpFile(file);
+      await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
+      return VideoPlayerController.file(_tmpFile!);
+    }
+  }
+
+  Future<void> _cacheFile(Uri uri) async {
+    await getIt<DioController>().client.getUri<void>(uri);
+  }
+
+  /// Called by GameLobbyController when all players have downloaded media
+  Future<void> onAllPlayersReady() async {
+    if (waitingForPlayers.value) {
+      waitingForPlayers.value = false;
+      await mediaController.value?.play();
+    }
   }
 
   Future<void> _setTmpFile(FileItem file) async {
@@ -102,5 +141,11 @@ class GameQuestionController {
   Future<void> onChangeVolume(double volume) async {
     this.volume.value = volume.clamp(0, 1);
     await mediaController.value?.setVolume(this.volume.value);
+  }
+
+  Future<void> onImageLoaded() async {
+    // Notify server that media is downloaded
+    // Wait for all players before showing
+    getIt<GameLobbyController>().notifyMediaDownloaded();
   }
 }

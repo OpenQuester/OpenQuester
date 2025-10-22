@@ -14,6 +14,7 @@ export class Player {
     banned: boolean;
   };
   private _score: number = 0;
+  private _mediaDownloaded: boolean = false;
 
   constructor(data: PlayerDTO) {
     this._meta = data.meta;
@@ -22,6 +23,7 @@ export class Player {
     this._status = data.status;
     this._restrictionData = data.restrictionData;
     this._score = data.score;
+    this._mediaDownloaded = data.mediaDownloaded ?? false;
   }
 
   // Metadata
@@ -45,6 +47,7 @@ export class Player {
       score: this._score,
       slot: this._slot,
       restrictionData: this._restrictionData,
+      mediaDownloaded: this._mediaDownloaded,
     };
   }
 
@@ -107,5 +110,14 @@ export class Player {
 
   public set isBanned(value: boolean) {
     this._restrictionData.banned = value;
+  }
+
+  // Media Download Status
+  public get mediaDownloaded(): boolean {
+    return this._mediaDownloaded;
+  }
+
+  public set mediaDownloaded(value: boolean) {
+    this._mediaDownloaded = value;
   }
 }

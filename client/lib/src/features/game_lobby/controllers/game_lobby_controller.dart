@@ -99,6 +99,10 @@ class GameLobbyController {
           SocketIOGameReceiveEvents.stakeQuestionWinner.json!,
           _onStakeQuestionWinner,
         )
+        ..on(
+          SocketIOGameReceiveEvents.mediaDownloadStatus.json!,
+          _onMediaDownloadStatus,
+        )
         ..connect();
 
       return await _joinCompleter.future;
@@ -428,15 +432,25 @@ class GameLobbyController {
       data as Map<String, dynamic>,
     );
 
-    gameData.value = gameData.value?.copyWith.gameState(
-      timer: questionData.timer,
-      currentQuestion: questionData.data,
-      answeredPlayers: null,
-      // Dont clear answeringPlayer for stake question
-      answeringPlayer: questionData.data.type == QuestionType.stake
-          ? gameData.value?.gameState.answeringPlayer
-          : null,
-    );
+    // Reset media download status for all players
+    final playersWithResetStatus =
+        gameData.value?.players.map((player) {
+          return player.copyWith(mediaDownloaded: false);
+        }).toList() ??
+        [];
+
+    gameData.value = gameData.value
+        ?.copyWith(players: playersWithResetStatus)
+        .copyWith
+        .gameState(
+          timer: questionData.timer,
+          currentQuestion: questionData.data,
+          answeredPlayers: null,
+          // Dont clear answeringPlayer for stake question
+          answeringPlayer: questionData.data.type == QuestionType.stake
+              ? gameData.value?.gameState.answeringPlayer
+              : null,
+        );
 
     gameData.value = gameData.value!.copyWith.gameState(
       currentRound: gameData.value!.gameState.currentRound?.changeQuestion(
@@ -526,6 +540,7 @@ class GameLobbyController {
     final controller = questionController.mediaController.value;
     if (controller == null) return;
 
+    questionController.ignoreWaitingForPlayers = false;
     final question = questionController.questionData.value;
     if (question == null) return;
 
@@ -588,6 +603,8 @@ class GameLobbyController {
       int? showMediaForMs;
       if (currentQuestion != null) {
         final file = currentQuestion.answerFiles?.firstOrNull;
+
+        controller.ignoreWaitingForPlayers = true;
         controller.questionData.value = GameQuestionData(
           // Clear display time to avoid auto pause
           file: file?.copyWith(displayTime: null),
@@ -1010,6 +1027,36 @@ class GameLobbyController {
       SocketIOGameSendEvents.stakeBidSubmit.json!,
       input.toJson(),
     );
+  }
+
+  void notifyMediaDownloaded() =>
+      socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
+
+  void _onMediaDownloadStatus(dynamic data) {
+    if (data is! Map) return;
+
+    final statusData = MediaDownloadStatusEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+
+    // Update the player's media download status in game data
+    gameData.value = gameData.value?.changePlayer(
+      id: statusData.playerId,
+      onChange: (player) =>
+          player.copyWith(mediaDownloaded: statusData.mediaDownloaded),
+    );
+
+    // If all players are ready, update timer and notify the question controller
+    // to start playback
+    if (statusData.allPlayersReady) {
+      // Update the timer if provided
+      if (statusData.timer != null) {
+        gameData.value = gameData.value?.copyWith.gameState(
+          timer: statusData.timer,
+        );
+      }
+      getIt<GameQuestionController>().onAllPlayersReady();
+    }
   }
 }
 

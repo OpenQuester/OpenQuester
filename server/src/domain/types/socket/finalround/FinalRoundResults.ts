@@ -22,7 +22,7 @@ export interface AnswerReviewData {
 
 export interface ThemeEliminateResult {
   game: Game;
-  eliminatedBy: number;
+  eliminatedBy: number; // Player ID
   themeId: number;
   nextPlayerId: number | null;
   isPhaseComplete: boolean;

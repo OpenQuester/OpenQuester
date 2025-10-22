@@ -10,12 +10,16 @@ class ImageWidget extends StatefulWidget {
     required this.url,
     this.avatarRadius,
     this.fit = BoxFit.cover,
+    this.afterLoad,
+    this.forcedLoader,
     super.key,
   });
 
   final String? url;
   final double? avatarRadius;
   final BoxFit? fit;
+  final VoidCallback? afterLoad;
+  final Widget? forcedLoader;
 
   @override
   State<ImageWidget> createState() => _ImageWidgetState();
@@ -23,6 +27,7 @@ class ImageWidget extends StatefulWidget {
 
 class _ImageWidgetState extends State<ImageWidget> {
   ImageProvider<Object>? imageProvider;
+  bool loaded = false;
 
   Future<void> _setProvider() async {
     if (widget.url == null) {
@@ -56,6 +61,18 @@ class _ImageWidgetState extends State<ImageWidget> {
             image: imageProvider!,
             fit: widget.fit,
             errorBuilder: (_, _, _) => placeholder(),
+            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+              if (widget.forcedLoader != null) return widget.forcedLoader!;
+              return child;
+            },
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null && !loaded) {
+                widget.afterLoad?.call();
+                loaded = true;
+              }
+
+              return child;
+            },
           ).fadeIn();
 
     final size = widget.avatarRadius != null

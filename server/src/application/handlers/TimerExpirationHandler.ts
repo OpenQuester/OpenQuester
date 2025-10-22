@@ -6,7 +6,7 @@ import { SocketIOQuestionService } from "application/services/socket/SocketIOQue
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
+import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID } from "domain/constants/game";
 import {
   REDIS_LOCK_EXPIRATION_KEY,
   REDIS_LOCK_QUESTION_ANSWER,
@@ -86,6 +86,27 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       const question = await this.socketIOQuestionService.getCurrentQuestion(
         game
       );
+
+      // Handle media download timeout
+      if (game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING) {
+        // Force all players as ready and transition to SHOWING state
+        const result = await this.socketIOQuestionService.forceAllPlayersReady(
+          gameId
+        );
+        
+        if (result) {
+          // Broadcast that all players are ready with the new timer
+          this._gameNamespace
+            .to(gameId)
+            .emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, {
+              playerId: SYSTEM_PLAYER_ID,
+              mediaDownloaded: true,
+              allPlayersReady: true,
+              timer: result.timer,
+            });
+        }
+        return;
+      }
 
       if (game.gameState.questionState === QuestionState.SHOWING) {
         await this.socketQuestionStateService.resetToChoosingState(game);
@@ -293,7 +314,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       // Emit theme elimination event
       this._gameNamespace.to(game.id).emit(SocketIOGameEvents.THEME_ELIMINATE, {
         themeId: result.themeId,
-        eliminatedBy: null, // System elimination
+        eliminatedBy: SYSTEM_PLAYER_ID,
         nextPlayerId: result.nextPlayerId,
       } satisfies ThemeEliminateOutputData);
 
