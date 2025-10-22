@@ -1,7 +1,6 @@
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
-import 'package:openquester/src/features/game_question/view/waiting_for_others_loader.dart';
 import 'package:video_player/video_player.dart';
 
 class GameQuestionMediaWidget extends WatchingWidget {

@@ -596,7 +596,7 @@ class GameLobbyController {
       var mediaPlaytimeMs = 0;
       if (currentQuestion != null) {
         final file = currentQuestion.answerFiles?.firstOrNull;
-        
+
         controller.ignoreWaitingForPlayers = true;
         controller.questionData.value = GameQuestionData(
           file: file,
