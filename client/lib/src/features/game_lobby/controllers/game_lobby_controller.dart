@@ -1032,7 +1032,7 @@ class GameLobbyController {
   void notifyMediaDownloaded() =>
       socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
 
-  void _onMediaDownloadStatus(dynamic data) {
+  Future<void> _onMediaDownloadStatus(dynamic data) async {
     if (data is! Map) return;
 
     final statusData = MediaDownloadStatusEventPayload.fromJson(
@@ -1055,7 +1055,7 @@ class GameLobbyController {
           timer: statusData.timer,
         );
       }
-      getIt<GameQuestionController>().onAllPlayersReady();
+      await getIt<GameQuestionController>().onAllPlayersReady();
     }
   }
 }

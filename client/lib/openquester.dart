@@ -13,6 +13,7 @@ export 'src/connection/files/file_service.dart';
 export 'src/connection/socket/socket_controller.dart';
 export 'src/connection/storage/storage.dart';
 export 'src/core/application/app_init.dart';
+export 'src/core/application/app_wrapper.dart';
 export 'src/core/application/application.dart';
 export 'src/core/controllers/load_controller.dart';
 export 'src/core/controllers/package_info_controller.dart';

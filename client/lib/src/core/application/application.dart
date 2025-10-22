@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
-import 'package:openquester/src/core/application/app_wrapper.dart';
 import 'package:talker_flutter/talker_flutter.dart' hide TalkerLogger;
 
 class App extends WatchingStatefulWidget {
