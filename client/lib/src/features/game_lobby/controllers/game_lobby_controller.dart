@@ -33,7 +33,7 @@ class GameLobbyController {
     // Check if already joined
     if (_gameId == gameId) return true;
 
-    clear();
+    await clear();
 
     try {
       _gameId = gameId;
@@ -108,14 +108,14 @@ class GameLobbyController {
       return await _joinCompleter.future;
     } catch (e, s) {
       logger.e(e, stackTrace: s);
-      clear();
+      await clear();
 
       rethrow;
     }
   }
 
-  void _showLoggedInChatEvent(String text) {
-    getIt<SocketChatController>().chatController?.insertMessage(
+  Future<void> _showLoggedInChatEvent(String text) async {
+    await getIt<SocketChatController>().chatController?.insertMessage(
       TextMessage(
         id: UniqueKey().toString(),
         authorId: SocketChatController.systemMessageId,
@@ -133,14 +133,14 @@ class GameLobbyController {
       onChange: (value) =>
           value.copyWith(status: PlayerDataStatus.disconnected),
     );
-    _setGamePause(isPaused: true);
+    await _setGamePause(isPaused: true);
   }
 
   Future<void> _onReconnect(dynamic data) async {
     logger.d('GameLobbyController._onReconnect: ${this.gameId}');
 
     final gameId = this.gameId!;
-    clear();
+    await clear();
     await join(gameId: gameId);
   }
 
@@ -161,7 +161,7 @@ class GameLobbyController {
       socket?.emit(SocketIOGameSendEvents.join.json!, ioGameJoinInput.toJson());
     } catch (e, s) {
       logger.e(e, stackTrace: s);
-      clear();
+      await clear();
 
       // Show error toast
       await getIt<ToastController>().show(
@@ -225,21 +225,21 @@ class GameLobbyController {
   }
 
   /// Clear all fields for new game to use
-  void clear() {
+  Future<void> clear() async {
     try {
       _gameId = null;
       socket?.dispose();
       socket = null;
       gameData.value = null;
       gameListData.value = null;
-      _chatMessagesSub?.cancel();
+      await _chatMessagesSub?.cancel();
       _chatMessagesSub = null;
       showChat.value = false;
       gameFinished.value = false;
       lobbyEditorMode.value = false;
       themeScrollPosition = null;
       getIt<SocketChatController>().clear();
-      getIt<GameQuestionController>().clear();
+      await getIt<GameQuestionController>().clear();
       getIt<GameLobbyPlayerPickerController>().clear();
       _joinCompleter = JoinCompleter();
     } catch (e, s) {
@@ -324,7 +324,7 @@ class GameLobbyController {
       errorText = data['message']?.toString() ?? errorText;
     }
 
-    getIt<ToastController>().show(errorText);
+    unawaited(getIt<ToastController>().show(errorText));
 
     // Complete the join completer with false if not already completed
     if (!_joinCompleter.isCompleted) {
@@ -354,9 +354,11 @@ class GameLobbyController {
     );
 
     if (myId != user.meta.id) {
-      getIt<ToastController>().show(
-        LocaleKeys.user_leave_the_game.tr(args: [user.meta.username]),
-        type: ToastType.info,
+      unawaited(
+        getIt<ToastController>().show(
+          LocaleKeys.user_leave_the_game.tr(args: [user.meta.username]),
+          type: ToastType.info,
+        ),
       );
     }
   }
@@ -364,9 +366,9 @@ class GameLobbyController {
   void _leave() {
     // Close only game page
     if (AppRouter.I.current.name == GameLobbyRoute.page.name) {
-      AppRouter.I.replace(const HomeTabsRoute());
+      unawaited(AppRouter.I.replace(const HomeTabsRoute()));
     }
-    clear();
+    unawaited(clear());
   }
 
   void _onUserJoin(dynamic data) {
@@ -390,9 +392,11 @@ class GameLobbyController {
     _updateChatUsers();
 
     if (myId != user.meta.id) {
-      getIt<ToastController>().show(
-        LocaleKeys.user_joined_the_game.tr(args: [user.meta.username]),
-        type: ToastType.info,
+      unawaited(
+        getIt<ToastController>().show(
+          LocaleKeys.user_joined_the_game.tr(args: [user.meta.username]),
+          type: ToastType.info,
+        ),
       );
     }
   }
@@ -406,9 +410,11 @@ class GameLobbyController {
     final myTurnToPick = currentTurnPlayerId == me?.meta.id;
 
     if (!myTurnToPick && me?.role != PlayerRole.showman) {
-      getIt<ToastController>().show(
-        LocaleKeys.not_your_turn_to_pick.tr(),
-        type: ToastType.warning,
+      unawaited(
+        getIt<ToastController>().show(
+          LocaleKeys.not_your_turn_to_pick.tr(),
+          type: ToastType.warning,
+        ),
       );
       return;
     }
@@ -469,7 +475,7 @@ class GameLobbyController {
     );
   }
 
-  void _onQuestionAnswer(dynamic data) {
+  Future<void> _onQuestionAnswer(dynamic data) async {
     if (data is! Map) return;
 
     final questionData = SocketIOQuestionAnswerEventPayload.fromJson(
@@ -482,10 +488,10 @@ class GameLobbyController {
     );
 
     // Pause media during question answer
-    _pauseMediaPlay();
+    await _pauseMediaPlay();
   }
 
-  void _onAnswerResult(dynamic data) {
+  Future<void> _onAnswerResult(dynamic data) async {
     if (data is! Map) return;
 
     final questionData = SocketIOAnswerResultEventPayload.fromJson(
@@ -498,9 +504,9 @@ class GameLobbyController {
     final result = questionData.answerResult?.result;
     if (result != null) {
       if (result > 0) {
-        _showAnswer();
+        await _showAnswer();
       } else {
-        _resumeMediaPlay();
+        await _resumeMediaPlay();
       }
     }
   }
@@ -524,12 +530,12 @@ class GameLobbyController {
         );
   }
 
-  void _pauseMediaPlay() {
-    getIt<GameQuestionController>().mediaController.value?.pause();
+  Future<void> _pauseMediaPlay() async {
+    await getIt<GameQuestionController>().mediaController.value?.pause();
   }
 
   /// Resume media after wrong answer
-  void _resumeMediaPlay() {
+  Future<void> _resumeMediaPlay() async {
     final questionController = getIt<GameQuestionController>();
     final controller = questionController.mediaController.value;
     if (controller == null) return;
@@ -546,10 +552,10 @@ class GameLobbyController {
 
     if (currentPlayPosition >= displayTime) return;
 
-    controller.play();
+    await controller.play();
   }
 
-  void _onQuestionFinish(dynamic data) {
+  Future<void> _onQuestionFinish(dynamic data) async {
     if (data is! Map) return;
 
     final questionData = QuestionFinishEventPayload.fromJson(
@@ -572,7 +578,7 @@ class GameLobbyController {
       skippedPlayers: null,
     );
 
-    _showAnswer();
+    await _showAnswer();
   }
 
   Future<void> _showAnswer() async {
@@ -593,27 +599,61 @@ class GameLobbyController {
     getIt<GameLobbyPlayerPickerController>().stopSelection();
 
     try {
-      var mediaPlaytimeMs = 0;
+      int? mediaPlaytimeMs;
+      int? showMediaForMs;
       if (currentQuestion != null) {
         final file = currentQuestion.answerFiles?.firstOrNull;
 
         controller.ignoreWaitingForPlayers = true;
         controller.questionData.value = GameQuestionData(
-          file: file,
+          // Clear display time to avoid auto pause
+          file: file?.copyWith(displayTime: null),
           text: currentQuestion.answerText,
         );
 
         // Wait for user to see answer
         final mediaValue = controller.mediaController.value?.value;
+
+        showMediaForMs = file?.displayTime;
         if (mediaValue != null && file != null) {
           final playtimeLeft = mediaValue.duration - mediaValue.position;
           mediaPlaytimeMs = playtimeLeft.inMilliseconds;
+
+          // Wait for media to play
+          final timeout = Timer(const Duration(seconds: 5), () {});
+          while (controller.mediaController.value?.value.isPlaying != true &&
+              timeout.isActive) {
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+          }
         }
       }
 
-      // Wait to show answer
+      const defaultAnswerDurationMs = 5000;
+      var answerShowingDurationMs = max(
+        // Cap duration to minimum of default duration
+        defaultAnswerDurationMs,
+        // Use media playtime or question defined time
+        min(
+          showMediaForMs ?? defaultAnswerDurationMs,
+          mediaPlaytimeMs ?? defaultAnswerDurationMs,
+        ),
+      );
+      // Cap maximum duration to 30 seconds
+      if (answerShowingDurationMs > 30000) answerShowingDurationMs = 30000;
+
+      gameData.value = gameData.value?.copyWith.gameState(
+        timer: GameStateTimer(
+          startedAt: DateTime.now(),
+          durationMs: answerShowingDurationMs,
+          elapsedMs: 0,
+        ),
+      );
+      logger.d(
+        'Waiting for $answerShowingDurationMs ms to hide answer '
+        'mediaPlaytimeMs: $mediaPlaytimeMs, showMediaForMs: $showMediaForMs',
+      );
       await Future<void>.delayed(
-        Duration(milliseconds: max(5000, mediaPlaytimeMs + 2000)),
+        Duration(milliseconds: answerShowingDurationMs),
       );
     } catch (e) {
       onError(e);
@@ -705,7 +745,7 @@ class GameLobbyController {
   void _onGamePause(dynamic data) => _setGamePause(isPaused: true);
 
   void _onGameUnPause(dynamic data) {
-    _setGamePause(isPaused: false);
+    unawaited(_setGamePause(isPaused: false));
 
     // Update timer after pause
     if (data is! Map) return;
@@ -717,15 +757,15 @@ class GameLobbyController {
     );
   }
 
-  void _setGamePause({required bool isPaused}) {
+  Future<void> _setGamePause({required bool isPaused}) async {
     gameData.value = gameData.value?.copyWith.gameState(
       isPaused: isPaused,
       timer: null,
     );
     if (isPaused) {
-      _pauseMediaPlay();
+      await _pauseMediaPlay();
     } else {
-      _resumeMediaPlay();
+      await _resumeMediaPlay();
     }
   }
 
@@ -741,7 +781,7 @@ class GameLobbyController {
     socket?.emit(SocketIOGameSendEvents.skipQuestionForce.json!);
   }
 
-  void _onQuestionSkip(dynamic data) {
+  Future<void> _onQuestionSkip(dynamic data) async {
     if (data is! Map) return;
 
     final skippedPlayer = SocketIOGameSkipEventPayload.fromJson(
@@ -753,6 +793,8 @@ class GameLobbyController {
         skippedPlayer.playerId,
       }.toList(),
     );
+
+    await _resumeMediaPlay();
   }
 
   void _onQuestionUnSkip(dynamic data) {
@@ -833,13 +875,15 @@ class GameLobbyController {
       return formattedScore;
     }
 
-    _showLoggedInChatEvent(
-      LocaleKeys.player_edit_showman_changed_score.tr(
-        namedArgs: {
-          'username': player?.meta.username ?? '',
-          'old': formatScore(player?.score),
-          'new': formatScore(data.newScore),
-        },
+    unawaited(
+      _showLoggedInChatEvent(
+        LocaleKeys.player_edit_showman_changed_score.tr(
+          namedArgs: {
+            'username': player?.meta.username ?? '',
+            'old': formatScore(player?.score),
+            'new': formatScore(data.newScore),
+          },
+        ),
       ),
     );
   }
@@ -966,12 +1010,14 @@ class GameLobbyController {
         gameData.value?.players.getById(data.winnerPlayerId)?.meta.username ??
         '';
 
-    _showLoggedInChatEvent(
-      LocaleKeys.game_stake_question_player_win_the_bid.tr(
-        namedArgs: {
-          'username': winnerUsername,
-          'value': ScoreText.formatScore(data.finalBid).$1,
-        },
+    unawaited(
+      _showLoggedInChatEvent(
+        LocaleKeys.game_stake_question_player_win_the_bid.tr(
+          namedArgs: {
+            'username': winnerUsername,
+            'value': ScoreText.formatScore(data.finalBid).$1,
+          },
+        ),
       ),
     );
   }
@@ -986,7 +1032,7 @@ class GameLobbyController {
   void notifyMediaDownloaded() =>
       socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
 
-  void _onMediaDownloadStatus(dynamic data) {
+  Future<void> _onMediaDownloadStatus(dynamic data) async {
     if (data is! Map) return;
 
     final statusData = MediaDownloadStatusEventPayload.fromJson(
@@ -1009,7 +1055,7 @@ class GameLobbyController {
           timer: statusData.timer,
         );
       }
-      getIt<GameQuestionController>().onAllPlayersReady();
+      await getIt<GameQuestionController>().onAllPlayersReady();
     }
   }
 }

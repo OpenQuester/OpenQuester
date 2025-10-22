@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
-import 'package:talker_flutter/talker_flutter.dart' hide TalkerLogger;
 
 // Keep for backward compatibility, but primary access is through ProfileDialog
 @RoutePage()
@@ -112,6 +111,7 @@ class _LoginContent extends WatchingWidget {
         const _DiscordLoginBtn(),
         LoadingButtonBuilder(
           onPressed: () => _loginAndGetUsername(context, GuestAuthType()),
+          onError: handleError,
           builder: (context, child, onPressed) {
             return FilledButton.tonalIcon(
               onPressed: onPressed,
@@ -136,6 +136,7 @@ class _DiscordLoginBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return LoadingButtonBuilder(
       onPressed: () => _loginAndGetUsername(context, Oauth2AuthType()),
+      onError: handleError,
       builder: (context, child, onPressed) {
         return FilledButton.icon(
           onPressed: onPressed,
@@ -309,6 +310,7 @@ class _ProfileAvatar extends StatelessWidget {
           bottom: -4,
           right: -4,
           child: LoadingButtonBuilder(
+            onError: handleError,
             builder: (context, child, onPressed) => Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -555,12 +557,7 @@ class _AppInfo extends StatelessWidget {
               ),
             ),
             IconButton(
-              onPressed: () => showDialog<void>(
-                context: context,
-                useSafeArea: false,
-                builder: (context) =>
-                    TalkerScreen(talker: getIt<TalkerLogger>().talker),
-              ),
+              onPressed: () => getIt<TalkerLogger>().showTalkerDialog(context),
               icon: const Icon(Icons.bug_report_outlined, size: 16),
             ),
           ],

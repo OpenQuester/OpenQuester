@@ -22,7 +22,7 @@ class AppRouter extends RootStackRouter {
       ),
       AutoRoute(page: GameLobbyRoute.page, path: '/games/:gameId'),
       AutoRoute(page: ClickerRoute.page, path: '/clicker'),
-      AutoRoute(page: TestScreenRoute.page, path: '/test'),
+      AutoRoute(page: PackageEditorRoute.page, path: '/editor'),
     ];
   }
 

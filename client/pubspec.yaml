@@ -4,7 +4,7 @@ publish_to: "none"
 version: 0.22.0
 
 environment:
-  sdk: ">=3.8.0 <4.0.0"
+  sdk: ">=3.9.0 <4.0.0"
   flutter: 3.35.6
 
 dependencies:
@@ -13,18 +13,25 @@ dependencies:
   flutter_web_plugins:
     sdk: flutter
 
-  auto_route: ^10.1.2
+  # Local packages
   openapi:
     path: ../openapi/dart_sdk/
+  siq_file:
+    path: ./packages/siq_file/
+  oq_compress:
+    path: ./packages/oq_compress/
+  oq_editor:
+    path: ./packages/oq_editor/
+  oq_shared:
+    path: ./packages/oq_shared/
+  #
+
+  auto_route: ^10.1.2
   envied: ^1.3.1
   package_info_plus: ^9.0.0
   flutter_native_splash: ^2.4.6
   dio: ^5.9.0
   file_picker: ^10.3.3
-  siq_file:
-    path: ./packages/siq_file/
-  siq_compress:
-    path: ./packages/siq_compress/
   injectable: ^2.5.2
   get_it: ^8.2.0
   watch_it: ^1.7.0
@@ -59,8 +66,8 @@ dependencies:
   url_launcher: ^6.3.2
   video_player: ^2.10.0
   video_player_win: ^3.2.0
-  toastification: ^3.0.3
   fvp: ^0.35.0
+  toastification: ^3.0.3
   dotted_border: ^3.1.0
   flutter_avif: ^3.1.0
   flutter_cache_manager: ^3.4.1

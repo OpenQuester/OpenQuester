@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 import 'package:talker_flutter/talker_flutter.dart';
 
@@ -61,6 +62,19 @@ class TalkerLogger implements BaseLogger {
     StackTrace? stackTrace,
   }) {
     talker.debug(message, error, stackTrace);
+  }
+
+  bool showingDialog = false;
+
+  Future<void> showTalkerDialog(BuildContext context) async {
+    if (showingDialog) return;
+    showingDialog = true;
+    await showDialog<void>(
+      context: context,
+      useSafeArea: false,
+      builder: (context) => TalkerScreen(talker: getIt<TalkerLogger>().talker),
+    );
+    showingDialog = false;
   }
 }
 

@@ -48,7 +48,15 @@ class _MobileHomeState extends State<_MobileHome> {
               )
             : null,
       ),
-      floatingActionButton: const _StartGameButton(),
+      floatingActionButton: const Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        spacing: 16,
+        children: [
+          _OpenEditorButton(),
+          _StartGameButton(),
+        ],
+      ),
       body: Column(children: [_destionations[index].$1.expand()]),
     );
   }
@@ -81,9 +89,26 @@ class _StartGameButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FloatingActionButton.extended(
+      heroTag: 'start_game',
       onPressed: () => const CreateGameRoute().push<void>(context),
       label: Text(LocaleKeys.start_game.tr()),
       icon: const Icon(Icons.play_arrow_outlined),
+    );
+  }
+}
+
+class _OpenEditorButton extends StatelessWidget {
+  const _OpenEditorButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton.extended(
+      heroTag: 'open_package_editor',
+      foregroundColor: context.theme.colorScheme.onSecondaryContainer,
+      backgroundColor: context.theme.colorScheme.secondaryContainer,
+      onPressed: () => const PackageEditorRoute().push<void>(context),
+      label: Text(LocaleKeys.package_editor.tr()),
+      icon: const Icon(Icons.edit),
     );
   }
 }
@@ -159,7 +184,11 @@ class _WideHomeLeftBar extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints.tightFor(width: 220),
       padding: 35.top,
-      child: const Column(children: [_StartGameButton()]),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 16,
+        children: [_StartGameButton(), _OpenEditorButton()],
+      ).paddingLeft(16),
     );
   }
 }

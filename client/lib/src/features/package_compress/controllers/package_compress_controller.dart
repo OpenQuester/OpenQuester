@@ -1,6 +1,6 @@
 import 'package:openquester/src/connection/files/file_service.dart';
+import 'package:oq_compress/oq_compress.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:siq_compress/siq_compress.dart';
 import 'package:universal_io/io.dart';
 
 class PackageCompressController {
@@ -9,7 +9,7 @@ class PackageCompressController {
     final file = fileResult?.files.firstOrNull;
     if (file == null) return;
 
-    final encoder = SiqFileEncoder();
+    final encoder = OqFileEncoder();
     final tempFolder = await getTemporaryDirectory();
     final workDir = Directory(
       [
