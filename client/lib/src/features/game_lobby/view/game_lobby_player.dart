@@ -194,19 +194,13 @@ class _MediaDownloadIndicator extends WatchingWidget {
       (GameQuestionController e) => e.questionData,
     );
 
-    // Only show indicator if there's an active question with media
     final hasMedia = questionData?.file != null;
-    if (!hasMedia) return const SizedBox.shrink();
-
-    // Show check icon if downloaded, loading icon if not
     final mediaDownloaded = player.mediaDownloaded;
+    if (!hasMedia || mediaDownloaded) return const SizedBox.shrink();
 
-    return Icon(
-      mediaDownloaded ? Icons.check_circle : Icons.downloading,
-      color: mediaDownloaded ? Colors.green : Colors.orange,
-      size: 16,
-    ).withTooltip(
-      msg: mediaDownloaded ? 'Media Downloaded' : 'Downloading Media...',
-    );
+    // Show loader if not downloaded yet
+    return const CircularProgressIndicator(strokeWidth: 1, color: Colors.white)
+        .withSize(width: 16, height: 16)
+        .withTooltip(msg: LocaleKeys.question_waiting_for_all_players.tr());
   }
 }

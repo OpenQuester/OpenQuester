@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openquester/common_imports.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,16 +12,16 @@ class GameQuestionController {
   late final questionData = ValueNotifier<GameQuestionData?>(null)
     ..addListener(_onQuestionChange);
   final mediaController = ValueNotifier<VideoPlayerController?>(null);
-  final showMedia = ValueNotifier<bool>(false);
   final error = ValueNotifier<String?>(null);
   final volume = ValueNotifier<double>(.5);
+  final showMedia = ValueNotifier<bool>(false);
   final waitingForPlayers = ValueNotifier<bool>(false);
 
   File? _tmpFile;
   bool ignoreWaitingForPlayers = false;
 
   Future<void> clear() async {
-    logger.d('Clearing question data');
+    logger.d('GameQuestionController: Clearing question data');
     questionData.value = null;
     error.value = null;
     showMedia.value = false;
@@ -99,25 +100,30 @@ class GameQuestionController {
       return VideoPlayerController.networkUrl(uri);
     } else {
       // Mobile/Desktop: Download and use local file for reliable preloading
-      await _setTmpFile(file);
-      await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
-      return VideoPlayerController.file(_tmpFile!);
+      final tmpfile = await _setTmpFile(file);
+      await Dio().downloadUri(uri, _tmpFile!.path);
+      return VideoPlayerController.file(tmpfile);
     }
   }
 
   Future<void> _cacheFile(Uri uri) async {
-    await getIt<DioController>().client.getUri<void>(uri);
+    await Dio().getUri<void>(uri);
   }
 
   /// Called by GameLobbyController when all players have downloaded media
   Future<void> onAllPlayersReady() async {
+    logger.d(
+      'GameQuestionController: All players ready, starting media playback '
+      'waitingForPlayers.value: ${waitingForPlayers.value}',
+    );
     if (waitingForPlayers.value) {
       waitingForPlayers.value = false;
+      showMedia.value = true;
       await mediaController.value?.play();
     }
   }
 
-  Future<void> _setTmpFile(FileItem file) async {
+  Future<File> _setTmpFile(FileItem file) async {
     final tmpDir = await getTemporaryDirectory();
     final extension = switch (file.type) {
       PackageFileType.video => 'mp4',
@@ -131,6 +137,7 @@ class GameQuestionController {
         [file.md5, extension].join('.'),
       ].join(Platform.pathSeparator),
     );
+    return _tmpFile!;
   }
 
   Future<void> clearVideoControllers() async {
