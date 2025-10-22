@@ -87,6 +87,10 @@ class GameQuestionController {
     // TODO: Start slideshow timer
   }
 
+  static final Dio _cacheDio = Dio(
+    BaseOptions(receiveTimeout: const Duration(seconds: 10)),
+  );
+
   Future<VideoPlayerController> _loadController(
     Uri uri,
     FileItem file,
@@ -99,15 +103,30 @@ class GameQuestionController {
       await _cacheFile(uri);
       return VideoPlayerController.networkUrl(uri);
     } else {
-      // Mobile/Desktop: Download and use local file for reliable preloading
-      final tmpfile = await _setTmpFile(file);
-      await Dio().downloadUri(uri, _tmpFile!.path);
-      return VideoPlayerController.file(tmpfile);
+      try {
+        // Mobile/Desktop: Download and use local file for reliable preloading
+        final tmpfile = await _setTmpFile(file);
+        await _cacheDio.downloadUri(uri, _tmpFile!.path);
+        return VideoPlayerController.file(tmpfile);
+      } catch (e) {
+        logger.d(
+          'GameQuestionController._loadController: '
+          'Failed to preload media from $uri: $e',
+        );
+        return VideoPlayerController.networkUrl(uri);
+      }
     }
   }
 
   Future<void> _cacheFile(Uri uri) async {
-    await Dio().getUri<void>(uri);
+    try {
+      await _cacheDio.getUri<void>(uri);
+    } catch (e) {
+      logger.d(
+        'GameQuestionController._cacheFile: '
+        'Failed to preload media from $uri: $e',
+      );
+    }
   }
 
   /// Called by GameLobbyController when all players have downloaded media
