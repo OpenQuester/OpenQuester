@@ -199,10 +199,8 @@ class _MediaDownloadIndicator extends WatchingWidget {
     if (!hasMedia || mediaDownloaded) return const SizedBox.shrink();
 
     // Show loader if not downloaded yet
-    return const CircularProgressIndicator(strokeWidth: .5)
-        .withSize(width: 8, height: 8)
-        .withTooltip(
-          msg: LocaleKeys.question_waiting_for_all_players.tr(),
-        );
+    return const CircularProgressIndicator(strokeWidth: 1, color: Colors.white)
+        .withSize(width: 16, height: 16)
+        .withTooltip(msg: LocaleKeys.question_waiting_for_all_players.tr());
   }
 }
