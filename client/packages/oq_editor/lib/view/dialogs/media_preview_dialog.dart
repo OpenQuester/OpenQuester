@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:nb_utils/nb_utils.dart';
@@ -192,7 +194,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
   @override
   void initState() {
     super.initState();
-    _initializeVideo().ignore();
+    unawaited(_initializeVideo());
   }
 
   Future<void> _initializeVideo() async {
@@ -409,7 +411,7 @@ class _AudioPreviewState extends State<_AudioPreview> {
   @override
   void initState() {
     super.initState();
-    _initializeAudio().ignore();
+    unawaited(_initializeAudio());
   }
 
   Future<void> _initializeAudio() async {

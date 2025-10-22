@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
@@ -29,7 +31,7 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
   @override
   void initState() {
     super.initState();
-    _initializeVideo().ignore();
+    unawaited(_initializeVideo());
   }
 
   Future<void> _initializeVideo() async {
@@ -201,13 +203,13 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
     );
   }
 
-  void _togglePlayPause() {
+  Future<void> _togglePlayPause() async {
     if (_controller == null || !_isInitialized) return;
 
     if (_controller!.value.isPlaying) {
-      _controller!.pause().ignore();
+      await _controller!.pause();
     } else {
-      _controller!.play().ignore();
+      await _controller!.play();
     }
     setState(() {});
   }

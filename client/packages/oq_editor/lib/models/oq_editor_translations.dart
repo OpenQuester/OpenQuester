@@ -203,9 +203,8 @@ abstract class OqEditorTranslations {
   String get addFromTemplate;
 
   /// Exit dialog
-  String get unsavedChanges;
-  String get unsavedChangesMessage;
-  String get discardChanges;
+  String get leaveWarning;
+  String get leave;
   String get saveToServer;
   String get saveAsFile;
   String get continueEditing;

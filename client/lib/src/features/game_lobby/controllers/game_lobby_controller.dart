@@ -603,28 +603,41 @@ class GameLobbyController {
           mediaPlaytimeMs = playtimeLeft.inMilliseconds;
 
           // Wait for media to play
-          while (controller.mediaController.value?.value.isPlaying != true) {
+          final timeout = Timer(const Duration(seconds: 5), () {});
+          while (controller.mediaController.value?.value.isPlaying != true &&
+              timeout.isActive) {
             await Future<void>.delayed(const Duration(milliseconds: 100));
           }
         }
       }
 
-      final delayForShowingAnswer = mediaPlaytimeMs == null
-          ? showMediaForMs ?? 5000
-          : min(showMediaForMs ?? 5000, mediaPlaytimeMs);
+      const defaultAnswerDurationMs = 5000;
+      var answerShowingDurationMs = max(
+        // Cap duration to minimum of default duration
+        defaultAnswerDurationMs,
+        // Use media playtime or question defined time
+        min(
+          showMediaForMs ?? defaultAnswerDurationMs,
+          mediaPlaytimeMs ?? defaultAnswerDurationMs,
+        ),
+      );
+      // Cap maximum duration to 30 seconds
+      if (answerShowingDurationMs > 30000) answerShowingDurationMs = 30000;
 
       gameData.value = gameData.value?.copyWith.gameState(
         timer: GameStateTimer(
           startedAt: DateTime.now(),
-          durationMs: delayForShowingAnswer,
+          durationMs: answerShowingDurationMs,
           elapsedMs: 0,
         ),
       );
       logger.d(
-        'Waiting for $delayForShowingAnswer ms to hide answer '
+        'Waiting for $answerShowingDurationMs ms to hide answer '
         'mediaPlaytimeMs: $mediaPlaytimeMs, showMediaForMs: $showMediaForMs',
       );
-      await Future<void>.delayed(Duration(milliseconds: delayForShowingAnswer));
+      await Future<void>.delayed(
+        Duration(milliseconds: answerShowingDurationMs),
+      );
     } catch (e) {
       onError(e);
     }

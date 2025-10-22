@@ -107,8 +107,7 @@ class _OpenEditorButton extends StatelessWidget {
       foregroundColor: context.theme.colorScheme.onSecondaryContainer,
       backgroundColor: context.theme.colorScheme.secondaryContainer,
       onPressed: () => const PackageEditorRoute().push<void>(context),
-      tooltip: LocaleKeys.package_editor.tr(),
-      label: Text(LocaleKeys.editor.tr()),
+      label: Text(LocaleKeys.package_editor.tr()),
       icon: const Icon(Icons.edit),
     );
   }

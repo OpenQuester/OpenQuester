@@ -1,24 +1,10 @@
 # OQ Editor
 
-A comprehensive Flutter package for editing OpenQuester quiz packages with a multi-step workflow and reactive state management.
-
-## Features
-
-- ✅ **Multi-step editor flow**: Package Info → Rounds → Themes → Questions
-- ✅ **Reactive state management**: Built on `ValueNotifier` + `watch_it`
-- ✅ **Complete CRUD operations**: Add, Edit, Delete, Reorder for all entities
-- ✅ **Beautiful UI/UX**: Material 3 design with smooth animations
-- ✅ **Framework-agnostic translations**: Compatible with any i18n solution
-- ✅ **Type-safe**: Full null safety with freezed models
-- ✅ **Reorderable lists**: Drag-and-drop support for rounds and questions
-- ✅ **Grid layout**: Visual theme management
-- ✅ **Validation & confirmations**: User-friendly error handling
-
 ## Architecture
 
 ### Navigation Flow
 
-```
+```Text
 PackageInfo → RoundsList → RoundEditor → ThemesGrid → ThemeEditor → QuestionsList
      ↓            ↓            ↓            ↓            ↓            ↓
   [Basic        [Manage     [Edit        [Grid        [Edit       [Manage
@@ -40,7 +26,7 @@ PackageInfo → RoundsList → RoundEditor → ThemesGrid → ThemeEditor → Qu
 - **ValueNotifiers**: Reactive state for package, currentStep, navigationContext
 - **watch_it**: Dependency injection and watching state changes
 
-## Usage
+## Getting Started
 
 ### Basic Setup
 
@@ -196,7 +182,7 @@ class OqEditorEasyLocalizationTranslations implements OqEditorTranslations {
 }
 ```
 
-## Usage
+### Usage
 
 ```dart
 import 'package:oq_editor/oq_editor_package.dart';

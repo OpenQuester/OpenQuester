@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
@@ -29,7 +31,7 @@ class _AudioPreviewWidgetState extends State<AudioPreviewWidget> {
   @override
   void initState() {
     super.initState();
-    _initializeAudio().ignore();
+    unawaited(_initializeAudio());
   }
 
   Future<void> _initializeAudio() async {
@@ -230,13 +232,13 @@ class _AudioPreviewWidgetState extends State<AudioPreviewWidget> {
     );
   }
 
-  void _togglePlayPause() {
+  Future<void> _togglePlayPause() async {
     if (_controller == null || !_isInitialized) return;
 
     if (_controller!.value.isPlaying) {
-      _controller!.pause().ignore();
+      await _controller!.pause();
     } else {
-      _controller!.play().ignore();
+      await _controller!.play();
     }
   }
 

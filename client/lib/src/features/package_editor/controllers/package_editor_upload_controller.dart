@@ -82,7 +82,7 @@ class PackageEditorUploadController {
     // Return package with updated ID if available
     // In production, you'd fetch the full package from backend
     if (packageId == null) {
-      throw Exception('Package upload completed but no ID returned');
+      throw UserError(controller.currentMessage);
     }
 
     // Return package with updated ID
@@ -133,9 +133,14 @@ class PackageEditorUploadController {
 
       yield* _uploadMediaFiles(uploadLinks, mediaFilesByHash, result.id);
     } catch (error, stackTrace) {
-      logger.e('Package upload failed', error: error, stackTrace: stackTrace);
-      yield PackageUploadState.error(
+      final errorMessage = Api.parseError(error) ?? error.toString();
+      logger.e(
+        'Package upload failed: $errorMessage',
         error: error,
+        stackTrace: stackTrace,
+      );
+      yield PackageUploadState.error(
+        error: errorMessage,
         stackTrace: stackTrace,
       );
     }

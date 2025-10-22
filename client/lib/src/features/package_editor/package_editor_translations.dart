@@ -463,14 +463,10 @@ class AppOqEditorTranslations implements OqEditorTranslations {
   String get addFromTemplate => LocaleKeys.oq_editor_add_from_template.tr();
 
   @override
-  String get unsavedChanges => LocaleKeys.oq_editor_unsaved_changes.tr();
+  String get leaveWarning => LocaleKeys.oq_editor_leave_warning.tr();
 
   @override
-  String get unsavedChangesMessage =>
-      LocaleKeys.oq_editor_unsaved_changes_message.tr();
-
-  @override
-  String get discardChanges => LocaleKeys.oq_editor_discard_changes.tr();
+  String get leave => LocaleKeys.oq_editor_leave.tr();
 
   @override
   String get saveToServer => LocaleKeys.oq_editor_save_to_server.tr();

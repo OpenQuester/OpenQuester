@@ -136,8 +136,7 @@ class OqEditorScreen extends WatchingWidget {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(controller.translations.unsavedChanges),
-        content: Text(controller.translations.unsavedChangesMessage),
+        title: Text(controller.translations.leaveWarning),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -148,7 +147,7 @@ class OqEditorScreen extends WatchingWidget {
             style: TextButton.styleFrom(
               foregroundColor: Colors.red,
             ),
-            child: Text(controller.translations.discardChanges),
+            child: Text(controller.translations.leave),
           ),
           TextButton(
             onPressed: () async {
