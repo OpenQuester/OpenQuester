@@ -634,10 +634,9 @@ class GameLobbyController {
         defaultAnswerDurationMs,
 
         // Use media playtime or question defined time
-        min(
-          showMediaForMs ?? mediaPlaytimeMs ?? defaultAnswerDurationMs,
-          mediaPlaytimeMs ?? showMediaForMs ?? defaultAnswerDurationMs,
-        ),
+        showMediaForMs != null && mediaPlaytimeMs != null
+            ? min(showMediaForMs, mediaPlaytimeMs)
+            : showMediaForMs ?? mediaPlaytimeMs ?? defaultAnswerDurationMs,
       );
       // Cap maximum duration to 30 seconds
       if (answerShowingDurationMs > 30000) answerShowingDurationMs = 30000;
