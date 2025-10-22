@@ -123,6 +123,9 @@ describe("Hidden Question Flow Tests", () => {
           });
         });
 
+        // Wait for media download phase and emit MEDIA_DOWNLOADED for the player
+        await utils.waitForMediaDownload(showmanSocket, playerSockets);
+
         // Verify game state shows we're now showing the question
         const showingGameState = await utils.getGameState(gameId);
         expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);
@@ -145,7 +148,7 @@ describe("Hidden Question Flow Tests", () => {
 
         // Find and pick a hidden question using the helper method
         const hiddenQuestionId = await utils.getFirstHiddenQuestionId(gameId);
-        await utils.pickQuestion(showmanSocket, hiddenQuestionId);
+        await utils.pickQuestion(showmanSocket, hiddenQuestionId, playerSockets);
 
         // Verify we can answer the hidden question normally
         await utils.answerQuestion(playerSocket, showmanSocket);
@@ -272,7 +275,7 @@ describe("Hidden Question Flow Tests", () => {
         }
 
         // Pick first hidden question and verify price is revealed
-        await utils.pickQuestion(showmanSocket, hiddenQuestions[0].id);
+        await utils.pickQuestion(showmanSocket, hiddenQuestions[0].id, playerSockets);
 
         // Complete the first question
         await utils.answerQuestion(playerSocket, showmanSocket);

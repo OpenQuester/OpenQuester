@@ -136,6 +136,20 @@ describe("Choice Question Flow Tests", () => {
         expect(questionData.data.answers).toBeDefined();
         expect(questionData.data.answers?.length).toBe(4);
 
+        const downloadingGameState = await utils.getGameState(gameId);
+        expect(downloadingGameState!.questionState).toBe(
+          QuestionState.MEDIA_DOWNLOADING
+        );
+        expect(downloadingGameState!.currentQuestion).toBeDefined();
+
+        const mediaStatusPromise = utils.waitForEvent(
+          playerSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
+        playerSocket.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+        await mediaStatusPromise;
+
         const showingGameState = await utils.getGameState(gameId);
         expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);
         expect(showingGameState!.currentQuestion).toBeDefined();

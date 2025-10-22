@@ -15,7 +15,7 @@ export interface ThemeEliminateInputData {
 
 export interface ThemeEliminateOutputData {
   themeId: number;
-  eliminatedBy: number | null; // Player ID
+  eliminatedBy: number; // Player ID
   /** Next player to pick theme, null if elimination complete */
   nextPlayerId: number | null;
 }

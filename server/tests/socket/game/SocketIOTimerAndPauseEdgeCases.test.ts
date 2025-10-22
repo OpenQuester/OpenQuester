@@ -112,7 +112,7 @@ describe("Socket Timer and Pause Edge Cases", () => {
       try {
         // Present question and start answer timer
         await utils.startGame(showmanSocket);
-        await utils.pickQuestion(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Verify game is in SHOWING state
         const showingState = await utils.getGameState(setup.gameId);
@@ -163,7 +163,7 @@ describe("Socket Timer and Pause Edge Cases", () => {
       } finally {
         await utils.cleanupGameClients(setup);
       }
-    });
+    }, 20000); // Increased timeout to account for media download timeout
 
     it("should handle pausing already paused game", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);

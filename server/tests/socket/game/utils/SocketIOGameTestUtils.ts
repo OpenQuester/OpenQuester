@@ -15,9 +15,11 @@ import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
+import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
@@ -548,9 +550,61 @@ export class SocketGameTestUtils {
     });
   }
 
+  /**
+   * Wait for media download phase to complete
+   * Sends MEDIA_DOWNLOADED events sequentially for each player,
+   * waiting for showman to receive MEDIA_DOWNLOAD_STATUS after each emission.
+   * Resolves when allPlayersReady=true is received.
+   */
+  public async waitForMediaDownload(
+    showmanSocket: GameClientSocket,
+    playerSockets: GameClientSocket[]
+  ): Promise<void> {
+    let playerIndex = 0;
+
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        showmanSocket.removeListener(
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          handler
+        );
+        reject(new Error("Timeout waiting for all players to be ready"));
+      }, 15000);
+
+      const handler = (data: MediaDownloadStatusBroadcastData) => {
+        if (data.allPlayersReady === true) {
+          clearTimeout(timeout);
+          showmanSocket.removeListener(
+            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+            handler
+          );
+          resolve();
+        } else if (playerIndex < playerSockets.length) {
+          // Received intermediate status, send next player's download event
+          playerSockets[playerIndex].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+          playerIndex++;
+        }
+      };
+
+      showmanSocket.on(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, handler);
+
+      // Emit first player's MEDIA_DOWNLOADED to start the chain
+      if (playerSockets.length > 0) {
+        playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+        playerIndex = 1;
+      } else {
+        // No players - should not happen but handle gracefully
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+  }
+
   public async pickQuestion(
     showmanSocket: GameClientSocket,
-    questionId?: number
+    questionId?: number,
+    playerSockets?: GameClientSocket[],
+    options?: { skipMediaDownload?: boolean }
   ): Promise<void> {
     let actualQuestionId = questionId;
 
@@ -576,6 +630,19 @@ export class SocketGameTestUtils {
     });
 
     await questionDataPromise;
+
+    // Automatically handle media download phase unless explicitly skipped
+    if (!options?.skipMediaDownload && playerSockets) {
+      const socketUserData = await this.getSocketUserData(showmanSocket);
+      if (socketUserData?.gameId) {
+        const gameState = await this.getGameState(socketUserData.gameId);
+
+        // Only wait for media download if we're in MEDIA_DOWNLOADING state
+        if (gameState?.questionState === QuestionState.MEDIA_DOWNLOADING) {
+          await this.waitForMediaDownload(showmanSocket, playerSockets);
+        }
+      }
+    }
   }
 
   public async answerQuestion(
