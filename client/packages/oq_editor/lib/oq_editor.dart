@@ -10,6 +10,7 @@ export 'models/package_upload_state.dart';
 export 'models/ui_media_file.dart';
 export 'utils/blob_helper.dart';
 export 'utils/extensions.dart';
+export 'utils/media_file_encoder.dart';
 export 'utils/media_type_detector.dart';
 export 'utils/media_upload_helper.dart';
 export 'utils/media_utils.dart';

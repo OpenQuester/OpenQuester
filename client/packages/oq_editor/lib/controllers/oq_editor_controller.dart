@@ -6,6 +6,7 @@ import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
 import 'package:oq_editor/models/package_upload_state.dart';
 import 'package:oq_editor/utils/extensions.dart';
+import 'package:oq_editor/utils/media_file_encoder.dart';
 import 'package:oq_editor/utils/oq_package_archiver.dart';
 import 'package:universal_io/io.dart';
 
@@ -35,6 +36,10 @@ class OqEditorController {
   /// Optional stream of upload progress states
   /// If provided, the save dialog will show real-time progress
   final Stream<PackageUploadState>? onSaveProgressStream;
+
+  /// Media file encoder for compressing files before upload/export
+  /// Maintains a cache of encoded files to avoid re-encoding
+  late final MediaFileEncoder _mediaFileEncoder = MediaFileEncoder();
 
   /// Current package being edited
   final ValueNotifier<OqPackage> package = ValueNotifier<OqPackage>(
@@ -130,6 +135,8 @@ class OqEditorController {
   /// Save the package
   /// Calls the onSave callback with the current package and pending media files
   /// Normalizes order fields for all questions before saving
+  /// Encodes media files for compression before upload and updates package
+  /// file hashes
   Future<OqPackage> savePackage() async {
     if (onSave == null) {
       throw UnimplementedError(
@@ -140,9 +147,15 @@ class OqEditorController {
     // Normalize order fields before saving
     final normalizedPackage = _normalizePackageOrder(package.value);
 
-    final savedPackage = await onSave!(
+    // Encode media files for compression and update package with new hashes
+    final encodingResult = await _mediaFileEncoder.encodePackage(
       normalizedPackage,
       Map.from(_mediaFilesByHash),
+    );
+
+    final savedPackage = await onSave!(
+      encodingResult.package,
+      encodingResult.files,
     );
 
     // Update the package with the saved version
@@ -155,20 +168,28 @@ class OqEditorController {
   /// Downloads a zip archive with structure:
   /// /content.json - serialized package
   /// /files/{md5} - media files with hash as filename
+  /// Encodes media files for compression before export and updates package
+  /// file hashes
   Future<void> exportPackage() async {
     // Normalize package before export
     final normalizedPackage = _normalizePackageOrder(package.value);
 
-    // Create archive with media files
-    final archiveBytes = await OqPackageArchiver.exportPackage(
+    // Encode media files for compression and update package with new hashes
+    final encodingResult = await _mediaFileEncoder.encodePackage(
       normalizedPackage,
       Map.from(_mediaFilesByHash),
+    );
+
+    // Create archive with encoded media files and updated package
+    final archiveBytes = await OqPackageArchiver.exportPackage(
+      encodingResult.package,
+      encodingResult.files,
     );
 
     // Save to file
     await OqPackageArchiver.saveArchiveToFile(
       archiveBytes,
-      normalizedPackage.title,
+      encodingResult.package.title,
     );
   }
 
@@ -600,6 +621,7 @@ class OqEditorController {
   /// Dispose resources
   Future<void> dispose() async {
     await clearPendingMediaFiles();
+    _mediaFileEncoder.dispose();
     package.dispose();
     currentStep.dispose();
     navigationContext.dispose();

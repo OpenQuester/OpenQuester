@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import 'package:fetch_client/fetch_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openquester/openquester.dart';
+import 'package:oq_editor/oq_editor.dart';
+import 'package:universal_io/io.dart';
 
 @injectable
 class S3UploadController {
@@ -60,6 +62,89 @@ class S3UploadController {
         if (e.type != DioExceptionType.unknown) rethrow;
       }
     }
+  }
+
+  /// Upload file from MediaFileReference - reads bytes only when needed
+  /// Optimized to avoid unnecessary memory usage when path is available
+  Future<void> uploadFileFromReference({
+    required Uri uploadLink,
+    required String md5Hash,
+    required MediaFileReference mediaFile,
+  }) async {
+    // Optimize: Use path directly if available (native platforms)
+    // Only read into memory as last resort (web platform or no path)
+    if (mediaFile.platformFile.path != null && !kIsWeb) {
+      await _uploadFileFromPath(
+        uploadLink: uploadLink,
+        md5Hash: md5Hash,
+        filePath: mediaFile.platformFile.path!,
+        fileSize: mediaFile.platformFile.size,
+      );
+    } else {
+      // Fallback: read bytes (web or no path available)
+      final bytes = await _readMediaBytes(mediaFile);
+      await uploadFile(
+        uploadLink: uploadLink,
+        md5Hash: md5Hash,
+        file: bytes,
+      );
+    }
+  }
+
+  /// Upload file directly from path (native platforms only)
+  /// Avoids loading entire file into memory
+  Future<void> _uploadFileFromPath({
+    required Uri uploadLink,
+    required String md5Hash,
+    required String filePath,
+    required int? fileSize,
+  }) async {
+    bool validateStatus(int? status) {
+      if ({412}.contains(status)) return true;
+      return status != null && status >= 200 && status < 300;
+    }
+
+    // Only use Dio for file uploads from path (better streaming support)
+    final client = Dio(
+      BaseOptions(
+        persistentConnection: true,
+        validateStatus: validateStatus,
+      ),
+    );
+
+    final fileHeaders = _fileHeaders(md5Hash);
+    final file = File(filePath);
+    final headers = {
+      ...fileHeaders,
+      'Content-Length': (fileSize ?? await file.length()).toString(),
+      'content-type': 'application/octet-stream',
+    };
+
+    try {
+      await client.put<void>(
+        uploadLink.toString(),
+        data: file.openRead(), // Stream the file instead of loading into memory
+        options: Options(headers: headers),
+      );
+    } on DioException catch (e) {
+      // Ignore "Peer reset connection" error
+      if (e.type != DioExceptionType.unknown) rethrow;
+    }
+  }
+
+  /// Read bytes from MediaFileReference (web or native)
+  Future<Uint8List> _readMediaBytes(MediaFileReference media) async {
+    final platformFile = media.platformFile;
+
+    if (platformFile.bytes != null) {
+      return platformFile.bytes!;
+    }
+
+    if (platformFile.path != null) {
+      return File(platformFile.path!).readAsBytes();
+    }
+
+    throw Exception('Cannot read file bytes for: ${platformFile.name}');
   }
 
   Future<String> getLinkAndUpload(Uint8List file) async {
