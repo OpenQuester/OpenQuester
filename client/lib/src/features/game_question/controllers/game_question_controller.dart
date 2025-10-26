@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -60,7 +61,7 @@ class GameQuestionController {
         // Platform-specific media handling for proper preloading
         controller = await _loadController(uri, file);
 
-        await controller.setVolume(volume.value);
+        await controller.setVolume(_toLogVolume(volume.value));
         await controller.initialize();
 
         final waitMs = questionData.value?.file?.displayTime;
@@ -166,7 +167,7 @@ class GameQuestionController {
 
   Future<void> onChangeVolume(double volume) async {
     this.volume.value = volume.clamp(0, 1);
-    await mediaController.value?.setVolume(this.volume.value);
+    await mediaController.value?.setVolume(_toLogVolume(this.volume.value));
   }
 
   Future<void> onImageLoaded() async {
@@ -174,4 +175,11 @@ class GameQuestionController {
     // Wait for all players before showing
     getIt<GameLobbyController>().notifyMediaDownloaded();
   }
+
+  static const minVol = 0.003;
+  static const maxVol = 1;
+  static final double b = math.log(maxVol / minVol);
+
+  double _toLogVolume(double linear) =>
+      minVol * math.exp(b * linear.clamp(minVol, maxVol));
 }
