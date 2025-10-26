@@ -93,6 +93,13 @@ abstract class OqEditorTranslations {
   String get uploadComplete;
   String get pleaseWait;
 
+  /// Encoding dialog
+  String get encodingForUpload;
+  String get encodingForExport;
+  String get preparingFiles;
+  String get compressingFiles;
+  String get finalizingEncoding;
+
   /// Progress info
   String questionsInTheme(int count);
   String themesCount(int count);
@@ -211,14 +218,31 @@ abstract class OqEditorTranslations {
 
   /// Import/Export
   String get importPackage;
+  String get importSiqPackage;
   String get exportPackage;
   String get importPackageTooltip;
+  String get importSiqTooltip;
   String get exportPackageTooltip;
   String get errorExporting;
   String get errorImporting;
+  String get errorImportingSiq;
   String get packageImportedSuccessfully;
+  String get siqPackageImportedSuccessfully;
   String get packageExportedSuccessfully;
+  String get siqEncodingWarningTitle;
+  String get siqEncodingWarningMessage;
+  String get siqImportContinue;
 
   /// Media file display
   String displayTimeValue(int milliseconds);
+
+  /// Package size and encoding warnings
+  String get packageSize;
+  String packageSizeMB(double sizeMB);
+  String get encodingNotSupportedTitle;
+  String get encodingNotSupportedMessage;
+  String encodingNotSupportedDetails(double sizeMB);
+  String get uploadNowButton;
+  String get exportAndUploadButton;
+  String get exportRecommended;
 }

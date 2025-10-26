@@ -1,13 +1,17 @@
-import 'package:file_picker/file_picker.dart';
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/editor_step.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
 import 'package:oq_editor/models/package_upload_state.dart';
+import 'package:oq_editor/utils/editor_media_utils.dart';
 import 'package:oq_editor/utils/extensions.dart';
+import 'package:oq_editor/utils/media_file_encoder.dart';
 import 'package:oq_editor/utils/oq_package_archiver.dart';
-import 'package:universal_io/io.dart';
+import 'package:oq_editor/utils/siq_import_helper.dart';
+import 'package:oq_shared/oq_shared.dart';
 
 class OqEditorController {
   OqEditorController({
@@ -15,12 +19,16 @@ class OqEditorController {
     OqPackage? initialPackage,
     this.onSave,
     this.onSaveProgressStream,
+    this.logger,
   }) {
     package.value = initialPackage ?? OqPackageX.empty;
   }
 
   /// Translation provider injected from parent app
   final OqEditorTranslations translations;
+
+  /// Optional logger for debug messages
+  final BaseLogger? logger;
 
   /// Save callback function
   /// Should handle uploading media files and saving the package
@@ -35,6 +43,12 @@ class OqEditorController {
   /// Optional stream of upload progress states
   /// If provided, the save dialog will show real-time progress
   final Stream<PackageUploadState>? onSaveProgressStream;
+
+  /// Media file encoder for compressing files before upload/export
+  /// Maintains a cache of encoded files to avoid re-encoding
+  late final MediaFileEncoder _mediaFileEncoder = MediaFileEncoder(
+    logger: logger,
+  );
 
   /// Current package being edited
   final ValueNotifier<OqPackage> package = ValueNotifier<OqPackage>(
@@ -53,14 +67,22 @@ class OqEditorController {
 
   /// Navigation context tracking which round/theme/question is being edited
   final ValueNotifier<EditorNavigationContext> navigationContext =
-      ValueNotifier<EditorNavigationContext>(
-        EditorNavigationContext(),
-      );
+      ValueNotifier<EditorNavigationContext>(EditorNavigationContext());
 
   /// Media file references map by hash
   /// Key: MD5 hash of file, Value: MediaFileReference for upload
   /// This includes both newly added files and imported files from .oq archives
   final Map<String, MediaFileReference> _mediaFilesByHash = {};
+
+  /// Total size of media files in MB
+  final ValueNotifier<double> _totalSizeMB = ValueNotifier<double>(0);
+
+  /// Encoding progress stream controllers
+  StreamController<double>? _encodingProgressController;
+
+  /// Encoding progress stream for UI dialogs
+  Stream<double> get encodingProgressStream =>
+      _encodingProgressController?.stream ?? const Stream<double>.empty();
 
   // Last used settings for question creation
   /// Last used price value (persisted across question creations)
@@ -88,16 +110,11 @@ class OqEditorController {
     final mediaFile = _mediaFilesByHash[hash];
     if (mediaFile == null) return null;
 
-    // Return bytes from platform file
-    if (mediaFile.platformFile.bytes != null) {
-      return mediaFile.platformFile.bytes;
-    } else if (mediaFile.platformFile.path != null) {
-      // Read from path if bytes not available
-      final file = File(mediaFile.platformFile.path!);
-      return file.readAsBytes();
+    try {
+      return await mediaFile.platformFile.readBytes();
+    } catch (e) {
+      return null;
     }
-
-    return null;
   }
 
   /// Register a media file reference for upload
@@ -105,6 +122,7 @@ class OqEditorController {
   Future<String> registerMediaFile(MediaFileReference file) async {
     final hash = await file.calculateHash();
     _mediaFilesByHash[hash] = file;
+    _updateTotalSize();
     return hash;
   }
 
@@ -112,11 +130,33 @@ class OqEditorController {
   Future<void> unregisterMediaFile(String hash) async {
     final file = _mediaFilesByHash.remove(hash);
     await file?.disposeController();
+    _updateTotalSize();
   }
 
   /// Get all pending media files for upload
   Map<String, MediaFileReference> get pendingMediaFiles =>
       Map.unmodifiable(_mediaFilesByHash);
+
+  /// Calculate total size of pending media files in bytes
+  int get totalMediaFilesSize {
+    return _mediaFilesByHash.values.fold<int>(
+      0,
+      (total, file) => total + (file.fileSize ?? 0),
+    );
+  }
+
+  /// Calculate total size of pending media files in MB
+  double get totalMediaFilesSizeMB {
+    return totalMediaFilesSize / (1024 * 1024);
+  }
+
+  /// Get reactive total size in MB for watching
+  ValueNotifier<double> get totalSizeMBNotifier => _totalSizeMB;
+
+  /// Update the total size notifier
+  void _updateTotalSize() {
+    _totalSizeMB.value = totalMediaFilesSizeMB;
+  }
 
   /// Clear all pending media files
   Future<void> clearPendingMediaFiles() async {
@@ -125,92 +165,328 @@ class OqEditorController {
       _mediaFilesByHash.values.map((e) => e.disposeController()),
     );
     _mediaFilesByHash.clear();
+    _updateTotalSize();
   }
 
   /// Save the package
   /// Calls the onSave callback with the current package and pending media files
   /// Normalizes order fields for all questions before saving
+  /// Encodes media files for compression before upload and updates package
+  /// file hashes
   Future<OqPackage> savePackage() async {
-    if (onSave == null) {
-      throw UnimplementedError(
-        'onSave callback must be provided to OqEditorController',
+    StreamController<double>? progressController;
+
+    try {
+      if (onSave == null) {
+        throw UnimplementedError(
+          'onSave callback must be provided to OqEditorController',
+        );
+      }
+
+      // Start encoding progress tracking if there are media files
+      if (_mediaFilesByHash.isNotEmpty) {
+        progressController = StreamController<double>.broadcast();
+        _encodingProgressController = progressController;
+      }
+
+      // Normalize order fields before saving
+      final normalizedPackage = _normalizePackageOrder(package.value);
+
+      // Encode media files for compression and update package with new hashes
+      final encodingResult = await _mediaFileEncoder.encodePackage(
+        normalizedPackage,
+        Map.from(_mediaFilesByHash),
+        onProgress: progressController?.add,
       );
+
+      // Close encoding progress stream
+      await progressController?.close();
+      _encodingProgressController = null;
+
+      final savedPackage = await onSave!(
+        encodingResult.package,
+        encodingResult.files,
+      );
+
+      // Update the package with the saved version
+      package.value = savedPackage;
+
+      return savedPackage;
+    } catch (e) {
+      // Clean up progress stream on error
+      await progressController?.close();
+      _encodingProgressController = null;
+
+      logger?.e('Error saving package: $e');
+      rethrow;
     }
-
-    // Normalize order fields before saving
-    final normalizedPackage = _normalizePackageOrder(package.value);
-
-    final savedPackage = await onSave!(
-      normalizedPackage,
-      Map.from(_mediaFilesByHash),
-    );
-
-    // Update the package with the saved version
-    package.value = savedPackage;
-
-    return savedPackage;
   }
 
   /// Export package to .oq file
   /// Downloads a zip archive with structure:
   /// /content.json - serialized package
+  /// /encoded_files.json - metadata about encoded files
   /// /files/{md5} - media files with hash as filename
+  /// Encodes media files for compression before export and updates package
+  /// file hashes
   Future<void> exportPackage() async {
-    // Normalize package before export
-    final normalizedPackage = _normalizePackageOrder(package.value);
+    StreamController<double>? progressController;
 
-    // Create archive with media files
-    final archiveBytes = await OqPackageArchiver.exportPackage(
-      normalizedPackage,
-      Map.from(_mediaFilesByHash),
-    );
+    try {
+      // Start encoding progress tracking if there are media files
+      if (_mediaFilesByHash.isNotEmpty) {
+        progressController = StreamController<double>.broadcast();
+        _encodingProgressController = progressController;
+      }
 
-    // Save to file
-    await OqPackageArchiver.saveArchiveToFile(
-      archiveBytes,
-      normalizedPackage.title,
-    );
+      // Normalize package before export
+      final normalizedPackage = _normalizePackageOrder(package.value);
+
+      // Encode media files for compression and update package with new hashes
+      final encodingResult = await _mediaFileEncoder.encodePackage(
+        normalizedPackage,
+        Map.from(_mediaFilesByHash),
+        onProgress: progressController?.add,
+      );
+
+      // Close encoding progress stream
+      await progressController?.close();
+      _encodingProgressController = null;
+
+      // Create archive with encoded media files and updated package
+      final archiveBytes = await OqPackageArchiver.exportPackage(
+        encodingResult.package,
+        encodingResult.files,
+        encodedFileHashes: _mediaFileEncoder.encodedFileHashes,
+      );
+
+      // Save to file
+      await OqPackageArchiver.saveArchiveToFile(
+        archiveBytes,
+        encodingResult.package.title,
+      );
+    } catch (e) {
+      // Clean up progress stream on error
+      await progressController?.close();
+      _encodingProgressController = null;
+
+      logger?.e('Error exporting package: $e');
+      rethrow;
+    }
   }
 
   /// Import package from .oq file
   /// Replaces current package with imported data
   /// Converts imported file bytes to MediaFileReference objects
+  /// Restores encoded files cache from archive metadata to avoid re-encoding
   Future<void> importPackage() async {
-    // Pick file
-    final archiveBytes = await OqPackageArchiver.pickArchiveFile();
-    if (archiveBytes == null) return; // User cancelled
+    try {
+      // Pick file
+      final archiveBytes = await OqPackageArchiver.pickArchiveFile();
+      if (archiveBytes == null) return; // User cancelled
 
-    // Import package
-    final result = await OqPackageArchiver.importPackage(archiveBytes);
+      // Import package
+      final result = await OqPackageArchiver.importPackage(archiveBytes);
 
-    // Clear existing media files
-    await clearPendingMediaFiles();
+      // Clear existing media files
+      await clearPendingMediaFiles();
 
-    // Convert imported file bytes to MediaFileReference objects
-    // This allows them to be treated the same as newly added files
-    for (final entry in result.filesBytesByHash.entries) {
-      final hash = entry.key;
-      final bytes = entry.value;
+      // Populate encoder cache with encoded files from archive metadata
+      if (result.encodedFileHashes != null) {
+        _mediaFileEncoder.populateEncodedFilesCache(result.encodedFileHashes!);
+      }
 
-      // Create a PlatformFile from the bytes
-      // Use hash as filename since we don't have the original filename
-      final platformFile = PlatformFile(
-        name: hash,
-        size: bytes.length,
-        bytes: bytes,
-      );
+      // Convert imported file bytes to MediaFileReference objects
+      // This allows them to be treated the same as newly added files
+      for (final entry in result.filesBytesByHash.entries) {
+        final hash = entry.key;
+        final bytes = entry.value;
 
-      // Create MediaFileReference and register it
-      final mediaFile = MediaFileReference(platformFile: platformFile);
-      _mediaFilesByHash[hash] = mediaFile;
+        // Create MediaFileReference using utility
+        final mediaFile = EditorMediaUtils.createMediaFileFromBytes(
+          hash: hash,
+          bytes: bytes,
+        );
+        _mediaFilesByHash[hash] = mediaFile;
+      }
+
+      // Update total size after import
+      _updateTotalSize();
+
+      // Update package with imported data
+      package.value = result.package;
+
+      // Navigate to package info screen
+      navigateToPackageInfo();
+      refreshKey.value = UniqueKey();
+    } catch (e) {
+      logger?.e('Error importing package: $e');
+      rethrow;
     }
+  }
 
-    // Update package with imported data
-    package.value = result.package;
+  /// Import package from .siq file
+  /// Converts SIQ format to OQ package and replaces current data
+  /// Shows encoding warning and progress dialog
+  Future<void> importSiqPackage() async {
+    try {
+      // Clear existing media files first
+      await clearPendingMediaFiles();
 
-    // Navigate to package info screen
-    navigateToPackageInfo();
-    refreshKey.value = UniqueKey();
+      // Start SIQ import with progress tracking
+      await for (final progress in SiqImportHelper(
+        logger: logger,
+      ).pickAndConvertSiqFile()) {
+        switch (progress) {
+          case SiqImportPickingFile():
+            // No action needed, file picker is shown
+            break;
+          case SiqImportParsingFile(:final progress):
+            // Could show parsing progress if needed
+            logger?.d('Parsing SIQ file: ${(progress * 100).toInt()}%');
+          case SiqImportConvertingMedia(:final current, :final total):
+            // Could show media conversion progress
+            logger?.d('Converting media files: $current/$total');
+          case SiqImportCompleted(:final result):
+            // Import completed successfully
+
+            // Register media files
+            _mediaFilesByHash.clear();
+            _mediaFilesByHash.addAll(result.mediaFilesByHash);
+
+            // Update total size after import
+            _updateTotalSize();
+
+            // Update package with imported data
+            package.value = result.package;
+
+            // Navigate to package info screen
+            navigateToPackageInfo();
+            refreshKey.value = UniqueKey();
+
+            logger?.i(
+              'SIQ package imported successfully: ${result.package.title}',
+            );
+          case SiqImportError(:final error, :final stackTrace):
+            logger?.e(
+              'SIQ import failed',
+              error: error,
+              stackTrace: stackTrace,
+            );
+            // ignore: only_throw_errors
+            throw error;
+        }
+      }
+    } catch (e) {
+      logger?.e('Error importing SIQ package: $e');
+      rethrow;
+    }
+  }
+
+  /// Pick package file (.oq or .siq) using unified picker
+  /// Returns file bytes and extension or null if cancelled
+  Future<({Uint8List bytes, String extension})?> pickPackageFile() async {
+    return SiqImportHelper.pickPackageFile();
+  }
+
+  /// Import OQ package from bytes
+  /// Replaces current package data with imported data
+  Future<void> importOqPackage(Uint8List oqBytes) async {
+    try {
+      // Import package
+      final result = await OqPackageArchiver.importPackage(oqBytes);
+
+      // Clear existing media files
+      await clearPendingMediaFiles();
+
+      // Populate encoder cache with encoded files from archive metadata
+      if (result.encodedFileHashes != null) {
+        _mediaFileEncoder.populateEncodedFilesCache(result.encodedFileHashes!);
+      }
+
+      // Convert imported file bytes to MediaFileReference objects
+      for (final entry in result.filesBytesByHash.entries) {
+        final hash = entry.key;
+        final bytes = entry.value;
+
+        // Create MediaFileReference using utility
+        final mediaFile = EditorMediaUtils.createMediaFileFromBytes(
+          hash: hash,
+          bytes: bytes,
+        );
+        _mediaFilesByHash[hash] = mediaFile;
+      }
+
+      // Update total size after import
+      _updateTotalSize();
+
+      // Update package with imported data
+      package.value = result.package;
+
+      // Navigate to package info screen
+      navigateToPackageInfo();
+      refreshKey.value = UniqueKey();
+    } catch (e) {
+      logger?.e('Error importing OQ package: $e');
+      rethrow;
+    }
+  }
+
+  /// Import SIQ package from bytes
+  /// Converts SIQ format to OQ package and replaces current data
+  Future<void> importSiqPackageFromBytes(Uint8List siqBytes) async {
+    try {
+      // Clear existing media files first
+      await clearPendingMediaFiles();
+
+      // Start SIQ import with progress tracking
+      await for (final progress in SiqImportHelper(
+        logger: logger,
+      ).convertSiqToOqPackage(siqBytes)) {
+        switch (progress) {
+          case SiqImportParsingFile(:final progress):
+            // Could show parsing progress if needed
+            logger?.d('Parsing SIQ file: ${(progress * 100).toInt()}%');
+          case SiqImportConvertingMedia(:final current, :final total):
+            // Could show media conversion progress
+            logger?.d('Converting media files: $current/$total');
+          case SiqImportCompleted(:final result):
+            // Import completed successfully
+
+            // Register media files
+            _mediaFilesByHash.clear();
+            _mediaFilesByHash.addAll(result.mediaFilesByHash);
+
+            // Update total size after import
+            _updateTotalSize();
+
+            // Update package with imported data
+            package.value = result.package;
+
+            // Navigate to package info screen
+            navigateToPackageInfo();
+            refreshKey.value = UniqueKey();
+
+            logger?.i(
+              'SIQ package imported successfully: ${result.package.title}',
+            );
+          case SiqImportError(:final error, :final stackTrace):
+            logger?.e(
+              'SIQ import failed',
+              error: error,
+              stackTrace: stackTrace,
+            );
+            // ignore: only_throw_errors
+            throw error;
+          case SiqImportPickingFile():
+            // This shouldn't happen when called with bytes
+            break;
+        }
+      }
+    } catch (e) {
+      logger?.e('Error importing SIQ package: $e');
+      rethrow;
+    }
   }
 
   /// Normalize order fields for rounds, themes, and questions in the package
@@ -600,8 +876,12 @@ class OqEditorController {
   /// Dispose resources
   Future<void> dispose() async {
     await clearPendingMediaFiles();
+    await _mediaFileEncoder.dispose();
+    await _encodingProgressController?.close();
     package.dispose();
     currentStep.dispose();
     navigationContext.dispose();
+    refreshKey.dispose();
+    _totalSizeMB.dispose();
   }
 }

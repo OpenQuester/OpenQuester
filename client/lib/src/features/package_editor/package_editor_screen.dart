@@ -14,6 +14,7 @@ class PackageEditorScreen extends WatchingWidget {
         onSave: PackageEditorUploadController.onSave,
         onSaveProgressStream:
             getIt<PackageEditorUploadController>().progressStream,
+        logger: logger,
       ),
       dispose: (e) => e.dispose(),
     );

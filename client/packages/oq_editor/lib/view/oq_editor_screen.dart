@@ -3,14 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/models/editor_step.dart';
-import 'package:oq_editor/models/oq_editor_translations.dart';
-import 'package:oq_editor/models/package_upload_state.dart';
+import 'package:oq_editor/models/package_encoding_exceptions.dart';
+import 'package:oq_editor/utils/package_encoding_helper.dart';
+import 'package:oq_editor/view/dialogs/encoding_progress_dialog.dart';
 import 'package:oq_editor/view/screens/package_info_screen.dart';
 import 'package:oq_editor/view/screens/questions_list_screen.dart';
 import 'package:oq_editor/view/screens/round_editor_screen.dart';
 import 'package:oq_editor/view/screens/rounds_list_screen.dart';
 import 'package:oq_editor/view/screens/theme_editor_screen.dart';
 import 'package:oq_editor/view/screens/themes_grid_screen.dart';
+import 'package:oq_editor/view/widgets/package_size_indicator.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -21,7 +23,10 @@ class OqEditorScreen extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     callOnce(
-      (context) => GetIt.I.registerSingleton<OqEditorController>(controller),
+      (context) {
+        if (GetIt.I.isRegistered<OqEditorController>()) return;
+        GetIt.I.registerSingleton<OqEditorController>(controller);
+      },
       dispose: () =>
           GetIt.I.unregister<OqEditorController>(instance: controller),
     );
@@ -44,30 +49,38 @@ class OqEditorScreen extends WatchingWidget {
           child: Scaffold(
             appBar: AppBar(
               title: Text(controller.translations.editorTitle),
+              bottom: _buildPackageSizeIndicator(),
               actions: [
-                // Import button
-                IconButton(
-                  icon: const Icon(Icons.upload_file),
-                  onPressed: () => _handleImport(context),
-                  tooltip: controller.translations.importPackageTooltip,
+                // Import button (handles both .oq and .siq files)
+                Builder(
+                  builder: (buttonContext) => LoadingButtonBuilder(
+                    onPressed: () => _handleImport(buttonContext),
+                    onError: (error, stackTrace) => _handleButtonError(
+                      buttonContext,
+                      controller.translations.errorImporting,
+                      error,
+                      stackTrace,
+                    ),
+                    builder: (context, child, onPressed) {
+                      return IconButton(
+                        icon: child,
+                        onPressed: onPressed,
+                        tooltip: controller.translations.importPackage,
+                      );
+                    },
+                    child: const Icon(Icons.upload_file),
+                  ),
                 ),
                 // Export button
                 Builder(
                   builder: (buttonContext) => LoadingButtonBuilder(
                     onPressed: () => _handleExport(buttonContext),
-                    onError: (error, stackTrace) {
-                      if (buttonContext.mounted) {
-                        ScaffoldMessenger.of(buttonContext).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '${controller.translations.errorExporting}: '
-                              '$error',
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    },
+                    onError: (error, stackTrace) => _handleButtonError(
+                      buttonContext,
+                      controller.translations.errorExporting,
+                      error,
+                      stackTrace,
+                    ),
                     builder: (context, child, onPressed) {
                       return IconButton(
                         icon: child,
@@ -82,18 +95,12 @@ class OqEditorScreen extends WatchingWidget {
                 Builder(
                   builder: (buttonContext) => LoadingButtonBuilder(
                     onPressed: () => _handleSave(buttonContext),
-                    onError: (error, stackTrace) {
-                      if (buttonContext.mounted) {
-                        ScaffoldMessenger.of(buttonContext).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              '${controller.translations.errorSaving}: $error',
-                            ),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    },
+                    onError: (error, stackTrace) => _handleButtonError(
+                      buttonContext,
+                      controller.translations.errorSaving,
+                      error,
+                      stackTrace,
+                    ),
                     builder: (context, child, onPressed) {
                       return IconButton(
                         icon: child,
@@ -169,22 +176,16 @@ class OqEditorScreen extends WatchingWidget {
   }
 
   Future<void> _handleSave(BuildContext context) async {
-    // Show progress dialog
     if (!context.mounted) return;
 
-    unawaited(
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => _SavingProgressDialog(
-          progressStream: controller.onSaveProgressStream,
-          translations: controller.translations,
-        ),
-      ),
-    );
-
     try {
-      await controller.savePackage();
+      // Use shared encoding helper for all encoding and progress handling
+      await PackageEncodingHelper.executePackageUpload(
+        context,
+        controller: controller,
+        uploadFunction: controller.savePackage,
+        translations: controller.translations,
+      );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -194,6 +195,10 @@ class OqEditorScreen extends WatchingWidget {
           ),
         );
       }
+    } on UploadCancelledException {
+      // User cancelled - check if they want to export instead
+      if (!context.mounted) return;
+      await _handleExport(context);
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -205,24 +210,40 @@ class OqEditorScreen extends WatchingWidget {
           ),
         );
       }
-    } finally {
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Ensure progress dialog is closed
-      }
     }
   }
 
   Future<void> _handleImport(BuildContext context) async {
     try {
-      await controller.importPackage();
-      if (!context.mounted) return;
+      // Use unified picker to get file with extension detection
+      final fileResult = await controller.pickPackageFile();
+      if (fileResult == null) return; // User cancelled
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(controller.translations.packageImportedSuccessfully),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Import based on detected extension (picker validates extension)
+      if (fileResult.extension == 'oq') {
+        await controller.importOqPackage(fileResult.bytes);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              controller.translations.packageImportedSuccessfully,
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // SIQ file - no encoding warning needed for import
+        await controller.importSiqPackageFromBytes(fileResult.bytes);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              controller.translations.siqPackageImportedSuccessfully,
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (error) {
       if (!context.mounted) return;
 
@@ -236,15 +257,76 @@ class OqEditorScreen extends WatchingWidget {
   }
 
   Future<void> _handleExport(BuildContext context) async {
-    await controller.exportPackage();
-    if (!context.mounted) return;
+    // Check if we need to show encoding progress
+    final hasMediaFiles = controller.pendingMediaFiles.isNotEmpty;
+    var encodingDialogShown = false;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(controller.translations.packageExportedSuccessfully),
-        backgroundColor: Colors.green,
-      ),
-    );
+    try {
+      // Show encoding progress dialog if there are media files to encode
+      if (hasMediaFiles) {
+        if (!context.mounted) return;
+
+        encodingDialogShown = true;
+        unawaited(
+          showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => EncodingProgressDialog(
+              progressStream: controller.encodingProgressStream,
+              translations: controller.translations,
+              title: controller.translations.encodingForExport,
+            ),
+          ),
+        );
+      }
+
+      await controller.exportPackage();
+
+      if (context.mounted) {
+        if (encodingDialogShown) {
+          Navigator.of(context).pop(); // Close encoding progress dialog
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(controller.translations.packageExportedSuccessfully),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        if (encodingDialogShown) {
+          Navigator.of(context).pop(); // Close encoding progress dialog
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${controller.translations.errorExporting}: $error',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Common error handler for button operations
+  void _handleButtonError(
+    BuildContext context,
+    String errorPrefix,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$errorPrefix: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Widget _buildCurrentScreen(EditorStep step) {
@@ -264,116 +346,12 @@ class OqEditorScreen extends WatchingWidget {
         return const QuestionsListScreen(key: ValueKey('questions_list'));
     }
   }
-}
 
-/// Progress dialog shown during package save
-/// Shows linear progress bar if progressStream is provided
-class _SavingProgressDialog extends StatelessWidget {
-  const _SavingProgressDialog({
-    required this.translations,
-    this.progressStream,
-  });
-
-  /// Optional stream of upload progress states
-  /// If null, shows indeterminate progress
-  final Stream<PackageUploadState>? progressStream;
-  final OqEditorTranslations translations;
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      constraints: const BoxConstraints(
-        maxWidth: UiModeUtils.maximumDialogWidth,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: progressStream != null
-            ? _buildProgressStreamView(context)
-            : _buildIndeterminateView(context),
-      ),
-    );
-  }
-
-  Widget _buildProgressStreamView(BuildContext context) {
-    return StreamBuilder<PackageUploadState>(
-      stream: progressStream,
-      initialData: const PackageUploadState.idle(),
-      builder: (context, snapshot) {
-        // Default values
-        var progress = 0.0;
-        var message = translations.preparingUpload;
-
-        if (snapshot.hasData) {
-          snapshot.data!.map(
-            idle: (_) {
-              progress = 0.0;
-              message = translations.initializing;
-            },
-            uploading: (s) {
-              progress = s.progress;
-              message = s.message ?? translations.uploading;
-            },
-            completed: (_) {
-              progress = 1.0;
-              message = translations.uploadComplete;
-            },
-            error: (s) {
-              progress = 0.0;
-              message = '${translations.errorGeneric}: ${s.error}';
-            },
-          );
-        }
-
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: Colors.grey[300],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              translations.savingPackage,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              style: Theme.of(context).textTheme.bodySmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${(progress * 100).toInt()}%',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildIndeterminateView(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const LinearProgressIndicator(),
-        const SizedBox(height: 16),
-        Text(
-          translations.savingPackage,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
-        Text(
-          translations.pleaseWait,
-          style: Theme.of(context).textTheme.bodySmall,
-          textAlign: TextAlign.center,
-        ),
-      ],
+  /// Build package size indicator for the app bar bottom
+  PreferredSizeWidget? _buildPackageSizeIndicator() {
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(32),
+      child: PackageSizeIndicator(controller: controller),
     );
   }
 }

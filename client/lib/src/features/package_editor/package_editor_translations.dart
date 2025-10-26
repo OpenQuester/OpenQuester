@@ -481,11 +481,17 @@ class AppOqEditorTranslations implements OqEditorTranslations {
   String get importPackage => LocaleKeys.oq_editor_import_package.tr();
 
   @override
+  String get importSiqPackage => LocaleKeys.oq_editor_import_siq_package.tr();
+
+  @override
   String get exportPackage => LocaleKeys.oq_editor_export_package.tr();
 
   @override
   String get importPackageTooltip =>
       LocaleKeys.oq_editor_import_package_tooltip.tr();
+
+  @override
+  String get importSiqTooltip => LocaleKeys.oq_editor_import_siq_tooltip.tr();
 
   @override
   String get exportPackageTooltip =>
@@ -498,16 +504,85 @@ class AppOqEditorTranslations implements OqEditorTranslations {
   String get errorImporting => LocaleKeys.oq_editor_error_importing.tr();
 
   @override
+  String get errorImportingSiq => LocaleKeys.oq_editor_error_importing_siq.tr();
+
+  @override
   String get packageImportedSuccessfully =>
       LocaleKeys.oq_editor_package_imported_successfully.tr();
+
+  @override
+  String get siqPackageImportedSuccessfully =>
+      LocaleKeys.oq_editor_siq_package_imported_successfully.tr();
 
   @override
   String get packageExportedSuccessfully =>
       LocaleKeys.oq_editor_package_exported_successfully.tr();
 
   @override
+  String get siqEncodingWarningTitle =>
+      LocaleKeys.oq_editor_siq_encoding_warning_title.tr();
+
+  @override
+  String get siqEncodingWarningMessage =>
+      LocaleKeys.oq_editor_siq_encoding_warning_message.tr();
+
+  @override
+  String get siqImportContinue => LocaleKeys.oq_editor_siq_import_continue.tr();
+
+  /// Encoding dialog translations
+  @override
+  String get encodingForUpload => LocaleKeys.oq_editor_encoding_for_upload.tr();
+
+  @override
+  String get encodingForExport => LocaleKeys.oq_editor_encoding_for_export.tr();
+
+  @override
+  String get preparingFiles => LocaleKeys.oq_editor_preparing_files.tr();
+
+  @override
+  String get compressingFiles => LocaleKeys.oq_editor_compressing_files.tr();
+
+  @override
+  String get finalizingEncoding =>
+      LocaleKeys.oq_editor_finalizing_encoding.tr();
+
+  @override
   String displayTimeValue(int milliseconds) =>
       LocaleKeys.oq_editor_display_time_value.tr(
         args: [milliseconds.toString()],
       );
+
+  /// Package size and encoding warnings
+  @override
+  String get packageSize => LocaleKeys.oq_editor_package_size.tr();
+
+  @override
+  String packageSizeMB(double sizeMB) =>
+      LocaleKeys.oq_editor_package_size_mb.tr(
+        args: [sizeMB.toStringAsFixed(1)],
+      );
+
+  @override
+  String get encodingNotSupportedTitle =>
+      LocaleKeys.oq_editor_encoding_not_supported_title.tr();
+
+  @override
+  String get encodingNotSupportedMessage =>
+      LocaleKeys.oq_editor_encoding_not_supported_message.tr();
+
+  @override
+  String encodingNotSupportedDetails(double sizeMB) =>
+      LocaleKeys.oq_editor_encoding_not_supported_details.tr(
+        args: [sizeMB.toStringAsFixed(1)],
+      );
+
+  @override
+  String get uploadNowButton => LocaleKeys.oq_editor_upload_now_button.tr();
+
+  @override
+  String get exportAndUploadButton =>
+      LocaleKeys.oq_editor_export_and_upload_button.tr();
+
+  @override
+  String get exportRecommended => LocaleKeys.oq_editor_export_recommended.tr();
 }

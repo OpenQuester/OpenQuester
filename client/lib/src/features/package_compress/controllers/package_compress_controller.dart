@@ -9,7 +9,7 @@ class PackageCompressController {
     final file = fileResult?.files.firstOrNull;
     if (file == null) return;
 
-    final encoder = OqFileEncoder();
+    const encoder = OqFileEncoder();
     final tempFolder = await getTemporaryDirectory();
     final workDir = Directory(
       [

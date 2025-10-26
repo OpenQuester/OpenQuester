@@ -21,7 +21,7 @@ class EncodePackageCommand extends FileCommand {
       'Processing file: ${inputFile.path.split('/').last}',
     );
 
-    final encoder = OqFileEncoder();
+    const encoder = OqFileEncoder();
     final tempFolder = await getTemporaryDirectory();
     final workDir = Directory(
       [

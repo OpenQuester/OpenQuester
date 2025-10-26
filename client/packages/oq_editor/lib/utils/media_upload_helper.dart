@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/ui_media_file.dart';
-import 'package:universal_io/io.dart';
+import 'package:oq_shared/oq_shared.dart';
 
 /// Helper for uploading media files from editor
 /// Reads files only when needed (memory efficient)
@@ -79,22 +79,6 @@ class MediaUploadHelper {
   /// Read file bytes from platform file
   /// Only reads when needed (memory efficient)
   Future<Uint8List> _readFileBytes(MediaFileReference media) async {
-    final platformFile = media.platformFile;
-
-    // Web platform - bytes already in memory
-    if (kIsWeb) {
-      if (platformFile.bytes != null) {
-        return platformFile.bytes!;
-      }
-      throw Exception('File bytes not available on web');
-    }
-
-    // Native platforms - read from file path
-    if (platformFile.path != null) {
-      final file = File(platformFile.path!);
-      return file.readAsBytes();
-    }
-
-    throw Exception('File path not available');
+    return media.platformFile.readBytes();
   }
 }

@@ -6,6 +6,7 @@ import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/ui_media_file.dart';
 import 'package:oq_editor/utils/blob_helper.dart';
+import 'package:oq_shared/oq_shared.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
 import 'package:video_player/video_player.dart';
@@ -136,22 +137,23 @@ class _ImagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // On web, use bytes if available
-    if (kIsWeb && mediaFile.platformFile.bytes != null) {
+    // On native platforms, use file path
+    if (mediaFile.platformFile.path != null) {
       return InteractiveViewer(
-        child: Image.memory(
-          mediaFile.platformFile.bytes!,
+        child: Image.file(
+          File(mediaFile.platformFile.path!),
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
         ),
       );
     }
 
-    // On native platforms, use file path
-    if (!kIsWeb && mediaFile.platformFile.path != null) {
+    // On web, use bytes if available
+    final bytes = mediaFile.platformFile.bytesSync;
+    if (bytes != null) {
       return InteractiveViewer(
-        child: Image.file(
-          File(mediaFile.platformFile.path!),
+        child: Image.memory(
+          bytes,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
         ),
@@ -218,7 +220,8 @@ class _VideoPreviewState extends State<_VideoPreview> {
           );
         } else if (platformFile.bytes != null) {
           // Web: Create blob URL from bytes
-          final url = createBlobUrl(platformFile.bytes!);
+          final bytes = await platformFile.readBytes();
+          final url = createBlobUrl(bytes);
           widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
             Uri.parse(url),
           );
@@ -239,7 +242,8 @@ class _VideoPreviewState extends State<_VideoPreview> {
           final tempFile = File(
             '${tempDir.path}/video_${DateTime.now().millisecondsSinceEpoch}.${widget.mediaFile.extension ?? 'mp4'}',
           );
-          await tempFile.writeAsBytes(platformFile.bytes!);
+          final bytes = await platformFile.readBytes();
+          await tempFile.writeAsBytes(bytes);
           widget.mediaFile.sharedController = VideoPlayerController.file(
             tempFile,
           );
@@ -435,7 +439,8 @@ class _AudioPreviewState extends State<_AudioPreview> {
           );
         } else if (platformFile.bytes != null) {
           // Web: Create blob URL from bytes
-          final url = createBlobUrl(platformFile.bytes!);
+          final bytes = await platformFile.readBytes();
+          final url = createBlobUrl(bytes);
           widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
             Uri.parse(url),
           );
@@ -456,7 +461,8 @@ class _AudioPreviewState extends State<_AudioPreview> {
           final tempFile = File(
             '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.${widget.mediaFile.extension ?? 'mp3'}',
           );
-          await tempFile.writeAsBytes(platformFile.bytes!);
+          final bytes = await platformFile.readBytes();
+          await tempFile.writeAsBytes(bytes);
           widget.mediaFile.sharedController = VideoPlayerController.file(
             tempFile,
           );

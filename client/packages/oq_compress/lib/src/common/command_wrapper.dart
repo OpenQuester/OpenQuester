@@ -6,6 +6,40 @@ import 'package:universal_io/io.dart';
 
 /// Wraps ffmpeg/ffprobe commands for metadata inspection and media encoding.
 class CommandWrapper {
+  /// Check if the current platform supports FFmpeg operations.
+  ///
+  /// Returns true only for desktop platforms (Windows, macOS, Linux)
+  /// where both ffmpeg and ffprobe are installed and accessible.
+  static Future<bool> isSupported() async {
+    // Only support desktop platforms
+    if (!(Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+      return false;
+    }
+
+    try {
+      // Check if ffmpeg is available
+      await _checkToolAvailability('ffmpeg');
+      // Check if ffprobe is available
+      await _checkToolAvailability('ffprobe');
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Helper method to check if a specific tool is available and working.
+  static Future<void> _checkToolAvailability(String tool) async {
+    final result = await Process.run(
+      tool,
+      ['-version'],
+      runInShell: Platform.isWindows,
+    ).timeout(const Duration(seconds: 5));
+
+    if (result.exitCode != 0) {
+      throw Exception('$tool is not available or not working properly');
+    }
+  }
+
   /// Probe the input file for format and stream info.
   Future<FfprobeOutput?> metadata(File file) async {
     const ffprobeArgs = [

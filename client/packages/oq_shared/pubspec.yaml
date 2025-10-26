@@ -16,6 +16,8 @@ dependencies:
   cached_network_image_platform_interface: ^4.1.1
   nb_utils: ^7.1.8
   animate_do: ^4.2.0
+  universal_io: ^2.2.2
+  file_picker: ^10.3.3
 
 dev_dependencies:
   flutter_test:

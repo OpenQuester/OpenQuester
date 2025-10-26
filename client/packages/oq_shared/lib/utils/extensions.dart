@@ -1,5 +1,9 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:nb_utils/nb_utils.dart';
+import 'package:universal_io/io.dart';
 
 extension WidgetX on Widget {
   Widget shrink() =>
@@ -61,4 +65,27 @@ extension ListX<T> on List<T> {
     if (isEmpty) return null;
     return this[index];
   }
+}
+
+extension PlatformFileX on PlatformFile {
+  /// Read bytes from PlatformFile (web or native)
+  /// Consistent utility across all packages for file byte access
+  Future<Uint8List> readBytes() async {
+    if (bytes != null) {
+      return bytes!;
+    }
+
+    if (path != null) {
+      return File(path!).readAsBytes();
+    }
+
+    throw Exception('Cannot read file bytes for: $name');
+  }
+
+  /// Get bytes synchronously if available, null otherwise
+  /// Use this for cases where immediate bytes are needed (e.g., Image.memory)
+  Uint8List? get bytesSync => bytes;
+
+  /// Check if bytes are available synchronously
+  bool get hasBytesSync => bytes != null;
 }
