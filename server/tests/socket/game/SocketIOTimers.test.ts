@@ -62,12 +62,7 @@ describe("SocketIOTimers", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {

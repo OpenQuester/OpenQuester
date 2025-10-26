@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import request from "supertest";
 import { Repository } from "typeorm";
@@ -17,7 +10,6 @@ import {
 } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -47,15 +39,8 @@ describe("Socket Game Error Tests", () => {
   }, 10000);
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    await redisClient.del(...(await redisClient.keys("*")));
-
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
-    }
-  }, 5000);
+    await testEnv.clearRedis();
+  });
 
   afterAll(async () => {
     try {

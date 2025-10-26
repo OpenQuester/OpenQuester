@@ -5,6 +5,7 @@ import { SocketGameContextService } from "application/services/socket/SocketGame
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
+import { GameActionType } from "domain/enums/GameActionType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -58,6 +59,10 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
     } catch {
       return null;
     }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.QUESTION_PICK;
   }
 
   protected async validateInput(

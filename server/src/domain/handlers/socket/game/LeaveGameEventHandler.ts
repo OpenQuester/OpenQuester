@@ -4,6 +4,7 @@ import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -67,8 +68,8 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
     }
   }
 
-  protected override getActionType(): string {
-    return "player:leave";
+  protected override getActionType(): GameActionType {
+    return GameActionType.LEAVE;
   }
 
   protected async execute(

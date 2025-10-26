@@ -1,7 +1,9 @@
 import { Socket } from "socket.io";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -32,13 +34,32 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOGameService: SocketIOGameService
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.PLAYER_RESTRICTED;
+  }
+
+  protected override async getGameIdForAction(
+    _data: PlayerRestrictionInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.PLAYER_RESTRICTION;
   }
 
   protected async validateInput(

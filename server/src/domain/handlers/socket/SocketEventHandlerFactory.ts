@@ -165,7 +165,8 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOGameService
+        this.socketIOGameService,
+        this.socketGameContextService
       ),
       new PlayerRoleChangeEventHandler(
         socket,
@@ -215,7 +216,8 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOGameService
+        this.socketIOGameService,
+        this.socketUserDataService
       ),
       new ChatMessageEventHandler(
         socket,

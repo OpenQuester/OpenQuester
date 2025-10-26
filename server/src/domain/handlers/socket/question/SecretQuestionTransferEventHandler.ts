@@ -5,6 +5,7 @@ import { SocketGameContextService } from "application/services/socket/SocketGame
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -53,6 +54,10 @@ export class SecretQuestionTransferEventHandler extends BaseSocketEventHandler<
     } catch {
       return null;
     }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.SECRET_QUESTION_TRANSFER;
   }
 
   protected async validateInput(

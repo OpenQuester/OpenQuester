@@ -4,6 +4,7 @@ import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -50,6 +51,10 @@ export class QuestionSkipEventHandler extends BaseSocketEventHandler<
     } catch {
       return null;
     }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.QUESTION_SKIP;
   }
 
   protected async validateInput(

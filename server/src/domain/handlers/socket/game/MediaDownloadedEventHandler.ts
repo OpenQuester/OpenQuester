@@ -3,6 +3,7 @@ import { Socket } from "socket.io";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -50,6 +51,10 @@ export class MediaDownloadedEventHandler extends BaseSocketEventHandler<
     } catch {
       return null;
     }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.MEDIA_DOWNLOADED;
   }
 
   protected async validateInput(

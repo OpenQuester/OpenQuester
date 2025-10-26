@@ -1,4 +1,5 @@
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { GameActionType } from "domain/enums/GameActionType";
 import {
   SocketIOEvents,
   SocketIOGameEvents,
@@ -124,7 +125,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   ): Promise<void> {
     const action: GameAction = {
       id: ValueUtils.generateUUID(),
-      type: this.getActionType() as any,
+      type: this.getActionType(),
       gameId: gameId,
       playerId: this.socket.userId ?? 0,
       socketId: this.socket.id,
@@ -207,8 +208,10 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
    * Get action type string for queue tracking
    * Override in subclasses that use action queue
    */
-  protected getActionType(): string {
-    return this.getEventName() as string;
+  protected getActionType(): GameActionType {
+    throw new Error(
+      `getActionType() must be overridden in ${this.constructor.name} when using action queue`
+    );
   }
 
   /**

@@ -4,6 +4,7 @@ import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -53,6 +54,10 @@ export class FinalBidSubmitEventHandler extends BaseSocketEventHandler<
     } catch {
       return null;
     }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.FINAL_BID_SUBMIT;
   }
 
   protected async validateInput(

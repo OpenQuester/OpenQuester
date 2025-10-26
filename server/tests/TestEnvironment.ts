@@ -3,6 +3,7 @@ import { DataSource } from "typeorm";
 
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { RedisTestUtils } from "tests/utils/RedisTestUtils";
 import { createTestAppDataSource } from "tests/utils/utils";
 
 export class TestEnvironment {
@@ -36,6 +37,21 @@ export class TestEnvironment {
 
   public getDatabase() {
     return this.testDataSource;
+  }
+
+  /**
+   * Clear all Redis keys with robust cleanup logic
+   * Should be called in beforeEach to ensure clean state
+   */
+  public async clearRedis(): Promise<void> {
+    await RedisTestUtils.clearAllKeys();
+  }
+
+  /**
+   * Clear Redis with detailed logging (useful for debugging)
+   */
+  public async clearRedisWithLogging(): Promise<void> {
+    await RedisTestUtils.clearAllKeysWithLogging();
   }
 
   private async createTestDatabase(): Promise<void> {

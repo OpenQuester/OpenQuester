@@ -5,6 +5,7 @@ import { FinalRoundService } from "application/services/socket/FinalRoundService
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -54,6 +55,10 @@ export class FinalAnswerSubmitEventHandler extends BaseSocketEventHandler<
     } catch {
       return null;
     }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.FINAL_ANSWER_SUBMIT;
   }
 
   protected async validateInput(

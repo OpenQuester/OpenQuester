@@ -21,7 +21,6 @@ import {
 } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
 import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -127,12 +126,7 @@ describe("Stake Question Max Price Cases Tests", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {

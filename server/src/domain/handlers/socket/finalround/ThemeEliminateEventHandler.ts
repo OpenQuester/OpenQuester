@@ -4,6 +4,7 @@ import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -54,6 +55,10 @@ export class ThemeEliminateEventHandler extends BaseSocketEventHandler<
     } catch {
       return null;
     }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.THEME_ELIMINATE;
   }
 
   protected async validateInput(

@@ -3,6 +3,7 @@ import { Socket } from "socket.io";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -52,6 +53,10 @@ export class PlayerSlotChangeEventHandler extends BaseSocketEventHandler<
     } catch {
       return null;
     }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.PLAYER_SLOT_CHANGE;
   }
 
   protected async validateInput(

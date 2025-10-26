@@ -1,5 +1,6 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
@@ -7,6 +8,7 @@ import { UserNotificationRoomService } from "application/services/socket/UserNot
 import { UserService } from "application/services/user/UserService";
 import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { GameActionType } from "domain/enums/GameActionType";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
@@ -25,7 +27,6 @@ import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class JoinGameEventHandler extends BaseSocketEventHandler<
   GameJoinInputData,
@@ -48,6 +49,17 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.JOIN;
+  }
+
+  protected override async getGameIdForAction(
+    data: GameJoinInputData,
+    _context: SocketEventContext
+  ): Promise<string | null> {
+    return data.gameId;
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.JOIN;
   }
 
   protected async validateInput(

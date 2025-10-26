@@ -1,5 +1,4 @@
 import { type Express } from "express";
-import Redis from "ioredis";
 import { Repository } from "typeorm";
 
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
@@ -7,7 +6,6 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
 import { ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -28,7 +26,6 @@ describe("Socket Game Chat Tests", () => {
   let playerSockets: GameClientSocket[];
   let spectatorSockets: GameClientSocket[];
   let utils: SocketGameTestUtils;
-  let redisClient: Redis;
   let logger: ILogger;
 
   beforeAll(async () => {
@@ -44,14 +41,7 @@ describe("Socket Game Chat Tests", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    redisClient = RedisConfig.getClient();
-    await redisClient.del(...((await redisClient.keys("*")) ?? []));
-
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
-    }
+    await testEnv.clearRedis();
 
     // 2 players, 2 spectators, 1 showman
     const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 2);
