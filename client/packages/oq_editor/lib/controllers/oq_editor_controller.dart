@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
@@ -74,6 +76,13 @@ class OqEditorController {
   /// This includes both newly added files and imported files from .oq archives
   final Map<String, MediaFileReference> _mediaFilesByHash = {};
 
+  /// Encoding progress stream controllers
+  StreamController<double>? _encodingProgressController;
+
+  /// Encoding progress stream for UI dialogs
+  Stream<double>? get encodingProgressStream =>
+      _encodingProgressController?.stream;
+
   // Last used settings for question creation
   /// Last used price value (persisted across question creations)
   int lastUsedPrice = 100;
@@ -145,11 +154,19 @@ class OqEditorController {
   /// Encodes media files for compression before upload and updates package
   /// file hashes
   Future<OqPackage> savePackage() async {
+    StreamController<double>? progressController;
+
     try {
       if (onSave == null) {
         throw UnimplementedError(
           'onSave callback must be provided to OqEditorController',
         );
+      }
+
+      // Start encoding progress tracking if there are media files
+      if (_mediaFilesByHash.isNotEmpty) {
+        progressController = StreamController<double>.broadcast();
+        _encodingProgressController = progressController;
       }
 
       // Normalize order fields before saving
@@ -159,7 +176,12 @@ class OqEditorController {
       final encodingResult = await _mediaFileEncoder.encodePackage(
         normalizedPackage,
         Map.from(_mediaFilesByHash),
+        onProgress: progressController?.add,
       );
+
+      // Close encoding progress stream
+      await progressController?.close();
+      _encodingProgressController = null;
 
       final savedPackage = await onSave!(
         encodingResult.package,
@@ -171,6 +193,10 @@ class OqEditorController {
 
       return savedPackage;
     } catch (e) {
+      // Clean up progress stream on error
+      await progressController?.close();
+      _encodingProgressController = null;
+
       logger?.e('Error saving package: $e');
       rethrow;
     }
@@ -184,7 +210,15 @@ class OqEditorController {
   /// Encodes media files for compression before export and updates package
   /// file hashes
   Future<void> exportPackage() async {
+    StreamController<double>? progressController;
+
     try {
+      // Start encoding progress tracking if there are media files
+      if (_mediaFilesByHash.isNotEmpty) {
+        progressController = StreamController<double>.broadcast();
+        _encodingProgressController = progressController;
+      }
+
       // Normalize package before export
       final normalizedPackage = _normalizePackageOrder(package.value);
 
@@ -192,7 +226,12 @@ class OqEditorController {
       final encodingResult = await _mediaFileEncoder.encodePackage(
         normalizedPackage,
         Map.from(_mediaFilesByHash),
+        onProgress: progressController?.add,
       );
+
+      // Close encoding progress stream
+      await progressController?.close();
+      _encodingProgressController = null;
 
       // Create archive with encoded media files and updated package
       final archiveBytes = await OqPackageArchiver.exportPackage(
@@ -207,6 +246,10 @@ class OqEditorController {
         encodingResult.package.title,
       );
     } catch (e) {
+      // Clean up progress stream on error
+      await progressController?.close();
+      _encodingProgressController = null;
+
       logger?.e('Error exporting package: $e');
       rethrow;
     }
@@ -652,6 +695,7 @@ class OqEditorController {
   Future<void> dispose() async {
     await clearPendingMediaFiles();
     await _mediaFileEncoder.dispose();
+    await _encodingProgressController?.close();
     package.dispose();
     currentStep.dispose();
     navigationContext.dispose();

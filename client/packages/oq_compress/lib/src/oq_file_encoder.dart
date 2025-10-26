@@ -61,6 +61,11 @@ class OqFileEncoder {
 
   /// Encode multiple files with progress tracking and error handling.
   ///
+  /// [batchSize] controls how many files are processed concurrently in each
+  /// batch.
+  /// This applies to both metadata fetching and encoding operations to manage
+  /// memory usage and system resources.
+  ///
   /// Returns a map of successful encodings: {inputFile: outputFile}.
   /// Failed encodings are tracked in [onError] callback if provided.
   Future<Map<File, File>> encodeFiles(
@@ -98,7 +103,7 @@ class OqFileEncoder {
     var successCount = 0;
     var errorCount = 0;
 
-    // Process files in batches to manage memory usage
+    // Process files in batches to manage memory usage and system resources
     for (var i = 0; i < totalFiles; i += batchSize) {
       final batch = files.skip(i).take(batchSize).toList();
       final batchIndex = (i ~/ batchSize) + 1;
@@ -108,8 +113,7 @@ class OqFileEncoder {
         'Processing batch $batchIndex/$totalBatches (${batch.length} files)',
       );
 
-      // Pre-fetch metadata for all files in batch concurrently for better
-      // performance
+      // Pre-fetch metadata for all files in batch concurrently
       final metadataFutures = batch.map((file) async {
         try {
           final metadata = await getMetadata(file);
@@ -123,69 +127,87 @@ class OqFileEncoder {
 
       final metadataResults = await Future.wait(metadataFutures);
 
-      for (var j = 0; j < batch.length; j++) {
-        final (inputFile, metadata, codecType) = metadataResults[j];
+      // Create encoding futures for all files in batch to run concurrently
+      final encodingFutures = metadataResults.asMap().entries.map((entry) {
+        final j = entry.key;
+        final (inputFile, metadata, codecType) = entry.value;
         final currentIndex = i + j;
 
-        logger?.t(
-          'Encoding file ${currentIndex + 1}/$totalFiles: ${inputFile.path}',
-        );
+        return () async {
+          logger?.t(
+            'Encoding file ${currentIndex + 1}/$totalFiles: ${inputFile.path}',
+          );
 
-        try {
-          if (metadata == null || codecType == null) {
-            logger?.w(
-              'Unable to determine codec type for file: ${inputFile.path}',
+          try {
+            if (metadata == null || codecType == null) {
+              logger?.w(
+                'Unable to determine codec type for file: ${inputFile.path}',
+              );
+              onError?.call(
+                inputFile,
+                Exception('Unable to determine codec type for file'),
+                StackTrace.current,
+              );
+              return null;
+            }
+
+            logger?.t('Detected codec type: $codecType for ${inputFile.path}');
+
+            // Generate output file path
+            final fileName = inputFile.path.split(Platform.pathSeparator).last;
+            final outputFile = File(
+              [outputDirectory, fileName].join(Platform.pathSeparator),
             );
-            onError?.call(
-              inputFile,
-              Exception('Unable to determine codec type for file'),
-              StackTrace.current,
+
+            logger?.t('Output file: ${outputFile.path}');
+
+            // Encode the file
+            final encodedFile = await encode(
+              inputFile: inputFile,
+              outputFile: outputFile,
+              codecType: codecType,
             );
-            errorCount++;
-            continue;
+
+            logger?.t(
+              'Successfully encoded: ${inputFile.path} -> ${encodedFile.path}',
+            );
+
+            // Report progress
+            final progress = (currentIndex + 1) / totalFiles;
+            onProgress?.call(progress);
+            logger?.t('Progress: ${(progress * 100).toStringAsFixed(1)}%');
+
+            return (inputFile, encodedFile);
+          } catch (error, stackTrace) {
+            logger?.e(
+              'Failed to encode file ${inputFile.path}: $error',
+              error: error,
+              stackTrace: stackTrace,
+            );
+            onError?.call(inputFile, error, stackTrace);
+            return null;
           }
+        };
+      }).toList();
 
-          logger?.t('Detected codec type: $codecType for ${inputFile.path}');
+      // Execute all encoding operations in the batch concurrently
+      final encodingResults = await Future.wait(
+        encodingFutures.map((future) => future()),
+      );
 
-          // Generate output file path
-          final fileName = inputFile.path.split(Platform.pathSeparator).last;
-          final outputFile = File(
-            [outputDirectory, fileName].join(Platform.pathSeparator),
-          );
-
-          logger?.t('Output file: ${outputFile.path}');
-
-          // Encode the file
-          final encodedFile = await encode(
-            inputFile: inputFile,
-            outputFile: outputFile,
-            codecType: codecType,
-          );
-
+      // Process results and update counters
+      for (final result in encodingResults) {
+        if (result != null) {
+          final (inputFile, encodedFile) = result;
           results[inputFile] = encodedFile;
           successCount++;
-
-          logger?.t(
-            'Successfully encoded: ${inputFile.path} -> ${encodedFile.path}',
-          );
-
-          // Report progress
-          final progress = (currentIndex + 1) / totalFiles;
-          onProgress?.call(progress);
-          logger?.t('Progress: ${(progress * 100).toStringAsFixed(1)}%');
-
-          // Small delay to prevent memory allocation issues
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-        } catch (error, stackTrace) {
+        } else {
           errorCount++;
-          logger?.e(
-            'Failed to encode file ${inputFile.path}: $error',
-            error: error,
-            stackTrace: stackTrace,
-          );
-          onError?.call(inputFile, error, stackTrace);
         }
       }
+
+      // Small delay to prevent memory allocation issues between batches
+      await Future<void>.delayed(const Duration(milliseconds: 100));
 
       logger?.i(
         'Completed batch $batchIndex/$totalBatches. Success: $successCount, Errors: $errorCount',

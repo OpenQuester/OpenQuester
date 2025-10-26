@@ -325,6 +325,11 @@
     "error_importing": "Error importing package",
     "package_imported_successfully": "Package imported successfully",
     "package_exported_successfully": "Package exported successfully",
-    "display_time_value": "Display: {}ms"
+    "display_time_value": "Display: {}ms",
+    "encoding_for_upload": "Encoding for Upload",
+    "encoding_for_export": "Encoding for Export",
+    "preparing_files": "Preparing files...",
+    "compressing_files": "Compressing files...",
+    "finalizing_encoding": "Finalizing encoding..."
   }
 }

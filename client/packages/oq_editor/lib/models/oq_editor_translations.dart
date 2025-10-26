@@ -93,6 +93,13 @@ abstract class OqEditorTranslations {
   String get uploadComplete;
   String get pleaseWait;
 
+  /// Encoding dialog
+  String get encodingForUpload;
+  String get encodingForExport;
+  String get preparingFiles;
+  String get compressingFiles;
+  String get finalizingEncoding;
+
   /// Progress info
   String questionsInTheme(int count);
   String themesCount(int count);

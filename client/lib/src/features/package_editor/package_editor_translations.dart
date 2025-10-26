@@ -505,6 +505,23 @@ class AppOqEditorTranslations implements OqEditorTranslations {
   String get packageExportedSuccessfully =>
       LocaleKeys.oq_editor_package_exported_successfully.tr();
 
+  /// Encoding dialog translations
+  @override
+  String get encodingForUpload => LocaleKeys.oq_editor_encoding_for_upload.tr();
+
+  @override
+  String get encodingForExport => LocaleKeys.oq_editor_encoding_for_export.tr();
+
+  @override
+  String get preparingFiles => LocaleKeys.oq_editor_preparing_files.tr();
+
+  @override
+  String get compressingFiles => LocaleKeys.oq_editor_compressing_files.tr();
+
+  @override
+  String get finalizingEncoding =>
+      LocaleKeys.oq_editor_finalizing_encoding.tr();
+
   @override
   String displayTimeValue(int milliseconds) =>
       LocaleKeys.oq_editor_display_time_value.tr(
