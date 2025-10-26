@@ -18,13 +18,13 @@ type ActionExecutionRegistry = Map<string, GameActionExecutionCallback>;
 
 /**
  * Orchestrates game action execution with locking and queuing
- * 
+ *
  * Flow:
  * 1. Action arrives → try acquire lock
  * 2. If locked → queue action with callback, return success (queued)
  * 3. If unlocked → execute immediately
  * 4. After execution → release lock, process queued actions recursively
- * 
+ *
  * Key insight: Each action instance stores its own execution callback,
  * preserving the original socket/handler context for queued execution.
  */
@@ -66,15 +66,6 @@ export class GameActionExecutor {
       return { success: true };
     }
 
-    this.logger.debug(
-      `Action executing immediately: ${action.type} for game ${action.gameId}`,
-      {
-        prefix: "[ACTION_EXECUTOR]: ",
-        actionId: action.id,
-        gameId: action.gameId,
-      }
-    );
-
     try {
       const result = await this.executeAction(action, executeFn);
       // Clean up callback after successful immediate execution
@@ -108,13 +99,6 @@ export class GameActionExecutor {
     action: GameAction,
     executeFn: GameActionExecutionCallback
   ): Promise<GameActionResult> {
-    this.logger.debug(`Executing action: ${action.type}`, {
-      prefix: "[ACTION_EXECUTOR]: ",
-      actionId: action.id,
-      gameId: action.gameId,
-      actionType: action.type,
-    });
-
     try {
       const result = await executeFn(action);
       return result;
@@ -164,7 +148,7 @@ export class GameActionExecutor {
     }
 
     let nextAction: GameAction | null = null;
-    
+
     try {
       nextAction = await this.queueService.popAction(gameId);
 
@@ -190,17 +174,6 @@ export class GameActionExecutor {
         );
         return;
       }
-
-      this.logger.debug(
-        `Executing queued action: ${nextAction.type} for game ${gameId}`,
-        {
-          prefix: "[ACTION_EXECUTOR]: ",
-          gameId,
-          actionType: nextAction.type,
-          actionId: nextAction.id,
-        }
-      );
-
       await this.executeAction(nextAction, executeFn);
     } catch (error) {
       this.logger.error(
