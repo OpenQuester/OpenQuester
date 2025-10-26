@@ -1,5 +1,6 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -18,7 +19,6 @@ import {
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 /**
  * Handler for player restriction events (mute/restrict/ban)
@@ -70,7 +70,6 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = result.game.id;
-    context.userId = context.userId;
 
     const broadcastData: PlayerRestrictionBroadcastData = {
       playerId: data.playerId,

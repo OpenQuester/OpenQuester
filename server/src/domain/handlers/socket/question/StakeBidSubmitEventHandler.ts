@@ -93,7 +93,6 @@ export class StakeBidSubmitEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = context.userId;
 
     const outputData: StakeBidSubmitOutputData = {
       playerId,

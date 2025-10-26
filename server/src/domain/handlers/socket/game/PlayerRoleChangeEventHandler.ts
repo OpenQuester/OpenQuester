@@ -79,7 +79,6 @@ export class PlayerRoleChangeEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = result.game.id;
-    context.userId = context.userId;
 
     const broadcastData: PlayerRoleChangeBroadcastData = {
       playerId: result.targetPlayer.meta.id,

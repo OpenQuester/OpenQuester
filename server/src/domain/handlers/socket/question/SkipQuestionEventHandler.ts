@@ -74,7 +74,6 @@ export class SkipQuestionEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = context.userId;
 
     // Use the coordinator to handle game progression
     const result = await this.gameProgressionCoordinator.processGameProgression(

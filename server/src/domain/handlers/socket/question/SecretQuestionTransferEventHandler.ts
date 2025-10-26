@@ -80,7 +80,6 @@ export class SecretQuestionTransferEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = result.game.id;
-    context.userId = context.userId;
 
     const broadcastData: SecretQuestionTransferBroadcastData = {
       fromPlayerId: result.fromPlayerId,

@@ -82,7 +82,6 @@ export class FinalAnswerSubmitEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = context.userId;
 
     const outputData: FinalAnswerSubmitOutputData = {
       playerId,

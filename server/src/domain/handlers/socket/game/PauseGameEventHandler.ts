@@ -75,7 +75,6 @@ export class PauseGameEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = context.userId;
 
     const pauseData: GamePauseBroadcastData = { timer };
 

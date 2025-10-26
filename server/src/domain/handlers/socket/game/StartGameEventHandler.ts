@@ -73,7 +73,6 @@ export class StartGameEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = gameDTO.id;
-    context.userId = context.userId;
 
     const startEventPayload: GameStartBroadcastData = {
       currentRound: gameDTO.gameState.currentRound!,
