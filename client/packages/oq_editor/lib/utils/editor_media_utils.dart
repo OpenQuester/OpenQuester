@@ -6,12 +6,6 @@ import 'package:oq_shared/oq_shared.dart';
 /// Utilities for media file operations within the editor package
 /// Consolidates common operations to reduce duplication
 class EditorMediaUtils {
-  /// Read bytes from MediaFileReference (web or native)
-  /// Common utility used across editor controllers
-  static Future<Uint8List> readMediaBytes(MediaFileReference media) async {
-    return SharedMediaFileUtils.readMediaBytes(media.platformFile);
-  }
-
   /// Convert MediaFileReference map to bytes map
   /// Helper for processing media files before operations
   static Future<Map<String, Uint8List>> convertMediaFilesToBytes(
@@ -22,7 +16,7 @@ class EditorMediaUtils {
     for (final entry in mediaFilesByHash.entries) {
       final hash = entry.key;
       final mediaFile = entry.value;
-      final bytes = await readMediaBytes(mediaFile);
+      final bytes = await mediaFile.platformFile.readBytes();
       filesBytesByHash[hash] = bytes;
     }
 

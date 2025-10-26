@@ -33,7 +33,6 @@ export 'src/core/services/package_service.dart';
 export 'src/core/theme.dart';
 export 'src/core/ui/components/one_field_dialog.dart';
 export 'src/core/ui/dialogs.dart';
-export 'src/core/utils/media_file_utils.dart';
 export 'src/data/app_settings.dart';
 export 'src/features/auto_update/controllers/auto_update_controller.dart';
 export 'src/features/auto_update/view/update_btn.dart';

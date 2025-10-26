@@ -5,7 +5,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_compress/oq_compress.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
-import 'package:oq_editor/utils/editor_media_utils.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
@@ -85,9 +84,7 @@ class MediaFileEncoder {
         final sourceFile = File(mediaFile.platformFile.path!);
         await sourceFile.copy(tempFile.path);
       } else {
-        // Only read bytes if no path available (web platform)
-        final originalBytes = await EditorMediaUtils.readMediaBytes(mediaFile);
-        await tempFile.writeAsBytes(originalBytes);
+        await tempFile.writeAsBytes(await mediaFile.platformFile.readBytes());
       }
 
       filesToEncode.add(tempFile);

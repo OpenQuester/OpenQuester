@@ -111,7 +111,7 @@ class OqEditorController {
     if (mediaFile == null) return null;
 
     try {
-      return await EditorMediaUtils.readMediaBytes(mediaFile);
+      return await mediaFile.platformFile.readBytes();
     } catch (e) {
       return null;
     }

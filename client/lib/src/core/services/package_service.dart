@@ -2,10 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:openquester/common_imports.dart';
-import 'package:oq_editor/models/media_file_reference.dart';
-import 'package:oq_editor/models/package_upload_state.dart';
-import 'package:oq_editor/utils/oq_package_archiver.dart';
-import 'package:oq_editor/utils/siq_import_helper.dart';
+import 'package:oq_editor/oq_editor.dart';
 import 'package:siq_file/siq_file.dart';
 
 /// Unified service for package operations
@@ -26,14 +23,6 @@ class PackageService {
         rounds: package.rounds,
       ),
     );
-  }
-
-  /// Convert MediaFileReference map to bytes map
-  /// Helper for processing media files before upload
-  Future<Map<String, Uint8List>> convertMediaFilesToBytes(
-    Map<String, MediaFileReference> mediaFilesByHash,
-  ) async {
-    return MediaFileUtils.convertMediaFilesToBytes(mediaFilesByHash);
   }
 
   /// Upload package with media files and detailed progress tracking
@@ -101,10 +90,9 @@ class PackageService {
       final media = mediaFilesByHash[link.key];
 
       if (media != null) {
-        final fileBytes = await MediaFileUtils.readMediaBytes(media);
         await getIt<S3UploadController>().uploadFile(
           uploadLink: Uri.parse(link.value),
-          file: fileBytes,
+          file: await media.platformFile.readBytes(),
           md5Hash: link.key,
         );
       } else {
@@ -119,44 +107,28 @@ class PackageService {
   /// Import OQ file and return package with media files using worker
   /// Used by multiple controllers - now optimized with worker for all platforms
   Future<ImportResult> importOqFile(Uint8List oqBytes) async {
-    try {
-      // Use unified worker service for better performance on all platforms
-      final worker = PackageWorkerService();
-      final result = await worker.parseOqPackage(oqBytes);
+    // Use unified worker service for better performance on all platforms
+    final worker = PackageWorkerService();
+    final result = await worker.parseOqPackage(oqBytes);
 
-      // Convert OqPackage from JSON
-      final oqPackage = OqPackage.fromJson(result.package);
+    // Convert OqPackage from JSON
+    final oqPackage = OqPackage.fromJson(result.package);
 
-      // Convert file bytes from List<int> to Uint8List
-      final filesBytesByHash = <String, Uint8List>{};
-      for (final entry in result.filesBytesByHash.entries) {
-        final hash = entry.key;
-        final bytesList = entry.value;
-        filesBytesByHash[hash] = Uint8List.fromList(bytesList);
-      }
-
-      // Convert encoded file hashes
-      final encodedFileHashes = result.encodedFileHashes?.toSet();
-
-      return ImportResult(
-        package: oqPackage,
-        filesBytesByHash: filesBytesByHash,
-        encodedFileHashes: encodedFileHashes,
-      );
-    } catch (e) {
-      // Fallback to direct parsing if worker fails
-      logger.w('Worker parsing failed, falling back to direct parsing: $e');
-      return _importOqFileDirectly(oqBytes);
+    // Convert file bytes from List<int> to Uint8List
+    final filesBytesByHash = <String, Uint8List>{};
+    for (final entry in result.filesBytesByHash.entries) {
+      final hash = entry.key;
+      final bytesList = entry.value;
+      filesBytesByHash[hash] = Uint8List.fromList(bytesList);
     }
-  }
 
-  /// Import OQ file directly (fallback when worker fails)
-  Future<ImportResult> _importOqFileDirectly(Uint8List oqBytes) async {
-    final result = await OqPackageArchiver.importPackage(oqBytes);
+    // Convert encoded file hashes
+    final encodedFileHashes = result.encodedFileHashes?.toSet();
+
     return ImportResult(
-      package: result.package,
-      filesBytesByHash: result.filesBytesByHash,
-      encodedFileHashes: result.encodedFileHashes,
+      package: oqPackage,
+      filesBytesByHash: filesBytesByHash,
+      encodedFileHashes: encodedFileHashes,
     );
   }
 
@@ -258,7 +230,9 @@ class PackageService {
     }
 
     // Convert media files to bytes map
-    final filesBytesByHash = await convertMediaFilesToBytes(mediaFilesByHash);
+    final filesBytesByHash = await EditorMediaUtils.convertMediaFilesToBytes(
+      mediaFilesByHash,
+    );
 
     return ImportResult(
       package: oqPackage,
