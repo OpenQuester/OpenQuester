@@ -4,6 +4,7 @@ import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/view/widgets/audio_preview_widget.dart';
 import 'package:oq_editor/view/widgets/video_preview_widget.dart';
+import 'package:oq_shared/oq_shared.dart';
 import 'package:universal_io/io.dart';
 
 /// Widget to preview media files (images, videos, audio)
@@ -50,9 +51,10 @@ class MediaPreviewWidget extends StatelessWidget {
 
   Widget _buildImagePreview() {
     // Use bytes if available (works on both web and native)
-    if (mediaFile.platformFile.bytes != null) {
+    final bytes = mediaFile.platformFile.bytesSync;
+    if (bytes != null) {
       return Image.memory(
-        mediaFile.platformFile.bytes!,
+        bytes,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) => _buildErrorPreview(),
       );

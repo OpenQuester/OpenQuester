@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:fetch_client/fetch_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openquester/openquester.dart';
+import 'package:openquester/src/core/utils/media_file_utils.dart';
 import 'package:oq_editor/oq_editor.dart';
 import 'package:universal_io/io.dart';
 
@@ -82,7 +83,7 @@ class S3UploadController {
       );
     } else {
       // Fallback: read bytes (web or no path available)
-      final bytes = await _readMediaBytes(mediaFile);
+      final bytes = await MediaFileUtils.readMediaBytes(mediaFile);
       await uploadFile(
         uploadLink: uploadLink,
         md5Hash: md5Hash,
@@ -130,21 +131,6 @@ class S3UploadController {
       // Ignore "Peer reset connection" error
       if (e.type != DioExceptionType.unknown) rethrow;
     }
-  }
-
-  /// Read bytes from MediaFileReference (web or native)
-  Future<Uint8List> _readMediaBytes(MediaFileReference media) async {
-    final platformFile = media.platformFile;
-
-    if (platformFile.bytes != null) {
-      return platformFile.bytes!;
-    }
-
-    if (platformFile.path != null) {
-      return File(platformFile.path!).readAsBytes();
-    }
-
-    throw Exception('Cannot read file bytes for: ${platformFile.name}');
   }
 
   Future<String> getLinkAndUpload(Uint8List file) async {

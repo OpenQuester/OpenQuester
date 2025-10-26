@@ -12,3 +12,4 @@ export 'ui/image_provider.dart';
 export 'ui/max_size_container.dart';
 export 'ui/ui_mode_utils.dart';
 export 'utils/extensions.dart';
+export 'utils/media_file_utils.dart';

@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:openquester/common_imports.dart';
+import 'package:openquester/src/core/utils/media_file_utils.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/package_upload_state.dart';
 import 'package:oq_editor/utils/oq_package_archiver.dart';
 import 'package:oq_editor/utils/siq_import_helper.dart';
 import 'package:siq_file/siq_file.dart';
-import 'package:universal_io/io.dart';
 
 /// Unified service for package operations
 /// Eliminates code duplication across upload and editor controllers
@@ -29,37 +29,12 @@ class PackageService {
     );
   }
 
-  /// Read bytes from MediaFileReference (web or native)
-  /// Common utility used across all controllers
-  Future<Uint8List> readMediaBytes(MediaFileReference media) async {
-    final platformFile = media.platformFile;
-
-    if (platformFile.bytes != null) {
-      return platformFile.bytes!;
-    }
-
-    if (platformFile.path != null) {
-      return File(platformFile.path!).readAsBytes();
-    }
-
-    throw Exception('Cannot read file bytes for: ${platformFile.name}');
-  }
-
   /// Convert MediaFileReference map to bytes map
   /// Helper for processing media files before upload
   Future<Map<String, Uint8List>> convertMediaFilesToBytes(
     Map<String, MediaFileReference> mediaFilesByHash,
   ) async {
-    final filesBytesByHash = <String, Uint8List>{};
-
-    for (final entry in mediaFilesByHash.entries) {
-      final hash = entry.key;
-      final mediaFile = entry.value;
-      final bytes = await readMediaBytes(mediaFile);
-      filesBytesByHash[hash] = bytes;
-    }
-
-    return filesBytesByHash;
+    return MediaFileUtils.convertMediaFilesToBytes(mediaFilesByHash);
   }
 
   /// Upload package with media files and detailed progress tracking
@@ -127,7 +102,7 @@ class PackageService {
       final media = mediaFilesByHash[link.key];
 
       if (media != null) {
-        final fileBytes = await readMediaBytes(media);
+        final fileBytes = await MediaFileUtils.readMediaBytes(media);
         await getIt<S3UploadController>().uploadFile(
           uploadLink: Uri.parse(link.value),
           file: fileBytes,

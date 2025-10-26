@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_compress/oq_compress.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
+import 'package:oq_editor/utils/editor_media_utils.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
@@ -86,7 +86,7 @@ class MediaFileEncoder {
         await sourceFile.copy(tempFile.path);
       } else {
         // Only read bytes if no path available (web platform)
-        final originalBytes = await _readMediaBytes(mediaFile);
+        final originalBytes = await EditorMediaUtils.readMediaBytes(mediaFile);
         await tempFile.writeAsBytes(originalBytes);
       }
 
@@ -180,21 +180,6 @@ class MediaFileEncoder {
       'Encoding completed. Encoded files: ${_encodedFilesHash.length}',
     );
     return (files: processedFiles, hashMapping: hashMapping);
-  }
-
-  /// Read bytes from MediaFileReference (web or native)
-  Future<Uint8List> _readMediaBytes(MediaFileReference media) async {
-    final platformFile = media.platformFile;
-
-    if (platformFile.bytes != null) {
-      return platformFile.bytes!;
-    }
-
-    if (platformFile.path != null) {
-      return File(platformFile.path!).readAsBytes();
-    }
-
-    throw Exception('Cannot read file bytes for: ${platformFile.name}');
   }
 
   /// Helper method to create MediaFileReference from a file path

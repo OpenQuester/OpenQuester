@@ -3,17 +3,17 @@ import 'dart:typed_data';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_shared/oq_shared.dart';
 
-/// Utilities for media file operations within the editor package
-/// Consolidates common operations to reduce duplication
-class EditorMediaUtils {
+/// Utility class for media file operations
+/// Provides common file reading functionality used across controllers
+class MediaFileUtils {
   /// Read bytes from MediaFileReference (web or native)
-  /// Common utility used across editor controllers
+  /// Handles both in-memory bytes and file path scenarios
   static Future<Uint8List> readMediaBytes(MediaFileReference media) async {
     return SharedMediaFileUtils.readMediaBytes(media.platformFile);
   }
 
   /// Convert MediaFileReference map to bytes map
-  /// Helper for processing media files before operations
+  /// Helper for processing media files before upload
   static Future<Map<String, Uint8List>> convertMediaFilesToBytes(
     Map<String, MediaFileReference> mediaFilesByHash,
   ) async {
@@ -27,20 +27,5 @@ class EditorMediaUtils {
     }
 
     return filesBytesByHash;
-  }
-
-  /// Create MediaFileReference from file bytes
-  /// Used when importing files and converting bytes back to references
-  static MediaFileReference createMediaFileFromBytes({
-    required String hash,
-    required Uint8List bytes,
-    String? originalName,
-  }) {
-    final platformFile = SharedMediaFileUtils.createPlatformFileFromBytes(
-      name: originalName ?? hash,
-      bytes: bytes,
-    );
-
-    return MediaFileReference(platformFile: platformFile);
   }
 }

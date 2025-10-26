@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/utils/siq_import_helper.dart';
-import 'package:universal_io/io.dart';
+import 'package:oq_shared/oq_shared.dart';
 
 /// Utility class for archiving/unarchiving OQ packages
 /// Archive structure:
@@ -30,16 +30,8 @@ class OqPackageArchiver {
       final hash = entry.key;
       final mediaFile = entry.value;
 
-      // Get file bytes
-      if (mediaFile.platformFile.bytes != null) {
-        mediaFilesBytes[hash] = mediaFile.platformFile.bytes!;
-      } else if (mediaFile.platformFile.path != null) {
-        // Read from path if bytes not available
-        final file = File(mediaFile.platformFile.path!);
-        mediaFilesBytes[hash] = await file.readAsBytes();
-      } else {
-        throw Exception('Cannot export: file has no bytes or path');
-      }
+      // Get file bytes using extension method
+      mediaFilesBytes[hash] = await mediaFile.platformFile.readBytes();
     }
 
     // Run heavy encoding in isolate
