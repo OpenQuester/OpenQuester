@@ -25,7 +25,6 @@ export 'src/core/env.dart';
 export 'src/core/get_it.config.dart';
 export 'src/core/get_it.dart';
 export 'src/core/localization.dart';
-export 'src/core/logging/base_logger.dart';
 export 'src/core/logging/logger.dart';
 export 'src/core/logging/talker_lib.dart';
 export 'src/core/router.dart';

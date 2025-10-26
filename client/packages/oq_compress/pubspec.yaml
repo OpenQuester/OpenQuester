@@ -8,6 +8,11 @@ environment:
   sdk: ">=3.8.0 <4.0.0"
 
 dependencies:
+  # Local packages
+  oq_shared:
+    path: ../oq_shared/
+  #
+
   args: ^2.7.0
   cli_completion: ^0.5.1
   mason_logger: ^0.3.3
