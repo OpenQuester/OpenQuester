@@ -330,6 +330,14 @@
     "encoding_for_export": "Encoding for Export",
     "preparing_files": "Preparing files...",
     "compressing_files": "Compressing files...",
-    "finalizing_encoding": "Finalizing encoding..."
+    "finalizing_encoding": "Finalizing encoding...",
+    "package_size": "Package Size",
+    "package_size_mb": "Package: {} MB",
+    "encoding_not_supported_title": "Encoding Not Supported",
+    "encoding_not_supported_message": "File compression is not available on your current platform.",
+    "encoding_not_supported_details": "Your package is {} MB. On desktop with encoding enabled, it could be up to 20x smaller.",
+    "upload_now_button": "Upload Now",
+    "export_and_upload_button": "Export & Upload Later",
+    "export_recommended": "Exporting is recommended for large packages."
   }
 }

@@ -76,6 +76,9 @@ class OqEditorController {
   /// This includes both newly added files and imported files from .oq archives
   final Map<String, MediaFileReference> _mediaFilesByHash = {};
 
+  /// Total size of media files in MB
+  final ValueNotifier<double> _totalSizeMB = ValueNotifier<double>(0);
+
   /// Encoding progress stream controllers
   StreamController<double>? _encodingProgressController;
 
@@ -126,6 +129,7 @@ class OqEditorController {
   Future<String> registerMediaFile(MediaFileReference file) async {
     final hash = await file.calculateHash();
     _mediaFilesByHash[hash] = file;
+    _updateTotalSize();
     return hash;
   }
 
@@ -133,11 +137,33 @@ class OqEditorController {
   Future<void> unregisterMediaFile(String hash) async {
     final file = _mediaFilesByHash.remove(hash);
     await file?.disposeController();
+    _updateTotalSize();
   }
 
   /// Get all pending media files for upload
   Map<String, MediaFileReference> get pendingMediaFiles =>
       Map.unmodifiable(_mediaFilesByHash);
+
+  /// Calculate total size of pending media files in bytes
+  int get totalMediaFilesSize {
+    return _mediaFilesByHash.values.fold<int>(
+      0,
+      (total, file) => total + (file.fileSize ?? 0),
+    );
+  }
+
+  /// Calculate total size of pending media files in MB
+  double get totalMediaFilesSizeMB {
+    return totalMediaFilesSize / (1024 * 1024);
+  }
+
+  /// Get reactive total size in MB for watching
+  ValueNotifier<double> get totalSizeMBNotifier => _totalSizeMB;
+
+  /// Update the total size notifier
+  void _updateTotalSize() {
+    _totalSizeMB.value = totalMediaFilesSizeMB;
+  }
 
   /// Clear all pending media files
   Future<void> clearPendingMediaFiles() async {
@@ -146,6 +172,7 @@ class OqEditorController {
       _mediaFilesByHash.values.map((e) => e.disposeController()),
     );
     _mediaFilesByHash.clear();
+    _updateTotalSize();
   }
 
   /// Save the package
@@ -294,6 +321,9 @@ class OqEditorController {
         final mediaFile = MediaFileReference(platformFile: platformFile);
         _mediaFilesByHash[hash] = mediaFile;
       }
+
+      // Update total size after import
+      _updateTotalSize();
 
       // Update package with imported data
       package.value = result.package;
@@ -699,5 +729,7 @@ class OqEditorController {
     package.dispose();
     currentStep.dispose();
     navigationContext.dispose();
+    refreshKey.dispose();
+    _totalSizeMB.dispose();
   }
 }

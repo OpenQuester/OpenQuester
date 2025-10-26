@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:oq_compress/oq_compress.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/models/editor_step.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
 import 'package:oq_editor/models/package_upload_state.dart';
 import 'package:oq_editor/view/dialogs/encoding_progress_dialog.dart';
+import 'package:oq_editor/view/dialogs/encoding_warning_dialog.dart';
 import 'package:oq_editor/view/screens/package_info_screen.dart';
 import 'package:oq_editor/view/screens/questions_list_screen.dart';
 import 'package:oq_editor/view/screens/round_editor_screen.dart';
@@ -48,6 +50,7 @@ class OqEditorScreen extends WatchingWidget {
           child: Scaffold(
             appBar: AppBar(
               title: Text(controller.translations.editorTitle),
+              bottom: _buildPackageSizeIndicator(),
               actions: [
                 // Import button
                 Builder(
@@ -176,13 +179,48 @@ class OqEditorScreen extends WatchingWidget {
   Future<void> _handleSave(BuildContext context) async {
     if (!context.mounted) return;
 
-    // Check if we need to show encoding progress
+    // Check if encoding is supported and if there are media files
     final hasMediaFiles = controller.pendingMediaFiles.isNotEmpty;
+    if (hasMediaFiles) {
+      final isEncodingSupported = await OqFileEncoder.isSupported();
+
+      if (!isEncodingSupported) {
+        if (!context.mounted) return;
+
+        // Show warning dialog for unsupported encoding
+        final totalSizeMB = controller.totalMediaFilesSizeMB;
+        final action = await showDialog<EncodingWarningAction>(
+          context: context,
+          builder: (context) => EncodingWarningDialog(
+            translations: controller.translations,
+            totalSizeMB: totalSizeMB,
+          ),
+        );
+
+        if (!context.mounted) return;
+
+        switch (action) {
+          case EncodingWarningAction.export:
+            await _handleExport(context);
+            return;
+          case EncodingWarningAction.upload:
+            // Continue with upload
+            break;
+          case null:
+            // User cancelled
+            return;
+        }
+      }
+    }
+
+    // Check if we need to show encoding progress
     var encodingDialogShown = false;
 
     try {
       // Show encoding progress dialog if there are media files to encode
       if (hasMediaFiles) {
+        if (!context.mounted) return;
+
         encodingDialogShown = true;
         unawaited(
           showDialog<void>(
@@ -382,6 +420,61 @@ class OqEditorScreen extends WatchingWidget {
       case EditorStep.questionsList:
         return const QuestionsListScreen(key: ValueKey('questions_list'));
     }
+  }
+
+  /// Build package size indicator for the app bar bottom
+  PreferredSizeWidget? _buildPackageSizeIndicator() {
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(32),
+      child: _PackageSizeIndicator(controller: controller),
+    );
+  }
+}
+
+/// Package size indicator widget that shows the total size of media files
+class _PackageSizeIndicator extends WatchingWidget {
+  const _PackageSizeIndicator({required this.controller});
+
+  final OqEditorController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalSizeMB = watchValue<OqEditorController, double>(
+      (c) => c.totalSizeMBNotifier,
+    );
+
+    if (totalSizeMB <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainer,
+        border: Border(
+          top: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.folder_outlined,
+            size: 16,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            controller.translations.packageSizeMB(totalSizeMB),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

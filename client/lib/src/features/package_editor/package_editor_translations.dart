@@ -527,4 +527,38 @@ class AppOqEditorTranslations implements OqEditorTranslations {
       LocaleKeys.oq_editor_display_time_value.tr(
         args: [milliseconds.toString()],
       );
+
+  /// Package size and encoding warnings
+  @override
+  String get packageSize => LocaleKeys.oq_editor_package_size.tr();
+
+  @override
+  String packageSizeMB(double sizeMB) =>
+      LocaleKeys.oq_editor_package_size_mb.tr(
+        args: [sizeMB.toStringAsFixed(1)],
+      );
+
+  @override
+  String get encodingNotSupportedTitle =>
+      LocaleKeys.oq_editor_encoding_not_supported_title.tr();
+
+  @override
+  String get encodingNotSupportedMessage =>
+      LocaleKeys.oq_editor_encoding_not_supported_message.tr();
+
+  @override
+  String encodingNotSupportedDetails(double sizeMB) =>
+      LocaleKeys.oq_editor_encoding_not_supported_details.tr(
+        args: [sizeMB.toStringAsFixed(1)],
+      );
+
+  @override
+  String get uploadNowButton => LocaleKeys.oq_editor_upload_now_button.tr();
+
+  @override
+  String get exportAndUploadButton =>
+      LocaleKeys.oq_editor_export_and_upload_button.tr();
+
+  @override
+  String get exportRecommended => LocaleKeys.oq_editor_export_recommended.tr();
 }

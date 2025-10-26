@@ -228,4 +228,14 @@ abstract class OqEditorTranslations {
 
   /// Media file display
   String displayTimeValue(int milliseconds);
+
+  /// Package size and encoding warnings
+  String get packageSize;
+  String packageSizeMB(double sizeMB);
+  String get encodingNotSupportedTitle;
+  String get encodingNotSupportedMessage;
+  String encodingNotSupportedDetails(double sizeMB);
+  String get uploadNowButton;
+  String get exportAndUploadButton;
+  String get exportRecommended;
 }
