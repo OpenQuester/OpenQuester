@@ -16,6 +16,7 @@ export 'utils/media_upload_helper.dart';
 export 'utils/media_utils.dart';
 export 'utils/oq_package_archiver.dart';
 export 'utils/question_templates.dart';
+export 'utils/siq_import_helper.dart';
 export 'view/dialogs/display_time_dialog.dart';
 export 'view/dialogs/encoding_progress_dialog.dart';
 export 'view/dialogs/media_preview_dialog.dart';

@@ -1,11 +1,12 @@
 import 'dart:convert';
 
-import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
+import 'package:oq_editor/utils/siq_import_helper.dart';
 import 'package:universal_io/io.dart';
 
 /// Utility class for archiving/unarchiving OQ packages
@@ -207,27 +208,18 @@ class OqPackageArchiver {
   /// Pick .oq file using file picker
   /// Returns the file bytes or null if cancelled
   static Future<Uint8List?> pickArchiveFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['oq'],
-      withData: true, // Ensure bytes are loaded (important for web)
-    );
+    final fileResult = await SiqImportHelper.pickPackageFile();
+    if (fileResult == null) return null;
 
-    if (result == null || result.files.isEmpty) {
-      return null;
+    // Validate that it's an OQ file
+    if (fileResult.extension != 'oq') {
+      throw Exception(
+        'Expected .oq file, got .${fileResult.extension}. '
+        'Please select an OQ package file.',
+      );
     }
 
-    final pickedFile = result.files.first;
-
-    if (pickedFile.bytes != null) {
-      return pickedFile.bytes;
-    } else if (pickedFile.path != null) {
-      // Read from path if bytes not available (non-web platforms)
-      final file = File(pickedFile.path!);
-      return file.readAsBytes();
-    }
-
-    return null;
+    return fileResult.bytes;
   }
 }
 

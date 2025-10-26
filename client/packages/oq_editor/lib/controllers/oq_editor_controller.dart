@@ -1,17 +1,17 @@
 import 'dart:async';
 
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/editor_step.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
 import 'package:oq_editor/models/package_upload_state.dart';
+import 'package:oq_editor/utils/editor_media_utils.dart';
 import 'package:oq_editor/utils/extensions.dart';
 import 'package:oq_editor/utils/media_file_encoder.dart';
 import 'package:oq_editor/utils/oq_package_archiver.dart';
+import 'package:oq_editor/utils/siq_import_helper.dart';
 import 'package:oq_shared/oq_shared.dart';
-import 'package:universal_io/io.dart';
 
 class OqEditorController {
   OqEditorController({
@@ -110,16 +110,11 @@ class OqEditorController {
     final mediaFile = _mediaFilesByHash[hash];
     if (mediaFile == null) return null;
 
-    // Return bytes from platform file
-    if (mediaFile.platformFile.bytes != null) {
-      return mediaFile.platformFile.bytes;
-    } else if (mediaFile.platformFile.path != null) {
-      // Read from path if bytes not available
-      final file = File(mediaFile.platformFile.path!);
-      return file.readAsBytes();
+    try {
+      return await EditorMediaUtils.readMediaBytes(mediaFile);
+    } catch (e) {
+      return null;
     }
-
-    return null;
   }
 
   /// Register a media file reference for upload
@@ -307,16 +302,11 @@ class OqEditorController {
         final hash = entry.key;
         final bytes = entry.value;
 
-        // Create a PlatformFile from the bytes
-        // Use hash as filename since we don't have the original filename
-        final platformFile = PlatformFile(
-          name: hash,
-          size: bytes.length,
+        // Create MediaFileReference using utility
+        final mediaFile = EditorMediaUtils.createMediaFileFromBytes(
+          hash: hash,
           bytes: bytes,
         );
-
-        // Create MediaFileReference and register it
-        final mediaFile = MediaFileReference(platformFile: platformFile);
         _mediaFilesByHash[hash] = mediaFile;
       }
 
@@ -331,6 +321,170 @@ class OqEditorController {
       refreshKey.value = UniqueKey();
     } catch (e) {
       logger?.e('Error importing package: $e');
+      rethrow;
+    }
+  }
+
+  /// Import package from .siq file
+  /// Converts SIQ format to OQ package and replaces current data
+  /// Shows encoding warning and progress dialog
+  Future<void> importSiqPackage() async {
+    try {
+      // Clear existing media files first
+      await clearPendingMediaFiles();
+
+      // Start SIQ import with progress tracking
+      await for (final progress in SiqImportHelper(
+        logger: logger,
+      ).pickAndConvertSiqFile()) {
+        switch (progress) {
+          case SiqImportPickingFile():
+            // No action needed, file picker is shown
+            break;
+          case SiqImportParsingFile(:final progress):
+            // Could show parsing progress if needed
+            logger?.d('Parsing SIQ file: ${(progress * 100).toInt()}%');
+          case SiqImportConvertingMedia(:final current, :final total):
+            // Could show media conversion progress
+            logger?.d('Converting media files: $current/$total');
+          case SiqImportCompleted(:final result):
+            // Import completed successfully
+
+            // Register media files
+            _mediaFilesByHash.clear();
+            _mediaFilesByHash.addAll(result.mediaFilesByHash);
+
+            // Update total size after import
+            _updateTotalSize();
+
+            // Update package with imported data
+            package.value = result.package;
+
+            // Navigate to package info screen
+            navigateToPackageInfo();
+            refreshKey.value = UniqueKey();
+
+            logger?.i(
+              'SIQ package imported successfully: ${result.package.title}',
+            );
+          case SiqImportError(:final error, :final stackTrace):
+            logger?.e(
+              'SIQ import failed',
+              error: error,
+              stackTrace: stackTrace,
+            );
+            // ignore: only_throw_errors
+            throw error;
+        }
+      }
+    } catch (e) {
+      logger?.e('Error importing SIQ package: $e');
+      rethrow;
+    }
+  }
+
+  /// Pick package file (.oq or .siq) using unified picker
+  /// Returns file bytes and extension or null if cancelled
+  Future<({Uint8List bytes, String extension})?> pickPackageFile() async {
+    return SiqImportHelper.pickPackageFile();
+  }
+
+  /// Import OQ package from bytes
+  /// Replaces current package data with imported data
+  Future<void> importOqPackage(Uint8List oqBytes) async {
+    try {
+      // Import package
+      final result = await OqPackageArchiver.importPackage(oqBytes);
+
+      // Clear existing media files
+      await clearPendingMediaFiles();
+
+      // Populate encoder cache with encoded files from archive metadata
+      if (result.encodedFileHashes != null) {
+        _mediaFileEncoder.populateEncodedFilesCache(result.encodedFileHashes!);
+      }
+
+      // Convert imported file bytes to MediaFileReference objects
+      for (final entry in result.filesBytesByHash.entries) {
+        final hash = entry.key;
+        final bytes = entry.value;
+
+        // Create MediaFileReference using utility
+        final mediaFile = EditorMediaUtils.createMediaFileFromBytes(
+          hash: hash,
+          bytes: bytes,
+        );
+        _mediaFilesByHash[hash] = mediaFile;
+      }
+
+      // Update total size after import
+      _updateTotalSize();
+
+      // Update package with imported data
+      package.value = result.package;
+
+      // Navigate to package info screen
+      navigateToPackageInfo();
+      refreshKey.value = UniqueKey();
+    } catch (e) {
+      logger?.e('Error importing OQ package: $e');
+      rethrow;
+    }
+  }
+
+  /// Import SIQ package from bytes
+  /// Converts SIQ format to OQ package and replaces current data
+  Future<void> importSiqPackageFromBytes(Uint8List siqBytes) async {
+    try {
+      // Clear existing media files first
+      await clearPendingMediaFiles();
+
+      // Start SIQ import with progress tracking
+      await for (final progress in SiqImportHelper(
+        logger: logger,
+      ).convertSiqToOqPackage(siqBytes)) {
+        switch (progress) {
+          case SiqImportParsingFile(:final progress):
+            // Could show parsing progress if needed
+            logger?.d('Parsing SIQ file: ${(progress * 100).toInt()}%');
+          case SiqImportConvertingMedia(:final current, :final total):
+            // Could show media conversion progress
+            logger?.d('Converting media files: $current/$total');
+          case SiqImportCompleted(:final result):
+            // Import completed successfully
+
+            // Register media files
+            _mediaFilesByHash.clear();
+            _mediaFilesByHash.addAll(result.mediaFilesByHash);
+
+            // Update total size after import
+            _updateTotalSize();
+
+            // Update package with imported data
+            package.value = result.package;
+
+            // Navigate to package info screen
+            navigateToPackageInfo();
+            refreshKey.value = UniqueKey();
+
+            logger?.i(
+              'SIQ package imported successfully: ${result.package.title}',
+            );
+          case SiqImportError(:final error, :final stackTrace):
+            logger?.e(
+              'SIQ import failed',
+              error: error,
+              stackTrace: stackTrace,
+            );
+            // ignore: only_throw_errors
+            throw error;
+          case SiqImportPickingFile():
+            // This shouldn't happen when called with bytes
+            break;
+        }
+      }
+    } catch (e) {
+      logger?.e('Error importing SIQ package: $e');
       rethrow;
     }
   }

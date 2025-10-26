@@ -52,7 +52,7 @@ class OqEditorScreen extends WatchingWidget {
               title: Text(controller.translations.editorTitle),
               bottom: _buildPackageSizeIndicator(),
               actions: [
-                // Import button
+                // Import button (handles both .oq and .siq files)
                 Builder(
                   builder: (buttonContext) => LoadingButtonBuilder(
                     onPressed: () => _handleImport(buttonContext),
@@ -66,7 +66,7 @@ class OqEditorScreen extends WatchingWidget {
                       return IconButton(
                         icon: child,
                         onPressed: onPressed,
-                        tooltip: controller.translations.importPackageTooltip,
+                        tooltip: controller.translations.importPackage,
                       );
                     },
                     child: const Icon(Icons.upload_file),
@@ -291,15 +291,35 @@ class OqEditorScreen extends WatchingWidget {
 
   Future<void> _handleImport(BuildContext context) async {
     try {
-      await controller.importPackage();
-      if (!context.mounted) return;
+      // Use unified picker to get file with extension detection
+      final fileResult = await controller.pickPackageFile();
+      if (fileResult == null) return; // User cancelled
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(controller.translations.packageImportedSuccessfully),
-          backgroundColor: Colors.green,
-        ),
-      );
+      // Import based on detected extension (picker validates extension)
+      if (fileResult.extension == 'oq') {
+        await controller.importOqPackage(fileResult.bytes);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              controller.translations.packageImportedSuccessfully,
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        // SIQ file - no encoding warning needed for import
+        await controller.importSiqPackageFromBytes(fileResult.bytes);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              controller.translations.siqPackageImportedSuccessfully,
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
     } catch (error) {
       if (!context.mounted) return;
 

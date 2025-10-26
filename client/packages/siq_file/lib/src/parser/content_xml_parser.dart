@@ -6,10 +6,9 @@ import 'package:siq_file/src/extensions.dart';
 import 'package:xml/xml.dart';
 
 class ContentXmlParser {
-  ContentXmlParser(Archive? archive, {this.encodeFiles = false}) {
+  ContentXmlParser(Archive? archive) {
     _archive = archive;
   }
-  final bool encodeFiles;
 
   Future<void> parse(String rawFile) async {
     final document = XmlDocument.parse(rawFile);

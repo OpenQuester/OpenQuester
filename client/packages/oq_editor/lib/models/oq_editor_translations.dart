@@ -218,13 +218,20 @@ abstract class OqEditorTranslations {
 
   /// Import/Export
   String get importPackage;
+  String get importSiqPackage;
   String get exportPackage;
   String get importPackageTooltip;
+  String get importSiqTooltip;
   String get exportPackageTooltip;
   String get errorExporting;
   String get errorImporting;
+  String get errorImportingSiq;
   String get packageImportedSuccessfully;
+  String get siqPackageImportedSuccessfully;
   String get packageExportedSuccessfully;
+  String get siqEncodingWarningTitle;
+  String get siqEncodingWarningMessage;
+  String get siqImportContinue;
 
   /// Media file display
   String displayTimeValue(int milliseconds);

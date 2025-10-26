@@ -72,7 +72,7 @@ gen_workers:
 	@echo "Skipping gen_workers"
 else
 # List of files (without the '.g.dart' suffix)
-FILES := upload_isolate.web
+FILES := package_service.web
 
 # Directories for source and output
 SRC_DIR := ./lib/workers

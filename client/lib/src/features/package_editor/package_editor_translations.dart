@@ -481,11 +481,17 @@ class AppOqEditorTranslations implements OqEditorTranslations {
   String get importPackage => LocaleKeys.oq_editor_import_package.tr();
 
   @override
+  String get importSiqPackage => LocaleKeys.oq_editor_import_siq_package.tr();
+
+  @override
   String get exportPackage => LocaleKeys.oq_editor_export_package.tr();
 
   @override
   String get importPackageTooltip =>
       LocaleKeys.oq_editor_import_package_tooltip.tr();
+
+  @override
+  String get importSiqTooltip => LocaleKeys.oq_editor_import_siq_tooltip.tr();
 
   @override
   String get exportPackageTooltip =>
@@ -498,12 +504,30 @@ class AppOqEditorTranslations implements OqEditorTranslations {
   String get errorImporting => LocaleKeys.oq_editor_error_importing.tr();
 
   @override
+  String get errorImportingSiq => LocaleKeys.oq_editor_error_importing_siq.tr();
+
+  @override
   String get packageImportedSuccessfully =>
       LocaleKeys.oq_editor_package_imported_successfully.tr();
 
   @override
+  String get siqPackageImportedSuccessfully =>
+      LocaleKeys.oq_editor_siq_package_imported_successfully.tr();
+
+  @override
   String get packageExportedSuccessfully =>
       LocaleKeys.oq_editor_package_exported_successfully.tr();
+
+  @override
+  String get siqEncodingWarningTitle =>
+      LocaleKeys.oq_editor_siq_encoding_warning_title.tr();
+
+  @override
+  String get siqEncodingWarningMessage =>
+      LocaleKeys.oq_editor_siq_encoding_warning_message.tr();
+
+  @override
+  String get siqImportContinue => LocaleKeys.oq_editor_siq_import_continue.tr();
 
   /// Encoding dialog translations
   @override
