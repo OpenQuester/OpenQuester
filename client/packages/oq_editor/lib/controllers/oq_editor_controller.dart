@@ -67,9 +67,7 @@ class OqEditorController {
 
   /// Navigation context tracking which round/theme/question is being edited
   final ValueNotifier<EditorNavigationContext> navigationContext =
-      ValueNotifier<EditorNavigationContext>(
-        EditorNavigationContext(),
-      );
+      ValueNotifier<EditorNavigationContext>(EditorNavigationContext());
 
   /// Media file references map by hash
   /// Key: MD5 hash of file, Value: MediaFileReference for upload
@@ -83,8 +81,8 @@ class OqEditorController {
   StreamController<double>? _encodingProgressController;
 
   /// Encoding progress stream for UI dialogs
-  Stream<double>? get encodingProgressStream =>
-      _encodingProgressController?.stream;
+  Stream<double> get encodingProgressStream =>
+      _encodingProgressController?.stream ?? const Stream<double>.empty();
 
   // Last used settings for question creation
   /// Last used price value (persisted across question creations)
