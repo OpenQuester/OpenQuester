@@ -12,7 +12,7 @@
     "build:dev": "tsup --watch",
     "build": "tsc && tsup",
     "test": "jest --detectOpenHandles --forceExit",
-    "test:pipeline": "jest --detectOpenHandles > /dev/null",
+    "test:pipeline": "jest --detectOpenHandles --forceExit > /dev/null",
     "lint": "eslint ./"
   },
   "keywords": [],
