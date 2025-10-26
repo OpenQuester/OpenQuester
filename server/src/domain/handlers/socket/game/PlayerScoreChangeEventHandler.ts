@@ -1,5 +1,7 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -15,7 +17,6 @@ import {
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 /**
  * Handler for player score change events
@@ -29,13 +30,28 @@ export class PlayerScoreChangeEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOGameService: SocketIOGameService
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.SCORE_CHANGED;
+  }
+
+  protected async getGameIdForAction(
+    _data: PlayerScoreChangeInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   protected async validateInput(
@@ -56,14 +72,14 @@ export class PlayerScoreChangeEventHandler extends BaseSocketEventHandler<
     context: SocketEventContext
   ): Promise<SocketEventResult<PlayerScoreChangeBroadcastData>> {
     const result = await this.socketIOGameService.changePlayerScore(
-      this.socket.id,
+      context.socketId,
       data.playerId,
       data.newScore
     );
 
     // Assign context variables for logging
     context.gameId = result.game.id;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     const broadcastData: PlayerScoreChangeBroadcastData = {
       playerId: data.playerId,

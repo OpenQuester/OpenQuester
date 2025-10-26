@@ -140,7 +140,6 @@ describe("Stake Question Max Price Cases Tests", () => {
       await cleanup();
     }
     await testEnv.teardown();
-    await RedisConfig.disconnect();
   });
 
   describe("Max Price Related Behaviors", () => {

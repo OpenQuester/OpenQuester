@@ -1,5 +1,7 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -16,7 +18,6 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class LeaveGameEventHandler extends BaseSocketEventHandler<
   EmptyInputData,
@@ -28,7 +29,8 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
     logger: ILogger,
     actionExecutor: GameActionExecutor,
     private readonly socketIOGameService: SocketIOGameService,
-    private readonly userNotificationRoomService: UserNotificationRoomService
+    private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
@@ -51,12 +53,30 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
     // Any authenticated user can leave a game
   }
 
+  protected override async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): string {
+    return "player:leave";
+  }
+
   protected async execute(
     _data: EmptyInputData,
     context: SocketEventContext
   ): Promise<SocketEventResult<GameLeaveBroadcastData>> {
     // Handle lobby leave through game service
-    const result = await this.socketIOGameService.leaveLobby(this.socket.id);
+    const result = await this.socketIOGameService.leaveLobby(context.socketId);
 
     if (!result.emit || !result.data) {
       return {
@@ -68,7 +88,7 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = result.data.gameId;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     const broadcastData: GameLeaveBroadcastData = {
       user: result.data.userId,
@@ -106,7 +126,7 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
 
         // Unsubscribe from all other players' notification rooms
         await this.userNotificationRoomService.unsubscribeFromMultipleUserNotifications(
-          this.socket.id,
+          context.socketId,
           allPlayerIds
         );
 

@@ -1,5 +1,7 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -24,7 +26,6 @@ import { QuestionPickInputData } from "domain/types/socket/events/SocketEventInt
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class QuestionPickEventHandler extends BaseSocketEventHandler<
   QuestionPickInputData,
@@ -35,13 +36,28 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOQuestionService: SocketIOQuestionService
+    private readonly socketIOQuestionService: SocketIOQuestionService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.QUESTION_PICK;
+  }
+
+  protected async getGameIdForAction(
+    _data: QuestionPickInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   protected async validateInput(
@@ -62,13 +78,13 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
     context: SocketEventContext
   ): Promise<SocketEventResult<GameQuestionDataEventPayload>> {
     const result = await this.socketIOQuestionService.handleQuestionPick(
-      this.socket.id,
+      context.socketId,
       data.questionId
     );
 
     // Assign context variables for logging
     context.gameId = result.game.id;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     // Check if this is a secret question with special data (not auto-skipped)
     if (

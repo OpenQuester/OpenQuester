@@ -1,5 +1,7 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -14,7 +16,6 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class StartGameEventHandler extends BaseSocketEventHandler<
   EmptyInputData,
@@ -25,13 +26,28 @@ export class StartGameEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOGameService: SocketIOGameService
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.START;
+  }
+
+  protected async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   protected async validateInput(
@@ -53,11 +69,11 @@ export class StartGameEventHandler extends BaseSocketEventHandler<
     context: SocketEventContext
   ): Promise<SocketEventResult<GameStartBroadcastData>> {
     // Execute the start game logic
-    const gameDTO = await this.socketIOGameService.startGame(this.socket.id);
+    const gameDTO = await this.socketIOGameService.startGame(context.socketId);
 
     // Assign context variables for logging
     context.gameId = gameDTO.id;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     const startEventPayload: GameStartBroadcastData = {
       currentRound: gameDTO.gameState.currentRound!,

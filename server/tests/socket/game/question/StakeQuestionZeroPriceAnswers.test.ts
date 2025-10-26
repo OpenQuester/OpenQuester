@@ -335,7 +335,6 @@ describe("Stake Question Zero Price Answer Tests", () => {
       await cleanup();
     }
     await testEnv.teardown();
-    await RedisConfig.disconnect();
   });
 
   describe("Zero Price Stake Question Answer Scenarios", () => {

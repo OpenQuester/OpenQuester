@@ -1,5 +1,7 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -8,13 +10,15 @@ import {
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
-import { GameUnpauseBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+import {
+  EmptyInputData,
+  GameUnpauseBroadcastData,
+} from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class UnpauseGameEventHandler extends BaseSocketEventHandler<
-  void,
+  EmptyInputData,
   GameUnpauseBroadcastData
 > {
   constructor(
@@ -22,7 +26,8 @@ export class UnpauseGameEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOGameService: SocketIOGameService
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
@@ -31,37 +36,51 @@ export class UnpauseGameEventHandler extends BaseSocketEventHandler<
     return SocketIOGameEvents.GAME_UNPAUSE;
   }
 
-  protected async validateInput(data: void): Promise<void> {
+  protected async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected async validateInput(data: EmptyInputData): Promise<EmptyInputData> {
     // No input validation needed for unpause event
     return data;
   }
 
   protected async authorize(
-    _data: void,
+    _data: EmptyInputData,
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization will be handled by the service layer (showman role check)
   }
 
   protected async beforeHandle(
-    _data: void,
+    _data: EmptyInputData,
     _context: SocketEventContext
   ): Promise<void> {
     // Could add pre-unpause activities like validating game state, preparing timers
   }
 
   protected async execute(
-    _data: void,
+    _data: EmptyInputData,
     context: SocketEventContext
   ): Promise<SocketEventResult<GameUnpauseBroadcastData>> {
     // Execute the unpause logic
     const { game, timer } = await this.socketIOGameService.handleGameUnpause(
-      this.socket.id
+      context.socketId
     );
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     const unpauseData: GameUnpauseBroadcastData = { timer };
 

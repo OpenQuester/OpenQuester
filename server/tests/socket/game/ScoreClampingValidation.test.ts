@@ -59,7 +59,6 @@ describe("Score Clamping Validation Tests", () => {
       await cleanup();
     }
     await testEnv.teardown();
-    await RedisConfig.disconnect();
   });
 
   /**

@@ -1,6 +1,8 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -12,7 +14,6 @@ import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameN
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class NextRoundEventHandler extends BaseSocketEventHandler<
   EmptyInputData,
@@ -24,13 +25,28 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
     logger: ILogger,
     actionExecutor: GameActionExecutor,
     private readonly socketIOGameService: SocketIOGameService,
-    private readonly gameProgressionCoordinator: GameProgressionCoordinator
+    private readonly gameProgressionCoordinator: GameProgressionCoordinator,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.NEXT_ROUND;
+  }
+
+  protected async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   protected async validateInput(
@@ -53,11 +69,11 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
   ): Promise<SocketEventResult<GameNextRoundEventPayload>> {
     // Execute the next round logic
     const { game, isGameFinished, nextGameState, questionData } =
-      await this.socketIOGameService.handleNextRound(this.socket.id);
+      await this.socketIOGameService.handleNextRound(context.socketId);
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = this.socket.userId;
+    // context.userId already set from action context
 
     // Use the game progression coordinator to handle the complete flow
     const progressionResult =

@@ -1,6 +1,7 @@
 import { type Namespace } from "socket.io";
 
 import { GameService } from "application/services/game/GameService";
+import { PlayerLeaveService, PlayerLeaveReason } from "application/services/player/PlayerLeaveService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
@@ -8,7 +9,6 @@ import { SocketIOQuestionService } from "application/services/socket/SocketIOQue
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { GAME_TTL_IN_SECONDS, SCORE_ABS_LIMIT } from "domain/constants/game";
-import { REDIS_LOCK_USER_LEAVE } from "domain/constants/redis";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -44,14 +44,11 @@ export class SocketIOGameService {
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly playerGameStatsService: PlayerGameStatsService,
+    private readonly playerLeaveService: PlayerLeaveService,
     private readonly logger: ILogger,
     private readonly gameNamespace: Namespace
   ) {
     //
-  }
-
-  private _getUserLeaveLockKey(gameId: string, userId: number): string {
-    return `${REDIS_LOCK_USER_LEAVE}:${gameId}:${userId}`;
   }
 
   public getGameEntity(gameId: string, updatedTTL?: number): Promise<Game> {
@@ -203,55 +200,18 @@ export class SocketIOGameService {
   }
 
   public async leaveLobby(socketId: string): Promise<GameLobbyLeaveData> {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const game = context.game;
-    const gameId = game.id;
-    const userSession = context.userSession;
+    const result = await this.playerLeaveService.handlePlayerLeave(socketId, {
+      reason: PlayerLeaveReason.LEAVE,
+    });
 
-    // Distributed lock to prevent race conditions from multiple simultaneous leave events
-    const lockKey = this._getUserLeaveLockKey(gameId, userSession.id);
-    const acquired = await this.gameService.gameLock(lockKey, 5); // 5 second timeout
-
-    if (!acquired) {
-      // Another leave operation is already in progress for this user
+    if (!result.shouldEmitLeave) {
       return { emit: false };
     }
 
-    try {
-      // Check if player is still in the game (after acquiring lock)
-      if (!game.hasPlayer(userSession.id)) {
-        return { emit: false };
-      }
-
-      game.removePlayer(userSession.id);
-
-      // Remove player from ready list if they were ready
-      if (game.gameState.readyPlayers) {
-        game.gameState.readyPlayers = game.gameState.readyPlayers.filter(
-          (playerId) => playerId !== userSession.id
-        );
-      }
-
-      await this.socketUserDataService.update(socketId, {
-        id: JSON.stringify(userSession.id),
-        gameId: JSON.stringify(null),
-      });
-      await this.gameService.updateGame(game);
-
-      // Clean up player statistics session in Redis
-      await this.playerGameStatsService.endPlayerSession(
-        gameId,
-        userSession.id,
-        new Date()
-      );
-
-      return { emit: true, data: { userId: userSession.id, gameId } };
-    } finally {
-      // Always release the lock
-      await this.gameService.gameUnlock(lockKey);
-    }
+    return {
+      emit: true,
+      data: { userId: result.userId, gameId: result.game.id },
+    };
   }
 
   public async handleNextRound(socketId: string) {
@@ -517,16 +477,30 @@ export class SocketIOGameService {
     targetPlayer.isRestricted = restrictions.restricted;
     targetPlayer.isBanned = restrictions.banned;
 
-    // If player is banned, remove them from the game
+    // If player is banned, save the game first to persist the ban flag
     if (restrictions.banned) {
-      game.removePlayer(targetPlayerId);
+      await this.gameService.updateGame(game);
 
-      // Remove from ready players list if they were ready
-      if (game.gameState.readyPlayers) {
-        game.gameState.readyPlayers = game.gameState.readyPlayers.filter(
-          (playerId) => playerId !== targetPlayerId
-        );
-      }
+      // Now remove them from the game using PlayerLeaveService
+      const leaveResult = await this.playerLeaveService.handlePlayerLeave(
+        socketId,
+        {
+          reason: PlayerLeaveReason.BAN,
+          targetUserId: targetPlayerId,
+          bannedBy: currentPlayer!.meta.id,
+          cleanupSession: false,
+        }
+      );
+
+      // Force disconnect banned user's socket
+      await this.forceDisconnectUserSocket(targetPlayerId);
+
+      return {
+        game: leaveResult.game,
+        targetPlayer: targetPlayer.toDTO(),
+        wasRemoved: true,
+        newRole,
+      };
     } else if (
       restrictions.restricted &&
       targetPlayer.role === PlayerRole.PLAYER
@@ -535,31 +509,23 @@ export class SocketIOGameService {
       targetPlayer.role = PlayerRole.SPECTATOR;
       targetPlayer.gameSlot = null;
       newRole = PlayerRole.SPECTATOR;
+
+      // Clean up player statistics if they were a player
+      if (originalRole === PlayerRole.PLAYER) {
+        await this.playerGameStatsService.endPlayerSession(
+          game.id,
+          targetPlayerId,
+          new Date()
+        );
+      }
     }
 
     await this.gameService.updateGame(game);
 
-    // Clean up player statistics session in Redis if they were banned or restricted and were previously a player
-    if (
-      (restrictions.banned || restrictions.restricted) &&
-      originalRole === PlayerRole.PLAYER
-    ) {
-      await this.playerGameStatsService.endPlayerSession(
-        game.id,
-        targetPlayerId,
-        new Date()
-      );
-    }
-
-    // Force disconnect banned user's socket
-    if (restrictions.banned) {
-      await this.forceDisconnectUserSocket(targetPlayerId);
-    }
-
     return {
       game,
       targetPlayer: targetPlayer.toDTO(),
-      wasRemoved: restrictions.banned,
+      wasRemoved: false,
       newRole,
     };
   }
@@ -625,29 +591,16 @@ export class SocketIOGameService {
 
     this.socketGameValidationService.validatePlayerManagement(currentPlayer);
 
-    // Remove player from the game
-    game.removePlayer(targetPlayerId);
-
-    // Remove from ready players list if they were ready
-    if (game.gameState.readyPlayers) {
-      game.gameState.readyPlayers = game.gameState.readyPlayers.filter(
-        (playerId) => playerId !== targetPlayerId
-      );
-    }
-
-    await this.gameService.updateGame(game);
-
-    // Clean up player statistics session in Redis if they were a player
-    if (targetPlayer.role === PlayerRole.PLAYER) {
-      await this.playerGameStatsService.endPlayerSession(
-        game.id,
-        targetPlayerId,
-        new Date()
-      );
-    }
+    // Use PlayerLeaveService to handle the removal
+    const result = await this.playerLeaveService.handlePlayerLeave(socketId, {
+      reason: PlayerLeaveReason.KICK,
+      targetUserId: targetPlayerId,
+      kickedBy: currentPlayer.meta.id,
+      cleanupSession: false,
+    });
 
     return {
-      game,
+      game: result.game,
       targetPlayerId,
     };
   }

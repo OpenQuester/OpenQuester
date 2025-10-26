@@ -1,6 +1,8 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -20,7 +22,6 @@ import {
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class FinalAnswerSubmitEventHandler extends BaseSocketEventHandler<
   FinalAnswerSubmitInputData,
@@ -31,13 +32,28 @@ export class FinalAnswerSubmitEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly finalRoundService: FinalRoundService
+    private readonly finalRoundService: FinalRoundService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.FINAL_ANSWER_SUBMIT;
+  }
+
+  protected async getGameIdForAction(
+    _data: FinalAnswerSubmitInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   protected async validateInput(
@@ -60,13 +76,13 @@ export class FinalAnswerSubmitEventHandler extends BaseSocketEventHandler<
   ): Promise<SocketEventResult<FinalAnswerSubmitOutputData>> {
     const { game, playerId, isPhaseComplete, isAutoLoss, allReviews } =
       await this.finalRoundService.handleFinalAnswerSubmit(
-        this.socket.id,
+        context.socketId,
         data.answerText
       );
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     const outputData: FinalAnswerSubmitOutputData = {
       playerId,

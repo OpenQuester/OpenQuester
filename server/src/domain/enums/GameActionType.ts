@@ -38,4 +38,12 @@ export enum GameActionType {
   DISCONNECT = "disconnect",
   CHAT_MESSAGE = "chat-message",
   MEDIA_DOWNLOADED = "media-downloaded",
+
+  // Timer Expirations
+  TIMER_MEDIA_DOWNLOAD_EXPIRED = "timer-media-download-expired",
+  TIMER_QUESTION_SHOWING_EXPIRED = "timer-question-showing-expired",
+  TIMER_QUESTION_ANSWERING_EXPIRED = "timer-question-answering-expired",
+  TIMER_THEME_ELIMINATION_EXPIRED = "timer-theme-elimination-expired",
+  TIMER_BIDDING_EXPIRED = "timer-bidding-expired",
+  TIMER_FINAL_ANSWERING_EXPIRED = "timer-final-answering-expired",
 }

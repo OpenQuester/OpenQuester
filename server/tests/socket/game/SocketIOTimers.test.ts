@@ -74,7 +74,6 @@ describe("SocketIOTimers", () => {
     try {
       if (cleanup) await cleanup();
       await testEnv.teardown();
-      await RedisConfig.disconnect();
     } catch (err) {
       console.error("Error during teardown:", err);
     }

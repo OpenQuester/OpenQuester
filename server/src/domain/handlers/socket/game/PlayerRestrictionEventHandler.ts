@@ -59,7 +59,7 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
     context: SocketEventContext
   ): Promise<SocketEventResult<PlayerRestrictionBroadcastData>> {
     const result = await this.socketIOGameService.updatePlayerRestrictions(
-      this.socket.id,
+      context.socketId,
       data.playerId,
       {
         muted: data.muted,
@@ -70,7 +70,7 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = result.game.id;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     const broadcastData: PlayerRestrictionBroadcastData = {
       playerId: data.playerId,

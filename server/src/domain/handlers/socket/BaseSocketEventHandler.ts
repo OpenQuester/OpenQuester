@@ -144,17 +144,25 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
         startTime: queuedAction.timestamp.getTime(),
       };
 
-      const result = await this.execute(actionData, actionContext);
+      try {
+        const result = await this.execute(actionData, actionContext);
 
-      await this.afterHandle(result, actionContext);
+        await this.afterHandle(result, actionContext);
 
-      if (result.broadcast) {
-        await this.handleBroadcasts(result.broadcast);
+        if (result.broadcast) {
+          await this.handleBroadcasts(result.broadcast);
+        }
+
+        await this.afterBroadcast(result, actionContext);
+
+        return { success: result.success, data: result.data };
+      } catch (error) {
+        // Handle error and emit to the ORIGINAL socket that submitted the action
+        const duration = Date.now() - actionContext.startTime;
+        await this.handleError(error, actionContext, duration);
+        // Re-throw to signal failure to action executor
+        throw error;
       }
-
-      await this.afterBroadcast(result, actionContext);
-
-      return { success: result.success, data: result.data };
     };
 
     await this.actionExecutor.submitAction(action, executeCallback);
@@ -336,10 +344,21 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
         this.logger
       );
 
-      // Emit error to client
-      this.eventEmitter.emit<ErrorEventPayload>(SocketIOEvents.ERROR, {
-        message: message,
-      });
+      // Emit error to the socket that originated this action
+      // For queued actions, context.socketId contains the original socket
+      try {
+        this.eventEmitter.emitToSocket<ErrorEventPayload>(
+          SocketIOEvents.ERROR,
+          { message: message },
+          context.socketId
+        );
+      } catch (emitError) {
+        // Socket might have disconnected, log but don't throw
+        this.logger.debug(
+          `Failed to emit error to socket ${context.socketId}: ${emitError}`,
+          { prefix: "[SOCKET]: " }
+        );
+      }
 
       // Log error with full context and original error details for server-side debugging
       this.logger.error(

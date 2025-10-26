@@ -64,7 +64,6 @@ describe("Stake Question Validation Tests", () => {
       await cleanup();
     }
     await testEnv.teardown();
-    await RedisConfig.disconnect();
   });
 
   /**

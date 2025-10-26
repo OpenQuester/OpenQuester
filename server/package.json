@@ -11,7 +11,7 @@
     "clean": "rm -rf dist/*",
     "build:dev": "tsup --watch",
     "build": "tsc && tsup",
-    "test": "jest --detectOpenHandles",
+    "test": "jest --detectOpenHandles --forceExit",
     "test:pipeline": "jest --detectOpenHandles > /dev/null",
     "lint": "eslint ./"
   },

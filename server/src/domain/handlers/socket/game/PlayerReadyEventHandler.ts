@@ -1,5 +1,7 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -16,7 +18,6 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 /**
  * Handler for player ready events
@@ -30,13 +31,28 @@ export class PlayerReadyEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOGameService: SocketIOGameService
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.PLAYER_READY;
+  }
+
+  protected async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   protected async validateInput(
@@ -59,13 +75,13 @@ export class PlayerReadyEventHandler extends BaseSocketEventHandler<
   ): Promise<SocketEventResult<PlayerReadinessBroadcastData>> {
     // Execute the set ready logic
     const result = await this.socketIOGameService.setPlayerReadiness(
-      this.socket.id,
+      context.socketId,
       true
     );
 
     // Assign context variables for logging
     context.gameId = result.game.id;
-    context.userId = this.socket.userId;
+    // context.userId already set from action context
 
     const readyData: PlayerReadinessBroadcastData = {
       playerId: result.playerId,

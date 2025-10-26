@@ -97,6 +97,15 @@ export const CONTAINER_TYPES = {
   GameActionLockService: Symbol("GameActionLockService"),
   GameActionQueueService: Symbol("GameActionQueueService"),
 
+  // Timer Services
+  TimerExpirationService: Symbol("TimerExpirationService"),
+
+  // Player Services
+  PlayerLeaveService: Symbol("PlayerLeaveService"),
+
+  // Question Services
+  SpecialQuestionService: Symbol("SpecialQuestionService"),
+
   // Factories
   RoundHandlerFactory: Symbol("RoundHandlerFactory"),
   StatisticsWorkerFactory: Symbol("StatisticsWorkerFactory"),

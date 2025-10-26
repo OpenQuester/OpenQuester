@@ -1,5 +1,7 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -13,7 +15,6 @@ import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 /**
  * Handler for media downloaded events
@@ -27,13 +28,28 @@ export class MediaDownloadedEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOQuestionService: SocketIOQuestionService
+    private readonly socketIOQuestionService: SocketIOQuestionService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.MEDIA_DOWNLOADED;
+  }
+
+  protected async getGameIdForAction(
+    _data: any,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   protected async validateInput(
@@ -56,12 +72,12 @@ export class MediaDownloadedEventHandler extends BaseSocketEventHandler<
   ): Promise<SocketEventResult<MediaDownloadStatusBroadcastData>> {
     // Execute the media downloaded logic
     const result = await this.socketIOQuestionService.handleMediaDownloaded(
-      this.socket.id
+      context.socketId
     );
 
     // Assign context variables for logging
     context.gameId = result.game.id;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     const statusData: MediaDownloadStatusBroadcastData = {
       playerId: result.playerId,

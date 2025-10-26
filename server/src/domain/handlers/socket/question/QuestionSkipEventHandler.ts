@@ -1,6 +1,8 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -15,7 +17,6 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class QuestionSkipEventHandler extends BaseSocketEventHandler<
   EmptyInputData,
@@ -27,13 +28,28 @@ export class QuestionSkipEventHandler extends BaseSocketEventHandler<
     logger: ILogger,
     actionExecutor: GameActionExecutor,
     private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly gameProgressionCoordinator: GameProgressionCoordinator
+    private readonly gameProgressionCoordinator: GameProgressionCoordinator,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.QUESTION_SKIP;
+  }
+
+  protected async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   protected async validateInput(
@@ -54,13 +70,13 @@ export class QuestionSkipEventHandler extends BaseSocketEventHandler<
     context: SocketEventContext
   ): Promise<SocketEventResult<QuestionSkipBroadcastData>> {
     const result = await this.socketIOQuestionService.handlePlayerSkip(
-      this.socket.id
+      context.socketId
     );
     const { game, playerId } = result;
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     const broadcastData: QuestionSkipBroadcastData = { playerId };
 

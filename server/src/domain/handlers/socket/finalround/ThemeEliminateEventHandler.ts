@@ -1,6 +1,8 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -20,7 +22,6 @@ import {
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class ThemeEliminateEventHandler extends BaseSocketEventHandler<
   ThemeEliminateInputData,
@@ -31,13 +32,28 @@ export class ThemeEliminateEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly finalRoundService: FinalRoundService
+    private readonly finalRoundService: FinalRoundService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.THEME_ELIMINATE;
+  }
+
+  protected async getGameIdForAction(
+    _data: ThemeEliminateInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   protected async validateInput(
@@ -61,13 +77,13 @@ export class ThemeEliminateEventHandler extends BaseSocketEventHandler<
   ): Promise<SocketEventResult<ThemeEliminateOutputData>> {
     const { game, eliminatedBy, themeId, nextPlayerId, isPhaseComplete } =
       await this.finalRoundService.handleThemeEliminate(
-        this.socket.id,
+        context.socketId,
         data.themeId
       );
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     const outputData: ThemeEliminateOutputData = {
       themeId,

@@ -28,6 +28,9 @@ import { SocketIOQuestionService } from "application/services/socket/SocketIOQue
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
+import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
+import { PlayerLeaveService } from "application/services/player/PlayerLeaveService";
+import { SpecialQuestionService } from "application/services/question/SpecialQuestionService";
 import { GameStatisticsService } from "application/services/statistics/GameStatisticsService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { TranslateService } from "application/services/text/TranslateService";
@@ -147,8 +150,8 @@ export class DIConfig {
     Container.register(
       CONTAINER_TYPES.GameActionExecutor,
       new GameActionExecutor(
-        Container.get(CONTAINER_TYPES.GameActionLockService),
         Container.get(CONTAINER_TYPES.GameActionQueueService),
+        Container.get(CONTAINER_TYPES.GameActionLockService),
         this.logger
       ),
       "service"
@@ -498,6 +501,21 @@ export class DIConfig {
     );
 
     Container.register(
+      CONTAINER_TYPES.SpecialQuestionService,
+      new SpecialQuestionService(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        ),
+        Container.get<SocketQuestionStateService>(
+          CONTAINER_TYPES.SocketQuestionStateService
+        ),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
       CONTAINER_TYPES.SocketIOQuestionService,
       new SocketIOQuestionService(
         Container.get<GameService>(CONTAINER_TYPES.GameService),
@@ -514,6 +532,27 @@ export class DIConfig {
           CONTAINER_TYPES.SocketGameTimerService
         ),
         Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        Container.get<PlayerGameStatsService>(
+          CONTAINER_TYPES.PlayerGameStatsService
+        ),
+        Container.get<SpecialQuestionService>(
+          CONTAINER_TYPES.SpecialQuestionService
+        ),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.PlayerLeaveService,
+      new PlayerLeaveService(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        ),
+        Container.get<SocketUserDataService>(
+          CONTAINER_TYPES.SocketUserDataService
+        ),
         Container.get<PlayerGameStatsService>(
           CONTAINER_TYPES.PlayerGameStatsService
         ),
@@ -548,6 +587,7 @@ export class DIConfig {
         Container.get<PlayerGameStatsService>(
           CONTAINER_TYPES.PlayerGameStatsService
         ),
+        Container.get<PlayerLeaveService>(CONTAINER_TYPES.PlayerLeaveService),
         this.logger,
         Container.get<IOServer>(CONTAINER_TYPES.IO).of(SOCKET_GAME_NAMESPACE)
       ),
@@ -587,18 +627,13 @@ export class DIConfig {
       "service"
     );
 
-    const handlers: RedisExpirationHandler[] = [
-      new GameExpirationHandler(
-        gameIndexManager,
-        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
-      ),
-      new TimerExpirationHandler(
-        Container.get<IOServer>(CONTAINER_TYPES.IO),
+    Container.register(
+      CONTAINER_TYPES.TimerExpirationService,
+      new TimerExpirationService(
         Container.get<GameService>(CONTAINER_TYPES.GameService),
         Container.get<SocketIOQuestionService>(
           CONTAINER_TYPES.SocketIOQuestionService
         ),
-        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
         Container.get<SocketQuestionStateService>(
           CONTAINER_TYPES.SocketQuestionStateService
         ),
@@ -609,6 +644,23 @@ export class DIConfig {
         ),
         Container.get<PlayerGameStatsService>(
           CONTAINER_TYPES.PlayerGameStatsService
+        ),
+        this.logger
+      ),
+      "service"
+    );
+
+    const handlers: RedisExpirationHandler[] = [
+      new GameExpirationHandler(
+        gameIndexManager,
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
+      ),
+      new TimerExpirationHandler(
+        Container.get<IOServer>(CONTAINER_TYPES.IO),
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<GameActionExecutor>(CONTAINER_TYPES.GameActionExecutor),
+        Container.get<TimerExpirationService>(
+          CONTAINER_TYPES.TimerExpirationService
         ),
         this.logger
       ),

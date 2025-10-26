@@ -1,5 +1,7 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -14,7 +16,6 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class QuestionUnskipEventHandler extends BaseSocketEventHandler<
   EmptyInputData,
@@ -25,13 +26,28 @@ export class QuestionUnskipEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOQuestionService: SocketIOQuestionService
+    private readonly socketIOQuestionService: SocketIOQuestionService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.QUESTION_UNSKIP;
+  }
+
+  protected async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   protected async validateInput(
@@ -52,11 +68,11 @@ export class QuestionUnskipEventHandler extends BaseSocketEventHandler<
     context: SocketEventContext
   ): Promise<SocketEventResult<QuestionUnskipBroadcastData>> {
     const { game, playerId } =
-      await this.socketIOQuestionService.handlePlayerUnskip(this.socket.id);
+      await this.socketIOQuestionService.handlePlayerUnskip(context.socketId);
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = this.socket.userId;
+    context.userId = context.userId;
 
     const broadcastData: QuestionUnskipBroadcastData = {
       playerId,

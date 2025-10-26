@@ -26,6 +26,8 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { User } from "infrastructure/database/models/User";
+import { GameActionLockService } from "infrastructure/services/lock/GameActionLockService";
+import { GameActionQueueService } from "infrastructure/services/queue/GameActionQueueService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { PackageUtils } from "tests/utils/PackageUtils";
 
@@ -50,6 +52,8 @@ export class SocketGameTestUtils {
   private socketUserDataService = Container.get<SocketUserDataService>(
     CONTAINER_TYPES.SocketUserDataService
   );
+  private lockService = Container.get<GameActionLockService>(CONTAINER_TYPES.GameActionLockService);
+  private queueService = Container.get<GameActionQueueService>(CONTAINER_TYPES.GameActionQueueService);
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl + SOCKET_GAME_NAMESPACE;
@@ -1059,8 +1063,34 @@ export class SocketGameTestUtils {
     });
   }
 
+  /**
+   * Wait for all queued actions and locks to complete for a game
+   * This ensures clean test teardown without race conditions
+   */
+  public async waitForActionsComplete(gameId: string, timeout: number = 5000): Promise<void> {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeout) {
+      const isLocked = await this.lockService.isLocked(gameId);
+      const queueLength = await this.queueService.getQueueLength(gameId);
+      
+      if (!isLocked && queueLength === 0) {
+        // All actions complete
+        return;
+      }
+      
+      // Wait a bit before checking again
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    // Timeout reached - log warning but don't fail
+    console.warn(`[TEST]: Timeout waiting for actions to complete for game ${gameId}`);
+  }
+
   public async cleanupGameClients(setup: GameTestSetup): Promise<void> {
     try {
+      await this.waitForActionsComplete(setup.gameId);
+      
       await this.disconnectAndCleanup(setup.showmanSocket);
       await Promise.all(
         setup.playerSockets.map((socket) => this.disconnectAndCleanup(socket))
@@ -1177,9 +1207,6 @@ export class SocketGameTestUtils {
     });
   }
 
-  /**
-   * Helper method to set a player as unready with socket event
-   */
   public async setPlayerUnready(playerSocket: GameClientSocket): Promise<void> {
     return new Promise((resolve) => {
       playerSocket.once(SocketIOGameEvents.PLAYER_UNREADY, () => {

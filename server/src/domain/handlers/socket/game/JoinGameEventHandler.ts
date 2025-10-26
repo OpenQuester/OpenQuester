@@ -117,7 +117,7 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
 
     // Assign context variables for logging
     context.gameId = game.id;
-    context.userId = this.socket.userId;
+    // context.userId already set from action context
 
     // Join the socket room
     await this.socket.join(data.gameId);

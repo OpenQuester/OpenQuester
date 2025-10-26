@@ -124,10 +124,8 @@ export class GameActionExecutor {
         actionId: action.id,
         gameId: action.gameId,
       });
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
+      // Rethrow error to propagate to handler for proper error emission
+      throw error;
     }
   }
 

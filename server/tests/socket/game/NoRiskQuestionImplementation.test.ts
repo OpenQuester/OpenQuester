@@ -55,7 +55,6 @@ describe("NoRisk Question Implementation", () => {
   afterAll(async () => {
     await cleanup?.();
     await testEnv.teardown();
-    await RedisConfig.disconnect();
   });
 
   describe("NoRisk question prevents score loss on wrong answers", () => {
