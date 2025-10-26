@@ -141,16 +141,7 @@ class SiqImportHelper {
         // Convert media files to MediaFileReference objects
         final mediaFilesByHash = <String, MediaFileReference>{};
 
-        var fileIndex = 0;
-        final totalFiles = filesHashMap.length;
-
         for (final entry in filesHashMap.entries) {
-          yield SiqImportConvertingMedia(
-            progress: fileIndex / totalFiles,
-            current: fileIndex + 1,
-            total: totalFiles,
-          );
-
           final hash = entry.key;
           final archiveFiles = entry.value;
 
@@ -160,7 +151,7 @@ class SiqImportHelper {
 
             // Create a PlatformFile from the bytes
             final platformFile = PlatformFile(
-              name: archiveFile.name,
+              name: hash,
               size: fileBytes.length,
               bytes: fileBytes,
             );
@@ -172,8 +163,6 @@ class SiqImportHelper {
             // Close archive file to free memory
             await archiveFile.close();
           }
-
-          fileIndex++;
         }
 
         yield SiqImportCompleted(

@@ -137,23 +137,23 @@ class _ImagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // On web, use bytes if available
-    final bytes = mediaFile.platformFile.bytesSync;
-    if (kIsWeb && bytes != null) {
+    // On native platforms, use file path
+    if (mediaFile.platformFile.path != null) {
       return InteractiveViewer(
-        child: Image.memory(
-          bytes,
+        child: Image.file(
+          File(mediaFile.platformFile.path!),
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
         ),
       );
     }
 
-    // On native platforms, use file path
-    if (!kIsWeb && mediaFile.platformFile.path != null) {
+    // On web, use bytes if available
+    final bytes = mediaFile.platformFile.bytesSync;
+    if (bytes != null) {
       return InteractiveViewer(
-        child: Image.file(
-          File(mediaFile.platformFile.path!),
+        child: Image.memory(
+          bytes,
           fit: BoxFit.contain,
           errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
         ),

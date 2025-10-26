@@ -6,9 +6,10 @@ import 'package:siq_file/src/extensions.dart';
 import 'package:xml/xml.dart';
 
 class ContentXmlParser {
-  ContentXmlParser(Archive? archive) {
+  ContentXmlParser(Archive? archive, {this.clearContentFile = true}) {
     _archive = archive;
   }
+  final bool clearContentFile;
 
   Future<void> parse(String rawFile) async {
     final document = XmlDocument.parse(rawFile);
@@ -163,7 +164,7 @@ class ContentXmlParser {
             id: null,
             file: e,
             order: index,
-            displayTime: null,
+            displayTime: 20000,
           ),
         )
         .toList();
@@ -173,7 +174,7 @@ class ContentXmlParser {
             id: null,
             file: e,
             order: index,
-            displayTime: null,
+            displayTime: 15000,
           ),
         )
         .toList();
@@ -365,7 +366,7 @@ class ContentXmlParser {
     }
 
     // Clear hashed and saved file data
-    archiveFile?.clear();
+    if (clearContentFile) archiveFile?.clear();
 
     return (archiveFile!, md5);
   }

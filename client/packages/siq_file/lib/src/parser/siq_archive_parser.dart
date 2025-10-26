@@ -6,6 +6,9 @@ import 'package:openapi/openapi.dart';
 import 'package:siq_file/src/parser/content_xml_parser.dart';
 
 class SiqArchiveParser {
+  SiqArchiveParser({this.clearContentFile = false});
+  final bool clearContentFile;
+
   PackageCreateInputData? _siqFile;
   PackageCreateInputData get file => _siqFile!;
 
@@ -46,9 +49,12 @@ class SiqArchiveParser {
 
   Future<void> _parseContentFile(ArchiveFile file, Archive archive) async {
     final contentFile = utf8.decode(file.content);
-    file.clear();
+    if (clearContentFile) file.clear();
 
-    final contentXml = ContentXmlParser(archive);
+    final contentXml = ContentXmlParser(
+      archive,
+      clearContentFile: clearContentFile,
+    );
     await contentXml.parse(contentFile);
     _siqFile = contentXml.siqFile;
     filesHash = contentXml.filesMD5;

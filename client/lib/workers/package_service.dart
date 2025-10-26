@@ -16,9 +16,7 @@ part 'package_service.worker.g.dart';
 class PackageWorkerService {
   /// Parse OQ package file
   @SquadronMethod()
-  Future<OqParseResult> parseOqPackage(
-    @uint8ListMarshaler Uint8List fileData,
-  ) async {
+  Future<OqParseResult> parseOqPackage(Uint8List fileData) async {
     try {
       // Decode zip archive
       final archive = ZipDecoder().decodeBytes(fileData);
@@ -36,13 +34,13 @@ class PackageWorkerService {
 
       // Extract file hashes from files directory
       final fileHashes = <String>{};
-      final filesBytesByHash = <String, List<int>>{};
+      final filesBytesByHash = <String, Uint8List>{};
 
       for (final file in archive.files) {
         if (file.name.startsWith('files/')) {
           final hash = file.name.substring(6); // Remove 'files/' prefix
           fileHashes.add(hash);
-          filesBytesByHash[hash] = file.content as List<int>;
+          filesBytesByHash[hash] = file.content;
         }
       }
 
@@ -118,9 +116,7 @@ class PackageWorkerService {
 
   /// Parse SIQ file
   @SquadronMethod()
-  Future<SiqParseResult> parseSiqFile(
-    @uint8ListMarshaler Uint8List fileData,
-  ) async {
+  Future<SiqParseResult> parseSiqFile(Uint8List fileData) async {
     final parser = SiqArchiveParser();
     late PackageCreateInputData siqFile;
     await parser.load(fileData);
@@ -128,7 +124,13 @@ class PackageWorkerService {
       siqFile = await parser.parse();
       final body = PackageCreationInput(content: siqFile).toJson();
       final files = parser.filesHash.map(
-        (a, b) => MapEntry(a, b.map((e) => e.name).toList()),
+        (a, b) {
+          final content = parser.filesHash[a]?.firstOrNull?.content;
+          if (content == null || content.isEmpty) {
+            throw Exception('File content missing for hash $a');
+          }
+          return MapEntry(a, content);
+        },
       );
       return SiqParseResult(body: body, files: files);
     } finally {

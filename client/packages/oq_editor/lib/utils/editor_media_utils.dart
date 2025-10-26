@@ -23,6 +23,22 @@ class EditorMediaUtils {
     return filesBytesByHash;
   }
 
+  /// Convert bytes map to MediaFileReference map
+  /// Used when importing files and converting bytes back to references
+  static Map<String, MediaFileReference> convertBytesToMediaFiles(
+    Map<String, Uint8List> mediaFilesByHash,
+  ) {
+    final filesBytesByHash = <String, MediaFileReference>{};
+
+    for (final entry in mediaFilesByHash.entries) {
+      final hash = entry.key;
+      final bytes = createMediaFileFromBytes(bytes: entry.value, hash: hash);
+      filesBytesByHash[hash] = bytes;
+    }
+
+    return filesBytesByHash;
+  }
+
   /// Create MediaFileReference from file bytes
   /// Used when importing files and converting bytes back to references
   static MediaFileReference createMediaFileFromBytes({

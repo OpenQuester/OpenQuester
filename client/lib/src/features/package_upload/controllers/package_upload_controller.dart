@@ -2,8 +2,7 @@ import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 import 'package:openquester/common_imports.dart';
-import 'package:oq_editor/models/package_upload_state.dart';
-import 'package:oq_editor/utils/siq_import_helper.dart';
+import 'package:oq_editor/oq_editor.dart';
 
 typedef PackageId = int;
 
@@ -69,7 +68,10 @@ class PackageUploadController extends ChangeNotifier {
       importResult.package,
     );
 
-    return _uploadPackage(packageInput);
+    return _uploadPackage(
+      packageInput,
+      EditorMediaUtils.convertBytesToMediaFiles(importResult.filesBytesByHash),
+    );
   }
 
   /// Upload SIQ file using unified service with worker optimization
@@ -89,16 +91,22 @@ class PackageUploadController extends ChangeNotifier {
       importResult.package,
     );
 
-    return _uploadPackage(packageInput);
+    return _uploadPackage(
+      packageInput,
+      EditorMediaUtils.convertBytesToMediaFiles(importResult.filesBytesByHash),
+    );
   }
 
   /// Upload package using unified service
-  Future<PackageId> _uploadPackage(PackageCreationInput packageInput) async {
+  Future<PackageId> _uploadPackage(
+    PackageCreationInput packageInput,
+    Map<String, MediaFileReference> mediaFilesByHash,
+  ) async {
     PackageId? packageId;
 
     await for (final state in getIt<PackageService>().uploadPackage(
       packageInput: packageInput,
-      mediaFilesByHash: {}, // No media files for simple uploads
+      mediaFilesByHash: mediaFilesByHash,
     )) {
       state.map(
         idle: (_) => _setProgress(0),

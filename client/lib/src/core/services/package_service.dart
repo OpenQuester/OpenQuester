@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:openquester/common_imports.dart';
 import 'package:oq_editor/oq_editor.dart';
-import 'package:siq_file/siq_file.dart';
 
 /// Unified service for package operations
 /// Eliminates code duplication across upload and editor controllers
@@ -87,16 +86,19 @@ class PackageService {
       );
 
       // Get media file by hash and upload
-      final media = mediaFilesByHash[link.key];
+      final media = await mediaFilesByHash[link.key]?.platformFile.readBytes();
 
-      if (media != null) {
+      if (media != null && media.isNotEmpty) {
+        logger.t(
+          'Uploading file ${link.key} ${i + 1}/${uploadLinks.length}...',
+        );
         await getIt<S3UploadController>().uploadFile(
           uploadLink: Uri.parse(link.value),
-          file: await media.platformFile.readBytes(),
+          file: media,
           md5Hash: link.key,
         );
       } else {
-        logger.w('Media file not found for hash: ${link.key}');
+        throw Exception('Media file not found for hash: ${link.key}');
       }
     }
 
@@ -144,100 +146,15 @@ class PackageService {
       final packageInput = PackageCreationInput.fromJson(result.body);
       final oqPackage = _createOqPackageFromInput(packageInput.content);
 
-      // For file bytes, we need to parse the SIQ archive
-      // again to get actual bytes
-      // The worker only gives us metadata for performance reasons
-      final filesBytesByHash = await _extractSiqFileBytes(siqBytes);
-
       return ImportResult(
         package: oqPackage,
-        filesBytesByHash: filesBytesByHash,
+        filesBytesByHash: result.files,
       );
     } catch (e) {
-      // Fallback to direct parsing if worker fails
-      logger.w('Worker parsing failed, falling back to direct parsing: $e');
-      return _importSiqFileDirectly(siqBytes);
+      throw Exception(
+        'Worker parsing failed, falling back to direct parsing: $e',
+      );
     }
-  }
-
-  /// Extract file bytes from SIQ archive after worker parsing
-  /// This is a lighter operation after worker has done the heavy parsing
-  Future<Map<String, Uint8List>> _extractSiqFileBytes(
-    Uint8List siqBytes,
-  ) async {
-    final filesBytesByHash = <String, Uint8List>{};
-
-    // Quick file extraction - parser structure is already validated by worker
-    final parser = SiqArchiveParser();
-    try {
-      await parser.load(siqBytes);
-
-      // Only extract file bytes, skip heavy parsing (already done by worker)
-      final filesHashMap = parser.filesHash;
-
-      for (final entry in filesHashMap.entries) {
-        final hash = entry.key;
-        final archiveFiles = entry.value;
-
-        if (archiveFiles.isNotEmpty) {
-          final archiveFile = archiveFiles.first;
-          final fileBytes = Uint8List.fromList(archiveFile.content);
-          filesBytesByHash[hash] = fileBytes;
-          await archiveFile.close();
-        }
-      }
-    } finally {
-      await parser.dispose();
-    }
-
-    return filesBytesByHash;
-  }
-
-  /// Import SIQ file with web worker optimization (deprecated,
-  /// use importSiqFile instead)
-  /// Use this for simple imports without progress tracking needs
-  @Deprecated(
-    'Use importSiqFile instead - workers are now used for all platforms',
-  )
-  Future<ImportResult> importSiqFileOptimized(Uint8List siqBytes) async {
-    return importSiqFile(siqBytes);
-  }
-
-  /// Import SIQ file directly (fallback or non-web platforms)
-  Future<ImportResult> _importSiqFileDirectly(Uint8List siqBytes) async {
-    OqPackage? oqPackage;
-    Map<String, MediaFileReference>? mediaFilesByHash;
-
-    await for (final progress in SiqImportHelper().convertSiqToOqPackage(
-      siqBytes,
-    )) {
-      switch (progress) {
-        case SiqImportCompleted(:final result):
-          oqPackage = result.package;
-          mediaFilesByHash = result.mediaFilesByHash;
-        case SiqImportError(:final error):
-          throw Exception(error);
-        case SiqImportParsingFile():
-        case SiqImportConvertingMedia():
-        case SiqImportPickingFile():
-          // Progress handling can be added by caller if needed
-          break;
-      }
-    }
-
-    if (oqPackage == null || mediaFilesByHash == null) {
-      throw Exception('Failed to convert SIQ file to package format');
-    }
-
-    // Convert media files to bytes map
-    final filesBytesByHash = await EditorMediaUtils.convertMediaFilesToBytes(
-      mediaFilesByHash,
-    );
-
-    return ImportResult(
-      package: oqPackage,
-      filesBytesByHash: filesBytesByHash,
-    );
   }
 
   /// Create OqPackage from PackageCreateInputData
