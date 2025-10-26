@@ -3,7 +3,6 @@ import 'package:dio/dio.dart';
 import 'package:fetch_client/fetch_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openquester/openquester.dart';
-import 'package:openquester/src/core/utils/media_file_utils.dart';
 import 'package:oq_editor/oq_editor.dart';
 import 'package:universal_io/io.dart';
 

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:openquester/common_imports.dart';
-import 'package:openquester/src/core/utils/media_file_utils.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/package_upload_state.dart';
 import 'package:oq_editor/utils/oq_package_archiver.dart';

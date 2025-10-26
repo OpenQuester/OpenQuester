@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:openquester/common_imports.dart';
-import 'package:openquester/src/core/services/package_service.dart';
 import 'package:oq_editor/oq_editor.dart';
 
 /// Controller for uploading packages from editor with progress tracking

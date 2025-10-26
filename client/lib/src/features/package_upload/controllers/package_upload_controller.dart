@@ -2,7 +2,6 @@ import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
 import 'package:openquester/common_imports.dart';
-import 'package:openquester/src/core/services/package_service.dart';
 import 'package:oq_editor/models/package_upload_state.dart';
 import 'package:oq_editor/utils/siq_import_helper.dart';
 
