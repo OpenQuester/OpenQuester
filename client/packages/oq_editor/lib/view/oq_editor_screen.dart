@@ -1,12 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:oq_compress/oq_compress.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/models/editor_step.dart';
+import 'package:oq_editor/models/package_encoding_exceptions.dart';
+import 'package:oq_editor/utils/package_encoding_helper.dart';
 import 'package:oq_editor/view/dialogs/encoding_progress_dialog.dart';
-import 'package:oq_editor/view/dialogs/encoding_warning_dialog.dart';
-import 'package:oq_editor/view/dialogs/saving_progress_dialog.dart';
 import 'package:oq_editor/view/screens/package_info_screen.dart';
 import 'package:oq_editor/view/screens/questions_list_screen.dart';
 import 'package:oq_editor/view/screens/round_editor_screen.dart';
@@ -179,86 +178,14 @@ class OqEditorScreen extends WatchingWidget {
   Future<void> _handleSave(BuildContext context) async {
     if (!context.mounted) return;
 
-    // Check if encoding is supported and if there are media files
-    final hasMediaFiles = controller.pendingMediaFiles.isNotEmpty;
-    if (hasMediaFiles) {
-      final isEncodingSupported = await OqFileEncoder.isSupported();
-
-      if (!isEncodingSupported) {
-        if (!context.mounted) return;
-
-        // Show warning dialog for unsupported encoding
-        final totalSizeMB = controller.totalMediaFilesSizeMB;
-        final action = await showDialog<EncodingWarningAction>(
-          context: context,
-          builder: (context) => EncodingWarningDialog(
-            translations: controller.translations,
-            totalSizeMB: totalSizeMB,
-          ),
-        );
-
-        if (!context.mounted) return;
-
-        switch (action) {
-          case EncodingWarningAction.export:
-            await _handleExport(context);
-            return;
-          case EncodingWarningAction.upload:
-            // Continue with upload
-            break;
-          case null:
-            // User cancelled
-            return;
-        }
-      }
-    }
-
-    // Check if we need to show encoding progress
-    var encodingDialogShown = false;
-
     try {
-      // Show encoding progress dialog if there are media files to encode
-      if (hasMediaFiles) {
-        if (!context.mounted) return;
-
-        encodingDialogShown = true;
-        unawaited(
-          showDialog<void>(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => EncodingProgressDialog(
-              progressStream: controller.encodingProgressStream,
-              translations: controller.translations,
-              title: controller.translations.encodingForUpload,
-            ),
-          ),
-        );
-      }
-
-      // Start the save process (this will create the encoding stream if needed)
-      final future = controller.savePackage();
-
-      // Wait a moment for encoding stream to be created if needed
-      if (hasMediaFiles) {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-      }
-
-      // Show upload progress dialog after encoding is done or if no
-      // encoding needed
-      if (context.mounted) {
-        unawaited(
-          showDialog<void>(
-            context: context,
-            barrierDismissible: false,
-            builder: (_) => SavingProgressDialog(
-              progressStream: controller.onSaveProgressStream,
-              translations: controller.translations,
-            ),
-          ),
-        );
-      }
-
-      await future;
+      // Use shared encoding helper for all encoding and progress handling
+      await PackageEncodingHelper.executePackageUpload(
+        context,
+        controller: controller,
+        uploadFunction: controller.savePackage,
+        translations: controller.translations,
+      );
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -268,6 +195,10 @@ class OqEditorScreen extends WatchingWidget {
           ),
         );
       }
+    } on UploadCancelledException {
+      // User cancelled - check if they want to export instead
+      if (!context.mounted) return;
+      await _handleExport(context);
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -278,13 +209,6 @@ class OqEditorScreen extends WatchingWidget {
             backgroundColor: Colors.red,
           ),
         );
-      }
-    } finally {
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Close upload progress dialog
-        if (encodingDialogShown) {
-          Navigator.of(context).pop(); // Close encoding progress dialog
-        }
       }
     }
   }

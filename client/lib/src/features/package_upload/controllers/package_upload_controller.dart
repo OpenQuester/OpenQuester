@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
@@ -16,6 +17,16 @@ class PackageUploadController extends ChangeNotifier {
   /// Progress part after picking
   static const _afterPickProgress = 0.1;
   static const _afterParseProgress = 0.15;
+
+  /// Encoding progress stream controller
+  StreamController<double>? _encodingProgressController;
+
+  /// Encoding progress stream for UI dialogs
+  Stream<double> get encodingProgressStream =>
+      _encodingProgressController?.stream ?? const Stream<double>.empty();
+
+  /// Media file encoder for compressing files before upload
+  final MediaFileEncoder _mediaFileEncoder = MediaFileEncoder();
 
   void _setProgress(double value) {
     _progress = value;
@@ -54,7 +65,7 @@ class PackageUploadController extends ChangeNotifier {
     }
   }
 
-  /// Upload OQ file using unified service
+  /// Upload OQ file using unified service with encoding
   Future<PackageId> _uploadFromOqFile(Uint8List oqBytes) async {
     _setProgress(_afterParseProgress);
 
@@ -63,18 +74,24 @@ class PackageUploadController extends ChangeNotifier {
 
     _setProgress(0.3);
 
-    // Convert and upload using unified service
-    final packageInput = getIt<PackageService>().convertOqPackageToInput(
+    // Encode media files for compression before upload
+    final encodingResult = await _encodeMediaFiles(
       importResult.package,
+      EditorMediaUtils.convertBytesToMediaFiles(importResult.filesBytesByHash),
+    );
+
+    // Convert encoded package to input
+    final packageInput = getIt<PackageService>().convertOqPackageToInput(
+      encodingResult.package,
     );
 
     return _uploadPackage(
       packageInput,
-      EditorMediaUtils.convertBytesToMediaFiles(importResult.filesBytesByHash),
+      encodingResult.files,
     );
   }
 
-  /// Upload SIQ file using unified service with worker optimization
+  /// Upload SIQ file using unified service with worker optimization and encoding
   Future<PackageId> _uploadFromSiqFile(Uint8List siqBytes) async {
     _setProgress(_afterParseProgress);
 
@@ -86,15 +103,53 @@ class PackageUploadController extends ChangeNotifier {
 
     _setProgress(0.3);
 
-    // Convert and upload using unified service
-    final packageInput = getIt<PackageService>().convertOqPackageToInput(
+    // Encode media files for compression before upload
+    final encodingResult = await _encodeMediaFiles(
       importResult.package,
+      EditorMediaUtils.convertBytesToMediaFiles(importResult.filesBytesByHash),
+    );
+
+    // Convert encoded package to input
+    final packageInput = getIt<PackageService>().convertOqPackageToInput(
+      encodingResult.package,
     );
 
     return _uploadPackage(
       packageInput,
-      EditorMediaUtils.convertBytesToMediaFiles(importResult.filesBytesByHash),
+      encodingResult.files,
     );
+  }
+
+  /// Encode media files for compression
+  /// Returns updated package and encoded media files
+  Future<({OqPackage package, Map<String, MediaFileReference> files})>
+  _encodeMediaFiles(
+    OqPackage package,
+    Map<String, MediaFileReference> mediaFilesByHash,
+  ) async {
+    // Start encoding progress tracking if there are media files
+    if (mediaFilesByHash.isNotEmpty) {
+      _encodingProgressController = StreamController<double>.broadcast();
+    }
+
+    try {
+      final result = await _mediaFileEncoder.encodePackage(
+        package,
+        mediaFilesByHash,
+        onProgress: _encodingProgressController?.add,
+      );
+
+      // Close encoding progress stream
+      await _encodingProgressController?.close();
+      _encodingProgressController = null;
+
+      return result;
+    } catch (e) {
+      // Clean up progress stream on error
+      await _encodingProgressController?.close();
+      _encodingProgressController = null;
+      rethrow;
+    }
   }
 
   /// Upload package using unified service
