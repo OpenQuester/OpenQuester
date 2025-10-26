@@ -24,9 +24,24 @@ export class FileService {
   }
 
   /**
+   * Get multiple files by their filenames - optimized with IN clause
+   */
+  public async getFilesByFilenames(filenames: string[]) {
+    return this.fileRepository.getFilesByFilenames(filenames);
+  }
+
+  /**
    * Remove file record from DB if it exists
    */
   public async removeFile(filename: string) {
     return this.fileRepository.removeFile(filename);
+  }
+
+  /**
+   * Check which filenames exist in the database
+   * Returns only the filenames that were found
+   */
+  public async getExistingFilenames(filenames: string[]): Promise<string[]> {
+    return this.fileRepository.getExistingFilenames(filenames);
   }
 }

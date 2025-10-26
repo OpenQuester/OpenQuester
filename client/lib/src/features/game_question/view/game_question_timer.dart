@@ -17,7 +17,7 @@ class GameQuestionTimer extends WatchingWidget {
     final beginPoint = (1 / (timer.durationMs / elapsedMs)).clamp(0, 1);
 
     return ConstrainedBox(
-      key: ValueKey(beginPoint),
+      key: ValueKey(timer),
       constraints: const BoxConstraints(
         maxWidth: GameLobbyStyles.maxTimerWidth,
       ),

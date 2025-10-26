@@ -25,6 +25,7 @@ import { PlayerRoleChangeEventHandler } from "domain/handlers/socket/game/Player
 import { PlayerScoreChangeEventHandler } from "domain/handlers/socket/game/PlayerScoreChangeEventHandler";
 import { PlayerSlotChangeEventHandler } from "domain/handlers/socket/game/PlayerSlotChangeEventHandler";
 import { PlayerUnreadyEventHandler } from "domain/handlers/socket/game/PlayerUnreadyEventHandler";
+import { MediaDownloadedEventHandler } from "domain/handlers/socket/game/MediaDownloadedEventHandler";
 import { StartGameEventHandler } from "domain/handlers/socket/game/StartGameEventHandler";
 import { TurnPlayerChangeEventHandler } from "domain/handlers/socket/game/TurnPlayerChangeEventHandler";
 import { UnpauseGameEventHandler } from "domain/handlers/socket/game/UnpauseGameEventHandler";
@@ -125,6 +126,12 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.socketIOGameService
+      ),
+      new MediaDownloadedEventHandler(
+        socket,
+        eventEmitter,
+        this.logger,
+        this.socketIOQuestionService
       ),
       new PlayerKickEventHandler(
         socket,

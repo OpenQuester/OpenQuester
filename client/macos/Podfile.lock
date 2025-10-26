@@ -13,11 +13,11 @@ PODS:
   - flutter_web_auth_2 (5.0.0-alpha.2):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
-  - fvp (0.33.1):
+  - fvp (0.35.0):
     - Flutter
     - FlutterMacOS
-    - mdk (~> 0.33.1)
-  - mdk (0.33.1)
+    - mdk (~> 0.35.0)
+  - mdk (0.35.0)
   - nb_utils (0.0.1):
     - FlutterMacOS
   - package_info_plus (0.0.1):
@@ -26,6 +26,8 @@ PODS:
     - Flutter
     - FlutterMacOS
   - screen_retriever_macos (0.0.1):
+    - FlutterMacOS
+  - share_plus (0.0.1):
     - FlutterMacOS
   - shared_preferences_foundation (0.0.1):
     - Flutter
@@ -56,6 +58,7 @@ DEPENDENCIES:
   - package_info_plus (from `Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos`)
   - path_provider_foundation (from `Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin`)
   - screen_retriever_macos (from `Flutter/ephemeral/.symlinks/plugins/screen_retriever_macos/macos`)
+  - share_plus (from `Flutter/ephemeral/.symlinks/plugins/share_plus/macos`)
   - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
   - sqflite_darwin (from `Flutter/ephemeral/.symlinks/plugins/sqflite_darwin/darwin`)
   - url_launcher_macos (from `Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos`)
@@ -92,6 +95,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/path_provider_foundation/darwin
   screen_retriever_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/screen_retriever_macos/macos
+  share_plus:
+    :path: Flutter/ephemeral/.symlinks/plugins/share_plus/macos
   shared_preferences_foundation:
     :path: Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin
   sqflite_darwin:
@@ -113,16 +118,17 @@ SPEC CHECKSUMS:
   flutter_secure_storage_darwin: ce237a8775b39723566dc72571190a3769d70468
   flutter_web_auth_2: f39437b12381bc85ce5d32bb13f249c498a78f79
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  fvp: ed100b827d10aff53789fb9cb9dfdd85a87d037d
-  mdk: 622e3452cea55a982c0712ec9ce931d8ec718b22
+  fvp: ecee65308dd86ae46e3c6d5d42cd2aad48095ef5
+  mdk: baa616b93f696c7066df0e5ebe057badfa9c462b
   nb_utils: 2361d8cd78db3c0167bab7635f62ec6d8a329819
   package_info_plus: f0052d280d17aa382b932f399edf32507174e870
-  path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
+  path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   screen_retriever_macos: 452e51764a9e1cdb74b3c541238795849f21557f
-  shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
+  share_plus: 510bf0af1a42cd602274b4629920c9649c52f4cc
+  shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   sqflite_darwin: 20b2a3a3b70e43edae938624ce550a3cbf66a3d0
-  url_launcher_macos: 0fba8ddabfc33ce0a9afe7c5fef5aab3d8d2d673
-  video_player_avfoundation: 2cef49524dd1f16c5300b9cd6efd9611ce03639b
+  url_launcher_macos: f87a979182d112f911de6820aefddaf56ee9fbfd
+  video_player_avfoundation: dd410b52df6d2466a42d28550e33e4146928280a
   window_manager: b729e31d38fb04905235df9ea896128991cad99e
   window_to_front: 9e76fd432e36700a197dac86a0011e49c89abe0a
 

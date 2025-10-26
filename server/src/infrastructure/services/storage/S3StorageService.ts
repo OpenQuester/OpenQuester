@@ -1,6 +1,8 @@
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -52,6 +54,14 @@ export class S3StorageService {
       endpoint: this.s3Context.endpoint,
       region: this.s3Context.region,
     });
+  }
+
+  /**
+   * Get the ignored cleanup folder from S3 context
+   * Returns empty string if not configured
+   */
+  public getIgnoredCleanupFolder(): string {
+    return this.s3Context.ignoredCleanupFolder || "";
   }
 
   public async generatePresignedUrl(
@@ -321,6 +331,13 @@ export class S3StorageService {
       return;
     }
 
+    await this.deleteFileFromStorage(filename);
+  }
+
+  /**
+   * Delete file from S3 storage and remove from database (used for package deletion)
+   */
+  public async deleteFileFromStorage(filename: string): Promise<void> {
     const filePath = StorageUtils.parseFilePath(filename);
     await this.fileService.removeFile(filename);
 
@@ -329,6 +346,264 @@ export class S3StorageService {
       Key: filePath,
     });
     await this._client.send(command);
+  }
+
+  /**
+   * Delete multiple files from S3 storage in batch
+   * Note: Database file records should be removed separately before calling this method
+   */
+  public async deleteFilesFromStorage(filenames: string[]): Promise<void> {
+    if (filenames.length === 0) {
+      return;
+    }
+
+    // S3 DeleteObjects can handle up to 1000 objects per request
+    const BATCH_SIZE = 1000;
+
+    for (let i = 0; i < filenames.length; i += BATCH_SIZE) {
+      const batch = filenames.slice(i, i + BATCH_SIZE);
+      const objects = batch.map((filename) => ({
+        Key: StorageUtils.parseFilePath(filename),
+      }));
+
+      const command = new DeleteObjectsCommand({
+        Bucket: this.s3Context.bucket,
+        Delete: {
+          Objects: objects,
+          Quiet: true, // Don't return info about deleted objects to reduce response size
+        },
+      });
+
+      try {
+        const result = await this._client.send(command);
+
+        // Log any errors that occurred during batch deletion
+        if (result.Errors && result.Errors.length > 0) {
+          for (const error of result.Errors) {
+            this.logger.error(`Failed to delete file from S3 in batch`, {
+              key: error.Key,
+              code: error.Code,
+              message: error.Message,
+            });
+          }
+        }
+      } catch (error) {
+        this.logger.error(`Batch delete failed for files`, {
+          filenames: batch,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * List all files in S3 bucket as async generator for memory efficiency
+   * Yields batches of files with both S3 keys and extracted filenames
+   * This is useful for cleanup operations where we need the original S3 keys
+   * @param batchSize - Number of files to yield per batch (maximum: 1000)
+   */
+  public async *listS3FilesInBatches(
+    batchSize: number = 1000
+  ): AsyncGenerator<{ filename: string; s3Key: string }[]> {
+    let continuationToken: string | undefined;
+    let totalProcessed = 0;
+
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: this.s3Context.bucket,
+        MaxKeys: batchSize,
+        ContinuationToken: continuationToken,
+      });
+
+      try {
+        const response = await this._client.send(command);
+
+        if (response.Contents && response.Contents.length > 0) {
+          const files = response.Contents.filter((obj) => obj.Key) // Filter out undefined keys
+            .map((obj) => {
+              const s3Key = obj.Key!;
+              const parts = s3Key.split("/");
+              const filename = parts[parts.length - 1]; // Get the filename part
+              return { filename, s3Key };
+            });
+
+          totalProcessed += files.length;
+          yield files;
+
+          // Log progress for large buckets
+          if (totalProcessed % 10000 === 0) {
+            this.logger.info(
+              `List S3 files in batches: Processed ${totalProcessed} files so far...`
+            );
+          }
+        }
+
+        continuationToken = response.NextContinuationToken;
+      } catch (error) {
+        this.logger.error(`Failed to list S3 objects in batches`, {
+          continuationToken,
+          totalProcessed,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        throw error;
+      }
+    } while (continuationToken);
+  }
+
+  /**
+   * Delete files by their S3 keys directly in batches (for cleanup of orphaned files)
+   * Uses batch DeleteObjectsCommand with checksum calculation disabled
+   * Only deletes from S3 storage, does not touch database records
+   */
+  public async deleteFilesByS3Keys(s3Keys: string[]): Promise<void> {
+    if (s3Keys.length === 0) {
+      return;
+    }
+
+    // S3 DeleteObjects can handle up to 1000 objects per request
+    const BATCH_SIZE = 1000;
+
+    this.logger.info(
+      `Starting batch deletion of ${s3Keys.length} files from S3`,
+      {
+        prefix: "[S3_CLEANUP]: ",
+        batches: Math.ceil(s3Keys.length / BATCH_SIZE),
+      }
+    );
+
+    let totalDeleted = 0;
+    let totalErrors = 0;
+
+    for (let i = 0; i < s3Keys.length; i += BATCH_SIZE) {
+      const batch = s3Keys.slice(i, i + BATCH_SIZE);
+      const objects = batch.map((key) => ({
+        Key: key,
+      }));
+
+      const command = new DeleteObjectsCommand({
+        Bucket: this.s3Context.bucket,
+        Delete: {
+          Objects: objects,
+          Quiet: true,
+        },
+      });
+
+      // Apply MinIO compatibility workaround
+      this._applyMinioContentMD5Workaround(command, objects);
+
+      try {
+        const result = await this._client.send(command);
+
+        const batchDeleted = batch.length;
+        totalDeleted += batchDeleted;
+
+        // Log any errors that occurred during batch deletion
+        if (result.Errors && result.Errors.length > 0) {
+          totalErrors += result.Errors.length;
+          for (const error of result.Errors) {
+            this.logger.error(`Failed to delete file from S3 in batch`, {
+              prefix: "[S3_CLEANUP]: ",
+              key: error.Key,
+              code: error.Code,
+              message: error.Message,
+            });
+          }
+        }
+
+        this.logger.info(
+          `Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
+            s3Keys.length / BATCH_SIZE
+          )} completed`,
+          {
+            prefix: "[S3_CLEANUP]: ",
+            deletedInBatch: batchDeleted - (result.Errors?.length || 0),
+            errorsInBatch: result.Errors?.length || 0,
+            totalProgress: `${totalDeleted}/${s3Keys.length}`,
+          }
+        );
+      } catch (error) {
+        totalErrors += batch.length;
+        this.logger.error(`Batch delete failed entirely`, {
+          prefix: "[S3_CLEANUP]: ",
+          batchSize: batch.length,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    this.logger.info(
+      `Completed S3 deletion: ${
+        totalDeleted - totalErrors
+      } succeeded, ${totalErrors} failed`,
+      {
+        prefix: "[S3_CLEANUP]: ",
+        totalFiles: s3Keys.length,
+        successCount: totalDeleted - totalErrors,
+        errorCount: totalErrors,
+      }
+    );
+  }
+
+  /**
+   * MinIO Compatibility Workaround for DeleteObjectsCommand
+   *
+   * PROBLEM:
+   * MinIO bucket policies may require Content-MD5 headers for DeleteObjectsCommand,
+   * even though AWS S3 doesn't require this. The AWS SDK v3 doesn't expose Content-MD5
+   * in TypeScript types because modern AWS S3 uses newer checksum algorithms.
+   *
+   * SOLUTION:
+   * 1. Build the exact XML body that AWS SDK will serialize and send
+   * 2. Calculate MD5 hash of this XML body
+   * 3. Inject Content-MD5 header via middleware after serialization step
+   *
+   * This approach:
+   * - Uses AWS SDK v3's native middleware system
+   * - Calculates correct MD5 matching the actual request body
+   * - Doesn't break AWS S3 compatibility (extra header is ignored)
+   * - Maintains batch deletion performance (1000 files per request)
+   *
+   * @param command DeleteObjectsCommand to modify
+   * @param objects Array of objects to delete (used for MD5 calculation)
+   */
+  private _applyMinioContentMD5Workaround(
+    command: DeleteObjectsCommand,
+    objects: Array<{ Key: string }>
+  ): void {
+    // Build XML body matching AWS SDK's serialization format
+    const xmlBody = this._buildDeleteXmlBody(objects);
+    const contentMD5 = createHash("md5").update(xmlBody).digest("base64");
+
+    // Inject Content-MD5 header via middleware after serialization
+    // ? Using 'any' types because AWS SDK middleware types are not exported
+    command.middlewareStack.addRelativeTo(
+      (next: any) => async (args: any) => {
+        if (args.request && args.request.headers) {
+          args.request.headers["content-md5"] = contentMD5;
+        }
+        return next(args);
+      },
+      {
+        relation: "after",
+        toMiddleware: "serializerMiddleware",
+        name: "addContentMD5Middleware",
+      }
+    );
+  }
+
+  /**
+   * Build the XML body for DeleteObjects request
+   * Must match AWS SDK's exact serialization format for correct MD5 calculation
+   */
+  private _buildDeleteXmlBody(objects: Array<{ Key: string }>): string {
+    const objectsXml = objects
+      .map(
+        (obj) => `<Object><Key>${ValueUtils.escapeXml(obj.Key)}</Key></Object>`
+      )
+      .join("");
+
+    return `<?xml version="1.0" encoding="UTF-8"?><Delete xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Quiet>true</Quiet>${objectsXml}</Delete>`;
   }
 
   private async _handleAvatarRemove(
@@ -387,5 +662,73 @@ export class S3StorageService {
 
   private async _writeFile(path: string, filename: string, source: FileSource) {
     return this.fileService.writeFile(path, filename, source);
+  }
+
+  /**
+   * Uploads random test files to S3 that are not tracked in the database.
+   * Used for testing S3 cleanup jobs.
+   * @param count Number of random files to upload (default: 5)
+   * @returns Array of uploaded filenames
+   */
+  public async uploadRandomTestFiles(count: number = 5): Promise<string[]> {
+    this.logger.audit(`Uploading ${count} random test files to S3`, {
+      prefix: "[S3StorageService]: ",
+      count,
+    });
+
+    const uploadedFiles: string[] = [];
+
+    for (let i = 0; i < count; i++) {
+      const randomContent = this._generateRandomContent();
+      const md5Hash = createHash("md5").update(randomContent).digest("hex");
+      const filePath = StorageUtils.parseFilePath(md5Hash);
+
+      const command = new PutObjectCommand({
+        Bucket: this.s3Context.bucket,
+        Key: filePath,
+        Body: randomContent,
+        ContentLength: Buffer.byteLength(randomContent),
+      });
+
+      try {
+        await this._client.send(command);
+        uploadedFiles.push(md5Hash);
+        this.logger.trace(`Uploaded test file ${i + 1}/${count}: ${md5Hash}`, {
+          prefix: "[S3StorageService]: ",
+        });
+      } catch (err) {
+        this.logger.error(`Failed to upload test file ${i + 1}/${count}`, {
+          prefix: "[S3StorageService]: ",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    this.logger.audit(
+      `Successfully uploaded ${uploadedFiles.length} test files to S3`,
+      {
+        prefix: "[S3StorageService]: ",
+        uploadedCount: uploadedFiles.length,
+        files: uploadedFiles,
+      }
+    );
+
+    return uploadedFiles;
+  }
+
+  /**
+   * Generates random content for test files
+   */
+  private _generateRandomContent(): Buffer {
+    const size = Math.floor(Math.random() * 10000) + 1000; // 1KB to 10KB
+    const chars =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let content = "";
+
+    for (let i = 0; i < size; i++) {
+      content += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    return Buffer.from(content, "utf8");
   }
 }

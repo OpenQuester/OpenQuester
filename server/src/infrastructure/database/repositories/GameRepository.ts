@@ -164,11 +164,17 @@ export class GameRepository {
     );
 
     if (!packageData) {
-      throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.PACKAGE_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     if (!packageData.author) {
-      throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.PACKAGE_AUTHOR_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     let gameId = "";
@@ -238,7 +244,7 @@ export class GameRepository {
    * automated flows (e.g. when everyone leaves and game is finished)
    */
   public async deleteInternally(gameId: string): Promise<void> {
-    const log = this.logger.performance("Delete game internally", {
+    this.logger.debug("Delete game internally", {
       prefix: "[GameRepository]: ",
       gameId,
     });
@@ -250,11 +256,13 @@ export class GameRepository {
       gameId,
       game.toIndexData()
     );
-
-    log.finish();
   }
 
   public async deleteGame(user: number, gameId: string) {
+    this.logger.debug("Delete game", {
+      prefix: "[GameRepository]: ",
+      gameId,
+    });
     const key = this.getGameKey(gameId);
     const game = await this.getGameEntity(gameId);
 
@@ -287,15 +295,24 @@ export class GameRepository {
     const packData = game.package;
 
     if (!packData) {
-      throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.PACKAGE_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     if (!packData.author) {
-      throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.PACKAGE_AUTHOR_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     if (!createdBy) {
-      throw new ClientError(ClientResponse.USER_NOT_FOUND);
+      throw new ClientError(
+        ClientResponse.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
     }
 
     return this._parseGameToListItemDTO(game, createdBy, packData);
@@ -483,10 +500,16 @@ export class GameRepository {
           );
           return GameMapper.deserializeGameHash(validatedData, this.logger);
         } catch (error) {
+          // Log short data without package to avoid large logs
+          const shortData = { ...(data as Record<string, string>) };
+          shortData.package = "";
+
           // Log validation error and ignore invalid games
           this.logger.warn("Skipping invalid game Redis data", {
             prefix: "[GAME_REPOSITORY]: ",
             error: error instanceof Error ? error.message : String(error),
+            gameIds,
+            shortData,
           });
         }
       })

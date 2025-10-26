@@ -10,6 +10,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   fvp
   nb_utils
   screen_retriever_windows
+  share_plus
   url_launcher_windows
   video_player_win
   window_manager

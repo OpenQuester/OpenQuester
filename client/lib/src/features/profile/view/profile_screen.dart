@@ -111,6 +111,7 @@ class _LoginContent extends WatchingWidget {
         const _DiscordLoginBtn(),
         LoadingButtonBuilder(
           onPressed: () => _loginAndGetUsername(context, GuestAuthType()),
+          onError: handleError,
           builder: (context, child, onPressed) {
             return FilledButton.tonalIcon(
               onPressed: onPressed,
@@ -135,6 +136,7 @@ class _DiscordLoginBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return LoadingButtonBuilder(
       onPressed: () => _loginAndGetUsername(context, Oauth2AuthType()),
+      onError: handleError,
       builder: (context, child, onPressed) {
         return FilledButton.icon(
           onPressed: onPressed,
@@ -308,6 +310,7 @@ class _ProfileAvatar extends StatelessWidget {
           bottom: -4,
           right: -4,
           child: LoadingButtonBuilder(
+            onError: handleError,
             builder: (context, child, onPressed) => Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -543,11 +546,21 @@ class _AppInfo extends StatelessWidget {
       spacing: 4,
       children: [
         const UpdateBtn(),
-        Text(
-          getIt<AutoUpdateController>().getCurrentVersion,
-          style: context.textTheme.bodySmall?.copyWith(
-            color: context.theme.colorScheme.onSurfaceVariant,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const SizedBox(width: 42),
+            Text(
+              getIt<AutoUpdateController>().getCurrentVersion,
+              style: context.textTheme.bodySmall?.copyWith(
+                color: context.theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            IconButton(
+              onPressed: () => getIt<TalkerLogger>().showTalkerDialog(context),
+              icon: const Icon(Icons.bug_report_outlined, size: 16),
+            ),
+          ],
         ),
       ],
     );

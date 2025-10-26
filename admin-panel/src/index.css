@@ -196,6 +196,25 @@
     @apply btn bg-success-600 text-white hover:bg-success-700 focus:ring-success-500 active:bg-success-800;
   }
 
+  /* 
+   * Interactive button/link that works across all 3 themes (light, dark, pure-dark)
+   * Use this for secondary action buttons, edit links, and interactive text elements
+   * Provides consistent styling with proper contrast and hover states
+   */
+  .btn-interactive {
+    @apply px-2 py-1 text-xs font-semibold rounded-md border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1;
+    /* Light theme */
+    @apply text-primary-600 border-primary-200 hover:text-primary-800 hover:bg-primary-50 hover:border-primary-300 focus:ring-primary-500;
+  }
+
+  .theme-dark .btn-interactive {
+    @apply text-primary-400 border-primary-700 hover:text-primary-300 hover:bg-primary-900/30 hover:border-primary-500 focus:ring-primary-400;
+  }
+
+  .theme-pure-dark .btn-interactive {
+    @apply text-primary-300 border-primary-800 hover:text-primary-200 hover:bg-primary-950/40 hover:border-primary-600 focus:ring-primary-400;
+  }
+
   /* Modern card styles */
   .card {
     @apply rounded-xl shadow-soft border border-border transition-all duration-200 bg-card;
@@ -206,7 +225,34 @@
 
   /* Modern input styles */
   .input {
-    @apply block w-full px-3 py-2 text-sm border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 bg-surface border-border text-primaryText placeholder-mutedText;
+    @apply block w-full px-3 py-2 text-sm border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 bg-surface border-border text-primaryText;
+  }
+
+  .input::placeholder {
+    color: rgb(var(--c-text-muted) / 1);
+  }
+
+  /* Select dropdown styles */
+  .input[type="select"],
+  select.input {
+    @apply appearance-none cursor-pointer;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+  }
+
+  /* Dark theme select dropdown icon */
+  .theme-dark select.input,
+  .theme-dark .input[type="select"] {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%9ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  }
+
+  /* Pure dark theme select dropdown icon */
+  .theme-pure-dark select.input,
+  .theme-pure-dark .input[type="select"] {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%808a96' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
   }
 
   /* Badge styles */
@@ -230,6 +276,14 @@
     @apply badge bg-gray-100 text-gray-800;
   }
 
+  /* Additional badge variants for packages */
+  .badge-info {
+    @apply badge bg-blue-100 text-blue-800;
+  }
+  .badge-neutral {
+    @apply badge bg-gray-100 text-gray-700;
+  }
+
   /* Dark theme badge tuning (slightly darker backgrounds + lighter text) */
   .theme-dark .badge-primary {
     @apply bg-primary-900/30 text-primary-200;
@@ -246,6 +300,12 @@
   .theme-dark .badge-gray {
     @apply bg-gray-800 text-gray-300;
   }
+  .theme-dark .badge-info {
+    @apply bg-blue-900/30 text-blue-200;
+  }
+  .theme-dark .badge-neutral {
+    @apply bg-gray-800/60 text-gray-300;
+  }
   /* Pure dark badge adjustments */
   .theme-pure-dark .badge-primary {
     @apply bg-primary-900/40 text-primary-200;
@@ -261,6 +321,12 @@
   }
   .theme-pure-dark .badge-gray {
     @apply bg-gray-900/60 text-gray-300;
+  }
+  .theme-pure-dark .badge-info {
+    @apply bg-blue-900/40 text-blue-200;
+  }
+  .theme-pure-dark .badge-neutral {
+    @apply bg-gray-900/70 text-gray-300;
   }
 
   /* Loading states */
@@ -331,6 +397,39 @@
 
   .status-warning {
     @apply status-dot bg-warning-500;
+  }
+
+  /* Permission item styles for EditPermissionsModal */
+  .permission-item {
+    @apply relative text-left p-3 rounded-lg border transition-all duration-200;
+    @apply bg-card border-border text-primaryText hover:bg-hover hover:border-primary-200;
+  }
+
+  .permission-item-selected {
+    /* Light theme - use blue colors for all categories */
+    @apply bg-blue-50 border-blue-300 text-blue-900 hover:bg-blue-100 hover:border-blue-400;
+  }
+
+  .permission-item-indicator {
+    @apply w-5 h-5 rounded-full bg-blue-500 text-white flex items-center justify-center;
+  }
+
+  /* Dark theme permission item styles */
+  .theme-dark .permission-item-selected {
+    @apply bg-blue-950/30 border-blue-700 text-blue-100 hover:bg-blue-950/40 hover:border-blue-600;
+  }
+
+  .theme-dark .permission-item-indicator {
+    @apply bg-blue-400 text-blue-950;
+  }
+
+  /* Pure dark theme permission item styles */
+  .theme-pure-dark .permission-item-selected {
+    @apply bg-blue-950/40 border-blue-800 text-blue-200 hover:bg-blue-950/50 hover:border-blue-700;
+  }
+
+  .theme-pure-dark .permission-item-indicator {
+    @apply bg-blue-300 text-blue-950;
   }
 }
 

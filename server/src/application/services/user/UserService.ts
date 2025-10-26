@@ -16,6 +16,7 @@ import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { SelectOptions } from "domain/types/SelectOptions";
 import { RegisterUser } from "domain/types/user/RegisterUser";
+import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -369,5 +370,113 @@ export class UserService {
 
     const id = ValueUtils.validateId(req.session.userId);
     return this.userRepository.get(id, selectOptions);
+  }
+
+  /**
+   * Update user permissions by saving the user with new permissions
+   */
+  public async updateUserPermissions(user: User): Promise<void> {
+    this.logger.debug("Updating user permissions", {
+      userId: user.id,
+      permissionsCount: user.permissions?.length || 0,
+    });
+
+    // Add a method to UserRepository to handle permission updates
+    await this.userRepository.updateWithPermissions(user);
+
+    this.logger.audit(`User permissions updated: ${user.id}`, {
+      userId: user.id,
+      permissionsCount: user.permissions?.length || 0,
+    });
+  }
+
+  /**
+   * Update user permissions with full business logic validation
+   */
+  public async updateUserPermissionsByNames(
+    userId: number,
+    permissionNames: string[]
+  ): Promise<UserDTO> {
+    this.logger.debug("User permissions update initiated", {
+      userId,
+      permissionsCount: permissionNames.length,
+      permissionNames,
+    });
+
+    // Get the target user with current permissions
+    const user = await this.getRaw(userId, {
+      select: USER_SELECT_FIELDS,
+      relations: USER_RELATIONS,
+      relationSelects: {
+        avatar: ["id", "filename"],
+        permissions: ["id", "name"],
+      },
+    });
+
+    if (!user || user.is_deleted) {
+      throw new ClientError(
+        ClientResponse.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
+    }
+
+    // Get permission entities by names
+    const newPermissions = await this.getPermissionsByNames(permissionNames);
+
+    // Validate that all requested permissions exist
+    const foundPermissionNames = newPermissions.map((p: Permission) => p.name);
+    const missingPermissions = permissionNames.filter(
+      (name) => !foundPermissionNames.includes(name)
+    );
+
+    if (missingPermissions.length > 0) {
+      throw new ClientError(
+        ClientResponse.INVALID_INPUT,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
+    // Store old permissions for audit logging
+    const oldPermissionsCount = user.permissions?.length || 0;
+
+    // Update user permissions (replace all)
+    user.permissions = newPermissions;
+    user.updated_at = new Date();
+
+    // Save the user with updated permissions
+    await this.userRepository.updateWithPermissions(user);
+
+    this.logger.audit("User permissions updated", {
+      userId,
+      oldPermissionsCount,
+      newPermissionsCount: newPermissions.length,
+      newPermissions: newPermissions.map((p: Permission) => p.name),
+    });
+
+    return user.toDTO();
+  }
+
+  /**
+   * Get permission entities by their names
+   */
+  public async getPermissionsByNames(
+    permissionNames: string[]
+  ): Promise<Permission[]> {
+    if (permissionNames.length === 0) {
+      return [];
+    }
+
+    // Add a method to UserRepository to get permissions
+    const permissions = await this.userRepository.getPermissionsByNames(
+      permissionNames
+    );
+
+    this.logger.debug("Found permissions while permission change", {
+      requestedCount: permissionNames.length,
+      foundCount: permissions.length,
+      foundNames: permissions.map((p: Permission) => p.name),
+    });
+
+    return permissions;
   }
 }

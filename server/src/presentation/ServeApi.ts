@@ -8,6 +8,7 @@ import { Container, CONTAINER_TYPES } from "application/Container";
 import { type ApiContext } from "application/context/ApiContext";
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { AdminService } from "application/services/admin/AdminService";
+import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { FileService } from "application/services/file/FileService";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { GameService } from "application/services/game/GameService";
@@ -205,7 +206,12 @@ export class ServeApi {
       deps.socketUserDataService,
       this._context.logger
     );
-    new PackageRestApiController(deps.app, deps.packageService);
+    new PackageRestApiController(
+      deps.app,
+      deps.packageService,
+      deps.userService,
+      this._context.logger
+    );
     new FileRestApiController(deps.app, deps.storage);
     new GameRestApiController(deps.app, deps.game);
     new AdminRestApiController(
@@ -223,6 +229,7 @@ export class ServeApi {
         deps.userService,
         this._context.env,
         deps.game,
+        deps.storage,
         this._context.logger
       );
     }
@@ -264,5 +271,11 @@ export class ServeApi {
 
     // Init key expiration listeners
     await pubSub.initKeyExpirationHandling();
+
+    // Initialize cron scheduler
+    const cronScheduler = Container.get<CronSchedulerService>(
+      CONTAINER_TYPES.CronSchedulerService
+    );
+    await cronScheduler.initialize();
   }
 }

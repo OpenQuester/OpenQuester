@@ -7,6 +7,7 @@ import { PlayerGameStatsService } from "application/services/statistics/PlayerGa
 import {
   GAME_QUESTION_ANSWER_SUBMIT_TIME,
   GAME_QUESTION_ANSWER_TIME,
+  MEDIA_DOWNLOAD_TIMEOUT,
   STAKE_QUESTION_BID_TIME,
 } from "domain/constants/game";
 import { REDIS_LOCK_QUESTION_ANSWER } from "domain/constants/redis";
@@ -443,11 +444,12 @@ export class SocketIOQuestionService {
         );
       }
     } else {
-      // Normal question flow - set up timer and showing state
+      // Normal question flow - set up media download timer first
+      // Players need to download media before showing the question
       timer = await this.socketQuestionStateService.setupQuestionTimer(
         game,
-        GAME_QUESTION_ANSWER_TIME,
-        QuestionState.SHOWING
+        MEDIA_DOWNLOAD_TIMEOUT,
+        QuestionState.MEDIA_DOWNLOADING
       );
       // For normal questions, set currentQuestion immediately
       game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
@@ -455,6 +457,9 @@ export class SocketIOQuestionService {
       );
     }
     GameQuestionMapper.setQuestionPlayed(game, question.id!, theme.id!);
+
+    // Reset media download status for all players
+    this.resetMediaDownloadStatus(game);
 
     // Save
     await this.gameService.updateGame(game);
@@ -1171,5 +1176,118 @@ export class SocketIOQuestionService {
     game.setTimer(timer);
 
     return timer;
+  }
+
+  /**
+   * Handle media downloaded event from a player
+   */
+  public async handleMediaDownloaded(socketId: string) {
+    // Context & Validation
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
+
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    // Mark player as having downloaded media
+    currentPlayer.mediaDownloaded = true;
+
+    // Check if all active players have downloaded media
+    const activePlayers = game.players.filter(
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
+    );
+    const allPlayersReady = activePlayers.every((p) => p.mediaDownloaded);
+
+    // If all players are ready, transition to SHOWING state
+    if (
+      allPlayersReady &&
+      game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING
+    ) {
+      // Clear the media download timeout timer
+      await this.gameService.clearTimer(game.id);
+
+      // Set up the actual question showing timer
+      const timer = await this.socketQuestionStateService.setupQuestionTimer(
+        game,
+        GAME_QUESTION_ANSWER_TIME,
+        QuestionState.SHOWING
+      );
+
+      await this.gameService.updateGame(game);
+
+      return {
+        game,
+        playerId: currentPlayer.meta.id,
+        allPlayersReady,
+        timer: timer.value(),
+      };
+    }
+
+    // Save game state
+    await this.gameService.updateGame(game);
+
+    // If all players are ready, include the timer
+    let timer = null;
+    if (allPlayersReady && game.timer) {
+      timer = game.timer;
+    }
+
+    return {
+      game,
+      playerId: currentPlayer.meta.id,
+      allPlayersReady,
+      timer,
+    };
+  }
+
+  /**
+   * Reset media download status for all players
+   */
+  public resetMediaDownloadStatus(game: Game): void {
+    const players = game.players;
+    for (const player of players) {
+      player.mediaDownloaded = false;
+    }
+  }
+
+  /**
+   * Force all players to be marked as ready (used by timeout)
+   */
+  public async forceAllPlayersReady(gameId: string) {
+    const game = await this.gameService.getGameEntity(gameId);
+    if (!game) return null;
+
+    // Mark all active players as downloaded
+    const activePlayers = game.players.filter(
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
+    );
+    for (const player of activePlayers) {
+      player.mediaDownloaded = true;
+    }
+
+    // Clear the media download timeout timer
+    await this.gameService.clearTimer(game.id);
+
+    // Set up the question showing timer
+    const timer = await this.socketQuestionStateService.setupQuestionTimer(
+      game,
+      GAME_QUESTION_ANSWER_TIME,
+      QuestionState.SHOWING
+    );
+
+    await this.gameService.updateGame(game);
+
+    return {
+      game,
+      timer: timer.value(),
+    };
   }
 }

@@ -8,6 +8,13 @@ export enum Permissions {
   // File related
   DELETE_FILE = "delete_file",
 
+  // Package related
+  DELETE_PACKAGE = "delete_package",
+  EDIT_PACKAGE = "edit_package",
+
+  // Permission management
+  MANAGE_PERMISSIONS = "manage_permissions",
+
   // Admin panel related
   ADMIN_PANEL_ACCESS = "admin_panel_access",
   VIEW_SYSTEM_HEALTH = "view_system_health",
