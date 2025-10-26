@@ -21,6 +21,8 @@ class MediaFileEncoder {
   /// Set of encoded file hashes to avoid re-encoding
   final Set<String> _encodedFilesHash = <String>{};
 
+  Directory? _encodingOutputDirectory;
+
   /// Encode media files with compression if supported
   /// Returns a record with processed files and hash mapping
   /// Optimized to avoid unnecessary file operations when encoding not supported
@@ -45,66 +47,68 @@ class MediaFileEncoder {
 
     // Create temporary directory for encoding
     final tempDir = await getTemporaryDirectory();
-    final encodeDir = Directory(
+    _encodingOutputDirectory = Directory(
       '${tempDir.path}/encode_${DateTime.now().millisecondsSinceEpoch}',
     );
-    await encodeDir.create();
+    await _encodingOutputDirectory!.create();
 
-    try {
-      // Step 1: Process files - only copy/read those that need encoding
-      final filesToEncode = <File>[];
-      final originalHashToFile = <String, File>{};
-      final originalHashToMediaFile = <String, MediaFileReference>{};
+    // Step 1: Process files - only copy/read those that need encoding
+    final filesToEncode = <File>[];
+    final originalHashToFile = <String, File>{};
+    final originalHashToMediaFile = <String, MediaFileReference>{};
 
-      var processedCount = 0;
-      final totalFiles = mediaFilesByHash.length;
+    var processedCount = 0;
+    final totalFiles = mediaFilesByHash.length;
 
-      for (final entry in mediaFilesByHash.entries) {
-        final originalHash = entry.key;
-        final mediaFile = entry.value;
+    for (final entry in mediaFilesByHash.entries) {
+      final originalHash = entry.key;
+      final mediaFile = entry.value;
 
-        // Skip if already encoded - reuse cached result
-        if (_encodedFilesHash.contains(originalHash)) {
-          logger?.d('File already encoded, using cached: $originalHash');
-          processedFiles[originalHash] = mediaFile;
-          hashMapping[originalHash] = originalHash;
-          processedCount++;
-          onProgress?.call(processedCount / totalFiles * 0.3); // 30% for prep
-          continue;
-        }
-
-        // Only prepare files for encoding that need it
-        // Save to temp file for encoding (optimize: use path if available)
-        final tempFile = File('${encodeDir.path}/input_$originalHash');
-
-        if (mediaFile.platformFile.path != null) {
-          // Optimize: Copy file directly if path is available
-          final sourceFile = File(mediaFile.platformFile.path!);
-          await sourceFile.copy(tempFile.path);
-        } else {
-          // Only read bytes if no path available (web platform)
-          final originalBytes = await _readMediaBytes(mediaFile);
-          await tempFile.writeAsBytes(originalBytes);
-        }
-
-        filesToEncode.add(tempFile);
-        originalHashToFile[originalHash] = tempFile;
-        originalHashToMediaFile[originalHash] = mediaFile;
-
+      // Skip if already encoded - reuse cached result
+      if (_encodedFilesHash.contains(originalHash)) {
+        logger?.d('File already encoded, using cached: $originalHash');
+        processedFiles[originalHash] = mediaFile;
+        hashMapping[originalHash] = originalHash;
         processedCount++;
         onProgress?.call(processedCount / totalFiles * 0.3); // 30% for prep
+        continue;
       }
 
-      // Step 2: Encode files using encodeFiles function
-      if (filesToEncode.isEmpty) {
-        logger?.d(
-          'No files to encode after filtering - using original files',
-        );
-        return (files: mediaFilesByHash, hashMapping: hashMapping);
+      // Only prepare files for encoding that need it
+      // Save to temp file for encoding (optimize: use path if available)
+      final tempFile = File(
+        '${_encodingOutputDirectory!.path}/input_$originalHash',
+      );
+
+      if (mediaFile.platformFile.path != null) {
+        // Optimize: Copy file directly if path is available
+        final sourceFile = File(mediaFile.platformFile.path!);
+        await sourceFile.copy(tempFile.path);
+      } else {
+        // Only read bytes if no path available (web platform)
+        final originalBytes = await _readMediaBytes(mediaFile);
+        await tempFile.writeAsBytes(originalBytes);
       }
 
-      final encoder = OqFileEncoder(logger: logger);
-      final outputDir = '${encodeDir.path}/output';
+      filesToEncode.add(tempFile);
+      originalHashToFile[originalHash] = tempFile;
+      originalHashToMediaFile[originalHash] = mediaFile;
+
+      processedCount++;
+      onProgress?.call(processedCount / totalFiles * 0.3); // 30% for prep
+    }
+
+    // Step 2: Encode files using encodeFiles function
+    if (filesToEncode.isEmpty) {
+      logger?.d(
+        'No files to encode after filtering - using original files',
+      );
+      return (files: mediaFilesByHash, hashMapping: hashMapping);
+    }
+
+    final encoder = OqFileEncoder(logger: logger);
+    try {
+      final outputDir = '${_encodingOutputDirectory!.path}/output';
 
       final encodingResults = await encoder.encodeFiles(
         filesToEncode,
@@ -166,19 +170,16 @@ class MediaFileEncoder {
             0.9 + (finalizedCount / originalHashToFile.length * 0.1);
         onProgress?.call(adjustedProgress);
       }
-
-      encoder.dispose();
-
-      logger?.d(
-        'Encoding completed. Encoded files: ${_encodedFilesHash.length}',
-      );
-      return (files: processedFiles, hashMapping: hashMapping);
+    } catch (e, st) {
+      logger?.e('Error during file encoding: $e', stackTrace: st);
+      rethrow;
     } finally {
-      // Clean up temp directory
-      if (encodeDir.existsSync()) {
-        await encodeDir.delete(recursive: true);
-      }
+      encoder.dispose();
     }
+    logger?.d(
+      'Encoding completed. Encoded files: ${_encodedFilesHash.length}',
+    );
+    return (files: processedFiles, hashMapping: hashMapping);
   }
 
   /// Read bytes from MediaFileReference (web or native)
@@ -316,13 +317,35 @@ class MediaFileEncoder {
     }).toList();
   }
 
+  /// Populate the cache with encoded file hashes
+  /// Used when importing a package that contains metadata about encoded files
+  void populateEncodedFilesCache(Set<String> encodedFileHashes) {
+    _encodedFilesHash.addAll(encodedFileHashes);
+    logger?.d(
+      'Populated encoder cache with ${encodedFileHashes.length} encoded files',
+    );
+  }
+
+  /// Get current set of encoded file hashes (for export metadata)
+  Set<String> get encodedFileHashes => Set.from(_encodedFilesHash);
+
   /// Clear cached encoded files
-  void clearCache() {
+  Future<void> clearCache() async {
     _encodedFilesHash.clear();
+    await cleanupEncodingDirectory();
+    logger?.d('Cleared encoded files cache');
+  }
+
+  Future<void> cleanupEncodingDirectory() async {
+    if (_encodingOutputDirectory != null &&
+        _encodingOutputDirectory!.existsSync()) {
+      await _encodingOutputDirectory!.delete(recursive: true);
+      logger?.d('Cleaned up encoding temporary directory');
+    }
   }
 
   /// Dispose and clean up
-  void dispose() {
-    clearCache();
+  Future<void> dispose() async {
+    await clearCache();
   }
 }

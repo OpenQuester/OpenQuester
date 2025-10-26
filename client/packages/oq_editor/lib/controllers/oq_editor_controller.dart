@@ -8,6 +8,7 @@ import 'package:oq_editor/models/package_upload_state.dart';
 import 'package:oq_editor/utils/extensions.dart';
 import 'package:oq_editor/utils/media_file_encoder.dart';
 import 'package:oq_editor/utils/oq_package_archiver.dart';
+import 'package:oq_shared/oq_shared.dart';
 import 'package:universal_io/io.dart';
 
 class OqEditorController {
@@ -16,12 +17,16 @@ class OqEditorController {
     OqPackage? initialPackage,
     this.onSave,
     this.onSaveProgressStream,
+    this.logger,
   }) {
     package.value = initialPackage ?? OqPackageX.empty;
   }
 
   /// Translation provider injected from parent app
   final OqEditorTranslations translations;
+
+  /// Optional logger for debug messages
+  final BaseLogger? logger;
 
   /// Save callback function
   /// Should handle uploading media files and saving the package
@@ -39,7 +44,9 @@ class OqEditorController {
 
   /// Media file encoder for compressing files before upload/export
   /// Maintains a cache of encoded files to avoid re-encoding
-  late final MediaFileEncoder _mediaFileEncoder = MediaFileEncoder();
+  late final MediaFileEncoder _mediaFileEncoder = MediaFileEncoder(
+    logger: logger,
+  );
 
   /// Current package being edited
   final ValueNotifier<OqPackage> package = ValueNotifier<OqPackage>(
@@ -138,100 +145,123 @@ class OqEditorController {
   /// Encodes media files for compression before upload and updates package
   /// file hashes
   Future<OqPackage> savePackage() async {
-    if (onSave == null) {
-      throw UnimplementedError(
-        'onSave callback must be provided to OqEditorController',
+    try {
+      if (onSave == null) {
+        throw UnimplementedError(
+          'onSave callback must be provided to OqEditorController',
+        );
+      }
+
+      // Normalize order fields before saving
+      final normalizedPackage = _normalizePackageOrder(package.value);
+
+      // Encode media files for compression and update package with new hashes
+      final encodingResult = await _mediaFileEncoder.encodePackage(
+        normalizedPackage,
+        Map.from(_mediaFilesByHash),
       );
+
+      final savedPackage = await onSave!(
+        encodingResult.package,
+        encodingResult.files,
+      );
+
+      // Update the package with the saved version
+      package.value = savedPackage;
+
+      return savedPackage;
+    } catch (e) {
+      logger?.e('Error saving package: $e');
+      rethrow;
     }
-
-    // Normalize order fields before saving
-    final normalizedPackage = _normalizePackageOrder(package.value);
-
-    // Encode media files for compression and update package with new hashes
-    final encodingResult = await _mediaFileEncoder.encodePackage(
-      normalizedPackage,
-      Map.from(_mediaFilesByHash),
-    );
-
-    final savedPackage = await onSave!(
-      encodingResult.package,
-      encodingResult.files,
-    );
-
-    // Update the package with the saved version
-    package.value = savedPackage;
-
-    return savedPackage;
   }
 
   /// Export package to .oq file
   /// Downloads a zip archive with structure:
   /// /content.json - serialized package
+  /// /encoded_files.json - metadata about encoded files
   /// /files/{md5} - media files with hash as filename
   /// Encodes media files for compression before export and updates package
   /// file hashes
   Future<void> exportPackage() async {
-    // Normalize package before export
-    final normalizedPackage = _normalizePackageOrder(package.value);
+    try {
+      // Normalize package before export
+      final normalizedPackage = _normalizePackageOrder(package.value);
 
-    // Encode media files for compression and update package with new hashes
-    final encodingResult = await _mediaFileEncoder.encodePackage(
-      normalizedPackage,
-      Map.from(_mediaFilesByHash),
-    );
+      // Encode media files for compression and update package with new hashes
+      final encodingResult = await _mediaFileEncoder.encodePackage(
+        normalizedPackage,
+        Map.from(_mediaFilesByHash),
+      );
 
-    // Create archive with encoded media files and updated package
-    final archiveBytes = await OqPackageArchiver.exportPackage(
-      encodingResult.package,
-      encodingResult.files,
-    );
+      // Create archive with encoded media files and updated package
+      final archiveBytes = await OqPackageArchiver.exportPackage(
+        encodingResult.package,
+        encodingResult.files,
+        encodedFileHashes: _mediaFileEncoder.encodedFileHashes,
+      );
 
-    // Save to file
-    await OqPackageArchiver.saveArchiveToFile(
-      archiveBytes,
-      encodingResult.package.title,
-    );
+      // Save to file
+      await OqPackageArchiver.saveArchiveToFile(
+        archiveBytes,
+        encodingResult.package.title,
+      );
+    } catch (e) {
+      logger?.e('Error exporting package: $e');
+      rethrow;
+    }
   }
 
   /// Import package from .oq file
   /// Replaces current package with imported data
   /// Converts imported file bytes to MediaFileReference objects
+  /// Restores encoded files cache from archive metadata to avoid re-encoding
   Future<void> importPackage() async {
-    // Pick file
-    final archiveBytes = await OqPackageArchiver.pickArchiveFile();
-    if (archiveBytes == null) return; // User cancelled
+    try {
+      // Pick file
+      final archiveBytes = await OqPackageArchiver.pickArchiveFile();
+      if (archiveBytes == null) return; // User cancelled
 
-    // Import package
-    final result = await OqPackageArchiver.importPackage(archiveBytes);
+      // Import package
+      final result = await OqPackageArchiver.importPackage(archiveBytes);
 
-    // Clear existing media files
-    await clearPendingMediaFiles();
+      // Clear existing media files
+      await clearPendingMediaFiles();
 
-    // Convert imported file bytes to MediaFileReference objects
-    // This allows them to be treated the same as newly added files
-    for (final entry in result.filesBytesByHash.entries) {
-      final hash = entry.key;
-      final bytes = entry.value;
+      // Populate encoder cache with encoded files from archive metadata
+      if (result.encodedFileHashes != null) {
+        _mediaFileEncoder.populateEncodedFilesCache(result.encodedFileHashes!);
+      }
 
-      // Create a PlatformFile from the bytes
-      // Use hash as filename since we don't have the original filename
-      final platformFile = PlatformFile(
-        name: hash,
-        size: bytes.length,
-        bytes: bytes,
-      );
+      // Convert imported file bytes to MediaFileReference objects
+      // This allows them to be treated the same as newly added files
+      for (final entry in result.filesBytesByHash.entries) {
+        final hash = entry.key;
+        final bytes = entry.value;
 
-      // Create MediaFileReference and register it
-      final mediaFile = MediaFileReference(platformFile: platformFile);
-      _mediaFilesByHash[hash] = mediaFile;
+        // Create a PlatformFile from the bytes
+        // Use hash as filename since we don't have the original filename
+        final platformFile = PlatformFile(
+          name: hash,
+          size: bytes.length,
+          bytes: bytes,
+        );
+
+        // Create MediaFileReference and register it
+        final mediaFile = MediaFileReference(platformFile: platformFile);
+        _mediaFilesByHash[hash] = mediaFile;
+      }
+
+      // Update package with imported data
+      package.value = result.package;
+
+      // Navigate to package info screen
+      navigateToPackageInfo();
+      refreshKey.value = UniqueKey();
+    } catch (e) {
+      logger?.e('Error importing package: $e');
+      rethrow;
     }
-
-    // Update package with imported data
-    package.value = result.package;
-
-    // Navigate to package info screen
-    navigateToPackageInfo();
-    refreshKey.value = UniqueKey();
   }
 
   /// Normalize order fields for rounds, themes, and questions in the package
@@ -621,7 +651,7 @@ class OqEditorController {
   /// Dispose resources
   Future<void> dispose() async {
     await clearPendingMediaFiles();
-    _mediaFileEncoder.dispose();
+    await _mediaFileEncoder.dispose();
     package.dispose();
     currentStep.dispose();
     navigationContext.dispose();

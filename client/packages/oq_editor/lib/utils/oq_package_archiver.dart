@@ -11,14 +11,16 @@ import 'package:universal_io/io.dart';
 /// Utility class for archiving/unarchiving OQ packages
 /// Archive structure:
 /// /content.json - serialized OqPackage model
+/// /encoded_files.json - metadata about which files were encoded (optional)
 /// /files/{md5} - media files with MD5 hash as filename
 class OqPackageArchiver {
   /// Export package to .oq archive
   /// Returns the archive bytes ready for download
   static Future<Uint8List> exportPackage(
     OqPackage package,
-    Map<String, MediaFileReference> mediaFilesByHash,
-  ) async {
+    Map<String, MediaFileReference> mediaFilesByHash, {
+    Set<String>? encodedFileHashes,
+  }) async {
     // Prepare media files map by reading bytes from all sources
     final mediaFilesBytes = <String, Uint8List>{};
 
@@ -45,6 +47,7 @@ class OqPackageArchiver {
       _EncodeArchiveParams(
         package: package,
         mediaFilesBytes: mediaFilesBytes,
+        encodedFileHashes: encodedFileHashes,
       ),
     );
   }
@@ -59,6 +62,23 @@ class OqPackageArchiver {
     archive.addFile(
       ArchiveFile('content.json', contentBytes.length, contentBytes),
     );
+
+    // Add encoded_files.json metadata if encoded files exist
+    if (params.encodedFileHashes != null &&
+        params.encodedFileHashes!.isNotEmpty) {
+      final encodedFilesJson = jsonEncode({
+        'encoded_files': params.encodedFileHashes!.toList(),
+        'version': 1, // For future compatibility
+      });
+      final encodedFilesBytes = utf8.encode(encodedFilesJson);
+      archive.addFile(
+        ArchiveFile(
+          'encoded_files.json',
+          encodedFilesBytes.length,
+          encodedFilesBytes,
+        ),
+      );
+    }
 
     // Add all media files
     for (final entry in params.mediaFilesBytes.entries) {
@@ -106,6 +126,27 @@ class OqPackageArchiver {
     final packageJson = jsonDecode(contentJson) as Map<String, dynamic>;
     final package = OqPackage.fromJson(packageJson);
 
+    // Read encoded files metadata if available
+    Set<String>? encodedFileHashes;
+    final encodedFilesFile = archive.findFile('encoded_files.json');
+    if (encodedFilesFile != null) {
+      try {
+        final encodedFilesJson = utf8.decode(
+          encodedFilesFile.content as List<int>,
+        );
+        final encodedFilesData =
+            jsonDecode(encodedFilesJson) as Map<String, dynamic>;
+        final encodedFilesList =
+            encodedFilesData['encoded_files'] as List<dynamic>?;
+        if (encodedFilesList != null) {
+          encodedFileHashes = encodedFilesList.cast<String>().toSet();
+        }
+      } catch (e) {
+        // If parsing fails, just continue without encoded files info
+        // This maintains backward compatibility with older archives
+      }
+    }
+
     // Extract media files as raw bytes
     // We don't create MediaFileReference because type/order/displayTime
     // are already stored in the package JSON (PackageQuestionFile objects)
@@ -135,6 +176,7 @@ class OqPackageArchiver {
     return PackageImportResult(
       package: package,
       filesBytesByHash: filesBytesByHash,
+      encodedFileHashes: encodedFileHashes,
     );
   }
 
@@ -194,6 +236,7 @@ class PackageImportResult {
   PackageImportResult({
     required this.package,
     required this.filesBytesByHash,
+    this.encodedFileHashes,
   });
 
   final OqPackage package;
@@ -201,6 +244,10 @@ class PackageImportResult {
   /// Raw file bytes keyed by MD5 hash
   /// Type, order, and displayTime metadata are in the package JSON
   final Map<String, Uint8List> filesBytesByHash;
+
+  /// Set of file hashes that were encoded/compressed in the original export
+  /// Used to populate MediaFileEncoder cache to avoid re-encoding
+  final Set<String>? encodedFileHashes;
 }
 
 /// Parameters for encoding package archive in isolate
@@ -208,8 +255,12 @@ class _EncodeArchiveParams {
   _EncodeArchiveParams({
     required this.package,
     required this.mediaFilesBytes,
+    this.encodedFileHashes,
   });
 
   final OqPackage package;
   final Map<String, Uint8List> mediaFilesBytes;
+
+  /// Set of file hashes that were encoded/compressed
+  final Set<String>? encodedFileHashes;
 }
