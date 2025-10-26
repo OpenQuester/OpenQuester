@@ -12,7 +12,6 @@ import { Repository } from "typeorm";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -42,20 +41,12 @@ describe("NoRisk Question Implementation", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    await redisClient.del(...(await redisClient.keys("*")));
-
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
-    }
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {
     await cleanup?.();
     await testEnv.teardown();
-    await RedisConfig.disconnect();
   });
 
   describe("NoRisk question prevents score loss on wrong answers", () => {

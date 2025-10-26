@@ -14,7 +14,6 @@ import {
   FinalQuestionEventData,
   ThemeEliminateOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -48,7 +47,6 @@ describe("Final Round Bidding Logic", () => {
       await cleanup();
     }
     await testEnv.teardown();
-    await RedisConfig.disconnect();
   });
 
   describe("Basic Bidding Flow", () => {

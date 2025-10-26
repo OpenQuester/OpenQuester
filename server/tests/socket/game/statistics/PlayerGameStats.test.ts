@@ -14,7 +14,6 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -62,17 +61,7 @@ describe("Player Game Statistics Tests", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
-
-    const keysUpdated = await redisClient.keys("*");
-    if (keysUpdated.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keysUpdated}`);
-    }
+    await testEnv.clearRedis();
   });
 
   /**

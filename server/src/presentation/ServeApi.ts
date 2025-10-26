@@ -6,6 +6,7 @@ import { type Server as IOServer } from "socket.io";
 import { DIConfig } from "application/config/DIConfig";
 import { Container, CONTAINER_TYPES } from "application/Container";
 import { type ApiContext } from "application/context/ApiContext";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { AdminService } from "application/services/admin/AdminService";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
@@ -187,6 +188,9 @@ export class ServeApi {
       gameProgressionCoordinator: Container.get<GameProgressionCoordinator>(
         CONTAINER_TYPES.GameProgressionCoordinator
       ),
+      gameActionExecutor: Container.get<GameActionExecutor>(
+        CONTAINER_TYPES.GameActionExecutor
+      ),
     };
 
     // REST
@@ -247,6 +251,7 @@ export class ServeApi {
       deps.socketGameContextService,
       deps.userService,
       deps.gameProgressionCoordinator,
+      deps.gameActionExecutor,
       this._context.logger
     );
   }

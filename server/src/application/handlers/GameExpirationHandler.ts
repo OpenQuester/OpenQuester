@@ -1,5 +1,5 @@
 import { GAME_NAMESPACE } from "domain/constants/game";
-import { REDIS_LOCK_EXPIRATION_KEY } from "domain/constants/redis";
+import { REDIS_LOCK_GAME_EXPIRATION } from "domain/constants/redis";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
 import { RedisService } from "infrastructure/services/redis/RedisService";
@@ -17,7 +17,7 @@ export class GameExpirationHandler implements RedisExpirationHandler {
   }
 
   public async handle(key: string): Promise<void> {
-    const lockKey = `${REDIS_LOCK_EXPIRATION_KEY}:${key}`;
+    const lockKey = `${REDIS_LOCK_GAME_EXPIRATION}:${key}`;
     const acquired = await this.redisService.setLockKey(lockKey);
 
     if (!acquired) {

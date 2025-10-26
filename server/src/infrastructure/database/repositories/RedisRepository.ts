@@ -308,6 +308,31 @@ export class RedisRepository {
     });
   }
 
+  // List operations for action queue
+  public async rpush(key: string, value: string): Promise<number> {
+    return this.executeWithLogging("Redis RPUSH", { key }, async () => {
+      return this._client.rpush(key, value);
+    });
+  }
+
+  public async lpop(key: string): Promise<string | null> {
+    return this.executeWithLogging("Redis LPOP", { key }, async () => {
+      return this._client.lpop(key);
+    });
+  }
+
+  public async lindex(key: string, index: number): Promise<string | null> {
+    return this.executeWithLogging("Redis LINDEX", { key, index }, async () => {
+      return this._client.lindex(key, index);
+    });
+  }
+
+  public async llen(key: string): Promise<number> {
+    return this.executeWithLogging("Redis LLEN", { key }, async () => {
+      return this._client.llen(key);
+    });
+  }
+
   public async zrem(key: string, members: string[]) {
     return this.executeWithLogging("Redis ZREM", { key, members }, async () => {
       return this._client.zrem(key, members);

@@ -21,7 +21,6 @@ import {
   PlayerSlotChangeBroadcastData,
   TurnPlayerChangeBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -58,17 +57,7 @@ describe("SocketIOGameLobby", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
-
-    const keysUpdated = await redisClient.keys("*");
-    if (keysUpdated.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keysUpdated}`);
-    }
+    await testEnv.clearRedis();
   });
 
   it("should successfully change player score", async () => {

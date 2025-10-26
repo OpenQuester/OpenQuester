@@ -15,7 +15,6 @@ import {
   FinalSubmitEndEventData,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -49,7 +48,6 @@ describe("Final Round Answering Logic", () => {
       await cleanup();
     }
     await testEnv.teardown();
-    await RedisConfig.disconnect();
   });
 
   describe("Answer Submission Flow", () => {

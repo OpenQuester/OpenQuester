@@ -11,7 +11,6 @@ import { Repository } from "typeorm";
 
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
@@ -47,13 +46,7 @@ describe("Game Statistics Persistence Tests", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
-    // Clear dependent tables first due to foreign key constraints
+    await testEnv.clearRedis();
     await playerGameStatsRepo.delete({});
     await gameStatsRepo.delete({});
   });

@@ -78,7 +78,8 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   const api = new ServeApi(context);
   await api.init();
 
-  // Provide a cleanup function for Redis, Socket.IO, and HTTP server
+  // Provide a cleanup function for Socket.IO and HTTP server
+  // Note: Redis is NOT disconnected here as it's shared across test suites
   async function cleanup() {
     // Stop cron scheduler to allow tests to exit cleanly
     const cronScheduler = Container.get<CronSchedulerService>(
@@ -88,7 +89,6 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     await cronScheduler.stopAll();
 
     await io.close();
-    await RedisConfig.disconnect();
     if (httpServer.listening) {
       return new Promise<void>((resolve) => {
         httpServer.close(() => {
