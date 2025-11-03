@@ -5,12 +5,9 @@ import 'package:openquester/common_imports.dart';
 import 'package:oq_editor/oq_editor.dart';
 
 /// Unified service for package operations
-/// Eliminates code duplication across upload and editor controllers
-/// Follows DRY principle by centralizing all package-related operations
 @singleton
 class PackageService {
   /// Convert OqPackage to PackageCreationInput for API upload
-  /// Used by all upload controllers
   PackageCreationInput convertOqPackageToInput(OqPackage package) {
     return PackageCreationInput(
       content: PackageCreateInputData(
@@ -50,14 +47,13 @@ class PackageService {
 
       yield* _uploadMediaFiles(uploadLinks, mediaFilesByHash, result.id);
     } catch (error, stackTrace) {
-      final errorMessage = Api.parseError(error) ?? error.toString();
       logger.e(
-        'Package upload failed: $errorMessage',
+        'Package upload failed',
         error: error,
         stackTrace: stackTrace,
       );
       yield PackageUploadState.error(
-        error: errorMessage,
+        error: error,
         stackTrace: stackTrace,
       );
     }
@@ -70,46 +66,52 @@ class PackageService {
     int packageId,
   ) async* {
     logger.d('Uploading ${uploadLinks.length} files...');
+    try {
+      const baseProgress = 0.2; // After package creation
+      const uploadRange = 0.8; // 0.2 to 1.0
 
-    const baseProgress = 0.2; // After package creation
-    const uploadRange = 0.8; // 0.2 to 1.0
+      for (var i = 0; i < uploadLinks.length; i++) {
+        final link = uploadLinks[i];
+        final progress = baseProgress + (i / uploadLinks.length) * uploadRange;
 
-    for (var i = 0; i < uploadLinks.length; i++) {
-      final link = uploadLinks[i];
-      final progress = baseProgress + (i / uploadLinks.length) * uploadRange;
-
-      yield PackageUploadState.uploading(
-        progress: progress,
-        message: LocaleKeys.oq_editor_uploading_file.tr(
-          args: ['${i + 1}', '${uploadLinks.length}'],
-        ),
-      );
-
-      // Get media file by hash and upload
-      final media = await mediaFilesByHash[link.key]?.platformFile.readBytes();
-
-      if (media != null && media.isNotEmpty) {
-        logger.t(
-          'Uploading file ${link.key} ${i + 1}/${uploadLinks.length}...',
+        yield PackageUploadState.uploading(
+          progress: progress,
+          message: LocaleKeys.oq_editor_uploading_file.tr(
+            args: ['${i + 1}', '${uploadLinks.length}'],
+          ),
         );
-        await getIt<S3UploadController>().uploadFile(
-          uploadLink: Uri.parse(link.value),
-          file: media,
-          md5Hash: link.key,
-        );
-      } else {
-        throw Exception('Media file not found for hash: ${link.key}');
+
+        // Get media file by hash and upload
+        final media = await mediaFilesByHash[link.key]?.platformFile
+            .readBytes();
+
+        if (media != null && media.isNotEmpty) {
+          logger.t(
+            'Uploading file ${link.key} ${i + 1}/${uploadLinks.length}...',
+          );
+          await getIt<S3UploadController>().uploadFile(
+            uploadLink: Uri.parse(link.value),
+            file: media,
+            md5Hash: link.key,
+          );
+        } else {
+          throw Exception('Media file not found for hash: ${link.key}');
+        }
       }
-    }
 
-    logger.d('All files uploaded successfully');
-    yield PackageUploadState.completed(packageId: packageId);
+      logger.d('All files uploaded successfully');
+      yield PackageUploadState.completed(packageId: packageId);
+    } catch (e, s) {
+      logger.e('File upload failed: $e', error: e, stackTrace: s);
+      yield PackageUploadState.error(
+        error: e,
+        stackTrace: s,
+      );
+    }
   }
 
   /// Import OQ file and return package with media files using worker
-  /// Used by multiple controllers - now optimized with worker for all platforms
   Future<ImportResult> importOqFile(Uint8List oqBytes) async {
-    // Use unified worker service for better performance on all platforms
     final worker = PackageWorkerService();
     final result = await worker.parseOqPackage(oqBytes);
 
@@ -135,10 +137,8 @@ class PackageService {
   }
 
   /// Import SIQ file and return package with media files using worker
-  /// Used by multiple controllers - now optimized with worker for all platforms
   Future<ImportResult> importSiqFile(Uint8List siqBytes) async {
     try {
-      // Use unified worker service for better performance on all platforms
       final worker = PackageWorkerService();
       final result = await worker.parseSiqFile(siqBytes);
 
@@ -215,7 +215,6 @@ class PackageService {
 }
 
 /// Result of import operations
-/// Unified structure used across all import methods
 class ImportResult {
   const ImportResult({
     required this.package,

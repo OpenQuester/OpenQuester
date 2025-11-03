@@ -6,6 +6,8 @@ import 'package:archive/archive.dart';
 import 'package:openapi/openapi.dart';
 import 'package:openquester/workers/models/worker_models.dart';
 import 'package:openquester/workers/package_service.activator.g.dart';
+import 'package:oq_shared/oq_shared.dart'
+    show oqContentFileName, oqEncodedFilesFileName;
 import 'package:siq_file/siq_file.dart';
 import 'package:squadron/squadron.dart';
 
@@ -23,7 +25,7 @@ class PackageWorkerService {
 
       // Find content.json
       final contentFile = archive.files.firstWhere(
-        (file) => file.name == 'content.json',
+        (file) => file.name == oqContentFileName,
         orElse: () =>
             throw Exception('Invalid OQ package: content.json not found'),
       );
@@ -48,7 +50,7 @@ class PackageWorkerService {
       List<String>? encodedFileHashes;
       try {
         final encodedFile = archive.files.firstWhere(
-          (file) => file.name == 'encoded_files.json',
+          (file) => file.name == oqEncodedFilesFileName,
         );
         final encodedJson = utf8.decode(encodedFile.content as List<int>);
         final encodedList = jsonDecode(encodedJson) as List<dynamic>;
@@ -78,7 +80,7 @@ class PackageWorkerService {
       // Add package content
       final contentBytes = utf8.encode(jsonEncode(input.package));
       final contentFile = ArchiveFile(
-        'content.json',
+        oqContentFileName,
         contentBytes.length,
         contentBytes,
       );
@@ -91,7 +93,7 @@ class PackageWorkerService {
           jsonEncode(input.encodedFileHashes!.toList()),
         );
         final encodedFile = ArchiveFile(
-          'encoded_files.json',
+          oqEncodedFilesFileName,
           encodedBytes.length,
           encodedBytes,
         );

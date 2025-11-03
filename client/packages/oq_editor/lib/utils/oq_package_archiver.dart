@@ -53,7 +53,7 @@ class OqPackageArchiver {
     final contentJson = jsonEncode(params.package.toJson());
     final contentBytes = utf8.encode(contentJson);
     archive.addFile(
-      ArchiveFile('content.json', contentBytes.length, contentBytes),
+      ArchiveFile(oqContentFileName, contentBytes.length, contentBytes),
     );
 
     // Add encoded_files.json metadata if encoded files exist
@@ -66,7 +66,7 @@ class OqPackageArchiver {
       final encodedFilesBytes = utf8.encode(encodedFilesJson);
       archive.addFile(
         ArchiveFile(
-          'encoded_files.json',
+          oqEncodedFilesFileName,
           encodedFilesBytes.length,
           encodedFilesBytes,
         ),
@@ -110,7 +110,7 @@ class OqPackageArchiver {
     final archive = zipDecoder.decodeBytes(archiveBytes);
 
     // Find and parse content.json
-    final contentFile = archive.findFile('content.json');
+    final contentFile = archive.findFile(oqContentFileName);
     if (contentFile == null) {
       throw Exception('Invalid .oq file: missing content.json');
     }
@@ -121,7 +121,7 @@ class OqPackageArchiver {
 
     // Read encoded files metadata if available
     Set<String>? encodedFileHashes;
-    final encodedFilesFile = archive.findFile('encoded_files.json');
+    final encodedFilesFile = archive.findFile(oqEncodedFilesFileName);
     if (encodedFilesFile != null) {
       try {
         final encodedFilesJson = utf8.decode(

@@ -142,6 +142,7 @@ class PackageEncodingHelper {
     VoidCallback? closeEncodingDialog;
 
     try {
+      if (!context.mounted) throw StateError('Context not mounted');
       // Show encoding progress dialog if there are media files to encode
       closeEncodingDialog = showEncodingProgressDialog(
         context,
@@ -151,7 +152,8 @@ class PackageEncodingHelper {
         title: translations.encodingForUpload,
       );
 
-      // Start the upload process (this will create the encoding stream if needed)
+      // Start the upload process
+      // (this will create the encoding stream if needed)
       final future = uploadFunction();
 
       // Wait a moment for encoding stream to be created if needed
@@ -159,7 +161,9 @@ class PackageEncodingHelper {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
 
-      // Show upload progress dialog after encoding is done or if no encoding needed
+      // Show upload progress dialog after encoding
+      // is done or if no encoding needed
+      if (!context.mounted) throw StateError('Context not mounted');
       final closeUploadDialog = showUploadProgressDialog(
         context,
         progressStream: controller.onSaveProgressStream,

@@ -39,7 +39,6 @@ class PackageUploadController extends ChangeNotifier {
       loading = true;
       _setProgress(0);
 
-      // Use unified picker to handle both .oq and .siq files
       final fileResult = await SiqImportHelper.pickPackageFile();
       if (fileResult == null) return null;
 
@@ -65,42 +64,26 @@ class PackageUploadController extends ChangeNotifier {
     }
   }
 
-  /// Upload OQ file using unified service with encoding
   Future<PackageId> _uploadFromOqFile(Uint8List oqBytes) async {
     _setProgress(_afterParseProgress);
 
     // Import OQ package using unified service
     final importResult = await getIt<PackageService>().importOqFile(oqBytes);
 
-    _setProgress(0.3);
-
-    // Encode media files for compression before upload
-    final encodingResult = await _encodeMediaFiles(
-      importResult.package,
-      EditorMediaUtils.convertBytesToMediaFiles(importResult.filesBytesByHash),
-    );
-
-    // Convert encoded package to input
-    final packageInput = getIt<PackageService>().convertOqPackageToInput(
-      encodingResult.package,
-    );
-
-    return _uploadPackage(
-      packageInput,
-      encodingResult.files,
-    );
+    return _uploadImportResult(importResult);
   }
 
-  /// Upload SIQ file using unified service with worker optimization and encoding
   Future<PackageId> _uploadFromSiqFile(Uint8List siqBytes) async {
     _setProgress(_afterParseProgress);
 
-    // Use optimized service for better performance
-    // (uses worker on all platforms)
     final importResult = await getIt<PackageService>().importSiqFile(
       siqBytes,
     );
 
+    return _uploadImportResult(importResult);
+  }
+
+  Future<PackageId> _uploadImportResult(ImportResult importResult) async {
     _setProgress(0.3);
 
     // Encode media files for compression before upload
@@ -152,7 +135,6 @@ class PackageUploadController extends ChangeNotifier {
     }
   }
 
-  /// Upload package using unified service
   Future<PackageId> _uploadPackage(
     PackageCreationInput packageInput,
     Map<String, MediaFileReference> mediaFilesByHash,

@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
+import 'package:oq_editor/view/dialogs/encoding_progress_dialog.dart';
 
 class UploadPackageButton extends WatchingWidget {
   const UploadPackageButton({this.afterUpload, super.key});
-
   final void Function(PackageListItem package)? afterUpload;
 
   @override
@@ -13,9 +13,7 @@ class UploadPackageButton extends WatchingWidget {
     final controller = watchIt<PackageUploadController>();
 
     return LoadingButtonBuilder(
-      onPressed: () async {
-        await _handleUpload(context);
-      },
+      onPressed: () => _handleUpload(context),
       onError: handleError,
       child: const Icon(Icons.upload),
       builder: (context, child, onPressed) {
@@ -57,18 +55,17 @@ class UploadPackageButton extends WatchingWidget {
       // Close encoding dialog if shown
       closeEncodingDialog?.call();
 
-      if (result != null) {
-        if (!context.mounted) return;
+      if (result == null) return;
+      if (!context.mounted) return;
 
-        await getIt<ToastController>().show(
-          LocaleKeys.package_uploaded.tr(),
-          type: ToastType.success,
-        );
+      await getIt<ToastController>().show(
+        LocaleKeys.package_uploaded.tr(),
+        type: ToastType.success,
+      );
 
-        if (afterUpload != null) {
-          final package = await getIt<PackageController>().getPackage(result);
-          afterUpload!(package.toListItem());
-        }
+      if (afterUpload != null) {
+        final package = await getIt<PackageController>().getPackage(result);
+        afterUpload!(package.toListItem());
       }
     } catch (e) {
       closeEncodingDialog?.call();
@@ -87,37 +84,10 @@ class UploadPackageButton extends WatchingWidget {
       showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (_) => Dialog(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: StreamBuilder<double>(
-              stream: controller.encodingProgressStream,
-              initialData: 0,
-              builder: (context, snapshot) {
-                final progress = snapshot.data ?? 0;
-
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      LocaleKeys.oq_editor_encoding_for_upload.tr(),
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 24),
-                    LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 8,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '${(progress * 100).toInt()}%',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
+        builder: (_) => EncodingProgressDialog(
+          progressStream: controller.encodingProgressStream,
+          translations: const AppOqEditorTranslations(),
+          title: const AppOqEditorTranslations().encodingForExport,
         ),
       ),
     );

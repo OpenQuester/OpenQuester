@@ -322,6 +322,7 @@ class MediaFileEncoder {
     if (_encodingOutputDirectory != null &&
         _encodingOutputDirectory!.existsSync()) {
       await _encodingOutputDirectory!.delete(recursive: true);
+      _encodingOutputDirectory = null;
       logger?.d('Cleaned up encoding temporary directory');
     }
   }
