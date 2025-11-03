@@ -6,8 +6,7 @@ import 'package:archive/archive.dart';
 import 'package:openapi/openapi.dart';
 import 'package:openquester/workers/models/worker_models.dart';
 import 'package:openquester/workers/package_service.activator.g.dart';
-import 'package:oq_shared/oq_shared.dart'
-    show oqContentFileName, oqEncodedFilesFileName;
+import 'package:oq_shared/data/consts.dart';
 import 'package:siq_file/siq_file.dart';
 import 'package:squadron/squadron.dart';
 
