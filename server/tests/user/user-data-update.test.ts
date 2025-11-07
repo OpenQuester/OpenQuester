@@ -13,7 +13,6 @@ import { Container, CONTAINER_TYPES } from "application/Container";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameJoinOutputData } from "domain/types/socket/events/SocketEventInterfaces";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -57,12 +56,7 @@ describe("User Data Update on Game Join", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
+    await testEnv.clearRedis();
   });
 
   it("should update user meta when player rejoins game after profile change", async () => {

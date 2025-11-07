@@ -8,6 +8,7 @@ export const GAME_TITLE_MAX_CHARS = 70;
 export const GAME_TITLE_MIN_CHARS = 3;
 export const GAME_MAX_PLAYERS = 15;
 export const SYSTEM_PLAYER_ID = -1;
+export const SYSTEM_SOCKET_ID = "SYSTEM";
 /** 2 hours (updates with almost every action) */
 export const GAME_TTL_IN_SECONDS = 60 * 60 * 2;
 export const GAME_CHAT_NSP = `${CHAT_NSP}:game`;

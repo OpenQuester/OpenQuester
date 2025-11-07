@@ -4,7 +4,7 @@ export enum QuestionState {
   THEME_ELIMINATION = "theme_elimination",
   BIDDING = "bidding",
   ANSWERING = "answering",
-  REVIEWING = "reviewing",
+  REVIEWING = "reviewing", // Final only for now
   SHOWING = "showing",
   SECRET_TRANSFER = "secret_transfer",
 }

@@ -20,7 +20,6 @@ import {
   GameLeaveBroadcastData,
   PlayerKickBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -63,17 +62,7 @@ describe("PlayerRestrictions", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
-
-    const keysUpdated = await redisClient.keys("*");
-    if (keysUpdated.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keysUpdated}`);
-    }
+    await testEnv.clearRedis();
   });
 
   it("should prevent restricted player from joining as PLAYER or SHOWMAN, allow only SPECTATOR", async () => {

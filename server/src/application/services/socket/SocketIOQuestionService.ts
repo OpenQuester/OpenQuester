@@ -1,4 +1,5 @@
 import { GameService } from "application/services/game/GameService";
+import { SpecialQuestionService } from "application/services/question/SpecialQuestionService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
@@ -8,9 +9,7 @@ import {
   GAME_QUESTION_ANSWER_SUBMIT_TIME,
   GAME_QUESTION_ANSWER_TIME,
   MEDIA_DOWNLOAD_TIMEOUT,
-  STAKE_QUESTION_BID_TIME,
 } from "domain/constants/game";
-import { REDIS_LOCK_QUESTION_ANSWER } from "domain/constants/redis";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { Player } from "domain/entities/game/Player";
@@ -19,8 +18,6 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
-import { StakeBiddingMapper } from "domain/mappers/StakeBiddingMapper";
-import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -35,21 +32,17 @@ import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
 import {
   StakeBidSubmitInputData,
-  StakeBidType,
 } from "domain/types/socket/events/game/StakeQuestionEventData";
+import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
 import {
   AnswerResultData,
   AnswerResultType,
 } from "domain/types/socket/game/AnswerResultData";
-import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
-import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
 import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
-import { SecretQuestionValidator } from "domain/validators/SecretQuestionValidator";
-import { StakeQuestionValidator } from "domain/validators/StakeQuestionValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class SocketIOQuestionService {
   constructor(
@@ -60,13 +53,10 @@ export class SocketIOQuestionService {
     private readonly socketGameTimerService: SocketGameTimerService,
     private readonly roundHandlerFactory: RoundHandlerFactory,
     private readonly playerGameStatsService: PlayerGameStatsService,
+    private readonly specialQuestionService: SpecialQuestionService,
     private readonly logger: ILogger
   ) {
     //
-  }
-
-  private _getQuestionAnswerLockKey(gameId: string) {
-    return `${REDIS_LOCK_QUESTION_ANSWER}:${gameId}`;
   }
 
   public async handleQuestionAnswer(socketId: string) {
@@ -82,16 +72,6 @@ export class SocketIOQuestionService {
       currentPlayer,
       action: QuestionAction.ANSWER,
     });
-
-    // Execution
-    const acquired = await this.gameService.gameLock(
-      this._getQuestionAnswerLockKey(game.id),
-      1
-    );
-
-    if (!acquired) {
-      throw new ClientError(ClientResponse.SOMEONE_ALREADY_ANSWERING);
-    }
 
     // Save showing timer to have timer restore point
     await this.socketGameTimerService.saveElapsedTimer(
@@ -231,10 +211,6 @@ export class SocketIOQuestionService {
       // Always make sure all timers are cleared if not meant to be running
       await this.gameService.clearTimer(game.id);
     }
-
-    // Release the question answer lock
-    const lockKey = this._getQuestionAnswerLockKey(game.id);
-    await this.gameService.gameUnlock(lockKey);
 
     return {
       playerAnswerResult,
@@ -402,7 +378,7 @@ export class SocketIOQuestionService {
     let automaticNominalBid: PlayerBidData | null = null;
 
     if (question.type === PackageQuestionType.SECRET) {
-      specialQuestionData = this._setupSecretQuestion(
+      specialQuestionData = this.specialQuestionService.setupSecretQuestion(
         game,
         question,
         currentPlayer!
@@ -421,7 +397,7 @@ export class SocketIOQuestionService {
         );
       }
     } else if (question.type === PackageQuestionType.STAKE) {
-      const stakeSetupResult = await this._setupStakeQuestion(
+      const stakeSetupResult = await this.specialQuestionService.setupStakeQuestion(
         game,
         question,
         currentPlayer!
@@ -654,422 +630,17 @@ export class SocketIOQuestionService {
     socketId: string,
     data: SecretQuestionTransferInputData
   ) {
-    // Context & Validation
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
+    return this.specialQuestionService.handleSecretQuestionTransfer(
+      socketId,
+      data
     );
-    const game = context.game;
-    const currentPlayer = context.currentPlayer;
-
-    const secretData = game.gameState.secretQuestionData;
-    SecretQuestionValidator.validateTransfer({
-      game,
-      currentPlayer,
-      secretData: secretData ?? null,
-      targetPlayerId: data.targetPlayerId,
-    });
-
-    // Execution
-    const timer = await this.socketQuestionStateService.setupQuestionTimer(
-      game,
-      GAME_QUESTION_ANSWER_TIME,
-      QuestionState.ANSWERING
-    );
-
-    // Get the question data from the secret question data
-    const questionData = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState.currentRound!.id,
-      secretData!.questionId
-    );
-
-    if (!questionData) {
-      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
-    }
-
-    // Set currentQuestion now that the question is being transferred and shown
-    game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
-      questionData.question
-    );
-
-    game.gameState.secretQuestionData = null;
-    game.gameState.questionState = QuestionState.ANSWERING;
-    // Set the target player as the answering player
-    game.gameState.answeringPlayer = data.targetPlayerId;
-
-    // Save
-    await this.gameService.updateGame(game);
-
-    return {
-      game,
-      fromPlayerId: currentPlayer!.meta.id,
-      toPlayerId: data.targetPlayerId,
-      questionId: secretData!.questionId,
-      timer,
-    };
   }
 
   public async handleStakeBidSubmit(
     socketId: string,
     inputData: StakeBidSubmitInputData
   ): Promise<StakeBidSubmitResult> {
-    const bid: number | StakeBidType =
-      inputData.bidType === StakeBidType.NORMAL && inputData.bidAmount !== null
-        ? inputData.bidAmount
-        : inputData.bidType;
-
-    // Context & Validation
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const game = context.game;
-    const currentPlayer = context.currentPlayer;
-
-    // Also validates that current player is not null
-    StakeQuestionValidator.validateBidSubmission({
-      game,
-      currentPlayer,
-      stakeData: game.gameState.stakeQuestionData ?? null,
-    });
-
-    // Execution
-    const stakeData = game.gameState.stakeQuestionData!;
-
-    // When showman is bidding, they bid on behalf of the current bidding player
-    const isShowmanOverride = currentPlayer!.role === PlayerRole.SHOWMAN;
-    let biddingPlayer: Player;
-
-    if (isShowmanOverride) {
-      // Get the current bidding player from stake data
-      const currentBidderIndex = stakeData.currentBidderIndex;
-
-      if (
-        !ValueUtils.isNumber(currentBidderIndex) ||
-        currentBidderIndex < 0 ||
-        currentBidderIndex >= stakeData.biddingOrder.length
-      ) {
-        throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
-      }
-
-      const biddingPlayerId = stakeData.biddingOrder[currentBidderIndex];
-
-      const targetPlayer = game.getPlayer(biddingPlayerId, {
-        fetchDisconnected: false,
-      });
-      if (!targetPlayer) {
-        throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
-      }
-
-      biddingPlayer = targetPlayer;
-    } else {
-      biddingPlayer = currentPlayer!;
-    }
-
-    // For stake questions, get question using the questionId from stake data
-    // Because currentQuestion is not set to gameState while bidding phase
-    const stakeQuestionData = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState.currentRound!.id,
-      stakeData.questionId
-    );
-
-    if (!stakeQuestionData) {
-      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
-    }
-
-    const question = stakeQuestionData.question;
-    const allPlayers = game.getInGamePlayers().map((player) => player.toDTO());
-
-    const bidResult = StakeBiddingMapper.placeBid({
-      playerId: biddingPlayer.meta.id,
-      bid,
-      stakeData,
-      currentPlayer: biddingPlayer.toDTO(),
-      questionPrice: question.price || 1, // Default to 1 if somehow price is null
-      allPlayers,
-    });
-
-    game.gameState.stakeQuestionData = bidResult.updatedStakeData;
-
-    const bidType = bidResult.bidType;
-    const bidAmount = bidResult.bidAmount;
-    const isPhaseComplete = bidResult.isPhaseComplete ?? false;
-    const nextBidderId = bidResult.nextBidderId ?? null;
-
-    const { questionData, timer } = await this._handleStakeBidTimers(
-      game,
-      isPhaseComplete,
-      bidResult.updatedStakeData.winnerPlayerId,
-      nextBidderId
-    );
-
-    // Save
-    await this.gameService.updateGame(game);
-
-    return {
-      game,
-      playerId: biddingPlayer.meta.id,
-      bidAmount,
-      bidType,
-      isPhaseComplete,
-      nextBidderId,
-      winnerPlayerId: bidResult.updatedStakeData.winnerPlayerId,
-      questionData: questionData
-        ? GameQuestionMapper.mapToSimpleQuestion(questionData)
-        : null,
-      timer,
-    };
-  }
-
-  /**
-   * Determines if an auto-bid should immediately end the bidding phase
-   * This happens when:
-   * 1. Auto-bid reaches maxPrice, OR
-   * 2. No other players can afford to outbid the auto-bid amount
-   */
-  private shouldAutoBidEndBidding(
-    stakeQuestionData: StakeQuestionGameData,
-    autoBidAmount: number,
-    allPlayers: PlayerDTO[]
-  ): boolean {
-    // If auto-bid reaches maxPrice, bidding ends immediately
-    if (
-      stakeQuestionData.maxPrice !== null &&
-      autoBidAmount >= stakeQuestionData.maxPrice
-    ) {
-      return true;
-    }
-
-    // Check if any other players can afford to outbid the auto-bid
-    const otherPlayerIds = stakeQuestionData.biddingOrder.filter(
-      (playerId) => playerId !== stakeQuestionData.pickerPlayerId
-    );
-
-    for (const playerId of otherPlayerIds) {
-      const player = allPlayers.find((p) => p.meta.id === playerId);
-      if (player) {
-        // Check if player can make a bid higher than auto-bid
-        const minimumOutbid = autoBidAmount + 1;
-        if (player.score >= minimumOutbid) {
-          // This player can afford to outbid - bidding should continue
-          return false;
-        }
-      }
-    }
-
-    // No other players can afford to outbid - auto-bid wins
-    return true;
-  }
-
-  /**
-   * Sets up secret question data and game state
-   * Returns null if no active players exist (only showman), causing question to proceed as normal
-   */
-  private _setupSecretQuestion(
-    game: Game,
-    question: PackageQuestionDTO,
-    currentPlayer: Player
-  ): SecretQuestionGameData | null {
-    // Check if there are any active in-game players to transfer to
-    const activeInGamePlayers = game.getInGamePlayers();
-    if (activeInGamePlayers.length === 0) {
-      // No active players to transfer to, skip secret transfer phase
-      return null;
-    }
-
-    const secretQuestionData = {
-      pickerPlayerId: currentPlayer.meta.id,
-      transferType: question.transferType!,
-      questionId: question.id!,
-      transferPhase: true,
-    } satisfies SecretQuestionGameData;
-
-    // Set the game state to secret transfer phase
-    game.gameState.questionState = QuestionState.SECRET_TRANSFER;
-    game.gameState.secretQuestionData = secretQuestionData;
-
-    return secretQuestionData;
-  }
-
-  /**
-   * Sets up stake question data, bidding order, and handles automatic bidding logic
-   * Returns null if no active players exist (only showman), causing question to proceed as normal
-   */
-  private async _setupStakeQuestion(
-    game: Game,
-    question: PackageQuestionDTO,
-    currentPlayer: Player
-  ) {
-    const eligiblePlayers = game.players.filter(
-      (p) =>
-        p.role === PlayerRole.PLAYER &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
-    );
-
-    // Check if there are any active in-game players to bid
-    if (eligiblePlayers.length === 0) {
-      // No active players to bid, skip stake bidding phase
-      return null;
-    }
-
-    // Create bidding order (picker goes first)
-    const pickerIndex = eligiblePlayers.findIndex(
-      (p) => p.meta.id === currentPlayer.meta.id
-    );
-
-    // Create bidding order: picker first, then remaining players in order
-    // Example: if picker is player 3 in [1,2,3,4], order becomes [3,4,1,2]
-    const biddingOrder = [
-      ...eligiblePlayers.slice(pickerIndex),
-      ...eligiblePlayers.slice(0, pickerIndex),
-    ].map((p) => p.meta.id);
-
-    // Set up stake question data
-    const stakeQuestionData: StakeQuestionGameData = {
-      pickerPlayerId: currentPlayer.meta.id,
-      questionId: question.id!,
-      maxPrice: question.maxPrice ?? null,
-      bids: {},
-      passedPlayers: [],
-      biddingOrder,
-      currentBidderIndex: 0,
-      highestBid: null,
-      winnerPlayerId: null,
-      biddingPhase: true,
-    };
-
-    // Set the game state to bidding phase
-    game.gameState.questionState = QuestionState.BIDDING;
-    game.gameState.stakeQuestionData = stakeQuestionData;
-
-    // Setup bidding timer
-    const timer = await this.socketQuestionStateService.setupQuestionTimer(
-      game,
-      STAKE_QUESTION_BID_TIME,
-      QuestionState.BIDDING
-    );
-
-    let automaticNominalBid: PlayerBidData | null = null;
-
-    // Check if picker has insufficient score for automatic nominal bid
-    const nominalBidAmount = question.price ?? 1;
-
-    if (currentPlayer.score < nominalBidAmount) {
-      automaticNominalBid = this._handleAutomaticBid(
-        stakeQuestionData,
-        currentPlayer,
-        game.players.map((player) => player.toDTO()),
-        nominalBidAmount
-      );
-    }
-
-    return { stakeQuestionData, timer, automaticNominalBid };
-  }
-
-  /**
-   * Handles automatic bidding when player cannot afford nominal bid
-   */
-  private _handleAutomaticBid(
-    stakeQuestionData: StakeQuestionGameData,
-    currentPlayer: Player,
-    allPlayers: PlayerDTO[],
-    questionPrice: number
-  ): PlayerBidData {
-    // Player cannot afford nominal bid - automatically bid the question price
-    const autoBidAmount = questionPrice;
-    stakeQuestionData.bids[currentPlayer.meta.id] = autoBidAmount;
-    stakeQuestionData.highestBid = autoBidAmount;
-    stakeQuestionData.winnerPlayerId = currentPlayer.meta.id;
-
-    // Check if auto-bid should immediately end bidding phase
-    const shouldEndBidding = this.shouldAutoBidEndBidding(
-      stakeQuestionData,
-      autoBidAmount,
-      allPlayers
-    );
-
-    if (shouldEndBidding) {
-      stakeQuestionData.biddingPhase = false;
-      stakeQuestionData.currentBidderIndex = 0;
-    } else {
-      // Move to next bidder for continuation
-      // Increment current bidder index with circular rotation
-      stakeQuestionData.currentBidderIndex =
-        (stakeQuestionData.currentBidderIndex + 1) %
-        stakeQuestionData.biddingOrder.length;
-    }
-
-    return {
-      playerId: currentPlayer.meta.id,
-      bidAmount: autoBidAmount,
-    };
-  }
-
-  /**
-   * Handles timer setup for stake bid submissions based on phase completion
-   * - If bidding is complete, starts the answer phase timer
-   * - If there's a next bidder, sets up the timer for the next bid
-   */
-  private async _handleStakeBidTimers(
-    game: Game,
-    isPhaseComplete: boolean,
-    winnerPlayerId: number | null,
-    nextBidderId: number | null
-  ) {
-    let questionData: PackageQuestionDTO | undefined;
-    let timer: GameStateTimerDTO | undefined;
-
-    // If bidding is complete, start the answer phase
-    if (isPhaseComplete && winnerPlayerId) {
-      // Clear any existing timer
-      await this.gameService.clearTimer(game.id);
-
-      game.gameState.questionState = QuestionState.SHOWING;
-      // For stake questions, answeringPlayer should be null during SHOWING phase
-      // It will be set when someone actually attempts to answer
-      game.gameState.answeringPlayer = null;
-
-      // Get the question data from stake question data
-      const stakeData = game.gameState.stakeQuestionData;
-      if (stakeData) {
-        const questionAndTheme = GameQuestionMapper.getQuestionAndTheme(
-          game.package,
-          game.gameState.currentRound!.id,
-          stakeData.questionId
-        );
-
-        if (questionAndTheme) {
-          // Set currentQuestion now that bidding is complete and question is being shown
-          game.gameState.currentQuestion =
-            GameQuestionMapper.mapToSimpleQuestion(questionAndTheme.question);
-          questionData = questionAndTheme.question;
-        }
-      }
-
-      const timerEntity =
-        await this.socketQuestionStateService.setupQuestionTimer(
-          game,
-          GAME_QUESTION_ANSWER_TIME,
-          QuestionState.SHOWING
-        );
-
-      timer = timerEntity.start();
-    } else if (nextBidderId !== null) {
-      // If there's a next bidder, set up timer for next bid (30 seconds)
-      await this.gameService.clearTimer(game.id);
-
-      // Setup timer for next bid
-      const timerEntity =
-        await this.socketQuestionStateService.setupQuestionTimer(
-          game,
-          STAKE_QUESTION_BID_TIME,
-          QuestionState.BIDDING
-        );
-
-      timer = timerEntity.start();
-    }
-
-    return { questionData, timer };
+    return this.specialQuestionService.handleStakeBidSubmit(socketId, inputData);
   }
 
   /**

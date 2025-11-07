@@ -1,7 +1,10 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -32,14 +35,34 @@ export class FinalAnswerReviewEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly finalRoundService: FinalRoundService,
-    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService
+    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.FINAL_ANSWER_REVIEW;
+  }
+
+  protected async getGameIdForAction(
+    _data: FinalAnswerReviewInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.FINAL_ANSWER_REVIEW;
   }
 
   protected async validateInput(
@@ -61,13 +84,9 @@ export class FinalAnswerReviewEventHandler extends BaseSocketEventHandler<
   ): Promise<SocketEventResult<FinalAnswerReviewOutputData>> {
     const { game, isGameFinished, reviewResult, questionAnswerData } =
       await this.finalRoundService.handleFinalAnswerReview(
-        this.socket.id,
+        context.socketId,
         data
       );
-
-    // Assign context variables for logging
-    context.gameId = game.id;
-    context.userId = this.socket.userId;
 
     const outputData: FinalAnswerReviewOutputData = {
       answerId: data.answerId,

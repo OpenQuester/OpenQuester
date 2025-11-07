@@ -109,6 +109,23 @@ export class RedisService {
     return this.redisRepository.del(key);
   }
 
+  // List operations for action queue
+  public async rpush(key: string, value: string): Promise<number> {
+    return this.redisRepository.rpush(key, value);
+  }
+
+  public async lpop(key: string): Promise<string | null> {
+    return this.redisRepository.lpop(key);
+  }
+
+  public async lindex(key: string, index: number): Promise<string | null> {
+    return this.redisRepository.lindex(key, index);
+  }
+
+  public async llen(key: string): Promise<number> {
+    return this.redisRepository.llen(key);
+  }
+
   public async zrem(key: string, members: string[]) {
     return this.redisRepository.zrem(key, members);
   }

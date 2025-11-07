@@ -1,7 +1,10 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -25,10 +28,12 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly socketIOGameService: SocketIOGameService,
-    private readonly userNotificationRoomService: UserNotificationRoomService
+    private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
@@ -49,12 +54,30 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
     // Any authenticated user can leave a game
   }
 
+  protected override async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.LEAVE;
+  }
+
   protected async execute(
     _data: EmptyInputData,
     context: SocketEventContext
   ): Promise<SocketEventResult<GameLeaveBroadcastData>> {
     // Handle lobby leave through game service
-    const result = await this.socketIOGameService.leaveLobby(this.socket.id);
+    const result = await this.socketIOGameService.leaveLobby(context.socketId);
 
     if (!result.emit || !result.data) {
       return {
@@ -63,10 +86,6 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
         broadcast: [],
       };
     }
-
-    // Assign context variables for logging
-    context.gameId = result.data.gameId;
-    context.userId = this.socket.userId;
 
     const broadcastData: GameLeaveBroadcastData = {
       user: result.data.userId,
@@ -104,7 +123,7 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
 
         // Unsubscribe from all other players' notification rooms
         await this.userNotificationRoomService.unsubscribeFromMultipleUserNotifications(
-          this.socket.id,
+          context.socketId,
           allPlayerIds
         );
 
@@ -138,7 +157,12 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
         );
       }
 
-      await this.socket.leave(context.gameId);
+      // Use context.socketId to get the correct socket, not this.socket
+      // This is important for queued actions where this.socket may be stale
+      const targetSocket = this.socket.nsp.sockets.get(context.socketId);
+      if (targetSocket) {
+        await targetSocket.leave(context.gameId);
+      }
     }
   }
 }

@@ -1,7 +1,10 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -27,14 +30,34 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly gameProgressionCoordinator: GameProgressionCoordinator
+    private readonly gameProgressionCoordinator: GameProgressionCoordinator,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.ANSWER_RESULT;
+  }
+
+  protected async getGameIdForAction(
+    _data: AnswerResultData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.ANSWER_RESULT;
   }
 
   protected async validateInput(data: AnswerResultData): Promise<any> {
@@ -51,13 +74,9 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
   ): Promise<SocketEventResult<QuestionAnswerResultEventPayload>> {
     const { playerAnswerResult, game, question, timer } =
       await this.socketIOQuestionService.handleAnswerResult(
-        this.socket.id,
+        context.socketId,
         data
       );
-
-    // Assign context variables for logging
-    context.gameId = game.id;
-    context.userId = this.socket.userId;
 
     // Handle correct answers with round progression
     if (playerAnswerResult.answerType === AnswerResultType.CORRECT) {
