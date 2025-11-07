@@ -73,10 +73,6 @@ export class QuestionAnswerEventHandler extends BaseSocketEventHandler<
     const { userId, gameId, timer } =
       await this.socketIOQuestionService.handleQuestionAnswer(context.socketId);
 
-    // Assign context variables for logging
-    context.gameId = gameId;
-    context.userId = userId;
-
     const result: QuestionAnswerEventPayload = {
       userId: userId!,
       timer: timer.value()!,

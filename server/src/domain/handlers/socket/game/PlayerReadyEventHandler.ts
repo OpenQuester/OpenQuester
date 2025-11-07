@@ -84,10 +84,6 @@ export class PlayerReadyEventHandler extends BaseSocketEventHandler<
       true
     );
 
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-    // context.userId already set from action context
-
     const readyData: PlayerReadinessBroadcastData = {
       playerId: result.playerId,
       isReady: result.isReady,

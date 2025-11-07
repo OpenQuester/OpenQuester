@@ -80,9 +80,6 @@ export class MediaDownloadedEventHandler extends BaseSocketEventHandler<
       context.socketId
     );
 
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-
     const statusData: MediaDownloadStatusBroadcastData = {
       playerId: result.playerId,
       mediaDownloaded: true,

@@ -83,9 +83,6 @@ export class UnpauseGameEventHandler extends BaseSocketEventHandler<
       context.socketId
     );
 
-    // Assign context variables for logging
-    context.gameId = game.id;
-
     const unpauseData: GameUnpauseBroadcastData = { timer };
 
     return {

@@ -79,7 +79,6 @@ export class DisconnectEventHandler extends BaseSocketEventHandler<
     const broadcasts: SocketEventBroadcast[] = [];
 
     try {
-      context.userId = this.socket.userId;
       // Try to leave game first (will emit leave event if needed)
       const result = await this.socketIOGameService.leaveLobby(this.socket.id);
 

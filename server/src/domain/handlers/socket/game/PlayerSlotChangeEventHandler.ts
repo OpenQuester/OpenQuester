@@ -82,9 +82,6 @@ export class PlayerSlotChangeEventHandler extends BaseSocketEventHandler<
       data.playerId
     );
 
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-
     const broadcastData: PlayerSlotChangeBroadcastData = {
       playerId: result.playerId,
       newSlot: result.newSlot,

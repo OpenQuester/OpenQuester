@@ -81,9 +81,6 @@ export class TurnPlayerChangeEventHandler extends BaseSocketEventHandler<
       data.newTurnPlayerId
     );
 
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-
     const broadcastData: TurnPlayerChangeBroadcastData = {
       newTurnPlayerId: data.newTurnPlayerId,
     };

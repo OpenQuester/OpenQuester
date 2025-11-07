@@ -89,9 +89,6 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
       }
     );
 
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-
     const broadcastData: PlayerRestrictionBroadcastData = {
       playerId: data.playerId,
       muted: data.muted,

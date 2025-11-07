@@ -82,9 +82,6 @@ export class PlayerScoreChangeEventHandler extends BaseSocketEventHandler<
       data.newScore
     );
 
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-
     const broadcastData: PlayerScoreChangeBroadcastData = {
       playerId: data.playerId,
       newScore: result.newScore,

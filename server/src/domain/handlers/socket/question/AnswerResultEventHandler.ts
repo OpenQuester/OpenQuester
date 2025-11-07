@@ -78,9 +78,6 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
         data
       );
 
-    // Assign context variables for logging
-    context.gameId = game.id;
-
     // Handle correct answers with round progression
     if (playerAnswerResult.answerType === AnswerResultType.CORRECT) {
       const { isGameFinished, nextGameState } =

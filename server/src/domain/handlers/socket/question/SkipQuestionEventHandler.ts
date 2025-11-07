@@ -77,9 +77,6 @@ export class SkipQuestionEventHandler extends BaseSocketEventHandler<
     const { isGameFinished, nextGameState } =
       await this.socketIOQuestionService.handleRoundProgression(game);
 
-    // Assign context variables for logging
-    context.gameId = game.id;
-
     // Use the coordinator to handle game progression
     const result = await this.gameProgressionCoordinator.processGameProgression(
       {

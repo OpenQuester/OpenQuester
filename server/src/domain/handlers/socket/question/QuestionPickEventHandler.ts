@@ -87,9 +87,6 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
       data.questionId
     );
 
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-
     // Check if this is a secret question with special data (not auto-skipped)
     if (
       result.question.type === PackageQuestionType.SECRET &&

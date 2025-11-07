@@ -96,9 +96,6 @@ export class StakeBidSubmitEventHandler extends BaseSocketEventHandler<
       timer,
     } = await this.questionService.handleStakeBidSubmit(context.socketId, data);
 
-    // Assign context variables for logging
-    context.gameId = game.id;
-
     const outputData: StakeBidSubmitOutputData = {
       playerId,
       bidAmount,

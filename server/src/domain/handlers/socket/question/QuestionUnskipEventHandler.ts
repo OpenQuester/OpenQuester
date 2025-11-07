@@ -75,9 +75,6 @@ export class QuestionUnskipEventHandler extends BaseSocketEventHandler<
     const { game, playerId } =
       await this.socketIOQuestionService.handlePlayerUnskip(context.socketId);
 
-    // Assign context variables for logging
-    context.gameId = game.id;
-
     const broadcastData: QuestionUnskipBroadcastData = {
       playerId,
     };

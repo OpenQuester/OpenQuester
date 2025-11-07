@@ -70,19 +70,22 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
 
   protected async authorize(
     data: GameJoinInputData,
-    _context: SocketEventContext
+    context: SocketEventContext
   ): Promise<void> {
     // Check if socket is already in this game room
     if (this.socket.rooms.has(data.gameId)) {
       // Double-check with Redis state in case there's a race condition
       const socketData = await this.socketUserDataService.getSocketData(
-        this.socket.id
+        context.socketId
       );
       if (socketData?.gameId === data.gameId) {
         throw new ClientError(ClientResponse.ALREADY_IN_GAME);
       }
       // If Redis says not in game, force leave the socket room to sync state
-      await this.socket.leave(data.gameId);
+      const targetSocket = this.socket.nsp.sockets.get(context.socketId);
+      if (targetSocket) {
+        await targetSocket.leave(data.gameId);
+      }
     }
 
     // TODO: Additional authorization checks could be added here
@@ -113,7 +116,7 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
 
   protected async execute(
     data: GameJoinInputData,
-    context: SocketEventContext
+    _context: SocketEventContext
   ): Promise<SocketEventResult<GameJoinOutputData>> {
     this.logger.debug(
       `User ${this.socket.userId} joining game ${data.gameId}`,
@@ -126,10 +129,6 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
       this.socket.id
     );
     const { player, game } = result;
-
-    // Assign context variables for logging
-    context.gameId = game.id;
-    // context.userId already set from action context
 
     // Join the socket room
     await this.socket.join(data.gameId);

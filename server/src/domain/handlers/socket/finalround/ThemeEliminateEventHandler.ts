@@ -86,9 +86,6 @@ export class ThemeEliminateEventHandler extends BaseSocketEventHandler<
         data.themeId
       );
 
-    // Assign context variables for logging
-    context.gameId = game.id;
-
     const outputData: ThemeEliminateOutputData = {
       themeId,
       eliminatedBy,

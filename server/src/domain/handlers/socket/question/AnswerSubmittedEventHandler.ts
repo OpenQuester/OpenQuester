@@ -77,9 +77,6 @@ export class AnswerSubmittedEventHandler extends BaseSocketEventHandler<
       context.socketId
     );
 
-    // Assign context variables for logging
-    context.gameId = game.id;
-
     const broadcastData: AnswerSubmittedBroadcastData = {
       answerText: data.answerText,
     };

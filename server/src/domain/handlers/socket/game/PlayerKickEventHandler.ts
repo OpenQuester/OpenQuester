@@ -81,9 +81,6 @@ export class PlayerKickEventHandler extends BaseSocketEventHandler<
       data.playerId
     );
 
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-
     const broadcastData: PlayerKickBroadcastData = {
       playerId: data.playerId,
     };

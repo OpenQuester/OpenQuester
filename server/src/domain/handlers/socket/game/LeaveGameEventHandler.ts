@@ -87,9 +87,6 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
       };
     }
 
-    // Assign context variables for logging
-    context.gameId = result.data.gameId;
-
     const broadcastData: GameLeaveBroadcastData = {
       user: result.data.userId,
     };
@@ -160,7 +157,12 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
         );
       }
 
-      await this.socket.leave(context.gameId);
+      // Use context.socketId to get the correct socket, not this.socket
+      // This is important for queued actions where this.socket may be stale
+      const targetSocket = this.socket.nsp.sockets.get(context.socketId);
+      if (targetSocket) {
+        await targetSocket.leave(context.gameId);
+      }
     }
   }
 }

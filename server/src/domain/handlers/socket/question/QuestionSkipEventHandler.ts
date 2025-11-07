@@ -79,9 +79,6 @@ export class QuestionSkipEventHandler extends BaseSocketEventHandler<
     );
     const { game, playerId } = result;
 
-    // Assign context variables for logging
-    context.gameId = game.id;
-
     const broadcastData: QuestionSkipBroadcastData = { playerId };
 
     // If player gave up (treated as wrong answer), broadcast ANSWER_RESULT first
