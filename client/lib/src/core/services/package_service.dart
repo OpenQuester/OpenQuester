@@ -7,6 +7,9 @@ import 'package:oq_editor/oq_editor.dart';
 /// Unified service for package operations
 @singleton
 class PackageService {
+  /// After package creation
+  static const uploadProgressStart = 0.2;
+
   /// Convert OqPackage to PackageCreationInput for API upload
   PackageCreationInput convertOqPackageToInput(OqPackage package) {
     return PackageCreationInput(
@@ -30,7 +33,7 @@ class PackageService {
     try {
       // Step 1: Create package on backend
       yield PackageUploadState.uploading(
-        progress: 0.2,
+        progress: uploadProgressStart,
         message: LocaleKeys.oq_editor_preparing_upload.tr(),
       );
 
@@ -67,12 +70,14 @@ class PackageService {
   ) async* {
     logger.d('Uploading ${uploadLinks.length} files...');
     try {
-      const baseProgress = 0.2; // After package creation
-      const uploadRange = 0.8; // 0.2 to 1.0
+      // Remaining progress for uploads
+      const uploadProgressRange = 1 - uploadProgressStart;
 
       for (var i = 0; i < uploadLinks.length; i++) {
         final link = uploadLinks[i];
-        final progress = baseProgress + (i / uploadLinks.length) * uploadRange;
+        final progress =
+            uploadProgressStart +
+            (i / uploadLinks.length) * uploadProgressRange;
 
         yield PackageUploadState.uploading(
           progress: progress,
