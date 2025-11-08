@@ -1,6 +1,9 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -30,13 +33,33 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
-    private readonly socketIOGameService: SocketIOGameService
+    actionExecutor: GameActionExecutor,
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.PLAYER_RESTRICTED;
+  }
+
+  protected override async getGameIdForAction(
+    _data: PlayerRestrictionInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.PLAYER_RESTRICTION;
   }
 
   protected async validateInput(
@@ -57,7 +80,7 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
     context: SocketEventContext
   ): Promise<SocketEventResult<PlayerRestrictionBroadcastData>> {
     const result = await this.socketIOGameService.updatePlayerRestrictions(
-      this.socket.id,
+      context.socketId,
       data.playerId,
       {
         muted: data.muted,
@@ -65,10 +88,6 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
         banned: data.banned,
       }
     );
-
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-    context.userId = this.socket.userId;
 
     const broadcastData: PlayerRestrictionBroadcastData = {
       playerId: data.playerId,

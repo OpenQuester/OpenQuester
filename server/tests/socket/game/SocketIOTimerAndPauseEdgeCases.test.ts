@@ -14,7 +14,6 @@ import {
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -44,8 +43,7 @@ describe("Socket Timer and Pause Edge Cases", () => {
   });
 
   beforeEach(async () => {
-    const redisClient = RedisConfig.getClient();
-    await redisClient.del(...(await redisClient.keys("*")));
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {

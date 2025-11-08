@@ -1,6 +1,9 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
@@ -28,13 +31,33 @@ export class PlayerReadyEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
-    private readonly socketIOGameService: SocketIOGameService
+    actionExecutor: GameActionExecutor,
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.PLAYER_READY;
+  }
+
+  protected async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.PLAYER_READY;
   }
 
   protected async validateInput(
@@ -57,13 +80,9 @@ export class PlayerReadyEventHandler extends BaseSocketEventHandler<
   ): Promise<SocketEventResult<PlayerReadinessBroadcastData>> {
     // Execute the set ready logic
     const result = await this.socketIOGameService.setPlayerReadiness(
-      this.socket.id,
+      context.socketId,
       true
     );
-
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-    context.userId = this.socket.userId;
 
     const readyData: PlayerReadinessBroadcastData = {
       playerId: result.playerId,

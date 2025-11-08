@@ -42,13 +42,7 @@ describe("Media Download Flow Tests", () => {
   });
 
   beforeEach(async () => {
-    const redisClient = RedisConfig.getClient();
-    await redisClient.del(...(await redisClient.keys("*")));
-
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
-    }
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {

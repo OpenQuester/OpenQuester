@@ -1,8 +1,11 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
+import { GameActionType } from "domain/enums/GameActionType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -33,13 +36,33 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
-    private readonly socketIOQuestionService: SocketIOQuestionService
+    actionExecutor: GameActionExecutor,
+    private readonly socketIOQuestionService: SocketIOQuestionService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.QUESTION_PICK;
+  }
+
+  protected async getGameIdForAction(
+    _data: QuestionPickInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.QUESTION_PICK;
   }
 
   protected async validateInput(
@@ -60,13 +83,9 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
     context: SocketEventContext
   ): Promise<SocketEventResult<GameQuestionDataEventPayload>> {
     const result = await this.socketIOQuestionService.handleQuestionPick(
-      this.socket.id,
+      context.socketId,
       data.questionId
     );
-
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-    context.userId = this.socket.userId;
 
     // Check if this is a secret question with special data (not auto-skipped)
     if (

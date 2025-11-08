@@ -14,7 +14,6 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -44,14 +43,7 @@ describe("Choice Question Flow Tests", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    await redisClient.del(...(await redisClient.keys("*")));
-
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
-    }
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {

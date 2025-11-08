@@ -15,7 +15,6 @@ import { SocketIOUserEvents } from "domain/enums/SocketIOEvents";
 import { UpdateUserInputDTO } from "domain/types/dto/user/UpdateUserInputDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { UserChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -46,10 +45,7 @@ describe("User Notification Rooms Tests", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) await redisClient.del(...keys);
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {

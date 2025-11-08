@@ -1,5 +1,6 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
@@ -7,6 +8,7 @@ import { UserNotificationRoomService } from "application/services/socket/UserNot
 import { UserService } from "application/services/user/UserService";
 import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { GameActionType } from "domain/enums/GameActionType";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
@@ -34,6 +36,7 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly socketIOGameService: SocketIOGameService,
     private readonly socketIOChatService: SocketIOChatService,
     private readonly socketUserDataService: SocketUserDataService,
@@ -41,11 +44,22 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     private readonly userService: UserService,
     private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.JOIN;
+  }
+
+  protected override async getGameIdForAction(
+    data: GameJoinInputData,
+    _context: SocketEventContext
+  ): Promise<string | null> {
+    return data.gameId;
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.JOIN;
   }
 
   protected async validateInput(
@@ -56,19 +70,22 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
 
   protected async authorize(
     data: GameJoinInputData,
-    _context: SocketEventContext
+    context: SocketEventContext
   ): Promise<void> {
     // Check if socket is already in this game room
     if (this.socket.rooms.has(data.gameId)) {
       // Double-check with Redis state in case there's a race condition
       const socketData = await this.socketUserDataService.getSocketData(
-        this.socket.id
+        context.socketId
       );
       if (socketData?.gameId === data.gameId) {
         throw new ClientError(ClientResponse.ALREADY_IN_GAME);
       }
       // If Redis says not in game, force leave the socket room to sync state
-      await this.socket.leave(data.gameId);
+      const targetSocket = this.socket.nsp.sockets.get(context.socketId);
+      if (targetSocket) {
+        await targetSocket.leave(data.gameId);
+      }
     }
 
     // TODO: Additional authorization checks could be added here
@@ -99,7 +116,7 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
 
   protected async execute(
     data: GameJoinInputData,
-    context: SocketEventContext
+    _context: SocketEventContext
   ): Promise<SocketEventResult<GameJoinOutputData>> {
     this.logger.debug(
       `User ${this.socket.userId} joining game ${data.gameId}`,
@@ -112,10 +129,6 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
       this.socket.id
     );
     const { player, game } = result;
-
-    // Assign context variables for logging
-    context.gameId = game.id;
-    context.userId = this.socket.userId;
 
     // Join the socket room
     await this.socket.join(data.gameId);
