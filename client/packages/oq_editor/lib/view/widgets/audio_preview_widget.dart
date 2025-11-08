@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/utils/blob_helper.dart';
+import 'package:oq_shared/oq_shared.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
 import 'package:video_player/video_player.dart';
@@ -55,7 +56,8 @@ class _AudioPreviewWidgetState extends State<AudioPreviewWidget> {
           );
         } else if (platformFile.bytes != null) {
           // Web: Create blob URL from bytes
-          final url = createBlobUrl(platformFile.bytes!);
+          final bytes = await platformFile.readBytes();
+          final url = createBlobUrl(bytes);
           widget.mediaFile.sharedController = VideoPlayerController.networkUrl(
             Uri.parse(url),
           );
@@ -77,7 +79,8 @@ class _AudioPreviewWidgetState extends State<AudioPreviewWidget> {
           final tempFile = File(
             '${tempDir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.$extension',
           );
-          await tempFile.writeAsBytes(platformFile.bytes!);
+          final bytes = await platformFile.readBytes();
+          await tempFile.writeAsBytes(bytes);
           widget.mediaFile.sharedController = VideoPlayerController.file(
             tempFile,
           );

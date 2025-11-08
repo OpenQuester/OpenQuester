@@ -1,12 +1,9 @@
-import 'dart:convert';
+import 'dart:async';
 import 'dart:typed_data' show Uint8List;
 
 import 'package:flutter/foundation.dart' show ChangeNotifier;
-import 'package:openquester/common_imports.dart' hide ParseSiqFileWorker;
-import 'package:openquester/workers/upload_isolate.dart'
-    deferred as upload_isolate
-    show ParseSiqFileWorker;
-import 'package:siq_file/siq_file.dart';
+import 'package:openquester/common_imports.dart';
+import 'package:oq_editor/oq_editor.dart';
 
 typedef PackageId = int;
 
@@ -21,6 +18,16 @@ class PackageUploadController extends ChangeNotifier {
   static const _afterPickProgress = 0.1;
   static const _afterParseProgress = 0.15;
 
+  /// Encoding progress stream controller
+  StreamController<double>? _encodingProgressController;
+
+  /// Encoding progress stream for UI dialogs
+  Stream<double> get encodingProgressStream =>
+      _encodingProgressController?.stream ?? const Stream<double>.empty();
+
+  /// Media file encoder for compressing files before upload
+  final MediaFileEncoder _mediaFileEncoder = MediaFileEncoder();
+
   void _setProgress(double value) {
     _progress = value;
     notifyListeners();
@@ -32,11 +39,22 @@ class PackageUploadController extends ChangeNotifier {
       loading = true;
       _setProgress(0);
 
-      final fileResult = await FileService.pickFile();
-      final file = fileResult?.files.firstOrNull;
-      if (file == null) return null;
+      final fileResult = await SiqImportHelper.pickPackageFile();
+      if (fileResult == null) return null;
 
-      return await upload(file);
+      _setProgress(_afterPickProgress);
+
+      // Handle different file types using unified upload approach
+      switch (fileResult.extension) {
+        case 'siq':
+          return await _uploadFromSiqFile(fileResult.bytes);
+        case 'oq':
+          return await _uploadFromOqFile(fileResult.bytes);
+        default:
+          throw Exception(
+            'Unsupported file type: .${fileResult.extension}',
+          );
+      }
     } catch (e, s) {
       logger.e(e, stackTrace: s);
       rethrow;
@@ -46,93 +64,99 @@ class PackageUploadController extends ChangeNotifier {
     }
   }
 
-  /// return [int] is package id
-  Future<PackageId> upload(PlatformFile file) async {
-    final fileData = await file.xFile.readAsBytes();
-    final result = await _upload(fileData);
-    return result;
-  }
-
-  Future<PackageId> _upload(Uint8List fileData) async {
-    await upload_isolate.loadLibrary();
-    final worker = upload_isolate.ParseSiqFileWorker();
-    final parser = SiqArchiveParser();
-    try {
-      await worker.start();
-      final rawBody = await worker.compute(fileData);
-
-      _setProgress(_afterPickProgress);
-
-      final response = jsonDecode(rawBody) as Map<String, dynamic>;
-      final body = PackageCreationInput.fromJson(
-        response['body'] as Map<String, Object?>,
-      );
-
-      final result = await Api.I.api.packages.postV1Packages(body: body);
-      final links = result.uploadLinks.entries.toList();
-
-      await parser.load(fileData);
-
-      // Fill filesHash
-      (response['files'] as Map<String, dynamic>)
-      // Add new files without duplicates, checking by name
-      .forEach((key, rawFilePaths) {
-        final paths = List<String>.from(rawFilePaths as List);
-        // Find the ArchiveFile in the archive
-        final archiveFile = parser.archive!.firstWhere(
-          (e) => paths.contains(e.name),
-        );
-        final existing = parser.filesHash[key] ?? [];
-        if (!existing.any((f) => f.name == archiveFile.name)) {
-          parser.filesHash[key] = [...existing, archiveFile];
-        }
-      });
-
-      await _uploadFiles(links, parser);
-      return result.id;
-    } finally {
-      worker
-        ..stop()
-        ..release();
-      await parser.dispose();
-    }
-  }
-
-  Future<void> _uploadFiles(
-    List<MapEntry<String, String>> links,
-    SiqArchiveParser parser,
-  ) async {
-    logger.d('Uploading ${links.length} files...');
+  Future<PackageId> _uploadFromOqFile(Uint8List oqBytes) async {
     _setProgress(_afterParseProgress);
 
-    try {
-      for (var fileIndex = 0; fileIndex < links.length; fileIndex++) {
-        // Set file upload progress
-        final filesUploadProgress = fileIndex / links.length * 1;
-        _setProgress(
-          _afterParseProgress + (filesUploadProgress - _afterParseProgress),
-        );
+    // Import OQ package using unified service
+    final importResult = await getIt<PackageService>().importOqFile(oqBytes);
 
-        final link = links[fileIndex];
+    return _uploadImportResult(importResult);
+  }
 
-        final archiveFile = parser.filesHash[link.key]?.firstOrNull;
-        final file = archiveFile?.content;
-        await archiveFile?.close();
+  Future<PackageId> _uploadFromSiqFile(Uint8List siqBytes) async {
+    _setProgress(_afterParseProgress);
 
-        if (file == null) continue;
+    final importResult = await getIt<PackageService>().importSiqFile(
+      siqBytes,
+    );
 
-        await getIt<S3UploadController>().uploadFile(
-          uploadLink: Uri.parse(link.value),
-          file: file,
-          md5Hash: link.key,
-        );
-      }
-      logger.d('All files uploaded!');
-    } catch (e, s) {
-      logger.e(e, stackTrace: s);
-      rethrow;
-    } finally {
-      await parser.dispose();
+    return _uploadImportResult(importResult);
+  }
+
+  Future<PackageId> _uploadImportResult(ImportResult importResult) async {
+    _setProgress(0.3);
+
+    // Encode media files for compression before upload
+    final encodingResult = await _encodeMediaFiles(
+      importResult.package,
+      EditorMediaUtils.convertBytesToMediaFiles(importResult.filesBytesByHash),
+    );
+
+    // Convert encoded package to input
+    final packageInput = getIt<PackageService>().convertOqPackageToInput(
+      encodingResult.package,
+    );
+
+    return _uploadPackage(
+      packageInput,
+      encodingResult.files,
+    );
+  }
+
+  /// Encode media files for compression
+  /// Returns updated package and encoded media files
+  Future<({OqPackage package, Map<String, MediaFileReference> files})>
+  _encodeMediaFiles(
+    OqPackage package,
+    Map<String, MediaFileReference> mediaFilesByHash,
+  ) async {
+    // Start encoding progress tracking if there are media files
+    if (mediaFilesByHash.isNotEmpty) {
+      _encodingProgressController = StreamController<double>.broadcast();
     }
+
+    try {
+      final result = await _mediaFileEncoder.encodePackage(
+        package,
+        mediaFilesByHash,
+        onProgress: _encodingProgressController?.add,
+      );
+
+      // Close encoding progress stream
+      await _encodingProgressController?.close();
+      _encodingProgressController = null;
+
+      return result;
+    } catch (e) {
+      // Clean up progress stream on error
+      await _encodingProgressController?.close();
+      _encodingProgressController = null;
+      rethrow;
+    }
+  }
+
+  Future<PackageId> _uploadPackage(
+    PackageCreationInput packageInput,
+    Map<String, MediaFileReference> mediaFilesByHash,
+  ) async {
+    PackageId? packageId;
+
+    await for (final state in getIt<PackageService>().uploadPackage(
+      packageInput: packageInput,
+      mediaFilesByHash: mediaFilesByHash,
+    )) {
+      state.map(
+        idle: (_) => _setProgress(0),
+        uploading: (s) => _setProgress(s.progress),
+        completed: (s) => packageId = s.packageId,
+        error: (s) => throw Exception(s.error.toString()),
+      );
+    }
+
+    if (packageId == null) {
+      throw Exception('Upload failed');
+    }
+
+    return packageId!;
   }
 }

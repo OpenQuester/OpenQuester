@@ -1,24 +1,27 @@
 import 'dart:convert';
 
-import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
-import 'package:universal_io/io.dart';
+import 'package:oq_editor/utils/siq_import_helper.dart';
+import 'package:oq_shared/oq_shared.dart';
 
 /// Utility class for archiving/unarchiving OQ packages
 /// Archive structure:
 /// /content.json - serialized OqPackage model
+/// /encoded_files.json - metadata about which files were encoded (optional)
 /// /files/{md5} - media files with MD5 hash as filename
 class OqPackageArchiver {
   /// Export package to .oq archive
   /// Returns the archive bytes ready for download
   static Future<Uint8List> exportPackage(
     OqPackage package,
-    Map<String, MediaFileReference> mediaFilesByHash,
-  ) async {
+    Map<String, MediaFileReference> mediaFilesByHash, {
+    Set<String>? encodedFileHashes,
+  }) async {
     // Prepare media files map by reading bytes from all sources
     final mediaFilesBytes = <String, Uint8List>{};
 
@@ -27,16 +30,8 @@ class OqPackageArchiver {
       final hash = entry.key;
       final mediaFile = entry.value;
 
-      // Get file bytes
-      if (mediaFile.platformFile.bytes != null) {
-        mediaFilesBytes[hash] = mediaFile.platformFile.bytes!;
-      } else if (mediaFile.platformFile.path != null) {
-        // Read from path if bytes not available
-        final file = File(mediaFile.platformFile.path!);
-        mediaFilesBytes[hash] = await file.readAsBytes();
-      } else {
-        throw Exception('Cannot export: file has no bytes or path');
-      }
+      // Get file bytes using extension method
+      mediaFilesBytes[hash] = await mediaFile.platformFile.readBytes();
     }
 
     // Run heavy encoding in isolate
@@ -45,6 +40,7 @@ class OqPackageArchiver {
       _EncodeArchiveParams(
         package: package,
         mediaFilesBytes: mediaFilesBytes,
+        encodedFileHashes: encodedFileHashes,
       ),
     );
   }
@@ -57,8 +53,25 @@ class OqPackageArchiver {
     final contentJson = jsonEncode(params.package.toJson());
     final contentBytes = utf8.encode(contentJson);
     archive.addFile(
-      ArchiveFile('content.json', contentBytes.length, contentBytes),
+      ArchiveFile(oqContentFileName, contentBytes.length, contentBytes),
     );
+
+    // Add encoded_files.json metadata if encoded files exist
+    if (params.encodedFileHashes != null &&
+        params.encodedFileHashes!.isNotEmpty) {
+      final encodedFilesJson = jsonEncode({
+        'encoded_files': params.encodedFileHashes!.toList(),
+        'version': 1, // For future compatibility
+      });
+      final encodedFilesBytes = utf8.encode(encodedFilesJson);
+      archive.addFile(
+        ArchiveFile(
+          oqEncodedFilesFileName,
+          encodedFilesBytes.length,
+          encodedFilesBytes,
+        ),
+      );
+    }
 
     // Add all media files
     for (final entry in params.mediaFilesBytes.entries) {
@@ -97,7 +110,7 @@ class OqPackageArchiver {
     final archive = zipDecoder.decodeBytes(archiveBytes);
 
     // Find and parse content.json
-    final contentFile = archive.findFile('content.json');
+    final contentFile = archive.findFile(oqContentFileName);
     if (contentFile == null) {
       throw Exception('Invalid .oq file: missing content.json');
     }
@@ -105,6 +118,27 @@ class OqPackageArchiver {
     final contentJson = utf8.decode(contentFile.content as List<int>);
     final packageJson = jsonDecode(contentJson) as Map<String, dynamic>;
     final package = OqPackage.fromJson(packageJson);
+
+    // Read encoded files metadata if available
+    Set<String>? encodedFileHashes;
+    final encodedFilesFile = archive.findFile(oqEncodedFilesFileName);
+    if (encodedFilesFile != null) {
+      try {
+        final encodedFilesJson = utf8.decode(
+          encodedFilesFile.content as List<int>,
+        );
+        final encodedFilesData =
+            jsonDecode(encodedFilesJson) as Map<String, dynamic>;
+        final encodedFilesList =
+            encodedFilesData['encoded_files'] as List<dynamic>?;
+        if (encodedFilesList != null) {
+          encodedFileHashes = encodedFilesList.cast<String>().toSet();
+        }
+      } catch (e) {
+        // If parsing fails, just continue without encoded files info
+        // This maintains backward compatibility with older archives
+      }
+    }
 
     // Extract media files as raw bytes
     // We don't create MediaFileReference because type/order/displayTime
@@ -135,6 +169,7 @@ class OqPackageArchiver {
     return PackageImportResult(
       package: package,
       filesBytesByHash: filesBytesByHash,
+      encodedFileHashes: encodedFileHashes,
     );
   }
 
@@ -165,27 +200,18 @@ class OqPackageArchiver {
   /// Pick .oq file using file picker
   /// Returns the file bytes or null if cancelled
   static Future<Uint8List?> pickArchiveFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['oq'],
-      withData: true, // Ensure bytes are loaded (important for web)
-    );
+    final fileResult = await SiqImportHelper.pickPackageFile();
+    if (fileResult == null) return null;
 
-    if (result == null || result.files.isEmpty) {
-      return null;
+    // Validate that it's an OQ file
+    if (fileResult.extension != 'oq') {
+      throw Exception(
+        'Expected .oq file, got .${fileResult.extension}. '
+        'Please select an OQ package file.',
+      );
     }
 
-    final pickedFile = result.files.first;
-
-    if (pickedFile.bytes != null) {
-      return pickedFile.bytes;
-    } else if (pickedFile.path != null) {
-      // Read from path if bytes not available (non-web platforms)
-      final file = File(pickedFile.path!);
-      return file.readAsBytes();
-    }
-
-    return null;
+    return fileResult.bytes;
   }
 }
 
@@ -194,6 +220,7 @@ class PackageImportResult {
   PackageImportResult({
     required this.package,
     required this.filesBytesByHash,
+    this.encodedFileHashes,
   });
 
   final OqPackage package;
@@ -201,6 +228,10 @@ class PackageImportResult {
   /// Raw file bytes keyed by MD5 hash
   /// Type, order, and displayTime metadata are in the package JSON
   final Map<String, Uint8List> filesBytesByHash;
+
+  /// Set of file hashes that were encoded/compressed in the original export
+  /// Used to populate MediaFileEncoder cache to avoid re-encoding
+  final Set<String>? encodedFileHashes;
 }
 
 /// Parameters for encoding package archive in isolate
@@ -208,8 +239,12 @@ class _EncodeArchiveParams {
   _EncodeArchiveParams({
     required this.package,
     required this.mediaFilesBytes,
+    this.encodedFileHashes,
   });
 
   final OqPackage package;
   final Map<String, Uint8List> mediaFilesBytes;
+
+  /// Set of file hashes that were encoded/compressed
+  final Set<String>? encodedFileHashes;
 }

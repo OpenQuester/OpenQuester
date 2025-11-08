@@ -5,7 +5,7 @@ version: 0.22.0
 
 environment:
   sdk: ">=3.9.0 <4.0.0"
-  flutter: 3.35.6
+  flutter: 3.35.7
 
 dependencies:
   flutter:
@@ -75,6 +75,7 @@ dependencies:
   talker: ^5.0.2
   talker_flutter: ^5.0.2
   talker_dio_logger: ^5.0.2
+  archive: ^4.0.7
 
 dev_dependencies:
   flutter_test:
