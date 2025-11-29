@@ -587,7 +587,7 @@ class GameLobbyController {
 
     // Check for empty answer
     if (currentQuestion?.answerFiles?.isEmpty ??
-        true && (currentQuestion?.answerText.isEmptyOrNull ?? true)) {
+        (currentQuestion?.answerText.isEmptyOrNull ?? true)) {
       return;
     }
 

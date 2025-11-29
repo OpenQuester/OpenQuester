@@ -5,7 +5,7 @@ publish_to: none
 
 environment:
   sdk: ^3.9.2
-  flutter: ">=3.35.0"
+  flutter: ">=3.38.0"
 
 dependencies:
   flutter:
@@ -21,20 +21,20 @@ dependencies:
     path: ../oq_shared/
   #
 
-  injectable: ^2.5.2
-  get_it: ^8.2.0
-  watch_it: ^1.7.0
+  injectable: ^2.7.0
+  get_it: ^9.1.1
+  watch_it: ^2.3.1
   freezed_annotation: ^3.1.0
   json_annotation: ^4.9.0
   nb_utils: ^7.1.8
-  file_picker: ^10.3.3
-  crypto: ^3.0.6
-  universal_io: ^2.2.2
-  universal_web: ^1.1.1
+  file_picker: ^10.3.7
+  crypto: ^3.0.7
+  universal_io: ^2.3.1
+  universal_web: ^1.1.1+1
   archive: ^4.0.7
-  video_player: ^2.10.0
-  video_player_win: ^3.2.0
-  fvp: ^0.35.0
+  video_player: ^2.10.1
+  video_player_win: ^3.2.2
+  fvp: ^0.35.1
   path_provider: ^2.1.5
   path: ^1.9.1
 
@@ -43,10 +43,10 @@ dev_dependencies:
     sdk: flutter
   very_good_analysis: ^10.0.0
   flutter_lints: ^6.0.0
-  build_runner: ^2.7.1
-  analyzer: ^7.7.1
+  build_runner: ^2.10.4
+  analyzer: ^8.4.1
   freezed: ^3.2.3
-  json_serializable: ^6.11.1
+  json_serializable: ^6.11.2
 
 dependency_overrides:
   # Fixes linux build

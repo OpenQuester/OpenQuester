@@ -9,6 +9,7 @@ pre_build: gen_api pre_build_packages pre_run gen_indexes format
 
 pre_run: gen_files gen_workers gen_locale 
 
+pre_build_package: pre_run gen_indexes format 
 
 ifeq ($(DART_PACKAGE),true)
 gen_locale:
@@ -25,12 +26,32 @@ gen_locale:
 API_PATH := ../openapi/dart_sdk/
 
 pre_build_packages:
-	@for pkg in packages/* ; do \
-		echo "Running pre_build in $$pkg" ; \
-		$(MAKE) -C $$pkg -f ../../Makefile pre_build DART_PACKAGE=true || true; \
-	done
-	echo "Running gen_files in $(API_PATH)" 	
-	$(MAKE) -C $(API_PATH) -f ../../client/Makefile  gen_files DART_PACKAGE=true || true
+	@if [ -n "$(TARGET_PACKAGES)" ]; then \
+		for pkg_name in $(TARGET_PACKAGES); do \
+			pkg="packages/$$pkg_name"; \
+			if [ -d "$$pkg" ]; then \
+				echo "" ; \
+				echo "========================================" ; \
+				echo "  Building package: $$pkg" ; \
+				echo "========================================" ; \
+				echo "" ; \
+				$(MAKE) -C $$pkg -f ../../Makefile pre_build_package DART_PACKAGE=true; \
+			else \
+				echo "Warning: Package $$pkg not found, skipping..."; \
+			fi; \
+		done; \
+	else \
+		for pkg in packages/* ; do \
+			if [ -d "$$pkg" ]; then \
+				echo "" ; \
+				echo "========================================" ; \
+				echo "  Building package: $$pkg" ; \
+				echo "========================================" ; \
+				echo "" ; \
+				$(MAKE) -C $$pkg -f ../../Makefile pre_build_package DART_PACKAGE=true; \
+			fi; \
+		done; \
+	fi
 
 gen_files_packages:
 	@for pkg in packages/* ; do \
@@ -94,3 +115,31 @@ $(OUT_DIR)/%.g.dart.wasm: $(SRC_DIR)/%.g.dart
 
 gen_workers:  $(JS_FILES) $(WASM_FILES)
 endif
+
+
+upgrade_package:
+	@if grep -q "sdk: flutter" pubspec.yaml 2>/dev/null; then \
+		$(PURO_CMD) flutter pub upgrade $(UPGRADE_FLAGS); \
+	else \
+		$(PURO_CMD) dart pub upgrade $(UPGRADE_FLAGS); \
+	fi
+
+upgrade:
+	@if [ -f "pubspec.yaml" ]; then \
+		echo "" ; \
+		echo "========================================" ; \
+		echo "  Upgrading current package" ; \
+		echo "========================================" ; \
+		echo "" ; \
+		$(MAKE) upgrade_package UPGRADE_FLAGS="$(UPGRADE_FLAGS)"; \
+	fi
+	@for pkg in packages/* ; do \
+		if [ -d "$$pkg" ] && [ -f "$$pkg/pubspec.yaml" ]; then \
+			echo "" ; \
+			echo "========================================" ; \
+			echo "  Upgrading package: $$pkg" ; \
+			echo "========================================" ; \
+			echo "" ; \
+			$(MAKE) -C $$pkg -f ../../Makefile upgrade_package UPGRADE_FLAGS="$(UPGRADE_FLAGS)"; \
+		fi; \
+	done

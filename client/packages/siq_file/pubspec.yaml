@@ -11,26 +11,26 @@ dependencies:
   args: ^2.7.0
   cli_completion: ^0.5.1
   mason_logger: ^0.3.3
-  universal_io: ^2.2.2
+  universal_io: ^2.3.1
   path: ^1.9.1
   archive: ^4.0.7
   freezed_annotation: ^3.1.0
   json_annotation: ^4.9.0
-  xml: 6.5.0
+  xml: ^6.6.1
   collection: ^1.19.1
-  logger: ^2.6.0
-  crypto: ^3.0.6
+  logger: ^2.6.2
+  crypto: ^3.0.7
   convert: ^3.1.2
   openapi:
     path: ../../../openapi/dart_sdk/
 
 dev_dependencies:
   lints: ^6.0.0
-  test: ^1.26.2
-  build_runner: ^2.5.4
-  build_version: ^2.1.1
-  freezed: ^3.1.0
-  json_serializable: ^6.9.5
+  test: ^1.28.0
+  build_runner: ^2.10.4
+  build_version: ^2.1.3
+  freezed: ^3.2.3
+  json_serializable: ^6.11.2
   very_good_analysis: ^10.0.0
 
 executables:
