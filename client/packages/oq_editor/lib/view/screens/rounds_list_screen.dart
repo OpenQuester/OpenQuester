@@ -1,9 +1,12 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
+import 'package:oq_editor/router/router.gr.dart';
 import 'package:watch_it/watch_it.dart';
 
 /// Second step: manage rounds in the package
+@RoutePage()
 class RoundsListScreen extends WatchingWidget {
   const RoundsListScreen({super.key});
 
@@ -22,11 +25,6 @@ class RoundsListScreen extends WatchingWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: controller.navigateBack,
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   translations.rounds,
@@ -79,11 +77,14 @@ class RoundsListScreen extends WatchingWidget {
                       key: ValueKey(round.id ?? index),
                       round: round,
                       roundIndex: index,
-                      onTap: () => controller.navigateToRoundEditor(index),
+                      onTap: () => context.router.push(
+                        RoundEditorRoute(roundIndex: index),
+                      ),
                       onEdit: () => _showEditRoundDialog(context, index, round),
                       onDelete: () => _confirmDeleteRound(context, index),
-                      onViewThemes: () =>
-                          controller.navigateToThemesGrid(index),
+                      onViewThemes: () => context.router.push(
+                        ThemesGridRoute(roundIndex: index),
+                      ),
                     );
                   },
                 ),
@@ -113,7 +114,9 @@ class RoundsListScreen extends WatchingWidget {
     PackageRound round,
   ) async {
     // Navigate to round editor
-    GetIt.I<OqEditorController>().navigateToRoundEditor(index);
+    await context.router.push(
+      RoundEditorRoute(roundIndex: index),
+    );
   }
 
   Future<void> _confirmDeleteRound(BuildContext context, int index) async {

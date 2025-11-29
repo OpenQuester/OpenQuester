@@ -1,10 +1,13 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
+import 'package:oq_editor/router/router.gr.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:watch_it/watch_it.dart';
 
 /// First step in the editor: edit package basic information
+@RoutePage()
 class PackageInfoScreen extends WatchingWidget {
   const PackageInfoScreen({super.key});
 
@@ -38,8 +41,6 @@ class PackageInfoScreen extends WatchingWidget {
                 initialValue: package.title,
                 decoration: InputDecoration(
                   labelText: translations.packageTitle,
-                  border: const OutlineInputBorder(),
-                  filled: true,
                 ),
                 onChanged: (value) =>
                     controller.updatePackageInfo(title: value),
@@ -64,8 +65,6 @@ class PackageInfoScreen extends WatchingWidget {
                 initialValue: package.description,
                 decoration: InputDecoration(
                   labelText: translations.packageDescription,
-                  border: const OutlineInputBorder(),
-                  filled: true,
                 ),
                 onChanged: (value) =>
                     controller.updatePackageInfo(description: value),
@@ -88,8 +87,6 @@ class PackageInfoScreen extends WatchingWidget {
                 initialValue: package.language,
                 decoration: InputDecoration(
                   labelText: translations.packageLanguage,
-                  border: const OutlineInputBorder(),
-                  filled: true,
                   hintText: 'en, ua, es...',
                 ),
                 onChanged: (value) =>
@@ -120,9 +117,9 @@ class PackageInfoScreen extends WatchingWidget {
 
               // Next button
               FilledButton.icon(
-                onPressed: () {
+                onPressed: () async {
                   if (!(formKey.currentState?.validate() ?? false)) return;
-                  controller.navigateToRoundsList();
+                  await context.router.push(const RoundsListRoute());
                 },
                 icon: const Icon(Icons.arrow_forward),
                 label: Text(translations.nextButton),

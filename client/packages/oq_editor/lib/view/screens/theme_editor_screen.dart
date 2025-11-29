@@ -1,26 +1,29 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
+import 'package:oq_editor/router/router.gr.dart';
 import 'package:watch_it/watch_it.dart';
 
 /// Edit a specific theme
+@RoutePage()
 class ThemeEditorScreen extends WatchingWidget {
-  const ThemeEditorScreen({super.key});
+  const ThemeEditorScreen({
+    @pathParam required this.roundIndex,
+    @pathParam required this.themeIndex,
+    super.key,
+  });
+
+  final int roundIndex;
+  final int themeIndex;
 
   @override
   Widget build(BuildContext context) {
     final controller = GetIt.I<OqEditorController>();
     final package = watchValue((OqEditorController c) => c.package);
-    final navContext = watchValue(
-      (OqEditorController c) => c.navigationContext,
-    );
+
     final translations = controller.translations;
 
-    final roundIndex = navContext.roundIndex;
-    final themeIndex = navContext.themeIndex;
-
-    if (roundIndex == null ||
-        themeIndex == null ||
-        roundIndex >= package.rounds.length) {
+    if (roundIndex >= package.rounds.length) {
       return Center(child: Text(translations.invalidTheme));
     }
 
@@ -39,11 +42,6 @@ class ThemeEditorScreen extends WatchingWidget {
           // Header with back button
           Row(
             children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: controller.navigateBack,
-              ),
-              const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   translations.editTheme,
@@ -129,8 +127,12 @@ class ThemeEditorScreen extends WatchingWidget {
 
           // Navigate to questions button
           FilledButton.icon(
-            onPressed: () =>
-                controller.navigateToQuestionsList(roundIndex, themeIndex),
+            onPressed: () => context.router.push(
+              QuestionsListRoute(
+                roundIndex: roundIndex,
+                themeIndex: themeIndex,
+              ),
+            ),
             icon: const Icon(Icons.list),
             label: Text(translations.questions),
             style: FilledButton.styleFrom(

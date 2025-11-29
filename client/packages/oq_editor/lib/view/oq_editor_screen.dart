@@ -1,17 +1,11 @@
 import 'dart:async';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
-import 'package:oq_editor/models/editor_step.dart';
 import 'package:oq_editor/models/package_encoding_exceptions.dart';
 import 'package:oq_editor/utils/package_encoding_helper.dart';
 import 'package:oq_editor/view/dialogs/encoding_progress_dialog.dart';
-import 'package:oq_editor/view/screens/package_info_screen.dart';
-import 'package:oq_editor/view/screens/questions_list_screen.dart';
-import 'package:oq_editor/view/screens/round_editor_screen.dart';
-import 'package:oq_editor/view/screens/rounds_list_screen.dart';
-import 'package:oq_editor/view/screens/theme_editor_screen.dart';
-import 'package:oq_editor/view/screens/themes_grid_screen.dart';
 import 'package:oq_editor/view/widgets/package_size_indicator.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:watch_it/watch_it.dart';
@@ -31,107 +25,89 @@ class OqEditorScreen extends WatchingWidget {
           GetIt.I.unregister<OqEditorController>(instance: controller),
     );
 
-    final currentStep = watchValue((OqEditorController c) => c.currentStep);
-    final refreshKey = watchValue((OqEditorController c) => c.refreshKey);
-
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
-
-        final shouldPop = await _showExitDialog(context);
-        if ((shouldPop ?? false) && context.mounted) {
-          Navigator.of(context).pop();
-        }
-      },
-      child: Scaffold(
-        body: MaxSizeContainer(
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(controller.translations.editorTitle),
-              bottom: _buildPackageSizeIndicator(),
-              actions: [
-                // Import button (handles both .oq and .siq files)
-                Builder(
-                  builder: (buttonContext) => LoadingButtonBuilder(
-                    onPressed: () => _handleImport(buttonContext),
-                    onError: (error, stackTrace) => _handleButtonError(
-                      buttonContext,
-                      controller.translations.errorImporting,
-                      error,
-                      stackTrace,
-                    ),
-                    builder: (context, child, onPressed) {
-                      return IconButton(
-                        icon: child,
-                        onPressed: onPressed,
-                        tooltip: controller.translations.importPackage,
-                      );
-                    },
-                    child: const Icon(Icons.upload_file),
-                  ),
-                ),
-                // Export button
-                Builder(
-                  builder: (buttonContext) => LoadingButtonBuilder(
-                    onPressed: () => _handleExport(buttonContext),
-                    onError: (error, stackTrace) => _handleButtonError(
-                      buttonContext,
-                      controller.translations.errorExporting,
-                      error,
-                      stackTrace,
-                    ),
-                    builder: (context, child, onPressed) {
-                      return IconButton(
-                        icon: child,
-                        onPressed: onPressed,
-                        tooltip: controller.translations.exportPackageTooltip,
-                      );
-                    },
-                    child: const Icon(Icons.download),
-                  ),
-                ),
-                // Save button
-                Builder(
-                  builder: (buttonContext) => LoadingButtonBuilder(
-                    onPressed: () => _handleSave(buttonContext),
-                    onError: (error, stackTrace) => _handleButtonError(
-                      buttonContext,
-                      controller.translations.errorSaving,
-                      error,
-                      stackTrace,
-                    ),
-                    builder: (context, child, onPressed) {
-                      return IconButton(
-                        icon: child,
-                        onPressed: onPressed,
-                        tooltip: controller.translations.saveButton,
-                      );
-                    },
-                    child: const Icon(Icons.save),
-                  ),
-                ),
-              ],
-            ),
-            body: AnimatedSwitcher(
-              key: ValueKey(refreshKey),
-              duration: const Duration(milliseconds: 300),
-              switchInCurve: Curves.easeInOut,
-              switchOutCurve: Curves.easeInOut,
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: Tween<Offset>(
-                      begin: const Offset(0.1, 0),
-                      end: Offset.zero,
-                    ).animate(animation),
-                    child: child,
-                  ),
-                );
+    return Scaffold(
+      body: MaxSizeContainer(
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(controller.translations.editorTitle),
+            leading: BackButton(
+              onPressed: () async {
+                final routerContext =
+                    controller.navigationContext.currentContext ?? context;
+                final shouldPop = await _showExitDialog(routerContext);
+                if (shouldPop ?? false) {
+                  if (routerContext.mounted) {
+                    routerContext.router.pop();
+                  }
+                }
               },
-              child: _buildCurrentScreen(currentStep),
             ),
+            bottom: _buildPackageSizeIndicator(),
+            actions: [
+              // Import button (handles both .oq and .siq files)
+              Builder(
+                builder: (buttonContext) => LoadingButtonBuilder(
+                  onPressed: () => _handleImport(buttonContext),
+                  onError: (error, stackTrace) => _handleButtonError(
+                    buttonContext,
+                    controller.translations.errorImporting,
+                    error,
+                    stackTrace,
+                  ),
+                  builder: (context, child, onPressed) {
+                    return IconButton(
+                      icon: child,
+                      onPressed: onPressed,
+                      tooltip: controller.translations.importPackage,
+                    );
+                  },
+                  child: const Icon(Icons.upload_file),
+                ),
+              ),
+              // Export button
+              Builder(
+                builder: (buttonContext) => LoadingButtonBuilder(
+                  onPressed: () => _handleExport(buttonContext),
+                  onError: (error, stackTrace) => _handleButtonError(
+                    buttonContext,
+                    controller.translations.errorExporting,
+                    error,
+                    stackTrace,
+                  ),
+                  builder: (context, child, onPressed) {
+                    return IconButton(
+                      icon: child,
+                      onPressed: onPressed,
+                      tooltip: controller.translations.exportPackageTooltip,
+                    );
+                  },
+                  child: const Icon(Icons.download),
+                ),
+              ),
+              // Save button
+              Builder(
+                builder: (buttonContext) => LoadingButtonBuilder(
+                  onPressed: () => _handleSave(buttonContext),
+                  onError: (error, stackTrace) => _handleButtonError(
+                    buttonContext,
+                    controller.translations.errorSaving,
+                    error,
+                    stackTrace,
+                  ),
+                  builder: (context, child, onPressed) {
+                    return IconButton(
+                      icon: child,
+                      onPressed: onPressed,
+                      tooltip: controller.translations.saveButton,
+                    );
+                  },
+                  child: const Icon(Icons.save),
+                ),
+              ),
+            ],
+          ),
+          body: AutoRouter(
+            navigatorKey: controller.navigationContext,
           ),
         ),
       ),
@@ -142,15 +118,16 @@ class OqEditorScreen extends WatchingWidget {
   Future<bool?> _showExitDialog(BuildContext context) async {
     return showDialog<bool>(
       context: context,
+      useRootNavigator: false,
       builder: (context) => AlertDialog(
         title: Text(controller.translations.leaveWarning),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => context.router.pop(false),
             child: Text(controller.translations.continueEditing),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => context.router.pop(true),
             style: TextButton.styleFrom(
               foregroundColor: Colors.red,
             ),
@@ -158,15 +135,15 @@ class OqEditorScreen extends WatchingWidget {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.of(context).pop(false);
-              await _handleExport(context);
+              unawaited(_handleExport(context));
+              await context.router.maybePop(false);
             },
             child: Text(controller.translations.saveAsFile),
           ),
           FilledButton(
             onPressed: () async {
-              Navigator.of(context).pop(false);
-              await _handleSave(context);
+              unawaited(_handleSave(context));
+              await context.router.maybePop(false);
             },
             child: Text(controller.translations.saveToServer),
           ),
@@ -326,24 +303,6 @@ class OqEditorScreen extends WatchingWidget {
           backgroundColor: Colors.red,
         ),
       );
-    }
-  }
-
-  Widget _buildCurrentScreen(EditorStep step) {
-    // Use different keys to force AnimatedSwitcher to animate
-    switch (step) {
-      case EditorStep.packageInfo:
-        return const PackageInfoScreen(key: ValueKey('package_info'));
-      case EditorStep.roundsList:
-        return const RoundsListScreen(key: ValueKey('rounds_list'));
-      case EditorStep.roundEditor:
-        return const RoundEditorScreen(key: ValueKey('round_editor'));
-      case EditorStep.themesGrid:
-        return const ThemesGridScreen(key: ValueKey('themes_grid'));
-      case EditorStep.themeEditor:
-        return const ThemeEditorScreen(key: ValueKey('theme_editor'));
-      case EditorStep.questionsList:
-        return const QuestionsListScreen(key: ValueKey('questions_list'));
     }
   }
 

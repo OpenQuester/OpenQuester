@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
@@ -7,24 +8,24 @@ import 'package:oq_editor/view/dialogs/question_editor_dialog.dart';
 import 'package:watch_it/watch_it.dart';
 
 /// List of questions within a theme
+@RoutePage()
 class QuestionsListScreen extends WatchingWidget {
-  const QuestionsListScreen({super.key});
+  const QuestionsListScreen({
+    @pathParam required this.roundIndex,
+    @pathParam required this.themeIndex,
+    super.key,
+  });
+  final int roundIndex;
+  final int themeIndex;
 
   @override
   Widget build(BuildContext context) {
     final controller = GetIt.I<OqEditorController>();
     final package = watchValue((OqEditorController c) => c.package);
-    final navContext = watchValue(
-      (OqEditorController c) => c.navigationContext,
-    );
+
     final translations = controller.translations;
 
-    final roundIndex = navContext.roundIndex;
-    final themeIndex = navContext.themeIndex;
-
-    if (roundIndex == null ||
-        themeIndex == null ||
-        roundIndex >= package.rounds.length) {
+    if (roundIndex >= package.rounds.length) {
       return Center(child: Text(translations.invalidQuestionContext));
     }
 
@@ -48,11 +49,6 @@ class QuestionsListScreen extends WatchingWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: controller.navigateBack,
-                  ),
-                  const SizedBox(width: 8),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
