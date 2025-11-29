@@ -1,0 +1,8 @@
+index_generator:
+  exclude:
+    - "**.g.dart"
+    - "**.freezed.dart"
+    - "src/commands/**"
+  # Define the paths of the folders in which to generate the index files
+  libraries:
+    - directory_path: lib

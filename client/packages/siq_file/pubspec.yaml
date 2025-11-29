@@ -22,7 +22,7 @@ dependencies:
   crypto: ^3.0.7
   convert: ^3.1.2
   openapi:
-    path: ../../../openapi/dart_sdk/
+    path: ../openapi/
 
 dev_dependencies:
   lints: ^6.0.0

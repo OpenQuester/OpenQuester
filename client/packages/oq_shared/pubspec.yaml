@@ -23,6 +23,9 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   very_good_analysis: ^10.0.0
+  build_runner: ^2.10.4
+  freezed: ^3.2.3
+  json_serializable: ^6.11.2
 
 flutter:
   uses-material-design: true

@@ -15,7 +15,7 @@ dependencies:
 
   # Local packages
   openapi:
-    path: ../openapi/dart_sdk/
+    path: ./packages/openapi/
   siq_file:
     path: ./packages/siq_file/
   oq_compress:

@@ -1121,7 +1121,7 @@ packages:
   openapi:
     dependency: "direct main"
     description:
-      path: "../openapi/dart_sdk"
+      path: "packages/openapi"
       relative: true
     source: path
     version: "1.0.0"

@@ -20,10 +20,7 @@ gen_files_packages:
 	@echo "Skipping gen_files_packages"
 else
 gen_locale:
-	$(PURO_CMD) dart run easy_localization:generate -f keys -o locale_keys.g.dart -S assets/localization/
-
-
-API_PATH := ../openapi/dart_sdk/
+	$(PURO_CMD) flutter pub run easy_localization:generate -f keys -o locale_keys.g.dart -S assets/localization/
 
 pre_build_packages:
 	@if [ -n "$(TARGET_PACKAGES)" ]; then \
@@ -58,12 +55,14 @@ gen_files_packages:
 		echo "Running gen_files in $$pkg" ; \
 		$(MAKE) -C $$pkg -f ../../Makefile gen_files DART_PACKAGE=true || true ; \
 	done
-	echo "Running gen_files in $(API_PATH)";
-	$(MAKE) -C $(API_PATH) -f ../../client/Makefile gen_files DART_PACKAGE=true || true;
 endif
 
 gen_files:
-	$(PURO_CMD) dart run build_runner build -d
+	@if grep -q "sdk: flutter" pubspec.yaml 2>/dev/null; then \
+		$(PURO_CMD) flutter pub run build_runner build -d; \
+	else \
+		$(PURO_CMD) dart run build_runner build -d; \
+	fi
 
 gen_indexes: install_index_gen
 	$(PURO_CMD) flutter pub global run index_generator
@@ -85,7 +84,7 @@ gen_api:
 	@echo "Skipping gen_locale"
 else
 gen_api:
-	$(MAKE) -C ../openapi/dart_sdk/ build
+	$(MAKE) -C ./packages/openapi/ build
 endif
 
 ifeq ($(DART_PACKAGE),true)
