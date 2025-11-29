@@ -3,10 +3,7 @@ import { Socket } from "socket.io";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { GameActionType } from "domain/enums/GameActionType";
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
   SocketBroadcastTarget,
@@ -82,18 +79,24 @@ export class DisconnectEventHandler extends BaseSocketEventHandler<
       // Try to leave game first (will emit leave event if needed)
       const result = await this.socketIOGameService.leaveLobby(this.socket.id);
 
-      // Add broadcast if the service indicates it should be emitted
+      // Convert broadcasts from service to SocketEventBroadcast format
+      // Note: Service already includes LEAVE broadcast, so we just convert them
       if (result.emit && result.data) {
         context.gameId = result.data.gameId;
-        broadcasts.push({
-          event: SocketIOGameEvents.LEAVE,
-          data: { user: result.data.userId },
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.data.gameId,
-        });
+        broadcasts.push(
+          ...(result.broadcasts || []).map((b) => ({
+            event: b.event,
+            data: b.data,
+            target: SocketBroadcastTarget.GAME,
+            gameId: b.room,
+          }))
+        );
 
-        // Socket can leave since event emitting handled by IO when target is Game
-        await this.socket.leave(result.data.gameId);
+        // Use context.socketId to get the correct socket for queued actions
+        const targetSocket = this.socket.nsp.sockets.get(this.socket.id);
+        if (targetSocket) {
+          await targetSocket.leave(result.data.gameId);
+        }
       }
     } catch {
       // Continue with cleanup even if leave fails

@@ -91,6 +91,14 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
       user: result.data.userId,
     };
 
+    // Convert service broadcasts (includes LEAVE and additional events like ANSWER_RESULT)
+    const serviceBroadcasts = (result.broadcasts || []).map((b) => ({
+      event: b.event,
+      data: b.data,
+      target: SocketBroadcastTarget.GAME,
+      gameId: b.room,
+    }));
+
     return {
       success: true,
       data: broadcastData,
@@ -98,14 +106,7 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
         ...context,
         gameId: result.data.gameId,
       },
-      broadcast: [
-        {
-          event: SocketIOGameEvents.LEAVE,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.data.gameId,
-        },
-      ],
+      broadcast: serviceBroadcasts,
     };
   }
 

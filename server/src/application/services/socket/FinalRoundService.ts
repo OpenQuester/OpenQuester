@@ -6,7 +6,6 @@ import { FINAL_ROUND_BID_TIME } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
-import { FinalAnswerType } from "domain/enums/FinalRoundTypes";
 import { ClientError } from "domain/errors/ClientError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
@@ -34,6 +33,7 @@ import {
   ThemeEliminationTimeoutResult,
 } from "domain/types/socket/finalround/FinalRoundResults";
 import { QuestionAnswerData } from "domain/types/socket/finalround/QuestionAnswerData";
+import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
@@ -268,19 +268,13 @@ export class FinalRoundService {
     // Add answer
     FinalRoundStateManager.addAnswer(game, player.meta.id, trimmedAnswer);
 
-    let isPhaseComplete = false;
-    let allReviews: AnswerReviewData[] | undefined;
+    // Check if phase complete after answer submission
+    const { isPhaseComplete, allReviews } =
+      FinalRoundPhaseCompletionHelper.checkAnsweringPhaseCompletion(game);
 
-    // Check if all answers submitted
-    if (FinalRoundStateManager.areAllAnswersSubmitted(game)) {
+    if (isPhaseComplete) {
       // Clear any existing timer before phase transition
       await this.gameService.clearTimer(game.id);
-
-      FinalRoundStateManager.transitionToPhase(game, FinalRoundPhase.REVIEWING);
-      isPhaseComplete = true;
-
-      // Get all reviews when transitioning to reviewing phase
-      allReviews = this._getAllAnswerReviews(game);
     }
 
     await this.gameService.updateGame(game);
@@ -335,7 +329,7 @@ export class FinalRoundService {
       isGameFinished = result.isGameFinished;
 
       // Get all reviews for showman when phase is complete
-      allReviews = this._getAllAnswerReviews(game);
+      allReviews = FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
 
       // If game is finished, include the question answer data
       if (isGameFinished) {
@@ -361,7 +355,7 @@ export class FinalRoundService {
 
     await this.gameService.updateGame(game);
 
-    const reviewResult = this._createAnswerReviewData(
+    const reviewResult = FinalRoundPhaseCompletionHelper.createAnswerReviewData(
       answer,
       scoreChange,
       answerData.isCorrect
@@ -535,10 +529,12 @@ export class FinalRoundService {
     const autoLossReviews: AnswerReviewData[] = [];
 
     // Find players who haven't submitted answers and create auto-loss entries
+    // Only process players with non-zero bids (bid=0 means they don't participate in answering)
     const eligiblePlayers = game.players.filter(
       (p) =>
         p.role === PlayerRole.PLAYER &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
+        p.gameStatus === PlayerGameStatus.IN_GAME &&
+        (finalRoundData.bids[p.meta.id] || 0) > 0
     );
 
     for (const player of eligiblePlayers) {
@@ -569,11 +565,12 @@ export class FinalRoundService {
           false
         );
 
-        const reviewData = this._createAnswerReviewData(
-          answerData,
-          scoreChange,
-          false
-        );
+        const reviewData =
+          FinalRoundPhaseCompletionHelper.createAnswerReviewData(
+            answerData,
+            scoreChange,
+            false
+          );
         autoLossReviews.push(reviewData);
       }
     }
@@ -586,7 +583,7 @@ export class FinalRoundService {
     if (isReadyForReview) {
       FinalRoundStateManager.transitionToPhase(game, FinalRoundPhase.REVIEWING);
       // Get all reviews for showman when transitioning to review phase
-      allReviews = this._getAllAnswerReviews(game);
+      allReviews = FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
     }
 
     await this.gameService.updateGame(game);
@@ -682,60 +679,6 @@ export class FinalRoundService {
   }
 
   // Private helper methods
-
-  /**
-   * Create a standardized answer review data object with strict typing
-   */
-  private _createAnswerReviewData(
-    answer: AnswerData,
-    scoreChange: number,
-    isCorrect: boolean
-  ): AnswerReviewData {
-    let answerType: FinalAnswerType;
-    if (answer.autoLoss) {
-      answerType = FinalAnswerType.AUTO_LOSS;
-    } else if (isCorrect) {
-      answerType = FinalAnswerType.CORRECT;
-    } else {
-      answerType = FinalAnswerType.WRONG;
-    }
-
-    return {
-      playerId: answer.playerId,
-      answerId: answer.id,
-      answerText: answer.answer,
-      scoreChange,
-      answerType,
-      isCorrect,
-    };
-  }
-
-  /**
-   * Get all answer reviews for the game (for showman)
-   */
-  private _getAllAnswerReviews(game: Game): AnswerReviewData[] {
-    const finalRoundData = FinalRoundStateManager.getFinalRoundData(game);
-    if (!finalRoundData) {
-      return [];
-    }
-
-    return finalRoundData.answers.map((answer) => {
-      const bidAmount = finalRoundData.bids[answer.playerId] || 0;
-
-      // If answer is already reviewed, use that result
-      if (answer.isCorrect !== undefined) {
-        const scoreChange = answer.isCorrect ? bidAmount : -bidAmount;
-        return this._createAnswerReviewData(
-          answer,
-          scoreChange,
-          answer.isCorrect!
-        );
-      }
-
-      // For unreviewed answers, create review data without score change
-      return this._createAnswerReviewData(answer, 0, false);
-    });
-  }
 
   /**
    * Get the package question data by theme ID from the final round

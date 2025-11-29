@@ -90,7 +90,7 @@ describe("Final Round Bidding Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should automatically bid 1 for players with score <= 1", async () => {
@@ -136,7 +136,7 @@ describe("Final Round Bidding Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should transition to question phase when all remaining players submit bids", async () => {
@@ -199,7 +199,7 @@ describe("Final Round Bidding Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should immediately transition to question phase when all players have score <= 1", async () => {
@@ -281,7 +281,7 @@ describe("Final Round Bidding Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should allow showman to eliminate themes on behalf of current turn player", async () => {
@@ -368,7 +368,7 @@ describe("Final Round Bidding Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
   });
 
@@ -408,7 +408,7 @@ describe("Final Round Bidding Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should reject a bid of zero or a negative number", async () => {
@@ -460,7 +460,7 @@ describe("Final Round Bidding Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should not allow a player to bid twice", async () => {
@@ -509,7 +509,7 @@ describe("Final Round Bidding Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
   });
 });

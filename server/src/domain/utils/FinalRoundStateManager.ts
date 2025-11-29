@@ -165,7 +165,8 @@ export class FinalRoundStateManager {
           p.role === PlayerRole.PLAYER &&
           p.gameStatus === PlayerGameStatus.IN_GAME
       )
-      .map((p) => p.meta.id);
+      .map((p) => p.meta.id)
+      .filter((id) => (data.bids[id] ?? 0) > 0); // Only players with non-zero bids need to answer
 
     return eligiblePlayerIds.every((id) =>
       data.answers.some((answer) => answer.playerId === id)

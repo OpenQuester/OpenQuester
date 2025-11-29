@@ -1,7 +1,10 @@
 import { type Namespace } from "socket.io";
 
 import { GameService } from "application/services/game/GameService";
-import { PlayerLeaveService, PlayerLeaveReason } from "application/services/player/PlayerLeaveService";
+import {
+  PlayerLeaveReason,
+  PlayerLeaveService,
+} from "application/services/player/PlayerLeaveService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
@@ -26,6 +29,7 @@ import { GameLobbyLeaveData } from "domain/types/game/GameRoomLeaveData";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { GameJoinResult } from "domain/types/socket/game/GameJoinResult";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
@@ -66,6 +70,14 @@ export class SocketIOGameService {
     );
 
     GameStateValidator.validateGameNotFinished(game);
+
+    // Prevent joining as PLAYER during final round
+    if (
+      game.gameState.currentRound?.type === PackageRoundType.FINAL &&
+      data.role === PlayerRole.PLAYER
+    ) {
+      throw new ClientError(ClientResponse.CANNOT_JOIN_FINAL_ROUND_AS_PLAYER);
+    }
 
     // Check existing player restrictions FIRST before checking role availability
     const existingPlayer = game.getPlayer(user.id, { fetchDisconnected: true });
@@ -211,6 +223,7 @@ export class SocketIOGameService {
     return {
       emit: true,
       data: { userId: result.userId, gameId: result.game.id },
+      broadcasts: result.broadcasts,
     };
   }
 

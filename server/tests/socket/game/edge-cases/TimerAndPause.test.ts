@@ -161,7 +161,7 @@ describe("Socket Timer and Pause Edge Cases", () => {
       } finally {
         await utils.cleanupGameClients(setup);
       }
-    }, 20000); // Increased timeout to account for media download timeout
+    });
 
     it("should handle pausing already paused game", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);

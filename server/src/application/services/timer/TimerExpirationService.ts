@@ -7,6 +7,7 @@ import { PlayerGameStatsService } from "application/services/statistics/PlayerGa
 import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -18,6 +19,7 @@ import {
 } from "domain/types/service/ServiceResult";
 import {
   FinalAnswerSubmitOutputData,
+  FinalAutoLossEventData,
   FinalPhaseCompleteEventData,
   FinalQuestionEventData,
   FinalSubmitEndEventData,
@@ -136,14 +138,14 @@ export class TimerExpirationService {
       gameId,
       GAME_TTL_IN_SECONDS
     );
-    const question = await this.socketIOQuestionService.getCurrentQuestion(
-      game
-    );
-
     // Check if final round
     if (this.isFinalRoundAnswering(game)) {
       return this.handleFinalRoundAnsweringExpiration(game);
     }
+
+    const question = await this.socketIOQuestionService.getCurrentQuestion(
+      game
+    );
 
     // Regular answering expiration
     const { answerResult, timer } = await this.handleRegularAnsweringExpiration(
@@ -352,6 +354,16 @@ export class TimerExpirationService {
         data: {
           playerId: autoLossReview.playerId,
         } satisfies FinalAnswerSubmitOutputData,
+        room: game.id,
+      });
+
+      // Also emit auto-loss event for timeout
+      broadcasts.push({
+        event: SocketIOGameEvents.FINAL_AUTO_LOSS,
+        data: {
+          playerId: autoLossReview.playerId,
+          reason: FinalAnswerLossReason.TIMEOUT,
+        } satisfies FinalAutoLossEventData,
         room: game.id,
       });
     }

@@ -160,6 +160,10 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
         break;
 
       default:
+        this.logger.debug("[TIMER_EXPIRATION]: No handler for question state", {
+          gameId,
+          questionState: game.gameState.questionState,
+        });
         return;
     }
 
