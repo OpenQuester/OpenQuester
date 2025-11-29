@@ -17,79 +17,82 @@ class RoundsListScreen extends WatchingWidget {
     final translations = controller.translations;
     final rounds = package.rounds;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Header
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  translations.rounds,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    translations.rounds,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              FilledButton.icon(
-                onPressed: () => _showAddRoundDialog(context),
-                icon: const Icon(Icons.add),
-                label: Text(translations.addRound),
-              ),
-            ],
+                FilledButton.icon(
+                  onPressed: () => _showAddRoundDialog(context),
+                  icon: const Icon(Icons.add),
+                  label: Text(translations.addRound),
+                ),
+              ],
+            ),
           ),
-        ),
 
-        // Rounds list or empty state
-        Expanded(
-          child: rounds.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.interests_outlined,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        translations.noRounds,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                      ),
-                    ],
+          // Rounds list or empty state
+          Expanded(
+            child: rounds.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.interests_outlined,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          translations.noRounds,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ReorderableListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: rounds.length,
+                    onReorder: controller.reorderRounds,
+                    itemBuilder: (context, index) {
+                      final round = rounds[index];
+                      return _RoundCard(
+                        key: ValueKey(round.id ?? index),
+                        round: round,
+                        roundIndex: index,
+                        onTap: () => context.router.push(
+                          RoundEditorRoute(roundIndex: index),
+                        ),
+                        onEdit: () =>
+                            _showEditRoundDialog(context, index, round),
+                        onDelete: () => _confirmDeleteRound(context, index),
+                        onViewThemes: () => context.router.push(
+                          ThemesGridRoute(roundIndex: index),
+                        ),
+                      );
+                    },
                   ),
-                )
-              : ReorderableListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: rounds.length,
-                  onReorder: controller.reorderRounds,
-                  itemBuilder: (context, index) {
-                    final round = rounds[index];
-                    return _RoundCard(
-                      key: ValueKey(round.id ?? index),
-                      round: round,
-                      roundIndex: index,
-                      onTap: () => context.router.push(
-                        RoundEditorRoute(roundIndex: index),
-                      ),
-                      onEdit: () => _showEditRoundDialog(context, index, round),
-                      onDelete: () => _confirmDeleteRound(context, index),
-                      onViewThemes: () => context.router.push(
-                        ThemesGridRoute(roundIndex: index),
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 

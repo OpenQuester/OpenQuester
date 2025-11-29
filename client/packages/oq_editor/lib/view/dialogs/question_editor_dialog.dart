@@ -348,8 +348,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       ),
       contentPadding: 16.all,
       insetPadding: 16.all,
-      content: SizedBox(
-        width: 600,
+      backgroundColor: context.theme.cardColor,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 600),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(

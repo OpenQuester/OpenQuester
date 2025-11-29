@@ -18,116 +18,118 @@ class PackageInfoScreen extends WatchingWidget {
     final translations = controller.translations;
     final formKey = createOnce(GlobalKey<FormState>.new);
 
-    return MaxSizeContainer(
-      maxWidth: UiModeUtils.maximumDialogWidth,
-      child: Form(
-        key: formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Title
-              Text(
-                translations.packageInfo,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
+    return Scaffold(
+      body: MaxSizeContainer(
+        maxWidth: UiModeUtils.maximumDialogWidth,
+        child: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Title
+                Text(
+                  translations.packageInfo,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // Package title field
-              TextFormField(
-                initialValue: package.title,
-                decoration: InputDecoration(
-                  labelText: translations.packageTitle,
+                // Package title field
+                TextFormField(
+                  initialValue: package.title,
+                  decoration: InputDecoration(
+                    labelText: translations.packageTitle,
+                  ),
+                  onChanged: (value) =>
+                      controller.updatePackageInfo(title: value),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return translations.fieldRequired;
+                    }
+                    if (value.length < 3) {
+                      return translations.minLengthError(3);
+                    }
+                    if (value.length > 100) {
+                      return translations.maxLengthError(100);
+                    }
+                    return null;
+                  },
+                  maxLength: 100,
                 ),
-                onChanged: (value) =>
-                    controller.updatePackageInfo(title: value),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return translations.fieldRequired;
-                  }
-                  if (value.length < 3) {
-                    return translations.minLengthError(3);
-                  }
-                  if (value.length > 100) {
-                    return translations.maxLengthError(100);
-                  }
-                  return null;
-                },
-                maxLength: 100,
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Description field
-              TextFormField(
-                initialValue: package.description,
-                decoration: InputDecoration(
-                  labelText: translations.packageDescription,
+                // Description field
+                TextFormField(
+                  initialValue: package.description,
+                  decoration: InputDecoration(
+                    labelText: translations.packageDescription,
+                  ),
+                  onChanged: (value) =>
+                      controller.updatePackageInfo(description: value),
+                  maxLines: 4,
+                  maxLength: 500,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return translations.fieldRequired;
+                    }
+                    if (value.length > 500) {
+                      return translations.maxLengthError(500);
+                    }
+                    return null;
+                  },
                 ),
-                onChanged: (value) =>
-                    controller.updatePackageInfo(description: value),
-                maxLines: 4,
-                maxLength: 500,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return translations.fieldRequired;
-                  }
-                  if (value.length > 500) {
-                    return translations.maxLengthError(500);
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Language field
-              TextFormField(
-                initialValue: package.language,
-                decoration: InputDecoration(
-                  labelText: translations.packageLanguage,
-                  hintText: 'en, ua, es...',
+                // Language field
+                TextFormField(
+                  initialValue: package.language,
+                  decoration: InputDecoration(
+                    labelText: translations.packageLanguage,
+                    hintText: 'en, ua, es...',
+                  ),
+                  onChanged: (value) =>
+                      controller.updatePackageInfo(language: value),
+                  maxLength: 10,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return translations.fieldRequired;
+                    }
+                    if (value.length < 2) {
+                      return translations.minLengthError(2);
+                    }
+                    if (value.length > 10) {
+                      return translations.maxLengthError(10);
+                    }
+                    return null;
+                  },
                 ),
-                onChanged: (value) =>
-                    controller.updatePackageInfo(language: value),
-                maxLength: 10,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return translations.fieldRequired;
-                  }
-                  if (value.length < 2) {
-                    return translations.minLengthError(2);
-                  }
-                  if (value.length > 10) {
-                    return translations.maxLengthError(10);
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Age restriction selector
-              _AgeRestrictionSection(
-                currentRestriction: package.ageRestriction,
-                onChanged: (restriction) =>
-                    controller.updatePackageInfo(ageRestriction: restriction),
-              ),
-              const SizedBox(height: 24),
-
-              // Next button
-              FilledButton.icon(
-                onPressed: () async {
-                  if (!(formKey.currentState?.validate() ?? false)) return;
-                  await context.router.push(const RoundsListRoute());
-                },
-                icon: const Icon(Icons.arrow_forward),
-                label: Text(translations.nextButton),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                // Age restriction selector
+                _AgeRestrictionSection(
+                  currentRestriction: package.ageRestriction,
+                  onChanged: (restriction) =>
+                      controller.updatePackageInfo(ageRestriction: restriction),
                 ),
-              ),
-            ],
+                const SizedBox(height: 24),
+
+                // Next button
+                FilledButton.icon(
+                  onPressed: () async {
+                    if (!(formKey.currentState?.validate() ?? false)) return;
+                    await context.router.push(const RoundsListRoute());
+                  },
+                  icon: const Icon(Icons.arrow_forward),
+                  label: Text(translations.nextButton),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

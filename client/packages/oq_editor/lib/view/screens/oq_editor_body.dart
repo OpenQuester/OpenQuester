@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:nb_utils/nb_utils.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/models/package_encoding_exceptions.dart';
 import 'package:oq_editor/utils/package_encoding_helper.dart';
@@ -32,7 +33,6 @@ class OqEditorBody extends StatelessWidget {
               leading: BackButton(
                 onPressed: () => _backButtonHandler(context),
               ),
-              bottom: _buildPackageSizeIndicator(),
               actions: [
                 // Import button (handles both .oq and .siq files)
                 Builder(
@@ -96,7 +96,12 @@ class OqEditorBody extends StatelessWidget {
                 ),
               ],
             ),
-            body: child,
+            body: Column(
+              children: [
+                PackageSizeIndicator(controller: controller),
+                child.expand(),
+              ],
+            ),
           ),
         ),
       ),
@@ -266,14 +271,6 @@ class OqEditorBody extends StatelessWidget {
         ),
       );
     }
-  }
-
-  /// Build package size indicator for the app bar bottom
-  PreferredSizeWidget? _buildPackageSizeIndicator() {
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(32),
-      child: PackageSizeIndicator(controller: controller),
-    );
   }
 
   /// Show exit dialog with options to discard, save, or save as file

@@ -37,161 +37,166 @@ class QuestionsListScreen extends WatchingWidget {
     final theme = round.themes[themeIndex];
     final questions = theme.questions;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Header
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        translations.questions,
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        theme.name,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Flexible(
-                child: OverflowBar(
-                  overflowAlignment: OverflowBarAlignment.end,
-                  spacing: 8,
-                  overflowSpacing: 8,
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    FilledButton.icon(
-                      onPressed: () =>
-                          _addNewQuestion(context, roundIndex, themeIndex),
-                      icon: const Icon(Icons.add),
-                      label: Text(translations.addQuestion),
-                    ),
-                    MenuAnchor(
-                      crossAxisUnconstrained: false,
-                      builder: (context, controller, child) {
-                        return FilledButton.tonalIcon(
-                          onPressed: () {
-                            if (controller.isOpen) {
-                              controller.close();
-                            } else {
-                              controller.open();
-                            }
-                          },
-                          icon: const Icon(Icons.auto_awesome),
-                          label: Text(translations.addFromTemplate),
-                        );
-                      },
-                      menuChildren: [
-                        MenuItemButton(
-                          leadingIcon: const Icon(Icons.file_upload_outlined),
-                          onPressed: () => _addQuestionFromTemplate(
-                            context,
-                            roundIndex,
-                            themeIndex,
-                            QuestionTemplate.openingQuestion,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                translations.templateOpeningQuestion,
-                                style: Theme.of(context).textTheme.bodyMedium,
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          translations.questions,
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          theme.name,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
-                              Text(
-                                translations.templateOpeningQuestionDesc,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                              ),
-                            ],
-                          ).paddingAll(16),
                         ),
                       ],
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ),
-
-        // Questions list or empty state
-        Expanded(
-          child: questions.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                Flexible(
+                  child: OverflowBar(
+                    overflowAlignment: OverflowBarAlignment.end,
+                    spacing: 8,
+                    overflowSpacing: 8,
                     children: [
-                      Icon(
-                        Icons.quiz_outlined,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.outline,
+                      FilledButton.icon(
+                        onPressed: () =>
+                            _addNewQuestion(context, roundIndex, themeIndex),
+                        icon: const Icon(Icons.add),
+                        label: Text(translations.addQuestion),
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        translations.noQuestions,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                      MenuAnchor(
+                        crossAxisUnconstrained: false,
+                        builder: (context, controller, child) {
+                          return FilledButton.tonalIcon(
+                            onPressed: () {
+                              if (controller.isOpen) {
+                                controller.close();
+                              } else {
+                                controller.open();
+                              }
+                            },
+                            icon: const Icon(Icons.auto_awesome),
+                            label: Text(translations.addFromTemplate),
+                          );
+                        },
+                        menuChildren: [
+                          MenuItemButton(
+                            leadingIcon: const Icon(Icons.file_upload_outlined),
+                            onPressed: () => _addQuestionFromTemplate(
+                              context,
+                              roundIndex,
+                              themeIndex,
+                              QuestionTemplate.openingQuestion,
                             ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  translations.templateOpeningQuestion,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                                Text(
+                                  translations.templateOpeningQuestionDesc,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            ).paddingAll(16),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                )
-              : ReorderableListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: questions.length,
-                  onReorder: (oldIndex, newIndex) {
-                    controller.reorderQuestions(
-                      roundIndex,
-                      themeIndex,
-                      oldIndex,
-                      newIndex > oldIndex ? newIndex - 1 : newIndex,
-                    );
-                  },
-                  itemBuilder: (context, index) {
-                    final question = questions[index];
-                    return _QuestionCard(
-                      key: ValueKey(question.id ?? index),
-                      question: question,
-                      questionIndex: index,
-                      onEdit: () => _showEditQuestionDialog(
-                        context,
-                        roundIndex,
-                        themeIndex,
-                        index,
-                        question,
-                      ),
-                      onDelete: () => _confirmDeleteQuestion(
-                        context,
-                        roundIndex,
-                        themeIndex,
-                        index,
-                      ),
-                    );
-                  },
                 ),
-        ),
-      ],
+              ],
+            ),
+          ),
+
+          // Questions list or empty state
+          Expanded(
+            child: questions.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.quiz_outlined,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          translations.noQuestions,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ReorderableListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: questions.length,
+                    onReorder: (oldIndex, newIndex) {
+                      controller.reorderQuestions(
+                        roundIndex,
+                        themeIndex,
+                        oldIndex,
+                        newIndex > oldIndex ? newIndex - 1 : newIndex,
+                      );
+                    },
+                    itemBuilder: (context, index) {
+                      final question = questions[index];
+                      return _QuestionCard(
+                        key: ValueKey(question.id ?? index),
+                        question: question,
+                        questionIndex: index,
+                        onEdit: () => _showEditQuestionDialog(
+                          context,
+                          roundIndex,
+                          themeIndex,
+                          index,
+                          question,
+                        ),
+                        onDelete: () => _confirmDeleteQuestion(
+                          context,
+                          roundIndex,
+                          themeIndex,
+                          index,
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -27,92 +27,94 @@ class RoundEditorScreen extends WatchingWidget {
 
     final round = package.rounds[roundIndex];
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header with back button
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  translations.editRound,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
+    return Scaffold(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Header with back button
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    translations.editRound,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
+            // Round name field
+            TextFormField(
+              initialValue: round.name,
+              decoration: InputDecoration(
+                labelText: translations.roundName,
+                border: const OutlineInputBorder(),
               ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Round name field
-          TextFormField(
-            initialValue: round.name,
-            decoration: InputDecoration(
-              labelText: translations.roundName,
-              border: const OutlineInputBorder(),
+              onChanged: (value) {
+                controller.updateRound(
+                  roundIndex,
+                  round.copyWith(name: value),
+                );
+              },
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return translations.fieldRequired;
+                }
+                return null;
+              },
+              maxLength: 100,
             ),
-            onChanged: (value) {
-              controller.updateRound(
-                roundIndex,
-                round.copyWith(name: value),
-              );
-            },
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return translations.fieldRequired;
-              }
-              return null;
-            },
-            maxLength: 100,
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Description field
-          TextFormField(
-            initialValue: round.description,
-            decoration: InputDecoration(
-              labelText: translations.roundDescription,
-              border: const OutlineInputBorder(),
+            // Description field
+            TextFormField(
+              initialValue: round.description,
+              decoration: InputDecoration(
+                labelText: translations.roundDescription,
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (value) {
+                controller.updateRound(
+                  roundIndex,
+                  round.copyWith(description: value),
+                );
+              },
+              maxLines: 3,
+              maxLength: 300,
             ),
-            onChanged: (value) {
-              controller.updateRound(
-                roundIndex,
-                round.copyWith(description: value),
-              );
-            },
-            maxLines: 3,
-            maxLength: 300,
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Round type selector
-          _RoundTypeSection(
-            currentType: round.type,
-            onChanged: (type) {
-              controller.updateRound(
-                roundIndex,
-                round.copyWith(type: type),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
+            // Round type selector
+            _RoundTypeSection(
+              currentType: round.type,
+              onChanged: (type) {
+                controller.updateRound(
+                  roundIndex,
+                  round.copyWith(type: type),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
 
-          // Navigate to themes button
-          FilledButton.icon(
-            onPressed: () =>
-                context.router.push(ThemesGridRoute(roundIndex: roundIndex)),
-            icon: const Icon(Icons.grid_view),
-            label: Text(
-              '${translations.themes} (${round.themes.length})',
+            // Navigate to themes button
+            FilledButton.icon(
+              onPressed: () =>
+                  context.router.push(ThemesGridRoute(roundIndex: roundIndex)),
+              icon: const Icon(Icons.grid_view),
+              label: Text(
+                '${translations.themes} (${round.themes.length})',
+              ),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
             ),
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
