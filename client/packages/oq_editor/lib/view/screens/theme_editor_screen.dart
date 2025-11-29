@@ -60,7 +60,6 @@ class ThemeEditorScreen extends WatchingWidget {
             decoration: InputDecoration(
               labelText: translations.themeName,
               border: const OutlineInputBorder(),
-              filled: true,
             ),
             onChanged: (value) {
               controller.updateTheme(
@@ -85,7 +84,6 @@ class ThemeEditorScreen extends WatchingWidget {
             decoration: InputDecoration(
               labelText: translations.themeDescription,
               border: const OutlineInputBorder(),
-              filled: true,
             ),
             onChanged: (value) {
               controller.updateTheme(

@@ -53,7 +53,6 @@ class RoundEditorScreen extends WatchingWidget {
             decoration: InputDecoration(
               labelText: translations.roundName,
               border: const OutlineInputBorder(),
-              filled: true,
             ),
             onChanged: (value) {
               controller.updateRound(
@@ -77,7 +76,6 @@ class RoundEditorScreen extends WatchingWidget {
             decoration: InputDecoration(
               labelText: translations.roundDescription,
               border: const OutlineInputBorder(),
-              filled: true,
             ),
             onChanged: (value) {
               controller.updateRound(

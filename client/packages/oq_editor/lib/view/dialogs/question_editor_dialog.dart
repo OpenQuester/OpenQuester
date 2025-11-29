@@ -363,7 +363,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   decoration: InputDecoration(
                     labelText: widget.translations.questionTypeLabel,
                     border: const OutlineInputBorder(),
-                    filled: true,
                   ),
                   items: QuestionType.values
                       .where((e) => e != QuestionType.$unknown)
@@ -390,7 +389,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   decoration: InputDecoration(
                     labelText: widget.translations.questionText,
                     border: const OutlineInputBorder(),
-                    filled: true,
                   ),
                   maxLines: 3,
                   maxLength: 500,
@@ -403,7 +401,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   decoration: InputDecoration(
                     labelText: widget.translations.questionPrice,
                     border: const OutlineInputBorder(),
-                    filled: true,
+
                     suffixText: widget.translations.pts,
                   ),
                   keyboardType: TextInputType.number,
@@ -428,7 +426,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                     decoration: InputDecoration(
                       labelText: widget.translations.questionAnswer,
                       border: const OutlineInputBorder(),
-                      filled: true,
                     ),
                     maxLines: 2,
                     maxLength: 200,
@@ -450,7 +447,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                         '${widget.translations.questionHint}'
                         '(${widget.translations.optional})',
                     border: const OutlineInputBorder(),
-                    filled: true,
+
                     helperText: widget.translations.questionHintHelper,
                   ),
                   maxLines: 2,
@@ -465,7 +462,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                         '${widget.translations.questionComment} '
                         '(${widget.translations.optional})',
                     border: const OutlineInputBorder(),
-                    filled: true,
+
                     helperText: widget.translations.questionCommentHelper,
                   ),
                   maxLines: 2,
@@ -478,7 +475,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   decoration: InputDecoration(
                     labelText: widget.translations.answerDelay,
                     border: const OutlineInputBorder(),
-                    filled: true,
+
                     suffixText: widget.translations.ms,
                     helperText: widget.translations.answerDelayHint,
                   ),
@@ -648,7 +645,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         decoration: InputDecoration(
           labelText: widget.translations.stakeSubType,
           border: const OutlineInputBorder(),
-          filled: true,
         ),
         items: StakeQuestionSubType.values
             .where((e) => e != StakeQuestionSubType.$unknown)
@@ -673,7 +669,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
               '${widget.translations.stakeMaxPrice} '
               '(${widget.translations.optional})',
           border: const OutlineInputBorder(),
-          filled: true,
+
           helperText: widget.translations.stakeMaxPriceHint,
         ),
         keyboardType: TextInputType.number,
@@ -693,7 +689,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         decoration: InputDecoration(
           labelText: widget.translations.secretSubType,
           border: const OutlineInputBorder(),
-          filled: true,
         ),
         items: SecretQuestionSubType.values
             .where((e) => e != SecretQuestionSubType.$unknown)
@@ -716,7 +711,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         decoration: InputDecoration(
           labelText: widget.translations.secretTransferType,
           border: const OutlineInputBorder(),
-          filled: true,
         ),
         items: QuestionTransferType.values
             .where((e) => e != QuestionTransferType.$unknown)
@@ -787,7 +781,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         decoration: InputDecoration(
           labelText: widget.translations.noRiskSubType,
           border: const OutlineInputBorder(),
-          filled: true,
         ),
         items: NoRiskQuestionSubType.values
             .where((e) => e != NoRiskQuestionSubType.$unknown)
@@ -810,7 +803,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         decoration: InputDecoration(
           labelText: widget.translations.priceMultiplier,
           border: const OutlineInputBorder(),
-          filled: true,
+
           helperText: widget.translations.priceMultiplierHint,
         ),
         items: const [
@@ -838,7 +831,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         decoration: InputDecoration(
           labelText: widget.translations.showDelay,
           border: const OutlineInputBorder(),
-          filled: true,
+
           suffixText: widget.translations.ms,
           helperText: widget.translations.showDelayHint,
         ),
