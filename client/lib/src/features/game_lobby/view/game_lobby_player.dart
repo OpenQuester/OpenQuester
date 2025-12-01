@@ -110,7 +110,7 @@ class GameLobbyPlayer extends WatchingWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if (customIcon != null) customIcon!,
+                        ?customIcon,
                         if (player.status == PlayerDataStatus.disconnected)
                           const Icon(Icons.signal_wifi_off),
                         _MediaDownloadIndicator(player: player),
@@ -122,7 +122,7 @@ class GameLobbyPlayer extends WatchingWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (actionButton != null) actionButton!,
+                    ?actionButton,
                     if (settings.hasTurn)
                       Icon(
                         settings.picking

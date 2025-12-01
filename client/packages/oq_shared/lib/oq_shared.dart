@@ -1,3 +1,7 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+library;
+
 export 'data/consts.dart';
 export 'data/user_error.dart';
 export 'interfaces/base_logger.dart';

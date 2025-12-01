@@ -1,7 +1,6 @@
 import 'package:mason_logger/mason_logger.dart';
 import 'package:oq_compress/oq_compress.dart';
 import 'package:oq_compress/src/commands/file_command.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
 
 class EncodePackageCommand extends FileCommand {
@@ -22,7 +21,7 @@ class EncodePackageCommand extends FileCommand {
     );
 
     const encoder = OqFileEncoder();
-    final tempFolder = await getTemporaryDirectory();
+    final tempFolder = Directory.systemTemp;
     final workDir = Directory(
       [
         tempFolder.path,

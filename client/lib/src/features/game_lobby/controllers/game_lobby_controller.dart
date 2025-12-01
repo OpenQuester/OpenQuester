@@ -586,8 +586,8 @@ class GameLobbyController {
     final currentQuestion = gameData.value?.gameState.currentQuestion;
 
     // Check for empty answer
-    if (currentQuestion?.answerFiles?.isEmpty ??
-        true && (currentQuestion?.answerText.isEmptyOrNull ?? true)) {
+    if ((currentQuestion?.answerFiles?.isEmpty ?? true) &&
+        (currentQuestion?.answerText.isEmptyOrNull ?? true)) {
       return;
     }
 

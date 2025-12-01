@@ -5,9 +5,5 @@ import 'package:openquester/src/core/get_it.config.dart';
 
 final GetIt getIt = GetIt.instance;
 
-@InjectableInit(
-  initializerName: 'init', // default
-  preferRelativeImports: true, // default
-  asExtension: true, // default
-)
+@InjectableInit(preferRelativeImports: true)
 Future<GetIt> configureDependencies() => getIt.init();
