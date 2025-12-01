@@ -64,6 +64,9 @@ export class SocketGameValidationService {
       throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_SET_READY);
     }
 
+    // Cannot set ready state on a finished game
+    GameStateValidator.validateGameNotFinished(game);
+
     // Can only set ready state before game starts
     if (ValueUtils.isValidDate(game.startedAt)) {
       throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);

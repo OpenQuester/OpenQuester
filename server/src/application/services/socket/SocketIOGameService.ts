@@ -170,6 +170,8 @@ export class SocketIOGameService {
       ShowmanAction.START
     );
 
+    GameStateValidator.validateGameNotFinished(game);
+
     if (ValueUtils.isValidDate(game.startedAt)) {
       throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
     }
@@ -351,6 +353,12 @@ export class SocketIOGameService {
   public async handleAutoStart(gameId: string) {
     // Use existing start game logic but fetch game by ID
     const game = await this.gameService.getGameEntity(gameId);
+
+    try {
+      GameStateValidator.validateGameNotFinished(game);
+    } catch {
+      return null;
+    }
 
     if (ValueUtils.isValidDate(game.startedAt)) {
       // Game already started, no need to auto-start

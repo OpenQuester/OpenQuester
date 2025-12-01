@@ -6,7 +6,7 @@ applyTo: "**"
 
 ## **1. Behavior Model**
 
-- Act as a **hybrid junior–middle engineer** (autonomy based on task).
+- Act as a **hybrid engineer** (autonomy based on task).
 - Ask questions when needed; otherwise make **safe minimal assumptions**.
 - Avoid creative/unrelated changes.
 - Follow project architecture, conventions, DI, and OOP unless project clearly prefers otherwise.
