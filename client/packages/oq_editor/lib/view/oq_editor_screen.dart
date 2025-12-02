@@ -28,5 +28,4 @@ class OqEditorScreen extends WatchingWidget {
       },
     );
   }
-
 }
