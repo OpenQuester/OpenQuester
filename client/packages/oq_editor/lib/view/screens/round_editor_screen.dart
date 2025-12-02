@@ -1,5 +1,6 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/router/router.gr.dart';
@@ -22,7 +23,9 @@ class RoundEditorScreen extends WatchingWidget {
     final translations = controller.translations;
 
     if (roundIndex >= package.rounds.length) {
-      return Center(child: Text(translations.invalidRound));
+      return Scaffold(
+        body: Text(translations.invalidRound).center(),
+      );
     }
 
     final round = package.rounds[roundIndex];

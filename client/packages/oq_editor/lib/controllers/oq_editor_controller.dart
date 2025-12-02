@@ -29,8 +29,7 @@ class OqEditorController {
   /// Translation provider injected from parent app
   final OqEditorTranslations translations;
 
-  final GlobalKey<NavigatorState> navigationContext =
-      GlobalKey<NavigatorState>();
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   /// Optional logger for debug messages
   final BaseLogger? logger;
@@ -315,7 +314,7 @@ class OqEditorController {
       // Navigate to package info screen
       unawaited(
         AutoRouter.of(
-          navigationContext.currentContext!,
+          navigatorKey.currentContext!,
         ).push(const PackageInfoRoute()),
       );
       refreshKey.value = UniqueKey();
@@ -363,7 +362,7 @@ class OqEditorController {
             // Navigate to package info screen
             unawaited(
               AutoRouter.of(
-                navigationContext.currentContext!,
+                navigatorKey.currentContext!,
               ).push(const PackageInfoRoute()),
             );
             refreshKey.value = UniqueKey();
@@ -430,7 +429,7 @@ class OqEditorController {
       // Navigate to package info screen
       unawaited(
         AutoRouter.of(
-          navigationContext.currentContext!,
+          navigatorKey.currentContext!,
         ).push(const PackageInfoRoute()),
       );
       refreshKey.value = UniqueKey();
@@ -474,7 +473,7 @@ class OqEditorController {
             // Navigate to package info screen
             unawaited(
               AutoRouter.of(
-                navigationContext.currentContext!,
+                navigatorKey.currentContext!,
               ).push(const PackageInfoRoute()),
             );
             refreshKey.value = UniqueKey();
