@@ -102,8 +102,9 @@ class MediaFileEncoder {
       );
       return (files: mediaFilesByHash, hashMapping: hashMapping);
     }
+    // TODO: Add logger to OqFileEncoder
+    const encoder = OqFileEncoder();
 
-    final encoder = OqFileEncoder(logger: logger);
     try {
       final outputDir = '${_encodingOutputDirectory!.path}/output';
 

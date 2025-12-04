@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
-import 'package:openapi/openapi.dart';
+import 'package:openapi/openapi.dart'
+    show PackageCreateInputData, PackageCreationInput;
 import 'package:openquester/workers/models/worker_models.dart';
 import 'package:openquester/workers/package_service.activator.g.dart';
 import 'package:oq_shared/data/consts.dart';

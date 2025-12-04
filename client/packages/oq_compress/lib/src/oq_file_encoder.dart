@@ -7,17 +7,17 @@ import 'package:collection/collection.dart';
 import 'package:oq_compress/src/common/command_wrapper.dart';
 import 'package:oq_compress/src/common/process_utils.dart';
 import 'package:oq_compress/src/models/ffprobe_output.dart';
-import 'package:oq_shared/oq_shared.dart';
+import 'package:talker/talker.dart';
 
 class OqFileEncoder {
   const OqFileEncoder({this.logger});
-  final BaseLogger? logger;
+  final Talker? logger;
 
   /// Check if the current platform supports FFmpeg operations.
   static Future<bool> isSupported() => CommandWrapper.isSupported();
 
   Future<FfprobeOutput> getMetadata(File file) async {
-    logger?.t('Getting metadata for file: ${file.path}');
+    logger?.verbose('Getting metadata for file: ${file.path}');
 
     if (!await isSupported()) {
       throw UnsupportedError(
@@ -28,7 +28,7 @@ class OqFileEncoder {
     }
 
     final result = await CommandWrapper().metadata(file);
-    logger?.t('Successfully retrieved metadata for: ${file.path}');
+    logger?.verbose('Successfully retrieved metadata for: ${file.path}');
     return result!;
   }
 
@@ -37,7 +37,7 @@ class OqFileEncoder {
     required File outputFile,
     required CodecType codecType,
   }) async {
-    logger?.t(
+    logger?.verbose(
       'Encoding: ${inputFile.path} -> ${outputFile.path} (type: $codecType)',
     );
 
@@ -55,7 +55,7 @@ class OqFileEncoder {
       codecType: codecType,
     );
 
-    logger?.t('Encoding completed: ${outputFile.path}');
+    logger?.verbose('Encoding completed: ${outputFile.path}');
     return result;
   }
 
@@ -75,7 +75,7 @@ class OqFileEncoder {
     void Function(File file, Object error, StackTrace stackTrace)? onError,
     int batchSize = 2,
   }) async {
-    logger?.i(
+    logger?.info(
       'Starting encodeFiles: ${files.length} files, batchSize: $batchSize',
     );
 
@@ -91,14 +91,14 @@ class OqFileEncoder {
     final totalFiles = files.length;
 
     if (totalFiles == 0) {
-      logger?.w('No files provided for encoding');
+      logger?.warning('No files provided for encoding');
       return results;
     }
 
     // Ensure output directory exists
     final outputDir = Directory(outputDirectory);
     await outputDir.create(recursive: true);
-    logger?.d('Created output directory: $outputDirectory');
+    logger?.debug('Created output directory: $outputDirectory');
 
     var successCount = 0;
     var errorCount = 0;
@@ -109,7 +109,7 @@ class OqFileEncoder {
       final batchIndex = (i ~/ batchSize) + 1;
       final totalBatches = (totalFiles / batchSize).ceil();
 
-      logger?.i(
+      logger?.info(
         'Processing batch $batchIndex/$totalBatches (${batch.length} files)',
       );
 
@@ -120,7 +120,7 @@ class OqFileEncoder {
           final codecType = getFileType(metadata);
           return (file, metadata, codecType);
         } catch (e) {
-          logger?.w('Failed to get metadata for ${file.path}: $e');
+          logger?.warning('Failed to get metadata for ${file.path}: $e');
           return (file, null, null);
         }
       }).toList();
@@ -134,13 +134,13 @@ class OqFileEncoder {
         final currentIndex = i + j;
 
         return () async {
-          logger?.t(
+          logger?.verbose(
             'Encoding file ${currentIndex + 1}/$totalFiles: ${inputFile.path}',
           );
 
           try {
             if (metadata == null || codecType == null) {
-              logger?.w(
+              logger?.warning(
                 'Unable to determine codec type for file: ${inputFile.path}',
               );
               onError?.call(
@@ -151,7 +151,9 @@ class OqFileEncoder {
               return null;
             }
 
-            logger?.t('Detected codec type: $codecType for ${inputFile.path}');
+            logger?.verbose(
+              'Detected codec type: $codecType for ${inputFile.path}',
+            );
 
             // Generate output file path
             final fileName = inputFile.path.split(Platform.pathSeparator).last;
@@ -159,7 +161,7 @@ class OqFileEncoder {
               [outputDirectory, fileName].join(Platform.pathSeparator),
             );
 
-            logger?.t('Output file: ${outputFile.path}');
+            logger?.verbose('Output file: ${outputFile.path}');
 
             // Encode the file
             final encodedFile = await encode(
@@ -168,21 +170,23 @@ class OqFileEncoder {
               codecType: codecType,
             );
 
-            logger?.t(
+            logger?.verbose(
               'Successfully encoded: ${inputFile.path} -> ${encodedFile.path}',
             );
 
             // Report progress
             final progress = (currentIndex + 1) / totalFiles;
             onProgress?.call(progress);
-            logger?.t('Progress: ${(progress * 100).toStringAsFixed(1)}%');
+            logger?.verbose(
+              'Progress: ${(progress * 100).toStringAsFixed(1)}%',
+            );
 
             return (inputFile, encodedFile);
           } catch (error, stackTrace) {
-            logger?.e(
+            logger?.error(
               'Failed to encode file ${inputFile.path}: $error',
-              error: error,
-              stackTrace: stackTrace,
+              error,
+              stackTrace,
             );
             onError?.call(inputFile, error, stackTrace);
             return null;
@@ -209,12 +213,12 @@ class OqFileEncoder {
       // Small delay to prevent memory allocation issues between batches
       await Future<void>.delayed(const Duration(milliseconds: 100));
 
-      logger?.i(
+      logger?.info(
         'Completed batch $batchIndex/$totalBatches. Success: $successCount, Errors: $errorCount',
       );
     }
 
-    logger?.i(
+    logger?.info(
       'Encoding completed. Total: $totalFiles, '
       'Success: $successCount, Errors: $errorCount',
     );
@@ -246,7 +250,7 @@ class OqFileEncoder {
   }
 
   CodecType? getFileType(FfprobeOutput metadata) {
-    logger?.t('Analyzing file type from metadata streams');
+    logger?.verbose('Analyzing file type from metadata streams');
 
     final withVideo = metadata.streams.firstWhereOrNull(
       (e) => e.codecType == CodecType.video,
@@ -257,25 +261,25 @@ class OqFileEncoder {
 
     if (withVideo != null) {
       final frames = int.tryParse(withVideo.nbFrames ?? '') ?? -1;
-      logger?.t('Found video stream with $frames frames');
+      logger?.verbose('Found video stream with $frames frames');
 
       if (frames > 1) {
-        logger?.t('Detected as video file (multiple frames)');
+        logger?.verbose('Detected as video file (multiple frames)');
         return CodecType.video;
       }
       if (withAudio != null) {
-        logger?.t('Detected as audio file (single frame + audio stream)');
+        logger?.verbose('Detected as audio file (single frame + audio stream)');
         return CodecType.audio;
       }
-      logger?.t('Detected as image file (single frame, no audio)');
+      logger?.verbose('Detected as image file (single frame, no audio)');
       return CodecType.image;
     }
     if (withAudio != null) {
-      logger?.t('Detected as audio file (audio stream only)');
+      logger?.verbose('Detected as audio file (audio stream only)');
       return CodecType.audio;
     }
 
-    logger?.w('Unable to determine file type from metadata');
+    logger?.warning('Unable to determine file type from metadata');
     return null;
   }
 
@@ -284,17 +288,19 @@ class OqFileEncoder {
     String permissions = '0775',
   }) async {
     if (![Platform.isLinux, Platform.isMacOS].contains(true)) {
-      logger?.t('Skipping permission setting on ${Platform.operatingSystem}');
+      logger?.verbose(
+        'Skipping permission setting on ${Platform.operatingSystem}',
+      );
       return;
     }
 
-    logger?.t('Setting permissions $permissions for: ${dir.path}');
+    logger?.verbose('Setting permissions $permissions for: ${dir.path}');
     await runProcess('chmod', ['-R', permissions, dir.path]);
-    logger?.t('Successfully set permissions for: ${dir.path}');
+    logger?.verbose('Successfully set permissions for: ${dir.path}');
   }
 
   Future<File?> encodePackage(File file) async {
-    logger?.i('Starting package encoding for: ${file.path}');
+    logger?.info('Starting package encoding for: ${file.path}');
 
     if (!await isSupported()) {
       throw UnsupportedError(
@@ -311,25 +317,25 @@ class OqFileEncoder {
       [file.parent.path, 'output'].join(Platform.pathSeparator),
     );
     await outputDir.create();
-    logger?.t(
+    logger?.verbose(
       'Created directories: input=${inputDir.path}, output=${outputDir.path}',
     );
 
     await extractFileToDisk(file.path, inputDir.path);
-    logger?.t('Extracted package contents to: ${inputDir.path}');
+    logger?.verbose('Extracted package contents to: ${inputDir.path}');
 
     // Fixes permissions after files extraction (run concurrently)
     await Future.wait([
       _setDirPermissions(dir: inputDir),
       _setDirPermissions(dir: outputDir),
     ]);
-    logger?.t('Set directory permissions');
+    logger?.verbose('Set directory permissions');
 
     const folders = {'Images', 'Video', 'Audio'};
     var totalProcessedFiles = 0;
 
     for (final folderName in folders) {
-      logger?.i('Processing media folder: $folderName');
+      logger?.info('Processing media folder: $folderName');
 
       final mediaInDir = Directory(
         [inputDir.path, folderName].join(Platform.pathSeparator),
@@ -339,7 +345,7 @@ class OqFileEncoder {
       );
 
       if (!mediaInDir.existsSync()) {
-        logger?.t('Folder does not exist: ${mediaInDir.path}');
+        logger?.verbose('Folder does not exist: ${mediaInDir.path}');
         continue;
       }
 
@@ -351,7 +357,7 @@ class OqFileEncoder {
           .where((entity) => entity is File)
           .cast<File>()
           .toList();
-      logger?.i('Found ${files.length} files in $folderName folder');
+      logger?.info('Found ${files.length} files in $folderName folder');
 
       if (files.isNotEmpty) {
         // Use the new encodeFiles method for batch processing
@@ -360,30 +366,30 @@ class OqFileEncoder {
           outputDirectory: mediaOutDir.path,
           onError: (file, error, stackTrace) {
             // Log errors but continue processing other files
-            logger?.e(
+            logger?.error(
               'Failed to encode ${file.path}: $error',
-              error: error,
-              stackTrace: stackTrace,
+              error,
+              stackTrace,
             );
           },
         );
 
         totalProcessedFiles += results.length;
-        logger?.i(
+        logger?.info(
           'Processed ${results.length}/${files.length} files in $folderName folder',
         );
       }
 
       await mediaInDir.delete(recursive: true);
-      logger?.t('Cleaned up input folder: ${mediaInDir.path}');
+      logger?.verbose('Cleaned up input folder: ${mediaInDir.path}');
     }
 
-    logger?.i('Moving remaining directory contents');
+    logger?.info('Moving remaining directory contents');
     await _moveDirectoryContents(inputDir, outputDir);
 
-    logger?.i('Cleaning up temporary directories');
+    logger?.info('Cleaning up temporary directories');
     await inputDir.delete(recursive: true);
-    logger?.t('Cleaned up temporary directories');
+    logger?.verbose('Cleaned up temporary directories');
 
     await _createFinalArchive(
       file: file,
@@ -391,7 +397,7 @@ class OqFileEncoder {
       totalProcessedFiles: totalProcessedFiles,
     );
 
-    logger?.i('Package encoding completed: ${file.path}');
+    logger?.info('Package encoding completed: ${file.path}');
     return file;
   }
 
@@ -401,7 +407,7 @@ class OqFileEncoder {
     required Directory outputDir,
     required int totalProcessedFiles,
   }) async {
-    logger?.i(
+    logger?.info(
       'Creating final archive with $totalProcessedFiles processed files',
     );
 
@@ -417,17 +423,19 @@ class OqFileEncoder {
     // Create the zip archive
     await encoder.zipDirectory(outputDir, filename: outputArchiveFile.path);
 
-    logger?.t('Archive created successfully: ${outputArchiveFile.path}');
+    logger?.verbose('Archive created successfully: ${outputArchiveFile.path}');
   }
 
   Future<void> _moveDirectoryContents(
     Directory sourceDir,
     Directory targetDir,
   ) async {
-    logger?.d('Moving contents from ${sourceDir.path} to ${targetDir.path}');
+    logger?.debug(
+      'Moving contents from ${sourceDir.path} to ${targetDir.path}',
+    );
 
     if (!sourceDir.existsSync()) {
-      logger?.w('Source directory does not exist: ${sourceDir.path}');
+      logger?.warning('Source directory does not exist: ${sourceDir.path}');
       return;
     }
 
@@ -442,12 +450,12 @@ class OqFileEncoder {
         item.path.split(Platform.pathSeparator).last,
       ].join(Platform.pathSeparator);
 
-      logger?.t('Moving: ${item.path} -> $targetPath');
+      logger?.verbose('Moving: ${item.path} -> $targetPath');
       await item.rename(targetPath);
       movedCount++;
     }
 
-    logger?.t(
+    logger?.verbose(
       'Moved $movedCount items from ${sourceDir.path} to ${targetDir.path}',
     );
   }
