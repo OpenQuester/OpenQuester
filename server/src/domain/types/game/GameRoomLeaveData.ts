@@ -8,6 +8,6 @@ export interface GameLobbyLeaveData {
     userId: number;
     gameId: string;
   };
-  /** Additional broadcasts to emit (e.g., answer-result from auto-skip) */
+  /** Additional broadcasts to emit (e.g., answer-result from auto-skip, final round events) */
   broadcasts?: BroadcastEvent[];
 }

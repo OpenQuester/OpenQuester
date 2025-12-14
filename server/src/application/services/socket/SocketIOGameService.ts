@@ -254,6 +254,9 @@ export class SocketIOGameService {
         )?.question ?? null;
     }
 
+    // Clear any active timer before round progression to prevent stale expirations
+    await this.gameService.clearTimer(game.id);
+
     const roundHandler = this.roundHandlerFactory.createFromGame(game);
     roundHandler.validateRoundProgression(game);
 

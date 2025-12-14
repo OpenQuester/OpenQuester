@@ -213,11 +213,12 @@ export class SocketIOQuestionService {
     // Save
     await this.gameService.updateGame(game);
     if (timer) {
-      await this.gameService.saveTimer(
-        timer,
-        game.id,
-        timer.durationMs - timer.elapsedMs
+      // Minimum 1ms to avoid Redis errors with negative TTL
+      const remainingMs = Math.max(
+        timer.durationMs - (timer.elapsedMs || 0),
+        1
       );
+      await this.gameService.saveTimer(timer, game.id, remainingMs);
     } else {
       // Always make sure all timers are cleared if not meant to be running
       await this.gameService.clearTimer(game.id);
