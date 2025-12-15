@@ -3,7 +3,10 @@ import { FinalRoundService } from "application/services/socket/FinalRoundService
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import { SYSTEM_PLAYER_ID } from "domain/constants/game";
+import {
+  GAME_QUESTION_ANSWER_TIME,
+  SYSTEM_PLAYER_ID,
+} from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
@@ -13,6 +16,7 @@ import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import {
@@ -26,6 +30,7 @@ import {
   FinalSubmitEndEventData,
   ThemeEliminateOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
+import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
@@ -106,6 +111,54 @@ export class PlayerLeaveService {
     );
   }
 
+  /**
+   * Handle game state cleanup when a player becomes inactive (e.g., restricted to spectator)
+   * This handles: answering player, turn player, bidding states
+   * WITHOUT removing the player from the game
+   *
+   * Used when restricting a player to spectator role
+   */
+  public async handlePlayerGameStateCleanup(
+    game: Game,
+    userId: number
+  ): Promise<BroadcastEvent[]> {
+    const broadcasts: BroadcastEvent[] = [];
+
+    // Handle stake bidding player
+    const stakeBiddingBroadcasts = await this.handleStakeBiddingPlayerLeave(
+      game,
+      userId
+    );
+    broadcasts.push(...stakeBiddingBroadcasts);
+
+    // Handle final bidding player
+    const biddingBroadcasts = await this.handleFinalBiddingPlayerLeave(
+      game,
+      userId
+    );
+    broadcasts.push(...biddingBroadcasts);
+
+    // Handle answering player
+    const answeringBroadcasts = await this.handleAnsweringPlayerLeave(
+      game,
+      userId
+    );
+    broadcasts.push(...answeringBroadcasts);
+
+    // Handle current turn player
+    const turnPlayerBroadcasts = await this.handleTurnPlayerLeave(game, userId);
+    broadcasts.push(...turnPlayerBroadcasts);
+
+    // Handle media downloading state
+    const mediaDownloadBroadcasts = await this.handleMediaDownloadPlayerLeave(
+      game,
+      userId
+    );
+    broadcasts.push(...mediaDownloadBroadcasts);
+
+    return broadcasts;
+  }
+
   private async executePlayerLeave(
     game: Game,
     gameId: string,
@@ -169,6 +222,13 @@ export class PlayerLeaveService {
       );
     }
 
+    // Handle media downloading state - must be done AFTER removing player
+    // so we can check if all remaining players are ready
+    const mediaDownloadBroadcasts = await this.handleMediaDownloadPlayerLeave(
+      game,
+      userId
+    );
+
     // Update socket session
     if (options.cleanupSession !== false) {
       await this.socketUserDataService.update(socketId, {
@@ -191,12 +251,13 @@ export class PlayerLeaveService {
     // Build broadcasts based on reason
     const broadcasts = this.buildBroadcasts(gameId, userId, options);
 
-    // Add bidding, answering, and turn player broadcasts
+    // Add bidding, answering, turn player, and media download broadcasts
     broadcasts.push(
       ...stakeBiddingBroadcasts,
       ...biddingBroadcasts,
       ...answeringBroadcasts,
-      ...turnPlayerBroadcasts
+      ...turnPlayerBroadcasts,
+      ...mediaDownloadBroadcasts
     );
 
     return {
@@ -707,5 +768,57 @@ export class PlayerLeaveService {
       );
       return [];
     }
+  }
+
+  /**
+   * Handle player leaving during media download phase
+   * Checks if all remaining players are ready and transitions to SHOWING if so
+   */
+  private async handleMediaDownloadPlayerLeave(
+    game: Game,
+    userId: number
+  ): Promise<BroadcastEvent[]> {
+    // Only handle if in MEDIA_DOWNLOADING state
+    if (game.gameState.questionState !== QuestionState.MEDIA_DOWNLOADING) {
+      return [];
+    }
+
+    const broadcasts: BroadcastEvent[] = [];
+
+    // Get active players (excluding the leaving player)
+    const activePlayers = game.players.filter(
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameStatus === PlayerGameStatus.IN_GAME &&
+        p.meta.id !== userId
+    );
+
+    // Check if all remaining active players have downloaded media
+    const allPlayersReady = activePlayers.every((p) => p.mediaDownloaded);
+
+    if (allPlayersReady && activePlayers.length > 0) {
+      // Clear the media download timeout timer
+      await this.gameService.clearTimer(game.id);
+
+      // Set up the actual question showing timer
+      const timer = await this.socketQuestionStateService.setupQuestionTimer(
+        game,
+        GAME_QUESTION_ANSWER_TIME,
+        QuestionState.SHOWING
+      );
+
+      broadcasts.push({
+        event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+        data: {
+          playerId: SYSTEM_PLAYER_ID,
+          mediaDownloaded: true,
+          allPlayersReady: true,
+          timer: timer.value(),
+        } satisfies MediaDownloadStatusBroadcastData,
+        room: game.id,
+      });
+    }
+
+    return broadcasts;
   }
 }

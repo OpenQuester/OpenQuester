@@ -479,6 +479,7 @@ export class SocketIOGameService {
     targetPlayer: PlayerDTO;
     wasRemoved: boolean;
     newRole?: PlayerRole;
+    gameStateCleanupBroadcasts?: BroadcastEvent[];
   }> {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
@@ -537,6 +538,14 @@ export class SocketIOGameService {
       targetPlayer.gameSlot = null;
       newRole = PlayerRole.SPECTATOR;
 
+      // Handle game state cleanup (answering player, turn player, bidding, media download)
+      // This must be done BEFORE updating the game to ensure correct state transitions
+      const gameStateCleanupBroadcasts =
+        await this.playerLeaveService.handlePlayerGameStateCleanup(
+          game,
+          targetPlayerId
+        );
+
       // Clean up player statistics if they were a player
       if (originalRole === PlayerRole.PLAYER) {
         await this.playerGameStatsService.endPlayerSession(
@@ -545,6 +554,16 @@ export class SocketIOGameService {
           new Date()
         );
       }
+
+      await this.gameService.updateGame(game);
+
+      return {
+        game,
+        targetPlayer: targetPlayer.toDTO(),
+        wasRemoved: false,
+        newRole,
+        gameStateCleanupBroadcasts,
+      };
     }
 
     await this.gameService.updateGame(game);
