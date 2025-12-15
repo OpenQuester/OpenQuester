@@ -11,6 +11,7 @@ import { User } from "infrastructure/database/models/User";
 import { Repository } from "typeorm";
 import {
   GameClientSocket,
+  GameTestSetup,
   SocketGameTestUtils,
 } from "../socket/game/utils/SocketIOGameTestUtils";
 
@@ -435,21 +436,6 @@ export class TestUtils {
   }
 
   /**
-   * Forward method to SocketGameTestUtils for finding question by type
-   */
-  public async findQuestionByType(
-    gameState: GameStateDTO,
-    questionType: any,
-    gameId: string
-  ): Promise<any> {
-    return this.socketGameTestUtils.findQuestionByType(
-      gameState,
-      questionType,
-      gameId
-    );
-  }
-
-  /**
    * Forward method to SocketGameTestUtils for answering question
    */
   public async answerQuestion(
@@ -468,6 +454,19 @@ export class TestUtils {
     cookie: string;
   }> {
     return this.socketGameTestUtils.createGameClient(this.app, this.userRepo);
+  }
+
+  /**
+   * Create a new socket connection for an existing user (for reconnection scenarios)
+   * This simulates a player disconnecting and reconnecting with the same user account
+   */
+  public async createSocketForExistingUser(
+    userId: number
+  ): Promise<{ socket: GameClientSocket; cookie: string }> {
+    return this.socketGameTestUtils.createSocketForExistingUser(
+      this.app,
+      userId
+    );
   }
 
   /**
@@ -491,7 +490,7 @@ export class TestUtils {
   /**
    * Forward method to SocketGameTestUtils for cleaning up game clients
    */
-  public async cleanupGameClients(setup: any): Promise<void> {
+  public async cleanupGameClients(setup: GameTestSetup): Promise<void> {
     return this.socketGameTestUtils.cleanupGameClients(setup);
   }
 }

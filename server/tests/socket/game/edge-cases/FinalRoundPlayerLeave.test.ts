@@ -642,18 +642,99 @@ describe("Final Round Player Leave", () => {
       }
     });
 
-    it.skip("should allow existing player to rejoin during final round bidding", async () => {
-      // This test is skipped due to test infrastructure limitations:
-      // When a socket disconnects and reconnects, it needs to be re-authenticated,
-      // but our test utilities don't support re-authentication of the same user
-      // with a reconnected socket.
-      //
-      // The behavior IS implemented in SocketIOGameService.join():
-      // - existingPlayer check allows returning players to rejoin
-      // - The isNewPlayer flag distinguishes new players from returning ones
-      // - Only NEW players are blocked from joining as PLAYER during final round
-      //
-      // Manual testing or integration testing should verify this behavior.
+    it("should allow existing player to rejoin during final round bidding", async () => {
+      const setup = await utils.setupFinalRoundGame({
+        playersCount: 3,
+        playerScores: [1500, 1200, 1000],
+      });
+
+      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+
+      try {
+        // Complete theme elimination to reach bidding phase
+        const phaseTransitionPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.FINAL_PHASE_COMPLETE
+        );
+        await utils.completeThemeElimination(
+          playerSockets,
+          gameId,
+          playerUsers
+        );
+        await phaseTransitionPromise;
+
+        // Verify we're in bidding phase
+        let gameState = await utils.getGameState(gameId);
+        expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.BIDDING);
+        expect(gameState.questionState).toBe(QuestionState.BIDDING);
+
+        // Player 2 disconnects (leaves the game)
+        const leavingPlayerId = playerUsers[2].id;
+        const autoBidPromise = utils.waitForEvent<FinalBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          5000
+        );
+
+        playerSockets[2].emit(SocketIOGameEvents.LEAVE);
+        await utils.disconnectAndCleanup(playerSockets[2]);
+
+        // Wait for auto-bid of 1 for the leaving player
+        const autoBidData = await autoBidPromise;
+        expect(autoBidData.playerId).toBe(leavingPlayerId);
+        expect(autoBidData.bidAmount).toBe(1);
+
+        // Verify player was removed
+        const gameAfterLeave = await utils.getGameFromGameService(gameId);
+        expect(gameAfterLeave.hasPlayer(leavingPlayerId)).toBe(false);
+
+        // Still in bidding phase (other players haven't bid yet)
+        gameState = await utils.getGameState(gameId);
+        expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.BIDDING);
+
+        // Create a new socket for the same user (simulating reconnection)
+        const { socket: reconnectedSocket } =
+          await utils.createSocketForExistingUser(leavingPlayerId);
+
+        // Player should be able to rejoin as PLAYER during final round
+        // (because they were an existing player, not a new one)
+        const joinPromise = utils.waitForEvent(
+          reconnectedSocket,
+          SocketIOGameEvents.GAME_DATA,
+          5000
+        );
+
+        reconnectedSocket.emit(SocketIOGameEvents.JOIN, {
+          gameId,
+          role: PlayerRole.PLAYER,
+        });
+
+        // Should successfully join and receive game data
+        const gameData = await joinPromise;
+        expect(gameData).toBeDefined();
+        expect(gameData.gameState.finalRoundData?.phase).toBe(
+          FinalRoundPhase.BIDDING
+        );
+
+        // Verify player is back in the game
+        const gameAfterRejoin = await utils.getGameFromGameService(gameId);
+        expect(gameAfterRejoin.hasPlayer(leavingPlayerId)).toBe(true);
+
+        // Verify player's bid is preserved (bid=1 from auto-bid on leave)
+        gameState = await utils.getGameState(gameId);
+        expect(gameState.finalRoundData?.bids[leavingPlayerId]).toBe(1);
+
+        // Cleanup the reconnected socket
+        await utils.disconnectAndCleanup(reconnectedSocket);
+      } finally {
+        // Cleanup remaining sockets (excluding playerSockets[2] which was already cleaned up)
+        await utils.disconnectAndCleanup(showmanSocket);
+        await utils.disconnectAndCleanup(playerSockets[0]);
+        await utils.disconnectAndCleanup(playerSockets[1]);
+        for (const socket of setup.spectatorSockets) {
+          await utils.disconnectAndCleanup(socket);
+        }
+      }
     });
   });
 });

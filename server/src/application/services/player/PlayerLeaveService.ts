@@ -7,6 +7,7 @@ import {
   GAME_QUESTION_ANSWER_TIME,
   SYSTEM_PLAYER_ID,
 } from "domain/constants/game";
+import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
@@ -681,7 +682,7 @@ export class PlayerLeaveService {
       if (timer) {
         game.setTimer(timer);
         const remainingTimeMs = timer.durationMs - timer.elapsedMs;
-        const ttlMs = Math.max(remainingTimeMs, 1000);
+        const ttlMs = Math.max(remainingTimeMs, MIN_TIMER_TTL_MS);
         await this.gameService.saveTimer(timer, game.id, ttlMs);
       }
 

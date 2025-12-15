@@ -243,6 +243,47 @@ export class SocketGameTestUtils {
     return { socket, user, cookie };
   }
 
+  /**
+   * Create a new socket connection for an existing user (for reconnection scenarios)
+   * This simulates a player disconnecting and reconnecting with the same user account
+   */
+  public async createSocketForExistingUser(
+    app: Express,
+    userId: number
+  ): Promise<{ socket: GameClientSocket; cookie: string }> {
+    const { cookie } = await this.loginExistingUser(app, userId);
+
+    const socket = Client(this.serverUrl, {
+      transports: ["websocket"],
+      autoConnect: true,
+      reconnection: false,
+    }) as GameClientSocket;
+
+    // Wait for connection
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("[Socket Debug] Connection timeout after 5000ms"));
+      }, 5000);
+
+      socket.on("connect", async () => {
+        clearTimeout(timeout);
+        try {
+          await this.authenticateSocket(app, socket, cookie);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      socket.on("connect_error", (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+
+    return { socket, cookie };
+  }
+
   public async createUnauthenticatedGameClient(): Promise<GameClientSocket> {
     const socket = Client(this.serverUrl, {
       transports: ["websocket"],

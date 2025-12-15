@@ -1,7 +1,3 @@
----
-applyTo: "**"
----
-
 # GitHub Copilot Instructions for OpenQuester
 
 ## **1. Behavior Model**

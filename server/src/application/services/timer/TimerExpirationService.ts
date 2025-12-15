@@ -5,6 +5,7 @@ import { SocketQuestionStateService } from "application/services/socket/SocketQu
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID } from "domain/constants/game";
+import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
@@ -326,7 +327,7 @@ export class TimerExpirationService {
 
     if (timer) {
       const remainingTimeMs = timer.durationMs - timer.elapsedMs;
-      const ttlMs = Math.max(remainingTimeMs, 1000);
+      const ttlMs = Math.max(remainingTimeMs, MIN_TIMER_TTL_MS);
       await this.gameService.saveTimer(timer, game.id, ttlMs);
     }
 
