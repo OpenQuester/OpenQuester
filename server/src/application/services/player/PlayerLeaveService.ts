@@ -26,6 +26,7 @@ import {
   FinalSubmitEndEventData,
   ThemeEliminateOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
+import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
@@ -127,6 +128,12 @@ export class PlayerLeaveService {
     const targetPlayer = game.getPlayer(userId, { fetchDisconnected: true });
     const wasPlayer = targetPlayer?.role === PlayerRole.PLAYER;
 
+    // Handle stake bidding player leaving - must be done BEFORE removing player
+    const stakeBiddingBroadcasts = await this.handleStakeBiddingPlayerLeave(
+      game,
+      userId
+    );
+
     // Handle final bidding player leaving - must be done BEFORE removing player
     const biddingBroadcasts = await this.handleFinalBiddingPlayerLeave(
       game,
@@ -186,6 +193,7 @@ export class PlayerLeaveService {
 
     // Add bidding, answering, and turn player broadcasts
     broadcasts.push(
+      ...stakeBiddingBroadcasts,
       ...biddingBroadcasts,
       ...answeringBroadcasts,
       ...turnPlayerBroadcasts
@@ -246,6 +254,141 @@ export class PlayerLeaveService {
   }
 
   /**
+   * Handle player leaving during stake question bidding phase
+   * Auto-passes for the leaving player, and if they were the only eligible bidder
+   * or if only one player remains, that player wins automatically
+   */
+  private async handleStakeBiddingPlayerLeave(
+    game: Game,
+    userId: number
+  ): Promise<BroadcastEvent[]> {
+    // Check if in stake question bidding phase
+    const stakeData = game.gameState.stakeQuestionData;
+    if (!stakeData || !stakeData.biddingPhase) {
+      return [];
+    }
+
+    // Check if the leaving player is in the bidding order
+    if (!stakeData.biddingOrder.includes(userId)) {
+      return [];
+    }
+
+    // Check if already passed
+    if (stakeData.passedPlayers.includes(userId)) {
+      return [];
+    }
+
+    const broadcasts: BroadcastEvent[] = [];
+
+    // Auto-pass for the leaving player
+    stakeData.passedPlayers.push(userId);
+    stakeData.bids[userId] = null;
+
+    // Emit the auto-pass bid event
+    broadcasts.push({
+      event: SocketIOGameEvents.STAKE_BID_SUBMIT,
+      data: {
+        playerId: userId,
+        bidAmount: null,
+        bidType: StakeBidType.PASS,
+        isPhaseComplete: false,
+        nextBidderId: null,
+      },
+      room: game.id,
+    });
+
+    // Check remaining eligible bidders (not passed, still in game)
+    const remainingBidders = stakeData.biddingOrder.filter(
+      (playerId) =>
+        !stakeData.passedPlayers.includes(playerId) &&
+        playerId !== userId &&
+        game.hasPlayer(playerId)
+    );
+
+    // If only one bidder remains or no bidders remain, end bidding phase
+    if (remainingBidders.length <= 1) {
+      stakeData.biddingPhase = false;
+
+      // Determine winner
+      if (remainingBidders.length === 1) {
+        // Last remaining player wins
+        stakeData.winnerPlayerId = remainingBidders[0];
+        // If they haven't bid yet, they get minimum bid (question price)
+        if (stakeData.bids[remainingBidders[0]] === undefined) {
+          const questionData = GameQuestionMapper.getQuestionAndTheme(
+            game.package,
+            game.gameState.currentRound!.id,
+            stakeData.questionId
+          );
+          stakeData.bids[remainingBidders[0]] =
+            questionData?.question.price || 1;
+          stakeData.highestBid = stakeData.bids[remainingBidders[0]];
+        }
+      } else if (stakeData.highestBid !== null) {
+        // No remaining bidders but there was a highest bid - that player wins
+        for (const [playerIdStr, bidAmount] of Object.entries(stakeData.bids)) {
+          if (bidAmount === stakeData.highestBid) {
+            stakeData.winnerPlayerId = parseInt(playerIdStr, 10);
+            break;
+          }
+        }
+      }
+
+      // Emit winner event if there's a winner
+      if (stakeData.winnerPlayerId !== null) {
+        broadcasts.push({
+          event: SocketIOGameEvents.STAKE_QUESTION_WINNER,
+          data: {
+            winnerPlayerId: stakeData.winnerPlayerId,
+            winningBid: stakeData.highestBid,
+          },
+          room: game.id,
+        });
+      } else {
+        // No winner means question should be skipped
+        // Clear stake data and move to choosing state
+        game.gameState.stakeQuestionData = null;
+        game.gameState.questionState = QuestionState.CHOOSING;
+        await this.gameService.clearTimer(game.id);
+      }
+    } else {
+      // Move to next bidder
+      const currentBidderIndex = stakeData.currentBidderIndex;
+      let nextBidderIndex =
+        (currentBidderIndex + 1) % stakeData.biddingOrder.length;
+
+      // Skip passed players and the leaving player
+      while (
+        stakeData.passedPlayers.includes(
+          stakeData.biddingOrder[nextBidderIndex]
+        ) ||
+        stakeData.biddingOrder[nextBidderIndex] === userId
+      ) {
+        nextBidderIndex = (nextBidderIndex + 1) % stakeData.biddingOrder.length;
+      }
+
+      stakeData.currentBidderIndex = nextBidderIndex;
+      const nextBidderId = stakeData.biddingOrder[nextBidderIndex];
+
+      // Update the pass event with next bidder info
+      broadcasts[broadcasts.length - 1] = {
+        event: SocketIOGameEvents.STAKE_BID_SUBMIT,
+        data: {
+          playerId: userId,
+          bidAmount: null,
+          bidType: StakeBidType.PASS,
+          isPhaseComplete: false,
+          nextBidderId,
+        },
+        room: game.id,
+      };
+    }
+
+    game.gameState.stakeQuestionData = stakeData;
+    return broadcasts;
+  }
+
+  /**
    * Handle player leaving during final round bidding phase
    */
   private async handleFinalBiddingPlayerLeave(
@@ -277,14 +420,15 @@ export class PlayerLeaveService {
 
     const broadcasts: BroadcastEvent[] = [];
 
-    // Auto-bid 0 for the leaving player
-    FinalRoundStateManager.addBid(game, userId, 0);
+    // Auto-bid 1 for the leaving player (allows reconnection and continued participation)
+    const autoBidAmount = 1;
+    FinalRoundStateManager.addBid(game, userId, autoBidAmount);
 
     broadcasts.push({
       event: SocketIOGameEvents.FINAL_BID_SUBMIT,
       data: {
         playerId: userId,
-        bidAmount: 0,
+        bidAmount: autoBidAmount,
         isAutomatic: true,
       } satisfies FinalBidSubmitOutputData,
       room: game.id,

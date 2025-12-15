@@ -226,6 +226,17 @@ export class SocketGameValidationService {
     if (game.gameState.questionState !== QuestionState.ANSWERING) {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
+
+    // Check if player has already submitted an answer
+    const finalRoundData = game.gameState.finalRoundData;
+    if (finalRoundData) {
+      const existingAnswer = finalRoundData.answers.find(
+        (answer) => answer.playerId === currentPlayer.meta.id
+      );
+      if (existingAnswer) {
+        throw new ClientError(ClientResponse.ALREADY_ANSWERED);
+      }
+    }
   }
 
   /**

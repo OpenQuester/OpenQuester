@@ -85,23 +85,18 @@ export class PlayerKickEventHandler extends BaseSocketEventHandler<
       playerId: data.playerId,
     };
 
+    // Convert service broadcasts (includes state cleanup events like ANSWER_RESULT)
+    const serviceBroadcasts = result.broadcasts.map((b) => ({
+      event: b.event,
+      data: b.data,
+      target: SocketBroadcastTarget.GAME,
+      gameId: b.room,
+    }));
+
     return {
       success: true,
       data: broadcastData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.PLAYER_KICKED,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        },
-        {
-          event: SocketIOGameEvents.LEAVE,
-          data: { user: data.playerId },
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        },
-      ],
+      broadcast: serviceBroadcasts,
     };
   }
 }

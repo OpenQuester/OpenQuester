@@ -248,4 +248,93 @@ describe("Player Leave State Cleanup Edge Cases", () => {
       }
     });
   });
+
+  describe("Kick During Game States", () => {
+    it("should clear currentTurnPlayerId when showman kicks current turn player", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { showmanSocket, gameId } = setup;
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        // Verify game is in CHOOSING state with a turn player
+        const initialState = await utils.getGameState(gameId);
+        expect(initialState!.questionState).toBe(QuestionState.CHOOSING);
+        expect(initialState!.currentTurnPlayerId).toBeDefined();
+
+        const turnPlayerId = initialState!.currentTurnPlayerId!;
+
+        // Set up listener for kick event
+        const kickPromise = new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Kick event not received"));
+          }, 5000);
+
+          showmanSocket.once(SocketIOGameEvents.PLAYER_KICKED, () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+        });
+
+        // Showman kicks the current turn player
+        showmanSocket.emit(SocketIOGameEvents.PLAYER_KICKED, {
+          playerId: turnPlayerId,
+        });
+
+        await kickPromise;
+
+        // Verify currentTurnPlayerId is cleared (same behavior as leave)
+        const stateAfterKick = await utils.getGameState(gameId);
+        expect(stateAfterKick!.currentTurnPlayerId).toBeNull();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should auto-skip answer when showman kicks answering player", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { showmanSocket, playerSockets, gameId } = setup;
+
+      try {
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+
+        // Player starts answering
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const answeringState = await utils.getGameState(gameId);
+        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+        const answeringPlayerId = answeringState!.answeringPlayer!;
+
+        // Set up listener for answer result
+        const answerResultPromise = new Promise<any>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Answer result not received"));
+          }, 5000);
+
+          showmanSocket.once(SocketIOGameEvents.ANSWER_RESULT, (data) => {
+            clearTimeout(timeout);
+            resolve(data);
+          });
+        });
+
+        // Showman kicks the answering player
+        showmanSocket.emit(SocketIOGameEvents.PLAYER_KICKED, {
+          playerId: answeringPlayerId,
+        });
+
+        // Should receive automatic answer result with 0 points (same as leave)
+        const answerResultData = await answerResultPromise;
+        expect(answerResultData.answerResult.player).toBe(answeringPlayerId);
+        expect(answerResultData.answerResult.result).toBe(0);
+
+        // Verify answeringPlayer is cleared
+        const stateAfterKick = await utils.getGameState(gameId);
+        expect(stateAfterKick!.answeringPlayer).toBeNull();
+        expect(stateAfterKick!.questionState).not.toBe(QuestionState.ANSWERING);
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+  });
 });

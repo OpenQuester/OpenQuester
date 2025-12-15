@@ -242,4 +242,95 @@ describe("Special Question Type Player Leave Edge Cases", () => {
       }
     });
   });
+
+  describe("Stake Question - Player Leaves During Bidding", () => {
+    it("should auto-pass for leaving player during stake bidding and continue with remaining players", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        // Set player scores - all players have enough to bid (question price is 200)
+        await utils.setPlayerScore(gameId, playerUsers[0].id, 500);
+        await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
+        await utils.setPlayerScore(gameId, playerUsers[2].id, 400);
+
+        // Set player 0 as current turn player
+        await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
+
+        // Find and pick a stake question
+        const gameState = await utils.getGameState(gameId);
+        const stakeQuestion = await utils.findQuestionByType(
+          gameState!,
+          PackageQuestionType.STAKE,
+          gameId
+        );
+        expect(stakeQuestion).toBeDefined();
+
+        const stakePickedPromise = utils.waitForEvent(
+          playerSockets[1],
+          SocketIOGameEvents.STAKE_QUESTION_PICKED
+        );
+
+        // Player 0 picks the stake question
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestion!.id,
+        });
+        await stakePickedPromise;
+
+        // Player 0 (picker) is first - they must bid (can't pass as first)
+        // Use NORMAL bid with amount >= question price (200)
+        const firstBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 200, // Must be at least question price
+        });
+        await firstBidPromise;
+
+        // Verify state before player leaves
+        const stateBeforeLeave = await utils.getGameState(gameId);
+        expect(stateBeforeLeave!.questionState).toBe(QuestionState.BIDDING);
+        expect(stateBeforeLeave!.stakeQuestionData).toBeDefined();
+
+        // Player 1 (next in line) leaves during their turn to bid
+        // This should trigger auto-pass for player 1
+        const autoBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT,
+          3000
+        );
+
+        playerSockets[1].emit(SocketIOGameEvents.LEAVE);
+
+        // Should receive auto-pass event for leaving player
+        const autoBidData = await autoBidPromise;
+        expect(autoBidData.playerId).toBe(playerUsers[1].id);
+        expect(autoBidData.bidType).toBe(StakeBidType.PASS);
+
+        // Verify game continues - player 2 should now be current bidder
+        // Since player 2 is last and there's already a bid, they can pass or bid
+        // Let's have player 2 pass to trigger winner determination
+        const stakeWinnerPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_WINNER,
+          3000
+        );
+
+        playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.PASS,
+          bidAmount: null,
+        });
+
+        const winnerData = await stakeWinnerPromise;
+        // Player 0 should win since they were the only one who bid
+        expect(winnerData.winnerPlayerId).toBe(playerUsers[0].id);
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+  });
 });

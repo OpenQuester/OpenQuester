@@ -102,6 +102,11 @@ describe("PackageRestApiController", () => {
     testUtils = new TestUtils(app, userRepo, serverUrl);
   });
 
+  beforeEach(async () => {
+    // Clear Redis cache to prevent stale user data from affecting tests
+    await testEnv.clearRedis();
+  });
+
   afterEach(async () => {
     await userRepo.delete({});
     await packageRepo.delete({});

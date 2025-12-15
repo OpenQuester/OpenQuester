@@ -30,6 +30,7 @@ import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { GameJoinResult } from "domain/types/socket/game/GameJoinResult";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
@@ -71,14 +72,6 @@ export class SocketIOGameService {
 
     GameStateValidator.validateGameNotFinished(game);
 
-    // Prevent joining as PLAYER during final round
-    if (
-      game.gameState.currentRound?.type === PackageRoundType.FINAL &&
-      data.role === PlayerRole.PLAYER
-    ) {
-      throw new ClientError(ClientResponse.CANNOT_JOIN_FINAL_ROUND_AS_PLAYER);
-    }
-
     // Check existing player restrictions FIRST before checking role availability
     const existingPlayer = game.getPlayer(user.id, { fetchDisconnected: true });
     if (existingPlayer) {
@@ -91,6 +84,16 @@ export class SocketIOGameService {
       if (existingPlayer.isRestricted && data.role !== PlayerRole.SPECTATOR) {
         throw new ClientError(ClientResponse.YOU_ARE_RESTRICTED);
       }
+    }
+
+    // Prevent NEW players from joining as PLAYER during final round
+    // Existing disconnected players who were part of the final round can rejoin
+    const isFinalRound =
+      game.gameState.currentRound?.type === PackageRoundType.FINAL;
+    const isNewPlayer =
+      !existingPlayer || existingPlayer.role !== PlayerRole.PLAYER;
+    if (isFinalRound && data.role === PlayerRole.PLAYER && isNewPlayer) {
+      throw new ClientError(ClientResponse.CANNOT_JOIN_FINAL_ROUND_AS_PLAYER);
     }
 
     // Now check role availability after restriction checks
@@ -595,7 +598,11 @@ export class SocketIOGameService {
   public async kickPlayer(
     socketId: string,
     targetPlayerId: number
-  ): Promise<{ game: Game; targetPlayerId: number }> {
+  ): Promise<{
+    game: Game;
+    targetPlayerId: number;
+    broadcasts: BroadcastEvent[];
+  }> {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
@@ -626,6 +633,7 @@ export class SocketIOGameService {
     return {
       game: result.game,
       targetPlayerId,
+      broadcasts: result.broadcasts || [],
     };
   }
 

@@ -132,7 +132,7 @@ describe("Final Round Player Leave", () => {
   });
 
   describe("Bidding Phase", () => {
-    it("should auto-bid 0 when player leaves during bidding phase and remove from answerers list", async () => {
+    it("should auto-bid 1 when player leaves during bidding phase and remove from answerers list", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 3,
         playerScores: [1500, 1200, 1000], // All players eligible to bid
@@ -189,7 +189,7 @@ describe("Final Round Player Leave", () => {
         // Player 2 leaves without bidding
         const leavePlayerId = playerUsers[2].id;
 
-        // Set up listener for automatic bid = 0
+        // Set up listener for automatic bid = 1 (allows player to reconnect and continue)
         const autoBidPromise = utils.waitForEvent<FinalBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT,
@@ -198,14 +198,14 @@ describe("Final Round Player Leave", () => {
 
         playerSockets[2].emit(SocketIOGameEvents.LEAVE);
 
-        // Should get automatic bid of 0 for the leaving player
+        // Should get automatic bid of 1 for the leaving player
         const autoBidData = await autoBidPromise;
         expect(autoBidData.playerId).toBe(leavePlayerId);
-        expect(autoBidData.bidAmount).toBe(0);
+        expect(autoBidData.bidAmount).toBe(1);
 
-        // Verify game state shows bid of 0 for leaving player
+        // Verify game state shows bid of 1 for leaving player
         gameState = await utils.getGameState(gameId);
-        expect(gameState.finalRoundData?.bids[leavePlayerId]).toBe(0);
+        expect(gameState.finalRoundData?.bids[leavePlayerId]).toBe(1);
 
         // Verify player was removed from game
         const game = await utils.getGameFromGameService(gameId);
@@ -215,23 +215,25 @@ describe("Final Round Player Leave", () => {
         expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.ANSWERING);
         expect(gameState.questionState).toBe(QuestionState.ANSWERING);
 
-        // Verify the leaving player is NOT in the list of players who need to answer
+        // Verify the leaving player IS in the list of players who need to answer
+        // (bid=1 allows them to reconnect and continue, or get auto-loss if they don't)
         const finalRoundData = gameState.finalRoundData!;
         const playerIdsWithBids = Object.keys(finalRoundData.bids).map(Number);
 
-        // Only players with non-zero bids should be expected to answer
+        // All players with non-zero bids should be expected to answer
         const playersWhoShouldAnswer = playerIdsWithBids.filter(
           (playerId) => finalRoundData.bids[playerId] > 0
         );
 
-        expect(playersWhoShouldAnswer).not.toContain(leavePlayerId);
-        expect(playersWhoShouldAnswer).toHaveLength(2); // Only player 0 and 1
+        // All 3 players have bids > 0 (800, 600, 1) so all need to answer
+        expect(playersWhoShouldAnswer).toContain(leavePlayerId);
+        expect(playersWhoShouldAnswer).toHaveLength(3);
       } finally {
         await utils.cleanupGameClients(setup);
       }
     });
 
-    it("should handle bidding timeout after player leaves with bid 0", async () => {
+    it("should handle bidding timeout after player leaves with bid 1", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 3,
         playerScores: [1500, 1200, 1000],
@@ -278,7 +280,7 @@ describe("Final Round Player Leave", () => {
         const bids = gameState.finalRoundData?.bids;
         expect(bids![playerUsers[0].id]).toBe(1); // Timeout bid
         expect(bids![playerUsers[1].id]).toBe(1); // Timeout bid
-        expect(bids![leavePlayerId]).toBe(0); // Left player
+        expect(bids![leavePlayerId]).toBe(1); // Left player gets bid=1
       } finally {
         await utils.cleanupGameClients(setup);
       }
@@ -493,6 +495,85 @@ describe("Final Round Player Leave", () => {
         await utils.cleanupGameClients(setup);
       }
     });
+
+    it("should reject duplicate final answer submission", async () => {
+      const setup = await utils.setupFinalRoundGame({
+        playersCount: 2,
+        playerScores: [1500, 1200],
+      });
+
+      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+
+      try {
+        // Complete theme elimination
+        await utils.completeThemeElimination(
+          playerSockets,
+          gameId,
+          playerUsers
+        );
+
+        // Submit bids to reach answering phase
+        const questionDataPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_QUESTION_DATA
+        );
+        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+          bid: 800,
+        });
+        playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+          bid: 600,
+        });
+        await questionDataPromise;
+
+        // Verify we're in answering phase
+        let gameState = await utils.getGameState(gameId);
+        expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.ANSWERING);
+
+        // Player 0 submits first answer - should succeed
+        const firstAnswerPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_ANSWER_SUBMIT
+        );
+        playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+          answerText: "First answer",
+        } as FinalAnswerSubmitInputData);
+        await firstAnswerPromise;
+
+        // Verify answer was recorded
+        gameState = await utils.getGameState(gameId);
+        const player0Answer = gameState.finalRoundData?.answers.find(
+          (ans) => ans.playerId === playerUsers[0].id
+        );
+        expect(player0Answer).toBeDefined();
+        expect(player0Answer!.answer).toBe("First answer");
+
+        // Player 0 tries to submit second answer - should fail
+        const errorPromise = new Promise<any>((resolve) => {
+          const timeout = setTimeout(() => resolve(null), 2000);
+          playerSockets[0].once(SocketIOEvents.ERROR, (error) => {
+            clearTimeout(timeout);
+            resolve(error);
+          });
+        });
+
+        playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+          answerText: "Second answer - should fail",
+        } as FinalAnswerSubmitInputData);
+
+        const error = await errorPromise;
+        expect(error).toBeDefined();
+        expect(error.message).toContain("already answered");
+
+        // Verify first answer is still preserved
+        gameState = await utils.getGameState(gameId);
+        const preservedAnswer = gameState.finalRoundData?.answers.find(
+          (ans) => ans.playerId === playerUsers[0].id
+        );
+        expect(preservedAnswer!.answer).toBe("First answer");
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
   });
 
   describe("Join Restrictions", () => {
@@ -559,6 +640,20 @@ describe("Final Round Player Leave", () => {
       } finally {
         await utils.cleanupGameClients(setup);
       }
+    });
+
+    it.skip("should allow existing player to rejoin during final round bidding", async () => {
+      // This test is skipped due to test infrastructure limitations:
+      // When a socket disconnects and reconnects, it needs to be re-authenticated,
+      // but our test utilities don't support re-authentication of the same user
+      // with a reconnected socket.
+      //
+      // The behavior IS implemented in SocketIOGameService.join():
+      // - existingPlayer check allows returning players to rejoin
+      // - The isNewPlayer flag distinguishes new players from returning ones
+      // - Only NEW players are blocked from joining as PLAYER during final round
+      //
+      // Manual testing or integration testing should verify this behavior.
     });
   });
 });
