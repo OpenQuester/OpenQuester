@@ -25,10 +25,22 @@ class GameQuestionTimer extends WatchingWidget {
         tween: Tween(begin: beginPoint, end: 1),
         duration: timeLeft,
         builder: (BuildContext context, num value, Widget? child) {
-          return LinearProgressIndicator(
-            value: value.toDouble(),
-            borderRadius: 16.circular,
-            minHeight: 4,
+          final secondsRemaining = (timer.durationMs * (1 - value) / 1000)
+              .ceil();
+          return Column(
+            children: [
+              Text(
+                '$secondsRemaining',
+                style: const TextStyle(
+                  fontSize: 16,
+                ),
+              ),
+              LinearProgressIndicator(
+                value: value.toDouble(),
+                borderRadius: 16.circular,
+                minHeight: 4,
+              ),
+            ],
           );
         },
       ),
