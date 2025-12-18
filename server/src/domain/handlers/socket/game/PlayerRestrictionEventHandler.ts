@@ -96,19 +96,15 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
       banned: data.banned,
     };
 
-    const broadcasts: Array<
-      SocketEventBroadcast<
-        | PlayerRestrictionBroadcastData
-        | GameLeaveEventPayload
-        | PlayerRoleChangeBroadcastData
-      >
-    > = [
+    // Using satisfies on each broadcast for type-safety while keeping array generic
+    // (cleanup broadcasts from PlayerLeaveService have varied types)
+    const broadcasts: SocketEventBroadcast[] = [
       {
         event: SocketIOGameEvents.PLAYER_RESTRICTED,
         data: broadcastData,
         target: SocketBroadcastTarget.GAME,
         gameId: result.game.id,
-      },
+      } satisfies SocketEventBroadcast<PlayerRestrictionBroadcastData>,
     ];
 
     // If player was banned (removed), also emit LEAVE event
@@ -118,7 +114,7 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
         data: { user: data.playerId } satisfies GameLeaveEventPayload,
         target: SocketBroadcastTarget.GAME,
         gameId: result.game.id,
-      });
+      } satisfies SocketEventBroadcast<GameLeaveEventPayload>);
     }
 
     // If role was changed due to restriction, also emit role change event
@@ -135,7 +131,21 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
         data: roleChangeBroadcastData,
         target: SocketBroadcastTarget.GAME,
         gameId: result.game.id,
-      });
+      } satisfies SocketEventBroadcast<PlayerRoleChangeBroadcastData>);
+    }
+
+    // Add game state cleanup broadcasts (e.g., turn change, bidding updates, media ready)
+    // These come from PlayerLeaveService with various typed payloads
+    if (result.gameStateCleanupBroadcasts) {
+      for (const broadcast of result.gameStateCleanupBroadcasts) {
+        broadcasts.push({
+          event: broadcast.event,
+          data: broadcast.data,
+          target: SocketBroadcastTarget.GAME,
+          gameId: result.game.id,
+          useRoleBasedBroadcast: broadcast.roleFilter,
+        });
+      }
     }
 
     return {

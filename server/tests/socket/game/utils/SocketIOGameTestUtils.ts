@@ -52,8 +52,12 @@ export class SocketGameTestUtils {
   private socketUserDataService = Container.get<SocketUserDataService>(
     CONTAINER_TYPES.SocketUserDataService
   );
-  private lockService = Container.get<GameActionLockService>(CONTAINER_TYPES.GameActionLockService);
-  private queueService = Container.get<GameActionQueueService>(CONTAINER_TYPES.GameActionQueueService);
+  private lockService = Container.get<GameActionLockService>(
+    CONTAINER_TYPES.GameActionLockService
+  );
+  private queueService = Container.get<GameActionQueueService>(
+    CONTAINER_TYPES.GameActionQueueService
+  );
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl + SOCKET_GAME_NAMESPACE;
@@ -237,6 +241,47 @@ export class SocketGameTestUtils {
     });
 
     return { socket, user, cookie };
+  }
+
+  /**
+   * Create a new socket connection for an existing user (for reconnection scenarios)
+   * This simulates a player disconnecting and reconnecting with the same user account
+   */
+  public async createSocketForExistingUser(
+    app: Express,
+    userId: number
+  ): Promise<{ socket: GameClientSocket; cookie: string }> {
+    const { cookie } = await this.loginExistingUser(app, userId);
+
+    const socket = Client(this.serverUrl, {
+      transports: ["websocket"],
+      autoConnect: true,
+      reconnection: false,
+    }) as GameClientSocket;
+
+    // Wait for connection
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("[Socket Debug] Connection timeout after 5000ms"));
+      }, 5000);
+
+      socket.on("connect", async () => {
+        clearTimeout(timeout);
+        try {
+          await this.authenticateSocket(app, socket, cookie);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      socket.on("connect_error", (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+
+    return { socket, cookie };
   }
 
   public async createUnauthenticatedGameClient(): Promise<GameClientSocket> {
@@ -1067,30 +1112,35 @@ export class SocketGameTestUtils {
    * Wait for all queued actions and locks to complete for a game
    * This ensures clean test teardown without race conditions
    */
-  public async waitForActionsComplete(gameId: string, timeout: number = 5000): Promise<void> {
+  public async waitForActionsComplete(
+    gameId: string,
+    timeout: number = 5000
+  ): Promise<void> {
     const startTime = Date.now();
-    
+
     while (Date.now() - startTime < timeout) {
       const isLocked = await this.lockService.isLocked(gameId);
       const queueLength = await this.queueService.getQueueLength(gameId);
-      
+
       if (!isLocked && queueLength === 0) {
         // All actions complete
         return;
       }
-      
+
       // Wait a bit before checking again
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    
+
     // Timeout reached - log warning but don't fail
-    console.warn(`[TEST]: Timeout waiting for actions to complete for game ${gameId}`);
+    console.warn(
+      `[TEST]: Timeout waiting for actions to complete for game ${gameId}`
+    );
   }
 
   public async cleanupGameClients(setup: GameTestSetup): Promise<void> {
     try {
       await this.waitForActionsComplete(setup.gameId);
-      
+
       await this.disconnectAndCleanup(setup.showmanSocket);
       await Promise.all(
         setup.playerSockets.map((socket) => this.disconnectAndCleanup(socket))

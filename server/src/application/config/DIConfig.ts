@@ -18,6 +18,8 @@ import { GameProgressionCoordinator } from "application/services/game/GameProgre
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
 import { PackageTagService } from "application/services/package/PackageTagService";
+import { PlayerLeaveService } from "application/services/player/PlayerLeaveService";
+import { SpecialQuestionService } from "application/services/question/SpecialQuestionService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
@@ -28,12 +30,10 @@ import { SocketIOQuestionService } from "application/services/socket/SocketIOQue
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
-import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
-import { PlayerLeaveService } from "application/services/player/PlayerLeaveService";
-import { SpecialQuestionService } from "application/services/question/SpecialQuestionService";
 import { GameStatisticsService } from "application/services/statistics/GameStatisticsService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { TranslateService } from "application/services/text/TranslateService";
+import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { UserService } from "application/services/user/UserService";
 import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
@@ -544,6 +544,24 @@ export class DIConfig {
     );
 
     Container.register(
+      CONTAINER_TYPES.FinalRoundService,
+      new FinalRoundService(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        ),
+        Container.get<SocketGameValidationService>(
+          CONTAINER_TYPES.SocketGameValidationService
+        ),
+        Container.get<SocketQuestionStateService>(
+          CONTAINER_TYPES.SocketQuestionStateService
+        ),
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
+      ),
+      "service"
+    );
+
+    Container.register(
       CONTAINER_TYPES.PlayerLeaveService,
       new PlayerLeaveService(
         Container.get<GameService>(CONTAINER_TYPES.GameService),
@@ -556,6 +574,11 @@ export class DIConfig {
         Container.get<PlayerGameStatsService>(
           CONTAINER_TYPES.PlayerGameStatsService
         ),
+        Container.get<SocketQuestionStateService>(
+          CONTAINER_TYPES.SocketQuestionStateService
+        ),
+        Container.get<FinalRoundService>(CONTAINER_TYPES.FinalRoundService),
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
         this.logger
       ),
       "service"
@@ -605,24 +628,6 @@ export class DIConfig {
         Container.get<UserService>(CONTAINER_TYPES.UserService),
         Container.get<RedisService>(CONTAINER_TYPES.RedisService),
         this.logger
-      ),
-      "service"
-    );
-
-    Container.register(
-      CONTAINER_TYPES.FinalRoundService,
-      new FinalRoundService(
-        Container.get<GameService>(CONTAINER_TYPES.GameService),
-        Container.get<SocketGameContextService>(
-          CONTAINER_TYPES.SocketGameContextService
-        ),
-        Container.get<SocketGameValidationService>(
-          CONTAINER_TYPES.SocketGameValidationService
-        ),
-        Container.get<SocketQuestionStateService>(
-          CONTAINER_TYPES.SocketQuestionStateService
-        ),
-        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
       ),
       "service"
     );

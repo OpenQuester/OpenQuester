@@ -20,12 +20,20 @@ export class FinalRoundTurnManager {
 
   /**
    * Initialize theme elimination turn order
-   * Starts with a random player or first player if randomization fails
+   * Starts with a random player or first player if randomization fails.
+   * If no eligible players, falls back to showman (who will get all turns).
    */
   public static initializeTurnOrder(game: Game): number[] {
     const eligiblePlayers = this.getEligiblePlayers(game);
 
     if (eligiblePlayers.length === 0) {
+      // Edge case: All players left/disconnected during final round.
+      // Showman takes over theme elimination to allow game to progress.
+      // This prevents the game from being stuck with no one to eliminate themes.
+      const showman = game.showman;
+      if (showman) {
+        return [showman.meta.id];
+      }
       return [];
     }
 

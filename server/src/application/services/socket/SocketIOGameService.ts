@@ -1,7 +1,10 @@
 import { type Namespace } from "socket.io";
 
 import { GameService } from "application/services/game/GameService";
-import { PlayerLeaveService, PlayerLeaveReason } from "application/services/player/PlayerLeaveService";
+import {
+  PlayerLeaveReason,
+  PlayerLeaveService,
+} from "application/services/player/PlayerLeaveService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
@@ -26,6 +29,8 @@ import { GameLobbyLeaveData } from "domain/types/game/GameRoomLeaveData";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { GameJoinResult } from "domain/types/socket/game/GameJoinResult";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
@@ -79,6 +84,21 @@ export class SocketIOGameService {
       if (existingPlayer.isRestricted && data.role !== PlayerRole.SPECTATOR) {
         throw new ClientError(ClientResponse.YOU_ARE_RESTRICTED);
       }
+    }
+
+    // Prevent joining as PLAYER during final round unless reconnecting as existing player.
+    // This ensures final round scoring integrity - only players who participated
+    // in theme elimination and bidding phases can answer the final question.
+    const isFinalRound =
+      game.gameState.currentRound?.type === PackageRoundType.FINAL;
+    const wasNotPreviouslyPlayer =
+      !existingPlayer || existingPlayer.role !== PlayerRole.PLAYER;
+    if (
+      isFinalRound &&
+      data.role === PlayerRole.PLAYER &&
+      wasNotPreviouslyPlayer
+    ) {
+      throw new ClientError(ClientResponse.CANNOT_JOIN_FINAL_ROUND_AS_PLAYER);
     }
 
     // Now check role availability after restriction checks
@@ -158,6 +178,8 @@ export class SocketIOGameService {
       ShowmanAction.START
     );
 
+    GameStateValidator.validateGameNotFinished(game);
+
     if (ValueUtils.isValidDate(game.startedAt)) {
       throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
     }
@@ -211,6 +233,7 @@ export class SocketIOGameService {
     return {
       emit: true,
       data: { userId: result.userId, gameId: result.game.id },
+      broadcasts: result.broadcasts,
     };
   }
 
@@ -238,6 +261,9 @@ export class SocketIOGameService {
           currentQuestion.id!
         )?.question ?? null;
     }
+
+    // Clear any active timer before round progression to prevent stale expirations
+    await this.gameService.clearTimer(game.id);
 
     const roundHandler = this.roundHandlerFactory.createFromGame(game);
     roundHandler.validateRoundProgression(game);
@@ -338,6 +364,12 @@ export class SocketIOGameService {
   public async handleAutoStart(gameId: string) {
     // Use existing start game logic but fetch game by ID
     const game = await this.gameService.getGameEntity(gameId);
+
+    try {
+      GameStateValidator.validateGameNotFinished(game);
+    } catch {
+      return null;
+    }
 
     if (ValueUtils.isValidDate(game.startedAt)) {
       // Game already started, no need to auto-start
@@ -452,6 +484,7 @@ export class SocketIOGameService {
     targetPlayer: PlayerDTO;
     wasRemoved: boolean;
     newRole?: PlayerRole;
+    gameStateCleanupBroadcasts?: BroadcastEvent[];
   }> {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
@@ -510,6 +543,14 @@ export class SocketIOGameService {
       targetPlayer.gameSlot = null;
       newRole = PlayerRole.SPECTATOR;
 
+      // Handle game state cleanup (answering player, turn player, bidding, media download)
+      // This must be done BEFORE updating the game to ensure correct state transitions
+      const gameStateCleanupBroadcasts =
+        await this.playerLeaveService.handlePlayerGameStateCleanup(
+          game,
+          targetPlayerId
+        );
+
       // Clean up player statistics if they were a player
       if (originalRole === PlayerRole.PLAYER) {
         await this.playerGameStatsService.endPlayerSession(
@@ -518,6 +559,16 @@ export class SocketIOGameService {
           new Date()
         );
       }
+
+      await this.gameService.updateGame(game);
+
+      return {
+        game,
+        targetPlayer: targetPlayer.toDTO(),
+        wasRemoved: false,
+        newRole,
+        gameStateCleanupBroadcasts,
+      };
     }
 
     await this.gameService.updateGame(game);
@@ -571,7 +622,11 @@ export class SocketIOGameService {
   public async kickPlayer(
     socketId: string,
     targetPlayerId: number
-  ): Promise<{ game: Game; targetPlayerId: number }> {
+  ): Promise<{
+    game: Game;
+    targetPlayerId: number;
+    broadcasts: BroadcastEvent[];
+  }> {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
@@ -602,6 +657,7 @@ export class SocketIOGameService {
     return {
       game: result.game,
       targetPlayerId,
+      broadcasts: result.broadcasts || [],
     };
   }
 

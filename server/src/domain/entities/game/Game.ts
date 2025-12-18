@@ -389,8 +389,10 @@ export class Game {
     answerType: AnswerResultType,
     nextState: QuestionState
   ) {
+    // Use fetchDisconnected: true to handle case where answering player
+    // disconnects before timer expires or showman sends result
     const player = this.getPlayer(this.gameState.answeringPlayer!, {
-      fetchDisconnected: false,
+      fetchDisconnected: true,
     });
 
     if (!player) {
@@ -523,6 +525,35 @@ export class Game {
     const skippedPlayers = this.gameState.skippedPlayers ?? [];
     return activePlayers.every((player) =>
       skippedPlayers.includes(player.meta.id)
+    );
+  }
+
+  /**
+   * Check if all active players have exhausted their answer attempts.
+   *
+   * A player is "exhausted" when they have either:
+   * - Pressed the skip button (added to skippedPlayers)
+   * - Already answered incorrectly (added to answeredPlayers)
+   *
+   * When all players are exhausted, the question should auto-finish since
+   * no one remains who can provide a correct answer.
+   *
+   * @returns true if no active player can answer, false if someone can still try
+   */
+  public areAllPlayersExhausted(): boolean {
+    const activePlayers = this.getInGamePlayers();
+    if (activePlayers.length === 0) {
+      return true;
+    }
+
+    const skippedPlayers = this.gameState.skippedPlayers ?? [];
+    const answeredPlayerIds =
+      this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
+
+    return activePlayers.every(
+      (player) =>
+        skippedPlayers.includes(player.meta.id) ||
+        answeredPlayerIds.includes(player.meta.id)
     );
   }
 
