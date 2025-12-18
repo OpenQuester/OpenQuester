@@ -82,7 +82,7 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
     if (!result.emit || !result.data) {
       return {
         success: true,
-        data: { user: -1 }, // No user to broadcast
+        data: { user: -1 } satisfies GameLeaveBroadcastData, // No user to broadcast
         broadcast: [],
       };
     }

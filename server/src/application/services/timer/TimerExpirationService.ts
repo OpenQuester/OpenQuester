@@ -27,6 +27,8 @@ import {
   ThemeEliminateOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
+import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
+import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -75,7 +77,7 @@ export class TimerExpirationService {
             mediaDownloaded: true,
             allPlayersReady: true,
             timer: result.timer,
-          },
+          } satisfies MediaDownloadStatusBroadcastData,
           room: gameId,
         },
       ],
@@ -160,7 +162,10 @@ export class TimerExpirationService {
       broadcasts: [
         {
           event: SocketIOGameEvents.ANSWER_RESULT,
-          data: { answerResult, timer },
+          data: {
+            answerResult,
+            timer,
+          } satisfies QuestionAnswerResultEventPayload,
           room: gameId,
         },
       ],

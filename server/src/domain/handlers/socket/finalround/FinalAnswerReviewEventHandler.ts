@@ -112,7 +112,7 @@ export class FinalAnswerReviewEventHandler extends BaseSocketEventHandler<
           answerFiles: null,
           answerText: questionAnswerData?.answerText ?? null,
           nextTurnPlayerId: null, // No next turn when game finished
-        },
+        } satisfies QuestionFinishEventPayload,
         target: SocketBroadcastTarget.GAME,
         gameId: game.id,
       } satisfies SocketEventBroadcast<QuestionFinishEventPayload>);

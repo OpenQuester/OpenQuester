@@ -28,11 +28,20 @@ import {
   FinalAnswerSubmitOutputData,
   FinalAutoLossEventData,
   FinalBidSubmitOutputData,
+  FinalPhaseCompleteEventData,
+  FinalQuestionEventData,
   FinalSubmitEndEventData,
   ThemeEliminateOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
+import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
-import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
+import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
+import {
+  StakeBidSubmitOutputData,
+  StakeBidType,
+} from "domain/types/socket/events/game/StakeQuestionEventData";
+import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
+import { PlayerKickBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
@@ -282,12 +291,12 @@ export class PlayerLeaveService {
       case PlayerLeaveReason.KICK:
         broadcasts.push({
           event: SocketIOGameEvents.PLAYER_KICKED,
-          data: { playerId: userId },
+          data: { playerId: userId } satisfies PlayerKickBroadcastData,
           room: gameId,
         });
         broadcasts.push({
           event: SocketIOGameEvents.LEAVE,
-          data: { user: userId },
+          data: { user: userId } satisfies GameLeaveEventPayload,
           room: gameId,
         });
         break;
@@ -297,7 +306,7 @@ export class PlayerLeaveService {
         // We only emit LEAVE here
         broadcasts.push({
           event: SocketIOGameEvents.LEAVE,
-          data: { user: userId },
+          data: { user: userId } satisfies GameLeaveEventPayload,
           room: gameId,
         });
         break;
@@ -306,7 +315,7 @@ export class PlayerLeaveService {
       case PlayerLeaveReason.DISCONNECT:
         broadcasts.push({
           event: SocketIOGameEvents.LEAVE,
-          data: { user: userId },
+          data: { user: userId } satisfies GameLeaveEventPayload,
           room: gameId,
         });
         break;
@@ -355,7 +364,7 @@ export class PlayerLeaveService {
         bidType: StakeBidType.PASS,
         isPhaseComplete: false,
         nextBidderId: null,
-      },
+      } satisfies StakeBidSubmitOutputData,
       room: game.id,
     });
 
@@ -402,8 +411,8 @@ export class PlayerLeaveService {
           event: SocketIOGameEvents.STAKE_QUESTION_WINNER,
           data: {
             winnerPlayerId: stakeData.winnerPlayerId,
-            winningBid: stakeData.highestBid,
-          },
+            finalBid: stakeData.highestBid,
+          } satisfies StakeQuestionWinnerEventData,
           room: game.id,
         });
       } else {
@@ -414,20 +423,13 @@ export class PlayerLeaveService {
         await this.gameService.clearTimer(game.id);
       }
     } else {
-      // Move to next bidder
-      const currentBidderIndex = stakeData.currentBidderIndex;
-      let nextBidderIndex =
-        (currentBidderIndex + 1) % stakeData.biddingOrder.length;
-
-      // Skip passed players and the leaving player
-      while (
-        stakeData.passedPlayers.includes(
-          stakeData.biddingOrder[nextBidderIndex]
-        ) ||
-        stakeData.biddingOrder[nextBidderIndex] === userId
-      ) {
-        nextBidderIndex = (nextBidderIndex + 1) % stakeData.biddingOrder.length;
-      }
+      // Find next eligible bidder (not passed and not the leaving player)
+      const nextBidderIndex = this.findNextEligibleBidderIndex(
+        stakeData.biddingOrder,
+        stakeData.currentBidderIndex,
+        stakeData.passedPlayers,
+        userId
+      );
 
       stakeData.currentBidderIndex = nextBidderIndex;
       const nextBidderId = stakeData.biddingOrder[nextBidderIndex];
@@ -441,7 +443,7 @@ export class PlayerLeaveService {
           bidType: StakeBidType.PASS,
           isPhaseComplete: false,
           nextBidderId,
-        },
+        } satisfies StakeBidSubmitOutputData,
         room: game.id,
       };
     }
@@ -523,7 +525,7 @@ export class PlayerLeaveService {
 
         broadcasts.push({
           event: SocketIOGameEvents.FINAL_QUESTION_DATA,
-          data: { questionData },
+          data: { questionData } satisfies FinalQuestionEventData,
           room: game.id,
         });
       }
@@ -538,8 +540,8 @@ export class PlayerLeaveService {
         data: {
           phase: FinalRoundPhase.BIDDING,
           nextPhase: FinalRoundPhase.ANSWERING,
-          timer: timer.value(),
-        },
+          timer: timer.value() ?? undefined,
+        } satisfies FinalPhaseCompleteEventData,
         room: game.id,
       });
     }
@@ -669,7 +671,10 @@ export class PlayerLeaveService {
 
       broadcasts.push({
         event: SocketIOGameEvents.ANSWER_RESULT,
-        data: { answerResult: playerAnswerResult, timer: null },
+        data: {
+          answerResult: playerAnswerResult,
+          timer: null,
+        } satisfies QuestionAnswerResultEventPayload,
         room: game.id,
       });
     } else {
@@ -688,7 +693,10 @@ export class PlayerLeaveService {
 
       broadcasts.push({
         event: SocketIOGameEvents.ANSWER_RESULT,
-        data: { answerResult: playerAnswerResult, timer },
+        data: {
+          answerResult: playerAnswerResult,
+          timer,
+        } satisfies QuestionAnswerResultEventPayload,
         room: game.id,
       });
     }
@@ -753,7 +761,7 @@ export class PlayerLeaveService {
           data: {
             phase: FinalRoundPhase.THEME_ELIMINATION,
             nextPhase: FinalRoundPhase.BIDDING,
-          },
+          } satisfies FinalPhaseCompleteEventData,
           room: game.id,
         });
       }
@@ -821,5 +829,39 @@ export class PlayerLeaveService {
     }
 
     return broadcasts;
+  }
+
+  /**
+   * Find the next eligible bidder index in circular bidding order.
+   * Eligible = not passed and not the excluded player (leaving player).
+   *
+   * @param biddingOrder - Array of player IDs in bidding order
+   * @param currentIndex - Current bidder's index
+   * @param passedPlayers - Players who have already passed
+   * @param excludePlayerId - Player to exclude (the one leaving)
+   * @returns Index of next eligible bidder
+   */
+  private findNextEligibleBidderIndex(
+    biddingOrder: number[],
+    currentIndex: number,
+    passedPlayers: number[],
+    excludePlayerId: number
+  ): number {
+    const totalPlayers = biddingOrder.length;
+
+    for (let offset = 1; offset <= totalPlayers; offset++) {
+      const candidateIndex = (currentIndex + offset) % totalPlayers;
+      const candidatePlayerId = biddingOrder[candidateIndex];
+
+      const isPassed = passedPlayers.includes(candidatePlayerId);
+      const isExcluded = candidatePlayerId === excludePlayerId;
+
+      if (!isPassed && !isExcluded) {
+        return candidateIndex;
+      }
+    }
+
+    // Fallback: return next index (should not happen if called correctly)
+    return (currentIndex + 1) % totalPlayers;
   }
 }
