@@ -105,17 +105,15 @@ class GameLobbyPlayer extends WatchingWidget {
                 ),
               Align(
                 alignment: Alignment.topLeft,
-                child:
-                    customIcon ??
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ?customIcon,
-                        if (player.status == PlayerDataStatus.disconnected)
-                          const Icon(Icons.signal_wifi_off),
-                        _MediaDownloadIndicator(player: player),
-                      ],
-                    ).paddingAll(2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ?customIcon,
+                    if (player.status == PlayerDataStatus.disconnected)
+                      const Icon(Icons.signal_wifi_off),
+                    _MediaDownloadIndicator(player: player),
+                  ],
+                ).paddingAll(2),
               ),
               Align(
                 alignment: Alignment.bottomRight,

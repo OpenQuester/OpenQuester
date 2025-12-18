@@ -71,6 +71,10 @@ class GameLobbyController {
           _onPlayerRestricted,
         )
         ..on(
+          SocketIOGameReceiveEvents.playerKicked.json!,
+          _onPlayerKicked,
+        )
+        ..on(
           SocketIOGameReceiveEvents.turnPlayerChanged.json!,
           _onPlayerTurnChanged,
         )
@@ -341,7 +345,7 @@ class GameLobbyController {
     if (user == null) return;
 
     // If i am leaving - close game
-    if (user.meta.id == gameData.value?.me.meta.id) {
+    if (user.meta.id == myId) {
       _leave();
       return;
     }
@@ -827,6 +831,20 @@ class GameLobbyController {
           restricted: restrictedPlayer.restricted,
         ),
       ),
+    );
+  }
+
+  void _onPlayerKicked(dynamic data) {
+    if (data is! Map) return;
+
+    final kickedPlayer = SocketIOPlayerKickEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+    final playerId = kickedPlayer.playerId;
+
+    gameData.value = gameData.value?.changePlayer(
+      id: playerId,
+      onChange: (_) => null,
     );
   }
 
