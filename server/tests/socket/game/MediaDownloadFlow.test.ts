@@ -19,6 +19,7 @@ import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { TestUtils } from "tests/utils/TestUtils";
 
 describe("Media Download Flow Tests", () => {
   let testEnv: TestEnvironment;
@@ -27,6 +28,7 @@ describe("Media Download Flow Tests", () => {
   let userRepo: Repository<User>;
   let serverUrl: string;
   let utils: SocketGameTestUtils;
+  let testUtils: TestUtils;
   let logger: ILogger;
 
   beforeAll(async () => {
@@ -39,6 +41,7 @@ describe("Media Download Flow Tests", () => {
     cleanup = boot.cleanup;
     serverUrl = `http://localhost:${process.env.PORT || 3000}`;
     utils = new SocketGameTestUtils(serverUrl);
+    testUtils = new TestUtils(app, userRepo, serverUrl);
   });
 
   beforeEach(async () => {
@@ -329,16 +332,14 @@ describe("Media Download Flow Tests", () => {
           QuestionState.MEDIA_DOWNLOADING
         );
 
-        const redisClient = RedisConfig.getClient();
-        const timerKey = `timer:${gameId}`;
-        await redisClient.pexpire(timerKey, 200);
-
         const statusPromise =
           utils.waitForEvent<MediaDownloadStatusBroadcastData>(
             playerSockets[0],
             SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
             1000
           );
+
+        await testUtils.expireTimer(gameId, "", 200);
 
         const statusData = await statusPromise;
 
@@ -381,16 +382,14 @@ describe("Media Download Flow Tests", () => {
         playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         await status1Promise;
 
-        const redisClient = RedisConfig.getClient();
-        const timerKey = `timer:${gameId}`;
-        await redisClient.pexpire(timerKey, 200);
-
         const timeoutStatusPromise =
           utils.waitForEvent<MediaDownloadStatusBroadcastData>(
             showmanSocket,
             SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
             1000
           );
+
+        await testUtils.expireTimer(gameId, "", 200);
 
         const timeoutStatus = await timeoutStatusPromise;
 
