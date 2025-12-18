@@ -27,7 +27,9 @@ export class FinalRoundTurnManager {
     const eligiblePlayers = this.getEligiblePlayers(game);
 
     if (eligiblePlayers.length === 0) {
-      // No eligible players - fall back to showman for turn order
+      // Edge case: All players left/disconnected during final round.
+      // Showman takes over theme elimination to allow game to progress.
+      // This prevents the game from being stuck with no one to eliminate themes.
       const showman = game.showman;
       if (showman) {
         return [showman.meta.id];

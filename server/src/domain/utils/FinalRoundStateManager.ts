@@ -159,6 +159,7 @@ export class FinalRoundStateManager {
       return false;
     }
 
+    // Players with zero bids are excluded from answering requirement.
     const eligiblePlayerIds = game.players
       .filter(
         (p) =>
@@ -166,7 +167,7 @@ export class FinalRoundStateManager {
           p.gameStatus === PlayerGameStatus.IN_GAME
       )
       .map((p) => p.meta.id)
-      .filter((id) => (data.bids[id] ?? 0) > 0); // Only players with non-zero bids need to answer
+      .filter((id) => (data.bids[id] ?? 0) > 0);
 
     return eligiblePlayerIds.every((id) =>
       data.answers.some((answer) => answer.playerId === id)

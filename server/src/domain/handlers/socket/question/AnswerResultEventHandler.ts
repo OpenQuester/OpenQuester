@@ -65,7 +65,9 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
     return GameActionType.ANSWER_RESULT;
   }
 
-  protected async validateInput(data: AnswerResultData): Promise<any> {
+  protected async validateInput(
+    data: AnswerResultData
+  ): Promise<AnswerResultData> {
     return GameValidator.validateAnswerResult(data);
   }
 

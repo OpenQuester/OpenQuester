@@ -529,8 +529,16 @@ export class Game {
   }
 
   /**
-   * Check if all players have either skipped or answered (wrongly).
-   * Used to determine if question should auto-skip after a wrong answer.
+   * Check if all active players have exhausted their answer attempts.
+   *
+   * A player is "exhausted" when they have either:
+   * - Pressed the skip button (added to skippedPlayers)
+   * - Already answered incorrectly (added to answeredPlayers)
+   *
+   * When all players are exhausted, the question should auto-finish since
+   * no one remains who can provide a correct answer.
+   *
+   * @returns true if no active player can answer, false if someone can still try
    */
   public areAllPlayersExhausted(): boolean {
     const activePlayers = this.getInGamePlayers();

@@ -86,13 +86,18 @@ export class SocketIOGameService {
       }
     }
 
-    // Prevent NEW players from joining as PLAYER during final round
-    // Existing disconnected players who were part of the final round can rejoin
+    // Prevent joining as PLAYER during final round unless reconnecting as existing player.
+    // This ensures final round scoring integrity - only players who participated
+    // in theme elimination and bidding phases can answer the final question.
     const isFinalRound =
       game.gameState.currentRound?.type === PackageRoundType.FINAL;
-    const isNewPlayer =
+    const wasNotPreviouslyPlayer =
       !existingPlayer || existingPlayer.role !== PlayerRole.PLAYER;
-    if (isFinalRound && data.role === PlayerRole.PLAYER && isNewPlayer) {
+    if (
+      isFinalRound &&
+      data.role === PlayerRole.PLAYER &&
+      wasNotPreviouslyPlayer
+    ) {
       throw new ClientError(ClientResponse.CANNOT_JOIN_FINAL_ROUND_AS_PLAYER);
     }
 

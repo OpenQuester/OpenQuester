@@ -7,7 +7,11 @@ import {
   GAME_QUESTION_ANSWER_TIME,
   SYSTEM_PLAYER_ID,
 } from "domain/constants/game";
-import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
+import {
+  AUTO_BID_MINIMUM,
+  DEFAULT_QUESTION_PRICE,
+  MIN_TIMER_TTL_MS,
+} from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
@@ -42,6 +46,7 @@ import {
 } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
 import { PlayerKickBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+import { FinalRoundQuestionData } from "domain/types/socket/finalround/FinalRoundResults";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
@@ -217,7 +222,8 @@ export class PlayerLeaveService {
       (b) => b.event === SocketIOGameEvents.THEME_ELIMINATE
     );
     if (themeEliminationHandled) {
-      // Re-fetch game to ensure we have the latest state after theme elimination
+      // Re-fetch game to ensure we have the latest state after theme elimination.
+      // the caller holds the same `game` reference and needs to see updated state.
       const updatedGame = await this.gameService.getGameEntity(gameId);
       Object.assign(game, updatedGame);
     }
@@ -392,7 +398,7 @@ export class PlayerLeaveService {
             stakeData.questionId
           );
           stakeData.bids[remainingBidders[0]] =
-            questionData?.question.price || 1;
+            questionData?.question.price || DEFAULT_QUESTION_PRICE;
           stakeData.highestBid = stakeData.bids[remainingBidders[0]];
         }
       } else if (stakeData.highestBid !== null) {
@@ -434,7 +440,8 @@ export class PlayerLeaveService {
       stakeData.currentBidderIndex = nextBidderIndex;
       const nextBidderId = stakeData.biddingOrder[nextBidderIndex];
 
-      // Update the pass event with next bidder info
+      // Replace the initial pass event (added above) with updated version including next bidder.
+      // This avoids emitting two separate events for the same action.
       broadcasts[broadcasts.length - 1] = {
         event: SocketIOGameEvents.STAKE_BID_SUBMIT,
         data: {
@@ -484,15 +491,16 @@ export class PlayerLeaveService {
 
     const broadcasts: BroadcastEvent[] = [];
 
-    // Auto-bid 1 for the leaving player (allows reconnection and continued participation)
-    const autoBidAmount = 1;
-    FinalRoundStateManager.addBid(game, userId, autoBidAmount);
+    // Auto-bid minimum for the leaving player.
+    // Using minimum bid (not 0) allows player to still participate if they reconnect,
+    // while not giving them an unfair advantage from the auto-bid.
+    FinalRoundStateManager.addBid(game, userId, AUTO_BID_MINIMUM);
 
     broadcasts.push({
       event: SocketIOGameEvents.FINAL_BID_SUBMIT,
       data: {
         playerId: userId,
-        bidAmount: autoBidAmount,
+        bidAmount: AUTO_BID_MINIMUM,
         isAutomatic: true,
       } satisfies FinalBidSubmitOutputData,
       room: game.id,
@@ -517,7 +525,7 @@ export class PlayerLeaveService {
         remainingTheme.questions &&
         remainingTheme.questions.length > 0
       ) {
-        const questionData = {
+        const questionData: FinalRoundQuestionData = {
           themeId: remainingTheme.id,
           themeName: remainingTheme.name,
           question: remainingTheme.questions[0],

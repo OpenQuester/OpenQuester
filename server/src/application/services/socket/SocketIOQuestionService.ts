@@ -10,6 +10,7 @@ import {
   GAME_QUESTION_ANSWER_TIME,
   MEDIA_DOWNLOAD_TIMEOUT,
 } from "domain/constants/game";
+import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { Player } from "domain/entities/game/Player";
@@ -213,10 +214,10 @@ export class SocketIOQuestionService {
     // Save
     await this.gameService.updateGame(game);
     if (timer) {
-      // Minimum 1ms to avoid Redis errors with negative TTL
+      // Use minimum TTL to avoid Redis errors with negative/zero values
       const remainingMs = Math.max(
         timer.durationMs - (timer.elapsedMs || 0),
-        1
+        MIN_TIMER_TTL_MS
       );
       await this.gameService.saveTimer(timer, game.id, remainingMs);
     } else {
