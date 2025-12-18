@@ -123,6 +123,7 @@ export enum ClientResponse {
   ANSWER_REQUIRED = "answer_required",
   ANSWER_NOT_FOUND = "answer_not_found",
   FINAL_ROUND_NOT_INITIALIZED = "final_round_not_initialized",
+  CANNOT_JOIN_FINAL_ROUND_AS_PLAYER = "cannot_join_final_round_as_player",
 
   // Secret Question
   GAME_NOT_IN_SECRET_TRANSFER_PHASE = "game_not_in_secret_transfer_phase",

@@ -7,6 +7,7 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
+import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export interface QuestionActionContext {
@@ -110,17 +111,6 @@ export class QuestionActionValidator {
     this._validateQuestionAction(context);
   }
 
-  /**
-   * Validates submit answer action requirements
-   */
-  public static validateSubmitAnswerAction(
-    context: QuestionActionContext
-  ): void {
-    this._validateBasicRequirements(context);
-    this._validateQuestionAction(context);
-    this._validatePlayerIsAnswering(context.game, context.currentPlayer!);
-  }
-
   private static _validateBasicRequirements(
     context: QuestionActionContext
   ): void {
@@ -129,6 +119,7 @@ export class QuestionActionValidator {
     }
 
     this._validateCurrentRound(context.game);
+    GameStateValidator.validateGameNotPaused(context.game);
   }
 
   private static _validateQuestionAction(context: QuestionActionContext): void {
