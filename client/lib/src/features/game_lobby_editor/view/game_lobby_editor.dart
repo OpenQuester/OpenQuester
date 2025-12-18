@@ -13,6 +13,7 @@ class GameLobbyEditor extends WatchingWidget {
         _RoleGroup(PlayerRole.showman, showDisconnected: false),
         _RoleGroup(PlayerRole.player),
         _RoleGroup(PlayerRole.spectator),
+        _ClosePlayerEditButton(),
       ],
     );
   }
@@ -49,6 +50,9 @@ class _ReadyButton extends WatchingWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               FilledButton.tonal(
+                style: const ButtonStyle(
+                  minimumSize: WidgetStatePropertyAll(Size(60, 50)),
+                ),
                 onPressed: () {
                   final controller = getIt<GameLobbyController>();
                   if (imShowman) {
@@ -290,6 +294,32 @@ class _RoleTitle extends WatchingWidget {
     return Text(
       [roleName, count].nonNulls.join(' '),
       style: context.textTheme.headlineMedium,
+    );
+  }
+}
+
+class _ClosePlayerEditButton extends WatchingWidget {
+  const _ClosePlayerEditButton();
+
+  @override
+  Widget build(BuildContext context) {
+    if (!getIt<GameLobbyController>().gameStarted) return const SizedBox();
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 8,
+      children: [
+        FilledButton.tonal(
+          style: const ButtonStyle(
+            minimumSize: WidgetStatePropertyAll(Size(60, 50)),
+          ),
+          onPressed: () {
+            final controller = getIt<GameLobbyController>();
+            controller.lobbyEditorMode.value = false;
+          },
+          child: Text(LocaleKeys.game_lobby_editor_close_player_editor.tr()),
+        ),
+      ],
     );
   }
 }
