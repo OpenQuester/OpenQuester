@@ -80,10 +80,14 @@ class PlayerEditBtn extends WatchingWidget {
         ),
         child: Text(
           statusBtnText(
-            LocaleKeys.player_edit_kick.tr(),
+            LocaleKeys.player_edit_restrict.tr(),
             restrictions.restricted,
           ),
         ),
+      ),
+      PopupMenuItem(
+        onTap: () => controller.kickPlayer(player.meta.id),
+        child: Text(LocaleKeys.player_edit_kick.tr()),
       ),
       PopupMenuItem(
         onTap: () => changePlayerRestrictions(
