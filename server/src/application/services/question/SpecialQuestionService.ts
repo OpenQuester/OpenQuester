@@ -66,7 +66,7 @@ export class SpecialQuestionService {
   }
 
   /**
-   * Handles secret question transfer to another player
+   * Handles secret question transfer to another player.
    */
   public async handleSecretQuestionTransfer(
     socketId: string,
@@ -123,7 +123,7 @@ export class SpecialQuestionService {
   }
 
   /**
-   * Handles stake question bid submission
+   * Handles stake question bid submission.
    */
   public async handleStakeBidSubmit(
     socketId: string,
@@ -230,8 +230,8 @@ export class SpecialQuestionService {
   }
 
   /**
-   * Sets up secret question data and game state
-   * Returns null if no active players exist
+   * Sets up secret question data and game state.
+   * Returns null if no active players exist.
    */
   public setupSecretQuestion(
     game: Game,
@@ -257,8 +257,8 @@ export class SpecialQuestionService {
   }
 
   /**
-   * Sets up stake question data, bidding order, and handles automatic bidding
-   * Returns null if no active players exist
+   * Sets up stake question data, bidding order, and handles automatic bidding.
+   * Returns null if no active players exist.
    */
   public async setupStakeQuestion(
     game: Game,

@@ -3,7 +3,6 @@ import { Socket } from "socket.io";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
-import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -16,8 +15,6 @@ import {
 import {
   FinalBidSubmitInputData,
   FinalBidSubmitOutputData,
-  FinalPhaseCompleteEventData,
-  FinalQuestionEventData,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -78,17 +75,15 @@ export class FinalBidSubmitEventHandler extends BaseSocketEventHandler<
     data: FinalBidSubmitInputData,
     context: SocketEventContext
   ): Promise<SocketEventResult<FinalBidSubmitOutputData>> {
-    const { game, playerId, bidAmount, isPhaseComplete, questionData, timer } =
+    const { game, playerId, bidAmount, transitionResult } =
       await this.finalRoundService.handleFinalBidSubmit(
         context.socketId,
         data.bid
       );
 
-    const outputData: FinalBidSubmitOutputData = {
-      playerId,
-      bidAmount,
-    };
+    const outputData: FinalBidSubmitOutputData = { playerId, bidAmount };
 
+    // Start with the bid submission broadcast
     const broadcasts: SocketEventBroadcast<unknown>[] = [
       {
         event: SocketIOGameEvents.FINAL_BID_SUBMIT,
@@ -98,33 +93,18 @@ export class FinalBidSubmitEventHandler extends BaseSocketEventHandler<
       } satisfies SocketEventBroadcast<FinalBidSubmitOutputData>,
     ];
 
-    // If phase complete (all bids submitted), send question data and timer
-    if (isPhaseComplete && questionData) {
-      broadcasts.push({
-        event: SocketIOGameEvents.FINAL_QUESTION_DATA,
-        data: {
-          questionData,
-        } satisfies FinalQuestionEventData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<FinalQuestionEventData>);
-
-      broadcasts.push({
-        event: SocketIOGameEvents.FINAL_PHASE_COMPLETE,
-        data: {
-          phase: FinalRoundPhase.BIDDING,
-          nextPhase: FinalRoundPhase.ANSWERING,
-          timer,
-        } satisfies FinalPhaseCompleteEventData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<FinalPhaseCompleteEventData>);
+    // If phase transitioned, add transition broadcasts directly (no rebuilding)
+    if (transitionResult?.success) {
+      for (const broadcast of transitionResult.broadcasts) {
+        broadcasts.push({
+          event: broadcast.event,
+          data: broadcast.data,
+          target: SocketBroadcastTarget.GAME,
+          gameId: game.id,
+        });
+      }
     }
 
-    return {
-      success: true,
-      data: outputData,
-      broadcast: broadcasts,
-    };
+    return { success: true, data: outputData, broadcast: broadcasts };
   }
 }

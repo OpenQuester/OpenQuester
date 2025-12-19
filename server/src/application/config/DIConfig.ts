@@ -38,6 +38,8 @@ import { UserService } from "application/services/user/UserService";
 import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
+import { createPhaseTransitionRouter } from "domain/state-machine";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { RedisCache } from "infrastructure/cache/RedisCache";
 import { Environment } from "infrastructure/config/Environment";
@@ -481,6 +483,19 @@ export class DIConfig {
     );
 
     Container.register(
+      CONTAINER_TYPES.PhaseTransitionRouter,
+      createPhaseTransitionRouter(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketQuestionStateService>(
+          CONTAINER_TYPES.SocketQuestionStateService
+        ),
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
       CONTAINER_TYPES.SocketGameTimerService,
       new SocketGameTimerService(
         Container.get<GameService>(CONTAINER_TYPES.GameService)
@@ -556,7 +571,10 @@ export class DIConfig {
         Container.get<SocketQuestionStateService>(
           CONTAINER_TYPES.SocketQuestionStateService
         ),
-        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        Container.get<PhaseTransitionRouter>(
+          CONTAINER_TYPES.PhaseTransitionRouter
+        )
       ),
       "service"
     );

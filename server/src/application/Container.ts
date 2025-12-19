@@ -111,6 +111,9 @@ export const CONTAINER_TYPES = {
   StatisticsWorkerFactory: Symbol("StatisticsWorkerFactory"),
   CronJobFactory: Symbol("CronJobFactory"),
 
+  // State Machine
+  PhaseTransitionRouter: Symbol("PhaseTransitionRouter"),
+
   // Cron Services
   CronSchedulerService: Symbol("CronSchedulerService"),
 

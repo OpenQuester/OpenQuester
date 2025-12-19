@@ -176,6 +176,31 @@ export class TestUtils {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Wait for a condition to become true, polling at regular intervals.
+   * Useful for handling async state transitions that may lag behind socket events.
+   *
+   * @param condition - Callback that returns true when condition is met
+   * @param timeoutMs - Maximum time to wait (default: 1000ms)
+   * @param intervalMs - Polling interval (default: 200ms)
+   * @returns true if condition was met, false if timeout expired
+   */
+  public async waitForCondition(
+    condition: () => Promise<boolean> | boolean,
+    timeoutMs: number = 1000,
+    intervalMs: number = 200
+  ): Promise<boolean> {
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+      const result = await condition();
+      if (result) {
+        return true;
+      }
+      await this.wait(intervalMs);
+    }
+    return false;
+  }
+
   public async waitForEvent<T = any>(
     socket: GameClientSocket,
     event: string,

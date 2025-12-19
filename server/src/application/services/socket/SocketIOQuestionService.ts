@@ -58,6 +58,9 @@ export class SocketIOQuestionService {
     //
   }
 
+  /**
+   * Handle player requesting to answer a question.
+   */
   public async handleQuestionAnswer(socketId: string) {
     // Context & Validation
     const context = await this.socketGameContextService.fetchGameContext(
@@ -111,6 +114,9 @@ export class SocketIOQuestionService {
     return game;
   }
 
+  /**
+   * Handle showman reviewing player's answer (correct/wrong).
+   */
   public async handleAnswerResult(socketId: string, data: AnswerResultData) {
     // Context & Validation
     const context = await this.socketGameContextService.fetchGameContext(
@@ -769,7 +775,7 @@ export class SocketIOQuestionService {
   }
 
   /**
-   * Handle media downloaded event from a player
+   * Handle media downloaded event from a player.
    */
   public async handleMediaDownloaded(socketId: string) {
     // Context & Validation
@@ -847,7 +853,7 @@ export class SocketIOQuestionService {
   }
 
   /**
-   * Force all players to be marked as ready (used by timeout)
+   * Force all players to be marked as ready (used by timeout).
    */
   public async forceAllPlayersReady(gameId: string) {
     const game = await this.gameService.getGameEntity(gameId);

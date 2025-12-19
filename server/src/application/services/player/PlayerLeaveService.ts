@@ -20,6 +20,7 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
+import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -331,9 +332,9 @@ export class PlayerLeaveService {
   }
 
   /**
-   * Handle player leaving during stake question bidding phase
+   * Handle player leaving during stake question bidding phase.
    * Auto-passes for the leaving player, and if they were the only eligible bidder
-   * or if only one player remains, that player wins automatically
+   * or if only one player remains, that player wins automatically.
    */
   private async handleStakeBiddingPlayerLeave(
     game: Game,
@@ -460,15 +461,17 @@ export class PlayerLeaveService {
   }
 
   /**
-   * Handle player leaving during final round bidding phase
+   * Handle player leaving during final round bidding phase.
+   * Uses TransitionGuards for validation.
    */
   private async handleFinalBiddingPlayerLeave(
     game: Game,
     userId: number
   ): Promise<BroadcastEvent[]> {
+    // Guard: Must be in final round bidding phase
     if (
-      game.gameState.currentRound?.type !== PackageRoundType.FINAL ||
-      game.gameState.questionState !== QuestionState.BIDDING
+      !TransitionGuards.isFinalRound(game) ||
+      !TransitionGuards.isQuestionState(game, QuestionState.BIDDING)
     ) {
       return [];
     }
@@ -478,14 +481,13 @@ export class PlayerLeaveService {
       return [];
     }
 
-    // Check if player already submitted bid
-    if (finalRoundData.bids[userId] !== undefined) {
+    // Guard: Player must not have submitted bid yet
+    if (TransitionGuards.hasPlayerSubmittedFinalBid(game, userId)) {
       return [];
     }
 
-    // Only auto-bid if player is actually a player (not spectator/showman)
-    const player = game.getPlayer(userId, { fetchDisconnected: true });
-    if (!player || player.role !== PlayerRole.PLAYER) {
+    // Guard: Player must be eligible (in-game, player role)
+    if (!TransitionGuards.isPlayerEligible(game, userId)) {
       return [];
     }
 
@@ -559,7 +561,8 @@ export class PlayerLeaveService {
   }
 
   /**
-   * Handle answering player leaving - auto-skip their answer with 0 points
+   * Handle answering player leaving - auto-skip their answer with 0 points.
+   * Uses TransitionGuards for final round detection.
    */
   private async handleAnsweringPlayerLeave(
     game: Game,
@@ -570,8 +573,8 @@ export class PlayerLeaveService {
     // Check if this is a final round answering scenario (different logic)
     // In final round, multiple players answer simultaneously (no single answeringPlayer)
     if (
-      game.gameState.currentRound?.type === PackageRoundType.FINAL &&
-      game.gameState.questionState === QuestionState.ANSWERING
+      TransitionGuards.isFinalRound(game) &&
+      TransitionGuards.isQuestionState(game, QuestionState.ANSWERING)
     ) {
       // Submit empty answer as auto-loss
       FinalRoundStateManager.addAnswer(game, userId, "");
@@ -727,8 +730,8 @@ export class PlayerLeaveService {
 
     // Handle final round theme elimination if in that phase
     if (
-      game.gameState.currentRound?.type === PackageRoundType.FINAL &&
-      game.gameState.questionState === QuestionState.THEME_ELIMINATION
+      TransitionGuards.isFinalRound(game) &&
+      TransitionGuards.isQuestionState(game, QuestionState.THEME_ELIMINATION)
     ) {
       return await this.handleFinalRoundTurnPlayerLeave(game);
     }
@@ -788,8 +791,8 @@ export class PlayerLeaveService {
   }
 
   /**
-   * Handle player leaving during media download phase
-   * Checks if all remaining players are ready and transitions to SHOWING if so
+   * Handle player leaving during media download phase.
+   * Checks if all remaining players are ready and transitions to SHOWING if so.
    */
   private async handleMediaDownloadPlayerLeave(
     game: Game,

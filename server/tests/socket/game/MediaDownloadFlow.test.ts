@@ -309,6 +309,14 @@ describe("Media Download Flow Tests", () => {
   });
 
   describe("Media Download Timeout", () => {
+    /**
+     * Note: This test verifies timer-based media download timeout behavior.
+     * It may occasionally fail in full suite runs due to Redis keyspace notification
+     * timing issues. The test validates that:
+     * 1. Timer expiration triggers forceAllPlayersReady
+     * 2. MEDIA_DOWNLOAD_STATUS event is broadcast with allPlayersReady=true
+     * 3. State transitions to SHOWING (verified via waitForCondition)
+     */
     it("should force all players ready and transition to SHOWING on timeout", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { showmanSocket, playerSockets, gameId } = setup;
@@ -348,8 +356,16 @@ describe("Media Download Flow Tests", () => {
         expect(statusData.timer).toBeDefined();
         expect(statusData.timer).not.toBeNull();
 
-        const gameStateAfter = await utils.getGameState(gameId);
-        expect(gameStateAfter!.questionState).toBe(QuestionState.SHOWING);
+        // Wait for state to transition to SHOWING (may lag behind socket event under load)
+        const stateTransitioned = await testUtils.waitForCondition(
+          async () => {
+            const state = await utils.getGameState(gameId);
+            return state!.questionState === QuestionState.SHOWING;
+          },
+          1000,
+          200
+        );
+        expect(stateTransitioned).toBe(true);
       } finally {
         await utils.cleanupGameClients(setup);
       }

@@ -11,9 +11,9 @@ import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
+import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
-import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import {
   BroadcastEvent,
   TimerExpirationResult,
@@ -51,6 +51,9 @@ export class TimerExpirationService {
     //
   }
 
+  /**
+   * Handle media download timeout - forces all players ready.
+   */
   public async handleMediaDownloadExpiration(
     gameId: string
   ): Promise<TimerExpirationResult> {
@@ -85,6 +88,9 @@ export class TimerExpirationService {
     };
   }
 
+  /**
+   * Handle question showing timeout - resets to choosing state.
+   */
   public async handleQuestionShowingExpiration(
     gameId: string
   ): Promise<TimerExpirationResult> {
@@ -134,6 +140,9 @@ export class TimerExpirationService {
     };
   }
 
+  /**
+   * Handle answering timeout - routes to final round or regular handling.
+   */
   public async handleAnsweringExpiration(
     gameId: string
   ): Promise<TimerExpirationResult> {
@@ -141,8 +150,11 @@ export class TimerExpirationService {
       gameId,
       GAME_TTL_IN_SECONDS
     );
-    // Check if final round
-    if (this.isFinalRoundAnswering(game)) {
+    // Check if final round answering
+    if (
+      TransitionGuards.isFinalRound(game) &&
+      TransitionGuards.isQuestionState(game, QuestionState.ANSWERING)
+    ) {
       return this.handleFinalRoundAnsweringExpiration(game);
     }
 
@@ -173,6 +185,9 @@ export class TimerExpirationService {
     };
   }
 
+  /**
+   * Handle theme elimination timeout - auto-eliminates theme.
+   */
   public async handleThemeEliminationExpiration(
     gameId: string
   ): Promise<TimerExpirationResult> {
@@ -215,6 +230,9 @@ export class TimerExpirationService {
     };
   }
 
+  /**
+   * Handle bidding timeout - auto-bids for remaining players.
+   */
   public async handleBiddingExpiration(
     gameId: string
   ): Promise<TimerExpirationResult> {
@@ -339,13 +357,9 @@ export class TimerExpirationService {
     return { answerResult: playerAnswerResult, timer };
   }
 
-  private isFinalRoundAnswering(game: Game): boolean {
-    return (
-      game.gameState.currentRound?.type === PackageRoundType.FINAL &&
-      game.gameState.questionState === QuestionState.ANSWERING
-    );
-  }
-
+  /**
+   * Handle final round answering timeout - creates auto-loss entries.
+   */
   private async handleFinalRoundAnsweringExpiration(
     game: Game
   ): Promise<TimerExpirationResult> {

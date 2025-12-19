@@ -29,6 +29,7 @@ type ActionExecutionRegistry = Map<string, GameActionExecutionCallback>;
  * preserving the original socket/handler context for queued execution.
  */
 export class GameActionExecutor {
+  // TODO: Fix in-memory registry for distributed setup, use Redis
   private readonly executionRegistry: ActionExecutionRegistry = new Map();
 
   constructor(
@@ -125,7 +126,7 @@ export class GameActionExecutor {
     }
 
     this.logger.debug(
-      `Processing ${queueLength} queued actions for game ${gameId}`,
+      `[QUEUE] Processing ${queueLength} queued action(s) for game ${gameId}`,
       {
         prefix: "[ACTION_EXECUTOR]: ",
         gameId,
@@ -138,7 +139,7 @@ export class GameActionExecutor {
 
     if (!lockAcquired) {
       this.logger.debug(
-        `Cannot process queue for game ${gameId} - lock held by another operation`,
+        `[QUEUE] Cannot process queue - lock held by another operation`,
         {
           prefix: "[ACTION_EXECUTOR]: ",
           gameId,

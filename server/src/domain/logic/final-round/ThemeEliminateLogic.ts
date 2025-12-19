@@ -1,0 +1,201 @@
+import { Game } from "domain/entities/game/Game";
+import { Player } from "domain/entities/game/Player";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { ClientError } from "domain/errors/ClientError";
+import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
+import { GameStateThemeDTO } from "domain/types/dto/game/state/GameStateThemeDTO";
+import { PlayerRole } from "domain/types/game/PlayerRole";
+import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
+import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
+import { GameStateValidator } from "domain/validators/GameStateValidator";
+
+/**
+ * Validation input for theme elimination
+ */
+export interface ThemeEliminateValidationInput {
+  game: Game;
+  player: Player | null;
+  themeId: number;
+  finalRoundHandler: FinalRoundHandler;
+}
+
+/**
+ * Result of theme elimination mutation
+ */
+export interface ThemeEliminateMutationResult {
+  theme: GameStateThemeDTO;
+  turnOrder: number[];
+  nextPlayerId: number | null;
+}
+
+/**
+ * Pure business logic for final round theme elimination.
+ *
+ * This class encapsulates all validation and state mutation logic,
+ * keeping the service layer thin and focused on orchestration.
+ *
+ * Pattern: Static utility class (no dependencies, pure functions)
+ */
+export class ThemeEliminateLogic {
+  /**
+   * Validates all preconditions for theme elimination.
+   *
+   * @throws ClientError if validation fails
+   */
+  public static validate(input: ThemeEliminateValidationInput): void {
+    const { game, player, themeId, finalRoundHandler } = input;
+
+    // Game must be in progress
+    GameStateValidator.validateGameInProgress(game);
+
+    // Player must exist
+    if (!player) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    // Must be player or showman with elimination rights
+    FinalRoundValidator.validateThemeEliminationPlayer(player);
+    FinalRoundValidator.validateThemeEliminationPhase(game);
+
+    // Initialize turn order if needed
+    const turnOrder = ThemeEliminateLogic._ensureTurnOrder(
+      game,
+      finalRoundHandler
+    );
+
+    // Non-showman must be current turn player
+    if (
+      player.role !== PlayerRole.SHOWMAN &&
+      !finalRoundHandler.isPlayerTurn(game, player.meta.id, turnOrder)
+    ) {
+      throw new ClientError(ClientResponse.NOT_YOUR_TURN);
+    }
+
+    // Validate theme exists
+    const theme = game.gameState.currentRound!.themes.find(
+      (t) => t.id === themeId
+    );
+    if (!theme) {
+      throw new ClientError(ClientResponse.THEME_NOT_FOUND);
+    }
+
+    // Validate theme is not already eliminated
+    if (theme.questions?.some((q) => q.isPlayed)) {
+      throw new ClientError(ClientResponse.THEME_ALREADY_ELIMINATED);
+    }
+
+    // Cannot eliminate the last theme
+    const activeThemes = finalRoundHandler.getActiveThemes(game);
+    if (activeThemes.length <= 1) {
+      throw new ClientError(ClientResponse.CANNOT_ELIMINATE_LAST_THEME);
+    }
+  }
+
+  /**
+   * Eliminates the theme and updates game state.
+   *
+   * @returns Mutation result with theme, turn order, and next player
+   */
+  public static eliminateTheme(
+    game: Game,
+    themeId: number,
+    finalRoundHandler: FinalRoundHandler
+  ): ThemeEliminateMutationResult {
+    // Find the theme (already validated to exist)
+    const theme = game.gameState.currentRound!.themes.find(
+      (t) => t.id === themeId
+    )!;
+
+    // Mark theme as eliminated by setting first question as played
+    if (theme.questions && theme.questions.length > 0) {
+      theme.questions[0].isPlayed = true;
+    }
+
+    // Update final round data
+    ThemeEliminateLogic._initializeFinalRoundDataIfNeeded(game);
+    const finalRoundData = FinalRoundStateManager.getFinalRoundData(game)!;
+    finalRoundData.eliminatedThemes.push(themeId);
+
+    // Get turn order
+    const turnOrder = ThemeEliminateLogic._ensureTurnOrder(
+      game,
+      finalRoundHandler
+    );
+
+    // Determine next player (only if not phase complete)
+    let nextPlayerId: number | null = null;
+    if (!finalRoundHandler.isThemeEliminationComplete(game)) {
+      const currentTurnPlayer = finalRoundHandler.getCurrentTurnPlayer(
+        game,
+        turnOrder
+      );
+      if (currentTurnPlayer !== null) {
+        game.gameState.currentTurnPlayerId = currentTurnPlayer;
+        nextPlayerId = currentTurnPlayer;
+      }
+    }
+
+    // Persist final round data
+    FinalRoundStateManager.updateFinalRoundData(game, finalRoundData);
+
+    return {
+      theme,
+      turnOrder,
+      nextPlayerId,
+    };
+  }
+
+  /**
+   * Selects a random theme for elimination (used by timeout).
+   *
+   * @returns The randomly selected theme ID
+   */
+  public static selectRandomTheme(
+    game: Game,
+    finalRoundHandler: FinalRoundHandler
+  ): number {
+    const activeThemes = finalRoundHandler.getActiveThemes(game);
+
+    if (activeThemes.length <= 1) {
+      throw new ClientError(ClientResponse.CANNOT_ELIMINATE_LAST_THEME);
+    }
+
+    const randomIndex = Math.floor(Math.random() * activeThemes.length);
+    return activeThemes[randomIndex].id!;
+  }
+
+  /**
+   * Ensures turn order is initialized.
+   */
+  private static _ensureTurnOrder(
+    game: Game,
+    finalRoundHandler: FinalRoundHandler
+  ): number[] {
+    let turnOrder = game.gameState.finalRoundData?.turnOrder;
+
+    if (!turnOrder || turnOrder.length === 0) {
+      turnOrder = finalRoundHandler.initializeTurnOrder(game);
+      if (game.gameState.finalRoundData) {
+        game.gameState.finalRoundData.turnOrder = turnOrder;
+      }
+    }
+
+    return turnOrder;
+  }
+
+  /**
+   * Initializes final round data if not present.
+   */
+  private static _initializeFinalRoundDataIfNeeded(game: Game): void {
+    if (!game.gameState.finalRoundData) {
+      game.gameState.finalRoundData = {
+        phase: FinalRoundPhase.THEME_ELIMINATION,
+        eliminatedThemes: [],
+        turnOrder: [],
+        bids: {},
+        answers: [],
+      };
+    }
+  }
+}
