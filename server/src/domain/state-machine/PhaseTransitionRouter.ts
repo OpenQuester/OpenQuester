@@ -92,6 +92,16 @@ export class PhaseTransitionRouter {
         }
       }
     }
+
+    this.logger.trace(
+      `No transition possible from phase ${currentPhase} (${handlers.length} handlers checked)`,
+      {
+        prefix: "[STATE_MACHINE]: ",
+        gameId: ctx.game.id,
+        trigger: ctx.trigger,
+      }
+    );
+
     return null;
   }
 

@@ -353,9 +353,6 @@ export class FinalRoundService {
   }
 
   /**
-   * Handle bidding timeout - set bid to 1 for players who haven't submitted
-   *
-  /**
    * Handle bidding timeout - auto-submit minimum bids for players who haven't bid.
    *
    * Uses BiddingTimeoutLogic for auto-bid processing,
@@ -386,7 +383,7 @@ export class FinalRoundService {
 
     // Transition must succeed for bidding timeout (all bids now submitted)
     if (!transitionResult) {
-      throw new ClientError(ClientResponse.GAME_NOT_STARTED);
+      throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
 
     // Persist game state
