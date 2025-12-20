@@ -356,14 +356,16 @@ describe("Media Download Flow Tests", () => {
         expect(statusData.timer).toBeDefined();
         expect(statusData.timer).not.toBeNull();
 
-        // Wait for state to transition to SHOWING (may lag behind socket event under load)
+        // Wait for state to transition to SHOWING
+        // The state should transition after the MEDIA_DOWNLOAD_STATUS event is received
+        // Allow extra time for Redis state propagation
         const stateTransitioned = await testUtils.waitForCondition(
           async () => {
             const state = await utils.getGameState(gameId);
             return state!.questionState === QuestionState.SHOWING;
           },
           1000,
-          200
+          100
         );
         expect(stateTransitioned).toBe(true);
       } finally {
@@ -413,8 +415,18 @@ describe("Media Download Flow Tests", () => {
         expect(timeoutStatus.playerId).toBe(-1);
         expect(timeoutStatus.timer).toBeDefined();
 
-        const gameState = await utils.getGameState(gameId);
-        expect(gameState!.questionState).toBe(QuestionState.SHOWING);
+        // Wait for state to transition to SHOWING
+        // The state should transition after the MEDIA_DOWNLOAD_STATUS event is received
+        // Allow extra time for Redis state propagation
+        const stateTransitioned = await testUtils.waitForCondition(
+          async () => {
+            const state = await utils.getGameState(gameId);
+            return state!.questionState === QuestionState.SHOWING;
+          },
+          1000,
+          100
+        );
+        expect(stateTransitioned).toBe(true);
       } finally {
         await utils.cleanupGameClients(setup);
       }

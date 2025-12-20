@@ -1,38 +1,29 @@
+import { GameActionHandlerRegistry } from "application/registries/GameActionHandlerRegistry";
+import { GameActionBroadcastService } from "application/services/broadcast/GameActionBroadcastService";
+import { GameActionType } from "domain/enums/GameActionType";
+import { ErrorController } from "domain/errors/ErrorController";
 import { GameAction, GameActionResult } from "domain/types/action/GameAction";
+import { GameActionHandlerResult } from "domain/types/action/GameActionHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { GameActionLockService } from "infrastructure/services/lock/GameActionLockService";
 import { GameActionQueueService } from "infrastructure/services/queue/GameActionQueueService";
 
 /**
- * Callback type for executing game actions
- */
-export type GameActionExecutionCallback = (
-  action: GameAction
-) => Promise<GameActionResult>;
-
-/**
- * Registry mapping action IDs to their execution callbacks
- * Each action gets its own callback to preserve socket context
- */
-type ActionExecutionRegistry = Map<string, GameActionExecutionCallback>;
-
-/**
- * Orchestrates game action execution with locking and queuing
+ * Orchestrates game action execution with locking and queuing.
+ *
+ * All actions must have a registered handler in GameActionHandlerRegistry.
+ * Handlers are stateless and distributed-safe (any server instance can execute any action).
  *
  * Flow:
  * 1. Action arrives → try acquire lock
- * 2. If locked → queue action with callback, return success (queued)
+ * 2. If locked → queue action in Redis, return success (queued)
  * 3. If unlocked → execute immediately
- * 4. After execution → release lock, process queued actions recursively
- *
- * Key insight: Each action instance stores its own execution callback,
- * preserving the original socket/handler context for queued execution.
+ * 4. After execution → emit broadcasts, release lock, process queued actions
  */
 export class GameActionExecutor {
-  // TODO: Fix in-memory registry for distributed setup, use Redis
-  private readonly executionRegistry: ActionExecutionRegistry = new Map();
-
   constructor(
+    private readonly handlerRegistry: GameActionHandlerRegistry,
+    private readonly broadcastService: GameActionBroadcastService,
     private readonly queueService: GameActionQueueService,
     private readonly lockService: GameActionLockService,
     private readonly logger: ILogger
@@ -41,22 +32,29 @@ export class GameActionExecutor {
   }
 
   /**
-   * Execute action immediately if lock available, otherwise queue it
+   * Submit action for execution.
+   * Action must have a registered handler in GameActionHandlerRegistry.
+   *
    * @param action The action to execute
-   * @param executeFn Callback to execute the action (provided by handler)
+   * @returns Result indicating success/queued status
    */
-  public async submitAction(
-    action: GameAction,
-    executeFn: GameActionExecutionCallback
-  ): Promise<GameActionResult> {
-    // Register callback with action ID (not type!) to preserve socket context
-    this.registerExecutionCallback(action.id, executeFn);
+  public async submitAction(action: GameAction): Promise<GameActionResult> {
+    if (!this.handlerRegistry.has(action.type)) {
+      const error = `No handler registered for action type: ${action.type}`;
+      this.logger.error(error, {
+        prefix: "[ACTION_EXECUTOR]: ",
+        actionId: action.id,
+        gameId: action.gameId,
+        actionType: action.type,
+      });
+      return { success: false, error };
+    }
 
     const lockAcquired = await this.lockService.acquireLock(action.gameId);
 
     if (!lockAcquired) {
       await this.queueService.pushAction(action);
-      this.logger.debug(
+      this.logger.trace(
         `Action queued (game locked): ${action.type} for game ${action.gameId}`,
         {
           prefix: "[ACTION_EXECUTOR]: ",
@@ -68,14 +66,7 @@ export class GameActionExecutor {
     }
 
     try {
-      const result = await this.executeAction(action, executeFn);
-      // Clean up callback after successful immediate execution
-      this.executionRegistry.delete(action.id);
-      return result;
-    } catch (error) {
-      // Clean up callback on error too
-      this.executionRegistry.delete(action.id);
-      throw error;
+      return await this.executeAction(action);
     } finally {
       await this.lockService.releaseLock(action.gameId);
       await this.processQueuedActions(action.gameId);
@@ -83,40 +74,49 @@ export class GameActionExecutor {
   }
 
   /**
-   * Register execution callback for a specific action instance
-   * Each action ID gets its own callback to preserve socket context
+   * Execute action via registered handler.
    */
-  private registerExecutionCallback(
-    actionId: string,
-    callback: GameActionExecutionCallback
-  ): void {
-    this.executionRegistry.set(actionId, callback);
-  }
+  private async executeAction(action: GameAction): Promise<GameActionResult> {
+    const handler = this.handlerRegistry.get(action.type)!;
 
-  /**
-   * Execute a single action
-   */
-  private async executeAction(
-    action: GameAction,
-    executeFn: GameActionExecutionCallback
-  ): Promise<GameActionResult> {
     try {
-      const result = await executeFn(action);
-      return result;
+      const result: GameActionHandlerResult = await handler.execute(action);
+
+      if (result.success && result.broadcasts?.length) {
+        await this.broadcastService.emitBroadcasts(
+          result.broadcasts,
+          result.broadcastGameId ?? action.gameId
+        );
+      }
+
+      return {
+        success: result.success,
+        data: result.data,
+        error: result.error,
+      };
     } catch (error) {
-      this.logger.error(`Action execution failed: ${action.type} - ${error}`, {
-        prefix: "[ACTION_EXECUTOR]: ",
-        actionId: action.id,
-        gameId: action.gameId,
-      });
-      // Rethrow error to propagate to handler for proper error emission
-      throw error;
+      const { message } = await ErrorController.resolveError(
+        error,
+        this.logger
+      );
+
+      this.logger.error(
+        `Action execution failed: ${action.type} - ${message}`,
+        {
+          prefix: "[ACTION_EXECUTOR]: ",
+          actionId: action.id,
+          gameId: action.gameId,
+          socketId: action.socketId,
+        }
+      );
+
+      this.broadcastService.emitError(action.socketId, message);
+      return { success: false, error: message };
     }
   }
 
   /**
-   * Process all queued actions for a game sequentially
-   * Called after releasing lock to drain the queue
+   * Process all queued actions for a game sequentially.
    */
   private async processQueuedActions(gameId: string): Promise<void> {
     const queueLength = await this.queueService.getQueueLength(gameId);
@@ -126,7 +126,7 @@ export class GameActionExecutor {
     }
 
     this.logger.debug(
-      `[QUEUE] Processing ${queueLength} queued action(s) for game ${gameId}`,
+      `Processing ${queueLength} queued action(s) for game ${gameId}`,
       {
         prefix: "[ACTION_EXECUTOR]: ",
         gameId,
@@ -134,12 +134,11 @@ export class GameActionExecutor {
       }
     );
 
-    // Process next queued action if lock can be acquired
     const lockAcquired = await this.lockService.acquireLock(gameId);
 
     if (!lockAcquired) {
-      this.logger.debug(
-        `[QUEUE] Cannot process queue - lock held by another operation`,
+      this.logger.error(
+        `Cannot process queue - lock held by another operation`,
         {
           prefix: "[ACTION_EXECUTOR]: ",
           gameId,
@@ -154,66 +153,38 @@ export class GameActionExecutor {
       nextAction = await this.queueService.popAction(gameId);
 
       if (!nextAction) {
-        this.logger.trace(`Queue empty for game ${gameId}`, {
+        this.logger.debug(`Queue empty for game ${gameId}`, {
           prefix: "[ACTION_EXECUTOR]: ",
           gameId,
         });
         return;
       }
 
-      const executeFn = this.executionRegistry.get(nextAction.id);
-
-      if (!executeFn) {
-        this.logger.error(
-          `No execution callback found for queued action (action may have timed out or been cleaned up)`,
-          {
-            prefix: "[ACTION_EXECUTOR]: ",
-            gameId,
-            actionType: nextAction.type,
-            actionId: nextAction.id,
-          }
-        );
-        return;
-      }
-      await this.executeAction(nextAction, executeFn);
-    } catch (error) {
-      this.logger.error(
-        `Error processing queued action for game ${gameId}: ${error}`,
-        {
-          prefix: "[ACTION_EXECUTOR]: ",
-          gameId,
-        }
-      );
+      await this.executeAction(nextAction);
     } finally {
       await this.lockService.releaseLock(gameId);
-      // Clean up the callback after execution
-      if (nextAction) {
-        this.executionRegistry.delete(nextAction.id);
-      }
-      // Recursively process remaining queued actions
       await this.processQueuedActions(gameId);
     }
   }
 
   /**
-   * Check if there are queued actions and process them
-   * Should be called after releasing lock
+   * Check if there are queued actions.
    */
   public async hasQueuedActions(gameId: string): Promise<boolean> {
     return !(await this.queueService.isEmpty(gameId));
   }
 
   /**
-   * Peek at next queued action without removing it
+   * Peek at next queued action without removing it.
    */
   public async peekNextAction(gameId: string): Promise<GameAction | null> {
     return this.queueService.peekAction(gameId);
   }
 
   /**
-   * Pop next queued action for execution
+   * Check if a handler is registered for the given action type.
    */
-  public async popNextAction(gameId: string): Promise<GameAction | null> {
-    return this.queueService.popAction(gameId);
+  public hasHandler(actionType: GameActionType): boolean {
+    return this.handlerRegistry.has(actionType);
   }
 }

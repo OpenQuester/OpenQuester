@@ -41,6 +41,8 @@ export interface SecretQuestionTransferResult {
   toPlayerId: number;
   questionId: number;
   timer: GameStateTimer;
+  /** Full question data for personalized broadcasts */
+  question: PackageQuestionDTO;
 }
 
 /**
@@ -119,6 +121,7 @@ export class SpecialQuestionService {
       toPlayerId: data.targetPlayerId,
       questionId: secretData!.questionId,
       timer: timerEntity,
+      question: questionData.question,
     };
   }
 

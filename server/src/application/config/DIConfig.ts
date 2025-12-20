@@ -1,6 +1,7 @@
 import Redis from "ioredis";
 import { Server as IOServer } from "socket.io";
 
+import { configureActionHandlers } from "application/config/ActionHandlerConfig";
 import { Container, CONTAINER_TYPES } from "application/Container";
 import { StorageContextBuilder } from "application/context/storage/StorageContextBuilder";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
@@ -8,7 +9,9 @@ import { CronJobFactory } from "application/factories/CronJobFactory";
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { GameExpirationHandler } from "application/handlers/GameExpirationHandler";
 import { TimerExpirationHandler } from "application/handlers/TimerExpirationHandler";
+import { GameActionHandlerRegistry } from "application/registries/GameActionHandlerRegistry";
 import { AdminService } from "application/services/admin/AdminService";
+import { GameActionBroadcastService } from "application/services/broadcast/GameActionBroadcastService";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { FileService } from "application/services/file/FileService";
 import { FileUsageService } from "application/services/file/FileUsageService";
@@ -149,11 +152,35 @@ export class DIConfig {
       "service"
     );
 
+    // Action Handler Registry
+    Container.register(
+      CONTAINER_TYPES.GameActionHandlerRegistry,
+      new GameActionHandlerRegistry(this.logger),
+      "service"
+    );
+
+    // Action Broadcast Service
+    const actionBroadcastService = new GameActionBroadcastService(this.logger);
+    Container.register(
+      CONTAINER_TYPES.GameActionBroadcastService,
+      actionBroadcastService,
+      "service"
+    );
+
+    // Action Executor
     Container.register(
       CONTAINER_TYPES.GameActionExecutor,
       new GameActionExecutor(
-        Container.get(CONTAINER_TYPES.GameActionQueueService),
-        Container.get(CONTAINER_TYPES.GameActionLockService),
+        Container.get<GameActionHandlerRegistry>(
+          CONTAINER_TYPES.GameActionHandlerRegistry
+        ),
+        actionBroadcastService,
+        Container.get<GameActionQueueService>(
+          CONTAINER_TYPES.GameActionQueueService
+        ),
+        Container.get<GameActionLockService>(
+          CONTAINER_TYPES.GameActionLockService
+        ),
         this.logger
       ),
       "service"
@@ -679,12 +706,8 @@ export class DIConfig {
         Container.get<RedisService>(CONTAINER_TYPES.RedisService)
       ),
       new TimerExpirationHandler(
-        Container.get<IOServer>(CONTAINER_TYPES.IO),
         Container.get<GameService>(CONTAINER_TYPES.GameService),
         Container.get<GameActionExecutor>(CONTAINER_TYPES.GameActionExecutor),
-        Container.get<TimerExpirationService>(
-          CONTAINER_TYPES.TimerExpirationService
-        ),
         this.logger
       ),
     ];
@@ -719,5 +742,50 @@ export class DIConfig {
       ),
       "service"
     );
+
+    // Initialize broadcast service with IO (for cross-instance communication)
+    const broadcastService = Container.get<GameActionBroadcastService>(
+      CONTAINER_TYPES.GameActionBroadcastService
+    );
+    const socketIOGameService = Container.get<SocketIOGameService>(
+      CONTAINER_TYPES.SocketIOGameService
+    );
+    broadcastService.init(
+      this.io.of(SOCKET_GAME_NAMESPACE),
+      socketIOGameService
+    );
+
+    // Configure action handlers (must be after all services are registered)
+    configureActionHandlers({
+      registry: Container.get<GameActionHandlerRegistry>(
+        CONTAINER_TYPES.GameActionHandlerRegistry
+      ),
+      finalRoundService: Container.get<FinalRoundService>(
+        CONTAINER_TYPES.FinalRoundService
+      ),
+      socketIOGameService: socketIOGameService,
+      socketIOChatService: Container.get<SocketIOChatService>(
+        CONTAINER_TYPES.SocketIOChatService
+      ),
+      socketIOQuestionService: Container.get<SocketIOQuestionService>(
+        CONTAINER_TYPES.SocketIOQuestionService
+      ),
+      socketGameContextService: Container.get<SocketGameContextService>(
+        CONTAINER_TYPES.SocketGameContextService
+      ),
+      userService: Container.get<UserService>(CONTAINER_TYPES.UserService),
+      gameProgressionCoordinator: Container.get<GameProgressionCoordinator>(
+        CONTAINER_TYPES.GameProgressionCoordinator
+      ),
+      gameStatisticsCollectorService:
+        Container.get<GameStatisticsCollectorService>(
+          CONTAINER_TYPES.GameStatisticsCollectorService
+        ),
+      gameService: Container.get<GameService>(CONTAINER_TYPES.GameService),
+      timerExpirationService: Container.get<TimerExpirationService>(
+        CONTAINER_TYPES.TimerExpirationService
+      ),
+      logger: this.logger,
+    });
   }
 }

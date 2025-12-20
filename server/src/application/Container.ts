@@ -94,6 +94,8 @@ export const CONTAINER_TYPES = {
 
   // Action Queue System
   GameActionExecutor: Symbol("GameActionExecutor"),
+  GameActionHandlerRegistry: Symbol("GameActionHandlerRegistry"),
+  GameActionBroadcastService: Symbol("GameActionBroadcastService"),
   GameActionLockService: Symbol("GameActionLockService"),
   GameActionQueueService: Symbol("GameActionQueueService"),
 

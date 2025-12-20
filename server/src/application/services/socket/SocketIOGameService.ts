@@ -277,10 +277,8 @@ export class SocketIOGameService {
       await this.gameService.updateGame(game);
     }
 
-    // If game is finished, complete the statistics collection
-    if (isGameFinished) {
-      await this.gameStatisticsCollectorService.finishCollection(game.id);
-    }
+    // Note: Statistics collection is handled by GameProgressionCoordinator
+    // which is called by the action handler after this method returns
 
     return { game, isGameFinished, nextGameState, questionData };
   }

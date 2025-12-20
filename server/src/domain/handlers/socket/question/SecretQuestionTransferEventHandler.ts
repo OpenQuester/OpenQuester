@@ -3,16 +3,14 @@ import { Socket } from "socket.io";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { Game } from "domain/entities/game/Game";
-import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { SecretQuestionTransferResult } from "domain/handlers/action/question/SecretQuestionTransferActionHandler";
 import {
   BaseSocketEventHandler,
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import {
@@ -25,7 +23,7 @@ import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter
 
 export class SecretQuestionTransferEventHandler extends BaseSocketEventHandler<
   SecretQuestionTransferInputData,
-  SecretQuestionTransferBroadcastData
+  SecretQuestionTransferResult
 > {
   constructor(
     socket: Socket,
@@ -73,98 +71,69 @@ export class SecretQuestionTransferEventHandler extends BaseSocketEventHandler<
     // Authorization handled in service layer
   }
 
-  protected async execute(
-    data: SecretQuestionTransferInputData,
+  /**
+   * Handle broadcasts after action execution.
+   *
+   * Performs personalized per-socket broadcasts (showman sees full answer,
+   * players see filtered data).
+   */
+  protected override async afterBroadcast(
+    result: SocketEventResult<SecretQuestionTransferResult>,
     context: SocketEventContext
-  ): Promise<SocketEventResult<SecretQuestionTransferBroadcastData>> {
-    const result =
-      await this.socketIOQuestionService.handleSecretQuestionTransfer(
-        context.socketId,
-        data
-      );
-
-    const broadcastData: SecretQuestionTransferBroadcastData = {
-      fromPlayerId: result.fromPlayerId,
-      toPlayerId: result.toPlayerId,
-      questionId: result.questionId,
-    };
-
-    return {
-      success: true,
-      data: broadcastData,
-      context: {
-        ...context,
-        gameId: result.game.id,
-        customData: {
-          game: result.game,
-          timer: result.timer,
-        },
-      },
-    };
-  }
-
-  protected async afterBroadcast(
-    result: SocketEventResult<SecretQuestionTransferBroadcastData>,
-    _context: SocketEventContext
   ): Promise<void> {
-    // First emit the transfer event to all players in the game
-    const game = result.context?.customData?.game as Game;
-    if (game && result.data) {
-      this.eventEmitter.emit(
-        SocketIOGameEvents.SECRET_QUESTION_TRANSFER,
-        result.data,
-        { emitter: SocketEventEmitter.IO, gameId: game.id }
-      );
-    }
+    const actionResult = result.data;
+    if (!actionResult) return;
 
-    // After broadcasting the transfer, send question data to all players
-    const { timer } = result.context?.customData as {
-      game: Game;
-      timer: GameStateTimer;
+    const { gameId, timer, question, fromPlayerId, toPlayerId, questionId } =
+      actionResult;
+
+    // First emit the transfer event to all players
+    const transferBroadcastData: SecretQuestionTransferBroadcastData = {
+      fromPlayerId,
+      toPlayerId,
+      questionId,
     };
 
-    if (!game || !timer) {
-      return;
-    }
-
-    // Get full question from the package (not from game state, which only has SimplePackageQuestionDTO)
-    const questionData = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState.currentRound!.id,
-      game.gameState.currentQuestion!.id!
+    this.eventEmitter.emit(
+      SocketIOGameEvents.SECRET_QUESTION_TRANSFER,
+      transferBroadcastData,
+      { emitter: SocketEventEmitter.IO, gameId }
     );
 
-    if (!questionData) {
+    // Then send personalized question data if available
+    if (!timer || !question) {
       return;
     }
 
-    const currentQuestion = questionData.question;
+    // Fetch game for role-based broadcast mapping
+    const gameContext = await this.socketGameContextService.fetchGameContext(
+      context.socketId
+    );
+    const game = gameContext.game;
+    if (!game) return;
 
-    // Get all sockets in the game for personalized question data
-    const sockets = await this.socket.nsp.in(game.id).fetchSockets();
+    // Get all sockets in the game room
+    const sockets = await this.socket.nsp.in(gameId).fetchSockets();
     const socketIds = sockets.map((s) => s.id);
 
-    // Get the broadcast map (different question data for different roles)
+    // Get personalized question data per socket (showman sees full, players see filtered)
     const broadcastMap =
       await this.socketIOQuestionService.getPlayersBroadcastMap(
         socketIds,
         game,
-        currentQuestion
+        question
       );
 
     // Send personalized question data to each socket
-    const timerValue = timer.value();
-    if (timerValue) {
-      for (const [socketId, questionData] of broadcastMap) {
-        this.eventEmitter.emitToSocket<GameQuestionDataEventPayload>(
-          SocketIOGameEvents.QUESTION_DATA,
-          {
-            data: questionData,
-            timer: timerValue,
-          },
-          socketId
-        );
-      }
+    for (const [socketId, questionData] of broadcastMap) {
+      this.eventEmitter.emitToSocket<GameQuestionDataEventPayload>(
+        SocketIOGameEvents.QUESTION_DATA,
+        {
+          data: questionData,
+          timer: timer,
+        },
+        socketId
+      );
     }
   }
 }

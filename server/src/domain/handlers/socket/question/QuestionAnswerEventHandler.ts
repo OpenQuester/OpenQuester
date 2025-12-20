@@ -2,14 +2,11 @@ import { Socket } from "socket.io";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { QuestionAnswerEventPayload } from "domain/types/socket/events/game/QuestionAnswerEventPayload";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -25,7 +22,6 @@ export class QuestionAnswerEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
@@ -64,31 +60,5 @@ export class QuestionAnswerEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization handled in service
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<QuestionAnswerEventPayload>> {
-    const { userId, gameId, timer } =
-      await this.socketIOQuestionService.handleQuestionAnswer(context.socketId);
-
-    const result: QuestionAnswerEventPayload = {
-      userId: userId!,
-      timer: timer.value()!,
-    };
-
-    return {
-      success: true,
-      data: result,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.QUESTION_ANSWER,
-          data: result,
-          target: SocketBroadcastTarget.GAME,
-          gameId,
-        },
-      ],
-    };
   }
 }
