@@ -142,3 +142,10 @@ upgrade:
 			$(MAKE) -C $$pkg -f ../../Makefile upgrade_package UPGRADE_FLAGS="$(UPGRADE_FLAGS)"; \
 		fi; \
 	done
+
+clean_build_runner:
+	@if grep -q "sdk: flutter" pubspec.yaml 2>/dev/null; then \
+		$(PURO_CMD) flutter pub run build_runner clean; \
+	else \
+		$(PURO_CMD) dart run build_runner clean; \
+	fi
