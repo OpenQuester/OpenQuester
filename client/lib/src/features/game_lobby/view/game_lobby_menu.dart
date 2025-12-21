@@ -27,16 +27,13 @@ class GameLobbyMenu extends WatchingWidget {
             await Clipboard.setData(ClipboardData(text: link.toString()));
           },
         ),
-        if (!controller.lobbyEditorMode.value) ...[
+        if (!controller.lobbyEditorMode.value)
           PopupMenuItem<void>(
             child: Text(
               LocaleKeys.game_lobby_editor_open_player_editor.tr(),
             ),
-            onTap: () {
-              controller.lobbyEditorMode.value = true;
-            },
+            onTap: () => controller.lobbyEditorMode.value = true,
           ),
-        ],
         if (imShowman) ...[
           PopupMenuItem<void>(
             child: Text(

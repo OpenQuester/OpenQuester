@@ -305,9 +305,8 @@ class _ClosePlayerEditButton extends WatchingWidget {
   Widget build(BuildContext context) {
     if (!getIt<GameLobbyController>().gameStarted) return const SizedBox();
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 8,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
         FilledButton.tonal(
           style: const ButtonStyle(
