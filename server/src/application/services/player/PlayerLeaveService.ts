@@ -9,12 +9,14 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   AnsweringPlayerLeaveLogic,
   AnsweringScenarioType,
-  FinalBiddingPlayerLeaveLogic,
-  MediaDownloadPlayerLeaveLogic,
-  StakeBiddingPlayerLeaveLogic,
+} from "domain/logic/player-leave/AnsweringPlayerLeaveLogic";
+import { FinalBiddingPlayerLeaveLogic } from "domain/logic/player-leave/FinalBiddingPlayerLeaveLogic";
+import { MediaDownloadPlayerLeaveLogic } from "domain/logic/player-leave/MediaDownloadPlayerLeaveLogic";
+import { StakeBiddingPlayerLeaveLogic } from "domain/logic/player-leave/StakeBiddingPlayerLeaveLogic";
+import {
   TurnPlayerLeaveLogic,
   TurnPlayerScenarioType,
-} from "domain/logic/player-leave";
+} from "domain/logic/player-leave/TurnPlayerLeaveLogic";
 import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";

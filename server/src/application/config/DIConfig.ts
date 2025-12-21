@@ -41,7 +41,7 @@ import { UserService } from "application/services/user/UserService";
 import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { createPhaseTransitionRouter } from "domain/state-machine";
+import { createPhaseTransitionRouter } from "domain/state-machine/createPhaseTransitionRouter";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { RedisCache } from "infrastructure/cache/RedisCache";

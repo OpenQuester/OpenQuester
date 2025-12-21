@@ -8,10 +8,10 @@ import {
 } from "domain/logic/timer/GamePauseLogic";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 
-export { GamePauseResult as GameTimerResult };
-
 export class SocketGameTimerService {
-  constructor(private readonly gameService: GameService) {}
+  constructor(private readonly gameService: GameService) {
+    //
+  }
 
   public async pauseGameTimer(game: Game): Promise<GamePauseResult> {
     const gameState = game.gameState;

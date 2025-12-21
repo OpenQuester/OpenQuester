@@ -10,42 +10,36 @@ import { GameStatisticsCollectorService } from "application/services/statistics/
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { UserService } from "application/services/user/UserService";
 import { GameActionType } from "domain/enums/GameActionType";
-import {
-  FinalAnswerReviewActionHandler,
-  FinalAnswerSubmitActionHandler,
-  FinalBidSubmitActionHandler,
-  ThemeEliminateActionHandler,
-} from "domain/handlers/action/finalround";
-import {
-  JoinGameActionHandler,
-  LeaveGameActionHandler,
-  MediaDownloadedActionHandler,
-  NextRoundActionHandler,
-  PauseGameActionHandler,
-  PlayerKickActionHandler,
-  PlayerReadyActionHandler,
-  PlayerRestrictionActionHandler,
-  PlayerRoleChangeActionHandler,
-  PlayerScoreChangeActionHandler,
-  PlayerSlotChangeActionHandler,
-  PlayerUnreadyActionHandler,
-  StartGameActionHandler,
-  TurnPlayerChangeActionHandler,
-  UnpauseGameActionHandler,
-} from "domain/handlers/action/game";
-import {
-  AnswerResultActionHandler,
-  AnswerSubmittedActionHandler,
-  QuestionAnswerActionHandler,
-  QuestionPickActionHandler,
-  QuestionSkipActionHandler,
-  QuestionUnskipActionHandler,
-  SecretQuestionTransferActionHandler,
-  SkipQuestionForceActionHandler,
-  StakeBidSubmitActionHandler,
-} from "domain/handlers/action/question";
-import { DisconnectActionHandler } from "domain/handlers/action/system";
-import { TimerExpirationActionHandler } from "domain/handlers/action/timer";
+import { FinalAnswerReviewActionHandler } from "domain/handlers/action/finalround/FinalAnswerReviewActionHandler";
+import { FinalAnswerSubmitActionHandler } from "domain/handlers/action/finalround/FinalAnswerSubmitActionHandler";
+import { FinalBidSubmitActionHandler } from "domain/handlers/action/finalround/FinalBidSubmitActionHandler";
+import { ThemeEliminateActionHandler } from "domain/handlers/action/finalround/ThemeEliminateActionHandler";
+import { JoinGameActionHandler } from "domain/handlers/action/game/JoinGameActionHandler";
+import { LeaveGameActionHandler } from "domain/handlers/action/game/LeaveGameActionHandler";
+import { MediaDownloadedActionHandler } from "domain/handlers/action/game/MediaDownloadedActionHandler";
+import { NextRoundActionHandler } from "domain/handlers/action/game/NextRoundActionHandler";
+import { PauseGameActionHandler } from "domain/handlers/action/game/PauseGameActionHandler";
+import { PlayerKickActionHandler } from "domain/handlers/action/game/PlayerKickActionHandler";
+import { PlayerReadyActionHandler } from "domain/handlers/action/game/PlayerReadyActionHandler";
+import { PlayerRestrictionActionHandler } from "domain/handlers/action/game/PlayerRestrictionActionHandler";
+import { PlayerRoleChangeActionHandler } from "domain/handlers/action/game/PlayerRoleChangeActionHandler";
+import { PlayerScoreChangeActionHandler } from "domain/handlers/action/game/PlayerScoreChangeActionHandler";
+import { PlayerSlotChangeActionHandler } from "domain/handlers/action/game/PlayerSlotChangeActionHandler";
+import { PlayerUnreadyActionHandler } from "domain/handlers/action/game/PlayerUnreadyActionHandler";
+import { StartGameActionHandler } from "domain/handlers/action/game/StartGameActionHandler";
+import { TurnPlayerChangeActionHandler } from "domain/handlers/action/game/TurnPlayerChangeActionHandler";
+import { UnpauseGameActionHandler } from "domain/handlers/action/game/UnpauseGameActionHandler";
+import { AnswerResultActionHandler } from "domain/handlers/action/question/AnswerResultActionHandler";
+import { AnswerSubmittedActionHandler } from "domain/handlers/action/question/AnswerSubmittedActionHandler";
+import { QuestionAnswerActionHandler } from "domain/handlers/action/question/QuestionAnswerActionHandler";
+import { QuestionPickActionHandler } from "domain/handlers/action/question/QuestionPickActionHandler";
+import { QuestionSkipActionHandler } from "domain/handlers/action/question/QuestionSkipActionHandler";
+import { QuestionUnskipActionHandler } from "domain/handlers/action/question/QuestionUnskipActionHandler";
+import { SecretQuestionTransferActionHandler } from "domain/handlers/action/question/SecretQuestionTransferActionHandler";
+import { SkipQuestionForceActionHandler } from "domain/handlers/action/question/SkipQuestionForceActionHandler";
+import { StakeBidSubmitActionHandler } from "domain/handlers/action/question/StakeBidSubmitActionHandler";
+import { DisconnectActionHandler } from "domain/handlers/action/system/DisconnectActionHandler";
+import { TimerExpirationActionHandler } from "domain/handlers/action/timer/TimerExpirationActionHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
 
 /**
