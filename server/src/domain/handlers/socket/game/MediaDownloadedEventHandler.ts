@@ -40,7 +40,7 @@ export class MediaDownloadedEventHandler extends BaseSocketEventHandler<
   }
 
   protected async getGameIdForAction(
-    _data: any,
+    _data: EmptyInputData,
     context: SocketEventContext
   ): Promise<string | null> {
     try {

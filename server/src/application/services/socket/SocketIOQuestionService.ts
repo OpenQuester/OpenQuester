@@ -10,6 +10,7 @@ import {
   GAME_QUESTION_ANSWER_TIME,
   MEDIA_DOWNLOAD_TIMEOUT,
 } from "domain/constants/game";
+import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { Player } from "domain/entities/game/Player";
@@ -30,15 +31,13 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
-import {
-  StakeBidSubmitInputData,
-} from "domain/types/socket/events/game/StakeQuestionEventData";
-import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
-import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
+import { StakeBidSubmitInputData } from "domain/types/socket/events/game/StakeQuestionEventData";
 import {
   AnswerResultData,
   AnswerResultType,
 } from "domain/types/socket/game/AnswerResultData";
+import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
 import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
@@ -190,8 +189,21 @@ export class SocketIOQuestionService {
     }
 
     let timer: GameStateTimerDTO | null = null;
+    let allPlayersSkipped = false;
+    let skippedQuestion: PackageQuestionDTO | null = null;
+
     if (nextState === QuestionState.SHOWING) {
-      timer = await this.gameService.getTimer(game.id, QuestionState.SHOWING);
+      // Check if no one else can answer
+      if (game.areAllPlayersExhausted()) {
+        allPlayersSkipped = true;
+        // Get question data BEFORE resetting state (which clears currentQuestion)
+        skippedQuestion = await this.getCurrentQuestion(game);
+        // Reset to choosing state instead of showing
+        await this.socketQuestionStateService.resetToChoosingState(game);
+      } else {
+        // Continue question showing
+        timer = await this.gameService.getTimer(game.id, QuestionState.SHOWING);
+      }
     } else if (nextState === QuestionState.CHOOSING) {
       // For correct answers, properly reset to choosing state
       await this.socketQuestionStateService.resetToChoosingState(game);
@@ -202,11 +214,12 @@ export class SocketIOQuestionService {
     // Save
     await this.gameService.updateGame(game);
     if (timer) {
-      await this.gameService.saveTimer(
-        timer,
-        game.id,
-        timer.durationMs - timer.elapsedMs
+      // Use minimum TTL to avoid Redis errors with negative/zero values
+      const remainingMs = Math.max(
+        timer.durationMs - (timer.elapsedMs || 0),
+        MIN_TIMER_TTL_MS
       );
+      await this.gameService.saveTimer(timer, game.id, remainingMs);
     } else {
       // Always make sure all timers are cleared if not meant to be running
       await this.gameService.clearTimer(game.id);
@@ -217,6 +230,8 @@ export class SocketIOQuestionService {
       game,
       question,
       timer,
+      allPlayersSkipped,
+      skippedQuestion,
     };
   }
 
@@ -397,11 +412,12 @@ export class SocketIOQuestionService {
         );
       }
     } else if (question.type === PackageQuestionType.STAKE) {
-      const stakeSetupResult = await this.specialQuestionService.setupStakeQuestion(
-        game,
-        question,
-        currentPlayer!
-      );
+      const stakeSetupResult =
+        await this.specialQuestionService.setupStakeQuestion(
+          game,
+          question,
+          currentPlayer!
+        );
       // If no stake setup result (no active players), proceed as normal question
       if (stakeSetupResult) {
         specialQuestionData = stakeSetupResult.stakeQuestionData;
@@ -640,7 +656,10 @@ export class SocketIOQuestionService {
     socketId: string,
     inputData: StakeBidSubmitInputData
   ): Promise<StakeBidSubmitResult> {
-    return this.specialQuestionService.handleStakeBidSubmit(socketId, inputData);
+    return this.specialQuestionService.handleStakeBidSubmit(
+      socketId,
+      inputData
+    );
   }
 
   /**

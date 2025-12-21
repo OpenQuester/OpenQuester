@@ -111,5 +111,6 @@
   "cannot_transfer_to_self": "Cannot transfer secret question to yourself",
   "cannot_skip_while_not_answering": "You cannot skip while not answering",
   "cannot_upload_package_as_guest": "You cannot upload package as guest",
-  "spectators_cannot_chat_while_answering": "Spectators cannot chat while player is answering"
+  "spectators_cannot_chat_while_answering": "Spectators cannot chat while player is answering",
+  "cannot_join_final_round_as_player": "You cannot join as a player during final round"
 }

@@ -156,7 +156,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should handle empty answers as auto-loss", async () => {
@@ -258,7 +258,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should handle single player answering", async () => {
@@ -330,7 +330,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should handle multiple players with mixed answer types", async () => {
@@ -462,7 +462,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
   });
 
@@ -600,7 +600,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should handle mixed correct and incorrect reviews", async () => {
@@ -738,7 +738,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
   });
 });

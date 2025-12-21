@@ -53,11 +53,12 @@ export class SocketGameTimerService {
     if (timer) {
       // Clear timer with elapsed time
       await this.gameService.clearTimer(game.id, questionState!);
-      // Update timer with new time to expire
+      // Update timer with new time to expire (minimum 1ms to avoid Redis errors)
+      const remainingMs = timer.durationMs - (timer?.elapsedMs || 0);
       await this.gameService.saveTimer(
         timer,
         game.id,
-        timer.durationMs - (timer?.elapsedMs || 0)
+        Math.max(remainingMs, 1)
       );
     }
 
