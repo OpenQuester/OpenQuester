@@ -1,11 +1,8 @@
 import { GameService } from "application/services/game/GameService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
-import { FINAL_ROUND_BID_TIME } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
-import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { ClientError } from "domain/errors/ClientError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
@@ -16,33 +13,22 @@ import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRoute
 import { AutoLossProcessLogic } from "domain/state-machine/logic/AutoLossProcessLogic";
 import { BiddingInitializationLogic } from "domain/state-machine/logic/BiddingInitializationLogic";
 import { BiddingTimeoutLogic } from "domain/state-machine/logic/BiddingTimeoutLogic";
-import {
-  AnswerReviewMutationResult,
-  FinalAnswerReviewLogic,
-} from "domain/state-machine/logic/FinalAnswerReviewLogic";
-import {
-  TransitionResult,
-  TransitionTrigger,
-} from "domain/state-machine/types";
-import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { FinalAnswerReviewLogic } from "domain/state-machine/logic/FinalAnswerReviewLogic";
+import { TransitionTrigger } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
 import { BiddingPhaseInitializationResult } from "domain/types/socket/events/FinalRoundEventData";
 import {
-  AnswerReviewData,
   AutoLossProcessResult,
   BiddingTimeoutResult,
   FinalAnswerReviewResult,
   FinalAnswerSubmitResult,
   FinalBidSubmitResult,
-  FinalRoundQuestionData,
   ThemeEliminateResult,
   ThemeEliminationTimeoutResult,
 } from "domain/types/socket/finalround/FinalRoundResults";
-import { QuestionAnswerData } from "domain/types/socket/finalround/QuestionAnswerData";
-import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
@@ -55,7 +41,6 @@ export class FinalRoundService {
     private readonly gameService: GameService,
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketGameValidationService: SocketGameValidationService,
-    private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly roundHandlerFactory: RoundHandlerFactory,
     private readonly phaseTransitionRouter: PhaseTransitionRouter
   ) {
@@ -90,7 +75,7 @@ export class FinalRoundService {
     });
 
     // Eliminate theme using Logic class
-    const { nextPlayerId } = ThemeEliminateLogic.eliminateTheme(
+    const mutationResult = ThemeEliminateLogic.eliminateTheme(
       game,
       themeId,
       finalRoundHandler
@@ -105,21 +90,13 @@ export class FinalRoundService {
 
     await this.gameService.updateGame(game);
 
-    // Build result
-    let timer: GameStateTimerDTO | undefined;
-    if (transitionResult?.success && transitionResult.data?.timer) {
-      timer = transitionResult.data.timer as GameStateTimerDTO;
-    }
-
-    return {
+    return ThemeEliminateLogic.buildResult({
       game,
       eliminatedBy: currentPlayer!.meta.id,
       themeId,
-      nextPlayerId: transitionResult?.success ? null : nextPlayerId,
-      isPhaseComplete: transitionResult?.success ?? false,
-      timer,
+      mutationResult,
       transitionResult,
-    };
+    });
   }
 
   /**
@@ -154,12 +131,12 @@ export class FinalRoundService {
 
     await this.gameService.updateGame(game);
 
-    return FinalBidSubmitLogic.buildResult(
+    return FinalBidSubmitLogic.buildResult({
       game,
-      currentPlayer.meta.id,
-      normalizedBid,
-      transitionResult
-    );
+      playerId: currentPlayer.meta.id,
+      bidAmount: normalizedBid,
+      transitionResult,
+    });
   }
 
   /**
@@ -213,13 +190,13 @@ export class FinalRoundService {
 
     await this.gameService.updateGame(game);
 
-    return FinalAnswerSubmitLogic.buildResult(
+    return FinalAnswerSubmitLogic.buildResult({
       game,
       player,
       mutationResult,
       completionResult,
-      transitionResult
-    );
+      transitionResult,
+    });
   }
 
   /**
@@ -266,39 +243,11 @@ export class FinalRoundService {
     // Persist game state
     await this.gameService.updateGame(game);
 
-    // Build result
-    return this._buildAnswerReviewResult(
+    return FinalAnswerReviewLogic.buildResult({
       game,
       mutationResult,
-      transitionResult
-    );
-  }
-
-  /**
-   * Build the answer review result from mutation and transition results.
-   */
-  private _buildAnswerReviewResult(
-    game: Game,
-    mutationResult: AnswerReviewMutationResult,
-    transitionResult: TransitionResult | null
-  ): FinalAnswerReviewResult {
-    let isGameFinished = false;
-    let questionAnswerData: QuestionAnswerData | undefined;
-
-    // Check if game finished from transition
-    if (transitionResult?.data?.isGameFinished) {
-      isGameFinished = true;
-      questionAnswerData = transitionResult.data
-        .questionAnswerData as QuestionAnswerData;
-    }
-
-    return {
-      game,
-      isGameFinished,
-      reviewResult: mutationResult.reviewResult,
-      allReviews: mutationResult.allReviews,
-      questionAnswerData,
-    };
+      transitionResult,
+    });
   }
 
   /**
@@ -343,13 +292,12 @@ export class FinalRoundService {
     // Persist game state
     await this.gameService.updateGame(game);
 
-    return {
+    return ThemeEliminateLogic.buildTimeoutResult({
       game,
       themeId: mutationResult.theme.id!,
-      nextPlayerId: mutationResult.nextPlayerId,
-      isPhaseComplete: transitionResult !== null,
-      timer: transitionResult?.data?.timer as GameStateTimerDTO | undefined,
-    };
+      mutationResult,
+      transitionResult,
+    });
   }
 
   /**
@@ -389,17 +337,11 @@ export class FinalRoundService {
     // Persist game state
     await this.gameService.updateGame(game);
 
-    // Get question data from transition result
-    const questionData = transitionResult.data
-      ?.questionData as FinalRoundQuestionData;
-    const timer = transitionResult.data?.timer as GameStateTimerDTO;
-
-    return {
+    return BiddingTimeoutLogic.buildResult({
       game,
-      timeoutBids: mutationResult.timeoutBids,
-      questionData,
-      timer,
-    };
+      mutationResult,
+      transitionResult,
+    });
   }
 
   /**
@@ -421,33 +363,22 @@ export class FinalRoundService {
     }
 
     // Use Logic class for pure mutation
-    const result = AutoLossProcessLogic.processAutoLoss(game);
+    const mutationResult = AutoLossProcessLogic.processAutoLoss(game);
 
-    // Transform entries to review data format
-    const autoLossReviews: AnswerReviewData[] = result.autoLossEntries.map(
-      (entry) =>
-        FinalRoundPhaseCompletionHelper.createAnswerReviewData(
-          entry.answerData,
-          entry.scoreChange,
-          false
-        )
-    );
-
-    let allReviews: AnswerReviewData[] | undefined;
-    if (result.isPhaseComplete) {
-      FinalRoundStateManager.transitionToPhase(game, FinalRoundPhase.REVIEWING);
-      // Get all reviews for showman when transitioning to review phase
-      allReviews = FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
-    }
+    // Try phase transition (ANSWERING -> REVIEWING) if now complete
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.TIMER_EXPIRED,
+      triggeredBy: { isSystem: true },
+    });
 
     await this.gameService.updateGame(game);
 
-    return {
+    return AutoLossProcessLogic.buildResult({
       game,
-      autoLossReviews,
-      isReadyForReview: result.isPhaseComplete,
-      allReviews,
-    };
+      mutationResult,
+      transitionResult,
+    });
   }
 
   /**
@@ -464,101 +395,30 @@ export class FinalRoundService {
     }
 
     // Use Logic class for pure mutation (automatic bids for low-score players)
-    const result = BiddingInitializationLogic.processAutomaticBids(game);
+    const mutationResult =
+      BiddingInitializationLogic.processAutomaticBids(game);
 
-    if (result.allPlayersHaveAutomaticBids) {
-      // Clear any existing timer before phase transition
-      await this.gameService.clearTimer(game.id);
+    // Attempt immediate transition (BIDDING -> ANSWERING) if all bids are now present
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.CONDITION_MET,
+      triggeredBy: { isSystem: true },
+    });
 
-      // Immediate transition to question phase
-      FinalRoundStateManager.transitionToPhase(game, FinalRoundPhase.ANSWERING);
+    await this.gameService.updateGame(game);
 
-      // Get question data
-      const finalRoundHandler = this._getFinalRoundHandler(game);
-      const remainingTheme = finalRoundHandler.getRemainingTheme(game);
-
-      let questionData: FinalRoundQuestionData | undefined;
-      if (
-        remainingTheme &&
-        remainingTheme.questions &&
-        remainingTheme.questions.length > 0
-      ) {
-        questionData = {
-          themeId: remainingTheme.id,
-          themeName: remainingTheme.name,
-          question: remainingTheme.questions[0],
-        } satisfies FinalRoundQuestionData;
-      }
-
-      // Start answer timer
-      const timer = await this._setupAnswerTimer(game);
-
-      await this.gameService.updateGame(game);
-
-      return {
-        automaticBids: result.automaticBids,
-        questionData,
-        timer,
-      } satisfies BiddingPhaseInitializationResult;
-    } else {
-      // Some players need to bid manually, set up bidding timer
-      const timer = await this._setupBiddingTimer(game);
-
-      await this.gameService.updateGame(game);
-
-      return {
-        automaticBids: result.automaticBids,
-        timer,
-      } satisfies BiddingPhaseInitializationResult;
-    }
+    return BiddingInitializationLogic.buildResult({
+      game,
+      mutationResult,
+      transitionResult,
+    });
   }
 
   // Private helper methods
-
-  /**
-   * Get the package question data by theme ID from the final round
-   */
-  private _getPackageQuestionByThemeId(game: Game, themeId: number) {
-    const finalRound = game.package.rounds.find(
-      (round) => round.type === PackageRoundType.FINAL
-    );
-    if (!finalRound) {
-      return null;
-    }
-
-    const theme = finalRound.themes.find((theme) => theme.id === themeId);
-    if (!theme || !theme.questions || theme.questions.length === 0) {
-      return null;
-    }
-
-    return theme.questions[0]; // Final round themes have only one question
-  }
 
   private _getFinalRoundHandler(_game: Game): FinalRoundHandler {
     return this.roundHandlerFactory.create(
       PackageRoundType.FINAL
     ) as FinalRoundHandler;
-  }
-
-  private _initializeFinalRoundDataIfNeeded(game: Game): void {
-    if (!FinalRoundStateManager.getFinalRoundData(game)) {
-      FinalRoundStateManager.initializeFinalRoundData(game);
-    }
-  }
-
-  private async _setupBiddingTimer(game: Game): Promise<GameStateTimerDTO> {
-    const timer = await this.socketQuestionStateService.setupQuestionTimer(
-      game,
-      FINAL_ROUND_BID_TIME,
-      QuestionState.BIDDING
-    );
-    return timer.value()!;
-  }
-
-  private async _setupAnswerTimer(game: Game): Promise<GameStateTimerDTO> {
-    const timer = await this.socketQuestionStateService.setupFinalAnswerTimer(
-      game
-    );
-    return timer.value()!;
   }
 }

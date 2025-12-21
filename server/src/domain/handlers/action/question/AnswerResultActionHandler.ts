@@ -6,6 +6,7 @@ import {
   SocketBroadcastTarget,
   SocketEventBroadcast,
 } from "domain/handlers/socket/BaseSocketEventHandler";
+import { QuestionAnswerResultLogic } from "domain/logic/question/QuestionAnswerResultLogic";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -86,10 +87,10 @@ export class AnswerResultActionHandler
         },
       });
 
-    const answerResultPayload: QuestionAnswerResultEventPayload = {
+    const answerResultPayload = QuestionAnswerResultLogic.buildSocketPayload({
       answerResult: playerAnswerResult,
       timer: null,
-    };
+    });
 
     const questionFinishWithAnswer: QuestionFinishWithAnswerEventPayload = {
       answerFiles: questionData?.answerFiles ?? null,
@@ -126,10 +127,10 @@ export class AnswerResultActionHandler
     playerAnswerResult: GameStateAnsweredPlayerData,
     timer: GameStateTimerDTO | null
   ): GameActionHandlerResult<QuestionAnswerResultEventPayload> {
-    const resultPayload: QuestionAnswerResultEventPayload = {
+    const resultPayload = QuestionAnswerResultLogic.buildSocketPayload({
       answerResult: playerAnswerResult,
       timer,
-    };
+    });
 
     const broadcasts: SocketEventBroadcast<unknown>[] = [
       {

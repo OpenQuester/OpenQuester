@@ -9,6 +9,13 @@ import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
+interface FinalBidSubmitInput {
+  game: Game;
+  playerId: number;
+  bidAmount: number;
+  transitionResult: TransitionResult | null;
+}
+
 /**
  * Pure business logic for final round bid submission.
  *
@@ -59,13 +66,9 @@ export class FinalBidSubmitLogic {
    *
    * Extracts timer from transition data if phase completed.
    */
-  public static buildResult(
-    game: Game,
-    playerId: number,
-    bidAmount: number,
-    transitionResult: TransitionResult | null
-  ): FinalBidSubmitResult {
+  public static buildResult(input: FinalBidSubmitInput): FinalBidSubmitResult {
     let timer: GameStateTimerDTO | undefined;
+    const { game, playerId, bidAmount, transitionResult } = input;
 
     if (transitionResult?.success && transitionResult.data?.timer) {
       timer = transitionResult.data.timer as GameStateTimerDTO;

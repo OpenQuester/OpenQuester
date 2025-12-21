@@ -1,7 +1,13 @@
 import { Game } from "domain/entities/game/Game";
+import { TransitionResult } from "domain/state-machine/types";
+import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
+import {
+  BiddingTimeoutResult,
+  FinalRoundQuestionData,
+} from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 
 /** Default bid amount for timeout auto-bids */
@@ -60,5 +66,28 @@ export class BiddingTimeoutLogic {
    */
   public static areAllBidsSubmitted(game: Game): boolean {
     return FinalRoundStateManager.areAllBidsSubmitted(game);
+  }
+
+  /**
+   * Builds the result object from timeout mutation + transition outcome.
+   */
+  public static buildResult(input: {
+    game: Game;
+    mutationResult: BiddingTimeoutMutationResult;
+    transitionResult: TransitionResult;
+  }): BiddingTimeoutResult {
+    const { game, mutationResult, transitionResult } = input;
+
+    const questionData = transitionResult.data
+      ?.questionData as FinalRoundQuestionData;
+    const timer = transitionResult.data?.timer as GameStateTimerDTO;
+
+    return {
+      game,
+      timeoutBids: mutationResult.timeoutBids,
+      questionData,
+      timer,
+      transitionResult,
+    } satisfies BiddingTimeoutResult;
   }
 }

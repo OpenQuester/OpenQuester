@@ -1,6 +1,11 @@
 import { Game } from "domain/entities/game/Game";
+import { TransitionResult } from "domain/state-machine/types";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
-import { AnswerReviewData } from "domain/types/socket/finalround/FinalRoundResults";
+import {
+  AnswerReviewData,
+  FinalAnswerReviewResult,
+} from "domain/types/socket/finalround/FinalRoundResults";
+import { QuestionAnswerData } from "domain/types/socket/finalround/QuestionAnswerData";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
@@ -72,5 +77,29 @@ export class FinalAnswerReviewLogic {
    */
   public static areAllAnswersReviewed(game: Game): boolean {
     return FinalRoundStateManager.areAllAnswersReviewed(game);
+  }
+
+  /**
+   * Builds the answer review result from mutation and transition results.
+   */
+  public static buildResult(input: {
+    game: Game;
+    mutationResult: AnswerReviewMutationResult;
+    transitionResult: TransitionResult | null;
+  }): FinalAnswerReviewResult {
+    const { game, mutationResult, transitionResult } = input;
+
+    const isGameFinished = Boolean(transitionResult?.data?.isGameFinished);
+    const questionAnswerData = isGameFinished
+      ? (transitionResult!.data!.questionAnswerData as QuestionAnswerData)
+      : undefined;
+
+    return {
+      game,
+      isGameFinished,
+      reviewResult: mutationResult.reviewResult,
+      allReviews: mutationResult.allReviews,
+      questionAnswerData,
+    } satisfies FinalAnswerReviewResult;
   }
 }

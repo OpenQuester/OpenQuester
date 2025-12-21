@@ -595,9 +595,6 @@ export class DIConfig {
         Container.get<SocketGameValidationService>(
           CONTAINER_TYPES.SocketGameValidationService
         ),
-        Container.get<SocketQuestionStateService>(
-          CONTAINER_TYPES.SocketQuestionStateService
-        ),
         Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
         Container.get<PhaseTransitionRouter>(
           CONTAINER_TYPES.PhaseTransitionRouter
@@ -623,7 +620,9 @@ export class DIConfig {
           CONTAINER_TYPES.SocketQuestionStateService
         ),
         Container.get<FinalRoundService>(CONTAINER_TYPES.FinalRoundService),
-        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        Container.get<PhaseTransitionRouter>(
+          CONTAINER_TYPES.PhaseTransitionRouter
+        ),
         this.logger
       ),
       "service"

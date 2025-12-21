@@ -1,7 +1,13 @@
 import { Game } from "domain/entities/game/Game";
+import { TransitionResult } from "domain/state-machine/types";
+import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
+import {
+  BiddingPhaseInitializationResult,
+  PlayerBidData,
+} from "domain/types/socket/events/FinalRoundEventData";
+import { FinalRoundQuestionData } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 
 /**
@@ -59,5 +65,35 @@ export class BiddingInitializationLogic {
       automaticBids,
       allPlayersHaveAutomaticBids,
     };
+  }
+
+  /**
+   * Builds the bidding phase initialization result.
+   *
+   * - If a transition to answering occurred, timer/questionData come from transition.
+   * - Otherwise, timer is expected to already be set on game state by the
+   *   theme elimination -> bidding transition handler.
+   */
+  public static buildResult(input: {
+    game: Game;
+    mutationResult: BiddingInitializationMutationResult;
+    transitionResult: TransitionResult | null;
+  }): BiddingPhaseInitializationResult {
+    const { game, mutationResult, transitionResult } = input;
+
+    const questionData = transitionResult?.data?.questionData as
+      | FinalRoundQuestionData
+      | undefined;
+
+    const timer =
+      (transitionResult?.data?.timer as GameStateTimerDTO | undefined) ??
+      game.gameState.timer ??
+      undefined;
+
+    return {
+      automaticBids: mutationResult.automaticBids,
+      questionData,
+      timer,
+    } satisfies BiddingPhaseInitializationResult;
   }
 }

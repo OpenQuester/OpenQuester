@@ -5,13 +5,13 @@ import { SocketQuestionStateService } from "application/services/socket/SocketQu
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID } from "domain/constants/game";
-import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
-import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
+import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
+import { QuestionShowingExpirationLogic } from "domain/logic/timer/QuestionShowingExpirationLogic";
+import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import {
@@ -21,15 +21,10 @@ import {
 import {
   FinalAnswerSubmitOutputData,
   FinalAutoLossEventData,
-  FinalPhaseCompleteEventData,
-  FinalQuestionEventData,
-  FinalSubmitEndEventData,
   ThemeEliminateOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
-import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
-import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { ILogger } from "infrastructure/logger/ILogger";
 
@@ -105,18 +100,14 @@ export class TimerExpirationService {
     await this.socketQuestionStateService.resetToChoosingState(game);
 
     const broadcasts: BroadcastEvent[] = [
-      {
-        event: SocketIOGameEvents.QUESTION_FINISH,
-        data: {
-          answerFiles: question.answerFiles ?? null,
-          answerText: question.answerText ?? null,
-          nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-        } satisfies QuestionFinishEventPayload,
-        room: gameId,
-      },
+      QuestionShowingExpirationLogic.buildQuestionFinishBroadcast(
+        game,
+        question,
+        gameId
+      ),
     ];
 
-    if (!game.isAllQuestionsPlayed()) {
+    if (!QuestionShowingExpirationLogic.shouldProgressRound(game)) {
       return {
         success: true,
         game,
@@ -150,11 +141,9 @@ export class TimerExpirationService {
       gameId,
       GAME_TTL_IN_SECONDS
     );
-    // Check if final round answering
-    if (
-      TransitionGuards.isFinalRound(game) &&
-      TransitionGuards.isQuestionState(game, QuestionState.ANSWERING)
-    ) {
+
+    // Check if final round answering via Logic class
+    if (AnsweringExpirationLogic.isFinalRoundExpiration(game)) {
       return this.handleFinalRoundAnsweringExpiration(game);
     }
 
@@ -172,14 +161,7 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts: [
-        {
-          event: SocketIOGameEvents.ANSWER_RESULT,
-          data: {
-            answerResult,
-            timer,
-          } satisfies QuestionAnswerResultEventPayload,
-          room: gameId,
-        },
+        AnsweringExpirationLogic.buildBroadcast(gameId, answerResult, timer),
       ],
       shouldContinue: false,
     };
@@ -211,15 +193,8 @@ export class TimerExpirationService {
       },
     ];
 
-    if (result.isPhaseComplete) {
-      broadcasts.push({
-        event: SocketIOGameEvents.FINAL_PHASE_COMPLETE,
-        data: {
-          phase: FinalRoundPhase.THEME_ELIMINATION,
-          nextPhase: FinalRoundPhase.BIDDING,
-        } satisfies FinalPhaseCompleteEventData,
-        room: gameId,
-      });
+    if (result.transitionResult) {
+      broadcasts.push(...result.transitionResult.broadcasts);
     }
 
     return {
@@ -243,21 +218,7 @@ export class TimerExpirationService {
     const result = await this.finalRoundService.handleBiddingTimeout(gameId);
 
     const broadcasts: BroadcastEvent[] = [
-      {
-        event: SocketIOGameEvents.FINAL_PHASE_COMPLETE,
-        data: {
-          phase: FinalRoundPhase.BIDDING,
-          nextPhase: FinalRoundPhase.ANSWERING,
-        } satisfies FinalPhaseCompleteEventData,
-        room: gameId,
-      },
-      {
-        event: SocketIOGameEvents.FINAL_QUESTION_DATA,
-        data: {
-          questionData: result.questionData,
-        } satisfies FinalQuestionEventData,
-        room: gameId,
-      },
+      ...result.transitionResult.broadcasts,
     ];
 
     return {
@@ -315,27 +276,24 @@ export class TimerExpirationService {
     game: Game,
     question: PackageQuestionDTO
   ) {
-    const nextState = QuestionState.SHOWING;
-    const scoreResult = question.price !== null ? -question.price : 0;
-
-    const playerAnswerResult = game.handleQuestionAnswer(
-      scoreResult,
-      AnswerResultType.WRONG,
-      nextState
+    // Process wrong answer via Logic class
+    const mutation = AnsweringExpirationLogic.processWrongAnswer(
+      game,
+      question
     );
 
     try {
       await this.playerGameStatsService.updatePlayerAnswerStats(
         game.id,
-        playerAnswerResult.player,
+        mutation.answerResult.player,
         AnswerResultType.WRONG,
-        playerAnswerResult.score
+        mutation.answerResult.score
       );
     } catch (error) {
       this.logger.warn("Failed to update player answer statistics on timeout", {
         prefix: "[TIMER_EXPIRATION_SERVICE]: ",
         gameId: game.id,
-        playerId: playerAnswerResult.player,
+        playerId: mutation.answerResult.player,
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -349,12 +307,14 @@ export class TimerExpirationService {
     await this.gameService.updateGame(game);
 
     if (timer) {
-      const remainingTimeMs = timer.durationMs - timer.elapsedMs;
-      const ttlMs = Math.max(remainingTimeMs, MIN_TIMER_TTL_MS);
-      await this.gameService.saveTimer(timer, game.id, ttlMs);
+      await this.gameService.saveTimer(
+        timer,
+        game.id,
+        TimerPersistenceLogic.getSafeTtlMs(timer)
+      );
     }
 
-    return { answerResult: playerAnswerResult, timer };
+    return { answerResult: mutation.answerResult, timer };
   }
 
   /**
@@ -388,17 +348,8 @@ export class TimerExpirationService {
       });
     }
 
-    // If ready for review, emit phase completion
-    if (result.isReadyForReview && result.allReviews) {
-      broadcasts.push({
-        event: SocketIOGameEvents.FINAL_SUBMIT_END,
-        data: {
-          phase: FinalRoundPhase.ANSWERING,
-          nextPhase: FinalRoundPhase.REVIEWING,
-          allReviews: result.allReviews,
-        } satisfies FinalSubmitEndEventData,
-        room: game.id,
-      });
+    if (result.transitionResult) {
+      broadcasts.push(...result.transitionResult.broadcasts);
     }
 
     return {

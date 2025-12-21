@@ -10,6 +10,8 @@ import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
+import { SecretQuestionTransferLogic } from "domain/logic/special-question/SecretQuestionTransferLogic";
+import { StakeBidSubmitLogic } from "domain/logic/special-question/StakeBidSubmitLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { StakeBiddingMapper } from "domain/mappers/StakeBiddingMapper";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
@@ -30,7 +32,6 @@ import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestion
 import { SecretQuestionValidator } from "domain/validators/SecretQuestionValidator";
 import { StakeQuestionValidator } from "domain/validators/StakeQuestionValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 /**
  * Result from secret question transfer
@@ -74,6 +75,7 @@ export class SpecialQuestionService {
     socketId: string,
     data: SecretQuestionTransferInputData
   ): Promise<SecretQuestionTransferResult> {
+    // Context & Validation
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
@@ -88,6 +90,7 @@ export class SpecialQuestionService {
       targetPlayerId: data.targetPlayerId,
     });
 
+    // Setup timer
     const timerEntity =
       await this.socketQuestionStateService.setupQuestionTimer(
         game,
@@ -105,24 +108,24 @@ export class SpecialQuestionService {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
     }
 
-    game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
-      questionData.question
+    // Process transfer via Logic class
+    SecretQuestionTransferLogic.processTransfer(
+      game,
+      questionData,
+      data.targetPlayerId
     );
 
-    game.gameState.secretQuestionData = null;
-    game.gameState.questionState = QuestionState.ANSWERING;
-    game.gameState.answeringPlayer = data.targetPlayerId;
-
+    // Save
     await this.gameService.updateGame(game);
 
-    return {
+    return SecretQuestionTransferLogic.buildResult({
       game,
       fromPlayerId: currentPlayer!.meta.id,
       toPlayerId: data.targetPlayerId,
-      questionId: secretData!.questionId,
+      secretData: secretData!,
       timer: timerEntity,
       question: questionData.question,
-    };
+    });
   }
 
   /**
@@ -132,6 +135,7 @@ export class SpecialQuestionService {
     socketId: string,
     inputData: StakeBidSubmitInputData
   ): Promise<StakeBidSubmitResult> {
+    // Context & Validation
     const bid: number | StakeBidType =
       inputData.bidType === StakeBidType.NORMAL && inputData.bidAmount !== null
         ? inputData.bidAmount
@@ -151,33 +155,12 @@ export class SpecialQuestionService {
 
     const stakeData = game.gameState.stakeQuestionData!;
 
-    const isShowmanOverride = currentPlayer!.role === PlayerRole.SHOWMAN;
-    let biddingPlayer: Player;
-
-    if (isShowmanOverride) {
-      const currentBidderIndex = stakeData.currentBidderIndex;
-
-      if (
-        !ValueUtils.isNumber(currentBidderIndex) ||
-        currentBidderIndex < 0 ||
-        currentBidderIndex >= stakeData.biddingOrder.length
-      ) {
-        throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
-      }
-
-      const biddingPlayerId = stakeData.biddingOrder[currentBidderIndex];
-
-      const targetPlayer = game.getPlayer(biddingPlayerId, {
-        fetchDisconnected: false,
-      });
-      if (!targetPlayer) {
-        throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
-      }
-
-      biddingPlayer = targetPlayer;
-    } else {
-      biddingPlayer = currentPlayer!;
-    }
+    // Resolve bidding player via Logic class
+    const biddingPlayer = StakeBidSubmitLogic.resolveBiddingPlayer(
+      game,
+      currentPlayer!,
+      stakeData
+    );
 
     const stakeQuestionData = GameQuestionMapper.getQuestionAndTheme(
       game.package,
@@ -217,7 +200,7 @@ export class SpecialQuestionService {
 
     await this.gameService.updateGame(game);
 
-    return {
+    return StakeBidSubmitLogic.buildResult({
       game,
       playerId: biddingPlayer.meta.id,
       bidAmount,
@@ -225,11 +208,9 @@ export class SpecialQuestionService {
       isPhaseComplete,
       nextBidderId,
       winnerPlayerId: bidResult.updatedStakeData.winnerPlayerId,
-      questionData: questionData
-        ? GameQuestionMapper.mapToSimpleQuestion(questionData)
-        : null,
+      questionData: questionData ? { question: questionData } : null,
       timer,
-    };
+    });
   }
 
   /**

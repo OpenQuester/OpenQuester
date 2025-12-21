@@ -30,6 +30,14 @@ export interface AnswerPhaseCompletionResult {
   allReviews: AnswerReviewData[] | undefined;
 }
 
+interface FinalAnswerSubmitInput {
+  game: Game;
+  player: Player;
+  mutationResult: AnswerSubmitMutationResult;
+  completionResult: AnswerPhaseCompletionResult;
+  transitionResult: TransitionResult | null;
+}
+
 /**
  * Pure business logic for final round answer submission.
  *
@@ -88,12 +96,11 @@ export class FinalAnswerSubmitLogic {
    * Builds the result object from submission data.
    */
   public static buildResult(
-    game: Game,
-    player: Player,
-    mutationResult: AnswerSubmitMutationResult,
-    completionResult: AnswerPhaseCompletionResult,
-    transitionResult: TransitionResult | null
+    input: FinalAnswerSubmitInput
   ): FinalAnswerSubmitResult {
+    const { game, player, mutationResult, completionResult, transitionResult } =
+      input;
+
     return {
       game,
       playerId: player.meta.id,

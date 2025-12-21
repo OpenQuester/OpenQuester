@@ -4,8 +4,14 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { ClientError } from "domain/errors/ClientError";
 import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
+import { TransitionResult } from "domain/state-machine/types";
 import { GameStateThemeDTO } from "domain/types/dto/game/state/GameStateThemeDTO";
+import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import {
+  ThemeEliminateResult,
+  ThemeEliminationTimeoutResult,
+} from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
@@ -27,6 +33,21 @@ export interface ThemeEliminateMutationResult {
   theme: GameStateThemeDTO;
   turnOrder: number[];
   nextPlayerId: number | null;
+}
+
+interface ThemeEliminateTimeoutInput {
+  game: Game;
+  themeId: number;
+  mutationResult: ThemeEliminateMutationResult;
+  transitionResult: TransitionResult | null;
+}
+
+interface ThemeEliminateResultInput {
+  game: Game;
+  eliminatedBy: number;
+  themeId: number;
+  mutationResult: ThemeEliminateMutationResult;
+  transitionResult: TransitionResult | null;
 }
 
 /**
@@ -163,6 +184,54 @@ export class ThemeEliminateLogic {
 
     const randomIndex = Math.floor(Math.random() * activeThemes.length);
     return activeThemes[randomIndex].id!;
+  }
+
+  /**
+   * Builds the result object from elimination data and transition outcome.
+   */
+  public static buildResult(
+    input: ThemeEliminateResultInput
+  ): ThemeEliminateResult {
+    const { game, eliminatedBy, themeId, mutationResult, transitionResult } =
+      input;
+
+    let timer: GameStateTimerDTO | undefined;
+    if (transitionResult?.success && transitionResult.data?.timer) {
+      timer = transitionResult.data.timer as GameStateTimerDTO;
+    }
+
+    return {
+      game,
+      eliminatedBy,
+      themeId,
+      nextPlayerId: transitionResult?.success
+        ? null
+        : mutationResult.nextPlayerId,
+      isPhaseComplete: transitionResult?.success ?? false,
+      timer,
+      transitionResult,
+    } satisfies ThemeEliminateResult;
+  }
+
+  /**
+   * Builds the result object for timeout-driven theme elimination.
+   *
+   * Note: timeout flow relies on whether a transition occurred (non-null),
+   * matching existing service semantics.
+   */
+  public static buildTimeoutResult(
+    input: ThemeEliminateTimeoutInput
+  ): ThemeEliminationTimeoutResult {
+    const { game, themeId, mutationResult, transitionResult } = input;
+
+    return {
+      game,
+      themeId,
+      nextPlayerId: mutationResult.nextPlayerId,
+      isPhaseComplete: transitionResult !== null,
+      timer: transitionResult?.data?.timer as GameStateTimerDTO | undefined,
+      transitionResult,
+    } satisfies ThemeEliminationTimeoutResult;
   }
 
   /**

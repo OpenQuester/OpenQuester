@@ -66,6 +66,8 @@ export interface ThemeEliminationTimeoutResult {
   nextPlayerId: number | null;
   isPhaseComplete: boolean;
   timer?: GameStateTimerDTO;
+  /** Transition result for direct broadcast pass-through */
+  transitionResult?: TransitionResult | null;
 }
 
 export interface BiddingTimeoutResult {
@@ -73,6 +75,8 @@ export interface BiddingTimeoutResult {
   timeoutBids: Array<PlayerBidData>;
   questionData: FinalRoundQuestionData;
   timer: GameStateTimerDTO;
+  /** Transition result for direct broadcast pass-through */
+  transitionResult: TransitionResult;
 }
 
 /**
@@ -93,4 +97,6 @@ export interface AutoLossProcessResult {
   autoLossReviews: AnswerReviewData[];
   isReadyForReview: boolean;
   allReviews?: AnswerReviewData[]; // For showman when transitioning to review phase
+  /** Transition result for direct broadcast pass-through */
+  transitionResult: TransitionResult | null;
 }

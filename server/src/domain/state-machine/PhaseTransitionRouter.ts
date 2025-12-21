@@ -55,41 +55,43 @@ export class PhaseTransitionRouter {
 
     // Find first handler that can handle this transition
     for (const handler of handlers) {
-      if (handler.canTransition(ctx)) {
+      if (!handler.canTransition(ctx)) {
+        continue;
+      }
+
+      this.logger.trace(
+        `Executing transition: ${handler.fromPhase} -> ${handler.toPhase} (trigger: ${ctx.trigger})`,
+        {
+          prefix: "[STATE_MACHINE]: ",
+          gameId: ctx.game.id,
+          trigger: ctx.trigger,
+          triggeredBy: ctx.triggeredBy,
+        }
+      );
+
+      try {
+        const result = await handler.execute(ctx);
+
         this.logger.trace(
-          `Executing transition: ${handler.fromPhase} -> ${handler.toPhase} (trigger: ${ctx.trigger})`,
+          `Transition completed: ${handler.fromPhase} -> ${handler.toPhase}`,
           {
             prefix: "[STATE_MACHINE]: ",
             gameId: ctx.game.id,
-            trigger: ctx.trigger,
-            triggeredBy: ctx.triggeredBy,
+            broadcastCount: result.broadcasts.length,
           }
         );
 
-        try {
-          const result = await handler.execute(ctx);
-
-          this.logger.trace(
-            `Transition completed: ${handler.fromPhase} -> ${handler.toPhase}`,
-            {
-              prefix: "[STATE_MACHINE]: ",
-              gameId: ctx.game.id,
-              broadcastCount: result.broadcasts.length,
-            }
-          );
-
-          return result;
-        } catch (error) {
-          this.logger.error(
-            `Transition failed: ${handler.fromPhase} -> ${handler.toPhase}: ${error}`,
-            {
-              prefix: "[STATE_MACHINE]: ",
-              gameId: ctx.game.id,
-              error,
-            }
-          );
-          throw error;
-        }
+        return result;
+      } catch (error) {
+        this.logger.error(
+          `Transition failed: ${handler.fromPhase} -> ${handler.toPhase}: ${error}`,
+          {
+            prefix: "[STATE_MACHINE]: ",
+            gameId: ctx.game.id,
+            error,
+          }
+        );
+        throw error;
       }
     }
 
