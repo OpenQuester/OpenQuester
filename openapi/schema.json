@@ -1754,11 +1754,9 @@
         "description": "Author user id"
       },
       "PackageTags": {
-        "oneOf": [
-          { "type": "array", "items": { "type": "string" } },
-          { "type": "string" }
-        ],
-        "description": "Tags filter; accepts array or comma-separated string"
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Tags filter; can also be provided as comma-separated string"
       },
       "PackageMinRounds": {
         "type": "integer",
