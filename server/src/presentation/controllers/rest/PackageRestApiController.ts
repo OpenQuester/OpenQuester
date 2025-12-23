@@ -81,6 +81,8 @@ export class PackageRestApiController {
       packageSearchScheme()
     ).validate();
 
+    this._validateMinMaxRanges(searchOpts);
+
     const data = await this.packageService.searchPackages(searchOpts);
 
     return res.status(HttpStatus.OK).send(data);
@@ -103,4 +105,22 @@ export class PackageRestApiController {
       message: "Package deleted successfully",
     });
   };
+
+  private _validateMinMaxRanges(opts: PackageSearchOpts): void {
+    if (
+      opts.minRounds !== undefined &&
+      opts.maxRounds !== undefined &&
+      opts.minRounds > opts.maxRounds
+    ) {
+      throw new ClientError("minRounds cannot be greater than maxRounds");
+    }
+
+    if (
+      opts.minQuestions !== undefined &&
+      opts.maxQuestions !== undefined &&
+      opts.minQuestions > opts.maxQuestions
+    ) {
+      throw new ClientError("minQuestions cannot be greater than maxQuestions");
+    }
+  }
 }

@@ -124,7 +124,9 @@ export class PackageSearchQueryHelper {
     const { title, description, language, authorId, tags, ageRestriction } =
       filters;
 
-    // Text search using ILIKE - leverages GIN trigram index on title
+    // Text search using ILIKE with leading wildcard.
+    // Note: Leading wildcard prevents GIN trigram index optimization for prefix matches,
+    // but enables substring search anywhere in title. Trade-off acceptable for UX.
     if (title && title.length > 0) {
       qb.andWhere("package.title ILIKE :title", { title: `%${title}%` });
     }
@@ -253,6 +255,6 @@ export class PackageSearchQueryHelper {
     }
 
     qb.andHaving(condition, parameters);
-    return firstHaving;
+    return false;
   }
 }

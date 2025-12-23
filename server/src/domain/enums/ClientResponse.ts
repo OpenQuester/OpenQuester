@@ -42,6 +42,8 @@ export enum ClientResponse {
   PACKAGE_CORRUPTED = "package_corrupted",
   ORDER_DUPLICATED = "order_duplicated",
   CANNOT_UPLOAD_PACKAGE_AS_GUEST = "cannot_upload_package_as_guest",
+  PACKAGE_SEARCH_ROUNDS_MIN_MORE_MAX = "package_search_rounds_min_more_max",
+  PACKAGE_SEARCH_QUESTIONS_MIN_MORE_MAX = "package_search_questions_min_more_max",
 
   // File
   FILENAME_REQUIRED = "filename_required",

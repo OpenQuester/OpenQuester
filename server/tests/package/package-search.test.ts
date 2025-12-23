@@ -612,14 +612,14 @@ describe("Package Search API", () => {
         additionalQuestions: 0,
         author: user1,
         authorCookie: user1Cookie,
-      }); // 6 base questions in theme 1 + 1 in theme 2 = 7 questions
+      }); // 7 base questions in theme 1 + 1 in theme 2 = 8 questions
 
       await createPackage({
         title: "Many Questions",
         additionalQuestions: 10,
         author: user1,
         authorCookie: user1Cookie,
-      }); // 6 + 10 + 1 = 17 questions
+      }); // 7 + 10 + 1 = 18 questions
 
       const res = await request(app)
         .get("/v1/packages")
@@ -662,14 +662,14 @@ describe("Package Search API", () => {
         additionalQuestions: 0,
         author: user1,
         authorCookie: user1Cookie,
-      }); // 7 questions
+      }); // 8 questions
 
       await createPackage({
         title: "Package 2",
         additionalQuestions: 5,
         author: user1,
         authorCookie: user1Cookie,
-      }); // 12 questions
+      }); // 13 questions
 
       const res = await request(app)
         .get("/v1/packages")
@@ -756,7 +756,7 @@ describe("Package Search API", () => {
         additionalQuestions: 10,
         author: user1,
         authorCookie: user1Cookie,
-      }); // ~17 questions
+      }); // ~18 questions
 
       await createPackage({
         title: "Basic JavaScript Tutorial",
@@ -764,7 +764,7 @@ describe("Package Search API", () => {
         additionalQuestions: 0,
         author: user1,
         authorCookie: user1Cookie,
-      }); // ~7 questions
+      }); // ~8 questions
 
       await createPackage({
         title: "Advanced Python Course",
@@ -918,7 +918,7 @@ describe("Package Search API", () => {
         authorCookie: user1Cookie,
       });
 
-      // Small delay to ensure different timestamps
+      // Small delay to ensure different timestamps (10 ms delay is fine)
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       const id2 = await createPackage({
