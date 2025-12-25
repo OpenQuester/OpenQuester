@@ -120,6 +120,7 @@ class PackageInfoScreen extends WatchingWidget {
                 FilledButton.icon(
                   onPressed: () async {
                     if (!(formKey.currentState?.validate() ?? false)) return;
+                    FocusScope.of(context).unfocus();
                     await context.router.push(const RoundsListRoute());
                   },
                   icon: const Icon(Icons.arrow_forward),
