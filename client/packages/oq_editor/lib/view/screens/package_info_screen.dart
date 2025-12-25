@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/router/router.gr.dart';
+import 'package:oq_editor/utils/package_editor_validators.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -71,15 +72,12 @@ class PackageInfoScreen extends WatchingWidget {
                       controller.updatePackageInfo(description: value),
                   maxLines: 4,
                   maxLength: 500,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return translations.fieldRequired;
-                    }
-                    if (value.length > 500) {
-                      return translations.maxLengthError(500);
-                    }
-                    return null;
-                  },
+                  validator: (value) =>
+                      PackageEditorValidators.validateStringLength(
+                        value,
+                        null,
+                        500,
+                      ),
                 ),
                 const SizedBox(height: 16),
 
@@ -93,18 +91,12 @@ class PackageInfoScreen extends WatchingWidget {
                   onChanged: (value) =>
                       controller.updatePackageInfo(language: value),
                   maxLength: 10,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return translations.fieldRequired;
-                    }
-                    if (value.length < 2) {
-                      return translations.minLengthError(2);
-                    }
-                    if (value.length > 10) {
-                      return translations.maxLengthError(10);
-                    }
-                    return null;
-                  },
+                  validator: (value) =>
+                      PackageEditorValidators.validateStringLength(
+                        value,
+                        2,
+                        10,
+                      ),
                 ),
                 const SizedBox(height: 16),
 
