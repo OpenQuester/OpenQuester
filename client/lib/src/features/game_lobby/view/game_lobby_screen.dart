@@ -77,6 +77,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               scrolledUnderElevation: 0,
               notificationPredicate: (_) => false,
             ),
+            floatingActionButton: const LobbyActionButton(),
+            floatingActionButtonLocation:
+                FloatingActionButtonLocation.centerFloat,
             body: SafeArea(
               bottom: false,
               child: Stack(
