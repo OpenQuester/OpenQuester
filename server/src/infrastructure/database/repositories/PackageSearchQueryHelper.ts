@@ -1,7 +1,7 @@
 import { Repository, SelectQueryBuilder } from "typeorm";
 
-import { PaginatedResult } from "domain/types/dto";
 import { PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
+import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { Package } from "infrastructure/database/models/package/Package";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
