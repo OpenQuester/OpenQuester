@@ -7,9 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   EmptyInputData,
@@ -67,31 +65,5 @@ export class StartGameEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization will be handled by the service layer
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<GameStartBroadcastData>> {
-    // Execute the start game logic
-    const gameDTO = await this.socketIOGameService.startGame(context.socketId);
-
-    const startEventPayload: GameStartBroadcastData = {
-      currentRound: gameDTO.gameState.currentRound!,
-    };
-
-    // Return result with broadcasting instructions
-    return {
-      success: true,
-      data: startEventPayload,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.START,
-          data: startEventPayload,
-          target: SocketBroadcastTarget.GAME,
-          gameId: gameDTO.id,
-        },
-      ],
-    };
   }
 }

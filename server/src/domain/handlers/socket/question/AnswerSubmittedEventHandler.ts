@@ -7,9 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   AnswerSubmittedBroadcastData,
@@ -67,31 +65,5 @@ export class AnswerSubmittedEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization handled in service - checks if user is answering player
-  }
-
-  protected async execute(
-    data: AnswerSubmittedInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<AnswerSubmittedBroadcastData>> {
-    const game = await this.socketIOQuestionService.handleAnswerSubmitted(
-      context.socketId
-    );
-
-    const broadcastData: AnswerSubmittedBroadcastData = {
-      answerText: data.answerText,
-    };
-
-    return {
-      success: true,
-      data: broadcastData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.ANSWER_SUBMITTED,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        },
-      ],
-    };
   }
 }

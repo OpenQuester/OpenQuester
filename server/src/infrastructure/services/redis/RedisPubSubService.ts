@@ -6,6 +6,10 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class RedisPubSubService {
+  private _messageHandler: ((channel: string, message: string) => void) | null =
+    null;
+  private _subscribedChannel: string | null = null;
+
   constructor(
     private readonly redisService: RedisService,
     private readonly handlers: RedisExpirationHandler[],
@@ -15,13 +19,13 @@ export class RedisPubSubService {
   }
 
   public async initKeyExpirationHandling() {
-    await this.redisService.subscribe(
-      REDIS_KEY_EXPIRE_EVENT(
-        Environment.getInstance(this.logger).REDIS_DB_NUMBER
-      )
+    this._subscribedChannel = REDIS_KEY_EXPIRE_EVENT(
+      Environment.getInstance(this.logger).REDIS_DB_NUMBER
     );
 
-    this.redisService.on("message", async (_, message) => {
+    await this.redisService.subscribe(this._subscribedChannel);
+
+    this._messageHandler = async (_, message) => {
       if (!ValueUtils.isString(message)) return;
 
       this.logger.debug(`Key expired: ${message}`, {
@@ -34,9 +38,31 @@ export class RedisPubSubService {
           break;
         }
       }
-    });
+    };
+
+    this.redisService.on("message", this._messageHandler);
 
     this.logger.info("Redis subscribed for keys expiration", {
+      prefix: "[RedisPubSubService]: ",
+    });
+  }
+
+  /**
+   * Unsubscribe from Redis keyspace notifications and remove the message listener.
+   * Should be called during cleanup to prevent stale subscriptions in test environments.
+   */
+  public async unsubscribe(): Promise<void> {
+    if (this._subscribedChannel) {
+      await this.redisService.unsubscribe(this._subscribedChannel);
+      this._subscribedChannel = null;
+    }
+
+    if (this._messageHandler) {
+      this.redisService.off("message", this._messageHandler);
+      this._messageHandler = null;
+    }
+
+    this.logger.info("Redis unsubscribed from keys expiration", {
       prefix: "[RedisPubSubService]: ",
     });
   }

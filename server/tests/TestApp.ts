@@ -12,6 +12,7 @@ import { Environment } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Database } from "infrastructure/database/Database";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
+import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { ServeApi } from "presentation/ServeApi";
 import { TestRestApiController } from "tests/TestRestApiController";
 import { setTestEnvDefaults } from "tests/utils/utils";
@@ -87,6 +88,14 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     );
     logger.info("Stopping cron scheduler...");
     await cronScheduler.stopAll();
+
+    // Unsubscribe from Redis keyspace notifications to prevent duplicate
+    // timer expirations across test suites
+    const pubSub = Container.get<RedisPubSubService>(
+      CONTAINER_TYPES.RedisPubSubService
+    );
+    logger.info("Unsubscribing from Redis keyspace notifications...");
+    await pubSub.unsubscribe();
 
     await io.close();
     if (httpServer.listening) {

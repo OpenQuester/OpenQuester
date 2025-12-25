@@ -71,6 +71,7 @@ export enum ClientResponse {
   ROUND_GAME_REQUIRED = "round_game_required",
   ROUND_GAME_STATE_REQUIRED = "round_game_state_required",
   ROUND_CURRENT_ROUND_REQUIRED = "round_current_round_required",
+  ROUND_NOT_STARTED = "round_not_started",
   ONLY_HOST_CAN_DELETE = "only_host_can_delete",
   YOU_CANNOT_PICK_QUESTION = "you_cannot_pick_question",
   YOU_CANNOT_ANSWER_QUESTION = "you_cannot_answer_question",

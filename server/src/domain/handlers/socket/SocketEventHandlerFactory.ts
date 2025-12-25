@@ -2,14 +2,11 @@ import { Socket } from "socket.io";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
-import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
-import { UserService } from "application/services/user/UserService";
 import { BaseSocketEventHandler } from "domain/handlers/socket/BaseSocketEventHandler";
 import { FinalAnswerReviewEventHandler } from "domain/handlers/socket/finalround/FinalAnswerReviewEventHandler";
 import { FinalAnswerSubmitEventHandler } from "domain/handlers/socket/finalround/FinalAnswerSubmitEventHandler";
@@ -53,12 +50,9 @@ export class SocketEventHandlerFactory {
     private readonly socketIOGameService: SocketIOGameService,
     private readonly socketIOChatService: SocketIOChatService,
     private readonly socketUserDataService: SocketUserDataService,
-    private readonly finalRoundService: FinalRoundService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
     private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly socketGameContextService: SocketGameContextService,
-    private readonly userService: UserService,
     private readonly gameProgressionCoordinator: GameProgressionCoordinator,
     private readonly gameActionExecutor: GameActionExecutor,
     private readonly logger: ILogger
@@ -79,12 +73,8 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOGameService,
-        this.socketIOChatService,
         this.socketUserDataService,
-        this.userNotificationRoomService,
-        this.userService,
-        this.socketGameContextService
+        this.userNotificationRoomService
       ),
       new LeaveGameEventHandler(
         socket,
@@ -254,7 +244,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOQuestionService,
         this.socketGameContextService
       ),
       new AnswerSubmittedEventHandler(
@@ -275,8 +264,6 @@ export class SocketEventHandlerFactory {
         this.socketGameContextService
       ),
       new SkipQuestionEventHandler(
-        this.socketIOQuestionService,
-        this.gameProgressionCoordinator,
         socket,
         eventEmitter,
         this.logger,
@@ -332,7 +319,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.finalRoundService,
         this.socketGameContextService
       ),
       new FinalBidSubmitEventHandler(
@@ -340,7 +326,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.finalRoundService,
         this.socketGameContextService
       ),
       new FinalAnswerSubmitEventHandler(
@@ -348,7 +333,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.finalRoundService,
         this.socketGameContextService
       ),
       new FinalAnswerReviewEventHandler(
@@ -356,8 +340,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.finalRoundService,
-        this.gameStatisticsCollectorService,
         this.socketGameContextService
       ),
     ];
