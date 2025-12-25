@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
+import 'package:oq_editor/router/router.gr.dart';
 import 'package:oq_editor/utils/question_templates.dart';
 import 'package:oq_editor/view/dialogs/question_editor_dialog.dart';
 import 'package:watch_it/watch_it.dart';
@@ -207,12 +208,15 @@ class QuestionsListScreen extends WatchingWidget {
   ) async {
     final controller = GetIt.I<OqEditorController>();
 
-    final result = await QuestionEditorDialog.show(
-      context: context,
-      translations: controller.translations,
-      roundIndex: roundIndex,
-      themeIndex: themeIndex,
-    );
+    final result = await context
+        .pushRoute(
+          QuestionEditorRoute(
+            roundIndex: roundIndex,
+            themeIndex: themeIndex,
+            questionIndex: null,
+          ),
+        )
+        .then((value) => value as QuestionEditResult?);
 
     if (result != null) {
       controller.addQuestion(
@@ -249,14 +253,16 @@ class QuestionsListScreen extends WatchingWidget {
     if (!context.mounted) return;
 
     // Show dialog with pre-filled question
-    final result = await QuestionEditorDialog.show(
-      context: context,
-      translations: controller.translations,
-      roundIndex: roundIndex,
-      themeIndex: themeIndex,
-      question: prefilledQuestion,
-    );
-
+    final result = await context
+        .pushRoute(
+          QuestionEditorRoute(
+            roundIndex: roundIndex,
+            themeIndex: themeIndex,
+            questionIndex: null,
+            initialQuestion: prefilledQuestion,
+          ),
+        )
+        .then((value) => value as QuestionEditResult?);
     if (result != null) {
       controller.addQuestion(
         roundIndex,
@@ -274,15 +280,16 @@ class QuestionsListScreen extends WatchingWidget {
     PackageQuestionUnion question,
   ) async {
     final controller = GetIt.I<OqEditorController>();
-
-    final result = await QuestionEditorDialog.show(
-      context: context,
-      translations: controller.translations,
-      roundIndex: roundIndex,
-      themeIndex: themeIndex,
-      question: question,
-      questionIndex: questionIndex,
-    );
+    final result = await context
+        .pushRoute(
+          QuestionEditorRoute(
+            roundIndex: roundIndex,
+            themeIndex: themeIndex,
+            questionIndex: questionIndex,
+            initialQuestion: question,
+          ),
+        )
+        .then((value) => value as QuestionEditResult?);
 
     if (result != null) {
       controller.updateQuestion(

@@ -24,7 +24,7 @@ class OqEditorBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      onPopInvokedWithResult: (didPop, result) => _backButtonHandler(context),
+      onPopInvokedWithResult: (_, _) => _backButtonHandler(context),
       child: Scaffold(
         body: MaxSizeContainer(
           child: Scaffold(

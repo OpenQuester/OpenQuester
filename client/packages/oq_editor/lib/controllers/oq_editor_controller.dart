@@ -820,4 +820,25 @@ class OqEditorController {
     refreshKey.dispose();
     _totalSizeMB.dispose();
   }
+
+  PackageQuestionUnion? getQuestionByIndices(
+    int roundIndex,
+    int themeIndex,
+    int? questionIndex,
+  ) {
+    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) {
+      return null;
+    }
+    final round = package.value.rounds[roundIndex];
+    if (themeIndex < 0 || themeIndex >= round.themes.length) {
+      return null;
+    }
+    final theme = round.themes[themeIndex];
+    if (questionIndex == null ||
+        questionIndex < 0 ||
+        questionIndex >= theme.questions.length) {
+      return null;
+    }
+    return theme.questions[questionIndex];
+  }
 }
