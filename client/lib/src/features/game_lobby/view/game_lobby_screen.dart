@@ -4,7 +4,6 @@ import 'dart:ui';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
-import 'package:openquester/src/features/game_lobby/view/game_ready_button.dart';
 
 @RoutePage()
 class GameLobbyScreen extends WatchingStatefulWidget {
