@@ -112,7 +112,7 @@ export class PackageRestApiController {
       opts.maxRounds !== undefined &&
       opts.minRounds > opts.maxRounds
     ) {
-      throw new ClientError("minRounds cannot be greater than maxRounds");
+      throw new ClientError(ClientResponse.PACKAGE_SEARCH_ROUNDS_MIN_MORE_MAX);
     }
 
     if (
@@ -120,7 +120,9 @@ export class PackageRestApiController {
       opts.maxQuestions !== undefined &&
       opts.minQuestions > opts.maxQuestions
     ) {
-      throw new ClientError("minQuestions cannot be greater than maxQuestions");
+      throw new ClientError(
+        ClientResponse.PACKAGE_SEARCH_QUESTIONS_MIN_MORE_MAX
+      );
     }
   }
 }
