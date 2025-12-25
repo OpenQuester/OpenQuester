@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:openquester/common_imports.dart';
 import 'package:oq_editor/router/router.dart';
-import 'package:oq_shared/ui/blur_dialog_route.dart';
 
 @AutoRouterConfig(
   deferredLoading: true,

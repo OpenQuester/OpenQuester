@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:openquester/common_imports.dart';
-import 'package:openquester/src/core/controllers/app_state_controller.dart';
 import 'package:socket_io_client/socket_io_client.dart';
 import 'package:talker/talker.dart' hide TalkerLogger;
 

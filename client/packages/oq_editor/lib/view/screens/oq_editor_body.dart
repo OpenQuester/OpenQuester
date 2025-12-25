@@ -23,8 +23,18 @@ class OqEditorBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (_, _) => _backButtonHandler(context),
+      canPop: false, // Prevents immediate pop so we can show the dialog
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return; // Already popped, do nothing
+
+        // Use a microtask to schedule the dialog
+        // after the current navigation lock is released
+        unawaited(
+          Future.microtask(() async {
+            if (context.mounted) await _backButtonHandler(context);
+          }),
+        );
+      },
       child: Scaffold(
         body: MaxSizeContainer(
           child: Scaffold(

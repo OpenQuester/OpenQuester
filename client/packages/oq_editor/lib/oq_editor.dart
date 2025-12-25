@@ -19,6 +19,7 @@ export 'utils/media_type_detector.dart';
 export 'utils/media_upload_helper.dart';
 export 'utils/media_utils.dart';
 export 'utils/oq_package_archiver.dart';
+export 'utils/package_editor_validators.dart';
 export 'utils/package_encoding_helper.dart';
 export 'utils/question_templates.dart';
 export 'utils/siq_import_helper.dart';
