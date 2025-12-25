@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
+import 'package:openquester/src/features/game_lobby/view/game_ready_button.dart';
 
 @RoutePage()
 class GameLobbyScreen extends WatchingStatefulWidget {
@@ -77,6 +78,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               scrolledUnderElevation: 0,
               notificationPredicate: (_) => false,
             ),
+            floatingActionButton: const LobbyActionButton(),
+            floatingActionButtonLocation:
+                FloatingActionButtonLocation.centerFloat,
             body: SafeArea(
               bottom: false,
               child: Stack(
