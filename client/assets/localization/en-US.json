@@ -393,5 +393,6 @@
     "refresh": "Refresh",
     "stats": "Statistics",
     "banned_users": "Banned Users"
-  }
+  },
+  "something_went_wrong": "Something went wrong"
 }

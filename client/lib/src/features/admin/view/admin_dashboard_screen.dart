@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
@@ -8,7 +10,7 @@ class AdminDashboardScreen extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final controller = watchIt<AdminController>();
-    
+
     // Check admin access
     if (!controller.hasAdminAccess) {
       return Scaffold(
@@ -24,35 +26,38 @@ class AdminDashboardScreen extends WatchingWidget {
 
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(LocaleKeys.admin_dashboard.tr()),
-          bottom: TabBar(
-            tabs: [
-              Tab(
-                icon: const Icon(Icons.dashboard_outlined),
-                text: LocaleKeys.admin_overview.tr(),
+      child: ColoredBox(
+        color: context.theme.colorScheme.surface,
+        child: MaxSizeContainer(
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(LocaleKeys.admin_dashboard.tr()),
+              bottom: TabBar(
+                tabs: [
+                  Tab(
+                    icon: const Icon(Icons.dashboard_outlined),
+                    text: LocaleKeys.admin_overview.tr(),
+                  ),
+                  if (controller.canViewUsersInfo)
+                    Tab(
+                      icon: const Icon(Icons.people_outlined),
+                      text: LocaleKeys.admin_users.tr(),
+                    ),
+                  if (controller.canViewSystemHealth)
+                    Tab(
+                      icon: const Icon(Icons.health_and_safety_outlined),
+                      text: LocaleKeys.admin_system_health.tr(),
+                    ),
+                ],
               ),
-              if (controller.canViewUsersInfo)
-                Tab(
-                  icon: const Icon(Icons.people_outlined),
-                  text: LocaleKeys.admin_users.tr(),
-                ),
-              if (controller.canViewSystemHealth)
-                Tab(
-                  icon: const Icon(Icons.health_and_safety_outlined),
-                  text: LocaleKeys.admin_system_health.tr(),
-                ),
-            ],
-          ),
-        ),
-        body: MaxSizeContainer(
-          child: TabBarView(
-            children: [
-              const _OverviewTab(),
-              if (controller.canViewUsersInfo) const _UsersTab(),
-              if (controller.canViewSystemHealth) const _SystemHealthTab(),
-            ],
+            ),
+            body: TabBarView(
+              children: [
+                const _OverviewTab(),
+                if (controller.canViewUsersInfo) const _UsersTab(),
+                if (controller.canViewSystemHealth) const _SystemHealthTab(),
+              ],
+            ),
           ),
         ),
       ),
@@ -143,7 +148,7 @@ class _OverviewTabState extends State<_OverviewTab> {
             ],
           ),
           const SizedBox(height: 24),
-          
+
           // System health summary
           Text(
             LocaleKeys.admin_system_health.tr(),
@@ -171,7 +176,9 @@ class _OverviewTabState extends State<_OverviewTab> {
                   ),
                   _HealthRow(
                     label: LocaleKeys.admin_server_uptime.tr(),
-                    value: _formatUptime(data.systemHealth.serverUptimeSeconds),
+                    value: Duration(
+                      seconds: data.systemHealth.serverUptimeSeconds.toInt(),
+                    ).f(),
                     isHealthy: true,
                   ),
                 ],
@@ -179,7 +186,7 @@ class _OverviewTabState extends State<_OverviewTab> {
             ),
           ),
           const SizedBox(height: 24),
-          
+
           // Recent users
           Text(
             LocaleKeys.admin_recent_users.tr(),
@@ -191,7 +198,7 @@ class _OverviewTabState extends State<_OverviewTab> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: data.recentUsers.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final user = data.recentUsers[index];
                 return ListTile(
@@ -200,7 +207,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                           backgroundImage: NetworkImage(user.avatar!),
                         )
                       : const CircleAvatar(child: Icon(Icons.person)),
-                  title: Text(user.username ?? 'N/A'),
+                  title: Text(user.username),
                   subtitle: Text('ID: ${user.id}'),
                   trailing: Text(
                     _formatDate(user.createdAt),
@@ -215,26 +222,11 @@ class _OverviewTabState extends State<_OverviewTab> {
     );
   }
 
-  String _formatUptime(num seconds) {
-    final duration = Duration(seconds: seconds.toInt());
-    final days = duration.inDays;
-    final hours = duration.inHours % 24;
-    final minutes = duration.inMinutes % 60;
-    
-    if (days > 0) {
-      return '${days}d ${hours}h ${minutes}m';
-    } else if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    } else {
-      return '${minutes}m';
-    }
-  }
-
   String _formatDate(DateTime? date) {
     if (date == null) return 'N/A';
     final now = DateTime.now();
     final diff = now.difference(date);
-    
+
     if (diff.inDays > 0) {
       return '${diff.inDays}d ago';
     } else if (diff.inHours > 0) {
@@ -423,7 +415,7 @@ class _UsersTabState extends State<_UsersTab> {
           child: ListView.separated(
             padding: 16.all,
             itemCount: data.data.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final user = data.data[index];
               return _UserListItem(user: user, onRefresh: _loadData);
@@ -470,15 +462,14 @@ class _UserListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = getIt<AdminController>();
-    final isBanned = user.isBanned ?? false;
-    final isDeleted = user.deletedAt != null;
+    final isDeleted = user.isDeleted;
 
     return Card(
       child: ListTile(
         leading: user.avatar != null
             ? CircleAvatar(backgroundImage: NetworkImage(user.avatar!))
             : const CircleAvatar(child: Icon(Icons.person)),
-        title: Text(user.username ?? 'N/A'),
+        title: Text(user.username),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 4,
@@ -488,13 +479,6 @@ class _UserListItem extends StatelessWidget {
             Row(
               spacing: 8,
               children: [
-                if (isBanned)
-                  Chip(
-                    label: Text(LocaleKeys.admin_banned.tr()),
-                    backgroundColor: Colors.red.withValues(alpha: 0.2),
-                    labelStyle: const TextStyle(color: Colors.red),
-                    visualDensity: VisualDensity.compact,
-                  ),
                 if (isDeleted)
                   Chip(
                     label: Text(LocaleKeys.admin_deleted.tr()),
@@ -509,48 +493,47 @@ class _UserListItem extends StatelessWidget {
         trailing: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           onSelected: (value) async {
-            bool success = false;
-            
+            var success = false;
+
             switch (value) {
               case 'ban':
                 final confirmed = await _showConfirmDialog(
                   context,
-                  LocaleKeys.admin_confirm_ban.tr(args: [user.username ?? '']),
+                  LocaleKeys.admin_confirm_ban.tr(args: [user.username]),
                 );
                 if (confirmed) {
                   success = await controller.banUser(user.id);
                 }
-                break;
               case 'unban':
                 final confirmed = await _showConfirmDialog(
                   context,
-                  LocaleKeys.admin_confirm_unban
-                      .tr(args: [user.username ?? '']),
+                  LocaleKeys.admin_confirm_unban.tr(
+                    args: [user.username],
+                  ),
                 );
                 if (confirmed) {
                   success = await controller.unbanUser(user.id);
                 }
-                break;
               case 'delete':
                 final confirmed = await _showConfirmDialog(
                   context,
-                  LocaleKeys.admin_confirm_delete
-                      .tr(args: [user.username ?? '']),
+                  LocaleKeys.admin_confirm_delete.tr(
+                    args: [user.username],
+                  ),
                 );
                 if (confirmed) {
                   success = await controller.deleteUser(user.id);
                 }
-                break;
               case 'restore':
                 final confirmed = await _showConfirmDialog(
                   context,
-                  LocaleKeys.admin_confirm_restore
-                      .tr(args: [user.username ?? '']),
+                  LocaleKeys.admin_confirm_restore.tr(
+                    args: [user.username],
+                  ),
                 );
                 if (confirmed) {
                   success = await controller.restoreUser(user.id);
                 }
-                break;
             }
 
             if (success) {
@@ -559,28 +542,6 @@ class _UserListItem extends StatelessWidget {
           },
           itemBuilder: (context) {
             return [
-              if (!isBanned && controller.canBanUsers)
-                PopupMenuItem(
-                  value: 'ban',
-                  child: Row(
-                    spacing: 8,
-                    children: [
-                      const Icon(Icons.block, size: 20),
-                      Text(LocaleKeys.admin_ban_user.tr()),
-                    ],
-                  ),
-                ),
-              if (isBanned && controller.canBanUsers)
-                PopupMenuItem(
-                  value: 'unban',
-                  child: Row(
-                    spacing: 8,
-                    children: [
-                      const Icon(Icons.check_circle, size: 20),
-                      Text(LocaleKeys.admin_unban_user.tr()),
-                    ],
-                  ),
-                ),
               if (!isDeleted && controller.canDeleteUsers)
                 PopupMenuItem(
                   value: 'delete',
@@ -665,23 +626,21 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
     }
 
     if (controller.error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              controller.error!,
-              style: context.textTheme.bodyLarge,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _loadData,
-              icon: const Icon(Icons.refresh),
-              label: Text(LocaleKeys.admin_refresh.tr()),
-            ),
-          ],
-        ),
-      );
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            controller.error!,
+            style: context.textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _loadData,
+            icon: const Icon(Icons.refresh),
+            label: Text(LocaleKeys.admin_refresh.tr()),
+          ),
+        ],
+      ).center();
     }
 
     if (healthData == null) {
@@ -714,16 +673,21 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
                     ),
                     if (pingData.redis.responseMs != null)
                       _HealthRow(
-                        label: '${LocaleKeys.admin_redis_status.tr()} ${LocaleKeys.admin_response_time.tr()}',
-                        value:
-                            '${pingData.redis.responseMs!.toStringAsFixed(2)} ms',
+                        label: [
+                          LocaleKeys.admin_response_time.tr(),
+                          LocaleKeys.admin_redis_status.tr(),
+                        ].join(' '),
+                        value: [
+                          pingData.redis.responseMs!.toStringAsFixed(2),
+                          'ms',
+                        ].join(' '),
                         isHealthy: pingData.redis.connected,
                       ),
                   ],
                 ),
               ),
             ),
-          
+
           // Redis status
           Text(
             LocaleKeys.admin_redis_status.tr(),
@@ -750,15 +714,17 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
                   ),
                   _HealthRow(
                     label: LocaleKeys.admin_redis_memory.tr(),
-                    value:
-                        '${healthData.redis.estimatedMemoryMB.toStringAsFixed(2)} MB',
+                    value: [
+                      healthData.redis.estimatedMemoryMB.toStringAsFixed(2),
+                      'MB',
+                    ].join(' '),
                     isHealthy: true,
                   ),
                 ],
               ),
             ),
           ),
-          
+
           // Server status
           Text(
             'Server Status',
@@ -773,19 +739,31 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
                 children: [
                   _HealthRow(
                     label: LocaleKeys.admin_server_uptime.tr(),
-                    value: _formatUptime(healthData.server.uptime),
+                    value: Duration(
+                      seconds: healthData.server.uptime.toInt(),
+                    ).f(),
                     isHealthy: true,
                   ),
                   _HealthRow(
-                    label: '${LocaleKeys.admin_server_memory.tr()} (${LocaleKeys.admin_memory_used.tr()})',
-                    value:
-                        '${healthData.server.memory.used.toStringAsFixed(2)} MB',
+                    label: [
+                      LocaleKeys.admin_server_memory.tr(),
+                      '(${LocaleKeys.admin_memory_used.tr()})',
+                    ].join(' '),
+                    value: [
+                      healthData.server.memory.used.toStringAsFixed(2),
+                      'MB',
+                    ].join(' '),
                     isHealthy: true,
                   ),
                   _HealthRow(
-                    label: '${LocaleKeys.admin_server_memory.tr()} (${LocaleKeys.admin_memory_total.tr()})',
-                    value:
-                        '${healthData.server.memory.total.toStringAsFixed(2)} MB',
+                    label: [
+                      LocaleKeys.admin_server_memory.tr(),
+                      '(${LocaleKeys.admin_memory_total.tr()})',
+                    ].join(' '),
+                    value: [
+                      healthData.server.memory.total.toStringAsFixed(2),
+                      'MB',
+                    ].join(' '),
                     isHealthy: true,
                   ),
                 ],
@@ -795,20 +773,5 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
         ],
       ),
     );
-  }
-
-  String _formatUptime(num seconds) {
-    final duration = Duration(seconds: seconds.toInt());
-    final days = duration.inDays;
-    final hours = duration.inHours % 24;
-    final minutes = duration.inMinutes % 60;
-    
-    if (days > 0) {
-      return '${days}d ${hours}h ${minutes}m';
-    } else if (hours > 0) {
-      return '${hours}h ${minutes}m';
-    } else {
-      return '${minutes}m';
-    }
   }
 }

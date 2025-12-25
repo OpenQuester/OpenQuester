@@ -121,7 +121,7 @@ class _WideHome extends WatchingWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(leading: const ProfileBtn()),
-      child: SafeArea(
+      body: SafeArea(
         child: Row(
           spacing: 42,
           children: [

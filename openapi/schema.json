@@ -6383,8 +6383,7 @@
                 "type": "boolean"
               },
               "responseMs": {
-                "type": "number",
-                "nullable": true
+                "type": "number"
               }
             }
           },

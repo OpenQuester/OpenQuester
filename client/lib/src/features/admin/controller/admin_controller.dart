@@ -7,7 +7,7 @@ class AdminController extends ChangeNotifier {
   AdminUserListData? _userListData;
   AdminSystemHealthData? _systemHealthData;
   AdminPingData? _pingData;
-  
+
   bool _isLoading = false;
   String? _error;
 
@@ -18,35 +18,21 @@ class AdminController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  bool get hasAdminAccess {
-    final user = ProfileController.getUser();
-    if (user == null) return false;
-    return user.permissions?.contains(PermissionName.adminPanelAccess) ?? false;
-  }
+  bool get hasAdminAccess =>
+      _userHasPermission(PermissionName.adminPanelAccess);
+  bool get canViewSystemHealth =>
+      _userHasPermission(PermissionName.viewSystemHealth);
+  bool get canViewUsersInfo => _userHasPermission(PermissionName.viewUsersInfo);
+  bool get canBanUsers => _userHasPermission(PermissionName.banUsers);
+  bool get canDeleteUsers =>
+      _userHasPermission(PermissionName.deleteAnotherUser);
 
-  bool get canViewSystemHealth {
+  bool _userHasPermission(PermissionName permissionName) {
     final user = ProfileController.getUser();
     if (user == null) return false;
-    return user.permissions?.contains(PermissionName.viewSystemHealth) ?? false;
-  }
-
-  bool get canViewUsersInfo {
-    final user = ProfileController.getUser();
-    if (user == null) return false;
-    return user.permissions?.contains(PermissionName.viewUsersInfo) ?? false;
-  }
-
-  bool get canBanUsers {
-    final user = ProfileController.getUser();
-    if (user == null) return false;
-    return user.permissions?.contains(PermissionName.banUsers) ?? false;
-  }
-
-  bool get canDeleteUsers {
-    final user = ProfileController.getUser();
-    if (user == null) return false;
-    return user.permissions?.contains(PermissionName.deleteAnotherUser) ??
-        false;
+    return user.permissions.any(
+      (permission) => permission.name == permissionName,
+    );
   }
 
   Future<void> loadDashboardData({int? timeframeDays}) async {
@@ -161,7 +147,7 @@ class AdminController extends ChangeNotifier {
       return true;
     } catch (e) {
       await getIt<ToastController>().show(
-        Api.parseError(e) ?? LocaleKeys.error_generic.tr(),
+        Api.parseError(e) ?? LocaleKeys.something_went_wrong.tr(),
       );
       logger.e('Failed to ban user', error: e);
       return false;
@@ -184,7 +170,7 @@ class AdminController extends ChangeNotifier {
       return true;
     } catch (e) {
       await getIt<ToastController>().show(
-        Api.parseError(e) ?? LocaleKeys.error_generic.tr(),
+        Api.parseError(e) ?? LocaleKeys.something_went_wrong.tr(),
       );
       logger.e('Failed to unban user', error: e);
       return false;
@@ -207,7 +193,7 @@ class AdminController extends ChangeNotifier {
       return true;
     } catch (e) {
       await getIt<ToastController>().show(
-        Api.parseError(e) ?? LocaleKeys.error_generic.tr(),
+        Api.parseError(e) ?? LocaleKeys.something_went_wrong.tr(),
       );
       logger.e('Failed to delete user', error: e);
       return false;
@@ -230,7 +216,7 @@ class AdminController extends ChangeNotifier {
       return true;
     } catch (e) {
       await getIt<ToastController>().show(
-        Api.parseError(e) ?? LocaleKeys.error_generic.tr(),
+        Api.parseError(e) ?? LocaleKeys.something_went_wrong.tr(),
       );
       logger.e('Failed to restore user', error: e);
       return false;
