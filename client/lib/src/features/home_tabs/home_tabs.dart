@@ -53,6 +53,7 @@ class _MobileHomeState extends State<_MobileHome> {
         crossAxisAlignment: CrossAxisAlignment.end,
         spacing: 16,
         children: [
+          AdminDashboardButton(),
           _OpenEditorButton(),
           _StartGameButton(),
         ],
@@ -120,7 +121,7 @@ class _WideHome extends WatchingWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(leading: const ProfileBtn()),
-      body: SafeArea(
+      child: SafeArea(
         child: Row(
           spacing: 42,
           children: [
@@ -187,7 +188,11 @@ class _WideHomeLeftBar extends StatelessWidget {
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 16,
-        children: [_StartGameButton(), _OpenEditorButton()],
+        children: [
+          AdminDashboardButton(),
+          _StartGameButton(),
+          _OpenEditorButton(),
+        ],
       ).paddingLeft(16),
     );
   }
