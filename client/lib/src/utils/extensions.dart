@@ -160,3 +160,9 @@ extension OqPackageX on OqPackage {
     );
   }
 }
+
+extension UserX on ResponseUser {
+  bool hasPermission(PermissionName permissionName) => permissions.any(
+    (permission) => permission.name == permissionName,
+  );
+}

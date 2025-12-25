@@ -6,10 +6,12 @@ class AdminDashboardButton extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = watchIt<AdminController>();
+    final user = watchValue((ProfileController e) => e.user);
+    final hasAdminAccess =
+        user?.hasPermission(PermissionName.adminPanelAccess) ?? false;
 
     // Only show button if user has admin access
-    if (!controller.hasAdminAccess) {
+    if (!hasAdminAccess) {
       return const SizedBox.shrink();
     }
 

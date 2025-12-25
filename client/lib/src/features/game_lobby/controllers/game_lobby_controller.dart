@@ -304,7 +304,9 @@ class GameLobbyController {
   void _updateChatUsers() {
     if (gameData.value == null) return;
     // Set chat users
-    final users = gameData.value!.players.map(UserX.fromPlayerData).toList();
+    final users = gameData.value!.players
+        .map(ChatUserX.fromPlayerData)
+        .toList();
     getIt<SocketChatController>().setUsers(users);
   }
 

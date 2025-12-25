@@ -18,25 +18,8 @@ class AdminController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  bool get hasAdminAccess =>
-      _userHasPermission(PermissionName.adminPanelAccess);
-  bool get canViewSystemHealth =>
-      _userHasPermission(PermissionName.viewSystemHealth);
-  bool get canViewUsersInfo => _userHasPermission(PermissionName.viewUsersInfo);
-  bool get canBanUsers => _userHasPermission(PermissionName.banUsers);
-  bool get canDeleteUsers =>
-      _userHasPermission(PermissionName.deleteAnotherUser);
-
-  bool _userHasPermission(PermissionName permissionName) {
-    final user = ProfileController.getUser();
-    if (user == null) return false;
-    return user.permissions.any(
-      (permission) => permission.name == permissionName,
-    );
-  }
-
   Future<void> loadDashboardData({int? timeframeDays}) async {
-    if (!hasAdminAccess) {
+    if (!ProfileController.hasPermission(PermissionName.adminPanelAccess)) {
       _error = LocaleKeys.admin_no_permission.tr();
       notifyListeners();
       return;
@@ -66,7 +49,7 @@ class AdminController extends ChangeNotifier {
     int? limit,
     int? offset,
   }) async {
-    if (!canViewUsersInfo) {
+    if (!ProfileController.hasPermission(PermissionName.viewUsersInfo)) {
       _error = LocaleKeys.admin_no_permission.tr();
       notifyListeners();
       return;
@@ -94,7 +77,7 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<void> loadSystemHealth() async {
-    if (!canViewSystemHealth) {
+    if (!ProfileController.hasPermission(PermissionName.viewSystemHealth)) {
       _error = LocaleKeys.admin_no_permission.tr();
       notifyListeners();
       return;
@@ -117,7 +100,7 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<void> loadPing() async {
-    if (!canViewSystemHealth) {
+    if (!ProfileController.hasPermission(PermissionName.viewSystemHealth)) {
       _error = LocaleKeys.admin_no_permission.tr();
       notifyListeners();
       return;
@@ -132,7 +115,7 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<bool> banUser(int userId) async {
-    if (!canBanUsers) {
+    if (!ProfileController.hasPermission(PermissionName.banUsers)) {
       await getIt<ToastController>().show(
         LocaleKeys.admin_no_permission.tr(),
       );
@@ -155,7 +138,7 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<bool> unbanUser(int userId) async {
-    if (!canBanUsers) {
+    if (!ProfileController.hasPermission(PermissionName.banUsers)) {
       await getIt<ToastController>().show(
         LocaleKeys.admin_no_permission.tr(),
       );
@@ -178,7 +161,7 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<bool> deleteUser(int userId) async {
-    if (!canDeleteUsers) {
+    if (!ProfileController.hasPermission(PermissionName.deleteAnotherUser)) {
       await getIt<ToastController>().show(
         LocaleKeys.admin_no_permission.tr(),
       );
@@ -201,7 +184,7 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<bool> restoreUser(int userId) async {
-    if (!canDeleteUsers) {
+    if (!ProfileController.hasPermission(PermissionName.deleteAnotherUser)) {
       await getIt<ToastController>().show(
         LocaleKeys.admin_no_permission.tr(),
       );

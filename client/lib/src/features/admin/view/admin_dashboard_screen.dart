@@ -9,10 +9,12 @@ class AdminDashboardScreen extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = watchIt<AdminController>();
+    final user = watchValue((ProfileController e) => e.user);
+    final hasAdminAccess =
+        user?.hasPermission(PermissionName.adminPanelAccess) ?? false;
 
     // Check admin access
-    if (!controller.hasAdminAccess) {
+    if (!hasAdminAccess || user == null) {
       return Scaffold(
         appBar: AppBar(title: Text(LocaleKeys.admin_dashboard.tr())),
         body: Center(
@@ -38,12 +40,12 @@ class AdminDashboardScreen extends WatchingWidget {
                     icon: const Icon(Icons.dashboard_outlined),
                     text: LocaleKeys.admin_overview.tr(),
                   ),
-                  if (controller.canViewUsersInfo)
+                  if (user.hasPermission(PermissionName.viewUsersInfo))
                     Tab(
                       icon: const Icon(Icons.people_outlined),
                       text: LocaleKeys.admin_users.tr(),
                     ),
-                  if (controller.canViewSystemHealth)
+                  if (user.hasPermission(PermissionName.viewSystemHealth))
                     Tab(
                       icon: const Icon(Icons.health_and_safety_outlined),
                       text: LocaleKeys.admin_system_health.tr(),
@@ -54,8 +56,10 @@ class AdminDashboardScreen extends WatchingWidget {
             body: TabBarView(
               children: [
                 const _OverviewTab(),
-                if (controller.canViewUsersInfo) const _UsersTab(),
-                if (controller.canViewSystemHealth) const _SystemHealthTab(),
+                if (user.hasPermission(PermissionName.viewUsersInfo))
+                  const _UsersTab(),
+                if (user.hasPermission(PermissionName.viewSystemHealth))
+                  const _SystemHealthTab(),
               ],
             ),
           ),
@@ -542,7 +546,8 @@ class _UserListItem extends StatelessWidget {
           },
           itemBuilder: (context) {
             return [
-              if (!isDeleted && controller.canDeleteUsers)
+              if (!isDeleted &&
+                  user.hasPermission(PermissionName.deleteAnotherUser))
                 PopupMenuItem(
                   value: 'delete',
                   child: Row(
@@ -556,7 +561,8 @@ class _UserListItem extends StatelessWidget {
                     ],
                   ),
                 ),
-              if (isDeleted && controller.canDeleteUsers)
+              if (isDeleted &&
+                  user.hasPermission(PermissionName.deleteAnotherUser))
                 PopupMenuItem(
                   value: 'restore',
                   child: Row(
