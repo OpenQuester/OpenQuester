@@ -13,9 +13,7 @@
     "/v1/files/{filename}": {
       "get": {
         "summary": "Get link to file from server",
-        "tags": [
-          "Files"
-        ],
+        "tags": ["Files"],
         "parameters": [
           {
             "name": "filename",
@@ -23,9 +21,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "examples": [
-                "some_filename.jpg"
-              ]
+              "examples": ["some_filename.jpg"]
             }
           }
         ],
@@ -54,9 +50,7 @@
       },
       "post": {
         "summary": "Get link to upload file on server",
-        "tags": [
-          "Files"
-        ],
+        "tags": ["Files"],
         "parameters": [
           {
             "name": "filename",
@@ -64,9 +58,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "examples": [
-                "some_filename.jpg"
-              ]
+              "examples": ["some_filename.jpg"]
             }
           }
         ],
@@ -95,9 +87,7 @@
       },
       "delete": {
         "summary": "Delete file from bucket",
-        "tags": [
-          "Files"
-        ],
+        "tags": ["Files"],
         "parameters": [
           {
             "name": "filename",
@@ -105,9 +95,7 @@
             "required": true,
             "schema": {
               "type": "string",
-              "examples": [
-                "some_filename.jpg"
-              ]
+              "examples": ["some_filename.jpg"]
             }
           }
         ],
@@ -138,9 +126,7 @@
     "/v1/packages": {
       "post": {
         "summary": "Get upload links for every file in `content.json`",
-        "tags": [
-          "Packages"
-        ],
+        "tags": ["Packages"],
         "requestBody": {
           "description": "Data for package creation",
           "required": true,
@@ -177,9 +163,7 @@
       },
       "get": {
         "summary": "Get all packages",
-        "tags": [
-          "Packages"
-        ],
+        "tags": ["Packages"],
         "parameters": [
           {
             "name": "sortBy",
@@ -250,9 +234,7 @@
     "/v1/packages/{id}": {
       "get": {
         "summary": "Get package by id",
-        "tags": [
-          "Packages"
-        ],
+        "tags": ["Packages"],
         "parameters": [
           {
             "name": "id",
@@ -289,9 +271,7 @@
       "delete": {
         "summary": "Delete package by id",
         "description": "Delete a package. Requires DELETE_PACKAGE permission or being the package author. This will also delete all associated files and cleanup orphaned tags.",
-        "tags": [
-          "Packages"
-        ],
+        "tags": ["Packages"],
         "parameters": [
           {
             "name": "id",
@@ -349,9 +329,7 @@
     "/v1/users/{id}": {
       "get": {
         "summary": "Get user info by id",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "parameters": [
           {
             "name": "id",
@@ -397,9 +375,7 @@
       },
       "patch": {
         "summary": "Update user by id",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "parameters": [
           {
             "name": "id",
@@ -455,9 +431,7 @@
       },
       "delete": {
         "summary": "Delete user by id",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "parameters": [
           {
             "name": "id",
@@ -499,9 +473,7 @@
       "patch": {
         "summary": "Update user permissions",
         "description": "Update a user's permissions. Requires 'manage_permissions' permission.",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "parameters": [
           {
             "name": "id",
@@ -589,9 +561,7 @@
     "/v1/users/": {
       "get": {
         "summary": "Get all users info",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "parameters": [
           {
             "name": "sortBy",
@@ -663,9 +633,7 @@
     "/v1/me": {
       "get": {
         "summary": "Get info about current user",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "responses": {
           "200": {
             "description": "Get user data successfully",
@@ -701,9 +669,7 @@
       },
       "patch": {
         "summary": "Update current user",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "requestBody": {
           "required": true,
           "content": {
@@ -749,9 +715,7 @@
       },
       "delete": {
         "summary": "Delete current user",
-        "tags": [
-          "Users"
-        ],
+        "tags": ["Users"],
         "responses": {
           "204": {
             "description": "User deleted successfully"
@@ -782,9 +746,7 @@
     "/v1/auth/oauth2": {
       "post": {
         "summary": "Validate oauth2 token",
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "requestBody": {
           "required": true,
           "content": {
@@ -822,9 +784,7 @@
     "/v1/auth/guest": {
       "post": {
         "summary": "Login as guest user",
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "requestBody": {
           "required": true,
           "content": {
@@ -862,9 +822,7 @@
     "/v1/auth/logout": {
       "get": {
         "summary": "Logout user",
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "responses": {
           "200": {
             "description": "User logged out successfully",
@@ -882,9 +840,7 @@
     "/v1/auth/socket": {
       "post": {
         "summary": "Authorize socket.io connection",
-        "tags": [
-          "Auth"
-        ],
+        "tags": ["Auth"],
         "requestBody": {
           "required": true,
           "content": {
@@ -922,9 +878,7 @@
     "/v1/games": {
       "get": {
         "summary": "Get all games",
-        "tags": [
-          "Games"
-        ],
+        "tags": ["Games"],
         "parameters": [
           {
             "name": "sortBy",
@@ -1016,9 +970,7 @@
       },
       "post": {
         "summary": "Create a new game",
-        "tags": [
-          "Games"
-        ],
+        "tags": ["Games"],
         "requestBody": {
           "required": true,
           "content": {
@@ -1056,9 +1008,7 @@
     "/v1/games/{gameId}": {
       "get": {
         "summary": "Get game by gameId",
-        "tags": [
-          "Games"
-        ],
+        "tags": ["Games"],
         "parameters": [
           {
             "name": "gameId",
@@ -1094,9 +1044,7 @@
       },
       "delete": {
         "summary": "Delete game",
-        "tags": [
-          "Games"
-        ],
+        "tags": ["Games"],
         "parameters": [
           {
             "name": "gameId",
@@ -1127,9 +1075,7 @@
     "/v1/admin/api/dashboard": {
       "get": {
         "summary": "Get admin dashboard data",
-        "tags": [
-          "Admin"
-        ],
+        "tags": ["Admin"],
         "parameters": [
           {
             "name": "timeframe",
@@ -1168,9 +1114,7 @@
     "/v1/admin/api/users": {
       "get": {
         "summary": "Get users list for admin panel",
-        "tags": [
-          "Admin"
-        ],
+        "tags": ["Admin"],
         "parameters": [
           {
             "name": "sortBy",
@@ -1232,9 +1176,7 @@
     "/v1/admin/api/system/health": {
       "get": {
         "summary": "Get system health status",
-        "tags": [
-          "Admin"
-        ],
+        "tags": ["Admin"],
         "responses": {
           "200": {
             "description": "System health retrieved successfully",
@@ -1262,9 +1204,7 @@
     "/v1/admin/api/system/ping": {
       "get": {
         "summary": "Ping system for health check",
-        "tags": [
-          "Admin"
-        ],
+        "tags": ["Admin"],
         "responses": {
           "200": {
             "description": "Ping successful",
@@ -1292,9 +1232,7 @@
     "/v1/admin/api/users/{id}/ban": {
       "post": {
         "summary": "Ban a user",
-        "tags": [
-          "Admin"
-        ],
+        "tags": ["Admin"],
         "parameters": [
           {
             "name": "id",
@@ -1342,9 +1280,7 @@
     "/v1/admin/api/users/{id}/unban": {
       "post": {
         "summary": "Unban a user",
-        "tags": [
-          "Admin"
-        ],
+        "tags": ["Admin"],
         "parameters": [
           {
             "name": "id",
@@ -1392,9 +1328,7 @@
     "/v1/admin/api/users/{id}": {
       "delete": {
         "summary": "Delete a user",
-        "tags": [
-          "Admin"
-        ],
+        "tags": ["Admin"],
         "parameters": [
           {
             "name": "id",
@@ -1435,9 +1369,7 @@
     "/v1/admin/api/users/restore/{id}": {
       "post": {
         "summary": "Restore a deleted user",
-        "tags": [
-          "Admin"
-        ],
+        "tags": ["Admin"],
         "parameters": [
           {
             "name": "id",
@@ -1498,9 +1430,7 @@
         "properties": {
           "total": {
             "type": "integer",
-            "examples": [
-              1000
-            ]
+            "examples": [1000]
           }
         }
       },
@@ -1528,71 +1458,40 @@
             "$ref": "#/components/schemas/PackageCreateInputData"
           }
         },
-        "required": [
-          "content"
-        ]
+        "required": ["content"]
       },
       "ResponseUser": {
         "type": "object",
         "properties": {
           "id": {
             "type": "integer",
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "username": {
             "type": "string",
             "description": "Unique username, needed for identification like user search, package author",
-            "examples": [
-              "john.crazy"
-            ]
+            "examples": ["john.crazy"]
           },
           "name": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Display name of the user",
-            "examples": [
-              "John Doe",
-              "\u6d4b\u8bd5\u7528\u6237",
-              null
-            ]
+            "examples": ["John Doe", null]
           },
           "email": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "john.doe@gmail.com"
-            ]
+            "type": ["string", "null"],
+            "examples": ["john.doe@gmail.com"]
           },
           "discordId": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "123123123123"
-            ]
+            "type": ["string", "null"],
+            "examples": ["123123123123"]
           },
           "birthday": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date",
-            "examples": [
-              "2024-01-01"
-            ]
+            "examples": ["2024-01-01"]
           },
           "avatar": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "link on file GET",
             "examples": [
               "https://s3.example.com/openquester-sample-bucket/e/ec/ec65cd3756490723f8bcc3bc432b94a7"
@@ -1601,30 +1500,21 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "examples": [
-              "2024-01-01T00:00:00Z"
-            ]
+            "examples": ["2024-01-01T00:00:00Z"]
           },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
-            "examples": [
-              "2024-01-01T00:00:00Z"
-            ]
+            "examples": ["2024-01-01T00:00:00Z"]
           },
           "isDeleted": {
             "type": "boolean",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           },
           "isGuest": {
             "type": "boolean",
             "description": "Whether this is a guest user account",
-            "examples": [
-              false,
-              true
-            ]
+            "examples": [false, true]
           },
           "permissions": {
             "type": "array",
@@ -1633,9 +1523,7 @@
               "properties": {
                 "id": {
                   "type": "integer",
-                  "examples": [
-                    1
-                  ]
+                  "examples": [1]
                 },
                 "name": {
                   "$ref": "#/components/schemas/PermissionName"
@@ -1650,27 +1538,16 @@
         "properties": {
           "token": {
             "type": "string",
-            "examples": [
-              "HSXxyt6nrbW5Gtqw5BWfHPYk9lxDOj"
-            ]
+            "examples": ["HSXxyt6nrbW5Gtqw5BWfHPYk9lxDOj"]
           },
           "tokenSchema": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "Bearer"
-            ]
+            "type": ["string", "null"],
+            "examples": ["Bearer"]
           },
           "oauthProvider": {
             "type": "string",
-            "examples": [
-              "discord"
-            ],
-            "enum": [
-              "discord"
-            ]
+            "examples": ["discord"],
+            "enum": ["discord"]
           }
         }
       },
@@ -1680,63 +1557,37 @@
           "username": {
             "type": "string",
             "description": "Display name for the guest user (1-50 characters, allows Unicode letters, numbers, spaces)",
-            "examples": [
-              "Guest Player",
-              "\u6d4b\u8bd5\u7528\u6237",
-              "\u0413\u0456\u0441\u0442\u044c123"
-            ],
+            "examples": ["Guest Player"],
             "minLength": 1,
             "maxLength": 50
           }
         },
-        "required": [
-          "username"
-        ]
+        "required": ["username"]
       },
       "InputUpdateUser": {
         "type": "object",
         "properties": {
           "username": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "john.doe"
-            ],
+            "type": ["string", "null"],
+            "examples": ["john.doe"],
             "minLength": 2,
             "maxLength": 32,
             "description": "Rules: lowercase letters, numbers, underscores, periods only",
             "pattern": "^[a-z0-9_.]{2,32}$"
           },
           "email": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "user@example.com"
-            ],
+            "type": ["string", "null"],
+            "examples": ["user@example.com"],
             "format": "email"
           },
           "birthday": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date",
-            "examples": [
-              "2024-01-01"
-            ]
+            "examples": ["2024-01-01"]
           },
           "avatar": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "filename_of_file_in_bucket"
-            ]
+            "type": ["string", "null"],
+            "examples": ["filename_of_file_in_bucket"]
           }
         }
       },
@@ -1749,26 +1600,17 @@
               "type": "string"
             },
             "description": "Array of permission names to assign to the user. Replaces all existing permissions.",
-            "examples": [
-              [
-                "edit_package",
-                "delete_package"
-              ]
-            ]
+            "examples": [["edit_package", "delete_package"]]
           }
         },
-        "required": [
-          "permissions"
-        ]
+        "required": ["permissions"]
       },
       "ValidationErrorResponse": {
         "type": "object",
         "properties": {
           "error": {
             "type": "string",
-            "examples": [
-              "Validation failed"
-            ]
+            "examples": ["Validation failed"]
           },
           "details": {
             "type": "array",
@@ -1791,9 +1633,7 @@
         "properties": {
           "message": {
             "type": "string",
-            "examples": [
-              "Logout successful"
-            ]
+            "examples": ["Logout successful"]
           }
         }
       },
@@ -1802,9 +1642,7 @@
         "properties": {
           "id": {
             "type": "integer",
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "role": {
             "$ref": "#/components/schemas/PlayerRole"
@@ -1816,97 +1654,60 @@
         "properties": {
           "id": {
             "type": "string",
-            "examples": [
-              "AH2S"
-            ]
+            "examples": ["AH2S"]
           },
           "createdBy": {
             "$ref": "#/components/schemas/ShortUserInfo"
           },
           "title": {
             "type": "string",
-            "examples": [
-              "Game Title"
-            ]
+            "examples": ["Game Title"]
           },
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "examples": [
-              "2024-01-01T00:00:00Z"
-            ]
+            "examples": ["2024-01-01T00:00:00Z"]
           },
           "ageRestriction": {
             "$ref": "#/components/schemas/AgeRestriction"
           },
           "isPrivate": {
             "type": "boolean",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           },
           "currentRound": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              0
-            ]
+            "type": ["integer", "null"],
+            "examples": [0]
           },
           "currentQuestion": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "ID of the currently active question in round if any",
-            "examples": [
-              0
-            ]
+            "examples": [0]
           },
           "playedQuestions": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              0
-            ]
+            "type": ["integer", "null"],
+            "examples": [0]
           },
           "players": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/GameListItemPlayersStats"
             },
-            "examples": [
-              5
-            ]
+            "examples": [5]
           },
           "maxPlayers": {
             "type": "integer",
-            "examples": [
-              10
-            ]
+            "examples": [10]
           },
           "startedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time",
-            "examples": [
-              "2024-01-01T00:00:00Z"
-            ]
+            "examples": ["2024-01-01T00:00:00Z"]
           },
           "finishedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time",
-            "examples": [
-              "2024-01-01T02:00:00Z"
-            ]
+            "examples": ["2024-01-01T02:00:00Z"]
           },
           "package": {
             "$ref": "#/components/schemas/PackageItem"
@@ -1918,22 +1719,16 @@
         "properties": {
           "title": {
             "type": "string",
-            "examples": [
-              "Game Title"
-            ]
+            "examples": ["Game Title"]
           },
           "packageId": {
             "type": "integer",
             "minimum": 0,
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "isPrivate": {
             "type": "boolean",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           },
           "ageRestriction": {
             "$ref": "#/components/schemas/AgeRestriction"
@@ -1942,9 +1737,7 @@
             "type": "integer",
             "minimum": 2,
             "maximum": 15,
-            "examples": [
-              10
-            ]
+            "examples": [10]
           }
         }
       },
@@ -1953,15 +1746,11 @@
         "properties": {
           "id": {
             "type": "integer",
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "username": {
             "type": "string",
-            "examples": [
-              "John"
-            ]
+            "examples": ["John"]
           }
         }
       },
@@ -1970,21 +1759,15 @@
         "properties": {
           "id": {
             "type": "integer",
-            "examples": [
-              15
-            ]
+            "examples": [15]
           },
           "tag": {
             "type": "string",
             "description": "A single tag for the package",
-            "examples": [
-              "anime"
-            ]
+            "examples": ["anime"]
           }
         },
-        "required": [
-          "tag"
-        ],
+        "required": ["tag"],
         "description": "Individual tag object"
       },
       "PaginatedPackages": {
@@ -2006,21 +1789,14 @@
         "properties": {
           "id": {
             "type": "integer",
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "title": {
             "type": "string",
-            "examples": [
-              "Package Title"
-            ]
+            "examples": ["Package Title"]
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "examples": [
               "Package description, should be longer than title, probably"
             ]
@@ -2028,9 +1804,7 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "examples": [
-              "2024-01-01T00:00:00Z"
-            ]
+            "examples": ["2024-01-01T00:00:00Z"]
           },
           "author": {
             "$ref": "#/components/schemas/ShortUserInfo"
@@ -2040,13 +1814,8 @@
             "description": "Package age restriction"
           },
           "language": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "en"
-            ]
+            "type": ["string", "null"],
+            "examples": ["en"]
           },
           "logo": {
             "oneOf": [
@@ -2060,10 +1829,7 @@
             "description": "Logo file for the package"
           },
           "tags": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/PackageTag"
             },
@@ -2107,21 +1873,14 @@
         "properties": {
           "id": {
             "type": "integer",
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "title": {
             "type": "string",
-            "examples": [
-              "Package Title"
-            ]
+            "examples": ["Package Title"]
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "examples": [
               "Package description, should be longer than title, probably"
             ]
@@ -2129,9 +1888,7 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "examples": [
-              "2024-01-01T00:00:00Z"
-            ]
+            "examples": ["2024-01-01T00:00:00Z"]
           },
           "author": {
             "$ref": "#/components/schemas/ShortUserInfo"
@@ -2141,13 +1898,8 @@
             "description": "Package age restriction"
           },
           "language": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "en"
-            ]
+            "type": ["string", "null"],
+            "examples": ["en"]
           },
           "logo": {
             "oneOf": [
@@ -2168,10 +1920,7 @@
             "description": "Rounds in the package"
           },
           "tags": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/PackageTag"
             },
@@ -2215,21 +1964,14 @@
         "properties": {
           "id": {
             "type": "integer",
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "title": {
             "type": "string",
-            "examples": [
-              "Package Title"
-            ]
+            "examples": ["Package Title"]
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "examples": [
               "Package description, should be longer than title, probably"
             ]
@@ -2237,9 +1979,7 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
-            "examples": [
-              "2024-01-01T00:00:00Z"
-            ]
+            "examples": ["2024-01-01T00:00:00Z"]
           },
           "author": {
             "$ref": "#/components/schemas/ShortUserInfo"
@@ -2249,13 +1989,8 @@
             "description": "Package age restriction"
           },
           "language": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "en"
-            ]
+            "type": ["string", "null"],
+            "examples": ["en"]
           },
           "logo": {
             "oneOf": [
@@ -2270,24 +2005,17 @@
           },
           "roundsCount": {
             "type": "integer",
-            "examples": [
-              5
-            ]
+            "examples": [5]
           },
           "questionsCount": {
             "type": "integer",
-            "examples": [
-              183
-            ]
+            "examples": [183]
           },
           "tags": {
             "type": "array",
             "items": {
               "type": "string",
-              "examples": [
-                "Anime",
-                "General"
-              ]
+              "examples": ["Anime", "General"]
             }
           }
         }
@@ -2322,63 +2050,44 @@
       },
       "OrderDirection": {
         "type": "string",
-        "enum": [
-          "asc",
-          "desc"
-        ],
-        "examples": [
-          "asc"
-        ],
+        "enum": ["asc", "desc"],
+        "examples": ["asc"],
         "default": "desc"
       },
       "PaginationLimit": {
         "type": "integer",
-        "examples": [
-          10
-        ],
+        "examples": [10],
         "minimum": 1,
         "maximum": 50,
         "default": 10
       },
       "PaginationOffset": {
         "type": "integer",
-        "examples": [
-          0
-        ],
+        "examples": [0],
         "minimum": 0
       },
       "FilterCreatedAtMin": {
         "type": "string",
         "format": "date-time",
-        "examples": [
-          "2024-01-01T00:00:00Z"
-        ]
+        "examples": ["2024-01-01T00:00:00Z"]
       },
       "FilterCreatedAtMax": {
         "type": "string",
         "format": "date-time",
-        "examples": [
-          "2024-01-01T12:00:00Z"
-        ]
+        "examples": ["2024-01-01T12:00:00Z"]
       },
       "FilterIsPrivate": {
         "type": "boolean",
-        "examples": [
-          false
-        ]
+        "examples": [false]
       },
       "PaginationTitlePrefix": {
         "type": "string",
         "description": "Search by title prefix (start)",
-        "examples": [
-          "Anime"
-        ]
+        "examples": ["Anime"]
       },
       "PaginationTitle": {
         "type": "string",
-        "examples": [
-          "Gays"
-        ]
+        "examples": ["Gays"]
       },
       "GamesSortBy": {
         "type": "string",
@@ -2391,36 +2100,19 @@
           "players",
           "startedAt"
         ],
-        "examples": [
-          "createdAt"
-        ],
+        "examples": ["createdAt"],
         "default": "createdAt"
       },
       "UsersSortBy": {
         "type": "string",
-        "enum": [
-          "id",
-          "is_deleted",
-          "created_at",
-          "username",
-          "email"
-        ],
-        "examples": [
-          "createdAt"
-        ],
+        "enum": ["id", "is_deleted", "created_at", "username", "email"],
+        "examples": ["createdAt"],
         "default": "createdAt"
       },
       "PackagesSortBy": {
         "type": "string",
-        "enum": [
-          "id",
-          "title",
-          "created_at",
-          "author"
-        ],
-        "examples": [
-          "created_at"
-        ],
+        "enum": ["id", "title", "created_at", "author"],
+        "examples": ["created_at"],
         "default": "created_at"
       },
       "PackageUploadResponse": {
@@ -2428,9 +2120,7 @@
         "properties": {
           "id": {
             "type": "integer",
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "uploadLinks": {
             "type": "object",
@@ -2450,9 +2140,7 @@
         "properties": {
           "url": {
             "type": "string",
-            "examples": [
-              "http://localhost:9000/file-get-link"
-            ]
+            "examples": ["http://localhost:9000/file-get-link"]
           }
         }
       },
@@ -2461,9 +2149,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "examples": [
-              "Bad filename"
-            ]
+            "examples": ["Bad filename"]
           }
         }
       },
@@ -2472,9 +2158,7 @@
         "properties": {
           "url": {
             "type": "string",
-            "examples": [
-              "http://localhost:9000/file-upload-link"
-            ]
+            "examples": ["http://localhost:9000/file-upload-link"]
           }
         }
       },
@@ -2483,9 +2167,7 @@
         "properties": {
           "message": {
             "type": "string",
-            "examples": [
-              "Delete request sent"
-            ]
+            "examples": ["Delete request sent"]
           }
         }
       },
@@ -2494,9 +2176,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "examples": [
-              "Package is corrupted!"
-            ]
+            "examples": ["Package is corrupted!"]
           }
         }
       },
@@ -2505,9 +2185,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "examples": [
-              "Bad request"
-            ]
+            "examples": ["Bad request"]
           }
         }
       },
@@ -2516,9 +2194,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "examples": [
-              "Package not found"
-            ]
+            "examples": ["Package not found"]
           }
         }
       },
@@ -2527,9 +2203,7 @@
         "properties": {
           "message": {
             "type": "string",
-            "examples": [
-              "Package deleted successfully"
-            ]
+            "examples": ["Package deleted successfully"]
           }
         }
       },
@@ -2538,9 +2212,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "examples": [
-              "Session invalid or expired"
-            ]
+            "examples": ["Session invalid or expired"]
           }
         }
       },
@@ -2549,9 +2221,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "examples": [
-              "User not found"
-            ]
+            "examples": ["User not found"]
           }
         }
       },
@@ -2560,9 +2230,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "examples": [
-              "You don't have permission to perform this action"
-            ]
+            "examples": ["You don't have permission to perform this action"]
           }
         }
       },
@@ -2571,9 +2239,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "examples": [
-              "Authentication is failed, please try again"
-            ]
+            "examples": ["Authentication is failed, please try again"]
           }
         }
       },
@@ -2582,9 +2248,7 @@
         "properties": {
           "error": {
             "type": "string",
-            "examples": [
-              "Game not found"
-            ]
+            "examples": ["Game not found"]
           }
         }
       },
@@ -2621,30 +2285,20 @@
         "properties": {
           "event": {
             "type": "string",
-            "enum": [
-              "created",
-              "changed",
-              "started"
-            ]
+            "enum": ["created", "changed", "started"]
           },
           "data": {
             "$ref": "#/components/schemas/GameListItem"
           }
         },
-        "required": [
-          "type",
-          "event",
-          "data"
-        ]
+        "required": ["type", "event", "data"]
       },
       "GameDeleteEventSubscription": {
         "type": "object",
         "properties": {
           "event": {
             "type": "string",
-            "enum": [
-              "deleted"
-            ]
+            "enum": ["deleted"]
           },
           "data": {
             "type": "object",
@@ -2653,114 +2307,60 @@
                 "type": "string"
               }
             },
-            "required": [
-              "id"
-            ]
+            "required": ["id"]
           }
         },
-        "required": [
-          "type",
-          "event",
-          "data"
-        ]
+        "required": ["type", "event", "data"]
       },
       "AgeRestriction": {
         "type": "string",
-        "enum": [
-          "A18",
-          "A16",
-          "A12",
-          "NONE"
-        ],
+        "enum": ["A18", "A16", "A12", "NONE"],
         "default": "NONE",
         "description": "Age restriction",
-        "examples": [
-          "A18"
-        ]
+        "examples": ["A18"]
       },
       "PackageFileType": {
-        "type": [
-          "string",
-          "null"
-        ],
-        "enum": [
-          "video",
-          "audio",
-          "image"
-        ],
+        "type": ["string", "null"],
+        "enum": ["video", "audio", "image"],
         "description": "Type of media file for package-related files"
       },
       "QuestionType": {
         "type": "string",
-        "enum": [
-          "simple",
-          "stake",
-          "secret",
-          "noRisk",
-          "hidden",
-          "choice"
-        ],
+        "enum": ["simple", "stake", "secret", "noRisk", "hidden", "choice"],
         "default": "simple",
         "description": "Type of question within a package"
       },
       "QuestionSubType": {
         "type": "string",
-        "enum": [
-          "simple",
-          "customPrice",
-          "empty",
-          "forEveryone"
-        ],
+        "enum": ["simple", "customPrice", "empty", "forEveryone"],
         "description": "Possible subType of given question"
       },
       "QuestionShowDelay": {
         "type": "integer",
         "description": "Delay before showing options in milliseconds",
-        "examples": [
-          3000
-        ]
+        "examples": [3000]
       },
       "QuestionPriceMultiplier": {
         "type": "string",
         "description": "Multiplier for question price nominal, so if price 200 with 2x multiplier it will give +400 and -0, depends if answer correct",
         "default": "1.5",
-        "examples": [
-          "0.5",
-          "1.25",
-          "1.5",
-          "2"
-        ]
+        "examples": ["0.5", "1.25", "1.5", "2"]
       },
       "QuestionMaxPrice": {
-        "type": [
-          "integer",
-          "null"
-        ],
+        "type": ["integer", "null"],
         "description": "Maximum price for the stake question, most useful when type is forEveryone - Does not allow top players to go all-in and win. Typically maxPrice can be 2x or 3x of nominal price",
-        "examples": [
-          1000
-        ]
+        "examples": [1000]
       },
       "QuestionAllowedPrices": {
-        "type": [
-          "array",
-          "null"
-        ],
+        "type": ["array", "null"],
         "items": {
           "type": "integer"
         },
         "minItems": 2,
         "maxItems": 5,
         "examples": [
-          [
-            200,
-            1000
-          ],
-          [
-            100,
-            500,
-            1000
-          ]
+          [200, 1000],
+          [100, 500, 1000]
         ],
         "description": "Allowed price options for customPrice subtype. Maximum 5 prices to choose"
       },
@@ -2768,22 +2368,14 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              99
-            ]
+            "type": ["integer", "null"],
+            "examples": [99]
           },
           "order": {
             "$ref": "#/components/schemas/PackageEntitiesOrder"
           },
           "text": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Text of the answer option"
           },
           "file": {
@@ -2824,26 +2416,16 @@
         ]
       },
       "QuestionAnswerText": {
-        "type": [
-          "string",
-          "null"
-        ],
+        "type": ["string", "null"],
         "description": "Correct answer text",
-        "examples": [
-          "In Ukraine"
-        ]
+        "examples": ["In Ukraine"]
       },
       "QuestionTransferType": {
         "type": "string",
-        "enum": [
-          "any",
-          "exceptCurrent"
-        ],
+        "enum": ["any", "exceptCurrent"],
         "default": "any",
         "description": "Transfer type for secret questions",
-        "examples": [
-          "any"
-        ]
+        "examples": ["any"]
       },
       "FileInput": {
         "type": "object",
@@ -2851,63 +2433,41 @@
           "md5": {
             "type": "string",
             "description": "MD5 hash of the file",
-            "examples": [
-              "d41d8cd98f00b204e9800998ecf8427e"
-            ]
+            "examples": ["d41d8cd98f00b204e9800998ecf8427e"]
           },
           "type": {
             "$ref": "#/components/schemas/PackageFileType"
           }
         },
-        "required": [
-          "md5",
-          "type"
-        ],
+        "required": ["md5", "type"],
         "description": "Basic file metadata for upload, used in place of full File model for input"
       },
       "FileItem": {
         "type": "object",
         "properties": {
           "id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              727
-            ]
+            "type": ["integer", "null"],
+            "examples": [727]
           },
           "md5": {
             "type": "string",
             "description": "MD5 hash of the file",
-            "examples": [
-              "d41d8cd98f00b204e9800998ecf8427e"
-            ]
+            "examples": ["d41d8cd98f00b204e9800998ecf8427e"]
           },
           "type": {
             "$ref": "#/components/schemas/PackageFileType"
           },
           "link": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "GET link for file",
-            "examples": [
-              "https://example.com/file123"
-            ]
+            "examples": ["https://example.com/file123"]
           }
         },
-        "required": [
-          "md5"
-        ],
+        "required": ["md5"],
         "description": "Basic file metadata"
       },
       "PackageLogoFileInput": {
-        "type": [
-          "object",
-          "null"
-        ],
+        "type": ["object", "null"],
         "properties": {
           "file": {
             "$ref": "#/components/schemas/FileInput"
@@ -2916,40 +2476,26 @@
         "description": "Logo file structure for package creation. Only images acceptable"
       },
       "PackageLogoFileItem": {
-        "type": [
-          "object",
-          "null"
-        ],
+        "type": ["object", "null"],
         "properties": {
           "file": {
             "$ref": "#/components/schemas/FileItem"
           }
         },
-        "required": [
-          "file"
-        ],
+        "required": ["file"],
         "description": "Logo file structure for package creation. Only images acceptable"
       },
       "PackageEntitiesOrder": {
         "type": "integer",
         "description": "Order of the round/theme/question file in package data, should be unique, starting from 0",
-        "examples": [
-          1,
-          2,
-          3
-        ]
+        "examples": [1, 2, 3]
       },
       "PackageQuestionFile": {
         "type": "object",
         "properties": {
           "id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              69
-            ]
+            "type": ["integer", "null"],
+            "examples": [69]
           },
           "order": {
             "$ref": "#/components/schemas/PackageEntitiesOrder"
@@ -2958,75 +2504,44 @@
             "$ref": "#/components/schemas/FileItem"
           },
           "displayTime": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Display duration in milliseconds",
-            "examples": [
-              5000
-            ]
+            "examples": [5000]
           }
         },
-        "required": [
-          "file",
-          "displayTime"
-        ],
+        "required": ["file", "displayTime"],
         "description": "Question media file structure for package creation"
       },
       "PackageQuestion": {
         "type": "object",
         "properties": {
           "id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              187
-            ]
+            "type": ["integer", "null"],
+            "examples": [187]
           },
           "order": {
             "$ref": "#/components/schemas/PackageEntitiesOrder"
           },
           "price": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Price is null only if price is hidden",
-            "examples": [
-              200,
-              null
-            ]
+            "examples": [200, null]
           },
           "isHidden": {
             "type": "boolean",
             "default": false,
             "description": "Whether the question is hidden",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           },
           "text": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Question text",
-            "examples": [
-              "Where is Kyiv located?"
-            ]
+            "examples": ["Where is Kyiv located?"]
           },
           "answerHint": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Hint for the answer",
-            "examples": [
-              "It's in Europe"
-            ]
+            "examples": ["It's in Europe"]
           },
           "answerText": {
             "oneOf": [
@@ -3039,25 +2554,15 @@
             ]
           },
           "answerDelay": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Delay in milliseconds before being able to answer, if applicable",
             "default": 4000,
-            "examples": [
-              7000
-            ]
+            "examples": [7000]
           },
           "questionComment": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Comment or note about the question",
-            "examples": [
-              "You have to say full country name"
-            ]
+            "examples": ["You have to say full country name"]
           },
           "questionFiles": {
             "oneOf": [
@@ -3086,11 +2591,7 @@
             ]
           }
         },
-        "required": [
-          "price",
-          "order",
-          "type"
-        ],
+        "required": ["price", "order", "type"],
         "description": "Base properties for all question types"
       },
       "ChoiceQuestion": {
@@ -3103,9 +2604,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "choice"
-                ]
+                "enum": ["choice"]
               },
               "subType": {
                 "const": "simple"
@@ -3120,10 +2619,7 @@
                 }
               }
             },
-            "required": [
-              "showDelay",
-              "answers"
-            ],
+            "required": ["showDelay", "answers"],
             "description": "Choice question type"
           }
         ]
@@ -3138,20 +2634,13 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "secret"
-                ]
+                "enum": ["secret"]
               },
               "subType": {
                 "type": "string",
-                "enum": [
-                  "simple",
-                  "customPrice"
-                ],
+                "enum": ["simple", "customPrice"],
                 "description": "Subtype of the secret question. customPrice means player can choose cost of question",
-                "examples": [
-                  "customPrice"
-                ]
+                "examples": ["customPrice"]
               },
               "allowedPrices": {
                 "$ref": "#/components/schemas/QuestionAllowedPrices"
@@ -3160,10 +2649,7 @@
                 "$ref": "#/components/schemas/QuestionTransferType"
               }
             },
-            "required": [
-              "subType",
-              "transferType"
-            ],
+            "required": ["subType", "transferType"],
             "if": {
               "properties": {
                 "subType": {
@@ -3172,9 +2658,7 @@
               }
             },
             "then": {
-              "required": [
-                "allowedPrices"
-              ]
+              "required": ["allowedPrices"]
             },
             "description": "Secret question type. allowedPrices required only if subType is customPrice"
           }
@@ -3190,29 +2674,19 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "noRisk"
-                ]
+                "enum": ["noRisk"]
               },
               "subType": {
                 "type": "string",
-                "enum": [
-                  "simple",
-                  "forEveryone"
-                ],
+                "enum": ["simple", "forEveryone"],
                 "description": "Subtype of the no-risk question. forEveryone means everyone answers it, basically giving chances for everyone, instead of one player",
-                "examples": [
-                  "forEveryone"
-                ]
+                "examples": ["forEveryone"]
               },
               "priceMultiplier": {
                 "$ref": "#/components/schemas/QuestionPriceMultiplier"
               }
             },
-            "required": [
-              "subType",
-              "priceMultiplier"
-            ],
+            "required": ["subType", "priceMultiplier"],
             "description": "No-risk question type"
           }
         ]
@@ -3227,9 +2701,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "simple"
-                ]
+                "enum": ["simple"]
               }
             },
             "description": "Simple question type"
@@ -3246,30 +2718,20 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "stake"
-                ]
+                "enum": ["stake"]
               },
               "subType": {
                 "type": "string",
-                "enum": [
-                  "simple",
-                  "forEveryone"
-                ],
+                "enum": ["simple", "forEveryone"],
                 "description": "Subtype of the stake question. simple is basically auction. forEveryone means everyone place some amount of money and write answer",
                 "default": "simple",
-                "examples": [
-                  "simple"
-                ]
+                "examples": ["simple"]
               },
               "maxPrice": {
                 "$ref": "#/components/schemas/QuestionMaxPrice"
               }
             },
-            "required": [
-              "subType",
-              "maxPrice"
-            ]
+            "required": ["subType", "maxPrice"]
           }
         ]
       },
@@ -3283,9 +2745,7 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": [
-                  "hidden"
-                ]
+                "enum": ["hidden"]
               }
             },
             "description": "Hidden question type"
@@ -3330,13 +2790,8 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              92
-            ]
+            "type": ["integer", "null"],
+            "examples": [92]
           },
           "order": {
             "$ref": "#/components/schemas/PackageEntitiesOrder"
@@ -3344,17 +2799,10 @@
           "name": {
             "type": "string",
             "description": "Name of the theme",
-            "examples": [
-              "Opening",
-              "Ending",
-              "Science"
-            ]
+            "examples": ["Opening", "Ending", "Science"]
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Description of the theme",
             "examples": [
               "In this theme you have to guess anime by it's opening song"
@@ -3368,24 +2816,15 @@
             "description": "Questions in the theme"
           }
         },
-        "required": [
-          "name",
-          "order",
-          "questions"
-        ],
+        "required": ["name", "order", "questions"],
         "description": "Theme structure for package"
       },
       "PackageRound": {
         "type": "object",
         "properties": {
           "id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              17
-            ]
+            "type": ["integer", "null"],
+            "examples": [17]
           },
           "order": {
             "$ref": "#/components/schemas/PackageEntitiesOrder"
@@ -3393,20 +2832,12 @@
           "name": {
             "type": "string",
             "description": "Name of the round",
-            "examples": [
-              "Round 1 - Beginners round",
-              "Round of music"
-            ]
+            "examples": ["Round 1 - Beginners round", "Round of music"]
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Description of the round",
-            "examples": [
-              "This round contains simple questions"
-            ]
+            "examples": ["This round contains simple questions"]
           },
           "type": {
             "$ref": "#/components/schemas/PackageRoundType"
@@ -3419,12 +2850,7 @@
             "description": "Themes in the round"
           }
         },
-        "required": [
-          "name",
-          "order",
-          "type",
-          "themes"
-        ],
+        "required": ["name", "order", "type", "themes"],
         "description": "Round structure for package"
       },
       "PackageCreateInputData": {
@@ -3433,31 +2859,17 @@
           "title": {
             "type": "string",
             "description": "Title of the package",
-            "examples": [
-              "Trivia Night",
-              "Anime pack 2025"
-            ]
+            "examples": ["Trivia Night", "Anime pack 2025"]
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Description of the package",
-            "examples": [
-              "This is package description"
-            ]
+            "examples": ["This is package description"]
           },
           "language": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Language of the package",
-            "examples": [
-              "en",
-              "ua"
-            ]
+            "examples": ["en", "ua"]
           },
           "ageRestriction": {
             "$ref": "#/components/schemas/AgeRestriction",
@@ -3475,10 +2887,7 @@
             "description": "Logo file for the package"
           },
           "tags": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/PackageTag"
             },
@@ -3523,11 +2932,7 @@
             "description": "Rounds in the package"
           }
         },
-        "required": [
-          "title",
-          "ageRestriction",
-          "rounds"
-        ],
+        "required": ["title", "ageRestriction", "rounds"],
         "description": "Input for creating a new package; author is set via authentication"
       },
       "InputSocketIOAuth": {
@@ -3535,42 +2940,30 @@
         "properties": {
           "socketId": {
             "type": "string",
-            "examples": [
-              "Q04nceF-7noEw52hAAAD"
-            ]
+            "examples": ["Q04nceF-7noEw52hAAAD"]
           }
         }
       },
       "PlayerRole": {
         "type": "string",
-        "enum": [
-          "showman",
-          "player",
-          "spectator"
-        ]
+        "enum": ["showman", "player", "spectator"]
       },
       "RestrictionsEventData": {
         "type": "object",
         "properties": {
           "muted": {
             "type": "boolean",
-            "examples": [
-              false
-            ],
+            "examples": [false],
             "description": "If true - player muted in in-game chat"
           },
           "restricted": {
             "type": "boolean",
-            "examples": [
-              false
-            ],
+            "examples": [false],
             "description": "Restricted players can only join as spectators"
           },
           "banned": {
             "type": "boolean",
-            "examples": [
-              false
-            ],
+            "examples": [false],
             "description": "If true - player is banned from the game"
           }
         }
@@ -3580,25 +2973,15 @@
         "properties": {
           "id": {
             "type": "integer",
-            "examples": [
-              200
-            ]
+            "examples": [200]
           },
           "username": {
             "type": "string",
-            "examples": [
-              "Asion001"
-            ]
+            "examples": ["Asion001"]
           },
           "avatar": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "https://example.image.com",
-              null
-            ]
+            "type": ["string", "null"],
+            "examples": ["https://example.image.com", null]
           }
         }
       },
@@ -3617,39 +3000,21 @@
           },
           "score": {
             "type": "integer",
-            "examples": [
-              200,
-              500,
-              1250
-            ]
+            "examples": [200, 500, 1250]
           },
           "slot": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              0,
-              1,
-              2,
-              null
-            ],
+            "type": ["integer", "null"],
+            "examples": [0, 1, 2, null],
             "description": "Slot null has only showman and spectators"
           },
           "status": {
             "type": "string",
-            "enum": [
-              "in-game",
-              "disconnected"
-            ]
+            "enum": ["in-game", "disconnected"]
           },
           "mediaDownloaded": {
             "type": "boolean",
             "description": "Whether the player has downloaded the current question's media",
-            "examples": [
-              true,
-              false
-            ],
+            "examples": [true, false],
             "default": false
           }
         }
@@ -3659,9 +3024,7 @@
         "properties": {
           "gameId": {
             "type": "string",
-            "examples": [
-              "Q31X"
-            ]
+            "examples": ["Q31X"]
           },
           "role": {
             "$ref": "#/components/schemas/PlayerRole"
@@ -3673,9 +3036,7 @@
         "properties": {
           "user": {
             "type": "integer",
-            "examples": [
-              5
-            ],
+            "examples": [5],
             "description": "Emitted to everyone in game, including sender. ID of the user who left the game"
           }
         }
@@ -3692,23 +3053,17 @@
               "uuid": {
                 "type": "string",
                 "format": "uuid",
-                "examples": [
-                  "d232e56c-2522-48b7-a74e-f467e9eef2e1"
-                ]
+                "examples": ["d232e56c-2522-48b7-a74e-f467e9eef2e1"]
               },
               "user": {
                 "type": "integer",
-                "examples": [
-                  5
-                ],
+                "examples": [5],
                 "description": "ID of the user who sent the message"
               },
               "timestamp": {
                 "type": "string",
                 "format": "date-time",
-                "examples": [
-                  "2024-01-01T00:00:00Z"
-                ]
+                "examples": ["2024-01-01T00:00:00Z"]
               }
             }
           }
@@ -3724,16 +3079,11 @@
           "timestamp": {
             "type": "string",
             "format": "date-time",
-            "examples": [
-              "2024-01-01T00:00:00Z"
-            ],
+            "examples": ["2024-01-01T00:00:00Z"],
             "description": "When the user change occurred"
           }
         },
-        "required": [
-          "userData",
-          "timestamp"
-        ]
+        "required": ["userData", "timestamp"]
       },
       "SocketIONextRoundEventPayload": {
         "type": "object",
@@ -3775,9 +3125,7 @@
         "properties": {
           "title": {
             "type": "string",
-            "examples": [
-              "Game title"
-            ]
+            "examples": ["Game title"]
           }
         }
       },
@@ -3785,10 +3133,7 @@
         "type": "object",
         "properties": {
           "questionState": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "enum": [
               "choosing",
               "theme_elimination",
@@ -3798,15 +3143,11 @@
               "showing",
               null
             ],
-            "examples": [
-              "choosing"
-            ]
+            "examples": ["choosing"]
           },
           "isPaused": {
             "type": "boolean",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           },
           "currentRound": {
             "oneOf": [
@@ -3829,36 +3170,23 @@
             ]
           },
           "answeringPlayer": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Id of player who is currently answering",
-            "examples": [
-              727
-            ]
+            "examples": [727]
           },
           "answeredPlayers": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "$ref": "#/components/schemas/GameStateAnsweredPlayer"
             }
           },
           "skippedPlayers": {
-            "type": [
-              "array",
-              "null"
-            ],
+            "type": ["array", "null"],
             "items": {
               "type": "integer"
             },
             "description": "IDs of players who skipped the question",
-            "examples": [
-              727
-            ]
+            "examples": [727]
           },
           "timer": {
             "oneOf": [
@@ -3904,13 +3232,7 @@
                 "type": "null"
               }
             ],
-            "examples": [
-              [
-                1,
-                2,
-                3
-              ]
-            ]
+            "examples": [[1, 2, 3]]
           },
           "secretQuestionData": {
             "oneOf": [
@@ -3937,32 +3259,23 @@
         }
       },
       "GameStateTimer": {
-        "type": [
-          "object",
-          "null"
-        ],
+        "type": ["object", "null"],
         "properties": {
           "startedAt": {
             "type": "string",
             "description": "Describes when timer started",
             "format": "date-time",
-            "examples": [
-              "2024-01-01T00:00:00Z"
-            ]
+            "examples": ["2024-01-01T00:00:00Z"]
           },
           "durationMs": {
             "type": "integer",
             "description": "Describes how long timer should last until it's ended",
-            "examples": [
-              30000
-            ]
+            "examples": [30000]
           },
           "elapsedMs": {
             "type": "integer",
             "description": "This value written only when timer paused because of something. Helps to track passed time and resume timer correctly",
-            "examples": [
-              5000
-            ]
+            "examples": [5000]
           }
         }
       },
@@ -3972,27 +3285,15 @@
           "player": {
             "type": "integer",
             "description": "Id of answered player",
-            "examples": [
-              727
-            ]
+            "examples": [727]
           },
           "result": {
             "type": "integer",
-            "examples": [
-              -1000,
-              500,
-              0,
-              -250
-            ]
+            "examples": [-1000, 500, 0, -250]
           },
           "score": {
             "type": "integer",
-            "examples": [
-              -1150,
-              220,
-              0,
-              -230
-            ]
+            "examples": [-1150, 220, 0, -230]
           },
           "answerType": {
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
@@ -4015,16 +3316,12 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who changed their ready status",
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "isReady": {
             "type": "boolean",
             "description": "Whether the player is ready or not",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           },
           "readyPlayers": {
             "type": "array",
@@ -4032,27 +3329,15 @@
               "type": "integer"
             },
             "description": "Array of all currently ready player IDs",
-            "examples": [
-              [
-                1,
-                2,
-                3
-              ]
-            ]
+            "examples": [[1, 2, 3]]
           },
           "autoStartTriggered": {
             "type": "boolean",
             "description": "Optional field indicating if game auto-start was triggered",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           }
         },
-        "required": [
-          "playerId",
-          "isReady",
-          "readyPlayers"
-        ]
+        "required": ["playerId", "isReady", "readyPlayers"]
       },
       "SocketIOGameStateRoundData": {
         "type": "object",
@@ -4063,21 +3348,14 @@
           },
           "name": {
             "type": "string",
-            "examples": [
-              "Round 1"
-            ]
+            "examples": ["Round 1"]
           },
           "type": {
             "$ref": "#/components/schemas/PackageRoundType"
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "This package is focused on anime questions"
-            ]
+            "type": ["string", "null"],
+            "examples": ["This package is focused on anime questions"]
           },
           "themes": {
             "type": "array",
@@ -4096,18 +3374,11 @@
           },
           "name": {
             "type": "string",
-            "examples": [
-              "Theme 1"
-            ]
+            "examples": ["Theme 1"]
           },
           "description": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "examples": [
-              "In this theme you have to guess character name"
-            ]
+            "type": ["string", "null"],
+            "examples": ["In this theme you have to guess character name"]
           },
           "questions": {
             "type": "array",
@@ -4128,26 +3399,14 @@
             "$ref": "#/components/schemas/PackageEntitiesOrder"
           },
           "price": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Price is null only if price is hidden",
-            "examples": [
-              200,
-              null
-            ]
+            "examples": [200, null]
           },
           "questionComment": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Comment that clarify what have to be answered on this question",
-            "examples": [
-              "Answer full name of character",
-              null
-            ]
+            "examples": ["Answer full name of character", null]
           },
           "isPlayed": {
             "type": "boolean",
@@ -4157,25 +3416,13 @@
       },
       "SocketIOEvents": {
         "type": "string",
-        "enum": [
-          "error",
-          "disconnect",
-          "connection",
-          "games",
-          "chat-message"
-        ],
-        "examples": [
-          "error"
-        ]
+        "enum": ["error", "disconnect", "connection", "games", "chat-message"],
+        "examples": ["error"]
       },
       "SocketIOUserReceiveEvents": {
         "type": "string",
-        "enum": [
-          "user-change"
-        ],
-        "examples": [
-          "user-change"
-        ]
+        "enum": ["user-change"],
+        "examples": ["user-change"]
       },
       "SocketIOGameSendEvents": {
         "type": "string",
@@ -4218,9 +3465,7 @@
           "media-downloaded",
           "media-download-status"
         ],
-        "examples": [
-          "join"
-        ]
+        "examples": ["join"]
       },
       "SocketIOGameReceiveEvents": {
         "type": "string",
@@ -4264,9 +3509,7 @@
           "media-downloaded",
           "media-download-status"
         ],
-        "examples": [
-          "join"
-        ]
+        "examples": ["join"]
       },
       "SocketIOGameSkipEventPayload": {
         "type": "object",
@@ -4275,9 +3518,7 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who skipped the question",
-            "examples": [
-              727
-            ]
+            "examples": [727]
           }
         }
       },
@@ -4288,24 +3529,17 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who downloaded media",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "mediaDownloaded": {
             "type": "boolean",
             "description": "Whether the player has downloaded media",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           },
           "allPlayersReady": {
             "type": "boolean",
             "description": "Whether all active players have downloaded media",
-            "examples": [
-              true,
-              false
-            ]
+            "examples": [true, false]
           },
           "timer": {
             "description": "Question timer (only present when allPlayersReady is true)",
@@ -4319,11 +3553,7 @@
             ]
           }
         },
-        "required": [
-          "playerId",
-          "mediaDownloaded",
-          "allPlayersReady"
-        ]
+        "required": ["playerId", "mediaDownloaded", "allPlayersReady"]
       },
       "SocketIOGameUnskipEventPayload": {
         "type": "object",
@@ -4332,9 +3562,7 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who unskipped the question",
-            "examples": [
-              727
-            ]
+            "examples": [727]
           }
         }
       },
@@ -4377,14 +3605,10 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player to kick",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           }
         },
-        "required": [
-          "playerId"
-        ]
+        "required": ["playerId"]
       },
       "SocketIOPlayerKickEventPayload": {
         "type": "object",
@@ -4393,9 +3617,7 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who was kicked",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           }
         }
       },
@@ -4406,38 +3628,25 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player to restrict",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "muted": {
             "type": "boolean",
             "description": "Whether the player is muted",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           },
           "restricted": {
             "type": "boolean",
             "description": "Whether the player is restricted",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           },
           "banned": {
             "type": "boolean",
             "description": "Whether the player is banned",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           }
         },
-        "required": [
-          "playerId",
-          "muted",
-          "restricted",
-          "banned"
-        ]
+        "required": ["playerId", "muted", "restricted", "banned"]
       },
       "SocketIOPlayerRestrictionEventPayload": {
         "type": "object",
@@ -4446,30 +3655,22 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player whose restrictions were updated",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "muted": {
             "type": "boolean",
             "description": "Whether the player is muted",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           },
           "restricted": {
             "type": "boolean",
             "description": "Whether the player is restricted",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           },
           "banned": {
             "type": "boolean",
             "description": "Whether the player is banned",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           }
         }
       },
@@ -4487,20 +3688,14 @@
               }
             ],
             "description": "ID of the player whose role to change",
-            "examples": [
-              123,
-              null
-            ]
+            "examples": [123, null]
           },
           "newRole": {
             "$ref": "#/components/schemas/PlayerRole",
             "description": "The new role for the player"
           }
         },
-        "required": [
-          "playerId",
-          "newRole"
-        ]
+        "required": ["playerId", "newRole"]
       },
       "SocketIOPlayerRoleChangeEventPayload": {
         "type": "object",
@@ -4509,9 +3704,7 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player whose role was changed",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "newRole": {
             "$ref": "#/components/schemas/PlayerRole",
@@ -4533,22 +3726,15 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player whose score to change",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "newScore": {
             "type": "integer",
             "description": "The new score for the player",
-            "examples": [
-              1500
-            ]
+            "examples": [1500]
           }
         },
-        "required": [
-          "playerId",
-          "newScore"
-        ]
+        "required": ["playerId", "newScore"]
       },
       "SocketIOPlayerScoreChangeEventPayload": {
         "type": "object",
@@ -4557,16 +3743,12 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player whose score was changed",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "newScore": {
             "type": "integer",
             "description": "The new score of the player",
-            "examples": [
-              1500
-            ]
+            "examples": [1500]
           }
         }
       },
@@ -4577,27 +3759,15 @@
           "targetSlot": {
             "type": "integer",
             "description": "The target slot to change to (0-indexed)",
-            "examples": [
-              0,
-              1,
-              2
-            ]
+            "examples": [0, 1, 2]
           },
           "playerId": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Optional: ID of the player whose slot to change (for showman use)",
-            "examples": [
-              123,
-              null
-            ]
+            "examples": [123, null]
           }
         },
-        "required": [
-          "targetSlot"
-        ]
+        "required": ["targetSlot"]
       },
       "SocketIOPlayerSlotChangeEventPayload": {
         "type": "object",
@@ -4606,18 +3776,12 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who changed their slot",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "newSlot": {
             "type": "integer",
             "description": "The new slot number (0-indexed)",
-            "examples": [
-              0,
-              1,
-              2
-            ]
+            "examples": [0, 1, 2]
           },
           "players": {
             "type": "array",
@@ -4633,35 +3797,21 @@
         "description": "Data sent to change the current turn player (showman only)",
         "properties": {
           "newTurnPlayerId": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "ID of the player who should have the turn, or null to clear",
-            "examples": [
-              123,
-              null
-            ]
+            "examples": [123, null]
           }
         },
-        "required": [
-          "newTurnPlayerId"
-        ]
+        "required": ["newTurnPlayerId"]
       },
       "SocketIOTurnPlayerChangeEventPayload": {
         "type": "object",
         "description": "Data sent to all players when the turn player is changed",
         "properties": {
           "newTurnPlayerId": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "ID of the player who now has the turn, or null if cleared",
-            "examples": [
-              123,
-              null
-            ]
+            "examples": [123, null]
           }
         }
       },
@@ -4670,9 +3820,7 @@
         "properties": {
           "message": {
             "type": "string",
-            "examples": [
-              "Hello guys!"
-            ],
+            "examples": ["Hello guys!"],
             "maxLength": 255
           }
         }
@@ -4684,9 +3832,7 @@
           "questionId": {
             "type": "integer",
             "description": "ID of the picked question",
-            "examples": [
-              25
-            ]
+            "examples": [25]
           }
         }
       },
@@ -4709,9 +3855,7 @@
           "userId": {
             "type": "integer",
             "description": "ID of the user who is answering",
-            "examples": [
-              727
-            ]
+            "examples": [727]
           },
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
@@ -4723,14 +3867,9 @@
         "description": "Data sent to all players when a player submits an answer. Same data should be sent by answering player to the server",
         "properties": {
           "answerText": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Player's answer text",
-            "examples": [
-              "I don't know"
-            ]
+            "examples": ["I don't know"]
           }
         }
       },
@@ -4790,11 +3929,7 @@
           "scoreResult": {
             "type": "integer",
             "description": "Score result of the answer; positive for correct, negative for incorrect, zero for skip",
-            "examples": [
-              500,
-              -500,
-              0
-            ]
+            "examples": [500, -500, 0]
           },
           "answerType": {
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
@@ -4808,9 +3943,7 @@
           "pickerPlayerId": {
             "type": "integer",
             "description": "ID of the player who picked the secret question",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "transferType": {
             "$ref": "#/components/schemas/QuestionTransferType",
@@ -4819,16 +3952,10 @@
           "questionId": {
             "type": "integer",
             "description": "ID of the picked secret question",
-            "examples": [
-              456
-            ]
+            "examples": [456]
           }
         },
-        "required": [
-          "pickerPlayerId",
-          "transferType",
-          "questionId"
-        ]
+        "required": ["pickerPlayerId", "transferType", "questionId"]
       },
       "SocketIOSecretQuestionTransferInputData": {
         "type": "object",
@@ -4837,14 +3964,10 @@
           "targetPlayerId": {
             "type": "integer",
             "description": "ID of the player who should receive the secret question",
-            "examples": [
-              789
-            ]
+            "examples": [789]
           }
         },
-        "required": [
-          "targetPlayerId"
-        ]
+        "required": ["targetPlayerId"]
       },
       "SocketIOSecretQuestionTransferEventPayload": {
         "type": "object",
@@ -4853,42 +3976,27 @@
           "fromPlayerId": {
             "type": "integer",
             "description": "ID of the player who transferred the question",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "toPlayerId": {
             "type": "integer",
             "description": "ID of the player who received the question",
-            "examples": [
-              789
-            ]
+            "examples": [789]
           },
           "questionId": {
             "type": "integer",
             "description": "ID of the transferred secret question",
-            "examples": [
-              456
-            ]
+            "examples": [456]
           }
         },
-        "required": [
-          "fromPlayerId",
-          "toPlayerId",
-          "questionId"
-        ]
+        "required": ["fromPlayerId", "toPlayerId", "questionId"]
       },
       "PackageQuestionData": {
         "type": "object",
         "properties": {
           "id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              187
-            ]
+            "type": ["integer", "null"],
+            "examples": [187]
           },
           "type": {
             "$ref": "#/components/schemas/QuestionType"
@@ -4897,43 +4005,25 @@
             "$ref": "#/components/schemas/PackageEntitiesOrder"
           },
           "price": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Price is null only if price is hidden",
-            "examples": [
-              200,
-              null
-            ]
+            "examples": [200, null]
           },
           "isHidden": {
             "type": "boolean",
             "default": false,
             "description": "Whether the question is hidden",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           },
           "text": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Question text",
-            "examples": [
-              "Where is Kyiv located?"
-            ]
+            "examples": ["Where is Kyiv located?"]
           },
           "answerHint": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Hint for the answer",
-            "examples": [
-              "It's in Europe"
-            ]
+            "examples": ["It's in Europe"]
           },
           "answerText": {
             "oneOf": [
@@ -4946,25 +4036,15 @@
             ]
           },
           "answerDelay": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Delay in milliseconds before being able to answer, if applicable",
             "default": 4000,
-            "examples": [
-              7000
-            ]
+            "examples": [7000]
           },
           "questionComment": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "description": "Comment or note about the question",
-            "examples": [
-              "You have to say full country name"
-            ]
+            "examples": ["You have to say full country name"]
           },
           "questionFiles": {
             "oneOf": [
@@ -5067,14 +4147,10 @@
           "themeId": {
             "type": "integer",
             "description": "ID of the theme to eliminate",
-            "examples": [
-              5
-            ]
+            "examples": [5]
           }
         },
-        "required": [
-          "themeId"
-        ]
+        "required": ["themeId"]
       },
       "ThemeEliminateOutput": {
         "type": "object",
@@ -5083,32 +4159,20 @@
           "themeId": {
             "type": "integer",
             "description": "ID of the eliminated theme",
-            "examples": [
-              5
-            ]
+            "examples": [5]
           },
           "eliminatedBy": {
             "type": "integer",
             "description": "ID of the player who eliminated the theme",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "nextPlayerId": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Next player to pick theme, null if elimination complete",
-            "examples": [
-              124
-            ]
+            "examples": [124]
           }
         },
-        "required": [
-          "themeId",
-          "eliminatedBy"
-        ]
+        "required": ["themeId", "eliminatedBy"]
       },
       "FinalAnswerSubmitInput": {
         "type": "object",
@@ -5118,14 +4182,10 @@
             "type": "string",
             "description": "Player's final answer text",
             "maxLength": 500,
-            "examples": [
-              "This is my final answer"
-            ]
+            "examples": ["This is my final answer"]
           }
         },
-        "required": [
-          "answerText"
-        ]
+        "required": ["answerText"]
       },
       "FinalAnswerSubmitOutput": {
         "type": "object",
@@ -5134,22 +4194,15 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who submitted the answer",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "answerText": {
             "type": "string",
             "description": "The submitted answer text",
-            "examples": [
-              "This is my final answer"
-            ]
+            "examples": ["This is my final answer"]
           }
         },
-        "required": [
-          "playerId",
-          "answerText"
-        ]
+        "required": ["playerId", "answerText"]
       },
       "FinalBidSubmitInput": {
         "type": "object",
@@ -5158,14 +4211,10 @@
           "bid": {
             "type": "integer",
             "description": "Player's bid amount",
-            "examples": [
-              500
-            ]
+            "examples": [500]
           }
         },
-        "required": [
-          "bid"
-        ]
+        "required": ["bid"]
       },
       "FinalBidSubmitOutput": {
         "type": "object",
@@ -5174,30 +4223,20 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who submitted the bid",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "bidAmount": {
             "type": "integer",
             "description": "The bid amount",
-            "examples": [
-              500
-            ]
+            "examples": [500]
           },
           "isAutomatic": {
             "type": "boolean",
             "description": "Whether the bid was automatically submitted (e.g., when player disconnects during bidding phase)",
-            "examples": [
-              true,
-              false
-            ]
+            "examples": [true, false]
           }
         },
-        "required": [
-          "playerId",
-          "bidAmount"
-        ]
+        "required": ["playerId", "bidAmount"]
       },
       "FinalAnswerReviewInput": {
         "type": "object",
@@ -5206,22 +4245,15 @@
           "answerId": {
             "type": "string",
             "description": "ID of the answer being reviewed",
-            "examples": [
-              "answer-123"
-            ]
+            "examples": ["answer-123"]
           },
           "isCorrect": {
             "type": "boolean",
             "description": "Whether the answer is correct",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           }
         },
-        "required": [
-          "answerId",
-          "isCorrect"
-        ]
+        "required": ["answerId", "isCorrect"]
       },
       "FinalAnswerReviewOutput": {
         "type": "object",
@@ -5230,73 +4262,42 @@
           "answerId": {
             "type": "string",
             "description": "ID of the reviewed answer",
-            "examples": [
-              "answer-123"
-            ]
+            "examples": ["answer-123"]
           },
           "playerId": {
             "type": "integer",
             "description": "ID of the player whose answer was reviewed",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "isCorrect": {
             "type": "boolean",
             "description": "Whether the answer was correct",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           },
           "scoreChange": {
             "type": "integer",
             "description": "Score change for the player",
-            "examples": [
-              500
-            ]
+            "examples": [500]
           }
         },
-        "required": [
-          "answerId",
-          "playerId",
-          "isCorrect",
-          "scoreChange"
-        ]
+        "required": ["answerId", "playerId", "isCorrect", "scoreChange"]
       },
       "SocketIOGameAnswerType": {
         "type": "string",
-        "enum": [
-          "correct",
-          "wrong",
-          "skip"
-        ],
-        "examples": [
-          "correct"
-        ]
+        "enum": ["correct", "wrong", "skip"],
+        "examples": ["correct"]
       },
       "PackageRoundType": {
         "type": "string",
-        "enum": [
-          "simple",
-          "final"
-        ],
+        "enum": ["simple", "final"],
         "description": "Type of package round",
-        "examples": [
-          "simple"
-        ]
+        "examples": ["simple"]
       },
       "FinalRoundPhase": {
         "type": "string",
-        "enum": [
-          "theme_elimination",
-          "bidding",
-          "answering",
-          "reviewing"
-        ],
+        "enum": ["theme_elimination", "bidding", "answering", "reviewing"],
         "description": "Phase of the final round",
-        "examples": [
-          "theme_elimination"
-        ]
+        "examples": ["theme_elimination"]
       },
       "FinalRoundAnswer": {
         "type": "object",
@@ -5305,70 +4306,42 @@
           "id": {
             "type": "string",
             "description": "Unique ID of the answer",
-            "examples": [
-              "answer-123"
-            ]
+            "examples": ["answer-123"]
           },
           "playerId": {
             "type": "integer",
             "description": "ID of the player submitting the answer",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "answer": {
             "type": "string",
             "description": "The player's answer text",
-            "examples": [
-              "The answer is 42"
-            ]
+            "examples": ["The answer is 42"]
           },
           "isCorrect": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Whether the answer is correct (null if not yet reviewed)",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           },
           "autoLoss": {
-            "type": [
-              "boolean",
-              "null"
-            ],
+            "type": ["boolean", "null"],
             "description": "Whether this is an automatic loss",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           },
           "submittedAt": {
             "type": "string",
             "format": "date-time",
             "description": "When the answer was submitted",
-            "examples": [
-              "2024-01-01T00:00:00Z"
-            ]
+            "examples": ["2024-01-01T00:00:00Z"]
           },
           "reviewedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": ["string", "null"],
             "format": "date-time",
             "description": "When the answer was reviewed",
-            "examples": [
-              "2024-01-01T00:01:00Z"
-            ]
+            "examples": ["2024-01-01T00:01:00Z"]
           }
         },
-        "required": [
-          "id",
-          "playerId",
-          "answer",
-          "submittedAt"
-        ]
+        "required": ["id", "playerId", "answer", "submittedAt"]
       },
       "FinalRoundGameData": {
         "type": "object",
@@ -5383,13 +4356,7 @@
               "type": "integer"
             },
             "description": "Turn order for final round theme elimination",
-            "examples": [
-              [
-                1,
-                2,
-                3
-              ]
-            ]
+            "examples": [[1, 2, 3]]
           },
           "bids": {
             "type": "object",
@@ -5417,13 +4384,7 @@
               "type": "integer"
             },
             "description": "IDs of eliminated themes",
-            "examples": [
-              [
-                1,
-                3,
-                5
-              ]
-            ]
+            "examples": [[1, 3, 5]]
           }
         },
         "required": [
@@ -5448,10 +4409,7 @@
             "$ref": "#/components/schemas/GameStateTimer"
           }
         },
-        "required": [
-          "phase",
-          "nextPhase"
-        ]
+        "required": ["phase", "nextPhase"]
       },
       "FinalQuestionEventData": {
         "type": "object",
@@ -5461,9 +4419,7 @@
             "$ref": "#/components/schemas/FinalRoundQuestionData"
           }
         },
-        "required": [
-          "questionData"
-        ]
+        "required": ["questionData"]
       },
       "FinalSubmitEndEventData": {
         "type": "object",
@@ -5497,9 +4453,7 @@
             "description": "All answers revealed when transitioning to reviewing phase"
           }
         },
-        "required": [
-          "phase"
-        ]
+        "required": ["phase"]
       },
       "QuestionFinishEventPayload": {
         "type": "object",
@@ -5540,10 +4494,7 @@
             "description": "ID of the next player to take their turn, null if no next player (game finished)"
           }
         },
-        "required": [
-          "answerFiles",
-          "answerText"
-        ]
+        "required": ["answerFiles", "answerText"]
       },
       "FinalAutoLossEventData": {
         "type": "object",
@@ -5552,29 +4503,19 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who lost",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "reason": {
             "$ref": "#/components/schemas/FinalAnswerLossReason"
           }
         },
-        "required": [
-          "playerId",
-          "reason"
-        ]
+        "required": ["playerId", "reason"]
       },
       "FinalAnswerLossReason": {
         "type": "string",
-        "enum": [
-          "empty_answer",
-          "timeout"
-        ],
+        "enum": ["empty_answer", "timeout"],
         "description": "Reason for automatic loss in final round",
-        "examples": [
-          "empty_answer"
-        ]
+        "examples": ["empty_answer"]
       },
       "FinalRoundQuestionData": {
         "type": "object",
@@ -5583,16 +4524,12 @@
           "themeId": {
             "type": "integer",
             "description": "ID of the question theme",
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "themeName": {
             "type": "string",
             "description": "Name of the question theme",
-            "examples": [
-              "Geography"
-            ]
+            "examples": ["Geography"]
           },
           "question": {
             "type": "object",
@@ -5601,57 +4538,33 @@
               "id": {
                 "type": "integer",
                 "description": "Question ID",
-                "examples": [
-                  187
-                ]
+                "examples": [187]
               },
               "order": {
                 "type": "integer",
                 "description": "Question order",
-                "examples": [
-                  1
-                ]
+                "examples": [1]
               },
               "price": {
-                "type": [
-                  "integer",
-                  "null"
-                ],
+                "type": ["integer", "null"],
                 "description": "Question price/points",
-                "examples": [
-                  500
-                ]
+                "examples": [500]
               },
               "questionComment": {
-                "type": [
-                  "string",
-                  "null"
-                ],
+                "type": ["string", "null"],
                 "description": "Question comment",
-                "examples": [
-                  "Geography question"
-                ]
+                "examples": ["Geography question"]
               },
               "isPlayed": {
                 "type": "boolean",
                 "description": "Whether question has been played",
-                "examples": [
-                  false
-                ]
+                "examples": [false]
               }
             },
-            "required": [
-              "id",
-              "order",
-              "isPlayed"
-            ]
+            "required": ["id", "order", "isPlayed"]
           }
         },
-        "required": [
-          "themeId",
-          "themeName",
-          "question"
-        ]
+        "required": ["themeId", "themeName", "question"]
       },
       "AnswerReviewData": {
         "type": "object",
@@ -5660,30 +4573,22 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "answerId": {
             "type": "string",
             "description": "Unique ID of the answer",
-            "examples": [
-              "answer-123"
-            ]
+            "examples": ["answer-123"]
           },
           "answerText": {
             "type": "string",
             "description": "Player's answer text",
-            "examples": [
-              "Paris"
-            ]
+            "examples": ["Paris"]
           },
           "scoreChange": {
             "type": "integer",
             "description": "Score change for the player",
-            "examples": [
-              500
-            ]
+            "examples": [500]
           },
           "answerType": {
             "$ref": "#/components/schemas/FinalAnswerType"
@@ -5691,9 +4596,7 @@
           "isCorrect": {
             "type": "boolean",
             "description": "Whether the answer is correct (optional, present after review)",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           }
         },
         "required": [
@@ -5706,27 +4609,15 @@
       },
       "FinalAnswerType": {
         "type": "string",
-        "enum": [
-          "correct",
-          "wrong",
-          "auto_loss"
-        ],
+        "enum": ["correct", "wrong", "auto_loss"],
         "description": "Type of final round answer result",
-        "examples": [
-          "correct"
-        ]
+        "examples": ["correct"]
       },
       "StakeBidType": {
         "type": "string",
-        "enum": [
-          "normal",
-          "pass",
-          "all-in"
-        ],
+        "enum": ["normal", "pass", "all-in"],
         "description": "Type of bid in stake question",
-        "examples": [
-          "normal"
-        ]
+        "examples": ["normal"]
       },
       "StakeQuestionPickedBroadcastData": {
         "type": "object",
@@ -5735,27 +4626,17 @@
           "pickerPlayerId": {
             "type": "integer",
             "description": "The player who picked the stake question",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "questionId": {
             "type": "integer",
             "description": "Question ID for reference",
-            "examples": [
-              456
-            ]
+            "examples": [456]
           },
           "maxPrice": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Maximum bid allowed for this question (null means no limit)",
-            "examples": [
-              400,
-              null
-            ]
+            "examples": [400, null]
           },
           "biddingOrder": {
             "type": "array",
@@ -5763,13 +4644,7 @@
               "type": "integer"
             },
             "description": "Players order for sequential bidding",
-            "examples": [
-              [
-                123,
-                124,
-                125
-              ]
-            ]
+            "examples": [[123, 124, 125]]
           },
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer",
@@ -5792,22 +4667,13 @@
             "$ref": "#/components/schemas/StakeBidType"
           },
           "bidAmount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "minimum": 1,
             "description": "Bid amount for normal bids, null for pass/all-in bids",
-            "examples": [
-              250,
-              null
-            ]
+            "examples": [250, null]
           }
         },
-        "required": [
-          "bidType",
-          "bidAmount"
-        ]
+        "required": ["bidType", "bidAmount"]
       },
       "StakeBidSubmitOutputData": {
         "type": "object",
@@ -5816,20 +4682,12 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who submitted the bid",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "bidAmount": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Actual bid amount (null for pass bids)",
-            "examples": [
-              250,
-              null
-            ]
+            "examples": [250, null]
           },
           "bidType": {
             "$ref": "#/components/schemas/StakeBidType",
@@ -5838,20 +4696,12 @@
           "isPhaseComplete": {
             "type": "boolean",
             "description": "True if bidding phase is complete and this player won",
-            "examples": [
-              false
-            ]
+            "examples": [false]
           },
           "nextBidderId": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Next player to bid (null if phase complete)",
-            "examples": [
-              124,
-              null
-            ]
+            "examples": [124, null]
           },
           "timer": {
             "oneOf": [
@@ -5880,25 +4730,15 @@
           "winnerPlayerId": {
             "type": "integer",
             "description": "ID of the player who won the bidding",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "finalBid": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Final winning bid amount",
-            "examples": [
-              350
-            ]
+            "examples": [350]
           }
         },
-        "required": [
-          "winnerPlayerId",
-          "finalBid"
-        ]
+        "required": ["winnerPlayerId", "finalBid"]
       },
       "SecretQuestionGameData": {
         "type": "object",
@@ -5907,9 +4747,7 @@
           "pickerPlayerId": {
             "type": "integer",
             "description": "The player who originally picked the secret question",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "transferType": {
             "$ref": "#/components/schemas/QuestionTransferType",
@@ -5918,16 +4756,12 @@
           "questionId": {
             "type": "integer",
             "description": "Question ID being transferred",
-            "examples": [
-              456
-            ]
+            "examples": [456]
           },
           "transferPhase": {
             "type": "boolean",
             "description": "Whether currently in transfer phase (waiting for transfer decision)",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           }
         },
         "required": [
@@ -5944,35 +4778,22 @@
           "pickerPlayerId": {
             "type": "integer",
             "description": "The player who originally picked the stake question",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "questionId": {
             "type": "integer",
             "description": "Question ID being bid on",
-            "examples": [
-              456
-            ]
+            "examples": [456]
           },
           "maxPrice": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Maximum bid allowed for this question (null means no limit)",
-            "examples": [
-              1000,
-              null
-            ]
+            "examples": [1000, null]
           },
           "bids": {
             "type": "object",
             "additionalProperties": {
-              "type": [
-                "integer",
-                "null"
-              ]
+              "type": ["integer", "null"]
             },
             "description": "Current bids from all players (playerId -> highest bid amount)",
             "examples": [
@@ -5989,12 +4810,7 @@
               "type": "integer"
             },
             "description": "Players who have passed and are out of bidding",
-            "examples": [
-              [
-                125,
-                126
-              ]
-            ]
+            "examples": [[125, 126]]
           },
           "biddingOrder": {
             "type": "array",
@@ -6002,49 +4818,27 @@
               "type": "integer"
             },
             "description": "Order of players for sequential bidding",
-            "examples": [
-              [
-                123,
-                124,
-                125
-              ]
-            ]
+            "examples": [[123, 124, 125]]
           },
           "currentBidderIndex": {
             "type": "integer",
             "description": "Current player's turn to bid (index in biddingOrder)",
-            "examples": [
-              1
-            ]
+            "examples": [1]
           },
           "highestBid": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Highest bid amount so far",
-            "examples": [
-              500,
-              null
-            ]
+            "examples": [500, null]
           },
           "winnerPlayerId": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Player ID who placed the highest bid (winner)",
-            "examples": [
-              123,
-              null
-            ]
+            "examples": [123, null]
           },
           "biddingPhase": {
             "type": "boolean",
             "description": "Whether currently in bidding phase",
-            "examples": [
-              true
-            ]
+            "examples": [true]
           }
         },
         "required": [
@@ -6067,18 +4861,11 @@
           "playerId": {
             "type": "integer",
             "description": "ID of the player who submitted the bid",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "bidAmount": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              456
-            ]
+            "type": ["integer", "null"],
+            "examples": [456]
           },
           "bidType": {
             "$ref": "#/components/schemas/StakeBidType"
@@ -6087,10 +4874,7 @@
             "type": "boolean"
           },
           "nextBidderId": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": ["integer", "null"]
           },
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
@@ -6111,25 +4895,16 @@
           "pickerPlayerId": {
             "type": "integer",
             "description": "ID of the player who picked the question",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "questionId": {
             "type": "integer",
-            "examples": [
-              456
-            ]
+            "examples": [456]
           },
           "maxPrice": {
-            "type": [
-              "integer",
-              "null"
-            ],
+            "type": ["integer", "null"],
             "description": "Max bid price",
-            "examples": [
-              1000
-            ]
+            "examples": [1000]
           },
           "biddingOrder": {
             "type": "array",
@@ -6137,24 +4912,13 @@
               "type": "integer"
             },
             "description": "List of ID's of the players in order of bidding",
-            "examples": [
-              [
-                23,
-                123,
-                3
-              ]
-            ]
+            "examples": [[23, 123, 3]]
           },
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
           }
         },
-        "required": [
-          "pickerPlayerId",
-          "questionId",
-          "timer",
-          "maxPrice"
-        ]
+        "required": ["pickerPlayerId", "questionId", "timer", "maxPrice"]
       },
       "SocketIOStakeQuestionWinnerEventPayload": {
         "type": "object",
@@ -6163,43 +4927,28 @@
           "winnerPlayerId": {
             "type": "integer",
             "description": "ID of the player who won the bid",
-            "examples": [
-              123
-            ]
+            "examples": [123]
           },
           "finalBid": {
             "type": "integer",
             "description": "The final winning bid amount",
-            "examples": [
-              2000
-            ]
+            "examples": [2000]
           }
         },
-        "required": [
-          "winnerPlayerId",
-          "finalBid"
-        ]
+        "required": ["winnerPlayerId", "finalBid"]
       },
       "SocketIOStakeQuestionBidInput": {
         "type": "object",
         "properties": {
           "bidAmount": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "examples": [
-              456
-            ]
+            "type": ["integer", "null"],
+            "examples": [456]
           },
           "bidType": {
             "$ref": "#/components/schemas/StakeBidType"
           }
         },
-        "required": [
-          "bidAmount",
-          "bidType"
-        ]
+        "required": ["bidAmount", "bidType"]
       },
       "AdminDashboardData": {
         "type": "object",
@@ -6228,11 +4977,7 @@
           },
           "systemHealth": {
             "type": "object",
-            "required": [
-              "redisConnected",
-              "redisKeys",
-              "serverUptimeSeconds"
-            ],
+            "required": ["redisConnected", "redisKeys", "serverUptimeSeconds"],
             "properties": {
               "redisConnected": {
                 "type": "boolean"
@@ -6249,11 +4994,7 @@
       },
       "AdminUserListData": {
         "type": "object",
-        "required": [
-          "data",
-          "stats",
-          "pageInfo"
-        ],
+        "required": ["data", "stats", "pageInfo"],
         "properties": {
           "data": {
             "type": "array",
@@ -6263,12 +5004,7 @@
           },
           "stats": {
             "type": "object",
-            "required": [
-              "total",
-              "active",
-              "deleted",
-              "banned"
-            ],
+            "required": ["total", "active", "deleted", "banned"],
             "properties": {
               "total": {
                 "type": "integer"
@@ -6291,11 +5027,7 @@
       },
       "AdminSystemHealthData": {
         "type": "object",
-        "required": [
-          "redis",
-          "server",
-          "timestamp"
-        ],
+        "required": ["redis", "server", "timestamp"],
         "properties": {
           "redis": {
             "type": "object",
@@ -6326,20 +5058,14 @@
           },
           "server": {
             "type": "object",
-            "required": [
-              "uptime",
-              "memory"
-            ],
+            "required": ["uptime", "memory"],
             "properties": {
               "uptime": {
                 "type": "number"
               },
               "memory": {
                 "type": "object",
-                "required": [
-                  "used",
-                  "total"
-                ],
+                "required": ["used", "total"],
                 "properties": {
                   "used": {
                     "type": "number"
@@ -6359,12 +5085,7 @@
       },
       "AdminPingData": {
         "type": "object",
-        "required": [
-          "ok",
-          "eventLoopLagMs",
-          "redis",
-          "timestamp"
-        ],
+        "required": ["ok", "eventLoopLagMs", "redis", "timestamp"],
         "properties": {
           "ok": {
             "type": "boolean"
@@ -6374,10 +5095,7 @@
           },
           "redis": {
             "type": "object",
-            "required": [
-              "connected",
-              "responseMs"
-            ],
+            "required": ["connected", "responseMs"],
             "properties": {
               "connected": {
                 "type": "boolean"
@@ -6394,10 +5112,7 @@
       },
       "UserBanResponse": {
         "type": "object",
-        "required": [
-          "userId",
-          "isBanned"
-        ],
+        "required": ["userId", "isBanned"],
         "properties": {
           "userId": {
             "type": "integer"
@@ -6409,10 +5124,7 @@
       },
       "UserRestoreResponse": {
         "type": "object",
-        "required": [
-          "userId",
-          "restored"
-        ],
+        "required": ["userId", "restored"],
         "properties": {
           "userId": {
             "type": "integer"

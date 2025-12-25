@@ -214,7 +214,7 @@ class _OverviewTabState extends State<_OverviewTab> {
                   title: Text(user.username),
                   subtitle: Text('ID: ${user.id}'),
                   trailing: Text(
-                    _formatDate(user.createdAt),
+                    user.createdAt.toRelativeString(),
                     style: context.textTheme.bodySmall,
                   ),
                 );
@@ -224,22 +224,6 @@ class _OverviewTabState extends State<_OverviewTab> {
         ],
       ),
     );
-  }
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return 'N/A';
-    final now = DateTime.now();
-    final diff = now.difference(date);
-
-    if (diff.inDays > 0) {
-      return '${diff.inDays}d ago';
-    } else if (diff.inHours > 0) {
-      return '${diff.inHours}h ago';
-    } else if (diff.inMinutes > 0) {
-      return '${diff.inMinutes}m ago';
-    } else {
-      return 'Just now';
-    }
   }
 }
 
@@ -733,7 +717,7 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
 
           // Server status
           Text(
-            'Server Status',
+            LocaleKeys.admin_server_status.tr(),
             style: context.textTheme.titleLarge,
           ),
           Card(

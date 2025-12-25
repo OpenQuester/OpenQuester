@@ -392,7 +392,13 @@
     "error_loading_data": "Error loading data",
     "refresh": "Refresh",
     "stats": "Statistics",
-    "banned_users": "Banned Users"
+    "banned_users": "Banned Users",
+    "server_status": "Server Status"
   },
-  "something_went_wrong": "Something went wrong"
+  "something_went_wrong": "Something went wrong",
+  "just_now": "Just now",
+  "seconds_ago": "{} seconds ago",
+  "minutes_ago": "{} minutes ago",
+  "hours_ago": "{} hours ago",
+  "days_ago": "{} days ago"
 }
