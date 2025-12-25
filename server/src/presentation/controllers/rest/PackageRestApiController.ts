@@ -7,12 +7,12 @@ import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PackageInputDTO } from "domain/types/dto/package/PackageInputDTO";
-import { PackagePaginationOpts } from "domain/types/pagination/package/PackagePaginationOpts";
+import { PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { checkPackDeletePermissionMiddleware } from "presentation/middleware/permission/PackagePermissionMiddleware";
 import {
-  packagePaginationScheme,
+  packageSearchScheme,
   packIdScheme,
   uploadPackageScheme,
 } from "presentation/schemes/package/packageSchemes";
@@ -75,12 +75,15 @@ export class PackageRestApiController {
   };
 
   private listPackages = async (req: Request, res: Response) => {
-    const paginationOpts = new RequestDataValidator<PackagePaginationOpts>(
-      req.query as unknown as PackagePaginationOpts,
-      packagePaginationScheme()
+    // Unified list endpoint with search/filter support
+    const searchOpts = new RequestDataValidator<PackageSearchOpts>(
+      req.query as unknown as PackageSearchOpts,
+      packageSearchScheme()
     ).validate();
 
-    const data = await this.packageService.listPackages(paginationOpts);
+    this._validateMinMaxRanges(searchOpts);
+
+    const data = await this.packageService.searchPackages(searchOpts);
 
     return res.status(HttpStatus.OK).send(data);
   };
@@ -102,4 +105,24 @@ export class PackageRestApiController {
       message: "Package deleted successfully",
     });
   };
+
+  private _validateMinMaxRanges(opts: PackageSearchOpts): void {
+    if (
+      opts.minRounds !== undefined &&
+      opts.maxRounds !== undefined &&
+      opts.minRounds > opts.maxRounds
+    ) {
+      throw new ClientError(ClientResponse.PACKAGE_SEARCH_ROUNDS_MIN_MORE_MAX);
+    }
+
+    if (
+      opts.minQuestions !== undefined &&
+      opts.maxQuestions !== undefined &&
+      opts.minQuestions > opts.maxQuestions
+    ) {
+      throw new ClientError(
+        ClientResponse.PACKAGE_SEARCH_QUESTIONS_MIN_MORE_MAX
+      );
+    }
+  }
 }
