@@ -107,14 +107,21 @@ extension SocketIOGameJoinEventPayloadX on SocketIOGameJoinEventPayload {
 
   SocketIOGameJoinEventPayload changePlayer({
     required int? id,
-    required PlayerData Function(PlayerData value) onChange,
+    required PlayerData? Function(PlayerData value) onChange,
   }) {
     if (id == null) return this;
 
     final players = List<PlayerData>.from(this.players);
     final playerIndex = players.indexWhere((e) => e.meta.id == id);
+
     if (playerIndex < 0) return this;
-    players[playerIndex] = onChange(players[playerIndex]);
+    final newPlayer = onChange(players[playerIndex]);
+
+    if (newPlayer != null) {
+      players[playerIndex] = newPlayer;
+    } else {
+      players.removeAt(playerIndex);
+    }
 
     return copyWith(players: players);
   }

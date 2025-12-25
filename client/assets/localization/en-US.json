@@ -163,6 +163,7 @@
     "title": "Edit Player",
     "change_score": "Change score",
     "give_turn": "Give turn",
+    "restrict": "Restrict",
     "kick": "Kick",
     "ban": "Ban",
     "mute": "Mute",

@@ -18,6 +18,17 @@ export class RedisService {
     return this.redisRepository.on(event, callback);
   }
 
+  public off(
+    event: string,
+    callback: (channel: string, message: string) => void
+  ) {
+    return this.redisRepository.off(event, callback);
+  }
+
+  public async unsubscribe(channel: string): Promise<void> {
+    return this.redisRepository.unsubscribe(channel);
+  }
+
   public async publish(channel: string, message: string) {
     return this.redisRepository.publish(channel, message);
   }

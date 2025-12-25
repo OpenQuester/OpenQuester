@@ -3,16 +3,10 @@ import { Socket } from "socket.io";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { GameActionType } from "domain/enums/GameActionType";
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   EmptyInputData,
@@ -59,6 +53,14 @@ export class DisconnectEventHandler extends BaseSocketEventHandler<
     return GameActionType.DISCONNECT;
   }
 
+  /**
+   * Allow null gameId - disconnect may be called when user isn't in a game.
+   * In that case, silently succeed with no-op.
+   */
+  protected override allowsNullGameId(): boolean {
+    return true;
+  }
+
   protected async validateInput(
     _data: EmptyInputData
   ): Promise<EmptyInputData> {
@@ -70,41 +72,5 @@ export class DisconnectEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // No authorization needed for disconnect
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<EmptyOutputData>> {
-    const broadcasts: SocketEventBroadcast[] = [];
-
-    try {
-      // Try to leave game first (will emit leave event if needed)
-      const result = await this.socketIOGameService.leaveLobby(this.socket.id);
-
-      // Add broadcast if the service indicates it should be emitted
-      if (result.emit && result.data) {
-        context.gameId = result.data.gameId;
-        broadcasts.push({
-          event: SocketIOGameEvents.LEAVE,
-          data: { user: result.data.userId },
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.data.gameId,
-        });
-
-        // Socket can leave since event emitting handled by IO when target is Game
-        await this.socket.leave(result.data.gameId);
-      }
-    } catch {
-      // Continue with cleanup even if leave fails
-    }
-
-    // Always clean up auth data
-    await this.socketIOGameService.removePlayerAuth(this.socket.id);
-
-    return {
-      success: true,
-      broadcast: broadcasts,
-    };
   }
 }

@@ -53,6 +53,7 @@
   "round_game_required": "Game is required for round operations",
   "round_game_state_required": "Game state is required for round operations",
   "round_current_round_required": "Current round is required for progression",
+  "round_not_started": "Round is not started yet",
   "only_host_can_delete": "Only host (creator) can delete the game",
   "you_cannot_pick_question": "You cannot pick question",
   "you_cannot_answer_question": "You cannot answer question",
@@ -111,5 +112,6 @@
   "cannot_transfer_to_self": "Cannot transfer secret question to yourself",
   "cannot_skip_while_not_answering": "You cannot skip while not answering",
   "cannot_upload_package_as_guest": "You cannot upload package as guest",
-  "spectators_cannot_chat_while_answering": "Spectators cannot chat while player is answering"
+  "spectators_cannot_chat_while_answering": "Spectators cannot chat while player is answering",
+  "cannot_join_final_round_as_player": "You cannot join as a player during final round"
 }

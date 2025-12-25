@@ -7,9 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   PlayerKickBroadcastData,
@@ -70,38 +68,5 @@ export class PlayerKickEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization handled by service layer
-  }
-
-  protected async execute(
-    data: PlayerKickInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<PlayerKickBroadcastData>> {
-    const result = await this.socketIOGameService.kickPlayer(
-      context.socketId,
-      data.playerId
-    );
-
-    const broadcastData: PlayerKickBroadcastData = {
-      playerId: data.playerId,
-    };
-
-    return {
-      success: true,
-      data: broadcastData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.PLAYER_KICKED,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        },
-        {
-          event: SocketIOGameEvents.LEAVE,
-          data: { user: data.playerId },
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        },
-      ],
-    };
   }
 }

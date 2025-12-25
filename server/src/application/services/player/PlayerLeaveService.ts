@@ -1,13 +1,33 @@
 import { GameService } from "application/services/game/GameService";
+import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
+import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
+import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import {
+  AnsweringPlayerLeaveLogic,
+  AnsweringScenarioType,
+} from "domain/logic/player-leave/AnsweringPlayerLeaveLogic";
+import { FinalBiddingPlayerLeaveLogic } from "domain/logic/player-leave/FinalBiddingPlayerLeaveLogic";
+import { MediaDownloadPlayerLeaveLogic } from "domain/logic/player-leave/MediaDownloadPlayerLeaveLogic";
+import { StakeBiddingPlayerLeaveLogic } from "domain/logic/player-leave/StakeBiddingPlayerLeaveLogic";
+import {
+  TurnPlayerLeaveLogic,
+  TurnPlayerScenarioType,
+} from "domain/logic/player-leave/TurnPlayerLeaveLogic";
+import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { TransitionTrigger } from "domain/state-machine/types";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   BroadcastEvent,
   ServiceResult,
 } from "domain/types/service/ServiceResult";
+import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
+import { PlayerKickBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 
@@ -52,6 +72,9 @@ export class PlayerLeaveService {
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketUserDataService: SocketUserDataService,
     private readonly playerGameStatsService: PlayerGameStatsService,
+    private readonly socketQuestionStateService: SocketQuestionStateService,
+    private readonly finalRoundService: FinalRoundService,
+    private readonly phaseTransitionRouter: PhaseTransitionRouter,
     private readonly logger: ILogger
   ) {
     //
@@ -81,6 +104,54 @@ export class PlayerLeaveService {
     );
   }
 
+  /**
+   * Handle game state cleanup when a player becomes inactive (e.g., restricted to spectator)
+   * This handles: answering player, turn player, bidding states
+   * WITHOUT removing the player from the game
+   *
+   * Used when restricting a player to spectator role
+   */
+  public async handlePlayerGameStateCleanup(
+    game: Game,
+    userId: number
+  ): Promise<BroadcastEvent[]> {
+    const broadcasts: BroadcastEvent[] = [];
+
+    // Handle stake bidding player
+    const stakeBiddingBroadcasts = await this.handleStakeBiddingPlayerLeave(
+      game,
+      userId
+    );
+    broadcasts.push(...stakeBiddingBroadcasts);
+
+    // Handle final bidding player
+    const biddingBroadcasts = await this.handleFinalBiddingPlayerLeave(
+      game,
+      userId
+    );
+    broadcasts.push(...biddingBroadcasts);
+
+    // Handle answering player
+    const answeringBroadcasts = await this.handleAnsweringPlayerLeave(
+      game,
+      userId
+    );
+    broadcasts.push(...answeringBroadcasts);
+
+    // Handle current turn player
+    const turnPlayerBroadcasts = await this.handleTurnPlayerLeave(game, userId);
+    broadcasts.push(...turnPlayerBroadcasts);
+
+    // Handle media downloading state
+    const mediaDownloadBroadcasts = await this.handleMediaDownloadPlayerLeave(
+      game,
+      userId
+    );
+    broadcasts.push(...mediaDownloadBroadcasts);
+
+    return broadcasts;
+  }
+
   private async executePlayerLeave(
     game: Game,
     gameId: string,
@@ -103,6 +174,38 @@ export class PlayerLeaveService {
     const targetPlayer = game.getPlayer(userId, { fetchDisconnected: true });
     const wasPlayer = targetPlayer?.role === PlayerRole.PLAYER;
 
+    // Handle stake bidding player leaving - must be done BEFORE removing player
+    const stakeBiddingBroadcasts = await this.handleStakeBiddingPlayerLeave(
+      game,
+      userId
+    );
+
+    // Handle final bidding player leaving - must be done BEFORE removing player
+    const biddingBroadcasts = await this.handleFinalBiddingPlayerLeave(
+      game,
+      userId
+    );
+
+    // Handle answering player leaving - must be done BEFORE removing player
+    const answeringBroadcasts = await this.handleAnsweringPlayerLeave(
+      game,
+      userId
+    );
+
+    // Handle current turn player leaving - must be done BEFORE removing player
+    const turnPlayerBroadcasts = await this.handleTurnPlayerLeave(game, userId);
+
+    // If theme elimination was handled, re-fetch game to get updated state
+    const themeEliminationHandled = turnPlayerBroadcasts.some(
+      (b) => b.event === SocketIOGameEvents.THEME_ELIMINATE
+    );
+    if (themeEliminationHandled) {
+      // Re-fetch game to ensure we have the latest state after theme elimination.
+      // the caller holds the same `game` reference and needs to see updated state.
+      const updatedGame = await this.gameService.getGameEntity(gameId);
+      Object.assign(game, updatedGame);
+    }
+
     // Remove player from game
     game.removePlayer(userId);
 
@@ -112,6 +215,13 @@ export class PlayerLeaveService {
         (playerId) => playerId !== userId
       );
     }
+
+    // Handle media downloading state - must be done AFTER removing player
+    // so we can check if all remaining players are ready
+    const mediaDownloadBroadcasts = await this.handleMediaDownloadPlayerLeave(
+      game,
+      userId
+    );
 
     // Update socket session
     if (options.cleanupSession !== false) {
@@ -135,6 +245,15 @@ export class PlayerLeaveService {
     // Build broadcasts based on reason
     const broadcasts = this.buildBroadcasts(gameId, userId, options);
 
+    // Add bidding, answering, turn player, and media download broadcasts
+    broadcasts.push(
+      ...stakeBiddingBroadcasts,
+      ...biddingBroadcasts,
+      ...answeringBroadcasts,
+      ...turnPlayerBroadcasts,
+      ...mediaDownloadBroadcasts
+    );
+
     return {
       success: true,
       wasInGame: true,
@@ -156,12 +275,12 @@ export class PlayerLeaveService {
       case PlayerLeaveReason.KICK:
         broadcasts.push({
           event: SocketIOGameEvents.PLAYER_KICKED,
-          data: { playerId: userId },
+          data: { playerId: userId } satisfies PlayerKickBroadcastData,
           room: gameId,
         });
         broadcasts.push({
           event: SocketIOGameEvents.LEAVE,
-          data: { user: userId },
+          data: { user: userId } satisfies GameLeaveEventPayload,
           room: gameId,
         });
         break;
@@ -171,7 +290,7 @@ export class PlayerLeaveService {
         // We only emit LEAVE here
         broadcasts.push({
           event: SocketIOGameEvents.LEAVE,
-          data: { user: userId },
+          data: { user: userId } satisfies GameLeaveEventPayload,
           room: gameId,
         });
         break;
@@ -180,12 +299,303 @@ export class PlayerLeaveService {
       case PlayerLeaveReason.DISCONNECT:
         broadcasts.push({
           event: SocketIOGameEvents.LEAVE,
-          data: { user: userId },
+          data: { user: userId } satisfies GameLeaveEventPayload,
           room: gameId,
         });
         break;
     }
 
     return broadcasts;
+  }
+
+  /**
+   * Handle player leaving during stake question bidding phase.
+   */
+  private async handleStakeBiddingPlayerLeave(
+    game: Game,
+    userId: number
+  ): Promise<BroadcastEvent[]> {
+    // Validate using Logic class
+    const validation = StakeBiddingPlayerLeaveLogic.validate(game, userId);
+    if (!validation.isEligible) {
+      return [];
+    }
+
+    // Process auto-pass using Logic class
+    const mutationResult = StakeBiddingPlayerLeaveLogic.processAutoPass(
+      game,
+      userId
+    );
+
+    // Handle question skip if no winner
+    if (mutationResult.questionSkipped) {
+      StakeBiddingPlayerLeaveLogic.handleQuestionSkip(game);
+      await this.gameService.clearTimer(game.id);
+    }
+
+    // Build result using Logic class
+    const result = StakeBiddingPlayerLeaveLogic.buildResult({
+      game,
+      mutationResult,
+    });
+
+    return result.broadcasts;
+  }
+
+  /**
+   * Handle player leaving during final round bidding phase.
+   */
+  private async handleFinalBiddingPlayerLeave(
+    game: Game,
+    userId: number
+  ): Promise<BroadcastEvent[]> {
+    // Validate using Logic class
+    const validation = FinalBiddingPlayerLeaveLogic.validate(game, userId);
+    if (!validation.isEligible) {
+      return [];
+    }
+
+    // Process auto-bid using Logic class
+    const mutationResult = FinalBiddingPlayerLeaveLogic.processAutoBid(
+      game,
+      userId
+    );
+
+    // Try phase transition (BIDDING -> ANSWERING) if bids now complete
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.PLAYER_LEFT,
+      triggeredBy: { playerId: userId, isSystem: false },
+    });
+
+    await this.gameService.updateGame(game);
+
+    // Build result using Logic class
+    const result = FinalBiddingPlayerLeaveLogic.buildResult({
+      game,
+      mutationResult,
+      transitionResult,
+    });
+
+    return result.broadcasts;
+  }
+
+  /**
+   * Handle answering player leaving - auto-skip their answer with 0 points.
+   */
+  private async handleAnsweringPlayerLeave(
+    game: Game,
+    userId: number
+  ): Promise<BroadcastEvent[]> {
+    // Validate and determine scenario using Logic class
+    const validation = AnsweringPlayerLeaveLogic.validate(game, userId);
+    if (!validation.isEligible) {
+      return [];
+    }
+
+    // Handle final round answering scenario
+    if (validation.scenarioType === AnsweringScenarioType.FINAL_ROUND) {
+      return await this._handleFinalRoundAnsweringLeave(game, userId);
+    }
+
+    // Handle regular round answering scenario
+    return await this._handleRegularRoundAnsweringLeave(game);
+  }
+
+  /**
+   * Handle final round answering player leave - auto-loss for the player.
+   */
+  private async _handleFinalRoundAnsweringLeave(
+    game: Game,
+    userId: number
+  ): Promise<BroadcastEvent[]> {
+    // Process auto-loss using Logic class
+    const wasProcessed = AnsweringPlayerLeaveLogic.processFinalRoundAutoLoss(
+      game,
+      userId
+    );
+
+    // Try phase transition (ANSWERING -> REVIEWING) if now complete
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.PLAYER_LEFT,
+      triggeredBy: { playerId: userId, isSystem: false },
+    });
+
+    await this.gameService.updateGame(game);
+
+    // Build result using Logic class
+    const result = AnsweringPlayerLeaveLogic.buildFinalRoundResult({
+      game,
+      userId,
+      wasProcessed,
+      transitionResult,
+    });
+
+    return result.broadcasts;
+  }
+
+  /**
+   * Handle regular round answering player leave - auto-skip with 0 points.
+   */
+  private async _handleRegularRoundAnsweringLeave(
+    game: Game
+  ): Promise<BroadcastEvent[]> {
+    // Process auto-skip using Logic class
+    const mutationResult =
+      AnsweringPlayerLeaveLogic.processRegularRoundAutoSkip(game);
+
+    // Handle special question cleanup if needed
+    if (mutationResult.isSpecialQuestion && mutationResult.questionId) {
+      AnsweringPlayerLeaveLogic.handleSpecialQuestionCleanup(
+        game,
+        mutationResult.questionId
+      );
+      await this.gameService.clearTimer(game.id);
+
+      // Build result without timer
+      const result = AnsweringPlayerLeaveLogic.buildRegularRoundResult({
+        game,
+        mutationResult,
+        timer: null,
+      });
+      return result.broadcasts;
+    }
+
+    // Normal question - set up showing timer
+    const timer = await this.gameService.getTimer(
+      game.id,
+      QuestionState.SHOWING
+    );
+
+    if (timer) {
+      game.setTimer(timer);
+      await this.gameService.saveTimer(
+        timer,
+        game.id,
+        TimerPersistenceLogic.getSafeTtlMs(timer)
+      );
+    }
+
+    // Build result using Logic class
+    const result = AnsweringPlayerLeaveLogic.buildRegularRoundResult({
+      game,
+      mutationResult,
+      timer,
+    });
+
+    return result.broadcasts;
+  }
+
+  /**
+   * Handle current turn player leaving - clear or reassign turn.
+   *
+   * Flow:
+   * 1. Validate and determine scenario (via Logic class)
+   * 2. Process turn player leave based on scenario
+   * 3. Return result (via Logic.buildResult)
+   */
+  private async handleTurnPlayerLeave(
+    game: Game,
+    userId: number
+  ): Promise<BroadcastEvent[]> {
+    // Validate and determine scenario using Logic class
+    const validation = TurnPlayerLeaveLogic.validate(game, userId);
+    if (!validation.isEligible) {
+      return [];
+    }
+
+    // Handle final round theme elimination scenario
+    if (
+      validation.scenarioType ===
+      TurnPlayerScenarioType.FINAL_ROUND_THEME_ELIMINATION
+    ) {
+      return await this._handleFinalRoundTurnPlayerLeave(game);
+    }
+
+    // Handle regular round turn player leave (no broadcasts needed)
+    TurnPlayerLeaveLogic.processRegularRoundLeave(game);
+    return [];
+  }
+
+  /**
+   * Handle final round turn player leaving during theme elimination.
+   *
+   * Uses FinalRoundService.handleThemeEliminationTimeout for auto-elimination.
+   */
+  private async _handleFinalRoundTurnPlayerLeave(
+    game: Game
+  ): Promise<BroadcastEvent[]> {
+    try {
+      // Use existing final round service to handle timeout (auto-elimination)
+      const result = await this.finalRoundService.handleThemeEliminationTimeout(
+        game.id
+      );
+
+      // Build result using Logic class
+      const leaveResult = TurnPlayerLeaveLogic.buildFinalRoundResult(
+        game,
+        result
+      );
+      return leaveResult.broadcasts;
+    } catch (error) {
+      this.logger.warn(
+        "Failed to handle final round turn player leave auto-elimination",
+        {
+          gameId: game.id,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Handle player leaving during media download phase.
+   *
+   * Flow:
+   * 1. Validate preconditions (via Logic class)
+   * 2. Check if all remaining players are ready
+   * 3. Setup showing timer if transitioning
+   * 4. Return result (via Logic.buildResult)
+   */
+  private async handleMediaDownloadPlayerLeave(
+    game: Game,
+    userId: number
+  ): Promise<BroadcastEvent[]> {
+    // Validate using Logic class
+    const validation = MediaDownloadPlayerLeaveLogic.validate(game);
+    if (!validation.isEligible) {
+      return [];
+    }
+
+    // Check if all remaining players are ready using Logic class
+    const completionResult = MediaDownloadPlayerLeaveLogic.checkAllPlayersReady(
+      game,
+      userId
+    );
+
+    if (!completionResult.allPlayersReady) {
+      return [];
+    }
+
+    // Clear the media download timeout timer
+    await this.gameService.clearTimer(game.id);
+
+    // Set up the actual question showing timer
+    const timer = await this.socketQuestionStateService.setupQuestionTimer(
+      game,
+      GAME_QUESTION_ANSWER_TIME,
+      QuestionState.SHOWING
+    );
+
+    // Build result using Logic class
+    const result = MediaDownloadPlayerLeaveLogic.buildResult({
+      game,
+      completionResult,
+      timer,
+    });
+
+    return result.broadcasts;
   }
 }

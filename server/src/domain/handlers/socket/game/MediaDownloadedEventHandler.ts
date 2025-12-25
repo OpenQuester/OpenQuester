@@ -7,10 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
@@ -40,7 +37,7 @@ export class MediaDownloadedEventHandler extends BaseSocketEventHandler<
   }
 
   protected async getGameIdForAction(
-    _data: any,
+    _data: EmptyInputData,
     context: SocketEventContext
   ): Promise<string | null> {
     try {
@@ -69,39 +66,5 @@ export class MediaDownloadedEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization will be handled by the service layer
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<MediaDownloadStatusBroadcastData>> {
-    // Execute the media downloaded logic
-    const result = await this.socketIOQuestionService.handleMediaDownloaded(
-      context.socketId
-    );
-
-    const statusData: MediaDownloadStatusBroadcastData = {
-      playerId: result.playerId,
-      mediaDownloaded: true,
-      allPlayersReady: result.allPlayersReady,
-      timer: result.timer,
-    };
-
-    const broadcasts: Array<
-      SocketEventBroadcast<MediaDownloadStatusBroadcastData>
-    > = [
-      {
-        event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-        data: statusData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: result.game.id,
-      },
-    ];
-
-    return {
-      success: true,
-      data: statusData,
-      broadcast: broadcasts,
-    };
   }
 }

@@ -7,9 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   EmptyInputData,
@@ -67,30 +65,5 @@ export class PauseGameEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization will be handled by the service layer (showman role check)
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<GamePauseBroadcastData>> {
-    // Execute the pause logic
-    const { game, timer } = await this.socketIOGameService.handleGamePause(
-      context.socketId
-    );
-
-    const pauseData: GamePauseBroadcastData = { timer };
-
-    return {
-      success: true,
-      data: pauseData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.GAME_PAUSE,
-          data: pauseData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        },
-      ],
-    };
   }
 }

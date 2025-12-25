@@ -4,20 +4,22 @@ import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { Game } from "domain/entities/game/Game";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
   SocketBroadcastTarget,
+  SocketEventBroadcast,
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
+import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
+import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
-import {
-  AnswerResultData,
-  AnswerResultType,
-} from "domain/types/socket/game/AnswerResultData";
+import { AnswerResultData } from "domain/types/socket/game/AnswerResultData";
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
@@ -60,7 +62,9 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
     return GameActionType.ANSWER_RESULT;
   }
 
-  protected async validateInput(data: AnswerResultData): Promise<any> {
+  protected async validateInput(
+    data: AnswerResultData
+  ): Promise<AnswerResultData> {
     return GameValidator.validateAnswerResult(data);
   }
 
@@ -68,76 +72,79 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
     // Authorization handled in service
   }
 
-  protected async execute(
-    data: AnswerResultData,
-    context: SocketEventContext
+  /**
+   * Builds result when question finishes (correct answer or all players exhausted).
+   * Handles round progression and emits QUESTION_FINISH event.
+   */
+  private async buildQuestionFinishResult(
+    game: Game,
+    playerAnswerResult: GameStateAnsweredPlayerData,
+    questionData: PackageQuestionDTO | null
   ): Promise<SocketEventResult<QuestionAnswerResultEventPayload>> {
-    const { playerAnswerResult, game, question, timer } =
-      await this.socketIOQuestionService.handleAnswerResult(
-        context.socketId,
-        data
-      );
+    const { isGameFinished, nextGameState } =
+      await this.socketIOQuestionService.handleRoundProgression(game);
 
-    // Handle correct answers with round progression
-    if (playerAnswerResult.answerType === AnswerResultType.CORRECT) {
-      const { isGameFinished, nextGameState } =
-        await this.socketIOQuestionService.handleRoundProgression(game);
-
-      const answerResultPayload: QuestionAnswerResultEventPayload = {
-        answerResult: playerAnswerResult,
-        timer: null,
-      };
-
-      // Use the progression coordinator to handle the complete flow
-      const progressionResult =
-        await this.gameProgressionCoordinator.processGameProgression({
-          game,
-          isGameFinished,
-          nextGameState,
-          questionFinishData: {
-            answerFiles: question?.answerFiles ?? null,
-            answerText: question?.answerText ?? null,
-            nextTurnPlayerId: game.gameState.currentTurnPlayerId!,
-          },
-        });
-
-      // Create a special question finish event with answer result for correct answers
-      const questionFinishWithAnswer: QuestionFinishWithAnswerEventPayload = {
-        answerFiles: question?.answerFiles ?? null,
-        answerText: question?.answerText ?? null,
-        nextTurnPlayerId: game.gameState.currentTurnPlayerId!,
-        answerResult: playerAnswerResult,
-      };
-
-      // Replace the basic question finish broadcast with the enhanced one
-      const filteredBroadcasts = progressionResult.broadcasts.filter(
-        (broadcast) => broadcast.event !== SocketIOGameEvents.QUESTION_FINISH
-      );
-
-      const allBroadcasts = [
-        {
-          event: SocketIOGameEvents.ANSWER_RESULT,
-          data: answerResultPayload,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
+    const progressionResult =
+      await this.gameProgressionCoordinator.processGameProgression({
+        game,
+        isGameFinished,
+        nextGameState,
+        questionFinishData: {
+          answerFiles: questionData?.answerFiles ?? null,
+          answerText: questionData?.answerText ?? null,
+          nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
         },
-        {
-          event: SocketIOGameEvents.QUESTION_FINISH,
-          data: questionFinishWithAnswer,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        },
-        ...filteredBroadcasts,
-      ];
+      });
 
-      return {
-        success: true,
+    const answerResultPayload: QuestionAnswerResultEventPayload = {
+      answerResult: playerAnswerResult,
+      timer: null,
+    };
+
+    const questionFinishWithAnswer: QuestionFinishWithAnswerEventPayload = {
+      answerFiles: questionData?.answerFiles ?? null,
+      answerText: questionData?.answerText ?? null,
+      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+      answerResult: playerAnswerResult,
+    };
+
+    // Replace basic QUESTION_FINISH with enhanced version containing answer result
+    const additionalBroadcasts = progressionResult.broadcasts.filter(
+      (broadcast) => broadcast.event !== SocketIOGameEvents.QUESTION_FINISH
+    );
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event: SocketIOGameEvents.ANSWER_RESULT,
         data: answerResultPayload,
-        broadcast: allBroadcasts,
-      };
-    }
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      },
+      {
+        event: SocketIOGameEvents.QUESTION_FINISH,
+        data: questionFinishWithAnswer,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      },
+      ...additionalBroadcasts,
+    ];
 
-    // For wrong or skip answers
+    return {
+      success: true,
+      data: answerResultPayload,
+      broadcast: broadcasts,
+    };
+  }
+
+  /**
+   * Builds result when question continues (wrong/skip with players remaining).
+   * Only emits ANSWER_RESULT, question stays in SHOWING state.
+   */
+  private buildContinueQuestionResult(
+    game: Game,
+    playerAnswerResult: GameStateAnsweredPlayerData,
+    timer: GameStateTimerDTO | null
+  ): SocketEventResult<QuestionAnswerResultEventPayload> {
     const resultPayload: QuestionAnswerResultEventPayload = {
       answerResult: playerAnswerResult,
       timer,

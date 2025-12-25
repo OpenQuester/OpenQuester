@@ -3,7 +3,7 @@ import { GameStatisticsRepository } from "infrastructure/database/repositories/s
 
 /**
  * Provides abstraction over live statistics operations in Redis
- * TODO: Currently works only as adapter for repository, but can be extended in future
+ * * Currently works only as adapter for repository, but can be extended in future
  */
 export class GameStatisticsService {
   constructor(private readonly repository: GameStatisticsRepository) {

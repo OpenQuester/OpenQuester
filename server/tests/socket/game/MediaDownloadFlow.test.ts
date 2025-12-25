@@ -19,6 +19,7 @@ import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { TestUtils } from "tests/utils/TestUtils";
 
 describe("Media Download Flow Tests", () => {
   let testEnv: TestEnvironment;
@@ -27,6 +28,7 @@ describe("Media Download Flow Tests", () => {
   let userRepo: Repository<User>;
   let serverUrl: string;
   let utils: SocketGameTestUtils;
+  let testUtils: TestUtils;
   let logger: ILogger;
 
   beforeAll(async () => {
@@ -39,6 +41,7 @@ describe("Media Download Flow Tests", () => {
     cleanup = boot.cleanup;
     serverUrl = `http://localhost:${process.env.PORT || 3000}`;
     utils = new SocketGameTestUtils(serverUrl);
+    testUtils = new TestUtils(app, userRepo, serverUrl);
   });
 
   beforeEach(async () => {
@@ -306,6 +309,14 @@ describe("Media Download Flow Tests", () => {
   });
 
   describe("Media Download Timeout", () => {
+    /**
+     * Note: This test verifies timer-based media download timeout behavior.
+     * It may occasionally fail in full suite runs due to Redis keyspace notification
+     * timing issues. The test validates that:
+     * 1. Timer expiration triggers forceAllPlayersReady
+     * 2. MEDIA_DOWNLOAD_STATUS event is broadcast with allPlayersReady=true
+     * 3. State transitions to SHOWING (verified via waitForCondition)
+     */
     it("should force all players ready and transition to SHOWING on timeout", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { showmanSocket, playerSockets, gameId } = setup;
@@ -329,16 +340,14 @@ describe("Media Download Flow Tests", () => {
           QuestionState.MEDIA_DOWNLOADING
         );
 
-        const redisClient = RedisConfig.getClient();
-        const timerKey = `timer:${gameId}`;
-        await redisClient.pexpire(timerKey, 200);
-
         const statusPromise =
           utils.waitForEvent<MediaDownloadStatusBroadcastData>(
             playerSockets[0],
             SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
             1000
           );
+
+        await testUtils.expireTimer(gameId, "", 200);
 
         const statusData = await statusPromise;
 
@@ -347,8 +356,18 @@ describe("Media Download Flow Tests", () => {
         expect(statusData.timer).toBeDefined();
         expect(statusData.timer).not.toBeNull();
 
-        const gameStateAfter = await utils.getGameState(gameId);
-        expect(gameStateAfter!.questionState).toBe(QuestionState.SHOWING);
+        // Wait for state to transition to SHOWING
+        // The state should transition after the MEDIA_DOWNLOAD_STATUS event is received
+        // Allow extra time for Redis state propagation
+        const stateTransitioned = await testUtils.waitForCondition(
+          async () => {
+            const state = await utils.getGameState(gameId);
+            return state!.questionState === QuestionState.SHOWING;
+          },
+          1000,
+          100
+        );
+        expect(stateTransitioned).toBe(true);
       } finally {
         await utils.cleanupGameClients(setup);
       }
@@ -381,10 +400,6 @@ describe("Media Download Flow Tests", () => {
         playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         await status1Promise;
 
-        const redisClient = RedisConfig.getClient();
-        const timerKey = `timer:${gameId}`;
-        await redisClient.pexpire(timerKey, 200);
-
         const timeoutStatusPromise =
           utils.waitForEvent<MediaDownloadStatusBroadcastData>(
             showmanSocket,
@@ -392,14 +407,26 @@ describe("Media Download Flow Tests", () => {
             1000
           );
 
+        await testUtils.expireTimer(gameId, "", 200);
+
         const timeoutStatus = await timeoutStatusPromise;
 
         expect(timeoutStatus.allPlayersReady).toBe(true);
         expect(timeoutStatus.playerId).toBe(-1);
         expect(timeoutStatus.timer).toBeDefined();
 
-        const gameState = await utils.getGameState(gameId);
-        expect(gameState!.questionState).toBe(QuestionState.SHOWING);
+        // Wait for state to transition to SHOWING
+        // The state should transition after the MEDIA_DOWNLOAD_STATUS event is received
+        // Allow extra time for Redis state propagation
+        const stateTransitioned = await testUtils.waitForCondition(
+          async () => {
+            const state = await utils.getGameState(gameId);
+            return state!.questionState === QuestionState.SHOWING;
+          },
+          1000,
+          100
+        );
+        expect(stateTransitioned).toBe(true);
       } finally {
         await utils.cleanupGameClients(setup);
       }

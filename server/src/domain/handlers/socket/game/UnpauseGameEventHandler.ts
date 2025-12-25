@@ -7,9 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   EmptyInputData,
@@ -72,30 +70,5 @@ export class UnpauseGameEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Could add pre-unpause activities like validating game state, preparing timers
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<GameUnpauseBroadcastData>> {
-    // Execute the unpause logic
-    const { game, timer } = await this.socketIOGameService.handleGameUnpause(
-      context.socketId
-    );
-
-    const unpauseData: GameUnpauseBroadcastData = { timer };
-
-    return {
-      success: true,
-      data: unpauseData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.GAME_UNPAUSE,
-          data: unpauseData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        },
-      ],
-    };
   }
 }

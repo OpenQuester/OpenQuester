@@ -1,33 +1,33 @@
-import { Server as IOServer, Namespace } from "socket.io";
-
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameService } from "application/services/game/GameService";
-import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import {
   GAME_TTL_IN_SECONDS,
   SYSTEM_PLAYER_ID,
   SYSTEM_SOCKET_ID,
 } from "domain/constants/game";
-import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { TIMER_NSP } from "domain/constants/timer";
 import { GameActionType } from "domain/enums/GameActionType";
-import { SocketIOEvents } from "domain/enums/SocketIOEvents";
-import { ErrorController } from "domain/errors/ErrorController";
-import { GameAction, GameActionResult } from "domain/types/action/GameAction";
+import { GameAction } from "domain/types/action/GameAction";
 import { TimerActionPayload } from "domain/types/action/TimerActionPayload";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Handles timer expiration events from Redis keyspace notifications.
+ *
+ * This handler creates game actions for timer expirations and submits them
+ * to the action executor. The actual execution logic is in TimerExpirationActionHandler
+ * which is registered in the GameActionHandlerRegistry.
+ *
+ * This architecture enables distributed execution - any server instance can
+ * pick up and process a queued timer action.
+ */
 export class TimerExpirationHandler implements RedisExpirationHandler {
-  private _gameNsp?: Namespace;
-
   constructor(
-    private readonly io: IOServer,
     private readonly gameService: GameService,
     private readonly actionExecutor: GameActionExecutor,
-    private readonly timerExpirationService: TimerExpirationService,
     private readonly logger: ILogger
   ) {
     //
@@ -67,27 +67,8 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       },
     };
 
-    const executeCallback = async (
-      queuedAction: GameAction
-    ): Promise<GameActionResult> => {
-      try {
-        await this.executeTimerExpiration(
-          queuedAction.payload as TimerActionPayload
-        );
-        return { success: true };
-      } catch (error) {
-        const resolvedError = await ErrorController.resolveError(
-          error,
-          this.logger
-        );
-        this._gameNamespace.to(gameId).emit(SocketIOEvents.ERROR, {
-          message: resolvedError.message,
-        });
-        return { success: false, error: resolvedError.message };
-      }
-    };
-
-    await this.actionExecutor.submitAction(action, executeCallback);
+    // Submit action - execution handled by registered TimerExpirationActionHandler
+    await this.actionExecutor.submitAction(action);
   }
 
   private getTimerActionType(
@@ -107,75 +88,5 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       default:
         return GameActionType.TIMER_QUESTION_SHOWING_EXPIRED;
     }
-  }
-
-  private async executeTimerExpiration(
-    payload: TimerActionPayload
-  ): Promise<void> {
-    const gameId = payload.timerKey.split(":")[1];
-
-    if (!gameId) {
-      throw new Error(`Invalid timer key: ${payload.timerKey}`);
-    }
-
-    const game = await this.gameService.getGameEntity(
-      gameId,
-      GAME_TTL_IN_SECONDS
-    );
-
-    let result;
-
-    switch (game.gameState.questionState) {
-      case QuestionState.MEDIA_DOWNLOADING:
-        result =
-          await this.timerExpirationService.handleMediaDownloadExpiration(
-            gameId
-          );
-        break;
-
-      case QuestionState.SHOWING:
-        result =
-          await this.timerExpirationService.handleQuestionShowingExpiration(
-            gameId
-          );
-        break;
-
-      case QuestionState.ANSWERING:
-        result = await this.timerExpirationService.handleAnsweringExpiration(
-          gameId
-        );
-        break;
-
-      case QuestionState.THEME_ELIMINATION:
-        result =
-          await this.timerExpirationService.handleThemeEliminationExpiration(
-            gameId
-          );
-        break;
-
-      case QuestionState.BIDDING:
-        result = await this.timerExpirationService.handleBiddingExpiration(
-          gameId
-        );
-        break;
-
-      default:
-        return;
-    }
-
-    // Broadcast all events returned by service
-    for (const broadcast of result.broadcasts) {
-      this._gameNamespace
-        .to(broadcast.room)
-        .emit(broadcast.event, broadcast.data);
-    }
-  }
-
-  private get _gameNamespace() {
-    if (!this._gameNsp) {
-      this._gameNsp = this.io.of(SOCKET_GAME_NAMESPACE);
-    }
-
-    return this._gameNsp;
   }
 }

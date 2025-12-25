@@ -64,6 +64,9 @@ export class SocketGameValidationService {
       throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_SET_READY);
     }
 
+    // Cannot set ready state on a finished game
+    GameStateValidator.validateGameNotFinished(game);
+
     // Can only set ready state before game starts
     if (ValueUtils.isValidDate(game.startedAt)) {
       throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
@@ -162,8 +165,7 @@ export class SocketGameValidationService {
    */
   public validateCurrentRound(game: Game): void {
     if (!game.gameState.currentRound) {
-      // TODO: Should be ROUND_NOT_STARTED when lobby implemented
-      throw new ClientError(ClientResponse.GAME_NOT_STARTED);
+      throw new ClientError(ClientResponse.ROUND_NOT_STARTED);
     }
   }
 
@@ -222,6 +224,17 @@ export class SocketGameValidationService {
     // Check if in answering phase
     if (game.gameState.questionState !== QuestionState.ANSWERING) {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
+    }
+
+    // Check if player has already submitted an answer
+    const finalRoundData = game.gameState.finalRoundData;
+    if (finalRoundData) {
+      const existingAnswer = finalRoundData.answers.find(
+        (answer) => answer.playerId === currentPlayer.meta.id
+      );
+      if (existingAnswer) {
+        throw new ClientError(ClientResponse.ALREADY_ANSWERED);
+      }
     }
   }
 

@@ -71,6 +71,7 @@ export enum ClientResponse {
   ROUND_GAME_REQUIRED = "round_game_required",
   ROUND_GAME_STATE_REQUIRED = "round_game_state_required",
   ROUND_CURRENT_ROUND_REQUIRED = "round_current_round_required",
+  ROUND_NOT_STARTED = "round_not_started",
   ONLY_HOST_CAN_DELETE = "only_host_can_delete",
   YOU_CANNOT_PICK_QUESTION = "you_cannot_pick_question",
   YOU_CANNOT_ANSWER_QUESTION = "you_cannot_answer_question",
@@ -123,6 +124,7 @@ export enum ClientResponse {
   ANSWER_REQUIRED = "answer_required",
   ANSWER_NOT_FOUND = "answer_not_found",
   FINAL_ROUND_NOT_INITIALIZED = "final_round_not_initialized",
+  CANNOT_JOIN_FINAL_ROUND_AS_PLAYER = "cannot_join_final_round_as_player",
 
   // Secret Question
   GAME_NOT_IN_SECRET_TRANSFER_PHASE = "game_not_in_secret_transfer_phase",

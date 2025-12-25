@@ -3643,6 +3643,11 @@
             "type": "integer",
             "description": "The bid amount",
             "examples": [500]
+          },
+          "isAutomatic": {
+            "type": "boolean",
+            "description": "Whether the bid was automatically submitted (e.g., when player disconnects during bidding phase)",
+            "examples": [true, false]
           }
         },
         "required": ["playerId", "bidAmount"]
@@ -4293,7 +4298,7 @@
       },
       "SocketIOStakeQuestionWinnerEventPayload": {
         "type": "object",
-        "description": "Data sent to all players when a bid is finished",
+        "description": "Data sent to all players when stake question bidding completes and winner is announced. Question data is sent separately via QUESTION_DATA event.",
         "properties": {
           "winnerPlayerId": {
             "type": "integer",
@@ -4302,6 +4307,7 @@
           },
           "finalBid": {
             "type": "integer",
+            "description": "The final winning bid amount",
             "examples": [2000]
           }
         },

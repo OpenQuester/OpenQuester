@@ -14,7 +14,6 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -30,23 +29,8 @@ describe("SocketIOTimers", () => {
   let userRepo: Repository<User>;
   let serverUrl: string;
   let socketUtils: SocketGameTestUtils;
-  let _testUtils: TestUtils;
+  let testUtils: TestUtils;
   let logger: ILogger;
-
-  /**
-   * Helper function to expire a timer by reducing its TTL to trigger natural expiration.
-   * This simulates client-side timer expiration without using internal services.
-   */
-  async function expireTimer(
-    gameId: string,
-    keyPattern: string = ""
-  ): Promise<void> {
-    const redisClient = RedisConfig.getClient();
-    const timerKey = keyPattern
-      ? `timer:${keyPattern}:${gameId}`
-      : `timer:${gameId}`;
-    await redisClient.pexpire(timerKey, 50);
-  }
 
   beforeAll(async () => {
     logger = await PinoLogger.init({ pretty: true });
@@ -58,7 +42,7 @@ describe("SocketIOTimers", () => {
     cleanup = boot.cleanup;
     serverUrl = `http://localhost:${process.env.PORT || 3000}`;
     socketUtils = new SocketGameTestUtils(serverUrl);
-    _testUtils = new TestUtils(app, userRepo, serverUrl);
+    testUtils = new TestUtils(app, userRepo, serverUrl);
   });
 
   beforeEach(async () => {
@@ -108,7 +92,7 @@ describe("SocketIOTimers", () => {
           );
 
         // Expire the timer to trigger automatic wrong answer
-        await expireTimer(gameId);
+        await testUtils.expireTimer(gameId);
 
         // Wait for the timer expiration event
         const answerResult = await answerResultPromise;
@@ -121,9 +105,18 @@ describe("SocketIOTimers", () => {
         );
         expect(answerResult.answerResult.result).toBeLessThan(0);
 
-        // Verify game state changed to SHOWING
+        const stateTransitioned = await testUtils.waitForCondition(
+          async () => {
+            const state = await socketUtils.getGameState(gameId);
+            return state!.questionState === QuestionState.SHOWING;
+          },
+          2000,
+          50
+        );
+        expect(stateTransitioned).toBe(true);
+
+        // Verify game state left ANSWERING and answering player is cleared
         const finalState = await socketUtils.getGameState(gameId);
-        expect(finalState!.questionState).toBe(QuestionState.SHOWING);
         expect(finalState!.answeringPlayer).toBeNull();
       } finally {
         await socketUtils.cleanupGameClients(setup);
@@ -181,7 +174,7 @@ describe("SocketIOTimers", () => {
           );
 
         // Expire showing timer - this should trigger round progression since all questions are played
-        await expireTimer(gameId);
+        await testUtils.expireTimer(gameId);
 
         // Wait for round progression
         const nextRound = await nextRoundPromise;
@@ -222,7 +215,7 @@ describe("SocketIOTimers", () => {
         );
 
         // Expire showing timer - this should trigger question finish and return to choosing
-        await expireTimer(gameId);
+        await testUtils.expireTimer(gameId);
 
         // Verify question finish event was received
         await questionFinishPromise;

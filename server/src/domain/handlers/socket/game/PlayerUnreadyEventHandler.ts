@@ -7,9 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   EmptyInputData,
@@ -70,36 +68,5 @@ export class PlayerUnreadyEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization will be handled by the service layer (player role check)
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<PlayerReadinessBroadcastData>> {
-    // Execute the set unready logic
-    const result = await this.socketIOGameService.setPlayerReadiness(
-      context.socketId,
-      false
-    );
-
-    const readyData: PlayerReadinessBroadcastData = {
-      playerId: result.playerId,
-      isReady: result.isReady,
-      readyPlayers: result.readyPlayers,
-      autoStartTriggered: false, // Unready does not trigger auto start
-    };
-
-    return {
-      success: true,
-      data: readyData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.PLAYER_UNREADY,
-          data: readyData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        },
-      ],
-    };
   }
 }
