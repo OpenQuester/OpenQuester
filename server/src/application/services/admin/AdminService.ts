@@ -39,8 +39,15 @@ export class AdminService {
 
     const deleted = await this.userService.count({ is_deleted: true });
     const banned = await this.userService.count({ is_banned: true });
+    const guests = await this.userService.count({ is_guest: true });
 
-    return { total, deleted, active: total - (deleted + banned), banned };
+    return {
+      total,
+      deleted,
+      active: total - (deleted + banned),
+      banned,
+      guests,
+    };
   }
 
   public async getRecentUsers(
@@ -138,6 +145,7 @@ export class AdminService {
       totalUsers: stats.total,
       activeUsers: stats.active,
       deletedUsers: stats.deleted,
+      guestsUsers: stats.guests,
       recentUsers: recentUsersPaginated.data,
       systemHealth: {
         redisConnected: redis.connected,
@@ -162,6 +170,7 @@ export class AdminService {
         active: stats.active,
         deleted: stats.deleted,
         banned: stats.banned,
+        guests: stats.guests,
       },
     };
   }
