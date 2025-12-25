@@ -1,24 +1,16 @@
 import { Socket } from "socket.io";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
-import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
-import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
-import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
-import { UserService } from "application/services/user/UserService";
-import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { GameActionType } from "domain/enums/GameActionType";
-import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
-import { UserDTO } from "domain/types/dto/user/UserDTO";
 import {
   GameJoinInputData,
   GameJoinOutputData,
@@ -37,12 +29,8 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOGameService: SocketIOGameService,
-    private readonly socketIOChatService: SocketIOChatService,
     private readonly socketUserDataService: SocketUserDataService,
-    private readonly userNotificationRoomService: UserNotificationRoomService,
-    private readonly userService: UserService,
-    private readonly socketGameContextService: SocketGameContextService
+    private readonly userNotificationRoomService: UserNotificationRoomService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
   }
@@ -72,70 +60,37 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     data: GameJoinInputData,
     context: SocketEventContext
   ): Promise<void> {
-    // Check if socket is already in this game room
+    const socketData = await this.socketUserDataService.getSocketData(
+      context.socketId
+    );
+    if (socketData?.gameId === data.gameId) {
+      throw new ClientError(ClientResponse.ALREADY_IN_GAME);
+    }
+
     if (this.socket.rooms.has(data.gameId)) {
-      // Double-check with Redis state in case there's a race condition
-      const socketData = await this.socketUserDataService.getSocketData(
-        context.socketId
-      );
-      if (socketData?.gameId === data.gameId) {
-        throw new ClientError(ClientResponse.ALREADY_IN_GAME);
-      }
-      // If Redis says not in game, force leave the socket room to sync state
       const targetSocket = this.socket.nsp.sockets.get(context.socketId);
       if (targetSocket) {
         await targetSocket.leave(data.gameId);
       }
     }
-
-    // TODO: Additional authorization checks could be added here
-    // For example: check if user is banned, game is private, etc.
   }
 
-  protected async beforeHandle(
-    _data: GameJoinInputData,
+  protected override async afterHandle(
+    result: SocketEventResult<GameJoinOutputData>,
     _context: SocketEventContext
   ): Promise<void> {
-    // Could add pre-join logging, metrics, etc.
-  }
-
-  private async _fetchUser(): Promise<UserDTO> {
-    const userData = await this.socketGameContextService.fetchUserSocketData(
-      this.socket.id
-    );
-
-    const user = await this.userService.get(userData.id);
-    if (!user) {
-      throw new ClientError(
-        ClientResponse.USER_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+    const gameId = result.context?.gameId;
+    if (!gameId || !result.success || !result.data) {
+      return;
     }
-    return user;
-  }
 
-  protected async execute(
-    data: GameJoinInputData,
-    _context: SocketEventContext
-  ): Promise<SocketEventResult<GameJoinOutputData>> {
-    this.logger.debug(
-      `User ${this.socket.userId} joining game ${data.gameId}`,
-      { prefix: "[SOCKET]: " }
-    );
+    await this.socket.join(gameId);
 
-    const result = await this.socketIOGameService.joinPlayer(
-      data,
-      await this._fetchUser(),
-      this.socket.id
-    );
-    const { player, game } = result;
+    const players = result.data.players;
+    const currentUserId = this.socket.userId;
 
-    // Join the socket room
-    await this.socket.join(data.gameId);
-
-    // Subscribe to user notification rooms for all existing players
-    const existingPlayerIds = game.players
-      .filter((p) => p.meta.id !== player.meta.id) // Exclude the joining player
+    const existingPlayerIds = players
+      .filter((p) => p.meta.id !== currentUserId)
       .map((p) => p.meta.id);
 
     if (existingPlayerIds.length > 0) {
@@ -145,46 +100,11 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
       );
     }
 
-    // Subscribe all existing players to the new player's notification room
-    if (game.players.length > 1) {
-      // Only if there are other players
+    if (players.length > 1 && currentUserId) {
       await this.userNotificationRoomService.subscribeGameToUserNotifications(
-        data.gameId,
-        player.meta.id
+        gameId,
+        currentUserId
       );
     }
-
-    // Prepare the response data
-    const gameJoinData: GameJoinOutputData = {
-      meta: {
-        title: game.title,
-      },
-      players: game.players.map((p) => p.toDTO()),
-      gameState: game.gameState,
-      chatMessages: await this.socketIOChatService.getMessages(
-        game.id,
-        game.createdAt,
-        GAME_CHAT_HISTORY_RETRIEVAL_LIMIT
-      ),
-    };
-
-    // Return result with broadcasting instructions
-    return {
-      success: true,
-      data: gameJoinData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.JOIN,
-          data: player.toDTO(),
-          target: SocketBroadcastTarget.GAME,
-          gameId: data.gameId,
-        },
-        {
-          event: SocketIOGameEvents.GAME_DATA,
-          data: gameJoinData,
-          target: SocketBroadcastTarget.SOCKET,
-        },
-      ],
-    };
   }
 }

@@ -7,9 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   PlayerSlotChangeBroadcastData,
@@ -70,35 +68,5 @@ export class PlayerSlotChangeEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization handled by service layer
-  }
-
-  protected async execute(
-    data: PlayerSlotChangeInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<PlayerSlotChangeBroadcastData>> {
-    const result = await this.socketIOGameService.changePlayerSlot(
-      context.socketId,
-      data.targetSlot,
-      data.playerId
-    );
-
-    const broadcastData: PlayerSlotChangeBroadcastData = {
-      playerId: result.playerId,
-      newSlot: result.newSlot,
-      players: result.updatedPlayers,
-    };
-
-    return {
-      success: true,
-      data: broadcastData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.PLAYER_SLOT_CHANGE,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        },
-      ],
-    };
   }
 }

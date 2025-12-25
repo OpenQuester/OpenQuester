@@ -11,25 +11,28 @@ import { SocketGameValidationService } from "application/services/socket/SocketG
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import { GAME_TTL_IN_SECONDS, SCORE_ABS_LIMIT } from "domain/constants/game";
+import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
-import { GameStateMapper } from "domain/mappers/GameStateMapper";
+import { GameJoinLogic } from "domain/logic/game/GameJoinLogic";
+import { GameStartLogic } from "domain/logic/game/GameStartLogic";
+import { PlayerReadinessLogic } from "domain/logic/game/PlayerReadinessLogic";
+import { PlayerRestrictionLogic } from "domain/logic/game/PlayerRestrictionLogic";
+import { PlayerRoleChangeLogic } from "domain/logic/game/PlayerRoleChangeLogic";
+import { PlayerScoreChangeLogic } from "domain/logic/game/PlayerScoreChangeLogic";
+import { PlayerSlotChangeLogic } from "domain/logic/game/PlayerSlotChangeLogic";
+import { RoundProgressionLogic } from "domain/logic/game/RoundProgressionLogic";
+import { TurnPlayerChangeLogic } from "domain/logic/game/TurnPlayerChangeLogic";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
-import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { GameLobbyLeaveData } from "domain/types/game/GameRoomLeaveData";
-import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
-import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { GameJoinResult } from "domain/types/socket/game/GameJoinResult";
@@ -60,6 +63,17 @@ export class SocketIOGameService {
     return this.gameService.getGameEntity(gameId, updatedTTL);
   }
 
+  /**
+   * Join player to game.
+   *
+   * Flow:
+   * 1. Fetch game and check existing player
+   * 2. Validate preconditions (via Logic class)
+   * 3. Add player to game
+   * 4. Update socket session
+   * 5. Manage player statistics
+   * 6. Return result (via Logic.buildResult)
+   */
   public async joinPlayer(
     data: GameJoinData,
     user: UserDTO,
@@ -72,54 +86,18 @@ export class SocketIOGameService {
 
     GameStateValidator.validateGameNotFinished(game);
 
-    // Check existing player restrictions FIRST before checking role availability
+    // Check existing player
     const existingPlayer = game.getPlayer(user.id, { fetchDisconnected: true });
-    if (existingPlayer) {
-      // Banned players cannot join at all
-      if (existingPlayer.isBanned) {
-        throw new ClientError(ClientResponse.YOU_ARE_BANNED);
-      }
 
-      // Restricted players can only join as spectators
-      if (existingPlayer.isRestricted && data.role !== PlayerRole.SPECTATOR) {
-        throw new ClientError(ClientResponse.YOU_ARE_RESTRICTED);
-      }
-    }
+    // Validate using Logic class
+    GameJoinLogic.validate({
+      game,
+      userId: user.id,
+      role: data.role,
+      existingPlayer,
+    });
 
-    // Prevent joining as PLAYER during final round unless reconnecting as existing player.
-    // This ensures final round scoring integrity - only players who participated
-    // in theme elimination and bidding phases can answer the final question.
-    const isFinalRound =
-      game.gameState.currentRound?.type === PackageRoundType.FINAL;
-    const wasNotPreviouslyPlayer =
-      !existingPlayer || existingPlayer.role !== PlayerRole.PLAYER;
-    if (
-      isFinalRound &&
-      data.role === PlayerRole.PLAYER &&
-      wasNotPreviouslyPlayer
-    ) {
-      throw new ClientError(ClientResponse.CANNOT_JOIN_FINAL_ROUND_AS_PLAYER);
-    }
-
-    // Now check role availability after restriction checks
-    if (data.role === PlayerRole.PLAYER && !game.checkFreeSlot()) {
-      throw new ClientError(ClientResponse.GAME_IS_FULL);
-    }
-
-    // Check if showman slot is taken - use proper filtering that includes showmen
-    const showman = game.players.find(
-      (p) =>
-        p.role === PlayerRole.SHOWMAN &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
-    );
-
-    // Joining player is showman and showman is taken
-    const showmanAndTaken = data.role === PlayerRole.SHOWMAN && !!showman;
-
-    if (showmanAndTaken && existingPlayer?.meta.id !== showman.meta.id) {
-      throw new ClientError(ClientResponse.SHOWMAN_IS_TAKEN);
-    }
-
+    // Add player to game
     const player = await game.addPlayer(
       {
         id: user.id,
@@ -129,42 +107,28 @@ export class SocketIOGameService {
       data.role
     );
 
+    // Update socket session
     await this.socketUserDataService.update(socketId, {
       id: JSON.stringify(user.id),
       gameId: data.gameId,
     });
     await this.gameService.updateGame(game);
 
-    // Initialize or clear player statistics in Redis for live tracking
-    if (data.role === PlayerRole.PLAYER) {
-      await this.managePlayerLiveSession(existingPlayer, data, user);
-    }
-
-    return { game, player };
-  }
-
-  /**
-   * Manages player live session in Redis when player joins
-   */
-  private async managePlayerLiveSession(
-    existingPlayer: Player | null,
-    data: GameJoinData,
-    user: UserDTO
-  ): Promise<void> {
-    if (!existingPlayer) {
-      // New player - initialize session
+    // Manage player statistics based on Logic class checks
+    if (GameJoinLogic.shouldInitializeStats(existingPlayer, data.role)) {
       await this.playerGameStatsService.initializePlayerSession(
         data.gameId,
         user.id,
         new Date()
       );
-    } else {
-      // Existing player rejoining as player - clear leftAt time
+    } else if (GameJoinLogic.shouldClearLeftAt(existingPlayer, data.role)) {
       await this.playerGameStatsService.clearPlayerLeftAtTime(
         data.gameId,
         user.id
       );
     }
+
+    return GameJoinLogic.buildResult({ game, player });
   }
 
   public async startGame(socketId: string) {
@@ -184,20 +148,7 @@ export class SocketIOGameService {
       throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
     }
 
-    const currentTurnPlayerId = game.getRandomTurnPlayer();
-
-    const gameState: GameStateDTO = {
-      currentRound: GameStateMapper.getGameRound(game.package, 0),
-      isPaused: false,
-      questionState: QuestionState.CHOOSING,
-      answeredPlayers: null,
-      answeringPlayer: null,
-      currentQuestion: null,
-      readyPlayers: null,
-      timer: null,
-      currentTurnPlayerId,
-      skippedPlayers: null,
-    };
+    const gameState = GameStartLogic.buildInitialGameState(game);
 
     game.startedAt = new Date();
     game.gameState = gameState;
@@ -237,6 +188,16 @@ export class SocketIOGameService {
     };
   }
 
+  /**
+   * Handle progression to next round.
+   *
+   * Flow:
+   * 1. Fetch context and validate
+   * 2. Get current question data (via Logic class)
+   * 3. Clear timer
+   * 4. Execute round progression via handler
+   * 5. Persist and return result (via Logic.buildResult)
+   */
   public async handleNextRound(socketId: string) {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
@@ -248,19 +209,8 @@ export class SocketIOGameService {
       game
     );
 
-    const currentRound = game.gameState.currentRound;
-    const currentQuestion = game.gameState.currentQuestion;
-
-    let questionData: PackageQuestionDTO | null = null;
-
-    if (currentQuestion) {
-      questionData =
-        GameQuestionMapper.getQuestionAndTheme(
-          game.package,
-          currentRound!.id,
-          currentQuestion.id!
-        )?.question ?? null;
-    }
+    // Get current question data using Logic class
+    const questionData = RoundProgressionLogic.getCurrentQuestionData(game);
 
     // Clear any active timer before round progression to prevent stale expirations
     await this.gameService.clearTimer(game.id);
@@ -277,12 +227,15 @@ export class SocketIOGameService {
       await this.gameService.updateGame(game);
     }
 
-    // If game is finished, complete the statistics collection
-    if (isGameFinished) {
-      await this.gameStatisticsCollectorService.finishCollection(game.id);
-    }
+    // Note: Statistics collection is handled by GameProgressionCoordinator
+    // which is called by the action handler after this method returns
 
-    return { game, isGameFinished, nextGameState, questionData };
+    return RoundProgressionLogic.buildResult({
+      game,
+      isGameFinished,
+      nextGameState,
+      questionData,
+    });
   }
 
   public async handleGameUnpause(socketId: string) {
@@ -331,34 +284,26 @@ export class SocketIOGameService {
     );
 
     const playerId = currentPlayer!.meta.id;
-    const currentReadyPlayers = game.gameState.readyPlayers || [];
 
-    // Update ready state
-    let newReadyPlayers: number[];
-    if (isReady) {
-      // Add player to ready list if not already present
-      newReadyPlayers = currentReadyPlayers.includes(playerId)
-        ? currentReadyPlayers
-        : [...currentReadyPlayers, playerId];
-    } else {
-      // Remove player from ready list
-      newReadyPlayers = currentReadyPlayers.filter((id) => id !== playerId);
-    }
+    // Update ready state via Logic class
+    const newReadyPlayers = PlayerReadinessLogic.updateReadyState(
+      game,
+      playerId,
+      isReady
+    );
 
-    // Update game state
-    game.gameState.readyPlayers = newReadyPlayers;
     await this.gameService.updateGame(game);
 
     // Check if auto-start should trigger
-    const shouldAutoStart = game.isEveryoneReady();
+    const shouldAutoStart = PlayerReadinessLogic.shouldAutoStart(game);
 
-    return {
+    return PlayerReadinessLogic.buildResult({
       game,
       playerId,
       isReady,
       readyPlayers: newReadyPlayers,
       shouldAutoStart,
-    };
+    });
   }
 
   public async handleAutoStart(gameId: string) {
@@ -376,20 +321,7 @@ export class SocketIOGameService {
       return null;
     }
 
-    const currentTurnPlayerId = game.getRandomTurnPlayer();
-
-    const gameState: GameStateDTO = {
-      currentRound: GameStateMapper.getGameRound(game.package, 0),
-      isPaused: false,
-      questionState: QuestionState.CHOOSING,
-      answeredPlayers: null,
-      answeringPlayer: null,
-      currentQuestion: null,
-      readyPlayers: null, // Clear ready state when game starts
-      timer: null,
-      currentTurnPlayerId,
-      skippedPlayers: null,
-    };
+    const gameState = GameStartLogic.buildInitialGameState(game);
 
     game.startedAt = new Date();
     game.gameState = gameState;
@@ -431,49 +363,42 @@ export class SocketIOGameService {
       game
     );
 
-    // Store original role before changing it
-    const originalRole = targetPlayer.role;
+    // Process role change via Logic class
+    const mutation = PlayerRoleChangeLogic.processRoleChange(
+      game,
+      targetPlayer,
+      newRole
+    );
 
-    // Update player role
-    targetPlayer.role = newRole;
-
-    // If changing to player, assign a slot
+    // Handle statistics based on role change
     if (newRole === PlayerRole.PLAYER) {
-      const firstFreeSlot = this._getFirstFreeSlotIndex(game);
-      if (firstFreeSlot === -1) {
-        throw new ClientError(ClientResponse.GAME_IS_FULL);
-      }
-      targetPlayer.gameSlot = firstFreeSlot;
-
       // Clear leftAt time if changing to player role
       await this.playerGameStatsService.clearPlayerLeftAtTime(
         game.id,
         targetPlayerId
       );
-    } else if (newRole === PlayerRole.SPECTATOR) {
-      targetPlayer.gameSlot = null;
-
+    } else if (newRole === PlayerRole.SPECTATOR && mutation.wasPlayer) {
       // End player session if they were previously a player
-      if (originalRole === PlayerRole.PLAYER) {
-        await this.playerGameStatsService.endPlayerSession(
-          game.id,
-          targetPlayerId,
-          new Date()
-        );
-      }
+      await this.playerGameStatsService.endPlayerSession(
+        game.id,
+        targetPlayerId,
+        new Date()
+      );
     }
 
     await this.gameService.updateGame(game);
 
-    return {
-      game,
-      targetPlayer: targetPlayer.toDTO(),
-      players: game.players.map((p) => p.toDTO()),
-    };
+    return PlayerRoleChangeLogic.buildResult({ game, targetPlayer });
   }
 
   /**
-   * Updates player restrictions (mute/restrict/ban)
+   * Updates player restrictions (mute/restrict/ban).
+   *
+   * Flow:
+   * 1. Fetch context and validate
+   * 2. Apply restrictions (via Logic class)
+   * 3. Handle ban (remove from game) or restriction (change to spectator)
+   * 4. Persist and return result (via Logic.buildResult)
    */
   public async updatePlayerRestrictions(
     socketId: string,
@@ -501,20 +426,16 @@ export class SocketIOGameService {
 
     this.socketGameValidationService.validatePlayerManagement(currentPlayer);
 
-    // Store original role before making any changes
-    const originalRole = targetPlayer.role;
-    let newRole: PlayerRole | undefined;
+    // Apply restrictions using Logic class
+    const mutation = PlayerRestrictionLogic.applyRestrictions(
+      targetPlayer,
+      restrictions
+    );
 
-    // Update restrictions
-    targetPlayer.isMuted = restrictions.muted;
-    targetPlayer.isRestricted = restrictions.restricted;
-    targetPlayer.isBanned = restrictions.banned;
-
-    // If player is banned, save the game first to persist the ban flag
-    if (restrictions.banned) {
+    // Handle ban scenario
+    if (mutation.shouldBan) {
       await this.gameService.updateGame(game);
 
-      // Now remove them from the game using PlayerLeaveService
       const leaveResult = await this.playerLeaveService.handlePlayerLeave(
         socketId,
         {
@@ -525,34 +446,23 @@ export class SocketIOGameService {
         }
       );
 
-      // Force disconnect banned user's socket
       await this.forceDisconnectUserSocket(targetPlayerId);
 
-      return {
+      return PlayerRestrictionLogic.buildBanResult({
         game: leaveResult.game,
-        targetPlayer: targetPlayer.toDTO(),
-        wasRemoved: true,
-        newRole,
-      };
-    } else if (
-      restrictions.restricted &&
-      targetPlayer.role === PlayerRole.PLAYER
-    ) {
-      // If player is restricted (but not banned), change role to spectator
-      targetPlayer.role = PlayerRole.SPECTATOR;
-      targetPlayer.gameSlot = null;
-      newRole = PlayerRole.SPECTATOR;
+        targetPlayer,
+      });
+    }
 
-      // Handle game state cleanup (answering player, turn player, bidding, media download)
-      // This must be done BEFORE updating the game to ensure correct state transitions
+    // Handle restriction to spectator scenario
+    if (mutation.shouldRestrictToSpectator) {
       const gameStateCleanupBroadcasts =
         await this.playerLeaveService.handlePlayerGameStateCleanup(
           game,
           targetPlayerId
         );
 
-      // Clean up player statistics if they were a player
-      if (originalRole === PlayerRole.PLAYER) {
+      if (PlayerRestrictionLogic.wasPlayerRole(mutation.originalRole)) {
         await this.playerGameStatsService.endPlayerSession(
           game.id,
           targetPlayerId,
@@ -562,23 +472,17 @@ export class SocketIOGameService {
 
       await this.gameService.updateGame(game);
 
-      return {
+      return PlayerRestrictionLogic.buildRestrictResult({
         game,
-        targetPlayer: targetPlayer.toDTO(),
-        wasRemoved: false,
-        newRole,
+        targetPlayer,
+        newRole: mutation.newRole!,
         gameStateCleanupBroadcasts,
-      };
+      });
     }
 
+    // Simple restriction update (no role change)
     await this.gameService.updateGame(game);
-
-    return {
-      game,
-      targetPlayer: targetPlayer.toDTO(),
-      wasRemoved: false,
-      newRole,
-    };
+    return PlayerRestrictionLogic.buildSimpleResult({ game, targetPlayer });
   }
 
   /**
@@ -662,7 +566,12 @@ export class SocketIOGameService {
   }
 
   /**
-   * Changes player score
+   * Changes player score.
+   *
+   * Flow:
+   * 1. Fetch context and validate
+   * 2. Apply score change (via Logic class)
+   * 3. Persist and return result (via Logic.buildResult)
    */
   public async changePlayerScore(
     socketId: string,
@@ -684,21 +593,29 @@ export class SocketIOGameService {
 
     this.socketGameValidationService.validatePlayerScoreChange(currentPlayer);
 
-    // Update score
-    const appliedScore = ValueUtils.clampAbs(newScore, SCORE_ABS_LIMIT);
-    targetPlayer.score = appliedScore;
+    // Apply score change using Logic class
+    const appliedScore = PlayerScoreChangeLogic.applyScore(
+      game,
+      targetPlayerId,
+      newScore
+    );
 
     await this.gameService.updateGame(game);
 
-    return {
+    return PlayerScoreChangeLogic.buildResult({
       game,
       targetPlayerId,
       newScore: appliedScore,
-    };
+    });
   }
 
   /**
-   * Changes turn player
+   * Changes turn player.
+   *
+   * Flow:
+   * 1. Fetch context and validate
+   * 2. Apply turn change (via Logic class)
+   * 3. Persist and return result (via Logic.buildResult)
    */
   public async changeTurnPlayer(
     socketId: string,
@@ -719,19 +636,21 @@ export class SocketIOGameService {
       newTurnPlayerId
     );
 
-    // Update turn player
-    game.gameState.currentTurnPlayerId = newTurnPlayerId;
+    // Apply turn change using Logic class
+    TurnPlayerChangeLogic.applyTurnChange(game, newTurnPlayerId);
 
     await this.gameService.updateGame(game);
 
-    return {
-      game,
-      newTurnPlayerId,
-    };
+    return TurnPlayerChangeLogic.buildResult({ game, newTurnPlayerId });
   }
 
   /**
-   * Changes player slot
+   * Changes player slot.
+   *
+   * Flow:
+   * 1. Fetch context and validate
+   * 2. Apply slot change (via Logic class)
+   * 3. Persist and return result (via Logic.buildResult)
    */
   public async changePlayerSlot(
     socketId: string,
@@ -781,17 +700,16 @@ export class SocketIOGameService {
       targetPlayer
     );
 
-    // Update slot
-    targetPlayer.gameSlot = targetSlot;
+    // Apply slot change using Logic class
+    PlayerSlotChangeLogic.applySlotChange(targetPlayer, targetSlot);
 
     await this.gameService.updateGame(game);
 
-    return {
+    return PlayerSlotChangeLogic.buildResult({
       game,
-      playerId: targetPlayer.meta.id,
+      player: targetPlayer,
       newSlot: targetSlot,
-      updatedPlayers: game.players.map((p) => p.toDTO()),
-    };
+    });
   }
 
   /**
@@ -806,19 +724,7 @@ export class SocketIOGameService {
    * Helper method to get first free slot index
    */
   private _getFirstFreeSlotIndex(game: Game): number {
-    const occupiedSlots = new Set(
-      game.players
-        .filter((p) => p.role === PlayerRole.PLAYER && p.gameSlot !== null)
-        .map((p) => p.gameSlot)
-    );
-
-    for (let i = 0; i < game.maxPlayers; i++) {
-      if (!occupiedSlots.has(i)) {
-        return i;
-      }
-    }
-
-    return -1;
+    return PlayerRoleChangeLogic.getFirstFreeSlot(game);
   }
 
   public async getGameStateBroadcastMap(

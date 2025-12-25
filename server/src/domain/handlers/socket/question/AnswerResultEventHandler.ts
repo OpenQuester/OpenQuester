@@ -19,10 +19,7 @@ import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
-import {
-  AnswerResultData,
-  AnswerResultType,
-} from "domain/types/socket/game/AnswerResultData";
+import { AnswerResultData } from "domain/types/socket/game/AnswerResultData";
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
@@ -73,40 +70,6 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
 
   protected async authorize(): Promise<void> {
     // Authorization handled in service
-  }
-
-  protected async execute(
-    data: AnswerResultData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<QuestionAnswerResultEventPayload>> {
-    const {
-      playerAnswerResult,
-      game,
-      question,
-      timer,
-      allPlayersSkipped,
-      skippedQuestion,
-    } = await this.socketIOQuestionService.handleAnswerResult(
-      context.socketId,
-      data
-    );
-
-    const shouldFinishQuestion =
-      playerAnswerResult.answerType === AnswerResultType.CORRECT ||
-      allPlayersSkipped;
-
-    // Question finishes: correct answer OR wrong answer with all players exhausted
-    if (shouldFinishQuestion) {
-      const questionData = allPlayersSkipped ? skippedQuestion : question;
-      return this.buildQuestionFinishResult(
-        game,
-        playerAnswerResult,
-        questionData ?? null
-      );
-    }
-
-    // Question continues: wrong/skip answer with remaining players who can answer
-    return this.buildContinueQuestionResult(game, playerAnswerResult, timer);
   }
 
   /**

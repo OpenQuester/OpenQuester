@@ -8,7 +8,6 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
@@ -43,7 +42,6 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
   protected async validateInput(
     _data: EmptyInputData
   ): Promise<EmptyInputData> {
-    // No input validation needed for leave event
     return {};
   }
 
@@ -72,66 +70,26 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
     return GameActionType.LEAVE;
   }
 
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<GameLeaveBroadcastData>> {
-    // Handle lobby leave through game service
-    const result = await this.socketIOGameService.leaveLobby(context.socketId);
-
-    if (!result.emit || !result.data) {
-      return {
-        success: true,
-        data: { user: -1 } satisfies GameLeaveBroadcastData, // No user to broadcast
-        broadcast: [],
-      };
-    }
-
-    const broadcastData: GameLeaveBroadcastData = {
-      user: result.data.userId,
-    };
-
-    // Convert service broadcasts (includes LEAVE and additional events like ANSWER_RESULT)
-    const serviceBroadcasts = (result.broadcasts || []).map((b) => ({
-      event: b.event,
-      data: b.data,
-      target: SocketBroadcastTarget.GAME,
-      gameId: b.room,
-    }));
-
-    return {
-      success: true,
-      data: broadcastData,
-      context: {
-        ...context,
-        gameId: result.data.gameId,
-      },
-      broadcast: serviceBroadcasts,
-    };
-  }
-
   protected override async afterBroadcast(
     result: SocketEventResult<GameLeaveBroadcastData>,
-    context: SocketEventContext
+    _context: SocketEventContext
   ): Promise<void> {
-    if (context.gameId) {
-      // Get game state before leaving to get player list
+    const gameId = result.context?.gameId;
+    const socketId = result.context?.socketId;
+
+    if (gameId && socketId) {
       try {
-        const game = await this.socketIOGameService.getGameEntity(
-          context.gameId
-        );
+        const game = await this.socketIOGameService.getGameEntity(gameId);
         const allPlayerIds = game.players.map((p) => p.meta.id);
 
-        // Unsubscribe from all other players' notification rooms
         await this.userNotificationRoomService.unsubscribeFromMultipleUserNotifications(
-          context.socketId,
+          socketId,
           allPlayerIds
         );
 
-        // Unsubscribe all remaining players from this user's notification room
         if (result.data && result.data.user !== -1) {
           await this.userNotificationRoomService.unsubscribeGameFromUserNotifications(
-            context.gameId,
+            gameId,
             result.data.user
           );
         }
@@ -145,24 +103,21 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
 
         if (activePlayers.length === 0 && gameNotStartedOrFinished) {
           this.logger.debug(
-            `Deleting empty game ${context.gameId} after last player left`,
+            `Deleting empty game ${gameId} after last player left`,
             { prefix: "[USER_NOTIFICATIONS]: " }
           );
-          await this.socketIOGameService.deleteGameInternally(context.gameId);
+          await this.socketIOGameService.deleteGameInternally(gameId);
         }
       } catch (error) {
-        // Game might not exist anymore, just clean up socket room
         this.logger.error(
-          `Could not clean up user notification rooms for game ${context.gameId}: ${error}`,
+          `Could not clean up user notification rooms for game ${gameId}: ${error}`,
           { prefix: "[USER_NOTIFICATIONS]: " }
         );
       }
 
-      // Use context.socketId to get the correct socket, not this.socket
-      // This is important for queued actions where this.socket may be stale
-      const targetSocket = this.socket.nsp.sockets.get(context.socketId);
+      const targetSocket = this.socket.nsp.sockets.get(socketId);
       if (targetSocket) {
-        await targetSocket.leave(context.gameId);
+        await targetSocket.leave(gameId);
       }
     }
   }

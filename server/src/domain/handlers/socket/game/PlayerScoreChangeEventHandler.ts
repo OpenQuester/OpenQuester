@@ -7,9 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   PlayerScoreChangeBroadcastData,
@@ -70,34 +68,5 @@ export class PlayerScoreChangeEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization handled by service layer
-  }
-
-  protected async execute(
-    data: PlayerScoreChangeInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<PlayerScoreChangeBroadcastData>> {
-    const result = await this.socketIOGameService.changePlayerScore(
-      context.socketId,
-      data.playerId,
-      data.newScore
-    );
-
-    const broadcastData: PlayerScoreChangeBroadcastData = {
-      playerId: data.playerId,
-      newScore: result.newScore,
-    };
-
-    return {
-      success: true,
-      data: broadcastData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.SCORE_CHANGED,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        },
-      ],
-    };
   }
 }

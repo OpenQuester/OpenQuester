@@ -1,5 +1,6 @@
 import { Game } from "domain/entities/game/Game";
 import { FinalAnswerType } from "domain/enums/FinalRoundTypes";
+import { TransitionResult } from "domain/state-machine/types";
 import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PlayerBidData } from "../events/FinalRoundEventData";
@@ -27,6 +28,8 @@ export interface ThemeEliminateResult {
   nextPlayerId: number | null;
   isPhaseComplete: boolean;
   timer?: GameStateTimerDTO;
+  /** Transition result for direct broadcast pass-through */
+  transitionResult?: TransitionResult | null;
 }
 
 export interface FinalBidSubmitResult {
@@ -34,7 +37,8 @@ export interface FinalBidSubmitResult {
   playerId: number;
   bidAmount: number;
   isPhaseComplete: boolean;
-  questionData?: FinalRoundQuestionData;
+  /** Transition result for direct broadcast pass-through */
+  transitionResult: TransitionResult | null;
   timer?: GameStateTimerDTO;
 }
 
@@ -44,6 +48,8 @@ export interface FinalAnswerSubmitResult {
   isPhaseComplete: boolean;
   isAutoLoss: boolean;
   allReviews?: AnswerReviewData[]; // All answers revealed when transitioning to reviewing phase
+  /** Transition result for direct broadcast pass-through */
+  transitionResult?: TransitionResult;
 }
 
 export interface FinalAnswerReviewResult {
@@ -60,6 +66,8 @@ export interface ThemeEliminationTimeoutResult {
   nextPlayerId: number | null;
   isPhaseComplete: boolean;
   timer?: GameStateTimerDTO;
+  /** Transition result for direct broadcast pass-through */
+  transitionResult?: TransitionResult | null;
 }
 
 export interface BiddingTimeoutResult {
@@ -67,6 +75,8 @@ export interface BiddingTimeoutResult {
   timeoutBids: Array<PlayerBidData>;
   questionData: FinalRoundQuestionData;
   timer: GameStateTimerDTO;
+  /** Transition result for direct broadcast pass-through */
+  transitionResult: TransitionResult;
 }
 
 /**
@@ -87,4 +97,6 @@ export interface AutoLossProcessResult {
   autoLossReviews: AnswerReviewData[];
   isReadyForReview: boolean;
   allReviews?: AnswerReviewData[]; // For showman when transitioning to review phase
+  /** Transition result for direct broadcast pass-through */
+  transitionResult: TransitionResult | null;
 }

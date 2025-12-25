@@ -9,7 +9,6 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -66,35 +65,5 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization will be handled by the service layer (showman role check)
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<GameNextRoundEventPayload>> {
-    // Execute the next round logic
-    const { game, isGameFinished, nextGameState, questionData } =
-      await this.socketIOGameService.handleNextRound(context.socketId);
-
-    // Use the game progression coordinator to handle the complete flow
-    const progressionResult =
-      await this.gameProgressionCoordinator.processGameProgression({
-        game,
-        isGameFinished,
-        nextGameState,
-        questionFinishData: questionData
-          ? {
-              answerFiles: questionData.answerFiles ?? null,
-              answerText: questionData.answerText ?? null,
-              nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-            }
-          : null,
-      });
-
-    return {
-      success: progressionResult.success,
-      data: progressionResult.data as GameNextRoundEventPayload,
-      broadcast: progressionResult.broadcasts,
-    };
   }
 }
