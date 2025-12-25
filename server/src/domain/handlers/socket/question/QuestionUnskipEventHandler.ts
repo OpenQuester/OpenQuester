@@ -7,9 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   EmptyInputData,
@@ -66,30 +64,5 @@ export class QuestionUnskipEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization handled in service - checks if user is a player
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<QuestionUnskipBroadcastData>> {
-    const { game, playerId } =
-      await this.socketIOQuestionService.handlePlayerUnskip(context.socketId);
-
-    const broadcastData: QuestionUnskipBroadcastData = {
-      playerId,
-    };
-
-    return {
-      success: true,
-      data: broadcastData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.QUESTION_UNSKIP,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        },
-      ],
-    };
   }
 }

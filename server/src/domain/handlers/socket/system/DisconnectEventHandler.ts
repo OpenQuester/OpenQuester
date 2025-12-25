@@ -6,10 +6,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   EmptyInputData,
@@ -56,6 +53,14 @@ export class DisconnectEventHandler extends BaseSocketEventHandler<
     return GameActionType.DISCONNECT;
   }
 
+  /**
+   * Allow null gameId - disconnect may be called when user isn't in a game.
+   * In that case, silently succeed with no-op.
+   */
+  protected override allowsNullGameId(): boolean {
+    return true;
+  }
+
   protected async validateInput(
     _data: EmptyInputData
   ): Promise<EmptyInputData> {
@@ -67,47 +72,5 @@ export class DisconnectEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // No authorization needed for disconnect
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<EmptyOutputData>> {
-    const broadcasts: SocketEventBroadcast[] = [];
-
-    try {
-      // Try to leave game first (will emit leave event if needed)
-      const result = await this.socketIOGameService.leaveLobby(this.socket.id);
-
-      // Convert broadcasts from service to SocketEventBroadcast format
-      // Note: Service already includes LEAVE broadcast, so we just convert them
-      if (result.emit && result.data) {
-        context.gameId = result.data.gameId;
-        broadcasts.push(
-          ...(result.broadcasts || []).map((b) => ({
-            event: b.event,
-            data: b.data,
-            target: SocketBroadcastTarget.GAME,
-            gameId: b.room,
-          }))
-        );
-
-        // Use context.socketId to get the correct socket for queued actions
-        const targetSocket = this.socket.nsp.sockets.get(this.socket.id);
-        if (targetSocket) {
-          await targetSocket.leave(result.data.gameId);
-        }
-      }
-    } catch {
-      // Continue with cleanup even if leave fails
-    }
-
-    // Always clean up auth data
-    await this.socketIOGameService.removePlayerAuth(this.socket.id);
-
-    return {
-      success: true,
-      broadcast: broadcasts,
-    };
   }
 }

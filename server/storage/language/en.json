@@ -53,6 +53,7 @@
   "round_game_required": "Game is required for round operations",
   "round_game_state_required": "Game state is required for round operations",
   "round_current_round_required": "Current round is required for progression",
+  "round_not_started": "Round is not started yet",
   "only_host_can_delete": "Only host (creator) can delete the game",
   "you_cannot_pick_question": "You cannot pick question",
   "you_cannot_answer_question": "You cannot answer question",

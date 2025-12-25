@@ -7,20 +7,17 @@ import { DIConfig } from "application/config/DIConfig";
 import { Container, CONTAINER_TYPES } from "application/Container";
 import { type ApiContext } from "application/context/ApiContext";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
-import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { AdminService } from "application/services/admin/AdminService";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { FileService } from "application/services/file/FileService";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
-import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { UserService } from "application/services/user/UserService";
 import { DEFAULT_API_PORT } from "domain/constants/admin";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
@@ -152,9 +149,6 @@ export class ServeApi {
       socketIOGameService: Container.get<SocketIOGameService>(
         CONTAINER_TYPES.SocketIOGameService
       ),
-      finalRoundService: Container.get<FinalRoundService>(
-        CONTAINER_TYPES.FinalRoundService
-      ),
       socketUserDataService: Container.get<SocketUserDataService>(
         CONTAINER_TYPES.SocketUserDataService
       ),
@@ -174,13 +168,6 @@ export class ServeApi {
       userNotificationRoomService: Container.get<UserNotificationRoomService>(
         CONTAINER_TYPES.UserNotificationRoomService
       ),
-      statisticsWorkerFactory: Container.get<StatisticsWorkerFactory>(
-        CONTAINER_TYPES.StatisticsWorkerFactory
-      ),
-      gameStatisticsCollectorService:
-        Container.get<GameStatisticsCollectorService>(
-          CONTAINER_TYPES.GameStatisticsCollectorService
-        ),
       adminService: Container.get<AdminService>(CONTAINER_TYPES.AdminService),
       socketGameContextService: Container.get<SocketGameContextService>(
         CONTAINER_TYPES.SocketGameContextService
@@ -245,11 +232,8 @@ export class ServeApi {
       deps.socketIOChatService,
       deps.socketUserDataService,
       deps.socketIOQuestionService,
-      deps.finalRoundService,
       deps.userNotificationRoomService,
-      deps.gameStatisticsCollectorService,
       deps.socketGameContextService,
-      deps.userService,
       deps.gameProgressionCoordinator,
       deps.gameActionExecutor,
       this._context.logger

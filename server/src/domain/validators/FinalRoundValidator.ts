@@ -54,6 +54,17 @@ export class FinalRoundValidator {
   }
 
   /**
+   * Validates that the game is in the answering phase
+   */
+  public static validateAnsweringPhase(game: Game): void {
+    this._validateFinalRound(game);
+
+    if (game.gameState.questionState !== QuestionState.ANSWERING) {
+      throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
+    }
+  }
+
+  /**
    * Validates that the game is in the reviewing phase
    */
   public static validateReviewingPhase(game: Game): void {

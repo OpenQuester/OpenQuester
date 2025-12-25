@@ -6,7 +6,7 @@ import {
   SocketIOUserEvents,
 } from "domain/enums/SocketIOEvents";
 import { ErrorController } from "domain/errors/ErrorController";
-import { GameAction, GameActionResult } from "domain/types/action/GameAction";
+import { GameAction } from "domain/types/action/GameAction";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
@@ -50,12 +50,16 @@ export interface SocketEventBroadcast<T = unknown> {
   data: T;
   target?: SocketBroadcastTarget;
   gameId?: string;
+  socketId?: string;
   useRoleBasedBroadcast?: boolean;
 }
 
 /**
  * Abstract base class for all socket event handlers
  * Provides consistent structure, validation, error handling, and logging
+ *
+ * All game-related handlers MUST use the action queue system via registered action handlers.
+ * Only non-game actions (e.g., chat messages) may bypass the queue by implementing execute().
  */
 export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   protected readonly socket: Socket;
@@ -95,8 +99,9 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
 
       // Check if this action should use the action queue system
       const gameId = await this.getGameIdForAction(validatedData, context);
+      const hasRegisteredHandler = gameId && this.hasRegisteredHandler();
 
-      if (gameId) {
+      if (hasRegisteredHandler) {
         // Use action executor with locking and queuing
         await this.handleWithActionQueue(
           validatedData,
@@ -104,9 +109,18 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
           gameId,
           startTime
         );
-      } else {
-        // Execute directly without locking
+      } else if (this.canExecuteDirectly()) {
+        // Only handlers that explicitly implement execute() can bypass the queue
         await this.executeDirectly(validatedData, context, startTime);
+      } else if (!gameId && this.allowsNullGameId()) {
+        // Handler explicitly allows null gameId - silently succeed (no-op)
+        this.logSuccess(context, Date.now() - startTime);
+      } else {
+        // No registered action handler and no direct execute - this is a configuration error
+        throw new Error(
+          `No registered action handler for ${this.constructor.name}. ` +
+            `All game actions must have a registered handler in ActionHandlerConfig.`
+        );
       }
     } catch (error) {
       // Error handling
@@ -115,7 +129,8 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   }
 
   /**
-   * Handle game action with locking and queuing
+   * Handle game action with locking and queuing.
+   * Action must have a registered handler in GameActionHandlerRegistry.
    */
   private async handleWithActionQueue(
     data: TInput,
@@ -133,46 +148,30 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
       payload: data,
     };
 
-    const executeCallback = async (
-      queuedAction: GameAction
-    ): Promise<GameActionResult> => {
-      // Use queued action's payload and reconstruct context for re-execution
-      const actionData = queuedAction.payload as TInput;
-      const actionContext: SocketEventContext = {
-        socketId: queuedAction.socketId,
-        userId: queuedAction.playerId,
-        gameId: queuedAction.gameId,
-        startTime: queuedAction.timestamp.getTime(),
+    const result = await this.actionExecutor.submitAction(action);
+
+    // If action was executed (not just queued), call afterHandle with result
+    if (result.data !== undefined) {
+      const socketResult: SocketEventResult<TOutput> = {
+        success: result.success,
+        data: result.data as TOutput,
+        error: result.error,
+        context: {
+          ...context,
+          gameId,
+        },
       };
-
-      try {
-        const result = await this.execute(actionData, actionContext);
-
-        await this.afterHandle(result, actionContext);
-
-        if (result.broadcast) {
-          await this.handleBroadcasts(result.broadcast);
-        }
-
-        await this.afterBroadcast(result, actionContext);
-
-        return { success: result.success, data: result.data };
-      } catch (error) {
-        // Handle error and emit to the ORIGINAL socket that submitted the action
-        const duration = Date.now() - actionContext.startTime;
-        await this.handleError(error, actionContext, duration);
-        // Re-throw to signal failure to action executor
-        throw error;
-      }
-    };
-
-    await this.actionExecutor.submitAction(action, executeCallback);
+      await this.afterHandle(socketResult, context);
+      await this.afterBroadcast(socketResult, context);
+    }
 
     this.logSuccess(context, Date.now() - startTime);
   }
 
   /**
-   * Execute action directly without locking (for non-game actions like chat)
+   * Execute action directly without locking.
+   * ONLY for non-game actions like chat messages that don't need synchronization.
+   * Game actions MUST use the action queue system.
    */
   private async executeDirectly(
     data: TInput,
@@ -189,7 +188,22 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
 
     await this.afterBroadcast(result, context);
 
-    this.logSuccess(context, Date.now() - startTime);
+    const duration = Date.now() - startTime;
+
+    if (result.success) {
+      this.logSuccess(context, duration);
+    } else {
+      this.logUnsuccessful(context, duration);
+    }
+  }
+
+  /**
+   * Check if this handler can execute directly (bypassing action queue).
+   * Returns true only if the handler has overridden the execute() method.
+   */
+  private canExecuteDirectly(): boolean {
+    // Check if execute is overridden (not the base class implementation)
+    return this.execute !== BaseSocketEventHandler.prototype.execute;
   }
 
   /**
@@ -205,6 +219,16 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   }
 
   /**
+   * Whether this handler allows null gameId without error.
+   * When true and gameId is null, the handler will silently succeed (no-op).
+   * Override to return true for handlers like disconnect that may be called
+   * when the user isn't in a game.
+   */
+  protected allowsNullGameId(): boolean {
+    return false;
+  }
+
+  /**
    * Get action type string for queue tracking
    * Override in subclasses that use action queue
    */
@@ -212,6 +236,19 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
     throw new Error(
       `getActionType() must be overridden in ${this.constructor.name} when using action queue`
     );
+  }
+
+  /**
+   * Check if this handler has a registered action handler in the executor.
+   * Returns false if getActionType() is not overridden or handler not registered.
+   */
+  private hasRegisteredHandler(): boolean {
+    try {
+      const actionType = this.getActionType();
+      return this.actionExecutor.hasHandler(actionType);
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -260,13 +297,24 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   ): Promise<void>;
 
   /**
-   * Execute the main business logic
-   * Must be implemented by subclasses
+   * Execute the main business logic directly (bypassing action queue).
+   *
+   * ⚠️ WARNING: This method bypasses the Redis lock and queue system!
+   * Only implement this for non-game actions (e.g., chat messages) that:
+   * - Don't need synchronization with other game actions
+   * - Don't modify game state
+   *
+   * For game actions, register an action handler in ActionHandlerConfig instead.
    */
-  protected abstract execute(
-    data: TInput,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<TOutput>>;
+  protected async execute(
+    _data: TInput,
+    _context: SocketEventContext
+  ): Promise<SocketEventResult<TOutput>> {
+    throw new Error(
+      `execute() not implemented in ${this.constructor.name}. ` +
+        `Game actions must use the action queue system.`
+    );
+  }
 
   /**
    * Get the event name this handler processes
@@ -389,6 +437,17 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
     const eventName = this.getEventName();
     this.logger.debug(
       `Socket event ${eventName} completed successfully | SocketId: ${context.socketId} | UserId: ${context.userId} | GameId: ${context.gameId} | Duration: ${duration}ms`,
+      { prefix: "[SOCKET]: " }
+    );
+  }
+
+  /**
+   * Log unsuccessful execution
+   */
+  private logUnsuccessful(context: SocketEventContext, duration: number): void {
+    const eventName = this.getEventName();
+    this.logger.error(
+      `Socket event ${eventName} completed unsuccessfully | SocketId: ${context.socketId} | UserId: ${context.userId} | GameId: ${context.gameId} | Duration: ${duration}ms`,
       { prefix: "[SOCKET]: " }
     );
   }
