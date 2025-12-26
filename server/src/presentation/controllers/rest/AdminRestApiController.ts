@@ -1,15 +1,9 @@
-import * as express from "express";
 import { type Express, type Request, type Response, Router } from "express";
-import fs from "fs";
 import Joi from "joi";
-import * as path from "path";
 
 import { AdminService } from "application/services/admin/AdminService";
 import { UserService } from "application/services/user/UserService";
-import {
-  ADMIN_PING_REDIS_SCAN_KEY,
-  ADMIN_STATIC_REL_PATH,
-} from "domain/constants/admin";
+import { ADMIN_PING_REDIS_SCAN_KEY } from "domain/constants/admin";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { Permissions } from "domain/enums/Permissions";
 import {
@@ -38,29 +32,6 @@ export class AdminRestApiController {
     private readonly adminService: AdminService
   ) {
     const router = Router();
-
-    // Serve admin panel static files
-    const adminPanelPath = path.join(process.cwd(), ADMIN_STATIC_REL_PATH);
-
-    this.app.use("/v1/admin", async (req, res, next) => {
-      // If request is for API, continue to API routes
-      if (req.path.startsWith("/api/")) {
-        return next();
-      }
-
-      try {
-        await fs.promises.stat(adminPanelPath);
-        return express.static(adminPanelPath)(req, res, next);
-      } catch (error) {
-        this.logger.error("Failed to serve admin panel static files", {
-          prefix: "[ADMIN]: ",
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return res
-          .status(HttpStatus.NOT_FOUND)
-          .send("<h2>Admin panel not found (probably not built)</h2>");
-      }
-    });
 
     // API routes
     this.app.use("/v1/admin/api", router);
@@ -119,14 +90,6 @@ export class AdminRestApiController {
       checkPermissionMiddleware(Permissions.VIEW_SYSTEM_HEALTH, this.logger),
       asyncHandler(this.ping)
     );
-
-    // Catch-all for SPA routing - serve index.html for non-API routes
-    this.app.get("/v1/admin/*", (req, res, next) => {
-      if (req.path.startsWith("/v1/admin/api/")) {
-        return next();
-      }
-      res.sendFile(path.join(adminPanelPath, "index.html"));
-    });
   }
 
   private getDashboard = async (req: Request, res: Response) => {
