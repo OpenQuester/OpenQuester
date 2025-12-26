@@ -28,6 +28,19 @@ class SocketController {
     );
   }
 
+  @disposeMethod
+  Future<void> dispose() async {
+    for (final socket in _connections.values) {
+      socket
+        ..disconnect()
+        ..dispose();
+    }
+    _connections.clear();
+    getIt<AppStateController>().appLifecycleState.removeListener(
+      _appLifecycleListener,
+    );
+  }
+
   // Listen to app lifecycle changes
   // and pause/resume connections accordingly
   void _appLifecycleListener() {
