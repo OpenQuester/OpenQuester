@@ -13,7 +13,7 @@ PODS:
   - flutter_web_auth_2 (5.0.0-alpha.2):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
-  - fvp (0.35.0):
+  - fvp (0.35.1):
     - Flutter
     - FlutterMacOS
     - mdk (~> 0.35.0)
@@ -118,7 +118,7 @@ SPEC CHECKSUMS:
   flutter_secure_storage_darwin: ce237a8775b39723566dc72571190a3769d70468
   flutter_web_auth_2: f39437b12381bc85ce5d32bb13f249c498a78f79
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
-  fvp: ecee65308dd86ae46e3c6d5d42cd2aad48095ef5
+  fvp: 5a47a325ffa8d63e70a276a6436416ae703206a5
   mdk: baa616b93f696c7066df0e5ebe057badfa9c462b
   nb_utils: 2361d8cd78db3c0167bab7635f62ec6d8a329819
   package_info_plus: f0052d280d17aa382b932f399edf32507174e870

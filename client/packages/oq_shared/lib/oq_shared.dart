@@ -5,6 +5,7 @@ library;
 export 'data/consts.dart';
 export 'data/user_error.dart';
 export 'interfaces/base_logger.dart';
+export 'ui/blur_dialog_route.dart';
 export 'ui/bottom_inset_padding.dart';
 export 'ui/components/app_animated_switcher.dart';
 export 'ui/components/diagonal_lines_background.dart';

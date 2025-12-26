@@ -11,13 +11,24 @@ class App extends WatchingStatefulWidget {
   State<App> createState() => _AppState();
 }
 
-class _AppState extends State<App> {
+class _AppState extends State<App> with WidgetsBindingObserver {
   bool loading = true;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) =>
+      getIt<AppStateController>().appLifecycleState.value = state;
 
   @override
   void initState() {
     super.initState();
     unawaited(AppInit.buildInit().then((_) => setState(() => loading = false)));
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
