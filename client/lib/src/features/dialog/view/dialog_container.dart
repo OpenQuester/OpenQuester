@@ -17,7 +17,17 @@ class DialogContainer extends StatelessWidget {
             child: Scaffold(
               backgroundColor: Colors.transparent,
               appBar: AppBar(
-                actions: const [CloseButton()],
+                actions: [
+                  CloseButton(
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStatePropertyAll(
+                        context.theme.colorScheme.primaryContainer.withValues(
+                          alpha: 0.3,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 automaticallyImplyLeading: false,
                 backgroundColor: Colors.transparent,
                 scrolledUnderElevation: 0,

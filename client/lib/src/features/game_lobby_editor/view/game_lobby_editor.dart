@@ -9,10 +9,10 @@ class GameLobbyEditor extends WatchingWidget {
     return ListView(
       padding: 16.all,
       children: const [
-        _ReadyButton(),
         _RoleGroup(PlayerRole.showman, showDisconnected: false),
         _RoleGroup(PlayerRole.player),
         _RoleGroup(PlayerRole.spectator),
+        _ReadyButton(),
       ],
     );
   }
