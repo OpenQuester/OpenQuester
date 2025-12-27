@@ -650,6 +650,7 @@ class GameLobbyController {
           startedAt: DateTime.now(),
           durationMs: answerShowingDurationMs,
           elapsedMs: 0,
+          resumedAt: null,
         ),
       );
       logger.d(
