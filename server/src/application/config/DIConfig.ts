@@ -453,6 +453,7 @@ export class DIConfig {
         Container.get<CronJobFactory>(
           CONTAINER_TYPES.CronJobFactory
         ).createAllCronJobs(),
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
         this.logger
       ),
       "service"

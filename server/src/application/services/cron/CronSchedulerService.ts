@@ -1,11 +1,17 @@
 import * as cron from "node-cron";
 
+import {
+  REDIS_LOCK_CRON_JOB,
+  REDIS_LOCK_CRON_JOB_TTL_DEFAULT,
+} from "domain/constants/redis";
 import { ICronJob } from "domain/types/cron/ICronJob";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { RedisService } from "infrastructure/services/redis/RedisService";
 
 /**
  * Service for managing and scheduling cron jobs
  * Handles job registration, scheduling, and lifecycle management
+ * Uses distributed Redis locks to prevent concurrent execution across multiple instances
  */
 export class CronSchedulerService {
   private readonly scheduledTasks = new Map<string, cron.ScheduledTask>();
@@ -13,6 +19,7 @@ export class CronSchedulerService {
 
   constructor(
     private readonly jobs: ICronJob[],
+    private readonly redisService: RedisService,
     private readonly logger: ILogger
   ) {
     //
@@ -86,7 +93,7 @@ export class CronSchedulerService {
       async () => {
         // Execute job in a separate async context to avoid blocking
         setImmediate(async () => {
-          await job.execute();
+          await this.executeWithLock(job);
         });
       },
       {
@@ -103,6 +110,50 @@ export class CronSchedulerService {
       cronExpression: job.cronExpression,
       timezone: "UTC",
     });
+  }
+
+  /**
+   * Execute a cron job with distributed lock to prevent concurrent execution
+   * Lock is not released after execution - it expires after TTL to handle clock drift
+   */
+  private async executeWithLock(job: ICronJob): Promise<void> {
+    const lockKey = `${REDIS_LOCK_CRON_JOB}:${job.name}`;
+    const lockTtl = job.lockTtlSeconds ?? REDIS_LOCK_CRON_JOB_TTL_DEFAULT;
+
+    try {
+      const acquired = await this.redisService.setLockKey(lockKey, lockTtl);
+
+      if (acquired !== "OK") {
+        this.logger.debug(
+          `Cron job skipped (lock held by another instance): ${job.name}`,
+          {
+            prefix: "[CRON_SCHEDULER]: ",
+            job: job.name,
+            lockKey,
+          }
+        );
+        return;
+      }
+
+      this.logger.info(`Executing cron job: ${job.name}`, {
+        prefix: "[CRON_SCHEDULER]: ",
+        job: job.name,
+        lockTtl,
+      });
+
+      await job.execute();
+
+      this.logger.info(`Cron job completed: ${job.name}`, {
+        prefix: "[CRON_SCHEDULER]: ",
+        job: job.name,
+      });
+    } catch (error) {
+      this.logger.error(`Cron job execution failed: ${job.name}`, {
+        prefix: "[CRON_SCHEDULER]: ",
+        job: job.name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   /**

@@ -20,6 +20,13 @@ export interface ICronJob {
   readonly enabled: boolean;
 
   /**
+   * TTL in seconds for the distributed lock preventing concurrent execution.
+   * Defaults to 3 hours (10800 seconds) if not specified.
+   * Should be long enough to handle clock drift between server instances.
+   */
+  readonly lockTtlSeconds?: number;
+
+  /**
    * Execute the cron job logic
    * This method should handle all errors internally and not throw
    */
