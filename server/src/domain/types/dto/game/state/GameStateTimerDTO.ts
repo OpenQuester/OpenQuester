@@ -21,4 +21,5 @@ export interface GameStateTimerDTO {
   startedAt: Date;
   durationMs: number;
   elapsedMs: number;
+  resumedAt: Date | null;
 }
