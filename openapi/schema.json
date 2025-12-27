@@ -2649,7 +2649,7 @@
             "$ref": "#/components/schemas/PlayerRole"
           },
           "targetSlot": {
-            "type": "integer",
+            "type": ["integer", "null"],
             "minimum": 0,
             "description": "Optional target slot for player role. If not provided, first available slot will be assigned. Only applicable when role is PLAYER.",
             "examples": [0, 1, 2]

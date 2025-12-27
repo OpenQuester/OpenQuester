@@ -160,6 +160,7 @@ class GameLobbyController {
       final ioGameJoinInput = SocketIOGameJoinInput(
         gameId: _gameId!,
         role: _getJoinRole(),
+        targetSlot: null,
       );
 
       socket?.emit(SocketIOGameSendEvents.join.json!, ioGameJoinInput.toJson());
