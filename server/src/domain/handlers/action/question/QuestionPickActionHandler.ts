@@ -20,13 +20,18 @@ import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEvent
 import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
 import { QuestionPickInputData } from "domain/types/socket/events/SocketEventInterfaces";
 
+export enum QuestionPickType {
+  NORMAL = "normal",
+  SECRET = "secret",
+  STAKE = "stake",
+}
 /**
  * Result of question pick action.
  * Contains all data needed for socket handler's afterBroadcast to perform
  * personalized emissions (different data for showman vs players).
  */
 export interface QuestionPickResult {
-  type: "normal" | "secret" | "stake";
+  type: QuestionPickType;
   gameId: string;
   /** Timer data for question display */
   timer?: GameStateTimerDTO;
@@ -55,7 +60,9 @@ export class QuestionPickActionHandler
 {
   constructor(
     private readonly socketIOQuestionService: SocketIOQuestionService
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<QuestionPickInputData>
@@ -89,7 +96,7 @@ export class QuestionPickActionHandler
       return {
         success: true,
         data: {
-          type: "secret",
+          type: QuestionPickType.SECRET,
           gameId: game.id,
           secretData: broadcastData,
         },
@@ -109,6 +116,7 @@ export class QuestionPickActionHandler
           durationMs: 0,
           elapsedMs: 0,
           startedAt: new Date(),
+          resumedAt: null,
         },
       };
 
@@ -171,7 +179,7 @@ export class QuestionPickActionHandler
       return {
         success: true,
         data: {
-          type: "stake",
+          type: QuestionPickType.STAKE,
           gameId: game.id,
           timer: timer?.value() ?? undefined,
           question: question,
@@ -189,7 +197,7 @@ export class QuestionPickActionHandler
       return {
         success: true,
         data: {
-          type: "normal",
+          type: QuestionPickType.NORMAL,
           gameId: game.id,
           timer: timer.value()!,
           question: question,
@@ -202,7 +210,7 @@ export class QuestionPickActionHandler
     return {
       success: false,
       data: {
-        type: "normal",
+        type: QuestionPickType.NORMAL,
         gameId: game.id,
       },
       broadcasts: [],

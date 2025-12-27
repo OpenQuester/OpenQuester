@@ -341,6 +341,7 @@ export class StakeBiddingMapper {
       durationMs: STAKE_QUESTION_BID_TIME,
       startedAt: new Date(),
       elapsedMs: 0,
+      resumedAt: null,
     };
   }
 

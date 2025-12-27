@@ -10,6 +10,7 @@ import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { QuestionShowingExpirationLogic } from "domain/logic/timer/QuestionShowingExpirationLogic";
 import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -302,6 +303,11 @@ export class TimerExpirationService {
       game.id,
       QuestionState.SHOWING
     );
+
+    if (timer) {
+      // Update resumedAt since timer is being restored from saved state
+      GamePauseLogic.updateTimerForResume(timer);
+    }
 
     game.setTimer(timer);
     await this.gameService.updateGame(game);

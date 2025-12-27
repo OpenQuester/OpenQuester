@@ -22,6 +22,7 @@ export class GameStateTimer {
       durationMs: this.durationMs,
       elapsedMs: 0,
       startedAt: new Date(),
+      resumedAt: null,
     };
 
     this._started = true;
