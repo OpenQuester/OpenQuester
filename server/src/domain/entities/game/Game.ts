@@ -140,11 +140,20 @@ export class Game {
     );
   }
 
-  public async addPlayer(meta: PlayerMeta, role: PlayerRole): Promise<Player> {
+  public async addPlayer(
+    meta: PlayerMeta,
+    role: PlayerRole,
+    targetSlot?: number
+  ): Promise<Player> {
     const playerData = this._players.find((p) => p.meta.id === meta.id);
 
+    // Use targetSlot if provided, otherwise get first free slot for player role
     const slotIdx =
-      role === PlayerRole.PLAYER ? this._getFirstFreeSlotIndex() : null;
+      role === PlayerRole.PLAYER
+        ? targetSlot !== undefined
+          ? targetSlot
+          : this._getFirstFreeSlotIndex()
+        : null;
 
     if (playerData) {
       playerData.gameStatus = PlayerGameStatus.IN_GAME;

@@ -15,6 +15,12 @@ export interface GameJoinValidationInput {
   userId: number;
   role: PlayerRole;
   existingPlayer: Player | null;
+  /**
+   * Optional target slot for player role.
+   * If provided, validates specific slot availability.
+   * If not provided, validates any slot availability.
+   */
+  targetSlot?: number;
 }
 
 /**
@@ -48,7 +54,7 @@ export class GameJoinLogic {
    * @throws ClientError if validation fails
    */
   public static validate(input: GameJoinValidationInput): void {
-    const { game, role, existingPlayer } = input;
+    const { game, role, existingPlayer, targetSlot } = input;
 
     // Check existing player restrictions FIRST before checking role availability
     if (existingPlayer) {
@@ -74,9 +80,9 @@ export class GameJoinLogic {
       throw new ClientError(ClientResponse.CANNOT_JOIN_FINAL_ROUND_AS_PLAYER);
     }
 
-    // Now check role availability after restriction checks
-    if (role === PlayerRole.PLAYER && !game.checkFreeSlot()) {
-      throw new ClientError(ClientResponse.GAME_IS_FULL);
+    // Validate slot for player role
+    if (role === PlayerRole.PLAYER) {
+      this.validateSlotAvailability(game, targetSlot);
     }
 
     // Check if showman slot is taken
@@ -127,5 +133,45 @@ export class GameJoinLogic {
   public static buildResult(input: GameJoinResultInput): GameJoinResult {
     const { game, player } = input;
     return { game, player };
+  }
+
+  /**
+   * Validates slot availability for player join.
+   * If targetSlot is provided, validates that specific slot.
+   * Otherwise, validates that any slot is available.
+   *
+   * @throws ClientError if slot is not available
+   */
+  private static validateSlotAvailability(
+    game: Game,
+    targetSlot?: number
+  ): void {
+    // Get occupied slots
+    const occupiedSlots = new Set(
+      game.players
+        .filter(
+          (p) =>
+            p.role === PlayerRole.PLAYER &&
+            p.gameSlot !== null &&
+            p.gameStatus === PlayerGameStatus.IN_GAME
+        )
+        .map((p) => p.gameSlot)
+    );
+
+    if (targetSlot !== undefined) {
+      // Specific slot requested - validate it
+      if (targetSlot < 0 || targetSlot >= game.maxPlayers) {
+        throw new ClientError(ClientResponse.INVALID_SLOT_NUMBER);
+      }
+
+      if (occupiedSlots.has(targetSlot)) {
+        throw new ClientError(ClientResponse.SLOT_ALREADY_OCCUPIED);
+      }
+    } else {
+      // No specific slot - just check if any slot is available
+      if (occupiedSlots.size >= game.maxPlayers) {
+        throw new ClientError(ClientResponse.GAME_IS_FULL);
+      }
+    }
   }
 }
