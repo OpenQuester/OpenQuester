@@ -15,12 +15,7 @@ export interface GameJoinValidationInput {
   userId: number;
   role: PlayerRole;
   existingPlayer: Player | null;
-  /**
-   * Optional target slot for player role.
-   * If provided, validates specific slot availability.
-   * If not provided, validates any slot availability.
-   */
-  targetSlot?: number;
+  targetSlot: number | null;
 }
 
 /**
@@ -144,7 +139,7 @@ export class GameJoinLogic {
    */
   private static validateSlotAvailability(
     game: Game,
-    targetSlot?: number
+    targetSlot: number | null
   ): void {
     // Get occupied slots
     const occupiedSlots = new Set(
@@ -158,7 +153,7 @@ export class GameJoinLogic {
         .map((p) => p.gameSlot)
     );
 
-    if (targetSlot !== undefined) {
+    if (targetSlot !== null) {
       // Specific slot requested - validate it
       if (targetSlot < 0 || targetSlot >= game.maxPlayers) {
         throw new ClientError(ClientResponse.INVALID_SLOT_NUMBER);

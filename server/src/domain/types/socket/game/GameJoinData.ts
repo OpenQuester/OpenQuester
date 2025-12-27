@@ -8,5 +8,5 @@ export interface GameJoinData {
    * If not provided, first available slot will be assigned.
    * Only applicable when role is PLAYER.
    */
-  targetSlot?: number;
+  targetSlot: number | null;
 }

@@ -143,14 +143,14 @@ export class Game {
   public async addPlayer(
     meta: PlayerMeta,
     role: PlayerRole,
-    targetSlot?: number
+    targetSlot: number | null
   ): Promise<Player> {
     const playerData = this._players.find((p) => p.meta.id === meta.id);
 
     // Use targetSlot if provided, otherwise get first free slot for player role
     const slotIdx =
       role === PlayerRole.PLAYER
-        ? targetSlot !== undefined
+        ? targetSlot !== null
           ? targetSlot
           : this._getFirstFreeSlotIndex()
         : null;

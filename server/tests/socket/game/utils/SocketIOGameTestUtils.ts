@@ -79,7 +79,7 @@ export class SocketGameTestUtils {
     role: PlayerRole
   ): Promise<void> {
     return new Promise<void>((resolve) => {
-      const joinData: GameJoinData = { gameId, role };
+      const joinData: GameJoinData = { gameId, role, targetSlot: null };
       socket.once(SocketIOGameEvents.GAME_DATA, () => {
         socket.gameId = gameId;
         socket.role = role;
@@ -95,7 +95,7 @@ export class SocketGameTestUtils {
     role: PlayerRole
   ): Promise<any> {
     return new Promise<any>((resolve) => {
-      const joinData: GameJoinData = { gameId, role };
+      const joinData: GameJoinData = { gameId, role, targetSlot: null };
       socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
         socket.gameId = gameId;
         socket.role = role;
