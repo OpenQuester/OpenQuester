@@ -2855,6 +2855,12 @@
             "type": "integer",
             "description": "This value written only when timer paused because of something. Helps to track passed time and resume timer correctly",
             "examples": [5000]
+          },
+          "resumedAt": {
+            "type": ["string", "null"],
+            "description": "Describes when timer was resumed after pause or restored from saved state. Null if timer was never paused/resumed. Helps users joining mid-game calculate correct elapsed time.",
+            "format": "date-time",
+            "examples": ["2024-01-01T00:00:05Z", null]
           }
         }
       },
