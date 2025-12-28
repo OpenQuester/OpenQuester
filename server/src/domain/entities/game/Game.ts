@@ -147,26 +147,11 @@ export class Game {
   ): Promise<Player> {
     const playerData = this._players.find((p) => p.meta.id === meta.id);
 
-    // Determine slot for player role:
-    // 1. If targetSlot is provided, use it
-    // 2. If reconnecting (playerData exists) and no targetSlot, try to preserve original slot if available
-    // 3. Otherwise, get first free slot
-    let slotIdx: number | null = null;
-    if (role === PlayerRole.PLAYER) {
-      if (targetSlot !== null) {
-        slotIdx = targetSlot;
-      } else if (!ValueUtils.isBad(playerData?.gameSlot)) {
-        // Try to preserve original slot if it's still available
-        const originalSlot = playerData.gameSlot;
-        if (this._isSlotAvailable(originalSlot)) {
-          slotIdx = originalSlot;
-        } else {
-          slotIdx = this._getFirstFreeSlotIndex();
-        }
-      } else {
-        slotIdx = this._getFirstFreeSlotIndex();
-      }
-    }
+    const slotIdx = this._resolveJoinSlot(
+      role,
+      targetSlot,
+      playerData?.gameSlot
+    );
 
     if (playerData) {
       playerData.gameStatus = PlayerGameStatus.IN_GAME;
@@ -581,6 +566,44 @@ export class Game {
 
   public getSkippedPlayers(): number[] {
     return this.gameState.skippedPlayers ?? [];
+  }
+
+  private _resolveJoinSlot(
+    role: PlayerRole,
+    targetSlot: number | null,
+    existingSlot: number | null | undefined
+  ): number | null {
+    if (role !== PlayerRole.PLAYER) {
+      return null;
+    }
+
+    return this._resolvePlayerJoinSlot(targetSlot, existingSlot);
+  }
+
+  private _resolvePlayerJoinSlot(
+    targetSlot: number | null,
+    existingSlot: number | null | undefined
+  ): number {
+    if (targetSlot !== null) {
+      return targetSlot;
+    }
+
+    const preservedSlot = this._getPreservedReconnectSlot(existingSlot);
+    if (preservedSlot !== null) {
+      return preservedSlot;
+    }
+
+    return this._getFirstFreeSlotIndex();
+  }
+
+  private _getPreservedReconnectSlot(
+    existingSlot: number | null | undefined
+  ): number | null {
+    if (ValueUtils.isBad(existingSlot)) {
+      return null;
+    }
+
+    return this._isSlotAvailable(existingSlot) ? existingSlot : null;
   }
 
   /**
