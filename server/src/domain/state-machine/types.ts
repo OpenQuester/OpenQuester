@@ -115,6 +115,7 @@ export interface TimerResult {
     durationMs: number;
     elapsedMs: number;
     startedAt: Date;
+    resumedAt: Date | null;
   };
 }
 
