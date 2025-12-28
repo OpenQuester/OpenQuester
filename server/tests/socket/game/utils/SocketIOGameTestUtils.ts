@@ -105,6 +105,46 @@ export class SocketGameTestUtils {
     });
   }
 
+  /**
+   * Join a game with a specific target slot
+   */
+  public async joinGameWithSlot(
+    socket: GameClientSocket,
+    gameId: string,
+    role: PlayerRole,
+    targetSlot: number | null
+  ): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const joinData: GameJoinData = { gameId, role, targetSlot };
+      socket.once(SocketIOGameEvents.GAME_DATA, () => {
+        socket.gameId = gameId;
+        socket.role = role;
+        resolve();
+      });
+      socket.emit(SocketIOGameEvents.JOIN, joinData);
+    });
+  }
+
+  /**
+   * Join a game with a specific target slot and return game data
+   */
+  public async joinGameWithSlotAndData(
+    socket: GameClientSocket,
+    gameId: string,
+    role: PlayerRole,
+    targetSlot: number | null
+  ): Promise<any> {
+    return new Promise<any>((resolve) => {
+      const joinData: GameJoinData = { gameId, role, targetSlot };
+      socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
+        socket.gameId = gameId;
+        socket.role = role;
+        resolve(gameData);
+      });
+      socket.emit(SocketIOGameEvents.JOIN, joinData);
+    });
+  }
+
   public async leaveGame(socket: GameClientSocket): Promise<void> {
     return new Promise<void>((resolve) => {
       socket.once(SocketIOGameEvents.LEAVE, () => {
