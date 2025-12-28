@@ -147,13 +147,26 @@ export class Game {
   ): Promise<Player> {
     const playerData = this._players.find((p) => p.meta.id === meta.id);
 
-    // Use targetSlot if provided, otherwise get first free slot for player role
-    const slotIdx =
-      role === PlayerRole.PLAYER
-        ? targetSlot !== null
-          ? targetSlot
-          : this._getFirstFreeSlotIndex()
-        : null;
+    // Determine slot for player role:
+    // 1. If targetSlot is provided, use it
+    // 2. If reconnecting (playerData exists) and no targetSlot, try to preserve original slot if available
+    // 3. Otherwise, get first free slot
+    let slotIdx: number | null = null;
+    if (role === PlayerRole.PLAYER) {
+      if (targetSlot !== null) {
+        slotIdx = targetSlot;
+      } else if (!ValueUtils.isBad(playerData?.gameSlot)) {
+        // Try to preserve original slot if it's still available
+        const originalSlot = playerData.gameSlot;
+        if (this._isSlotAvailable(originalSlot)) {
+          slotIdx = originalSlot;
+        } else {
+          slotIdx = this._getFirstFreeSlotIndex();
+        }
+      } else {
+        slotIdx = this._getFirstFreeSlotIndex();
+      }
+    }
 
     if (playerData) {
       playerData.gameStatus = PlayerGameStatus.IN_GAME;
@@ -568,6 +581,18 @@ export class Game {
 
   public getSkippedPlayers(): number[] {
     return this.gameState.skippedPlayers ?? [];
+  }
+
+  /**
+   * Check if a specific slot is available (not occupied by an in-game player)
+   */
+  private _isSlotAvailable(slot: number): boolean {
+    return !this._players.some(
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameSlot === slot &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
+    );
   }
 
   private _getFirstFreeSlotIndex(): number {
