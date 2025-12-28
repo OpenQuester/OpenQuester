@@ -18,6 +18,7 @@ dependencies:
   animate_do: ^4.2.0
   universal_io: ^2.3.1
   file_picker: ^10.3.7
+  auto_route: ^10.3.0
 
 dev_dependencies:
   flutter_test:
