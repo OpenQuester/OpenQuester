@@ -1,0 +1,4 @@
+enum AdminActionType {
+  delete,
+  restore,
+}

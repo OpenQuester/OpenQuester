@@ -26,6 +26,7 @@ class AppRouter extends RootStackRouter {
         path: '/editor',
         children: OqEditorRouter.editorRoutes(),
       ),
+      AutoRoute(page: AdminDashboardRoute.page, path: '/admin'),
     ];
   }
 

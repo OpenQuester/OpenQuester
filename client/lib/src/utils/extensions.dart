@@ -160,3 +160,29 @@ extension OqPackageX on OqPackage {
     );
   }
 }
+
+extension UserX on ResponseUser? {
+  bool havePermission(PermissionName permissionName) =>
+      this != null &&
+      this!.permissions.any(
+        (permission) => permission.name == permissionName,
+      );
+}
+
+extension DateTimeX on DateTime {
+  /// Convert DateTime to a relative time string (e.g., "5 minutes ago")
+  String toRelativeString() {
+    final now = DateTime.now();
+    final difference = now.difference(this);
+
+    if (difference.inSeconds < 60) {
+      return LocaleKeys.just_now.tr();
+    } else if (difference.inMinutes < 60) {
+      return LocaleKeys.minutes_ago.tr(args: [difference.inMinutes.toString()]);
+    } else if (difference.inHours < 24) {
+      return LocaleKeys.hours_ago.tr(args: [difference.inHours.toString()]);
+    } else {
+      return LocaleKeys.days_ago.tr(args: [difference.inDays.toString()]);
+    }
+  }
+}
