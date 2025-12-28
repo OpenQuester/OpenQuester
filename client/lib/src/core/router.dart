@@ -21,7 +21,12 @@ class AppRouter extends RootStackRouter {
       ),
       AutoRoute(page: GameLobbyRoute.page, path: '/games/:gameId'),
       AutoRoute(page: ClickerRoute.page, path: '/clicker'),
-      AutoRoute(page: PackageEditorRoute.page, path: '/editor'),
+      AutoRoute(
+        page: PackageEditorRoute.page,
+        path: '/editor',
+        children: OqEditorRouter.editorRoutes(),
+      ),
+      AutoRoute(page: AdminDashboardRoute.page, path: '/admin'),
     ];
   }
 
