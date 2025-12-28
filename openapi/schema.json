@@ -1136,6 +1136,348 @@
           }
         }
       }
+    },
+    "/v1/admin/api/dashboard": {
+      "get": {
+        "summary": "Get admin dashboard data",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Timeframe in days for statistics"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDashboardData"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users": {
+      "get": {
+        "summary": "Get users list for admin panel",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/UsersSortBy"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/OrderDirection"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PaginationLimit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PaginationOffset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users list retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserListData"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/system/health": {
+      "get": {
+        "summary": "Get system health status",
+        "tags": ["Admin"],
+        "responses": {
+          "200": {
+            "description": "System health retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSystemHealthData"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/system/ping": {
+      "get": {
+        "summary": "Ping system for health check",
+        "tags": ["Admin"],
+        "responses": {
+          "200": {
+            "description": "Ping successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPingData"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}/ban": {
+      "post": {
+        "summary": "Ban a user",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User banned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserBanResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}/unban": {
+      "post": {
+        "summary": "Unban a user",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User unbanned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserBanResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}": {
+      "delete": {
+        "summary": "Delete a user",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User deleted successfully"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/restore/{id}": {
+      "post": {
+        "summary": "Restore a deleted user",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User restored successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRestoreResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1198,7 +1540,7 @@
           "name": {
             "type": ["string", "null"],
             "description": "Display name of the user",
-            "examples": ["John Doe", "测试用户", null]
+            "examples": ["John Doe", null]
           },
           "email": {
             "type": ["string", "null"],
@@ -1280,7 +1622,7 @@
           "username": {
             "type": "string",
             "description": "Display name for the guest user (1-50 characters, allows Unicode letters, numbers, spaces)",
-            "examples": ["Guest Player", "测试用户", "Гість123"],
+            "examples": ["Guest Player"],
             "minLength": 1,
             "maxLength": 50
           }
@@ -1507,7 +1849,9 @@
               "$ref": "#/components/schemas/PackageListItem"
             }
           },
-          "pageInfo": { "$ref": "#/components/schemas/PageInfo" }
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
         }
       },
       "PackageListItem": {
@@ -1545,8 +1889,12 @@
           },
           "logo": {
             "oneOf": [
-              { "$ref": "#/components/schemas/PackageLogoFileItem" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/PackageLogoFileItem"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Logo file for the package"
           },
@@ -1558,14 +1906,32 @@
             "description": "Tags for the package. Can be null or an array of tag objects",
             "examples": [
               [
-                { "id": 18, "tag": "anime" },
-                { "id": 19, "tag": "movie" },
-                { "id": 20, "tag": "general" },
-                { "id": 21, "tag": "games" }
+                {
+                  "id": 18,
+                  "tag": "anime"
+                },
+                {
+                  "id": 19,
+                  "tag": "movie"
+                },
+                {
+                  "id": 20,
+                  "tag": "general"
+                },
+                {
+                  "id": 21,
+                  "tag": "games"
+                }
               ],
               [
-                { "id": 22, "tag": "trivia" },
-                { "id": 23, "tag": "fun" }
+                {
+                  "id": 22,
+                  "tag": "trivia"
+                },
+                {
+                  "id": 23,
+                  "tag": "fun"
+                }
               ],
               null
             ]
@@ -1607,14 +1973,20 @@
           },
           "logo": {
             "oneOf": [
-              { "$ref": "#/components/schemas/PackageLogoFileItem" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/PackageLogoFileItem"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Logo file for the package"
           },
           "rounds": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/PackageRound" },
+            "items": {
+              "$ref": "#/components/schemas/PackageRound"
+            },
             "description": "Rounds in the package"
           },
           "tags": {
@@ -1625,14 +1997,32 @@
             "description": "Tags for the package. Can be null or an array of tag objects",
             "examples": [
               [
-                { "id": 18, "tag": "anime" },
-                { "id": 19, "tag": "movie" },
-                { "id": 20, "tag": "general" },
-                { "id": 21, "tag": "games" }
+                {
+                  "id": 18,
+                  "tag": "anime"
+                },
+                {
+                  "id": 19,
+                  "tag": "movie"
+                },
+                {
+                  "id": 20,
+                  "tag": "general"
+                },
+                {
+                  "id": 21,
+                  "tag": "games"
+                }
               ],
               [
-                { "id": 22, "tag": "trivia" },
-                { "id": 23, "tag": "fun" }
+                {
+                  "id": 22,
+                  "tag": "trivia"
+                },
+                {
+                  "id": 23,
+                  "tag": "fun"
+                }
               ],
               null
             ]
@@ -1674,8 +2064,12 @@
           },
           "logo": {
             "oneOf": [
-              { "$ref": "#/components/schemas/PackageLogoFileItem" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/PackageLogoFileItem"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Logo file for the package"
           },
@@ -1841,7 +2235,9 @@
               "type": "string"
             },
             "examples": [
-              { "uniqueIdentifier": "https://example.com/upload/file.jpg" }
+              {
+                "uniqueIdentifier": "https://example.com/upload/file.jpg"
+              }
             ]
           }
         }
@@ -1983,8 +2379,12 @@
           }
         },
         "oneOf": [
-          { "$ref": "#/components/schemas/GameUpdateEventSubscription" },
-          { "$ref": "#/components/schemas/GameDeleteEventSubscription" }
+          {
+            "$ref": "#/components/schemas/GameUpdateEventSubscription"
+          },
+          {
+            "$ref": "#/components/schemas/GameDeleteEventSubscription"
+          }
         ]
       },
       "GameUpdateEventSubscription": {
@@ -2060,7 +2460,9 @@
       },
       "QuestionAllowedPrices": {
         "type": ["array", "null"],
-        "items": { "type": "integer" },
+        "items": {
+          "type": "integer"
+        },
         "minItems": 2,
         "maxItems": 5,
         "examples": [
@@ -2085,8 +2487,12 @@
           },
           "file": {
             "oneOf": [
-              { "$ref": "#/components/schemas/FileItem" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/FileItem"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "File associated with the answer option"
           }
@@ -2246,8 +2652,12 @@
           },
           "answerText": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionAnswerText" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionAnswerText"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "answerDelay": {
@@ -2274,7 +2684,9 @@
                   "$ref": "#/components/schemas/PackageQuestionFile"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           },
           "answerFiles": {
@@ -2285,7 +2697,9 @@
                   "$ref": "#/components/schemas/PackageQuestionFile"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           }
         },
@@ -2294,12 +2708,19 @@
       },
       "ChoiceQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["choice"] },
-              "subType": { "const": "simple" },
+              "type": {
+                "type": "string",
+                "enum": ["choice"]
+              },
+              "subType": {
+                "const": "simple"
+              },
               "showDelay": {
                 "$ref": "#/components/schemas/QuestionShowDelay"
               },
@@ -2317,11 +2738,16 @@
       },
       "SecretQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["secret"] },
+              "type": {
+                "type": "string",
+                "enum": ["secret"]
+              },
               "subType": {
                 "type": "string",
                 "enum": ["simple", "customPrice"],
@@ -2337,7 +2763,11 @@
             },
             "required": ["subType", "transferType"],
             "if": {
-              "properties": { "subType": { "const": "customPrice" } }
+              "properties": {
+                "subType": {
+                  "const": "customPrice"
+                }
+              }
             },
             "then": {
               "required": ["allowedPrices"]
@@ -2348,11 +2778,16 @@
       },
       "NoRiskQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["noRisk"] },
+              "type": {
+                "type": "string",
+                "enum": ["noRisk"]
+              },
               "subType": {
                 "type": "string",
                 "enum": ["simple", "forEveryone"],
@@ -2370,11 +2805,16 @@
       },
       "SimpleQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["simple"] }
+              "type": {
+                "type": "string",
+                "enum": ["simple"]
+              }
             },
             "description": "Simple question type"
           }
@@ -2382,11 +2822,16 @@
       },
       "StakeQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["stake"] },
+              "type": {
+                "type": "string",
+                "enum": ["stake"]
+              },
               "subType": {
                 "type": "string",
                 "enum": ["simple", "forEveryone"],
@@ -2404,11 +2849,16 @@
       },
       "HiddenQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["hidden"] }
+              "type": {
+                "type": "string",
+                "enum": ["hidden"]
+              }
             },
             "description": "Hidden question type"
           }
@@ -2416,12 +2866,24 @@
       },
       "PackageQuestionUnion": {
         "oneOf": [
-          { "$ref": "#/components/schemas/SimpleQuestion" },
-          { "$ref": "#/components/schemas/StakeQuestion" },
-          { "$ref": "#/components/schemas/SecretQuestion" },
-          { "$ref": "#/components/schemas/NoRiskQuestion" },
-          { "$ref": "#/components/schemas/ChoiceQuestion" },
-          { "$ref": "#/components/schemas/HiddenQuestion" }
+          {
+            "$ref": "#/components/schemas/SimpleQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/StakeQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/SecretQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/NoRiskQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/ChoiceQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/HiddenQuestion"
+          }
         ],
         "discriminator": {
           "propertyName": "type",
@@ -2494,7 +2956,9 @@
           },
           "themes": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/PackageTheme" },
+            "items": {
+              "$ref": "#/components/schemas/PackageTheme"
+            },
             "description": "Themes in the round"
           }
         },
@@ -2525,8 +2989,12 @@
           },
           "logo": {
             "oneOf": [
-              { "$ref": "#/components/schemas/PackageLogoFileInput" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/PackageLogoFileInput"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Logo file for the package"
           },
@@ -2538,21 +3006,41 @@
             "description": "Tags for the package. Can be null or an array of tag objects",
             "examples": [
               [
-                { "id": 18, "tag": "anime" },
-                { "id": 19, "tag": "movie" },
-                { "id": 20, "tag": "general" },
-                { "id": 21, "tag": "games" }
+                {
+                  "id": 18,
+                  "tag": "anime"
+                },
+                {
+                  "id": 19,
+                  "tag": "movie"
+                },
+                {
+                  "id": 20,
+                  "tag": "general"
+                },
+                {
+                  "id": 21,
+                  "tag": "games"
+                }
               ],
               [
-                { "id": 22, "tag": "trivia" },
-                { "id": 23, "tag": "fun" }
+                {
+                  "id": 22,
+                  "tag": "trivia"
+                },
+                {
+                  "id": 23,
+                  "tag": "fun"
+                }
               ],
               null
             ]
           },
           "rounds": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/PackageRound" },
+            "items": {
+              "$ref": "#/components/schemas/PackageRound"
+            },
             "description": "Rounds in the package"
           }
         },
@@ -2674,7 +3162,9 @@
       "SocketIOChatMessageEventPayload": {
         "description": "Emitted to everyone in game, including sender. Data that sent to all players in room on chat message",
         "allOf": [
-          { "$ref": "#/components/schemas/SocketIOChatMessageContent" },
+          {
+            "$ref": "#/components/schemas/SocketIOChatMessageContent"
+          },
           {
             "type": "object",
             "properties": {
@@ -2779,14 +3269,22 @@
           },
           "currentRound": {
             "oneOf": [
-              { "$ref": "#/components/schemas/SocketIOGameStateRoundData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/SocketIOGameStateRoundData"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "currentQuestion": {
             "oneOf": [
-              { "$ref": "#/components/schemas/PackageQuestionData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/PackageQuestionData"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "answeringPlayer": {
@@ -2810,18 +3308,33 @@
           },
           "timer": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "finalRoundData": {
             "oneOf": [
-              { "$ref": "#/components/schemas/FinalRoundGameData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/FinalRoundGameData"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "currentTurnPlayerId": {
-            "oneOf": [{ "type": "integer" }, { "type": "null" }],
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Id of player whose turn it is to pick a question or eliminate theme"
           },
           "readyPlayers": {
@@ -2833,21 +3346,31 @@
                 },
                 "description": "Array of player IDs who are ready to start the game"
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ],
             "examples": [[1, 2, 3]]
           },
           "secretQuestionData": {
             "oneOf": [
-              { "$ref": "#/components/schemas/SecretQuestionGameData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/SecretQuestionGameData"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Secret question specific data - only set when a secret question is picked"
           },
           "stakeQuestionData": {
             "oneOf": [
-              { "$ref": "#/components/schemas/StakeQuestionGameData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/StakeQuestionGameData"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Stake question specific data - only set when a stake question is picked"
           }
@@ -3148,8 +3671,12 @@
           "timer": {
             "description": "Question timer (only present when allPlayersReady is true)",
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
@@ -3172,8 +3699,12 @@
         "properties": {
           "timer": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }
@@ -3184,8 +3715,12 @@
         "properties": {
           "timer": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }
@@ -3271,7 +3806,14 @@
         "description": "Data sent to change a player's role",
         "properties": {
           "playerId": {
-            "oneOf": [{ "type": "integer" }, { "type": "null" }],
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "ID of the player whose role to change",
             "examples": [123, null]
           },
@@ -3464,14 +4006,22 @@
         "properties": {
           "answerResult": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateAnsweredPlayer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateAnsweredPlayer"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "timer": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "answerFiles": {
@@ -3482,13 +4032,19 @@
                   "$ref": "#/components/schemas/PackageQuestionFile"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           },
           "answerText": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionAnswerText" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionAnswerText"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }
@@ -3608,8 +4164,12 @@
           },
           "answerText": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionAnswerText" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionAnswerText"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "answerDelay": {
@@ -3636,7 +4196,9 @@
                   "$ref": "#/components/schemas/PackageQuestionFile"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           },
           "answerFiles": {
@@ -3647,7 +4209,9 @@
                   "$ref": "#/components/schemas/PackageQuestionFile"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           },
           "subType": {
@@ -3655,32 +4219,52 @@
           },
           "maxPrice": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionMaxPrice" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionMaxPrice"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "allowedPrices": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionAllowedPrices" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionAllowedPrices"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "transferType": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionTransferType" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionTransferType"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "priceMultiplier": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionPriceMultiplier" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionPriceMultiplier"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "showDelay": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionShowDelay" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionShowDelay"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "answers": {
@@ -3691,7 +4275,9 @@
                   "$ref": "#/components/schemas/QuestionChoiceAnswers"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           }
         }
@@ -3920,7 +4506,12 @@
               "type": "integer"
             },
             "description": "Player bids mapped by player ID",
-            "examples": [{ "123": 500, "124": 300 }]
+            "examples": [
+              {
+                "123": 500,
+                "124": 300
+              }
+            ]
           },
           "answers": {
             "type": "array",
@@ -3988,17 +4579,25 @@
           },
           "nextPhase": {
             "oneOf": [
-              { "$ref": "#/components/schemas/FinalRoundPhase" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/FinalRoundPhase"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "allReviews": {
             "oneOf": [
               {
                 "type": "array",
-                "items": { "$ref": "#/components/schemas/AnswerReviewData" }
+                "items": {
+                  "$ref": "#/components/schemas/AnswerReviewData"
+                }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ],
             "description": "All answers revealed when transitioning to reviewing phase"
           }
@@ -4013,19 +4612,34 @@
             "oneOf": [
               {
                 "type": "array",
-                "items": { "$ref": "#/components/schemas/PackageQuestionFile" }
+                "items": {
+                  "$ref": "#/components/schemas/PackageQuestionFile"
+                }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           },
           "answerText": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionAnswerText" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionAnswerText"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "nextTurnPlayerId": {
-            "oneOf": [{ "type": "integer" }, { "type": "null" }],
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "ID of the next player to take their turn, null if no next player (game finished)"
           }
         },
@@ -4240,8 +4854,12 @@
           },
           "timer": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Timer for the next bid or remaining time (30 seconds per bid)"
           }
@@ -4327,7 +4945,13 @@
               "type": ["integer", "null"]
             },
             "description": "Current bids from all players (playerId -> highest bid amount)",
-            "examples": [{ "123": 500, "124": 300, "125": null }]
+            "examples": [
+              {
+                "123": 500,
+                "124": 300,
+                "125": null
+              }
+            ]
           },
           "passedPlayers": {
             "type": "array",
@@ -4474,6 +5098,190 @@
           }
         },
         "required": ["bidAmount", "bidType"]
+      },
+      "AdminDashboardData": {
+        "type": "object",
+        "required": [
+          "totalUsers",
+          "activeUsers",
+          "deletedUsers",
+          "recentUsers",
+          "systemHealth"
+        ],
+        "properties": {
+          "totalUsers": {
+            "type": "integer"
+          },
+          "activeUsers": {
+            "type": "integer"
+          },
+          "deletedUsers": {
+            "type": "integer"
+          },
+          "recentUsers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponseUser"
+            }
+          },
+          "systemHealth": {
+            "type": "object",
+            "required": ["redisConnected", "redisKeys", "serverUptimeSeconds"],
+            "properties": {
+              "redisConnected": {
+                "type": "boolean"
+              },
+              "redisKeys": {
+                "type": "integer"
+              },
+              "serverUptimeSeconds": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "AdminUserListData": {
+        "type": "object",
+        "required": ["data", "stats", "pageInfo"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponseUser"
+            }
+          },
+          "stats": {
+            "type": "object",
+            "required": ["total", "active", "deleted", "banned"],
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "active": {
+                "type": "integer"
+              },
+              "deleted": {
+                "type": "integer"
+              },
+              "banned": {
+                "type": "integer"
+              }
+            }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        }
+      },
+      "AdminSystemHealthData": {
+        "type": "object",
+        "required": ["redis", "server", "timestamp"],
+        "properties": {
+          "redis": {
+            "type": "object",
+            "required": [
+              "connected",
+              "keys",
+              "estimatedMemoryBytes",
+              "estimatedMemoryMB",
+              "averageKeySizeKB"
+            ],
+            "properties": {
+              "connected": {
+                "type": "boolean"
+              },
+              "keys": {
+                "type": "integer"
+              },
+              "estimatedMemoryBytes": {
+                "type": "number"
+              },
+              "estimatedMemoryMB": {
+                "type": "number"
+              },
+              "averageKeySizeKB": {
+                "type": "number"
+              }
+            }
+          },
+          "server": {
+            "type": "object",
+            "required": ["uptime", "memory"],
+            "properties": {
+              "uptime": {
+                "type": "number"
+              },
+              "memory": {
+                "type": "object",
+                "required": ["used", "total"],
+                "properties": {
+                  "used": {
+                    "type": "number"
+                  },
+                  "total": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminPingData": {
+        "type": "object",
+        "required": ["ok", "eventLoopLagMs", "redis", "timestamp"],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "eventLoopLagMs": {
+            "type": "number"
+          },
+          "redis": {
+            "type": "object",
+            "required": ["connected", "responseMs"],
+            "properties": {
+              "connected": {
+                "type": "boolean"
+              },
+              "responseMs": {
+                "type": "number"
+              }
+            }
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        }
+      },
+      "UserBanResponse": {
+        "type": "object",
+        "required": ["userId", "isBanned"],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "isBanned": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UserRestoreResponse": {
+        "type": "object",
+        "required": ["userId", "restored"],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "restored": {
+            "type": "boolean"
+          }
+        }
       }
     }
   }

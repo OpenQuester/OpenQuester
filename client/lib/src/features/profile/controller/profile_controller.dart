@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:openquester/common_imports.dart';
 import 'package:openquester/openquester.dart';
 
 @Singleton(order: 2)
@@ -37,4 +38,7 @@ class ProfileController {
     );
     await load();
   }
+
+  static bool userHavePermission(PermissionName permissionName) =>
+      ProfileController.getUser().havePermission(permissionName);
 }
