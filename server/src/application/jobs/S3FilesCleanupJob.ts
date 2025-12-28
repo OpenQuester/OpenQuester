@@ -9,7 +9,7 @@ import { S3StorageService } from "infrastructure/services/storage/S3StorageServi
  * Removes files that exist in S3 but not in the database
  */
 export class S3FilesCleanupJob extends BaseCronJob {
-  public readonly name = "S3FilesCleanupJob";
+  public readonly name = "s3-files-cleanup-job";
   public readonly cronExpression: string;
   public readonly enabled = true;
 

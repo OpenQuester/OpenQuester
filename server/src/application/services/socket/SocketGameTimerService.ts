@@ -46,6 +46,8 @@ export class SocketGameTimerService {
     if (timer) {
       // Clear timer with elapsed time
       await this.gameService.clearTimer(game.id, questionState!);
+      // Update timer with resumedAt timestamp
+      GamePauseLogic.updateTimerForResume(timer);
       // Update timer with new time to expire
       const remainingMs = GamePauseLogic.calculateRemainingTime(timer);
       await this.gameService.saveTimer(timer, game.id, remainingMs);

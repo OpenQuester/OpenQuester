@@ -23,6 +23,7 @@ import { PlayerSkipLogic } from "domain/logic/question/PlayerSkipLogic";
 import { QuestionAnswerRequestLogic } from "domain/logic/question/QuestionAnswerRequestLogic";
 import { QuestionForceSkipLogic } from "domain/logic/question/QuestionForceSkipLogic";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
@@ -164,6 +165,10 @@ export class SocketIOQuestionService {
       } else {
         // Continue question showing - restore saved timer
         timer = await this.gameService.getTimer(game.id, QuestionState.SHOWING);
+        if (timer) {
+          // Update resumedAt since timer is being restored from saved state
+          GamePauseLogic.updateTimerForResume(timer);
+        }
       }
     } else if (mutation.nextState === QuestionState.CHOOSING) {
       // For correct answers, properly reset to choosing state
