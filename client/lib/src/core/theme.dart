@@ -16,26 +16,30 @@ class AppTheme {
   }
 
   static ThemeData change(ThemeData theme) {
+    final colorScheme = theme.colorScheme.copyWith(
+      surface: pureDarkColor,
+      surfaceContainerLow: pureDarkColor,
+      surfaceContainer: pureDark
+          ? theme.colorScheme.surfaceContainer.withBrightness(-0.1)
+          : null,
+    );
+
     return theme.copyWith(
       bottomNavigationBarTheme: theme.bottomNavigationBarTheme.copyWith(
         type: BottomNavigationBarType.shifting,
         landscapeLayout: BottomNavigationBarLandscapeLayout.centered,
-        selectedItemColor: theme.colorScheme.onPrimary,
-        unselectedItemColor: theme.colorScheme.primary,
+        selectedItemColor: colorScheme.onPrimary,
+        unselectedItemColor: colorScheme.primary,
         backgroundColor: pureDarkColor,
       ),
       scaffoldBackgroundColor: pureDarkColor,
-      appBarTheme: appBarTheme(theme),
+      appBarTheme: appBarTheme(theme, colorScheme),
       pageTransitionsTheme: pageTransitionsTheme,
-      inputDecorationTheme: inputDecorationTheme,
+      inputDecorationTheme: inputDecorationTheme(colorScheme),
       tooltipTheme: tooltipTheme,
-      expansionTileTheme: expansionTileTheme(theme),
-      colorScheme: theme.colorScheme.copyWith(
-        surface: pureDarkColor,
-        surfaceContainer: pureDark
-            ? theme.colorScheme.surfaceContainer.withBrightness(-0.1)
-            : null,
-      ),
+      expansionTileTheme: expansionTileTheme(colorScheme),
+      cardColor: pureDarkColor,
+      colorScheme: colorScheme,
       extensions: const [
         ExtraColors(success: Color(0xFF7CE883), warning: Color(0xFFFFE078)),
       ],
@@ -52,9 +56,9 @@ class AppTheme {
     return pureDark ? Colors.black : null;
   }
 
-  static AppBarTheme appBarTheme(ThemeData theme) {
+  static AppBarTheme appBarTheme(ThemeData theme, ColorScheme colorScheme) {
     return AppBarTheme(
-      systemOverlayStyle: systemOverlay(theme),
+      systemOverlayStyle: systemOverlay(theme, colorScheme),
       centerTitle: true,
       actionsPadding: 8.right,
     );
@@ -64,8 +68,10 @@ class AppTheme {
     return const TooltipThemeData(waitDuration: Duration(seconds: 1));
   }
 
-  static InputDecorationTheme get inputDecorationTheme {
-    return const InputDecorationTheme(border: OutlineInputBorder());
+  static InputDecorationTheme inputDecorationTheme(ColorScheme colorScheme) {
+    return InputDecorationTheme(
+      border: OutlineInputBorder(borderRadius: 8.circular),
+    );
   }
 
   static PageTransitionsTheme get pageTransitionsTheme {
@@ -76,20 +82,23 @@ class AppTheme {
     );
   }
 
-  static SystemUiOverlayStyle systemOverlay(ThemeData theme) {
+  static SystemUiOverlayStyle systemOverlay(
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
     return SystemUiOverlayStyle(
-      systemNavigationBarColor: theme.colorScheme.surfaceContainer,
-      systemNavigationBarDividerColor: theme.colorScheme.surfaceContainer,
+      systemNavigationBarColor: colorScheme.surfaceContainer,
+      systemNavigationBarDividerColor: colorScheme.surfaceContainer,
       statusBarIconBrightness: theme.brightness.reverse,
       statusBarBrightness: theme.brightness,
     );
   }
 
-  static ExpansionTileThemeData expansionTileTheme(ThemeData theme) {
+  static ExpansionTileThemeData expansionTileTheme(ColorScheme colorScheme) {
     final shape = RoundedRectangleBorder(
       borderRadius: 12.circular,
       side: BorderSide(
-        color: theme.colorScheme.outline.withValues(alpha: 0.1),
+        color: colorScheme.outline.withValues(alpha: 0.1),
       ),
     );
 
