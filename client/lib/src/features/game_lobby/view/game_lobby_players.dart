@@ -63,7 +63,7 @@ class GameLobbyPlayers extends WatchingWidget {
             final allowEdit =
                 gameData?.me.role == PlayerRole.showman &&
                 player.role == PlayerRole.player;
-                
+
             return InkWell(
               onTap: allowEdit
                   ? () => PlayerEditBtn.showEditMenu(
