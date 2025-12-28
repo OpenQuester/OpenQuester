@@ -325,7 +325,7 @@ export class GameRepository {
    * 1. Sets all players as disconnected
    * 2. If game has an active timer:
    *    - Clears existing Redis timer keys
-   *    - Recreates timer from game state with remaining duration
+   *    - Recreates timer starting from 0 (elapsedMs=0)
    *    - Pauses the game
    * 3. Updates game state in Redis
    *
