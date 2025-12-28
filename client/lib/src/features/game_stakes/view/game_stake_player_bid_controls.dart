@@ -50,8 +50,8 @@ class PlayerBidControls extends WatchingWidget {
               ...[100, 1000]
                   .where(
                     (e) =>
-                        gameData?.me.isShowman ??
-                        false || e <= (biddingPlayer?.score ?? 0),
+                        (gameData?.me.isShowman ?? false) ||
+                        e <= (biddingPlayer?.score ?? 0),
                   )
                   .map(
                     (e) => _BidBtn(

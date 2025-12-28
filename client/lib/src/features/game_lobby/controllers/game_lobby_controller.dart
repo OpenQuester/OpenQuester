@@ -130,56 +130,6 @@ class GameLobbyController {
     }
   }
 
-  /// Clear all fields for new game to use
-  void clear() {
-    try {
-      _gameId = null;
-      socket?.dispose();
-      socket = null;
-      gameData.value = null;
-      gameListData.value = null;
-      _chatMessagesSub?.cancel();
-      _chatMessagesSub = null;
-      showChat.value = false;
-      gameFinished.value = false;
-      lobbyEditorMode.value = false;
-      themeScrollPosition = null;
-      getIt<SocketChatController>().clear();
-      getIt<GameQuestionController>().clear();
-      getIt<GameLobbyPlayerPickerController>().clear();
-      getIt<GameLobbyThemePickerController>().clear();
-      getIt<GameLobbyPlayerStakesController>().clear();
-      _joinCompleter = JoinCompleter();
-    } catch (e, s) {
-      logger.e(e, stackTrace: s);
-    }
-  }
-
-  /// Clear all fields for new game to use
-  void clear() {
-    try {
-      _gameId = null;
-      socket?.dispose();
-      socket = null;
-      gameData.value = null;
-      gameListData.value = null;
-      _chatMessagesSub?.cancel();
-      _chatMessagesSub = null;
-      showChat.value = false;
-      gameFinished.value = false;
-      lobbyEditorMode.value = false;
-      themeScrollPosition = null;
-      getIt<SocketChatController>().clear();
-      getIt<GameQuestionController>().clear();
-      getIt<GameLobbyPlayerPickerController>().clear();
-      getIt<GameLobbyThemePickerController>().clear();
-      getIt<GameLobbyPlayerStakesController>().clear();
-      _joinCompleter = JoinCompleter();
-    } catch (e, s) {
-      logger.e(e, stackTrace: s);
-    }
-  }
-
   Future<void> _showLoggedInChatEvent(String text) async {
     await getIt<SocketChatController>().chatController?.insertMessage(
       TextMessage(
@@ -308,6 +258,8 @@ class GameLobbyController {
       getIt<SocketChatController>().clear();
       await getIt<GameQuestionController>().clear();
       getIt<GameLobbyPlayerPickerController>().clear();
+      getIt<GameLobbyThemePickerController>().clear();
+      getIt<GameLobbyPlayerStakesController>().clear();
       _joinCompleter = JoinCompleter();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
@@ -1232,36 +1184,6 @@ class GameLobbyController {
         (key, value) => MapEntry(int.parse(key), value),
       ),
     );
-  }
-
-  void notifyMediaDownloaded() =>
-      socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
-
-  Future<void> _onMediaDownloadStatus(dynamic data) async {
-    if (data is! Map) return;
-
-    final statusData = MediaDownloadStatusEventPayload.fromJson(
-      data as Map<String, dynamic>,
-    );
-
-    // Update the player's media download status in game data
-    gameData.value = gameData.value?.changePlayer(
-      id: statusData.playerId,
-      onChange: (player) =>
-          player.copyWith(mediaDownloaded: statusData.mediaDownloaded),
-    );
-
-    // If all players are ready, update timer and notify the question controller
-    // to start playback
-    if (statusData.allPlayersReady) {
-      // Update the timer if provided
-      if (statusData.timer != null) {
-        gameData.value = gameData.value?.copyWith.gameState(
-          timer: statusData.timer,
-        );
-      }
-      await getIt<GameQuestionController>().onAllPlayersReady();
-    }
   }
 
   void notifyMediaDownloaded() =>

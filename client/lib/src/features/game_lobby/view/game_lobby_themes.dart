@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
@@ -30,7 +32,7 @@ class GameLobbyThemes extends WatchingWidget {
           return;
         }
         // Reset scroll position when round changes
-        scrollController.animToTop();
+        unawaited(scrollController.animToTop());
       },
     );
 
