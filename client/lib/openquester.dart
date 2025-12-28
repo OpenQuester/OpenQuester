@@ -15,6 +15,7 @@ export 'src/connection/storage/storage.dart';
 export 'src/core/application/app_init.dart';
 export 'src/core/application/app_wrapper.dart';
 export 'src/core/application/application.dart';
+export 'src/core/controllers/app_state_controller.dart';
 export 'src/core/controllers/load_controller.dart';
 export 'src/core/controllers/package_info_controller.dart';
 export 'src/core/controllers/settings_controller.dart';

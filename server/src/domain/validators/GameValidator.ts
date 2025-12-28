@@ -39,6 +39,12 @@ export class GameValidator {
     const schema = Joi.object({
       gameId: Joi.string().length(GAME_ID_CHARACTERS_LENGTH).required(),
       role: Joi.valid(...Object.values(PlayerRole)).required(),
+      targetSlot: Joi.number()
+        .integer()
+        .min(0)
+        .allow(null)
+        .optional()
+        .default(null),
     });
 
     return this._validate<GameJoinData>(data, schema);

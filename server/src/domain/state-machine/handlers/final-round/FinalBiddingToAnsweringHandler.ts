@@ -15,13 +15,13 @@ import {
   TransitionContext,
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   FinalPhaseCompleteEventData,
   FinalQuestionEventData,
 } from "domain/types/socket/events/FinalRoundEventData";
-import { FinalRoundQuestionData } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
@@ -95,6 +95,11 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
 
     // Get question data for the remaining theme
     const questionData = this._getQuestionData(game);
+
+    // Store question data in game state so joining players can access it
+    if (questionData) {
+      FinalRoundStateManager.setQuestionData(game, questionData);
+    }
 
     return {
       data: {

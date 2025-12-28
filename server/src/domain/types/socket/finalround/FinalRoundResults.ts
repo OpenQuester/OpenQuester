@@ -1,16 +1,10 @@
 import { Game } from "domain/entities/game/Game";
 import { FinalAnswerType } from "domain/enums/FinalRoundTypes";
 import { TransitionResult } from "domain/state-machine/types";
-import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
 import { PlayerBidData } from "../events/FinalRoundEventData";
 import { QuestionAnswerData } from "./QuestionAnswerData";
-
-export interface FinalRoundQuestionData {
-  themeId: number;
-  themeName: string;
-  question: GameStateQuestionDTO;
-}
 
 export interface AnswerReviewData {
   playerId: number;

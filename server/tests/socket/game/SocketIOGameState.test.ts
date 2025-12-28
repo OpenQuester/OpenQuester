@@ -262,6 +262,7 @@ describe("Socket Game State Tests", () => {
         lateJoinSocket.emit(SocketIOGameEvents.JOIN, {
           gameId,
           role: PlayerRole.PLAYER,
+          targetSlot: null,
         } satisfies GameJoinData);
       }).finally(async () => {
         await utils.disconnectAndCleanup(lateJoinSocket);

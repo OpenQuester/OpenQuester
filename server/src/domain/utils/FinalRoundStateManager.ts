@@ -13,6 +13,7 @@ import {
   BidConstraints,
   FinalRoundAnswer,
   FinalRoundGameData,
+  FinalRoundQuestionData,
 } from "domain/types/finalround/FinalRoundInterfaces";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -101,6 +102,34 @@ export class FinalRoundStateManager {
 
     data.bids[playerId] = bidAmount;
     this.updateFinalRoundData(game, data);
+  }
+
+  /**
+   * Set question data for the final round.
+   * This is called when transitioning from bidding to answering phase.
+   * The data is stored so that players joining during answering/reviewing can access it.
+   */
+  public static setQuestionData(
+    game: Game,
+    questionData: FinalRoundQuestionData
+  ): void {
+    const data = this.getFinalRoundData(game);
+    if (!data) {
+      throw new ServerError("Final round data not initialized");
+    }
+
+    data.questionData = questionData;
+    this.updateFinalRoundData(game, data);
+  }
+
+  /**
+   * Get question data from final round data
+   */
+  public static getQuestionData(
+    game: Game
+  ): FinalRoundQuestionData | undefined {
+    const data = this.getFinalRoundData(game);
+    return data?.questionData;
   }
 
   /**

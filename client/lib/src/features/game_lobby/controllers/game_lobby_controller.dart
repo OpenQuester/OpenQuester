@@ -160,6 +160,7 @@ class GameLobbyController {
       final ioGameJoinInput = SocketIOGameJoinInput(
         gameId: _gameId!,
         role: _getJoinRole(),
+        targetSlot: null,
       );
 
       socket?.emit(SocketIOGameSendEvents.join.json!, ioGameJoinInput.toJson());
@@ -652,6 +653,7 @@ class GameLobbyController {
           startedAt: DateTime.now(),
           durationMs: answerShowingDurationMs,
           elapsedMs: 0,
+          resumedAt: null,
         ),
       );
       logger.d(
