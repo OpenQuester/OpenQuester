@@ -134,6 +134,7 @@ npx jest path/to/testfile.ts
 - Explicit return types on all functions
 - Strict null checks enabled
 - use `satisfies` on un-typed objects, e.g. socket event body.
+- **Never** use re-exports, never create `index.ts` files to re-export modules.
 
 ## Testing Philosophy
 

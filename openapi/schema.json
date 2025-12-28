@@ -3902,6 +3902,13 @@
             },
             "description": "IDs of eliminated themes",
             "examples": [[1, 3, 5]]
+          },
+          "questionData": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/FinalRoundQuestionData" },
+              { "type": "null" }
+            ],
+            "description": "Question data for the final round, set when transitioning from bidding to answering phase"
           }
         },
         "required": [

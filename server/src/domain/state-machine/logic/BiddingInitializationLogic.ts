@@ -1,13 +1,13 @@
 import { Game } from "domain/entities/game/Game";
 import { TransitionResult } from "domain/state-machine/types";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   BiddingPhaseInitializationResult,
   PlayerBidData,
 } from "domain/types/socket/events/FinalRoundEventData";
-import { FinalRoundQuestionData } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 
 /**
