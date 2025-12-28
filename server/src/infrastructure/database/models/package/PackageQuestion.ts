@@ -38,6 +38,9 @@ export class PackageQuestion {
   @Column({ type: "int", nullable: true }) // Final round questions have null price - players bid after theme selection
   price!: number | null;
 
+  @Column({ type: "int", default: 5000 })
+  show_answer_duration!: number;
+
   @Column({
     type: "enum",
     enum: ["simple", "stake", "secret", "noRisk", "hidden", "choice"],
@@ -115,6 +118,7 @@ export class PackageQuestion {
     this.transfer_type = data.transferType;
     this.price_multiplier = data.priceMultiplier;
     this.showDelay = data.showDelay;
+    this.show_answer_duration = data.showAnswerDuration;
   }
 
   public toDTO(
@@ -149,6 +153,7 @@ export class PackageQuestion {
       questionFiles: questionFilesDTO,
       answerFiles: answerFilesDTO,
       subType: this.sub_type ?? PackageQuestionSubType.SIMPLE,
+      showAnswerDuration: this.show_answer_duration,
       maxPrice: this.max_price,
       allowedPrices: this.allowed_prices,
       transferType: this.transfer_type,

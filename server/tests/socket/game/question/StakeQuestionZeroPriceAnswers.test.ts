@@ -88,6 +88,7 @@ describe("Stake Question Zero Price Answer Tests", () => {
                   text: "What is 2 + 2?",
                   answerText: "4",
                   answerDelay: 5000,
+                  showAnswerDuration: 5000,
                   maxPrice: 1,
                   isHidden: false,
                 } satisfies PackageQuestionDTO,
@@ -99,6 +100,7 @@ describe("Stake Question Zero Price Answer Tests", () => {
                   text: "What is the capital of France?",
                   answerText: "Paris",
                   answerDelay: 5000,
+                  showAnswerDuration: 5000,
                   maxPrice: 1,
                   isHidden: false,
                 } satisfies PackageQuestionDTO,
@@ -344,11 +346,10 @@ describe("Stake Question Zero Price Answer Tests", () => {
       try {
         await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
-        const questionFinishPromise =
-          utils.waitForEvent<QuestionFinishEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_FINISH
-          );
+        const answerShowEndPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_END
+        );
 
         const questionAnswerPromise = utils.waitForEvent(
           showmanSocket,
@@ -368,16 +369,33 @@ describe("Stake Question Zero Price Answer Tests", () => {
           SocketIOGameEvents.ANSWER_SUBMITTED
         );
 
+        const answerResultPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
+
+        const questionFinishPromise =
+          utils.waitForEvent<QuestionFinishEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.QUESTION_FINISH
+          );
+
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 100,
           answerType: AnswerResultType.CORRECT,
         });
 
-        const questionFinishEvent = await questionFinishPromise;
+        await answerResultPromise;
+        const questionData = await questionFinishPromise;
 
-        expect(questionFinishEvent).toBeDefined();
-        expect(questionFinishEvent.answerText).toBeDefined();
-        expect(questionFinishEvent.nextTurnPlayerId).toBeDefined();
+        await utils.skipShowAnswer(showmanSocket);
+
+        const answerShowEndEvent = await answerShowEndPromise;
+
+        expect(answerShowEndEvent).toBeDefined();
+        expect(questionData).toBeDefined();
+        expect(questionData.answerText).toBeDefined();
+        expect(questionData.nextTurnPlayerId).toBeDefined();
 
         const gameState = await utils.getGameState(setup.gameId);
         expect(gameState?.questionState).toBe(QuestionState.CHOOSING);

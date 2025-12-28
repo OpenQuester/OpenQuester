@@ -149,23 +149,12 @@ describe("Hidden Question Flow Tests", () => {
         // Verify we can answer the hidden question normally
         await utils.answerQuestion(playerSocket, showmanSocket);
 
-        // Set up event listener for answer result AND question finish before emitting
+        // Set up event listener for answer result
         const answerResultPromise = utils.waitForEvent(
           playerSocket,
           SocketIOGameEvents.ANSWER_RESULT,
           1000
         );
-
-        const questionFinishPromise = new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Timeout waiting for QUESTION_FINISH"));
-          }, 2000);
-
-          playerSocket.once(SocketIOGameEvents.QUESTION_FINISH, (_data) => {
-            clearTimeout(timeout);
-            resolve();
-          });
-        });
 
         // Submit answer result from showman
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
@@ -173,9 +162,11 @@ describe("Hidden Question Flow Tests", () => {
           answerType: AnswerResultType.CORRECT,
         });
 
-        // Wait for both events
+        // Wait for answer result
         await answerResultPromise;
-        await questionFinishPromise;
+
+        // Skip show answer phase and wait for end
+        await utils.skipShowAnswer(showmanSocket);
 
         const finalGameState = await utils.getGameState(gameId);
         expect(finalGameState!.questionState).toBe(QuestionState.CHOOSING);
@@ -283,9 +274,11 @@ describe("Hidden Question Flow Tests", () => {
           scoreResult: 100,
           answerType: AnswerResultType.CORRECT,
         });
+        // Skip show answer phase for faster test
+        await utils.skipShowAnswer(showmanSocket);
         await utils.waitForEvent(
           playerSocket,
-          SocketIOGameEvents.QUESTION_FINISH
+          SocketIOGameEvents.ANSWER_SHOW_END
         );
 
         // Verify we're back to choosing state

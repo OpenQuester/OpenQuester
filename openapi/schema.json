@@ -2256,6 +2256,11 @@
             "default": 4000,
             "examples": [7000]
           },
+          "showAnswerDuration": {
+            "type": "integer",
+            "description": "Duration in milliseconds for showing the answer",
+            "examples": [5000]
+          },
           "questionComment": {
             "type": ["string", "null"],
             "description": "Comment or note about the question",
@@ -3034,6 +3039,7 @@
           "next-round",
           "answer-result",
           "skip-question-force",
+          "skip-show-answer",
           "game-pause",
           "game-unpause",
           "theme-eliminate",
@@ -3075,6 +3081,8 @@
           "question-finish",
           "answer-submitted",
           "answer-result",
+          "answer-show-start",
+          "answer-show-end",
           "next-round",
           "game-finished",
           "game-pause",
@@ -3485,6 +3493,16 @@
           }
         }
       },
+      "SocketIOAnswerShowStartEventPayload": {
+        "type": "object",
+        "description": "Signal event sent to all players when the show-answer phase starts. This phase displays the correct answer after a response. No payload - just a transition signal.",
+        "additionalProperties": false
+      },
+      "SocketIOAnswerShowEndEventPayload": {
+        "type": "object",
+        "description": "Signal event sent to all players when the show-answer phase ends. Game returns to question choosing state. No payload - just a transition signal.",
+        "additionalProperties": false
+      },
       "SocketIOAnswerResultInput": {
         "type": "object",
         "description": "Data sent by the showman to evaluate a player's answer",
@@ -3599,6 +3617,11 @@
             "description": "Delay in milliseconds before being able to answer, if applicable",
             "default": 4000,
             "examples": [7000]
+          },
+          "showAnswerDuration": {
+            "type": "integer",
+            "description": "Duration in milliseconds for showing the answer",
+            "examples": [5000]
           },
           "questionComment": {
             "type": ["string", "null"],

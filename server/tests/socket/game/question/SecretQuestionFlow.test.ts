@@ -180,7 +180,7 @@ describe("Secret Question Flow Tests", () => {
 
         const questionFinishPromise = utils.waitForEvent(
           playerSockets[0],
-          SocketIOGameEvents.QUESTION_FINISH,
+          SocketIOGameEvents.ANSWER_SHOW_END,
           2000
         );
 
@@ -189,6 +189,13 @@ describe("Secret Question Flow Tests", () => {
           scoreResult: 300,
           answerType: AnswerResultType.CORRECT,
         });
+
+        await utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
+
+        await utils.skipShowAnswer(showmanSocket);
 
         await questionFinishPromise;
 
@@ -262,13 +269,20 @@ describe("Secret Question Flow Tests", () => {
 
         const questionFinishPromise = utils.waitForEvent(
           playerSockets[1],
-          SocketIOGameEvents.QUESTION_FINISH
+          SocketIOGameEvents.ANSWER_SHOW_END
         );
 
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 300,
           answerType: AnswerResultType.CORRECT,
         });
+
+        await utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
+
+        await utils.skipShowAnswer(showmanSocket);
 
         await questionFinishPromise;
 

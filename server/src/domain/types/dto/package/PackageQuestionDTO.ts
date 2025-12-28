@@ -25,6 +25,7 @@ export interface PackageQuestionDTO {
   questionFiles?: PackageQuestionFileDTO[] | null;
   answerFiles?: PackageAnswerFileDTO[] | null;
   subType: PackageQuestionSubType;
+  showAnswerDuration: number;
   // -- Properties of different question types -- //
   maxPrice?: number | null; // Stake question
   allowedPrices?: number[] | null; // Secret question
