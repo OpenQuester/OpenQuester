@@ -2,14 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
 class ProfileBtn extends StatelessWidget {
-  const ProfileBtn({super.key});
+  const ProfileBtn({super.key, required this.wideMode});
+  final bool wideMode;
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.account_circle),
-      tooltip: LocaleKeys.profile.tr(),
+    if (wideMode) {
+      return FloatingActionButton.extended(
+        heroTag: 'profile',
+        onPressed: () => const ProfileDialog().show(context),
+        label: Text(LocaleKeys.profile.tr()),
+        icon: const Icon(Icons.account_circle),
+      );
+    }
+
+    return FloatingActionButton.small(
+      heroTag: 'profile',
       onPressed: () => const ProfileDialog().show(context),
+      tooltip: LocaleKeys.profile.tr(),
+      child: const Icon(Icons.account_circle),
     );
   }
 }

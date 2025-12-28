@@ -349,6 +349,7 @@
     "export_recommended": "Exporting is recommended for large packages."
   },
   "admin": {
+    "admin": "Admin",
     "dashboard": "Admin Dashboard",
     "overview": "Overview",
     "users": "Users",
