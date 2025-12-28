@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
 class ProfileBtn extends StatelessWidget {
-  const ProfileBtn({super.key, required this.wideMode});
+  const ProfileBtn({required this.wideMode, super.key});
   final bool wideMode;
 
   @override

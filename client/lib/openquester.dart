@@ -37,6 +37,7 @@ export 'src/core/ui/dialogs.dart';
 export 'src/data/app_settings.dart';
 export 'src/features/admin/admin.dart';
 export 'src/features/admin/controller/admin_controller.dart';
+export 'src/features/admin/data/admin_action_type.dart';
 export 'src/features/admin/view/admin_dashboard_button.dart';
 export 'src/features/admin/view/admin_dashboard_screen.dart';
 export 'src/features/auto_update/controllers/auto_update_controller.dart';
