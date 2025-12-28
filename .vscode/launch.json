@@ -10,9 +10,6 @@
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
-      "toolArgs": [
-        "--no-enable-impeller"
-      ]
     },
     {
       "name": "client (web)",
@@ -60,16 +57,6 @@
       "program": "lib/main.dart",
     },
     {
-      "name": "siq_encoder app",
-      "cwd": "client",
-      "request": "launch",
-      "type": "dart",
-      "program": "lib/src/features/package_compress/view/package_compress_main.dart",
-      "toolArgs": [
-        "--no-enable-impeller"
-      ]
-    },
-    {
       "type": "node",
       "request": "launch",
       "name": "Server",
@@ -83,16 +70,6 @@
       ],
       "envFile": "${workspaceFolder}/server/.env",
       "console": "integratedTerminal"
-    },
-    {
-      "name": "siq_file",
-      "type": "dart",
-      "request": "launch",
-      "program": "./client/packages/siq_file/bin/siq_file.dart",
-      "args": [
-        "json",
-        "../../../test.siq"
-      ]
     }
   ]
 }

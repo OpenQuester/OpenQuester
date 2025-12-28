@@ -1,12 +1,12 @@
 import { Socket } from "socket.io";
 
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { QuestionAnswerEventPayload } from "domain/types/socket/events/game/QuestionAnswerEventPayload";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -21,13 +21,32 @@ export class QuestionAnswerEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
-    private readonly socketIOQuestionService: SocketIOQuestionService
+    actionExecutor: GameActionExecutor,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.QUESTION_ANSWER;
+  }
+
+  protected async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.QUESTION_ANSWER;
   }
 
   protected async validateInput(
@@ -41,35 +60,5 @@ export class QuestionAnswerEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization handled in service
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<QuestionAnswerEventPayload>> {
-    const { userId, gameId, timer } =
-      await this.socketIOQuestionService.handleQuestionAnswer(this.socket.id);
-
-    // Assign context variables for logging
-    context.gameId = gameId;
-    context.userId = this.socket.userId;
-
-    const result: QuestionAnswerEventPayload = {
-      userId: userId!,
-      timer: timer.value()!,
-    };
-
-    return {
-      success: true,
-      data: result,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.QUESTION_ANSWER,
-          data: result,
-          target: SocketBroadcastTarget.GAME,
-          gameId,
-        },
-      ],
-    };
   }
 }

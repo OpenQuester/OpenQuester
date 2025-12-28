@@ -5,11 +5,14 @@ import { createServer } from "http";
 import { Server as IOServer } from "socket.io";
 import { DataSource } from "typeorm";
 
+import { Container, CONTAINER_TYPES } from "application/Container";
 import { ApiContext } from "application/context/ApiContext";
+import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { Environment } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Database } from "infrastructure/database/Database";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
+import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { ServeApi } from "presentation/ServeApi";
 import { TestRestApiController } from "tests/TestRestApiController";
 import { setTestEnvDefaults } from "tests/utils/utils";
@@ -76,10 +79,25 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   const api = new ServeApi(context);
   await api.init();
 
-  // Provide a cleanup function for Redis, Socket.IO, and HTTP server
+  // Provide a cleanup function for Socket.IO and HTTP server
+  // Note: Redis is NOT disconnected here as it's shared across test suites
   async function cleanup() {
+    // Stop cron scheduler to allow tests to exit cleanly
+    const cronScheduler = Container.get<CronSchedulerService>(
+      CONTAINER_TYPES.CronSchedulerService
+    );
+    logger.info("Stopping cron scheduler...");
+    await cronScheduler.stopAll();
+
+    // Unsubscribe from Redis keyspace notifications to prevent duplicate
+    // timer expirations across test suites
+    const pubSub = Container.get<RedisPubSubService>(
+      CONTAINER_TYPES.RedisPubSubService
+    );
+    logger.info("Unsubscribing from Redis keyspace notifications...");
+    await pubSub.unsubscribe();
+
     await io.close();
-    await RedisConfig.disconnect();
     if (httpServer.listening) {
       return new Promise<void>((resolve) => {
         httpServer.close(() => {

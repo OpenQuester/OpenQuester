@@ -24,7 +24,6 @@ import {
   QuestionFinishWithAnswerEventPayload,
 } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -54,14 +53,7 @@ describe("Socket Question Flow Tests", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    await redisClient.del(...(await redisClient.keys("*")));
-
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
-    }
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {
@@ -94,7 +86,9 @@ describe("Socket Question Flow Tests", () => {
         });
 
         // Pick a question using the helper method to get valid question ID
-        utils.pickQuestion(showmanSocket).catch(reject);
+        utils
+          .pickQuestion(showmanSocket, undefined, playerSockets)
+          .catch(reject);
       }).finally(async () => {
         await utils.cleanupGameClients(setup);
       });
@@ -120,7 +114,9 @@ describe("Socket Question Flow Tests", () => {
         });
 
         // Pick a question using the helper method to get valid question ID
-        utils.pickQuestion(playerSockets[0]).catch(reject);
+        utils
+          .pickQuestion(playerSockets[0], undefined, playerSockets)
+          .catch(reject);
       }).finally(async () => {
         await utils.cleanupGameClients(setup);
       });
@@ -134,7 +130,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
       await utils.answerQuestion(playerSockets[0], showmanSocket);
 
       await new Promise<void>((resolve, reject) => {
@@ -169,7 +165,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
       await utils.answerQuestion(playerSockets[0], showmanSocket);
 
       await new Promise<void>((resolve, reject) => {
@@ -207,7 +203,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -237,7 +233,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       await new Promise<void>((resolve, reject) => {
         const errorTimeout = setTimeout(() => {
@@ -272,7 +268,7 @@ describe("Socket Question Flow Tests", () => {
       try {
         // Present question to players
         await utils.startGame(showmanSocket);
-        await utils.pickQuestion(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Player begins answering
         await utils.answerQuestion(playerSockets[0], showmanSocket);
@@ -320,7 +316,7 @@ describe("Socket Question Flow Tests", () => {
         const firstQuestionId = await utils.getFirstAvailableQuestionId(
           setup.gameId
         );
-        await utils.pickQuestion(showmanSocket, firstQuestionId);
+        await utils.pickQuestion(showmanSocket, firstQuestionId, playerSockets);
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
         // Complete the question with correct answer
@@ -399,7 +395,7 @@ describe("Socket Question Flow Tests", () => {
       try {
         // Start game and advance to ANSWERING state
         await utils.startGame(showmanSocket);
-        await utils.pickQuestion(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
         // Verify we're in ANSWERING state
@@ -435,7 +431,7 @@ describe("Socket Question Flow Tests", () => {
       const { showmanSocket, playerSockets, gameId } = setup;
 
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       // Get initial turn player
       let gameState = await utils.getGameState(gameId);
@@ -503,7 +499,7 @@ describe("Socket Question Flow Tests", () => {
       const { showmanSocket, playerSockets, gameId } = setup;
 
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       // Get initial turn player
       let gameState = await utils.getGameState(gameId);
@@ -540,7 +536,7 @@ describe("Socket Question Flow Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
       const { showmanSocket, playerSockets, gameId } = setup;
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       let gameState = await utils.getGameState(gameId);
       expect(gameState?.currentTurnPlayerId).toBeDefined();
@@ -577,7 +573,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -606,7 +602,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       // First skip the question
       await new Promise<void>((resolve) => {
@@ -638,11 +634,11 @@ describe("Socket Question Flow Tests", () => {
 
     it("should prevent non-players from skipping", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
-      const { showmanSocket, spectatorSockets } = setup;
+      const { showmanSocket, playerSockets, spectatorSockets } = setup;
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -674,7 +670,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       // Player begins answering
       await utils.answerQuestion(playerSockets[0], showmanSocket);
@@ -709,7 +705,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       // First player answers
       await utils.answerQuestion(playerSockets[0], showmanSocket);
@@ -751,7 +747,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -778,7 +774,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       let skipCount = 0;
 
@@ -823,7 +819,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       // First player skips
       await new Promise<void>((resolve) => {
@@ -861,7 +857,7 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
       // Two players skip (not all players, so no automatic skip)
       await new Promise<void>((resolve) => {
@@ -897,13 +893,19 @@ describe("Socket Question Flow Tests", () => {
 
       // Start game and pick question
       await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+
+      expect((await utils.getGameState(setup.gameId))?.questionState).toBe(
+        QuestionState.SHOWING
+      );
 
       // Player skips
-      await new Promise<void>((resolve) => {
-        showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
-      });
+      const skipPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.QUESTION_SKIP
+      );
+      playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+      await skipPromise;
 
       // Verify player is in skipped list
       let gameState = await utils.getGameState(setup.gameId);
@@ -911,10 +913,12 @@ describe("Socket Question Flow Tests", () => {
       expect(gameState!.skippedPlayers).toContain(setup.playerUsers[0].id);
 
       // Showman force skips question
-      await new Promise<void>((resolve) => {
-        playerSockets[0].once(SocketIOGameEvents.QUESTION_FINISH, resolve);
-        showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
-      });
+      const forceSkipPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.QUESTION_FINISH
+      );
+      showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
+      await forceSkipPromise;
 
       // Check that skipped players list is cleared
       gameState = await utils.getGameState(setup.gameId);

@@ -92,9 +92,32 @@ export const CONTAINER_TYPES = {
   GameLifecycleService: Symbol("GameLifecycleService"),
   GameEventBroadcastService: Symbol("GameEventBroadcastService"),
 
+  // Action Queue System
+  GameActionExecutor: Symbol("GameActionExecutor"),
+  GameActionHandlerRegistry: Symbol("GameActionHandlerRegistry"),
+  GameActionBroadcastService: Symbol("GameActionBroadcastService"),
+  GameActionLockService: Symbol("GameActionLockService"),
+  GameActionQueueService: Symbol("GameActionQueueService"),
+
+  // Timer Services
+  TimerExpirationService: Symbol("TimerExpirationService"),
+
+  // Player Services
+  PlayerLeaveService: Symbol("PlayerLeaveService"),
+
+  // Question Services
+  SpecialQuestionService: Symbol("SpecialQuestionService"),
+
   // Factories
   RoundHandlerFactory: Symbol("RoundHandlerFactory"),
   StatisticsWorkerFactory: Symbol("StatisticsWorkerFactory"),
+  CronJobFactory: Symbol("CronJobFactory"),
+
+  // State Machine
+  PhaseTransitionRouter: Symbol("PhaseTransitionRouter"),
+
+  // Cron Services
+  CronSchedulerService: Symbol("CronSchedulerService"),
 
   // Use cases
   UserCacheUseCase: Symbol("UserCacheUseCase"),

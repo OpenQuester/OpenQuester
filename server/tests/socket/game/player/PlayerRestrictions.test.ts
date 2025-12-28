@@ -20,7 +20,6 @@ import {
   GameLeaveBroadcastData,
   PlayerKickBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -63,17 +62,7 @@ describe("PlayerRestrictions", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
-
-    const keysUpdated = await redisClient.keys("*");
-    if (keysUpdated.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keysUpdated}`);
-    }
+    await testEnv.clearRedis();
   });
 
   it("should prevent restricted player from joining as PLAYER or SHOWMAN, allow only SPECTATOR", async () => {
@@ -427,6 +416,46 @@ describe("PlayerRestrictions", () => {
       const now = new Date();
       const timeDiff = now.getTime() - leftAt.getTime();
       expect(timeDiff).toBeLessThan(5000); // Within 5 seconds
+    } finally {
+      await utils.cleanupGameClients(setup);
+    }
+  });
+
+  it("should allow showman to kick themselves - treated same as leave", async () => {
+    const userRepo = testEnv.getDatabase().getRepository(User);
+    const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+
+    try {
+      const showmanSocket = setup.showmanSocket;
+      const showmanId = setup.showmanUser.id;
+
+      // Wait for PLAYER_KICKED event
+      const kickEventPromise = new Promise<PlayerKickBroadcastData>(
+        (resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(
+              new Error("PLAYER_KICKED event not received within timeout")
+            );
+          }, 5000);
+
+          showmanSocket.once(
+            SocketIOGameEvents.PLAYER_KICKED,
+            (data: PlayerKickBroadcastData) => {
+              clearTimeout(timeout);
+              resolve(data);
+            }
+          );
+        }
+      );
+
+      // Showman kicks themselves
+      showmanSocket.emit(SocketIOGameEvents.PLAYER_KICKED, {
+        playerId: showmanId,
+      });
+
+      // Showman CAN kick themselves - it's treated like a leave
+      const kickData = await kickEventPromise;
+      expect(kickData.playerId).toBe(showmanId);
     } finally {
       await utils.cleanupGameClients(setup);
     }

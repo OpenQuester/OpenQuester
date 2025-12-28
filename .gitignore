@@ -22,11 +22,11 @@ content.xml
 *.key
 *.pfx
 
-.github/copilot-instructions.md
-.github/COPILOT.md
-
 # Generated files
 **/*_generated.dart
 **/*.freezed.dart
 **/*.g.dart
 **/*.gen.dart
+
+# IntelliJ
+.idea/

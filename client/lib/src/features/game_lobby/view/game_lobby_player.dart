@@ -105,23 +105,22 @@ class GameLobbyPlayer extends WatchingWidget {
                 ),
               Align(
                 alignment: Alignment.topLeft,
-                child:
-                    customIcon ??
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (customIcon != null) customIcon!,
-                        if (player.status == PlayerDataStatus.disconnected)
-                          const Icon(Icons.signal_wifi_off),
-                      ],
-                    ).paddingAll(2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ?customIcon,
+                    if (player.status == PlayerDataStatus.disconnected)
+                      const Icon(Icons.signal_wifi_off),
+                    _MediaDownloadIndicator(player: player),
+                  ],
+                ).paddingAll(2),
               ),
               Align(
                 alignment: Alignment.bottomRight,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (actionButton != null) actionButton!,
+                    ?actionButton,
                     if (settings.hasTurn)
                       Icon(
                         settings.picking
@@ -180,4 +179,26 @@ class PlayerTileSettings {
   final bool picking;
   final bool hasTurn;
   final PlayerAnswerState playerAnswerState;
+}
+
+class _MediaDownloadIndicator extends WatchingWidget {
+  const _MediaDownloadIndicator({required this.player});
+
+  final PlayerData player;
+
+  @override
+  Widget build(BuildContext context) {
+    final questionData = watchValue(
+      (GameQuestionController e) => e.questionData,
+    );
+
+    final hasMedia = questionData?.file != null;
+    final mediaDownloaded = player.mediaDownloaded;
+    if (!hasMedia || mediaDownloaded) return const SizedBox.shrink();
+
+    // Show loader if not downloaded yet
+    return const CircularProgressIndicator(strokeWidth: 1, color: Colors.white)
+        .withSize(width: 16, height: 16)
+        .withTooltip(msg: LocaleKeys.question_waiting_for_all_players.tr());
+  }
 }

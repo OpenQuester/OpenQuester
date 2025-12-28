@@ -1,11 +1,13 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
@@ -25,10 +27,12 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
+    actionExecutor: GameActionExecutor,
     private readonly socketIOGameService: SocketIOGameService,
-    private readonly userNotificationRoomService: UserNotificationRoomService
+    private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
@@ -38,7 +42,6 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
   protected async validateInput(
     _data: EmptyInputData
   ): Promise<EmptyInputData> {
-    // No input validation needed for leave event
     return {};
   }
 
@@ -49,69 +52,44 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
     // Any authenticated user can leave a game
   }
 
-  protected async execute(
+  protected override async getGameIdForAction(
     _data: EmptyInputData,
     context: SocketEventContext
-  ): Promise<SocketEventResult<GameLeaveBroadcastData>> {
-    // Handle lobby leave through game service
-    const result = await this.socketIOGameService.leaveLobby(this.socket.id);
-
-    if (!result.emit || !result.data) {
-      return {
-        success: true,
-        data: { user: -1 }, // No user to broadcast
-        broadcast: [],
-      };
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
     }
+  }
 
-    // Assign context variables for logging
-    context.gameId = result.data.gameId;
-    context.userId = this.socket.userId;
-
-    const broadcastData: GameLeaveBroadcastData = {
-      user: result.data.userId,
-    };
-
-    return {
-      success: true,
-      data: broadcastData,
-      context: {
-        ...context,
-        gameId: result.data.gameId,
-      },
-      broadcast: [
-        {
-          event: SocketIOGameEvents.LEAVE,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.data.gameId,
-        },
-      ],
-    };
+  protected override getActionType(): GameActionType {
+    return GameActionType.LEAVE;
   }
 
   protected override async afterBroadcast(
     result: SocketEventResult<GameLeaveBroadcastData>,
-    context: SocketEventContext
+    _context: SocketEventContext
   ): Promise<void> {
-    if (context.gameId) {
-      // Get game state before leaving to get player list
+    const gameId = result.context?.gameId;
+    const socketId = result.context?.socketId;
+
+    if (gameId && socketId) {
       try {
-        const game = await this.socketIOGameService.getGameEntity(
-          context.gameId
-        );
+        const game = await this.socketIOGameService.getGameEntity(gameId);
         const allPlayerIds = game.players.map((p) => p.meta.id);
 
-        // Unsubscribe from all other players' notification rooms
         await this.userNotificationRoomService.unsubscribeFromMultipleUserNotifications(
-          this.socket.id,
+          socketId,
           allPlayerIds
         );
 
-        // Unsubscribe all remaining players from this user's notification room
         if (result.data && result.data.user !== -1) {
           await this.userNotificationRoomService.unsubscribeGameFromUserNotifications(
-            context.gameId,
+            gameId,
             result.data.user
           );
         }
@@ -124,17 +102,23 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
           game.startedAt === null || game.finishedAt !== null;
 
         if (activePlayers.length === 0 && gameNotStartedOrFinished) {
-          await this.socketIOGameService.deleteGameInternally(context.gameId);
+          this.logger.debug(
+            `Deleting empty game ${gameId} after last player left`,
+            { prefix: "[USER_NOTIFICATIONS]: " }
+          );
+          await this.socketIOGameService.deleteGameInternally(gameId);
         }
       } catch (error) {
-        // Game might not exist anymore, just clean up socket room
         this.logger.error(
-          `Could not clean up user notification rooms for game ${context.gameId}: ${error}`,
+          `Could not clean up user notification rooms for game ${gameId}: ${error}`,
           { prefix: "[USER_NOTIFICATIONS]: " }
         );
       }
 
-      await this.socket.leave(context.gameId);
+      const targetSocket = this.socket.nsp.sockets.get(socketId);
+      if (targetSocket) {
+        await targetSocket.leave(gameId);
+      }
     }
   }
 }

@@ -6,10 +6,12 @@ import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { type Express } from "express";
+import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { Repository } from "typeorm";
 import {
   GameClientSocket,
+  GameTestSetup,
   SocketGameTestUtils,
 } from "../socket/game/utils/SocketIOGameTestUtils";
 
@@ -17,7 +19,7 @@ export interface FinalRoundGameSetup {
   gameId: string;
   showmanSocket: GameClientSocket;
   playerSockets: GameClientSocket[];
-  spectatorSocket: GameClientSocket;
+  spectatorSockets: GameClientSocket[];
   showmanUser: User;
   playerUsers: User[];
 }
@@ -68,7 +70,7 @@ export class TestUtils {
       gameId: gameSetup.gameId,
       showmanSocket: gameSetup.showmanSocket,
       playerSockets: gameSetup.playerSockets,
-      spectatorSocket: gameSetup.spectatorSockets[0],
+      spectatorSockets: gameSetup.spectatorSockets,
       showmanUser: gameSetup.showmanUser,
       playerUsers: gameSetup.playerUsers,
     };
@@ -174,12 +176,60 @@ export class TestUtils {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Wait for a condition to become true, polling at regular intervals.
+   * Useful for handling async state transitions that may lag behind socket events.
+   *
+   * @param condition - Callback that returns true when condition is met
+   * @param timeoutMs - Maximum time to wait (default: 1000ms)
+   * @param intervalMs - Polling interval (default: 200ms)
+   * @returns true if condition was met, false if timeout expired
+   */
+  public async waitForCondition(
+    condition: () => Promise<boolean> | boolean,
+    timeoutMs: number = 1000,
+    intervalMs: number = 200
+  ): Promise<boolean> {
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+      const result = await condition();
+      if (result) {
+        return true;
+      }
+      await this.wait(intervalMs);
+    }
+    return false;
+  }
+
   public async waitForEvent<T = any>(
     socket: GameClientSocket,
     event: string,
     timeout: number = 5000
   ): Promise<T> {
     return this.socketGameTestUtils.waitForEvent(socket, event, timeout);
+  }
+
+  /**
+   * Expire a timer by reducing its TTL to trigger natural expiration.
+   * This simulates timer expiration without waiting for the actual duration.
+   * Use this instead of sleep/wait to test timer-based game logic.
+   *
+   * @param gameId - The game ID for the timer
+   * @param keyPattern - Optional pattern for specific timer types (e.g., "media-download")
+   * @param waitMs - Time to wait after expiration for event processing (default: 150ms)
+   */
+  public async expireTimer(
+    gameId: string,
+    keyPattern: string = "",
+    waitMs: number = 150
+  ): Promise<void> {
+    const redisClient = RedisConfig.getClient();
+    const timerKey = keyPattern
+      ? `timer:${keyPattern}:${gameId}`
+      : `timer:${gameId}`;
+    await redisClient.pexpire(timerKey, 50);
+    // Wait for expiration to be processed by Redis keyspace notifications
+    await this.wait(waitMs);
   }
 
   /**
@@ -370,5 +420,102 @@ export class TestUtils {
 
   private _isFinalRound(gameState: GameStateDTO): boolean {
     return gameState.currentRound?.type === PackageRoundType.FINAL;
+  }
+
+  /**
+   * Forward method to SocketGameTestUtils for setting current turn player
+   */
+  public async setCurrentTurnPlayer(
+    showmanSocket: GameClientSocket,
+    playerId: number
+  ): Promise<void> {
+    return this.socketGameTestUtils.setCurrentTurnPlayer(
+      showmanSocket,
+      playerId
+    );
+  }
+
+  /**
+   * Forward method to SocketGameTestUtils for setting player score
+   */
+  public async setPlayerScore(
+    gameId: string,
+    playerId: number,
+    score: number
+  ): Promise<void> {
+    return this.socketGameTestUtils.setPlayerScore(gameId, playerId, score);
+  }
+
+  /**
+   * Forward method to SocketGameTestUtils for updating game
+   */
+  public async updateGame(game: Game): Promise<void> {
+    return this.socketGameTestUtils.updateGame(game);
+  }
+
+  /**
+   * Forward method to SocketGameTestUtils for getting game from service
+   */
+  public async getGameFromGameService(gameId: string): Promise<Game> {
+    return this.socketGameTestUtils.getGameFromGameService(gameId);
+  }
+
+  /**
+   * Forward method to SocketGameTestUtils for answering question
+   */
+  public async answerQuestion(
+    playerSocket: GameClientSocket,
+    showmanSocket: GameClientSocket
+  ): Promise<void> {
+    return this.socketGameTestUtils.answerQuestion(playerSocket, showmanSocket);
+  }
+
+  /**
+   * Forward method to SocketGameTestUtils for creating game client
+   */
+  public async createGameClient(): Promise<{
+    socket: GameClientSocket;
+    user: User;
+    cookie: string;
+  }> {
+    return this.socketGameTestUtils.createGameClient(this.app, this.userRepo);
+  }
+
+  /**
+   * Create a new socket connection for an existing user (for reconnection scenarios)
+   * This simulates a player disconnecting and reconnecting with the same user account
+   */
+  public async createSocketForExistingUser(
+    userId: number
+  ): Promise<{ socket: GameClientSocket; cookie: string }> {
+    return this.socketGameTestUtils.createSocketForExistingUser(
+      this.app,
+      userId
+    );
+  }
+
+  /**
+   * Forward method to SocketGameTestUtils for joining game
+   */
+  public async joinGame(
+    socket: GameClientSocket,
+    gameId: string,
+    role: PlayerRole
+  ): Promise<string> {
+    return this.socketGameTestUtils.joinGame(socket, gameId, role);
+  }
+
+  /**
+   * Forward method to SocketGameTestUtils for disconnecting and cleanup
+   */
+  public async disconnectAndCleanup(socket: GameClientSocket): Promise<void> {
+    return this.socketGameTestUtils.disconnectAndCleanup(socket);
+  }
+
+  /**
+   * Forward method to SocketGameTestUtils for cleaning up game clients
+   */
+  public async cleanupGameClients(setup: GameTestSetup): Promise<void> {
+    return this.socketGameTestUtils.cleanupGameClients(setup);
   }
 }

@@ -1,12 +1,13 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   EmptyInputData,
@@ -26,13 +27,33 @@ export class PlayerUnreadyEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
-    private readonly socketIOGameService: SocketIOGameService
+    actionExecutor: GameActionExecutor,
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.PLAYER_UNREADY;
+  }
+
+  protected async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.PLAYER_UNREADY;
   }
 
   protected async validateInput(
@@ -47,40 +68,5 @@ export class PlayerUnreadyEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization will be handled by the service layer (player role check)
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<PlayerReadinessBroadcastData>> {
-    // Execute the set unready logic
-    const result = await this.socketIOGameService.setPlayerReadiness(
-      this.socket.id,
-      false
-    );
-
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-    context.userId = this.socket.userId;
-
-    const readyData: PlayerReadinessBroadcastData = {
-      playerId: result.playerId,
-      isReady: result.isReady,
-      readyPlayers: result.readyPlayers,
-      autoStartTriggered: false, // Unready does not trigger auto start
-    };
-
-    return {
-      success: true,
-      data: readyData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.PLAYER_UNREADY,
-          data: readyData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        },
-      ],
-    };
   }
 }

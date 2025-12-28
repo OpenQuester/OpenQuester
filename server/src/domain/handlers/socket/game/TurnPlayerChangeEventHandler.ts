@@ -1,12 +1,13 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   TurnPlayerChangeBroadcastData,
@@ -27,13 +28,33 @@ export class TurnPlayerChangeEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
-    private readonly socketIOGameService: SocketIOGameService
+    actionExecutor: GameActionExecutor,
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.TURN_PLAYER_CHANGED;
+  }
+
+  protected async getGameIdForAction(
+    _data: TurnPlayerChangeInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.TURN_PLAYER_CHANGE;
   }
 
   protected async validateInput(
@@ -47,36 +68,5 @@ export class TurnPlayerChangeEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization handled by service layer
-  }
-
-  protected async execute(
-    data: TurnPlayerChangeInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<TurnPlayerChangeBroadcastData>> {
-    const result = await this.socketIOGameService.changeTurnPlayer(
-      this.socket.id,
-      data.newTurnPlayerId
-    );
-
-    // Assign context variables for logging
-    context.gameId = result.game.id;
-    context.userId = this.socket.userId;
-
-    const broadcastData: TurnPlayerChangeBroadcastData = {
-      newTurnPlayerId: data.newTurnPlayerId,
-    };
-
-    return {
-      success: true,
-      data: broadcastData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.TURN_PLAYER_CHANGED,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        },
-      ],
-    };
   }
 }

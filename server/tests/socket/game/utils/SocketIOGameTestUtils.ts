@@ -15,15 +15,19 @@ import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
+import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { User } from "infrastructure/database/models/User";
+import { GameActionLockService } from "infrastructure/services/lock/GameActionLockService";
+import { GameActionQueueService } from "infrastructure/services/queue/GameActionQueueService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { PackageUtils } from "tests/utils/PackageUtils";
 
@@ -48,6 +52,12 @@ export class SocketGameTestUtils {
   private socketUserDataService = Container.get<SocketUserDataService>(
     CONTAINER_TYPES.SocketUserDataService
   );
+  private lockService = Container.get<GameActionLockService>(
+    CONTAINER_TYPES.GameActionLockService
+  );
+  private queueService = Container.get<GameActionQueueService>(
+    CONTAINER_TYPES.GameActionQueueService
+  );
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl + SOCKET_GAME_NAMESPACE;
@@ -69,7 +79,7 @@ export class SocketGameTestUtils {
     role: PlayerRole
   ): Promise<void> {
     return new Promise<void>((resolve) => {
-      const joinData: GameJoinData = { gameId, role };
+      const joinData: GameJoinData = { gameId, role, targetSlot: null };
       socket.once(SocketIOGameEvents.GAME_DATA, () => {
         socket.gameId = gameId;
         socket.role = role;
@@ -85,7 +95,47 @@ export class SocketGameTestUtils {
     role: PlayerRole
   ): Promise<any> {
     return new Promise<any>((resolve) => {
-      const joinData: GameJoinData = { gameId, role };
+      const joinData: GameJoinData = { gameId, role, targetSlot: null };
+      socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
+        socket.gameId = gameId;
+        socket.role = role;
+        resolve(gameData);
+      });
+      socket.emit(SocketIOGameEvents.JOIN, joinData);
+    });
+  }
+
+  /**
+   * Join a game with a specific target slot
+   */
+  public async joinGameWithSlot(
+    socket: GameClientSocket,
+    gameId: string,
+    role: PlayerRole,
+    targetSlot: number | null
+  ): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const joinData: GameJoinData = { gameId, role, targetSlot };
+      socket.once(SocketIOGameEvents.GAME_DATA, () => {
+        socket.gameId = gameId;
+        socket.role = role;
+        resolve();
+      });
+      socket.emit(SocketIOGameEvents.JOIN, joinData);
+    });
+  }
+
+  /**
+   * Join a game with a specific target slot and return game data
+   */
+  public async joinGameWithSlotAndData(
+    socket: GameClientSocket,
+    gameId: string,
+    role: PlayerRole,
+    targetSlot: number | null
+  ): Promise<any> {
+    return new Promise<any>((resolve) => {
+      const joinData: GameJoinData = { gameId, role, targetSlot };
       socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
         socket.gameId = gameId;
         socket.role = role;
@@ -231,6 +281,47 @@ export class SocketGameTestUtils {
     });
 
     return { socket, user, cookie };
+  }
+
+  /**
+   * Create a new socket connection for an existing user (for reconnection scenarios)
+   * This simulates a player disconnecting and reconnecting with the same user account
+   */
+  public async createSocketForExistingUser(
+    app: Express,
+    userId: number
+  ): Promise<{ socket: GameClientSocket; cookie: string }> {
+    const { cookie } = await this.loginExistingUser(app, userId);
+
+    const socket = Client(this.serverUrl, {
+      transports: ["websocket"],
+      autoConnect: true,
+      reconnection: false,
+    }) as GameClientSocket;
+
+    // Wait for connection
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("[Socket Debug] Connection timeout after 5000ms"));
+      }, 5000);
+
+      socket.on("connect", async () => {
+        clearTimeout(timeout);
+        try {
+          await this.authenticateSocket(app, socket, cookie);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      socket.on("connect_error", (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+    });
+
+    return { socket, cookie };
   }
 
   public async createUnauthenticatedGameClient(): Promise<GameClientSocket> {
@@ -548,9 +639,61 @@ export class SocketGameTestUtils {
     });
   }
 
+  /**
+   * Wait for media download phase to complete
+   * Sends MEDIA_DOWNLOADED events sequentially for each player,
+   * waiting for showman to receive MEDIA_DOWNLOAD_STATUS after each emission.
+   * Resolves when allPlayersReady=true is received.
+   */
+  public async waitForMediaDownload(
+    showmanSocket: GameClientSocket,
+    playerSockets: GameClientSocket[]
+  ): Promise<void> {
+    let playerIndex = 0;
+
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        showmanSocket.removeListener(
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          handler
+        );
+        reject(new Error("Timeout waiting for all players to be ready"));
+      }, 15000);
+
+      const handler = (data: MediaDownloadStatusBroadcastData) => {
+        if (data.allPlayersReady === true) {
+          clearTimeout(timeout);
+          showmanSocket.removeListener(
+            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+            handler
+          );
+          resolve();
+        } else if (playerIndex < playerSockets.length) {
+          // Received intermediate status, send next player's download event
+          playerSockets[playerIndex].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+          playerIndex++;
+        }
+      };
+
+      showmanSocket.on(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, handler);
+
+      // Emit first player's MEDIA_DOWNLOADED to start the chain
+      if (playerSockets.length > 0) {
+        playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+        playerIndex = 1;
+      } else {
+        // No players - should not happen but handle gracefully
+        clearTimeout(timeout);
+        resolve();
+      }
+    });
+  }
+
   public async pickQuestion(
     showmanSocket: GameClientSocket,
-    questionId?: number
+    questionId?: number,
+    playerSockets?: GameClientSocket[],
+    options?: { skipMediaDownload?: boolean }
   ): Promise<void> {
     let actualQuestionId = questionId;
 
@@ -576,6 +719,19 @@ export class SocketGameTestUtils {
     });
 
     await questionDataPromise;
+
+    // Automatically handle media download phase unless explicitly skipped
+    if (!options?.skipMediaDownload && playerSockets) {
+      const socketUserData = await this.getSocketUserData(showmanSocket);
+      if (socketUserData?.gameId) {
+        const gameState = await this.getGameState(socketUserData.gameId);
+
+        // Only wait for media download if we're in MEDIA_DOWNLOADING state
+        if (gameState?.questionState === QuestionState.MEDIA_DOWNLOADING) {
+          await this.waitForMediaDownload(showmanSocket, playerSockets);
+        }
+      }
+    }
   }
 
   public async answerQuestion(
@@ -992,8 +1148,39 @@ export class SocketGameTestUtils {
     });
   }
 
+  /**
+   * Wait for all queued actions and locks to complete for a game
+   * This ensures clean test teardown without race conditions
+   */
+  public async waitForActionsComplete(
+    gameId: string,
+    timeout: number = 5000
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+      const isLocked = await this.lockService.isLocked(gameId);
+      const queueLength = await this.queueService.getQueueLength(gameId);
+
+      if (!isLocked && queueLength === 0) {
+        // All actions complete
+        return;
+      }
+
+      // Wait a bit before checking again
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    // Timeout reached - log warning but don't fail
+    console.warn(
+      `[TEST]: Timeout waiting for actions to complete for game ${gameId}`
+    );
+  }
+
   public async cleanupGameClients(setup: GameTestSetup): Promise<void> {
     try {
+      await this.waitForActionsComplete(setup.gameId);
+
       await this.disconnectAndCleanup(setup.showmanSocket);
       await Promise.all(
         setup.playerSockets.map((socket) => this.disconnectAndCleanup(socket))
@@ -1110,9 +1297,6 @@ export class SocketGameTestUtils {
     });
   }
 
-  /**
-   * Helper method to set a player as unready with socket event
-   */
   public async setPlayerUnready(playerSocket: GameClientSocket): Promise<void> {
     return new Promise((resolve) => {
       playerSocket.once(SocketIOGameEvents.PLAYER_UNREADY, () => {

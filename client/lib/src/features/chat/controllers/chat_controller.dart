@@ -71,13 +71,13 @@ class SocketChatController extends ChangeNotifier {
     );
   }
 
-  void _onChatMessage(dynamic data) {
+  Future<void> _onChatMessage(dynamic data) async {
     final message = SocketIOChatMessageEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
 
     final textMessage = message.toChatMessage();
-    chatController?.insertMessage(textMessage);
+    await chatController?.insertMessage(textMessage);
     notifyListeners();
   }
 

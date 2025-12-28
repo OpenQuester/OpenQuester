@@ -81,7 +81,8 @@
     "correct_answer_is": "Correct answer is: {}",
     "hint": "Hint: {}",
     "skip_round": "Skip this round",
-    "sure_skip_round": "Are you sure you want to skip this round?"
+    "sure_skip_round": "Are you sure you want to skip this round?",
+    "waiting_for_all_players": "Waiting for all players to download media..."
   },
   "delete_lobby": "Delete lobby",
   "delete_lobby_confirmation": "Do you want to delete the lobby?",
@@ -162,6 +163,7 @@
     "title": "Edit Player",
     "change_score": "Change score",
     "give_turn": "Give turn",
+    "restrict": "Restrict",
     "kick": "Kick",
     "ban": "Ban",
     "mute": "Mute",
@@ -170,9 +172,5 @@
   },
   "system": "System",
   "pass": "Pass",
-  "custom": "Custom",
-  "game_final_round": {
-    "pick_theme_to_eliminate": "Pick theme to eliminate",
-    "write_your_answer": "Write your answer here"
-  }
+  "custom": "Custom"
 }

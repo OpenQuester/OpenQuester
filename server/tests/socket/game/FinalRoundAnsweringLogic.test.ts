@@ -15,7 +15,6 @@ import {
   FinalSubmitEndEventData,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -49,7 +48,6 @@ describe("Final Round Answering Logic", () => {
       await cleanup();
     }
     await testEnv.teardown();
-    await RedisConfig.disconnect();
   });
 
   describe("Answer Submission Flow", () => {
@@ -158,7 +156,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should handle empty answers as auto-loss", async () => {
@@ -260,7 +258,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should handle single player answering", async () => {
@@ -332,7 +330,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should handle multiple players with mixed answer types", async () => {
@@ -464,7 +462,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
   });
 
@@ -602,7 +600,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
 
     it("should handle mixed correct and incorrect reviews", async () => {
@@ -740,7 +738,7 @@ describe("Final Round Answering Logic", () => {
       // Clean up
       showmanSocket.disconnect();
       playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSocket.disconnect();
+      setupResult.spectatorSockets[0].disconnect();
     });
   });
 });

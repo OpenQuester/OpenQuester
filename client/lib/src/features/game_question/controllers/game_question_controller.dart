@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openquester/common_imports.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,16 +13,21 @@ class GameQuestionController {
   late final questionData = ValueNotifier<GameQuestionData?>(null)
     ..addListener(_onQuestionChange);
   final mediaController = ValueNotifier<VideoPlayerController?>(null);
-  final showMedia = ValueNotifier<bool>(false);
   final error = ValueNotifier<String?>(null);
   final volume = ValueNotifier<double>(.5);
+  final showMedia = ValueNotifier<bool>(false);
+  final waitingForPlayers = ValueNotifier<bool>(false);
 
   File? _tmpFile;
+  bool ignoreWaitingForPlayers = false;
 
   Future<void> clear() async {
+    logger.d('GameQuestionController: Clearing question data');
     questionData.value = null;
     error.value = null;
     showMedia.value = false;
+    waitingForPlayers.value = false;
+    ignoreWaitingForPlayers = false;
     await clearVideoControllers();
     try {
       await _tmpFile?.delete();
@@ -36,24 +43,25 @@ class GameQuestionController {
 
       final file = questionData.value?.file?.file;
 
-      if (file == null) return;
+      if (file == null) {
+        // No media, notify immediately
+        if (!ignoreWaitingForPlayers) {
+          getIt<GameLobbyController>().notifyMediaDownloaded();
+        }
+        return;
+      }
+
+      // Wait for all players before playing
+      waitingForPlayers.value = !ignoreWaitingForPlayers;
 
       VideoPlayerController? controller;
       if (file.type != PackageFileType.image) {
         final uri = Uri.parse(file.link!);
 
-        // Fixes loading media without file extension
-        final desktopPlatform =
-            !kIsWeb &&
-            (Platform.isMacOS || Platform.isWindows || Platform.isLinux);
-        if (desktopPlatform) {
-          await _setTmpFile(file);
-          await getIt<DioController>().client.downloadUri(uri, _tmpFile!.path);
-          controller = VideoPlayerController.file(_tmpFile!);
-        } else {
-          controller = VideoPlayerController.networkUrl(uri);
-        }
-        await controller.setVolume(volume.value);
+        // Platform-specific media handling for proper preloading
+        controller = await _loadController(uri, file);
+
+        await controller.setVolume(_toLogVolume(volume.value));
         await controller.initialize();
 
         final waitMs = questionData.value?.file?.displayTime;
@@ -65,19 +73,77 @@ class GameQuestionController {
         }
       }
 
-      // Delay to let others players to download
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-
       mediaController.value = controller;
-      await controller?.play();
       showMedia.value = true;
+
+      // Notify server that media is downloaded
+      if (!ignoreWaitingForPlayers) {
+        getIt<GameLobbyController>().notifyMediaDownloaded();
+      } else {
+        await mediaController.value?.play();
+      }
     } catch (e) {
       error.value = getIt<GameLobbyController>().onError(e);
     }
     // TODO: Start slideshow timer
   }
 
-  Future<void> _setTmpFile(FileItem file) async {
+  static final Dio _cacheDio = Dio(
+    BaseOptions(receiveTimeout: const Duration(seconds: 10)),
+  );
+
+  Future<VideoPlayerController> _loadController(
+    Uri uri,
+    FileItem file,
+  ) async {
+    // Platform-specific media handling for proper preloading
+    if (kIsWeb) {
+      // Web: Browsers do not support file system access,
+      // so we use the network URL.
+      // To improve performance, we preload the media by caching it.
+      await _cacheFile(uri);
+      return VideoPlayerController.networkUrl(uri);
+    } else {
+      try {
+        // Mobile/Desktop: Download and use local file for reliable preloading
+        final tmpfile = await _setTmpFile(file);
+        await _cacheDio.downloadUri(uri, _tmpFile!.path);
+        return VideoPlayerController.file(tmpfile);
+      } catch (e) {
+        logger.d(
+          'GameQuestionController._loadController: '
+          'Failed to preload media from $uri: $e',
+        );
+        return VideoPlayerController.networkUrl(uri);
+      }
+    }
+  }
+
+  Future<void> _cacheFile(Uri uri) async {
+    try {
+      await _cacheDio.getUri<void>(uri);
+    } catch (e) {
+      logger.d(
+        'GameQuestionController._cacheFile: '
+        'Failed to preload media from $uri: $e',
+      );
+    }
+  }
+
+  /// Called by GameLobbyController when all players have downloaded media
+  Future<void> onAllPlayersReady() async {
+    logger.d(
+      'GameQuestionController: All players ready, starting media playback '
+      'waitingForPlayers.value: ${waitingForPlayers.value}',
+    );
+    if (waitingForPlayers.value) {
+      waitingForPlayers.value = false;
+      showMedia.value = true;
+      await mediaController.value?.play();
+    }
+  }
+
+  Future<File> _setTmpFile(FileItem file) async {
     final tmpDir = await getTemporaryDirectory();
     final extension = switch (file.type) {
       PackageFileType.video => 'mp4',
@@ -91,6 +157,7 @@ class GameQuestionController {
         [file.md5, extension].join('.'),
       ].join(Platform.pathSeparator),
     );
+    return _tmpFile!;
   }
 
   Future<void> clearVideoControllers() async {
@@ -98,8 +165,21 @@ class GameQuestionController {
     mediaController.value = null;
   }
 
-  void onChangeVolume(double volume) {
+  Future<void> onChangeVolume(double volume) async {
     this.volume.value = volume.clamp(0, 1);
-    mediaController.value?.setVolume(this.volume.value);
+    await mediaController.value?.setVolume(_toLogVolume(this.volume.value));
   }
+
+  Future<void> onImageLoaded() async {
+    // Notify server that media is downloaded
+    // Wait for all players before showing
+    getIt<GameLobbyController>().notifyMediaDownloaded();
+  }
+
+  static const minVol = 0.003;
+  static const maxVol = 1;
+  static final double b = math.log(maxVol / minVol);
+
+  double _toLogVolume(double linear) =>
+      minVol * math.exp(b * linear.clamp(minVol, maxVol));
 }

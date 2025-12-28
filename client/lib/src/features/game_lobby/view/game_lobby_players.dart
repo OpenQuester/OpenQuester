@@ -31,7 +31,9 @@ class GameLobbyPlayers extends WatchingWidget {
     return ListView.separated(
       itemCount: players.length,
       scrollDirection: axis,
-      padding: axis == Axis.horizontal ? 16.horizontal : null,
+      padding: axis == Axis.horizontal
+          ? 16.horizontal
+          : (screenBottomInset(context) + 16).bottom,
       separatorBuilder: (context, index) => const SizedBox.square(dimension: 8),
       itemBuilder: (context, index) {
         final player = players[index];
@@ -59,8 +61,9 @@ class GameLobbyPlayers extends WatchingWidget {
             );
 
             final allowEdit =
-                (gameData?.me.isShowman ?? false) && player.isPlayer;
-
+                gameData?.me.role == PlayerRole.showman &&
+                player.role == PlayerRole.player;
+                
             return InkWell(
               onTap: allowEdit
                   ? () => PlayerEditBtn.showEditMenu(

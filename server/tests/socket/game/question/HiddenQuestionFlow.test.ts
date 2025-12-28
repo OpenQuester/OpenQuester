@@ -14,7 +14,6 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -44,14 +43,7 @@ describe("Hidden Question Flow Tests", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    await redisClient.del(...(await redisClient.keys("*")));
-
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
-    }
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {
@@ -123,6 +115,9 @@ describe("Hidden Question Flow Tests", () => {
           });
         });
 
+        // Wait for media download phase and emit MEDIA_DOWNLOADED for the player
+        await utils.waitForMediaDownload(showmanSocket, playerSockets);
+
         // Verify game state shows we're now showing the question
         const showingGameState = await utils.getGameState(gameId);
         expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);
@@ -145,7 +140,11 @@ describe("Hidden Question Flow Tests", () => {
 
         // Find and pick a hidden question using the helper method
         const hiddenQuestionId = await utils.getFirstHiddenQuestionId(gameId);
-        await utils.pickQuestion(showmanSocket, hiddenQuestionId);
+        await utils.pickQuestion(
+          showmanSocket,
+          hiddenQuestionId,
+          playerSockets
+        );
 
         // Verify we can answer the hidden question normally
         await utils.answerQuestion(playerSocket, showmanSocket);
@@ -272,7 +271,11 @@ describe("Hidden Question Flow Tests", () => {
         }
 
         // Pick first hidden question and verify price is revealed
-        await utils.pickQuestion(showmanSocket, hiddenQuestions[0].id);
+        await utils.pickQuestion(
+          showmanSocket,
+          hiddenQuestions[0].id,
+          playerSockets
+        );
 
         // Complete the first question
         await utils.answerQuestion(playerSocket, showmanSocket);

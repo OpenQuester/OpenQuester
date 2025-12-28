@@ -140,11 +140,18 @@ export class Game {
     );
   }
 
-  public async addPlayer(meta: PlayerMeta, role: PlayerRole): Promise<Player> {
+  public async addPlayer(
+    meta: PlayerMeta,
+    role: PlayerRole,
+    targetSlot: number | null
+  ): Promise<Player> {
     const playerData = this._players.find((p) => p.meta.id === meta.id);
 
-    const slotIdx =
-      role === PlayerRole.PLAYER ? this._getFirstFreeSlotIndex() : null;
+    const slotIdx = this._resolveJoinSlot(
+      role,
+      targetSlot,
+      playerData?.gameSlot
+    );
 
     if (playerData) {
       playerData.gameStatus = PlayerGameStatus.IN_GAME;
@@ -389,8 +396,10 @@ export class Game {
     answerType: AnswerResultType,
     nextState: QuestionState
   ) {
+    // Use fetchDisconnected: true to handle case where answering player
+    // disconnects before timer expires or showman sends result
     const player = this.getPlayer(this.gameState.answeringPlayer!, {
-      fetchDisconnected: false,
+      fetchDisconnected: true,
     });
 
     if (!player) {
@@ -526,8 +535,87 @@ export class Game {
     );
   }
 
+  /**
+   * Check if all active players have exhausted their answer attempts.
+   *
+   * A player is "exhausted" when they have either:
+   * - Pressed the skip button (added to skippedPlayers)
+   * - Already answered incorrectly (added to answeredPlayers)
+   *
+   * When all players are exhausted, the question should auto-finish since
+   * no one remains who can provide a correct answer.
+   *
+   * @returns true if no active player can answer, false if someone can still try
+   */
+  public areAllPlayersExhausted(): boolean {
+    const activePlayers = this.getInGamePlayers();
+    if (activePlayers.length === 0) {
+      return true;
+    }
+
+    const skippedPlayers = this.gameState.skippedPlayers ?? [];
+    const answeredPlayerIds =
+      this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
+
+    return activePlayers.every(
+      (player) =>
+        skippedPlayers.includes(player.meta.id) ||
+        answeredPlayerIds.includes(player.meta.id)
+    );
+  }
+
   public getSkippedPlayers(): number[] {
     return this.gameState.skippedPlayers ?? [];
+  }
+
+  private _resolveJoinSlot(
+    role: PlayerRole,
+    targetSlot: number | null,
+    existingSlot: number | null | undefined
+  ): number | null {
+    if (role !== PlayerRole.PLAYER) {
+      return null;
+    }
+
+    return this._resolvePlayerJoinSlot(targetSlot, existingSlot);
+  }
+
+  private _resolvePlayerJoinSlot(
+    targetSlot: number | null,
+    existingSlot: number | null | undefined
+  ): number {
+    if (targetSlot !== null) {
+      return targetSlot;
+    }
+
+    const preservedSlot = this._getPreservedReconnectSlot(existingSlot);
+    if (preservedSlot !== null) {
+      return preservedSlot;
+    }
+
+    return this._getFirstFreeSlotIndex();
+  }
+
+  private _getPreservedReconnectSlot(
+    existingSlot: number | null | undefined
+  ): number | null {
+    if (ValueUtils.isBad(existingSlot)) {
+      return null;
+    }
+
+    return this._isSlotAvailable(existingSlot) ? existingSlot : null;
+  }
+
+  /**
+   * Check if a specific slot is available (not occupied by an in-game player)
+   */
+  private _isSlotAvailable(slot: number): boolean {
+    return !this._players.some(
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameSlot === slot &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
+    );
   }
 
   private _getFirstFreeSlotIndex(): number {

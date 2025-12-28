@@ -39,6 +39,17 @@ export class RedisRepository {
     return this._subClient.on(event, callback);
   }
 
+  public off(
+    event: string,
+    callback: (channel: string, message: string) => void
+  ) {
+    return this._subClient.off(event, callback);
+  }
+
+  public async unsubscribe(channel: string): Promise<void> {
+    await this._subClient.unsubscribe(channel);
+  }
+
   public async setLockKey(lockValue: string, expire?: number) {
     return this._client.set(
       lockValue,
@@ -305,6 +316,31 @@ export class RedisRepository {
   public async del(key: string): Promise<number> {
     return this.executeWithLogging("Redis DEL", { key }, async () => {
       return this._client.del(key);
+    });
+  }
+
+  // List operations for action queue
+  public async rpush(key: string, value: string): Promise<number> {
+    return this.executeWithLogging("Redis RPUSH", { key }, async () => {
+      return this._client.rpush(key, value);
+    });
+  }
+
+  public async lpop(key: string): Promise<string | null> {
+    return this.executeWithLogging("Redis LPOP", { key }, async () => {
+      return this._client.lpop(key);
+    });
+  }
+
+  public async lindex(key: string, index: number): Promise<string | null> {
+    return this.executeWithLogging("Redis LINDEX", { key, index }, async () => {
+      return this._client.lindex(key, index);
+    });
+  }
+
+  public async llen(key: string): Promise<number> {
+    return this.executeWithLogging("Redis LLEN", { key }, async () => {
+      return this._client.llen(key);
     });
   }
 

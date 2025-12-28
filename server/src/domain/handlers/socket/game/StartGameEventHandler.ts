@@ -1,12 +1,13 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   EmptyInputData,
@@ -23,13 +24,33 @@ export class StartGameEventHandler extends BaseSocketEventHandler<
     socket: Socket,
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
-    private readonly socketIOGameService: SocketIOGameService
+    actionExecutor: GameActionExecutor,
+    private readonly socketIOGameService: SocketIOGameService,
+    private readonly socketGameContextService: SocketGameContextService
   ) {
-    super(socket, eventEmitter, logger);
+    super(socket, eventEmitter, logger, actionExecutor);
   }
 
   public getEventName(): SocketIOGameEvents {
     return SocketIOGameEvents.START;
+  }
+
+  protected async getGameIdForAction(
+    _data: EmptyInputData,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    try {
+      const gameContext = await this.socketGameContextService.fetchGameContext(
+        context.socketId
+      );
+      return gameContext.game?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  protected override getActionType(): GameActionType {
+    return GameActionType.START;
   }
 
   protected async validateInput(
@@ -44,35 +65,5 @@ export class StartGameEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization will be handled by the service layer
-  }
-
-  protected async execute(
-    _data: EmptyInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<GameStartBroadcastData>> {
-    // Execute the start game logic
-    const gameDTO = await this.socketIOGameService.startGame(this.socket.id);
-
-    // Assign context variables for logging
-    context.gameId = gameDTO.id;
-    context.userId = this.socket.userId;
-
-    const startEventPayload: GameStartBroadcastData = {
-      currentRound: gameDTO.gameState.currentRound!,
-    };
-
-    // Return result with broadcasting instructions
-    return {
-      success: true,
-      data: startEventPayload,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.START,
-          data: startEventPayload,
-          target: SocketBroadcastTarget.GAME,
-          gameId: gameDTO.id,
-        },
-      ],
-    };
   }
 }

@@ -7,6 +7,8 @@ export const GAME_ID_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 export const GAME_TITLE_MAX_CHARS = 70;
 export const GAME_TITLE_MIN_CHARS = 3;
 export const GAME_MAX_PLAYERS = 15;
+export const SYSTEM_PLAYER_ID = -1;
+export const SYSTEM_SOCKET_ID = "SYSTEM";
 /** 2 hours (updates with almost every action) */
 export const GAME_TTL_IN_SECONDS = 60 * 60 * 2;
 export const GAME_CHAT_NSP = `${CHAT_NSP}:game`;
@@ -17,6 +19,8 @@ export const GAME_CHAT_HISTORY_RETRIEVAL_LIMIT = 100;
 export const GAME_QUESTION_ANSWER_TIME = SECOND_MS * 20.5;
 /** 1 minute */
 export const GAME_QUESTION_ANSWER_SUBMIT_TIME = MINUTE_MS * 1;
+/** 10 seconds - timeout for media download */
+export const MEDIA_DOWNLOAD_TIMEOUT = SECOND_MS * 10;
 /** 75 seconds */
 export const GAME_FINAL_ANSWER_TIME = SECOND_MS * 75;
 

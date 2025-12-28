@@ -32,7 +32,6 @@ import {
   AnswerSubmittedInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -323,11 +322,7 @@ describe("Stake Question Zero Price Answer Tests", () => {
   });
 
   beforeEach(async () => {
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {
@@ -335,7 +330,6 @@ describe("Stake Question Zero Price Answer Tests", () => {
       await cleanup();
     }
     await testEnv.teardown();
-    await RedisConfig.disconnect();
   });
 
   describe("Zero Price Stake Question Answer Scenarios", () => {

@@ -1,15 +1,10 @@
 import { Game } from "domain/entities/game/Game";
 import { FinalAnswerType } from "domain/enums/FinalRoundTypes";
-import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
+import { TransitionResult } from "domain/state-machine/types";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
 import { PlayerBidData } from "../events/FinalRoundEventData";
 import { QuestionAnswerData } from "./QuestionAnswerData";
-
-export interface FinalRoundQuestionData {
-  themeId: number;
-  themeName: string;
-  question: GameStateQuestionDTO;
-}
 
 export interface AnswerReviewData {
   playerId: number;
@@ -22,11 +17,13 @@ export interface AnswerReviewData {
 
 export interface ThemeEliminateResult {
   game: Game;
-  eliminatedBy: number;
+  eliminatedBy: number; // Player ID
   themeId: number;
   nextPlayerId: number | null;
   isPhaseComplete: boolean;
   timer?: GameStateTimerDTO;
+  /** Transition result for direct broadcast pass-through */
+  transitionResult?: TransitionResult | null;
 }
 
 export interface FinalBidSubmitResult {
@@ -34,7 +31,8 @@ export interface FinalBidSubmitResult {
   playerId: number;
   bidAmount: number;
   isPhaseComplete: boolean;
-  questionData?: FinalRoundQuestionData;
+  /** Transition result for direct broadcast pass-through */
+  transitionResult: TransitionResult | null;
   timer?: GameStateTimerDTO;
 }
 
@@ -44,6 +42,8 @@ export interface FinalAnswerSubmitResult {
   isPhaseComplete: boolean;
   isAutoLoss: boolean;
   allReviews?: AnswerReviewData[]; // All answers revealed when transitioning to reviewing phase
+  /** Transition result for direct broadcast pass-through */
+  transitionResult?: TransitionResult;
 }
 
 export interface FinalAnswerReviewResult {
@@ -60,6 +60,8 @@ export interface ThemeEliminationTimeoutResult {
   nextPlayerId: number | null;
   isPhaseComplete: boolean;
   timer?: GameStateTimerDTO;
+  /** Transition result for direct broadcast pass-through */
+  transitionResult?: TransitionResult | null;
 }
 
 export interface BiddingTimeoutResult {
@@ -67,6 +69,8 @@ export interface BiddingTimeoutResult {
   timeoutBids: Array<PlayerBidData>;
   questionData: FinalRoundQuestionData;
   timer: GameStateTimerDTO;
+  /** Transition result for direct broadcast pass-through */
+  transitionResult: TransitionResult;
 }
 
 /**
@@ -87,4 +91,6 @@ export interface AutoLossProcessResult {
   autoLossReviews: AnswerReviewData[];
   isReadyForReview: boolean;
   allReviews?: AnswerReviewData[]; // For showman when transitioning to review phase
+  /** Transition result for direct broadcast pass-through */
+  transitionResult: TransitionResult | null;
 }

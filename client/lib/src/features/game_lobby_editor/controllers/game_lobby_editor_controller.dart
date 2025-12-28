@@ -30,6 +30,13 @@ class GameLobbyEditorController {
     );
   }
 
+  void kickPlayer(int playerId) {
+    _socket?.emit(
+      SocketIOGameSendEvents.playerKicked.json!,
+      SocketIOPlayerKickInput(playerId: playerId).toJson(),
+    );
+  }
+
   void playerRoleChange(PlayerRole newRole, [int? playerId]) {
     _socket?.emit(
       SocketIOGameSendEvents.playerRoleChange.json!,

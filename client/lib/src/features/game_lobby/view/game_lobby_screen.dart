@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:animate_do/animate_do.dart';
@@ -17,12 +18,12 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   @override
   void initState() {
     super.initState();
-    getIt<GameLobbyController>().join(gameId: widget.gameId);
+    unawaited(getIt<GameLobbyController>().join(gameId: widget.gameId));
   }
 
   @override
   void deactivate() {
-    getIt<GameLobbyController>().leave();
+    unawaited(getIt<GameLobbyController>().leave());
     super.deactivate();
   }
 

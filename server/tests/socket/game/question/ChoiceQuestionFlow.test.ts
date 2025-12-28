@@ -14,7 +14,6 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -44,14 +43,7 @@ describe("Choice Question Flow Tests", () => {
   });
 
   beforeEach(async () => {
-    // Clear Redis before each test
-    const redisClient = RedisConfig.getClient();
-    await redisClient.del(...(await redisClient.keys("*")));
-
-    const keys = await redisClient.keys("*");
-    if (keys.length > 0) {
-      throw new Error(`Redis keys not cleared before test: ${keys}`);
-    }
+    await testEnv.clearRedis();
   });
 
   afterAll(async () => {
@@ -135,6 +127,20 @@ describe("Choice Question Flow Tests", () => {
         expect(questionData.data.showDelay).toBeDefined();
         expect(questionData.data.answers).toBeDefined();
         expect(questionData.data.answers?.length).toBe(4);
+
+        const downloadingGameState = await utils.getGameState(gameId);
+        expect(downloadingGameState!.questionState).toBe(
+          QuestionState.MEDIA_DOWNLOADING
+        );
+        expect(downloadingGameState!.currentQuestion).toBeDefined();
+
+        const mediaStatusPromise = utils.waitForEvent(
+          playerSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
+        playerSocket.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+        await mediaStatusPromise;
 
         const showingGameState = await utils.getGameState(gameId);
         expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);

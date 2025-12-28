@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpenQuester API",
-    "version": "0.21.0"
+    "version": "0.22.0"
   },
   "security": [
     {
@@ -205,6 +205,71 @@
             "schema": {
               "$ref": "#/components/schemas/PaginationTitle"
             }
+          },
+          {
+            "name": "description",
+            "in": "query",
+            "description": "Search by package description, not case sensitive",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageDescription" }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "description": "Filter by package language",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageLanguage" }
+          },
+          {
+            "name": "authorId",
+            "in": "query",
+            "description": "Filter by author user id",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageAuthorId" }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Filter by tags. Accepts array (tags=value&tags=value2) or comma-separated string (tags=tag1,tag2)",
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": { "$ref": "#/components/schemas/PackageTags" }
+          },
+          {
+            "name": "ageRestriction",
+            "in": "query",
+            "description": "Filter by age restriction",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/AgeRestriction" }
+          },
+          {
+            "name": "minRounds",
+            "in": "query",
+            "description": "Minimum rounds count",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageMinRounds" }
+          },
+          {
+            "name": "maxRounds",
+            "in": "query",
+            "description": "Maximum rounds count",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageMaxRounds" }
+          },
+          {
+            "name": "minQuestions",
+            "in": "query",
+            "description": "Minimum questions count",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageMinQuestions" }
+          },
+          {
+            "name": "maxQuestions",
+            "in": "query",
+            "description": "Maximum questions count",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageMaxQuestions" }
           }
         ],
         "responses": {
@@ -251,7 +316,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PackageResponse"
+                  "$ref": "#/components/schemas/OqPackage"
                 }
               }
             }
@@ -1304,6 +1369,11 @@
           },
           "role": {
             "$ref": "#/components/schemas/PlayerRole"
+          },
+          "slot": {
+            "type": ["integer", "null"],
+            "description": "Player's game slot index (0-based). Only set for players with PLAYER role.",
+            "examples": [0, 1, 2, null]
           }
         }
       },
@@ -1502,7 +1572,7 @@
           }
         }
       },
-      "PackageResponse": {
+      "OqPackage": {
         "type": "object",
         "properties": {
           "id": {
@@ -1670,6 +1740,43 @@
       "PaginationOffset": {
         "type": "integer",
         "examples": [0],
+        "minimum": 0
+      },
+      "PackageDescription": {
+        "type": "string",
+        "examples": ["Learn everything about web development"],
+        "description": "Search by package description (case-insensitive)"
+      },
+      "PackageLanguage": {
+        "type": "string",
+        "examples": ["en", "ua", "es"],
+        "description": "Package language code"
+      },
+      "PackageAuthorId": {
+        "type": "integer",
+        "minimum": 0,
+        "examples": [1],
+        "description": "Author user id"
+      },
+      "PackageTags": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Tags filter; can also be provided as comma-separated string"
+      },
+      "PackageMinRounds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "PackageMaxRounds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "PackageMinQuestions": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "PackageMaxQuestions": {
+        "type": "integer",
         "minimum": 0
       },
       "FilterCreatedAtMin": {
@@ -2522,6 +2629,12 @@
           "status": {
             "type": "string",
             "enum": ["in-game", "disconnected"]
+          },
+          "mediaDownloaded": {
+            "type": "boolean",
+            "description": "Whether the player has downloaded the current question's media",
+            "examples": [true, false],
+            "default": false
           }
         }
       },
@@ -2534,6 +2647,12 @@
           },
           "role": {
             "$ref": "#/components/schemas/PlayerRole"
+          },
+          "targetSlot": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "description": "Optional target slot for player role. If not provided, first available slot will be assigned. Only applicable when role is PLAYER.",
+            "examples": [0, 1, 2]
           }
         }
       },
@@ -2747,6 +2866,12 @@
             "type": "integer",
             "description": "This value written only when timer paused because of something. Helps to track passed time and resume timer correctly",
             "examples": [5000]
+          },
+          "resumedAt": {
+            "type": ["string", "null"],
+            "description": "Describes when timer was resumed after pause or restored from saved state. Null if timer was never paused/resumed. Helps users joining mid-game calculate correct elapsed time.",
+            "format": "date-time",
+            "examples": ["2024-01-01T00:00:05Z", null]
           }
         }
       },
@@ -2935,7 +3060,9 @@
           "secret-question-transfer",
           "stake-question-picked",
           "stake-bid-submit",
-          "stake-question-winner"
+          "stake-question-winner",
+          "media-downloaded",
+          "media-download-status"
         ],
         "examples": ["join"]
       },
@@ -2977,7 +3104,9 @@
           "secret-question-transfer",
           "stake-question-picked",
           "stake-bid-submit",
-          "stake-question-winner"
+          "stake-question-winner",
+          "media-downloaded",
+          "media-download-status"
         ],
         "examples": ["join"]
       },
@@ -2991,6 +3120,35 @@
             "examples": [727]
           }
         }
+      },
+      "MediaDownloadStatusEventPayload": {
+        "type": "object",
+        "description": "Data sent to all players when a player downloads media",
+        "properties": {
+          "playerId": {
+            "type": "integer",
+            "description": "ID of the player who downloaded media",
+            "examples": [123]
+          },
+          "mediaDownloaded": {
+            "type": "boolean",
+            "description": "Whether the player has downloaded media",
+            "examples": [true]
+          },
+          "allPlayersReady": {
+            "type": "boolean",
+            "description": "Whether all active players have downloaded media",
+            "examples": [true, false]
+          },
+          "timer": {
+            "description": "Question timer (only present when allPlayersReady is true)",
+            "oneOf": [
+              { "$ref": "#/components/schemas/GameStateTimer" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["playerId", "mediaDownloaded", "allPlayersReady"]
       },
       "SocketIOGameUnskipEventPayload": {
         "type": "object",
@@ -3607,6 +3765,11 @@
             "type": "integer",
             "description": "The bid amount",
             "examples": [500]
+          },
+          "isAutomatic": {
+            "type": "boolean",
+            "description": "Whether the bid was automatically submitted (e.g., when player disconnects during bidding phase)",
+            "examples": [true, false]
           }
         },
         "required": ["playerId", "bidAmount"]
@@ -3753,6 +3916,13 @@
             },
             "description": "IDs of eliminated themes",
             "examples": [[1, 3, 5]]
+          },
+          "questionData": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/FinalRoundQuestionData" },
+              { "type": "null" }
+            ],
+            "description": "Question data for the final round, set when transitioning from bidding to answering phase"
           }
         },
         "required": [
@@ -4257,7 +4427,7 @@
       },
       "SocketIOStakeQuestionWinnerEventPayload": {
         "type": "object",
-        "description": "Data sent to all players when a bid is finished",
+        "description": "Data sent to all players when stake question bidding completes and winner is announced. Question data is sent separately via QUESTION_DATA event.",
         "properties": {
           "winnerPlayerId": {
             "type": "integer",
@@ -4266,6 +4436,7 @@
           },
           "finalBid": {
             "type": "integer",
+            "description": "The final winning bid amount",
             "examples": [2000]
           }
         },

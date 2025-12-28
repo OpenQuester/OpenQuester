@@ -1,10 +1,8 @@
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import {
-  AnswerReviewData,
-  FinalRoundQuestionData,
-} from "domain/types/socket/finalround/FinalRoundResults";
+import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
+import { AnswerReviewData } from "domain/types/socket/finalround/FinalRoundResults";
 
 /**
  * Data for theme elimination in final round
@@ -15,7 +13,7 @@ export interface ThemeEliminateInputData {
 
 export interface ThemeEliminateOutputData {
   themeId: number;
-  eliminatedBy: number | null; // Player ID
+  eliminatedBy: number; // Player ID
   /** Next player to pick theme, null if elimination complete */
   nextPlayerId: number | null;
 }

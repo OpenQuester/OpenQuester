@@ -18,6 +18,17 @@ export class RedisService {
     return this.redisRepository.on(event, callback);
   }
 
+  public off(
+    event: string,
+    callback: (channel: string, message: string) => void
+  ) {
+    return this.redisRepository.off(event, callback);
+  }
+
+  public async unsubscribe(channel: string): Promise<void> {
+    return this.redisRepository.unsubscribe(channel);
+  }
+
   public async publish(channel: string, message: string) {
     return this.redisRepository.publish(channel, message);
   }
@@ -107,6 +118,23 @@ export class RedisService {
 
   public async del(key: string): Promise<number> {
     return this.redisRepository.del(key);
+  }
+
+  // List operations for action queue
+  public async rpush(key: string, value: string): Promise<number> {
+    return this.redisRepository.rpush(key, value);
+  }
+
+  public async lpop(key: string): Promise<string | null> {
+    return this.redisRepository.lpop(key);
+  }
+
+  public async lindex(key: string, index: number): Promise<string | null> {
+    return this.redisRepository.lindex(key, index);
+  }
+
+  public async llen(key: string): Promise<number> {
+    return this.redisRepository.llen(key);
   }
 
   public async zrem(key: string, members: string[]) {

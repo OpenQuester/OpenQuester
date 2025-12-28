@@ -14,6 +14,7 @@ import { type Express } from "express";
 
 import { Environment } from "infrastructure/config/Environment";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 
 export class DevelopmentRestApiController {
   constructor(
@@ -21,6 +22,7 @@ export class DevelopmentRestApiController {
     private readonly userService: UserService,
     private readonly env: Environment,
     private readonly gameService: GameService,
+    private readonly storage: S3StorageService,
     private readonly logger: ILogger
   ) {
     const dummyUser = {
@@ -127,6 +129,40 @@ export class DevelopmentRestApiController {
           prefix: "[DEV]: ",
         });
         res.status(500).json({ error: `Failed to generate games` });
+      }
+    });
+
+    this.app.post("/v1/dev/upload-test-s3-files", async (req, res) => {
+      try {
+        const count = parseInt(req.query.count as string) || 5;
+
+        this.logger.audit(`Dev upload test S3 files triggered`, {
+          prefix: "[DEV]: ",
+          count,
+        });
+
+        if (count < 1 || count > 20) {
+          return res
+            .status(400)
+            .json({ error: "Count must be between 1 and 20" });
+        }
+
+        const uploadedFiles = await this.storage.uploadRandomTestFiles(count);
+
+        res.json({
+          success: true,
+          message: `Successfully uploaded ${uploadedFiles.length} test files to S3`,
+          count: uploadedFiles.length,
+          files: uploadedFiles,
+        });
+      } catch (err: any) {
+        const error = await ErrorController.resolveError(err, this.logger);
+        this.logger.error(`DEV: Upload test S3 files error: ${error.message}`, {
+          prefix: "[DEV]: ",
+        });
+        res
+          .status(500)
+          .json({ error: `Failed to upload test S3 files: ${error.message}` });
       }
     });
   }

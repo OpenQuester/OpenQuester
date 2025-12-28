@@ -1,12 +1,18 @@
 import Redis from "ioredis";
 import { Server as IOServer } from "socket.io";
 
+import { configureActionHandlers } from "application/config/ActionHandlerConfig";
 import { Container, CONTAINER_TYPES } from "application/Container";
 import { StorageContextBuilder } from "application/context/storage/StorageContextBuilder";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { CronJobFactory } from "application/factories/CronJobFactory";
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { GameExpirationHandler } from "application/handlers/GameExpirationHandler";
 import { TimerExpirationHandler } from "application/handlers/TimerExpirationHandler";
+import { GameActionHandlerRegistry } from "application/registries/GameActionHandlerRegistry";
 import { AdminService } from "application/services/admin/AdminService";
+import { GameActionBroadcastService } from "application/services/broadcast/GameActionBroadcastService";
+import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { FileService } from "application/services/file/FileService";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { GameEventBroadcastService } from "application/services/game/GameEventBroadcastService";
@@ -15,6 +21,8 @@ import { GameProgressionCoordinator } from "application/services/game/GameProgre
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
 import { PackageTagService } from "application/services/package/PackageTagService";
+import { PlayerLeaveService } from "application/services/player/PlayerLeaveService";
+import { SpecialQuestionService } from "application/services/question/SpecialQuestionService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
@@ -28,10 +36,13 @@ import { GameStatisticsCollectorService } from "application/services/statistics/
 import { GameStatisticsService } from "application/services/statistics/GameStatisticsService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { TranslateService } from "application/services/text/TranslateService";
+import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { UserService } from "application/services/user/UserService";
 import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
+import { createPhaseTransitionRouter } from "domain/state-machine/createPhaseTransitionRouter";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { RedisCache } from "infrastructure/cache/RedisCache";
 import { Environment } from "infrastructure/config/Environment";
@@ -59,6 +70,8 @@ import { PlayerGameStatsRepository } from "infrastructure/database/repositories/
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { DependencyService } from "infrastructure/services/dependency/DependencyService";
+import { GameActionLockService } from "infrastructure/services/lock/GameActionLockService";
+import { GameActionQueueService } from "infrastructure/services/queue/GameActionQueueService";
 import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -116,6 +129,59 @@ export class DIConfig {
       CONTAINER_TYPES.RedisService,
       new RedisService(
         Container.get<RedisRepository>(CONTAINER_TYPES.RedisRepository)
+      ),
+      "service"
+    );
+
+    // Action Queue System Services
+    Container.register(
+      CONTAINER_TYPES.GameActionLockService,
+      new GameActionLockService(
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.GameActionQueueService,
+      new GameActionQueueService(
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
+        this.logger
+      ),
+      "service"
+    );
+
+    // Action Handler Registry
+    Container.register(
+      CONTAINER_TYPES.GameActionHandlerRegistry,
+      new GameActionHandlerRegistry(this.logger),
+      "service"
+    );
+
+    // Action Broadcast Service
+    const actionBroadcastService = new GameActionBroadcastService(this.logger);
+    Container.register(
+      CONTAINER_TYPES.GameActionBroadcastService,
+      actionBroadcastService,
+      "service"
+    );
+
+    // Action Executor
+    Container.register(
+      CONTAINER_TYPES.GameActionExecutor,
+      new GameActionExecutor(
+        Container.get<GameActionHandlerRegistry>(
+          CONTAINER_TYPES.GameActionHandlerRegistry
+        ),
+        actionBroadcastService,
+        Container.get<GameActionQueueService>(
+          CONTAINER_TYPES.GameActionQueueService
+        ),
+        Container.get<GameActionLockService>(
+          CONTAINER_TYPES.GameActionLockService
+        ),
+        this.logger
       ),
       "service"
     );
@@ -371,6 +437,29 @@ export class DIConfig {
     );
 
     Container.register(
+      CONTAINER_TYPES.CronJobFactory,
+      new CronJobFactory(
+        this.logger,
+        Container.get<S3StorageService>(CONTAINER_TYPES.S3StorageService),
+        Container.get<FileService>(CONTAINER_TYPES.FileService),
+        this.env
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.CronSchedulerService,
+      new CronSchedulerService(
+        Container.get<CronJobFactory>(
+          CONTAINER_TYPES.CronJobFactory
+        ).createAllCronJobs(),
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
       CONTAINER_TYPES.PackageService,
       new PackageService(
         Container.get<PackageRepository>(CONTAINER_TYPES.PackageRepository),
@@ -422,6 +511,19 @@ export class DIConfig {
     );
 
     Container.register(
+      CONTAINER_TYPES.PhaseTransitionRouter,
+      createPhaseTransitionRouter(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketQuestionStateService>(
+          CONTAINER_TYPES.SocketQuestionStateService
+        ),
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
       CONTAINER_TYPES.SocketGameTimerService,
       new SocketGameTimerService(
         Container.get<GameService>(CONTAINER_TYPES.GameService)
@@ -436,6 +538,21 @@ export class DIConfig {
           CONTAINER_TYPES.SocketUserDataService
         ),
         Container.get<GameService>(CONTAINER_TYPES.GameService),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.SpecialQuestionService,
+      new SpecialQuestionService(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        ),
+        Container.get<SocketQuestionStateService>(
+          CONTAINER_TYPES.SocketQuestionStateService
+        ),
         this.logger
       ),
       "service"
@@ -460,6 +577,52 @@ export class DIConfig {
         Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
         Container.get<PlayerGameStatsService>(
           CONTAINER_TYPES.PlayerGameStatsService
+        ),
+        Container.get<SpecialQuestionService>(
+          CONTAINER_TYPES.SpecialQuestionService
+        ),
+        this.logger
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.FinalRoundService,
+      new FinalRoundService(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        ),
+        Container.get<SocketGameValidationService>(
+          CONTAINER_TYPES.SocketGameValidationService
+        ),
+        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory),
+        Container.get<PhaseTransitionRouter>(
+          CONTAINER_TYPES.PhaseTransitionRouter
+        )
+      ),
+      "service"
+    );
+
+    Container.register(
+      CONTAINER_TYPES.PlayerLeaveService,
+      new PlayerLeaveService(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<SocketGameContextService>(
+          CONTAINER_TYPES.SocketGameContextService
+        ),
+        Container.get<SocketUserDataService>(
+          CONTAINER_TYPES.SocketUserDataService
+        ),
+        Container.get<PlayerGameStatsService>(
+          CONTAINER_TYPES.PlayerGameStatsService
+        ),
+        Container.get<SocketQuestionStateService>(
+          CONTAINER_TYPES.SocketQuestionStateService
+        ),
+        Container.get<FinalRoundService>(CONTAINER_TYPES.FinalRoundService),
+        Container.get<PhaseTransitionRouter>(
+          CONTAINER_TYPES.PhaseTransitionRouter
         ),
         this.logger
       ),
@@ -492,6 +655,7 @@ export class DIConfig {
         Container.get<PlayerGameStatsService>(
           CONTAINER_TYPES.PlayerGameStatsService
         ),
+        Container.get<PlayerLeaveService>(CONTAINER_TYPES.PlayerLeaveService),
         this.logger,
         Container.get<IOServer>(CONTAINER_TYPES.IO).of(SOCKET_GAME_NAMESPACE)
       ),
@@ -514,35 +678,12 @@ export class DIConfig {
     );
 
     Container.register(
-      CONTAINER_TYPES.FinalRoundService,
-      new FinalRoundService(
-        Container.get<GameService>(CONTAINER_TYPES.GameService),
-        Container.get<SocketGameContextService>(
-          CONTAINER_TYPES.SocketGameContextService
-        ),
-        Container.get<SocketGameValidationService>(
-          CONTAINER_TYPES.SocketGameValidationService
-        ),
-        Container.get<SocketQuestionStateService>(
-          CONTAINER_TYPES.SocketQuestionStateService
-        ),
-        Container.get<RoundHandlerFactory>(CONTAINER_TYPES.RoundHandlerFactory)
-      ),
-      "service"
-    );
-
-    const handlers: RedisExpirationHandler[] = [
-      new GameExpirationHandler(
-        gameIndexManager,
-        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
-      ),
-      new TimerExpirationHandler(
-        Container.get<IOServer>(CONTAINER_TYPES.IO),
+      CONTAINER_TYPES.TimerExpirationService,
+      new TimerExpirationService(
         Container.get<GameService>(CONTAINER_TYPES.GameService),
         Container.get<SocketIOQuestionService>(
           CONTAINER_TYPES.SocketIOQuestionService
         ),
-        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
         Container.get<SocketQuestionStateService>(
           CONTAINER_TYPES.SocketQuestionStateService
         ),
@@ -554,6 +695,19 @@ export class DIConfig {
         Container.get<PlayerGameStatsService>(
           CONTAINER_TYPES.PlayerGameStatsService
         ),
+        this.logger
+      ),
+      "service"
+    );
+
+    const handlers: RedisExpirationHandler[] = [
+      new GameExpirationHandler(
+        gameIndexManager,
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
+      ),
+      new TimerExpirationHandler(
+        Container.get<GameService>(CONTAINER_TYPES.GameService),
+        Container.get<GameActionExecutor>(CONTAINER_TYPES.GameActionExecutor),
         this.logger
       ),
     ];
@@ -588,5 +742,50 @@ export class DIConfig {
       ),
       "service"
     );
+
+    // Initialize broadcast service with IO (for cross-instance communication)
+    const broadcastService = Container.get<GameActionBroadcastService>(
+      CONTAINER_TYPES.GameActionBroadcastService
+    );
+    const socketIOGameService = Container.get<SocketIOGameService>(
+      CONTAINER_TYPES.SocketIOGameService
+    );
+    broadcastService.init(
+      this.io.of(SOCKET_GAME_NAMESPACE),
+      socketIOGameService
+    );
+
+    // Configure action handlers (must be after all services are registered)
+    configureActionHandlers({
+      registry: Container.get<GameActionHandlerRegistry>(
+        CONTAINER_TYPES.GameActionHandlerRegistry
+      ),
+      finalRoundService: Container.get<FinalRoundService>(
+        CONTAINER_TYPES.FinalRoundService
+      ),
+      socketIOGameService: socketIOGameService,
+      socketIOChatService: Container.get<SocketIOChatService>(
+        CONTAINER_TYPES.SocketIOChatService
+      ),
+      socketIOQuestionService: Container.get<SocketIOQuestionService>(
+        CONTAINER_TYPES.SocketIOQuestionService
+      ),
+      socketGameContextService: Container.get<SocketGameContextService>(
+        CONTAINER_TYPES.SocketGameContextService
+      ),
+      userService: Container.get<UserService>(CONTAINER_TYPES.UserService),
+      gameProgressionCoordinator: Container.get<GameProgressionCoordinator>(
+        CONTAINER_TYPES.GameProgressionCoordinator
+      ),
+      gameStatisticsCollectorService:
+        Container.get<GameStatisticsCollectorService>(
+          CONTAINER_TYPES.GameStatisticsCollectorService
+        ),
+      gameService: Container.get<GameService>(CONTAINER_TYPES.GameService),
+      timerExpirationService: Container.get<TimerExpirationService>(
+        CONTAINER_TYPES.TimerExpirationService
+      ),
+      logger: this.logger,
+    });
   }
 }

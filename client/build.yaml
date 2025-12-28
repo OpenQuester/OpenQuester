@@ -5,4 +5,9 @@ targets:
         options:
           path: .env
           override: true
-          
+      freezed:
+        options:
+          explicit_to_json: true
+      json_serializable:
+        options:
+          explicit_to_json: true
