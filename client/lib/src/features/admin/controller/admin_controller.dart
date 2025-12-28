@@ -19,7 +19,9 @@ class AdminController extends ChangeNotifier {
   String? get error => _error;
 
   Future<void> loadDashboardData({int? timeframeDays}) async {
-    if (!ProfileController.hasPermission(PermissionName.adminPanelAccess)) {
+    if (!ProfileController.userHavePermission(
+      PermissionName.adminPanelAccess,
+    )) {
       _error = LocaleKeys.admin_no_permission.tr();
       notifyListeners();
       return;
@@ -49,7 +51,7 @@ class AdminController extends ChangeNotifier {
     int? limit,
     int? offset,
   }) async {
-    if (!ProfileController.hasPermission(PermissionName.viewUsersInfo)) {
+    if (!ProfileController.userHavePermission(PermissionName.viewUsersInfo)) {
       _error = LocaleKeys.admin_no_permission.tr();
       notifyListeners();
       return;
@@ -77,7 +79,9 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<void> loadSystemHealth() async {
-    if (!ProfileController.hasPermission(PermissionName.viewSystemHealth)) {
+    if (!ProfileController.userHavePermission(
+      PermissionName.viewSystemHealth,
+    )) {
       _error = LocaleKeys.admin_no_permission.tr();
       notifyListeners();
       return;
@@ -100,7 +104,9 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<void> loadPing() async {
-    if (!ProfileController.hasPermission(PermissionName.viewSystemHealth)) {
+    if (!ProfileController.userHavePermission(
+      PermissionName.viewSystemHealth,
+    )) {
       _error = LocaleKeys.admin_no_permission.tr();
       notifyListeners();
       return;
@@ -115,7 +121,7 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<bool> banUser(int userId) async {
-    if (!ProfileController.hasPermission(PermissionName.banUsers)) {
+    if (!ProfileController.userHavePermission(PermissionName.banUsers)) {
       await getIt<ToastController>().show(
         LocaleKeys.admin_no_permission.tr(),
       );
@@ -126,6 +132,7 @@ class AdminController extends ChangeNotifier {
       await Api.I.api.admin.postV1AdminApiUsersIdBan(id: userId);
       await getIt<ToastController>().show(
         LocaleKeys.admin_user_banned_success.tr(),
+        type: ToastType.success,
       );
       return true;
     } catch (e) {
@@ -138,7 +145,7 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<bool> unbanUser(int userId) async {
-    if (!ProfileController.hasPermission(PermissionName.banUsers)) {
+    if (!ProfileController.userHavePermission(PermissionName.banUsers)) {
       await getIt<ToastController>().show(
         LocaleKeys.admin_no_permission.tr(),
       );
@@ -149,6 +156,7 @@ class AdminController extends ChangeNotifier {
       await Api.I.api.admin.postV1AdminApiUsersIdUnban(id: userId);
       await getIt<ToastController>().show(
         LocaleKeys.admin_user_unbanned_success.tr(),
+        type: ToastType.success,
       );
       return true;
     } catch (e) {
@@ -161,7 +169,9 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<bool> deleteUser(int userId) async {
-    if (!ProfileController.hasPermission(PermissionName.deleteAnotherUser)) {
+    if (!ProfileController.userHavePermission(
+      PermissionName.deleteAnotherUser,
+    )) {
       await getIt<ToastController>().show(
         LocaleKeys.admin_no_permission.tr(),
       );
@@ -172,6 +182,7 @@ class AdminController extends ChangeNotifier {
       await Api.I.api.admin.deleteV1AdminApiUsersId(id: userId);
       await getIt<ToastController>().show(
         LocaleKeys.admin_user_deleted_success.tr(),
+        type: ToastType.success,
       );
       return true;
     } catch (e) {
@@ -184,7 +195,9 @@ class AdminController extends ChangeNotifier {
   }
 
   Future<bool> restoreUser(int userId) async {
-    if (!ProfileController.hasPermission(PermissionName.deleteAnotherUser)) {
+    if (!ProfileController.userHavePermission(
+      PermissionName.deleteAnotherUser,
+    )) {
       await getIt<ToastController>().show(
         LocaleKeys.admin_no_permission.tr(),
       );
@@ -195,6 +208,7 @@ class AdminController extends ChangeNotifier {
       await Api.I.api.admin.postV1AdminApiUsersRestoreId(id: userId);
       await getIt<ToastController>().show(
         LocaleKeys.admin_user_restored_success.tr(),
+        type: ToastType.success,
       );
       return true;
     } catch (e) {

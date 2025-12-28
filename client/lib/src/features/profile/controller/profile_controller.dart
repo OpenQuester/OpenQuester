@@ -39,6 +39,6 @@ class ProfileController {
     await load();
   }
 
-  static bool hasPermission(PermissionName permissionName) =>
-      ProfileController.getUser()?.hasPermission(permissionName) ?? false;
+  static bool userHavePermission(PermissionName permissionName) =>
+      ProfileController.getUser().havePermission(permissionName);
 }

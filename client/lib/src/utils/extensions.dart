@@ -161,10 +161,12 @@ extension OqPackageX on OqPackage {
   }
 }
 
-extension UserX on ResponseUser {
-  bool hasPermission(PermissionName permissionName) => permissions.any(
-    (permission) => permission.name == permissionName,
-  );
+extension UserX on ResponseUser? {
+  bool havePermission(PermissionName permissionName) =>
+      this != null &&
+      this!.permissions.any(
+        (permission) => permission.name == permissionName,
+      );
 }
 
 extension DateTimeX on DateTime {

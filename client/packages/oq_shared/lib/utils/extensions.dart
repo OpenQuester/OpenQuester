@@ -67,6 +67,26 @@ extension ListX<T> on List<T> {
   }
 }
 
+extension IterableX<T> on Iterable<T> {
+  bool containsAnyOf<C>(
+    Iterable<C> items, {
+    bool Function(T item, C target)? by,
+  }) {
+    for (final item in items) {
+      if (by != null) {
+        if (any((e) => by(e, item))) {
+          return true;
+        }
+      } else {
+        if (contains(item as T)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+}
+
 extension PlatformFileX on PlatformFile {
   /// Read bytes from PlatformFile (web or native)
   /// Consistent utility across all packages for file byte access

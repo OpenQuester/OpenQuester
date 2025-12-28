@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
+import 'package:openquester/src/features/admin/data/admin_action_type.dart';
 
 @RoutePage()
 class AdminDashboardScreen extends WatchingWidget {
@@ -9,12 +10,11 @@ class AdminDashboardScreen extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = watchValue((ProfileController e) => e.user);
-    final hasAdminAccess =
-        user?.hasPermission(PermissionName.adminPanelAccess) ?? false;
+    final me = watchValue((ProfileController e) => e.user);
+    final hasAdminAccess = me.havePermission(PermissionName.adminPanelAccess);
 
     // Check admin access
-    if (!hasAdminAccess || user == null) {
+    if (!hasAdminAccess) {
       return Scaffold(
         appBar: AppBar(title: Text(LocaleKeys.admin_dashboard.tr())),
         body: Center(
@@ -40,12 +40,12 @@ class AdminDashboardScreen extends WatchingWidget {
                     icon: const Icon(Icons.dashboard_outlined),
                     text: LocaleKeys.admin_overview.tr(),
                   ),
-                  if (user.hasPermission(PermissionName.viewUsersInfo))
+                  if (me.havePermission(PermissionName.viewUsersInfo))
                     Tab(
                       icon: const Icon(Icons.people_outlined),
                       text: LocaleKeys.admin_users.tr(),
                     ),
-                  if (user.hasPermission(PermissionName.viewSystemHealth))
+                  if (me.havePermission(PermissionName.viewSystemHealth))
                     Tab(
                       icon: const Icon(Icons.health_and_safety_outlined),
                       text: LocaleKeys.admin_system_health.tr(),
@@ -56,9 +56,9 @@ class AdminDashboardScreen extends WatchingWidget {
             body: TabBarView(
               children: [
                 const _OverviewTab(),
-                if (user.hasPermission(PermissionName.viewUsersInfo))
+                if (me.havePermission(PermissionName.viewUsersInfo))
                   const _UsersTab(),
-                if (user.hasPermission(PermissionName.viewSystemHealth))
+                if (me.havePermission(PermissionName.viewSystemHealth))
                   const _SystemHealthTab(),
               ],
             ),
@@ -441,7 +441,7 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-class _UserListItem extends StatelessWidget {
+class _UserListItem extends WatchingWidget {
   const _UserListItem({required this.user, required this.onRefresh});
 
   final ResponseUser user;
@@ -449,8 +449,14 @@ class _UserListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = getIt<AdminController>();
-    final isDeleted = user.isDeleted;
+    final me = watchValue((ProfileController m) => m.user);
+    const permissionsNeeded = {PermissionName.deleteAnotherUser};
+    final haveAnyNeededPermission =
+        me == null ||
+        !me.permissions.containsAnyOf(
+          permissionsNeeded,
+          by: (item, target) => item.name == target,
+        );
 
     return Card(
       child: ListTile(
@@ -467,10 +473,10 @@ class _UserListItem extends StatelessWidget {
             Row(
               spacing: 8,
               children: [
-                if (isDeleted)
+                if (user.isDeleted)
                   Chip(
                     label: Text(LocaleKeys.admin_deleted.tr()),
-                    backgroundColor: Colors.orange.withValues(alpha: 0.2),
+                    backgroundColor: Colors.orange.withBrightness(-0.8),
                     labelStyle: const TextStyle(color: Colors.orange),
                     visualDensity: VisualDensity.compact,
                   ),
@@ -478,111 +484,15 @@ class _UserListItem extends StatelessWidget {
             ),
           ],
         ),
-        trailing: PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert),
-          onSelected: (value) async {
-            var success = false;
-
-            switch (value) {
-              case 'ban':
-                final confirmed = await _showConfirmDialog(
-                  context,
-                  LocaleKeys.admin_confirm_ban.tr(args: [user.username]),
-                );
-                if (confirmed) {
-                  success = await controller.banUser(user.id);
-                }
-              case 'unban':
-                final confirmed = await _showConfirmDialog(
-                  context,
-                  LocaleKeys.admin_confirm_unban.tr(
-                    args: [user.username],
-                  ),
-                );
-                if (confirmed) {
-                  success = await controller.unbanUser(user.id);
-                }
-              case 'delete':
-                final confirmed = await _showConfirmDialog(
-                  context,
-                  LocaleKeys.admin_confirm_delete.tr(
-                    args: [user.username],
-                  ),
-                );
-                if (confirmed) {
-                  success = await controller.deleteUser(user.id);
-                }
-              case 'restore':
-                final confirmed = await _showConfirmDialog(
-                  context,
-                  LocaleKeys.admin_confirm_restore.tr(
-                    args: [user.username],
-                  ),
-                );
-                if (confirmed) {
-                  success = await controller.restoreUser(user.id);
-                }
-            }
-
-            if (success) {
-              onRefresh();
-            }
-          },
-          itemBuilder: (context) {
-            return [
-              if (!isDeleted &&
-                  user.hasPermission(PermissionName.deleteAnotherUser))
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    spacing: 8,
-                    children: [
-                      const Icon(Icons.delete, size: 20, color: Colors.red),
-                      Text(
-                        LocaleKeys.admin_delete_user.tr(),
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ],
-                  ),
-                ),
-              if (isDeleted &&
-                  user.hasPermission(PermissionName.deleteAnotherUser))
-                PopupMenuItem(
-                  value: 'restore',
-                  child: Row(
-                    spacing: 8,
-                    children: [
-                      const Icon(Icons.restore, size: 20),
-                      Text(LocaleKeys.admin_restore_user.tr()),
-                    ],
-                  ),
-                ),
-            ];
-          },
-        ),
+        trailing: haveAnyNeededPermission
+            ? null
+            : _MoreUserButton(
+                user: user,
+                me: me,
+                onRefresh: onRefresh,
+              ),
       ),
     );
-  }
-
-  Future<bool> _showConfirmDialog(BuildContext context, String message) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(LocaleKeys.confirm.tr()),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(LocaleKeys.cancel.tr()),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(LocaleKeys.yes.tr()),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
   }
 }
 
@@ -661,18 +571,17 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
                       value: '${pingData.eventLoopLagMs.toStringAsFixed(2)} ms',
                       isHealthy: pingData.eventLoopLagMs < 100,
                     ),
-                    if (pingData.redis.responseMs != null)
-                      _HealthRow(
-                        label: [
-                          LocaleKeys.admin_response_time.tr(),
-                          LocaleKeys.admin_redis_status.tr(),
-                        ].join(' '),
-                        value: [
-                          pingData.redis.responseMs!.toStringAsFixed(2),
-                          'ms',
-                        ].join(' '),
-                        isHealthy: pingData.redis.connected,
-                      ),
+                    _HealthRow(
+                      label: [
+                        LocaleKeys.admin_response_time.tr(),
+                        LocaleKeys.admin_redis_status.tr(),
+                      ].join(' '),
+                      value: [
+                        pingData.redis.responseMs.toStringAsFixed(2),
+                        'ms',
+                      ].join(' '),
+                      isHealthy: pingData.redis.connected,
+                    ),
                   ],
                 ),
               ),
@@ -763,5 +672,110 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
         ],
       ),
     );
+  }
+}
+
+class _MoreUserButton extends StatelessWidget {
+  const _MoreUserButton({
+    required this.me,
+    required this.onRefresh,
+    required this.user,
+  });
+  final ResponseUser user;
+  final ResponseUser me;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = getIt<AdminController>();
+    return PopupMenuButton<AdminActionType>(
+      icon: const Icon(Icons.more_vert),
+      onSelected: (value) async {
+        var success = false;
+
+        switch (value) {
+          case AdminActionType.delete:
+            final confirmed = await _showConfirmDialog(
+              context,
+              LocaleKeys.admin_confirm_delete.tr(
+                args: [user.username],
+              ),
+            );
+            if (confirmed) {
+              success = await controller.deleteUser(user.id);
+            }
+          case AdminActionType.restore:
+            final confirmed = await _showConfirmDialog(
+              context,
+              LocaleKeys.admin_confirm_restore.tr(
+                args: [user.username],
+              ),
+            );
+            if (confirmed) {
+              success = await controller.restoreUser(user.id);
+            }
+        }
+
+        if (success) {
+          onRefresh();
+        }
+      },
+      itemBuilder: (context) {
+        return [
+          if (me.havePermission(PermissionName.deleteAnotherUser)) ...[
+            if (!user.isDeleted)
+              PopupMenuItem(
+                value: AdminActionType.delete,
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    const Icon(
+                      Icons.delete,
+                      size: 20,
+                      color: Colors.red,
+                    ),
+                    Text(
+                      LocaleKeys.admin_delete_user.tr(),
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ],
+                ),
+              )
+            else
+              PopupMenuItem(
+                value: AdminActionType.restore,
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    const Icon(Icons.restore, size: 20),
+                    Text(LocaleKeys.admin_restore_user.tr()),
+                  ],
+                ),
+              ),
+          ],
+        ];
+      },
+    );
+  }
+
+  Future<bool> _showConfirmDialog(BuildContext context, String message) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(LocaleKeys.confirm.tr()),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(LocaleKeys.cancel.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(LocaleKeys.yes.tr()),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 }
