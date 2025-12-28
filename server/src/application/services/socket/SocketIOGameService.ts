@@ -95,6 +95,7 @@ export class SocketIOGameService {
       userId: user.id,
       role: data.role,
       existingPlayer,
+      targetSlot: data.targetSlot,
     });
 
     // Add player to game
@@ -104,7 +105,8 @@ export class SocketIOGameService {
         username: user.username,
         avatar: user.avatar ?? null,
       },
-      data.role
+      data.role,
+      data.targetSlot
     );
 
     // Update socket session
