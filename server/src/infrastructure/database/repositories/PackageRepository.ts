@@ -8,9 +8,8 @@ import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { FileDTO } from "domain/types/dto/file/FileDTO";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
-import { PackagePaginationOpts } from "domain/types/pagination/package/PackagePaginationOpts";
+import { PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
-import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { SelectOptions } from "domain/types/SelectOptions";
 import { Database } from "infrastructure/database/Database";
 import { File } from "infrastructure/database/models/File";
@@ -25,6 +24,9 @@ import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { PackageTheme } from "infrastructure/database/models/package/PackageTheme";
 import { User } from "infrastructure/database/models/User";
 import { StorageUtils } from "infrastructure/utils/StorageUtils";
+import { ValueUtils } from "infrastructure/utils/ValueUtils";
+
+import { PackageSearchQueryHelper } from "infrastructure/database/repositories/PackageSearchQueryHelper";
 
 type OrderMapEntry =
   | "rounds"
@@ -52,37 +54,23 @@ export class PackageRepository {
     });
   }
 
-  public async list(
-    paginationOpts: PackagePaginationOpts
+  public async search(
+    searchOpts: PackageSearchOpts
   ): Promise<PaginatedResult<Package[]>> {
-    const {
-      order = PaginationOrder.ASC,
-      sortBy = "created_at",
-      offset,
-      limit,
-      title,
-    } = paginationOpts;
+    const { minRounds, maxRounds, minQuestions, maxQuestions } = searchOpts;
+    const searchHelper = new PackageSearchQueryHelper(this.repository);
 
-    // Shallow fetch only data required by toSimpleDTO (author, logo, tags)
-    const qb = this.repository
-      .createQueryBuilder("package")
-      .leftJoinAndSelect("package.author", "author")
-      .leftJoinAndSelect("package.logo", "logo")
-      .leftJoinAndSelect("package.tags", "tag")
-      .skip(offset)
-      .take(limit);
+    const needsStatsFiltering =
+      ValueUtils.isNumber(minRounds) ||
+      ValueUtils.isNumber(maxRounds) ||
+      ValueUtils.isNumber(minQuestions) ||
+      ValueUtils.isNumber(maxQuestions);
 
-    if (title && title.length > 0) {
-      qb.andWhere("package.title ILIKE :title", { title: `%${title}%` });
+    if (needsStatsFiltering) {
+      return searchHelper.searchWithStatsFiltering(searchOpts);
     }
 
-    const sortColumn =
-      sortBy === "author" ? "author.username" : `package.${sortBy}`;
-    qb.orderBy(sortColumn, order.toUpperCase() as "ASC" | "DESC");
-
-    const [data, total] = await qb.getManyAndCount();
-
-    return { data, pageInfo: { total } };
+    return searchHelper.searchWithoutStatsFiltering(searchOpts);
   }
 
   public findByIds(

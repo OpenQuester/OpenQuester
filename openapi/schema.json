@@ -205,6 +205,71 @@
             "schema": {
               "$ref": "#/components/schemas/PaginationTitle"
             }
+          },
+          {
+            "name": "description",
+            "in": "query",
+            "description": "Search by package description, not case sensitive",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageDescription" }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "description": "Filter by package language",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageLanguage" }
+          },
+          {
+            "name": "authorId",
+            "in": "query",
+            "description": "Filter by author user id",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageAuthorId" }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Filter by tags. Accepts array (tags=value&tags=value2) or comma-separated string (tags=tag1,tag2)",
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": { "$ref": "#/components/schemas/PackageTags" }
+          },
+          {
+            "name": "ageRestriction",
+            "in": "query",
+            "description": "Filter by age restriction",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/AgeRestriction" }
+          },
+          {
+            "name": "minRounds",
+            "in": "query",
+            "description": "Minimum rounds count",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageMinRounds" }
+          },
+          {
+            "name": "maxRounds",
+            "in": "query",
+            "description": "Maximum rounds count",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageMaxRounds" }
+          },
+          {
+            "name": "minQuestions",
+            "in": "query",
+            "description": "Minimum questions count",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageMinQuestions" }
+          },
+          {
+            "name": "maxQuestions",
+            "in": "query",
+            "description": "Maximum questions count",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageMaxQuestions" }
           }
         ],
         "responses": {
@@ -1670,6 +1735,43 @@
       "PaginationOffset": {
         "type": "integer",
         "examples": [0],
+        "minimum": 0
+      },
+      "PackageDescription": {
+        "type": "string",
+        "examples": ["Learn everything about web development"],
+        "description": "Search by package description (case-insensitive)"
+      },
+      "PackageLanguage": {
+        "type": "string",
+        "examples": ["en", "ua", "es"],
+        "description": "Package language code"
+      },
+      "PackageAuthorId": {
+        "type": "integer",
+        "minimum": 0,
+        "examples": [1],
+        "description": "Author user id"
+      },
+      "PackageTags": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Tags filter; can also be provided as comma-separated string"
+      },
+      "PackageMinRounds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "PackageMaxRounds": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "PackageMinQuestions": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "PackageMaxQuestions": {
+        "type": "integer",
         "minimum": 0
       },
       "FilterCreatedAtMin": {
