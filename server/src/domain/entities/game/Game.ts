@@ -294,7 +294,9 @@ export class Game {
       this.finish();
       isGameFinished = true;
     } else {
+      const currentPassword = this.gameState.password;
       nextGameState = GameStateMapper.getClearGameState(nextRound);
+      nextGameState.password = currentPassword;
       this.gameState = nextGameState;
 
       if (nextRound.type === PackageRoundType.FINAL) {

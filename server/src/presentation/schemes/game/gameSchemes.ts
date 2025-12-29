@@ -31,7 +31,7 @@ export const createGameScheme = () =>
     maxPlayers: Joi.number().max(GAME_MAX_PLAYERS).required(),
     password: Joi.string()
       .max(16)
-      .pattern(/^[A-Za-z]+$/)
+      .pattern(/^[A-Za-z0-9_-]+$/)
       .optional(),
   });
 

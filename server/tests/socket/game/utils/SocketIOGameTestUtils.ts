@@ -92,16 +92,37 @@ export class SocketGameTestUtils {
   public async joinSpecificGameWithData(
     socket: GameClientSocket,
     gameId: string,
-    role: PlayerRole
+    role: PlayerRole,
+    password?: string
   ): Promise<any> {
     return new Promise<any>((resolve) => {
-      const joinData: GameJoinData = { gameId, role, targetSlot: null };
+      const joinData: GameJoinData = { gameId, role, targetSlot: null, password };
       socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
         socket.gameId = gameId;
         socket.role = role;
         resolve(gameData);
       });
       socket.emit(SocketIOGameEvents.JOIN, joinData);
+    });
+  }
+
+  /**
+   * Join a game with password, expecting an error
+   */
+  public async joinGameWithPasswordExpectError(
+    socket: GameClientSocket,
+    gameId: string,
+    role: PlayerRole,
+    password?: string
+  ): Promise<any> {
+    return new Promise<any>((resolve, reject) => {
+      const joinData: GameJoinData = { gameId, role, targetSlot: null, password };
+      socket.once("error", (error) => {
+        resolve(error);
+      });
+      socket.emit(SocketIOGameEvents.JOIN, joinData);
+      // Timeout in case no error is received
+      setTimeout(() => reject(new Error("Expected error but none received")), 5000);
     });
   }
 

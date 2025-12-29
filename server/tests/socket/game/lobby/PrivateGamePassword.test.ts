@@ -28,6 +28,7 @@ describe("PrivateGamePassword", () => {
   let utils: SocketGameTestUtils;
   let logger: ILogger;
   let packageUtils: PackageUtils;
+  let userRepo: any;
 
   beforeAll(async () => {
     logger = await PinoLogger.init({ pretty: true });
@@ -39,6 +40,7 @@ describe("PrivateGamePassword", () => {
     serverUrl = `http://localhost:${process.env.PORT || 3000}`;
     utils = new SocketGameTestUtils(serverUrl);
     packageUtils = new PackageUtils();
+    userRepo = testEnv.getDatabase().getRepository(User);
   });
 
   afterAll(async () => {
@@ -55,7 +57,6 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should auto-generate a 4-character password for private game without password", async () => {
-    const userRepo = testEnv.getDatabase().getRepository(User);
     const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
 
     try {
@@ -115,7 +116,6 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should use custom password for private game when provided", async () => {
-    const userRepo = testEnv.getDatabase().getRepository(User);
     const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
 
     try {
@@ -175,7 +175,6 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should not set password for non-private games", async () => {
-    const userRepo = testEnv.getDatabase().getRepository(User);
     const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
 
     try {
@@ -233,7 +232,6 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should reject password with invalid characters", async () => {
-    const userRepo = testEnv.getDatabase().getRepository(User);
     const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
 
     try {
@@ -278,7 +276,6 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should reject password longer than 16 characters", async () => {
-    const userRepo = testEnv.getDatabase().getRepository(User);
     const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
 
     try {
@@ -319,6 +316,227 @@ describe("PrivateGamePassword", () => {
       expect(gameRes.status).toBe(400);
     } finally {
       socket.disconnect();
+    }
+  });
+
+  it("should allow joining private game with correct password", async () => {
+    const { socket: hostSocket, user, cookie } = await utils.createGameClient(
+      app,
+      userRepo
+    );
+    const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
+
+    try {
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username,
+        },
+        false,
+        0
+      );
+
+      const packageRes = await request(app)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
+
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
+
+      // Create private game with custom password
+      const customPassword = "Test123";
+      const gameData: GameCreateDTO = {
+        title: "Private Game Test",
+        packageId: createdPackage.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10,
+        password: customPassword,
+      };
+
+      const gameRes = await request(app)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
+
+      expect(gameRes.status).toBe(200);
+      const createdGame = gameRes.body;
+      const gameId = createdGame.id;
+
+      // Host joins first
+      await utils.joinSpecificGameWithData(
+        hostSocket,
+        gameId,
+        PlayerRole.SHOWMAN,
+        customPassword
+      );
+
+      // Player joins with correct password
+      const gameDataReceived = await utils.joinSpecificGameWithData(
+        playerSocket,
+        gameId,
+        PlayerRole.PLAYER,
+        customPassword
+      );
+
+      // Verify join was successful
+      expect(gameDataReceived).toBeDefined();
+      expect(gameDataReceived.gameState.password).toBe(customPassword);
+
+      // Clean up
+      await utils.deleteGame(app, gameId, [cookie]);
+    } finally {
+      hostSocket.disconnect();
+      playerSocket.disconnect();
+    }
+  });
+
+  it("should reject joining private game with incorrect password", async () => {
+    const { socket: hostSocket, user, cookie } = await utils.createGameClient(
+      app,
+      userRepo
+    );
+    const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
+
+    try {
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username,
+        },
+        false,
+        0
+      );
+
+      const packageRes = await request(app)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
+
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
+
+      // Create private game with custom password
+      const customPassword = "Test123";
+      const gameData: GameCreateDTO = {
+        title: "Private Game Test",
+        packageId: createdPackage.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10,
+        password: customPassword,
+      };
+
+      const gameRes = await request(app)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
+
+      expect(gameRes.status).toBe(200);
+      const createdGame = gameRes.body;
+      const gameId = createdGame.id;
+
+      // Host joins first
+      await utils.joinSpecificGameWithData(
+        hostSocket,
+        gameId,
+        PlayerRole.SHOWMAN,
+        customPassword
+      );
+
+      // Player tries to join with incorrect password
+      const errorResult = await utils.joinGameWithPasswordExpectError(
+        playerSocket,
+        gameId,
+        PlayerRole.PLAYER,
+        "WrongPass"
+      );
+
+      // Verify error was received
+      expect(errorResult).toBeDefined();
+      expect(errorResult.message).toContain("game_join_password_invalid");
+
+      // Clean up
+      await utils.deleteGame(app, gameId, [cookie]);
+    } finally {
+      hostSocket.disconnect();
+      playerSocket.disconnect();
+    }
+  });
+
+  it("should reject joining private game without password", async () => {
+    const { socket: hostSocket, user, cookie } = await utils.createGameClient(
+      app,
+      userRepo
+    );
+    const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
+
+    try {
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username,
+        },
+        false,
+        0
+      );
+
+      const packageRes = await request(app)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
+
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
+
+      // Create private game with custom password
+      const customPassword = "Test123";
+      const gameData: GameCreateDTO = {
+        title: "Private Game Test",
+        packageId: createdPackage.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10,
+        password: customPassword,
+      };
+
+      const gameRes = await request(app)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
+
+      expect(gameRes.status).toBe(200);
+      const createdGame = gameRes.body;
+      const gameId = createdGame.id;
+
+      // Host joins first
+      await utils.joinSpecificGameWithData(
+        hostSocket,
+        gameId,
+        PlayerRole.SHOWMAN,
+        customPassword
+      );
+
+      // Player tries to join without password
+      const errorResult = await utils.joinGameWithPasswordExpectError(
+        playerSocket,
+        gameId,
+        PlayerRole.PLAYER
+      );
+
+      // Verify error was received
+      expect(errorResult).toBeDefined();
+      expect(errorResult.message).toContain("game_join_password_invalid");
+
+      // Clean up
+      await utils.deleteGame(app, gameId, [cookie]);
+    } finally {
+      hostSocket.disconnect();
+      playerSocket.disconnect();
     }
   });
 });

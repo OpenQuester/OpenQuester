@@ -212,7 +212,8 @@ export class GameRepository {
     
     // Handle password for private games
     if (gameData.isPrivate) {
-      initialGameState.password = gameData.password || this._generateGamePassword();
+      initialGameState.password =
+        gameData.password || PasswordUtils.generateGamePassword();
     }
 
     const game = new Game(
@@ -547,10 +548,6 @@ export class GameRepository {
         ];
     }
     return result;
-  }
-
-  private _generateGamePassword(): string {
-    return PasswordUtils.generatePassword();
   }
 
   private async _fetchGameDetails(gameIds: string[]) {

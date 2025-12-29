@@ -16,6 +16,7 @@ export interface GameJoinValidationInput {
   role: PlayerRole;
   existingPlayer: Player | null;
   targetSlot: number | null;
+  password?: string;
 }
 
 /**
@@ -49,7 +50,15 @@ export class GameJoinLogic {
    * @throws ClientError if validation fails
    */
   public static validate(input: GameJoinValidationInput): void {
-    const { game, role, existingPlayer, targetSlot } = input;
+    const { game, role, existingPlayer, targetSlot, password } = input;
+
+    // Check password for private games (skip if player is reconnecting)
+    if (game.isPrivate && !existingPlayer) {
+      const gamePassword = game.gameState.password;
+      if (gamePassword && gamePassword !== password) {
+        throw new ClientError(ClientResponse.GAME_JOIN_PASSWORD_INVALID);
+      }
+    }
 
     // Check existing player restrictions FIRST before checking role availability
     if (existingPlayer) {
