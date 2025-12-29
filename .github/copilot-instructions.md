@@ -108,7 +108,7 @@ Allowed:
 
 ## Project Overview
 
-- Project: **OpenQuester** – an open-source multiplayer quiz game (backend: `server/`, frontend: `client/`)
+- Project: **OpenQuester** – an open-source multiplayer quiz game inspired by SIGame (backend: `server/`, frontend: `client/`)
 - Backend Stack: TypeScript (strict), Node.js, Express, PostgreSQL, Socket.IO, Joi, Redis
 - Frontend Stack: Flutter, Dart
 - Traffic: ≥100,000 MAU
@@ -117,6 +117,49 @@ Allowed:
   - Medium term → new features + bugfixes
   - Long term → clean architecture for OSS contributions
 - Tests: backend tests idea is to run as client side request with an additional access to DB/Redis for validation ONLY (auto-testing events + REST endpoints)
+
+### Game Mechanics Overview
+
+OpenQuester is a multiplayer quiz game with the following core mechanics:
+
+**Game Roles:**
+- **Showman (Host):** Controls game flow, reviews answers, marks correct/wrong attempts
+- **Players:** Compete for points by answering questions
+- **Spectators:** Watch the game without participating
+
+**Regular Round Gameplay:**
+- Player whose turn it is picks a theme and question (each question has a price/value)
+- Game synchronizes media so everyone sees/hears content fairly
+- Question is shown on a timer
+- Players hit the "answer button" (buzz) to answer - first to buzz gets the right to answer
+- Question timer pauses while player answers
+- If player fails or runs out of time, they typically lose the question's price in points
+- Question continues for other players to buzz (until all have tried or skipped)
+- Showman marks attempts as correct/wrong/skip and applies scoring:
+  - **Correct answer:** +price points
+  - **Wrong answer:** -price points (unless "No Risk" question type)
+
+**Special Question Types:**
+- **Stake/Bidding questions:** Players wager points
+- **Secret/Transfer questions:** Question can be transferred to another player
+- **No Risk questions:** Prevent point loss on wrong answers
+
+**Final Round Structure:**
+1. **Theme Elimination:** Players eliminate unwanted themes until one remains
+2. **Bidding:** Players wager points on their confidence (45-second timer)
+3. **Question Answering:** Players submit text answers (75-second timer, max 255 characters)
+4. **Reviewing:** Showman reviews and scores each answer
+
+**Package System:**
+- Community-created content packages on any theme
+- Supports native `.oq` format and (WIP) SIGame `.siq` packages
+- Packages contain rounds, themes, questions, and media
+- Anyone can create and upload packages for others to play
+
+**Key Technical Docs:**
+- Final round flow: `server/docs/final-round-flow.md`
+- Action queue system: `server/docs/game-action-executor.md`
+- Media sync: `server/docs/media-download-sync.md`
 
 ---
 
