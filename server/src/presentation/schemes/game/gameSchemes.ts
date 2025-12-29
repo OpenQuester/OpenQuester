@@ -29,6 +29,10 @@ export const createGameScheme = () =>
     isPrivate: Joi.boolean().required(),
     ageRestriction: Joi.valid(...Object.values(AgeRestriction)).required(),
     maxPlayers: Joi.number().max(GAME_MAX_PLAYERS).required(),
+    password: Joi.string()
+      .max(16)
+      .pattern(/^[A-Za-z]+$/)
+      .optional(),
   });
 
 export const gamePaginationScheme = () =>

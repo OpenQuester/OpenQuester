@@ -23,6 +23,7 @@ import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
+import { PasswordUtils } from "domain/utils/PasswordUtils";
 import { GameRedisValidator } from "domain/validators/GameRedisValidator";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
 import { User } from "infrastructure/database/models/User";
@@ -207,6 +208,13 @@ export class GameRepository {
       fetchIds: true,
     });
 
+    const initialGameState = GameStateMapper.initGameState();
+    
+    // Handle password for private games
+    if (gameData.isPrivate) {
+      initialGameState.password = gameData.password || this._generateGamePassword();
+    }
+
     const game = new Game(
       {
         id: gameId,
@@ -222,7 +230,7 @@ export class GameRepository {
         roundsCount: counts.roundsCount,
         questionsCount: counts.questionsCount,
         players: [],
-        gameState: GameStateMapper.initGameState(),
+        gameState: initialGameState,
       },
       this.logger
     );
@@ -539,6 +547,10 @@ export class GameRepository {
         ];
     }
     return result;
+  }
+
+  private _generateGamePassword(): string {
+    return PasswordUtils.generatePassword();
   }
 
   private async _fetchGameDetails(gameIds: string[]) {

@@ -1808,6 +1808,13 @@
             "minimum": 2,
             "maximum": 15,
             "examples": [10]
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 16,
+            "pattern": "^[A-Za-z]+$",
+            "description": "Optional password for private games. If not provided for a private game, a 4-character password will be auto-generated. Only accepts letters A-Z and a-z.",
+            "examples": ["MyPass123"]
           }
         }
       },
