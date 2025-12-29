@@ -138,7 +138,7 @@ describe("PrivateGamePassword", () => {
       const createdPackage = packageRes.body;
 
       // Create private game with custom password
-      const customPassword = "MyPass";
+      const customPassword = "Pass_123-Xyz";
       const gameData: GameCreateDTO = {
         title: "Private Game Test",
         packageId: createdPackage.id,
@@ -253,14 +253,14 @@ describe("PrivateGamePassword", () => {
       expect(packageRes.status).toBe(200);
       const createdPackage = packageRes.body;
 
-      // Try to create game with invalid password (contains numbers)
+      // Try to create game with invalid password (contains emoji/special chars)
       const gameData: GameCreateDTO = {
         title: "Private Game Test",
         packageId: createdPackage.id,
         isPrivate: true,
         ageRestriction: AgeRestriction.NONE,
         maxPlayers: 10,
-        password: "Pass123",
+        password: "Pass🎮123",
       };
 
       const gameRes = await request(app)

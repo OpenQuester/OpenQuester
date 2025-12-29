@@ -33,7 +33,7 @@
   "oauth_provider_not_supported": "Given Oauth provider is not supported",
   "session_saving_error": "Something went wrong during session save, please try again",
   "game_data_corrupted": "Game data is corrupted",
-  "game_join_password_invalid": "Invalid password for this private game",
+  "game_join_password_invalid": "Password is incorrect",
   "socket_user_not_authenticated": "Socket client (user) is not authenticated",
   "user_data_corrupted": "User data is corrupted",
   "already_in_game": "You are already in this game",

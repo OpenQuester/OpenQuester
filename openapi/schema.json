@@ -3148,6 +3148,13 @@
             "minimum": 0,
             "description": "Optional target slot for player role. If not provided, first available slot will be assigned. Only applicable when role is PLAYER.",
             "examples": [0, 1, 2]
+          },
+          "password": {
+            "type": ["string", "null"],
+            "maxLength": 16,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Password for joining private games. Required when joining a private game. Can be null for public games.",
+            "examples": ["Secret-123", null]
           }
         }
       },

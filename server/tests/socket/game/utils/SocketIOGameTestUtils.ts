@@ -114,8 +114,8 @@ export class SocketGameTestUtils {
     gameId: string,
     role: PlayerRole,
     password?: string
-  ): Promise<any> {
-    return new Promise<any>((resolve, reject) => {
+  ): Promise<unknown> {
+    return new Promise<unknown>((resolve, reject) => {
       const joinData: GameJoinData = { gameId, role, targetSlot: null, password };
       socket.once("error", (error) => {
         resolve(error);
