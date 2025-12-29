@@ -57,7 +57,7 @@ class _ImageWidgetState extends State<ImageWidget> {
   @override
   Widget build(BuildContext context) {
     final child = imageProvider == null
-        ? placeholder().fadeOut()
+        ? placeholder()
         : Image(
             image: imageProvider!,
             fit: widget.fit,
@@ -78,9 +78,10 @@ class _ImageWidgetState extends State<ImageWidget> {
             },
           ).fadeIn();
 
+    // Default to 48px diameter (24 radius) when avatarRadius is not provided.
     final size = widget.avatarRadius != null
         ? (widget.avatarRadius! * 2)
-        : null;
+        : 48.0;
 
     return AnimatedContainer(
       duration: Durations.medium1,
@@ -97,6 +98,14 @@ class _ImageWidgetState extends State<ImageWidget> {
   }
 
   Widget placeholder() {
-    return Container(color: context.theme.primaryColor, padding: 16.all);
+    final radius = widget.avatarRadius ?? 24.0;
+    return Container(
+      alignment: Alignment.center,
+      child: Icon(
+        Icons.person,
+        size: radius,
+        color: context.theme.colorScheme.onSurface,
+      ),
+    );
   }
 }

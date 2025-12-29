@@ -30,65 +30,76 @@ class ProfileDialog extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = watchValue((ProfileController m) => m.user);
-
     return AdaptiveDialog(
       constraints: const BoxConstraints(maxWidth: 400),
-      builder: (context) => Card(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            Container(
-              padding: 20.all,
-              decoration: BoxDecoration(
-                color: context.theme.colorScheme.primaryContainer.withValues(
-                  alpha: 0.3,
-                ),
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.account_circle_outlined,
-                    color: context.theme.colorScheme.primary,
-                  ),
-                  Text(
-                    LocaleKeys.profile.tr(),
-                    style: context.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ).paddingLeft(8),
-                ],
-              ),
-            ),
+      builder: (context) => const ProfileCard(),
+    );
+  }
+}
 
-            // Content
-            Padding(
-              padding: 24.all,
-              child: user == null
-                  ? const _LoginContent()
-                  : _ProfileContent(user: user),
+class ProfileCard extends WatchingWidget {
+  const ProfileCard({this.onClose, super.key});
+
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final user = watchValue((ProfileController m) => m.user);
+
+    return Card(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header
+          Container(
+            padding: 20.all,
+            decoration: BoxDecoration(
+              color: context.theme.colorScheme.primaryContainer.withValues(
+                alpha: 0.3,
+              ),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(12),
+              ),
             ),
-            const Column(
-              spacing: 12,
+            child: Row(
               children: [
-                _ThemeSettingsSection(),
-                _GameSettingsSection(),
-                _AppInfo(),
+                Icon(
+                  Icons.account_circle_outlined,
+                  color: context.theme.colorScheme.primary,
+                ),
+                Text(
+                  LocaleKeys.profile.tr(),
+                  style: context.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ).paddingLeft(8),
               ],
-            ).paddingSymmetric(horizontal: 12).paddingBottom(12),
-          ],
-        ),
+            ),
+          ),
+
+          // Content
+          Padding(
+            padding: 24.all,
+            child: user == null
+                ? _LoginContent(onClose: onClose)
+                : _ProfileContent(user: user, onClose: onClose),
+          ),
+          const Column(
+            spacing: 12,
+            children: [
+              _AppInfo(),
+            ],
+          ).paddingSymmetric(horizontal: 12).paddingBottom(12),
+        ],
       ),
     );
   }
 }
 
 class _LoginContent extends WatchingWidget {
-  const _LoginContent();
+  const _LoginContent({required this.onClose});
+
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -108,9 +119,14 @@ class _LoginContent extends WatchingWidget {
             color: context.theme.colorScheme.onSurfaceVariant,
           ),
         ),
-        const _DiscordLoginBtn(),
+        _DiscordLoginBtn(
+          onBeforeLogin: () => onClose?.call(),
+        ),
         LoadingButtonBuilder(
-          onPressed: () => _loginAndGetUsername(context, GuestAuthType()),
+          onPressed: () {
+            onClose?.call();
+            return _loginAndGetUsername(context, GuestAuthType());
+          },
           onError: handleError,
           builder: (context, child, onPressed) {
             return FilledButton.tonalIcon(
@@ -130,12 +146,17 @@ class _LoginContent extends WatchingWidget {
 }
 
 class _DiscordLoginBtn extends StatelessWidget {
-  const _DiscordLoginBtn();
+  const _DiscordLoginBtn({this.onBeforeLogin});
+
+  final VoidCallback? onBeforeLogin;
 
   @override
   Widget build(BuildContext context) {
     return LoadingButtonBuilder(
-      onPressed: () => _loginAndGetUsername(context, Oauth2AuthType()),
+      onPressed: () {
+        onBeforeLogin?.call();
+        return _loginAndGetUsername(context, Oauth2AuthType());
+      },
       onError: handleError,
       builder: (context, child, onPressed) {
         return FilledButton.icon(
@@ -197,8 +218,9 @@ class _UsernameDialog extends OneFieldDialog {
 }
 
 class _ProfileContent extends WatchingWidget {
-  const _ProfileContent({required this.user});
+  const _ProfileContent({required this.user, required this.onClose});
   final ResponseUser user;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +235,19 @@ class _ProfileContent extends WatchingWidget {
           spacing: 12,
           children: [
             if (!user.isGuest)
-              _ProfileAvatar(user: user).withSize(width: 80, height: 80),
+              Column(
+                spacing: 10,
+                children: [
+                  _ProfileAvatar(user: user).withSize(width: 80, height: 80),
+                  FilledButton.tonal(
+                    onPressed: () {
+                      onClose?.call();
+                      getIt<ProfileController>().changeAvatar();
+                    },
+                    child: Text(LocaleKeys.profile_change_avatar.tr()),
+                  ),
+                ],
+              ),
             Column(
               children: [
                 Text(
@@ -266,9 +300,15 @@ class _ProfileContent extends WatchingWidget {
         Column(
           spacing: 12,
           children: [
-            if (user.isGuest) const _DiscordLoginBtn(),
+            if (user.isGuest)
+              _DiscordLoginBtn(
+                onBeforeLogin: () => onClose?.call(),
+              ),
             FilledButton.tonalIcon(
-              onPressed: getIt.get<AuthController>().logOut,
+              onPressed: () {
+                onClose?.call();
+                getIt.get<AuthController>().logOut();
+              },
               icon: const Icon(Icons.logout_outlined),
               label: Text(LocaleKeys.login_logout.tr()),
               style: FilledButton.styleFrom(
@@ -288,54 +328,20 @@ class _ProfileAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: context.theme.colorScheme.outline.withValues(
-                alpha: 0.2,
-              ),
-              width: 2,
-            ),
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: context.theme.colorScheme.outline.withValues(
+            alpha: 0.2,
           ),
-          child: ImageWidget(
-            url: user.avatar,
-            avatarRadius: 40,
-          ),
+          width: 2,
         ),
-        Positioned(
-          bottom: -4,
-          right: -4,
-          child: LoadingButtonBuilder(
-            onError: handleError,
-            builder: (context, child, onPressed) => Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: context.theme.colorScheme.primaryContainer,
-                border: Border.all(
-                  color: context.theme.colorScheme.outline.withValues(
-                    alpha: 0.2,
-                  ),
-                ),
-              ),
-              child: IconButton(
-                onPressed: onPressed,
-                icon: child,
-                iconSize: 16,
-                style: IconButton.styleFrom(
-                  foregroundColor: context.theme.colorScheme.onPrimaryContainer,
-                  padding: 6.all,
-                ),
-              ),
-            ),
-            onPressed: getIt<ProfileController>().changeAvatar,
-            child: const Icon(Icons.edit_outlined),
-          ),
-        ),
-      ],
+      ),
+      child: ImageWidget(
+        url: user.avatar,
+        avatarRadius: 40,
+      ),
     );
   }
 }
@@ -378,160 +384,6 @@ class _InfoRow extends StatelessWidget {
           ],
         ).paddingLeft(8).expand(),
       ],
-    );
-  }
-}
-
-class _ThemeSettingsSection extends StatelessWidget {
-  const _ThemeSettingsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return ExpansionTile(
-      title: Text(LocaleKeys.theme_appearance.tr()),
-      leading: const Icon(Icons.palette_outlined),
-      expandedCrossAxisAlignment: CrossAxisAlignment.start,
-      childrenPadding: 12.horizontal + 12.bottom,
-      children: const [
-        _ThemeModeSelector(),
-        Divider(),
-        _SeedSelector(),
-      ],
-    );
-  }
-}
-
-class _GameSettingsSection extends WatchingWidget {
-  const _GameSettingsSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = getIt<SettingsController>();
-
-    return ExpansionTile(
-      title: Text(LocaleKeys.game_settings.tr()),
-      leading: const Icon(Icons.settings_outlined),
-      expandedCrossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _BoolSetting(
-          title: LocaleKeys.settings_limit_desktop_width.tr(),
-          state: watchPropertyValue(
-            (SettingsController m) => m.settings.limitDesktopWidth,
-          ),
-          onChanged: (value) => controller.updateSettings(
-            controller.settings.copyWith(
-              limitDesktopWidth: value,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BoolSetting extends StatelessWidget {
-  const _BoolSetting({
-    required this.title,
-    required this.state,
-    required this.onChanged,
-  });
-  final String title;
-  final bool state;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      title: Text(title),
-      trailing: Switch(
-        value: state,
-        onChanged: onChanged,
-      ),
-    );
-  }
-}
-
-class _ThemeModeSelector extends WatchingWidget {
-  const _ThemeModeSelector();
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = watchIt<SettingsController>();
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: AppThemeMode.values.map((m) {
-        final selected = m == controller.settings.themeMode;
-        return ChoiceChip(
-          label: Text(_label(m)),
-          selected: selected,
-          onSelected: (_) => controller.updateSettings(
-            controller.settings.copyWith(
-              themeMode: m,
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  String _label(AppThemeMode mode) => switch (mode) {
-    AppThemeMode.system => LocaleKeys.theme_system.tr(),
-    AppThemeMode.light => LocaleKeys.theme_light.tr(),
-    AppThemeMode.dark => LocaleKeys.theme_dark.tr(),
-    AppThemeMode.pureDark => LocaleKeys.theme_pure_dark.tr(),
-  };
-}
-
-class _SeedSelector extends WatchingWidget {
-  const _SeedSelector();
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = watchIt<SettingsController>();
-
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: AppThemeSeed.values.map((AppThemeSeed s) {
-        final selected = s == controller.settings.themeSeed;
-        final color = s.color;
-        return InkWell(
-          onTap: () => controller.updateSettings(
-            controller.settings.copyWith(
-              themeSeed: s,
-            ),
-          ),
-          borderRadius: 12.circular,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 8,
-            ),
-            decoration: BoxDecoration(
-              borderRadius: 12.circular,
-              color: color.withValues(alpha: .12),
-              border: Border.all(
-                color: selected ? color : color.withValues(alpha: .4),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              spacing: 6,
-              children: [
-                CircleAvatar(radius: 6, backgroundColor: color),
-                Text(s.label),
-                Visibility(
-                  visible: selected,
-                  child: Icon(Icons.check, size: 14, color: color),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 }

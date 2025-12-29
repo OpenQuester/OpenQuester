@@ -43,7 +43,7 @@ class GameLobbyController {
         gameId: gameId,
       );
 
-      socket = await getIt<SocketController>().createConnection(path: '/games');
+      socket = await getIt<SocketController>().createConnection(path: 'games');
       socket!
         ..onConnect((_) => _onConnect())
         ..onReconnect(_onReconnect)
