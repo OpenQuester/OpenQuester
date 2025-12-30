@@ -18,16 +18,16 @@ Common payload shapes (backend types):
 
 Click an endpoint to jump to its section.
 
-| Area   | Endpoint                                        | Method | Permission                    |
-| ------ | ----------------------------------------------- | ------ | ----------------------------- |
-| Admin  | [`/dashboard`](#dashboard)                      | GET    | ADMIN_PANEL_ACCESS            |
-| Users  | [`/users`](#users)                              | GET    | VIEW_USERS_INFO               |
-| Users  | [`/users/:id/ban`](#usersidban)                 | POST   | BAN_USERS                     |
-| Users  | [`/users/:id/unban`](#usersidunban)             | POST   | BAN_USERS                     |
-| Users  | [`/users/:id`](#usersid)                        | DELETE | DELETE_ANOTHER_USER           |
-| Users  | [`/users/restore/:id`](#usersrestoreid)         | POST   | DELETE_ANOTHER_USER           |
-| System | [`/system/health`](#systemhealth)               | GET    | VIEW_SYSTEM_HEALTH            |
-| System | [`/system/ping`](#systemping)                   | GET    | VIEW_SYSTEM_HEALTH            |
+| Area   | Endpoint                                | Method | Permission          |
+| ------ | --------------------------------------- | ------ | ------------------- |
+| Admin  | [`/dashboard`](#dashboard)              | GET    | ADMIN_PANEL_ACCESS  |
+| Users  | [`/users`](#users)                      | GET    | VIEW_USERS_INFO     |
+| Users  | [`/users/:id/ban`](#usersidban)         | POST   | BAN_USERS           |
+| Users  | [`/users/:id/unban`](#usersidunban)     | POST   | BAN_USERS           |
+| Users  | [`/users/:id`](#usersid)                | DELETE | DELETE_ANOTHER_USER |
+| Users  | [`/users/restore/:id`](#usersrestoreid) | POST   | DELETE_ANOTHER_USER |
+| System | [`/system/health`](#systemhealth)       | GET    | VIEW_SYSTEM_HEALTH  |
+| System | [`/system/ping`](#systemping)           | GET    | VIEW_SYSTEM_HEALTH  |
 
 ---
 
@@ -57,9 +57,12 @@ Provides comprehensive overview of system statistics including user counts, rece
   - `search` (optional): Search by username or email
   - `status` (optional): Filter by user status (`active`, `banned`, `deleted`)
   - `userType` (optional): Filter by user type (`guest`, `registered`)
+  - `role` (optional): Filter by role
+  - `banned` (optional): Filter by ban status (boolean)
+  - `deleted` (optional): Filter by deletion status (boolean)
   - `sortBy` (optional): Sort field (e.g., `id`, `created_at`, `username`)
   - `order` (optional): Sort order (`asc` or `desc`)
-- Response: `AdminUserListData` = `{ data: UserDTO[], page, perPage, stats: UsersStats }`
+- Response: `AdminUserListData` = `{ data: UserDTO[], pageInfo: { total: number }, stats: UsersStats }`
 
 Returns paginated list of users with filtering options and aggregated statistics about total/active/deleted/banned/guest users.
 
