@@ -114,7 +114,7 @@ export const userPermissionsUpdateScheme = () =>
 export const userMuteScheme = () =>
   Joi.object({
     userId: Joi.number().integer().min(0).required(),
-    mutedUntil: Joi.date().iso().required(),
+    mutedUntil: Joi.date().iso().greater("now").required(),
   });
 
 export const userUnmuteScheme = () =>

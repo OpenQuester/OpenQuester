@@ -329,7 +329,7 @@ export class UserRepository {
 
   public async ban(userId: number) {
     const user = await this.get(userId, {
-      select: ["id", "updated_at", "is_banned"],
+      select: ["id", "email", "updated_at", "is_banned"],
       relations: [],
     });
 
@@ -349,7 +349,7 @@ export class UserRepository {
 
   public async unban(userId: number) {
     const user = await this.get(userId, {
-      select: ["id", "updated_at", "is_banned"],
+      select: ["id", "email", "updated_at", "is_banned"],
       relations: [],
     });
 
@@ -373,7 +373,7 @@ export class UserRepository {
 
   public async mute(userId: number, mutedUntil: Date) {
     const user = await this.get(userId, {
-      select: ["id", "updated_at", "muted_until"],
+      select: ["id", "email", "updated_at", "muted_until"],
       relations: [],
     });
 
@@ -386,14 +386,19 @@ export class UserRepository {
     await this.cache.delete(user.id);
     await this.repository.save(user);
 
-    this.logger.audit(`User '${user.id} | ${user.email}' is muted until ${mutedUntil.toISOString()}`, {
-      prefix: "[USER_REPOSITORY]: ",
-    });
+    this.logger.audit(
+      `User '${user.id} | ${
+        user.email
+      }' is muted until ${mutedUntil.toISOString()}`,
+      {
+        prefix: "[USER_REPOSITORY]: ",
+      }
+    );
   }
 
   public async unmute(userId: number) {
     const user = await this.get(userId, {
-      select: ["id", "updated_at", "muted_until"],
+      select: ["id", "email", "updated_at", "muted_until"],
       relations: [],
     });
 
@@ -445,7 +450,7 @@ export class UserRepository {
     const user = await this.get(
       userId,
       {
-        select: ["id", "is_deleted", "updated_at"],
+        select: ["id", "is_deleted", "email", "updated_at"],
         relations: [],
       },
       { searchDeleted: true }

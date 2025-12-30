@@ -74,9 +74,6 @@ describe("User Mute Functionality", () => {
   });
 
   afterEach(async () => {
-    await userRepo.delete({});
-    await permRepo.delete({});
-
     // Clear Redis cache
     const redisClient = RedisConfig.getClient();
     const keys = await redisClient.keys("cache:user:*");
@@ -96,6 +93,7 @@ describe("User Mute Functionality", () => {
 
   beforeEach(async () => {
     await userRepo.delete({});
+    await permRepo.delete({});
   });
 
   describe("Mute Endpoints", () => {
@@ -190,7 +188,11 @@ describe("User Mute Functionality", () => {
 
     it("should require mute_player permission to mute", async () => {
       // Create user without mute permission
-      const user = await createTargetUser(userRepo, "nonadmin", "nonadmin@example.com");
+      const user = await createTargetUser(
+        userRepo,
+        "nonadmin",
+        "nonadmin@example.com"
+      );
 
       // Create target user
       const targetUser = await createTargetUser(userRepo);
@@ -215,7 +217,11 @@ describe("User Mute Functionality", () => {
 
     it("should require mute_player permission to unmute", async () => {
       // Create user without mute permission
-      const user = await createTargetUser(userRepo, "nonadmin", "nonadmin@example.com");
+      const user = await createTargetUser(
+        userRepo,
+        "nonadmin",
+        "nonadmin@example.com"
+      );
 
       // Create target user with existing mute
       const targetUser = userRepo.create({
