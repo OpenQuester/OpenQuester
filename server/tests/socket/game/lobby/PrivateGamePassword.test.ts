@@ -233,7 +233,14 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should reject password with invalid characters", async () => {
-    const { user, cookie } = await utils.createAndLoginUser(app, userRepo);
+    const username = `testuser_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 7)}`;
+    const { user, cookie } = await utils.createAndLoginUser(
+      userRepo,
+      app,
+      username
+    );
 
     // Create a test package
     const packageData = packageUtils.createTestPackageData(
@@ -273,7 +280,14 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should reject password longer than 16 characters", async () => {
-    const { user, cookie } = await utils.createAndLoginUser(app, userRepo);
+    const username = `testuser_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 7)}`;
+    const { user, cookie } = await utils.createAndLoginUser(
+      userRepo,
+      app,
+      username
+    );
 
     // Create a test package
     const packageData = packageUtils.createTestPackageData(
