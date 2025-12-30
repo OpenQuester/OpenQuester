@@ -85,7 +85,7 @@ class PackageSearchDelegate extends SearchDelegate<PackageSearchResult?> {
             ),
             const SizedBox(height: 16),
             Text(
-              translations.nothing Found,
+              'Nothing found',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
