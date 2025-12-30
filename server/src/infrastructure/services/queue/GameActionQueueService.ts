@@ -19,6 +19,9 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
  * - GameActionExecutor pushes actions when lock unavailable
  * - After releasing lock, GameActionExecutor drains queue recursively
  * - Queue cleared when game deleted/finished
+ * 
+ * Logging: None needed - queue operations are implementation details.
+ * Queue state is visible via GameActionExecutor logs.
  */
 export class GameActionQueueService {
   private readonly QUEUE_KEY_PREFIX = "game:action:queue";
@@ -47,13 +50,6 @@ export class GameActionQueueService {
     };
 
     await this.redisService.rpush(queueKey, JSON.stringify(serialized));
-
-    this.logger.trace(`Action pushed to queue: ${action.type}`, {
-      prefix: "[ACTION_QUEUE]: ",
-      gameId: action.gameId,
-      actionId: action.id,
-      actionType: action.type,
-    });
   }
 
   /**
@@ -106,10 +102,6 @@ export class GameActionQueueService {
   public async clearQueue(gameId: string): Promise<void> {
     const queueKey = this.getQueueKey(gameId);
     await this.redisService.del(queueKey);
-
-    this.logger.debug(`Cleared action queue for game ${gameId}`, {
-      prefix: "[ACTION_QUEUE]: ",
-    });
   }
 
   private deserializeAction(serialized: string): GameAction {

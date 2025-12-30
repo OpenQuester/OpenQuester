@@ -18,13 +18,12 @@ export class RedisRepository {
     this._subClient = RedisConfig.getSubClient();
   }
 
+  /**
+   * Subscribe to Redis pub/sub channel
+   * 
+   * Purpose: Infrastructure operation - no logging needed unless it fails
+   */
   public async subscribe(channel: string, callback?: Callback<unknown>) {
-    this.logger.debug(`Redis subscribe`, {
-      prefix: "[REDIS]: ",
-      channel,
-      hasCallback: !!callback,
-    });
-
     if (callback) {
       return this._subClient.subscribe(channel, callback);
     } else {
@@ -73,6 +72,11 @@ export class RedisRepository {
 
   /**
    * Private wrapper method to handle consistent logging for Redis operations
+   * 
+   * Purpose: Answer "How long did this Redis operation take?"
+   * Level: performance (database/external call timing)
+   * Note: Removed trace logs - implementation details not useful for diagnosis
+   * 
    * @param operationName The name of the Redis operation (e.g., "Redis GET")
    * @param traceLogData Object containing data to log
    * @param operation The async Redis operation to execute
@@ -84,16 +88,9 @@ export class RedisRepository {
     operation: () => Promise<T>,
     performanceLogData: RedisLogData | null = null
   ): Promise<T> {
-    const sanitizedTraceData = this.sanitizeLogData(traceLogData);
-
-    this.logger.trace(operationName, {
-      prefix: "[REDIS]: ",
-      ...sanitizedTraceData,
-    });
-
     const sanitizedPerformanceData = performanceLogData
       ? this.sanitizeLogData(performanceLogData)
-      : sanitizedTraceData;
+      : this.sanitizeLogData(traceLogData);
 
     const log = this.logger.performance(
       operationName,
@@ -173,7 +170,11 @@ export class RedisRepository {
   }
 
   /**
-   * Cleans up all keys of specified key patter
+   * Cleanup Redis keys by pattern
+   * 
+   * Purpose: Answer "How many keys were cleaned up?"
+   * Level: info (cleanup outcome), performance (operation timing), error (failures)
+   * 
    * @param keyPattern Key pattern to cleanup, for example `game:*`
    * @param logEntity Log entity for correct logs, for example "game"
    */
@@ -181,12 +182,6 @@ export class RedisRepository {
     keyPattern: string,
     logEntity: string
   ): Promise<void> {
-    this.logger.trace(`Redis cleanup`, {
-      prefix: "[REDIS]: ",
-      keyPattern,
-      logEntity,
-    });
-
     const log = this.logger.performance(`Redis cleanup`, {
       keyPattern,
       logEntity,
@@ -197,18 +192,17 @@ export class RedisRepository {
       if (keys.length > 0) {
         await this.delMultiple(keys);
 
-        this.logger.info(`Cleaned up ${keys.length} ${logEntity}(s)`, {
+        this.logger.info(`Redis keys cleaned up`, {
           prefix: "[REDIS]: ",
-        });
-      } else {
-        this.logger.info(`No ${logEntity}s to clean up`, {
-          prefix: "[REDIS]: ",
+          entity: logEntity,
+          count: keys.length,
         });
       }
     } catch (err: any) {
-      this.logger.error(`Failed to clean up ${logEntity}(s): ${err.message}`, {
+      this.logger.error(`Redis cleanup failed`, {
         prefix: "[REDIS]: ",
-        errorMessage: err.message,
+        entity: logEntity,
+        error: err.message,
       });
     } finally {
       log.finish();

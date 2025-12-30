@@ -493,10 +493,6 @@ export class Game {
 
     if (!this.gameState.skippedPlayers.includes(playerId)) {
       this.gameState.skippedPlayers.push(playerId);
-      this._logger.trace("Player skipped question", {
-        prefix: "[GAME]: ",
-        playerId,
-      });
     }
   }
 
@@ -508,11 +504,6 @@ export class Game {
     this.gameState.skippedPlayers = this.gameState.skippedPlayers.filter(
       (id) => id !== playerId
     );
-
-    this._logger.trace("Player unskipped question", {
-      prefix: "[GAME]: ",
-      playerId,
-    });
 
     if (this.gameState.skippedPlayers.length === 0) {
       this.gameState.skippedPlayers = null;
@@ -634,14 +625,14 @@ export class Game {
       }
     }
 
-    // Inform developers in case if collision happened
-    this._logger.error("Game join collision happened !!", {
+    // Collision detected - this indicates a critical bug
+    // Log at warn level since it's recoverable (returns -1)
+    this._logger.warn("Game slot allocation collision", {
       prefix: "[GAME]: ",
+      gameId: this.id,
+      occupiedSlots,
+      maxPlayers: this._maxPlayers,
     });
-    this._logger.warn(
-      `Slots: ${occupiedSlots}, \ngame: ${JSON.stringify(this.id)}`,
-      { prefix: "[GAME]: " }
-    );
     return -1;
   }
 

@@ -676,12 +676,16 @@ export class S3StorageService {
   /**
    * Uploads random test files to S3 that are not tracked in the database.
    * Used for testing S3 cleanup jobs.
+   * 
+   * Purpose: Answer "How many test files were uploaded?"
+   * Level: audit (test data generation)
+   * 
    * @param count Number of random files to upload (default: 5)
    * @returns Array of uploaded filenames
    */
   public async uploadRandomTestFiles(count: number = 5): Promise<string[]> {
-    this.logger.audit(`Uploading ${count} random test files to S3`, {
-      prefix: "[S3StorageService]: ",
+    this.logger.audit(`Uploading test files to S3`, {
+      prefix: "[S3]: ",
       count,
     });
 
@@ -702,21 +706,20 @@ export class S3StorageService {
       try {
         await this._client.send(command);
         uploadedFiles.push(md5Hash);
-        this.logger.trace(`Uploaded test file ${i + 1}/${count}: ${md5Hash}`, {
-          prefix: "[S3StorageService]: ",
-        });
       } catch (err) {
-        this.logger.error(`Failed to upload test file ${i + 1}/${count}`, {
-          prefix: "[S3StorageService]: ",
+        this.logger.error(`Test file upload failed`, {
+          prefix: "[S3]: ",
+          fileNumber: i + 1,
+          totalCount: count,
           error: err instanceof Error ? err.message : String(err),
         });
       }
     }
 
     this.logger.audit(
-      `Successfully uploaded ${uploadedFiles.length} test files to S3`,
+      `Test files uploaded to S3`,
       {
-        prefix: "[S3StorageService]: ",
+        prefix: "[S3]: ",
         uploadedCount: uploadedFiles.length,
         files: uploadedFiles,
       }
