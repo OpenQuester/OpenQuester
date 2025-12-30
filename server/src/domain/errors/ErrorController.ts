@@ -13,7 +13,11 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class ErrorController {
   /**
-   * Resolves error and returns it message and code
+   * Resolves error and returns its message and code
+   * 
+   * Purpose: Answer "What error occurred and should it be logged?"
+   * Level: error (for ServerError), none (for ClientError - expected failures)
+   * Note: This is the single point where server errors are logged (Rule 6)
    */
   public static async resolveError(
     error: unknown,
@@ -43,14 +47,20 @@ export class ErrorController {
       error = new ServerError(message);
     }
 
+    // Server errors: unexpected failures that break responsibility
     if (error instanceof ServerError) {
-      logger.error(`Internal server error: ${error.message}`);
+      logger.error(`Server error occurred`, {
+        prefix: "[ERROR]: ",
+        error: error.message,
+        stack: error.stack,
+      });
       return {
         message: ServerResponse.INTERNAL_SERVER_ERROR,
         code: HttpStatus.INTERNAL,
       };
     }
 
+    // Client errors: expected failures, no logging needed
     if (error instanceof ClientError) {
       return {
         message: error.message,
@@ -58,7 +68,11 @@ export class ErrorController {
       };
     }
 
-    logger.error(`Error of unknown type caught: ${JSON.stringify(error)}`);
+    // Unknown error type - treat as server error
+    logger.error(`Unknown error type encountered`, {
+      prefix: "[ERROR]: ",
+      error: JSON.stringify(error),
+    });
     return {
       message: ServerResponse.INTERNAL_SERVER_ERROR,
       code: HttpStatus.INTERNAL,

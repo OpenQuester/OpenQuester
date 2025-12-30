@@ -15,6 +15,9 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
  * 1. Action arrives → try acquireLock()
  * 2. If success → process action, releaseLock() when done
  * 3. If failure → action queued in GameActionQueueService
+ * 
+ * Logging: None needed - lock acquisition/release are implementation details
+ * that don't answer business questions. Failures are handled at executor level.
  */
 export class GameActionLockService {
   private readonly LOCK_KEY_PREFIX = "game:action:lock";
@@ -42,20 +45,7 @@ export class GameActionLockService {
     const lockKey = this.getLockKey(gameId);
     const acquired = await this.redisService.setLockKey(lockKey, ttl);
 
-    if (acquired === "OK") {
-      this.logger.trace(`Action lock acquired for game ${gameId}`, {
-        prefix: "[ACTION_LOCK]: ",
-        gameId,
-        ttl,
-      });
-      return true;
-    }
-
-    this.logger.trace(`Failed to acquire action lock for game ${gameId}`, {
-      prefix: "[ACTION_LOCK]: ",
-      gameId,
-    });
-    return false;
+    return acquired === "OK";
   }
 
   /**
@@ -64,11 +54,6 @@ export class GameActionLockService {
   public async releaseLock(gameId: string): Promise<void> {
     const lockKey = this.getLockKey(gameId);
     await this.redisService.del(lockKey);
-
-    this.logger.trace(`Action lock released for game ${gameId}`, {
-      prefix: "[ACTION_LOCK]: ",
-      gameId,
-    });
   }
 
   /**

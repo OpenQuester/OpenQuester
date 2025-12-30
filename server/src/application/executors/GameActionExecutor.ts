@@ -35,17 +35,19 @@ export class GameActionExecutor {
    * Submit action for execution.
    * Action must have a registered handler in GameActionHandlerRegistry.
    *
+   * Purpose: Answer "Was this game action executed or queued?"
+   * Level: warn (missing handler), debug (queuing decisions)
+   * 
    * @param action The action to execute
    * @returns Result indicating success/queued status
    */
   public async submitAction(action: GameAction): Promise<GameActionResult> {
     if (!this.handlerRegistry.has(action.type)) {
       const error = `No handler registered for action type: ${action.type}`;
-      this.logger.error(error, {
+      this.logger.warn(error, {
         prefix: "[ACTION_EXECUTOR]: ",
-        actionId: action.id,
-        gameId: action.gameId,
         actionType: action.type,
+        gameId: action.gameId,
       });
       return { success: false, error };
     }
@@ -54,11 +56,11 @@ export class GameActionExecutor {
 
     if (!lockAcquired) {
       await this.queueService.pushAction(action);
-      this.logger.trace(
-        `Action queued (game locked): ${action.type} for game ${action.gameId}`,
+      this.logger.debug(
+        `Action queued due to lock contention`,
         {
           prefix: "[ACTION_EXECUTOR]: ",
-          actionId: action.id,
+          actionType: action.type,
           gameId: action.gameId,
         }
       );
@@ -75,6 +77,9 @@ export class GameActionExecutor {
 
   /**
    * Execute action via registered handler.
+   * 
+   * Purpose: Answer "Did this action execution fail?"
+   * Level: error (execution failures only)
    */
   private async executeAction(action: GameAction): Promise<GameActionResult> {
     const handler = this.handlerRegistry.get(action.type)!;
@@ -101,12 +106,12 @@ export class GameActionExecutor {
       );
 
       this.logger.error(
-        `Action execution failed: ${action.type} - ${message}`,
+        `Action execution failed`,
         {
           prefix: "[ACTION_EXECUTOR]: ",
-          actionId: action.id,
+          actionType: action.type,
           gameId: action.gameId,
-          socketId: action.socketId,
+          error: message,
         }
       );
 
@@ -117,6 +122,9 @@ export class GameActionExecutor {
 
   /**
    * Process all queued actions for a game sequentially.
+   * 
+   * Purpose: Answer "Why can't queued actions be processed?"
+   * Level: warn (unexpected lock contention), debug (queue processing)
    */
   private async processQueuedActions(gameId: string): Promise<void> {
     const queueLength = await this.queueService.getQueueLength(gameId);
@@ -126,7 +134,7 @@ export class GameActionExecutor {
     }
 
     this.logger.debug(
-      `Processing ${queueLength} queued action(s) for game ${gameId}`,
+      `Processing queued actions`,
       {
         prefix: "[ACTION_EXECUTOR]: ",
         gameId,
@@ -137,7 +145,7 @@ export class GameActionExecutor {
     const lockAcquired = await this.lockService.acquireLock(gameId);
 
     if (!lockAcquired) {
-      this.logger.error(
+      this.logger.warn(
         `Cannot process queue - lock held by another operation`,
         {
           prefix: "[ACTION_EXECUTOR]: ",
@@ -153,10 +161,6 @@ export class GameActionExecutor {
       nextAction = await this.queueService.popAction(gameId);
 
       if (!nextAction) {
-        this.logger.debug(`Queue empty for game ${gameId}`, {
-          prefix: "[ACTION_EXECUTOR]: ",
-          gameId,
-        });
         return;
       }
 

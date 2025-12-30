@@ -383,6 +383,10 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
 
   /**
    * Handle errors in a consistent way
+   * 
+   * Purpose: Answer "What socket event failed and why?"
+   * Level: error (only for genuine failures)
+   * Note: Errors already logged by ErrorController, only log socket-specific context
    */
   private async handleError(
     error: unknown,
@@ -396,7 +400,6 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
       );
 
       // Emit error to the socket that originated this action
-      // For queued actions, context.socketId contains the original socket
       try {
         this.eventEmitter.emitToSocket<ErrorEventPayload>(
           SocketIOEvents.ERROR,
@@ -404,51 +407,60 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
           context.socketId
         );
       } catch (emitError) {
-        // Socket might have disconnected, log but don't throw
-        this.logger.debug(
-          `Failed to emit error to socket ${context.socketId}: ${emitError}`,
-          { prefix: "[SOCKET]: " }
-        );
+        // Socket might have disconnected - this is expected, no log needed
       }
 
-      // Log error with full context and original error details for server-side debugging
+      // Only log if this adds context beyond what ErrorController already logged
+      if (error instanceof ClientError) {
+        // Client errors are expected - no logging needed
+        return;
+      }
+
       this.logger.error(
-        `Socket event error in ${this.getEventName()}: ${message} | SocketId: ${
-          context.socketId
-        } | UserId: ${context.userId} | GameId: ${
-          context.gameId
-        } | Duration: ${duration}ms | OriginalError: ${String(error)}`,
-        { prefix: "[SOCKET]: " }
+        `Socket event failed`,
+        {
+          prefix: "[SOCKET]: ",
+          event: this.getEventName(),
+          error: message,
+          gameId: context.gameId,
+          durationMs: duration,
+        }
       );
     } catch (handlingError) {
       this.logger.error(
-        `Error while handling socket event error: ${handlingError} | OriginalError: ${String(
-          error
-        )} | SocketId: ${context.socketId}`,
-        { prefix: "[SOCKET]: " }
+        `Error while handling socket event error`,
+        {
+          prefix: "[SOCKET]: ",
+          handlingError: String(handlingError),
+          originalError: String(error),
+        }
       );
     }
   }
 
   /**
-   * Log successful execution
+   * Log successful execution - removed per Rule 2 (domain logic should not log)
+   * Success is the expected path, only failures need logging
    */
-  private logSuccess(context: SocketEventContext, duration: number): void {
-    const eventName = this.getEventName();
-    this.logger.debug(
-      `Socket event ${eventName} completed successfully | SocketId: ${context.socketId} | UserId: ${context.userId} | GameId: ${context.gameId} | Duration: ${duration}ms`,
-      { prefix: "[SOCKET]: " }
-    );
+  private logSuccess(_context: SocketEventContext, _duration: number): void {
+    // No logging - successful socket events don't answer diagnostic questions
   }
 
   /**
    * Log unsuccessful execution
+   * 
+   * Purpose: Answer "Why did this socket event fail?"
+   * Level: warn (recoverable business failures)
    */
   private logUnsuccessful(context: SocketEventContext, duration: number): void {
-    const eventName = this.getEventName();
-    this.logger.error(
-      `Socket event ${eventName} completed unsuccessfully | SocketId: ${context.socketId} | UserId: ${context.userId} | GameId: ${context.gameId} | Duration: ${duration}ms`,
-      { prefix: "[SOCKET]: " }
+    this.logger.warn(
+      `Socket event unsuccessful`,
+      {
+        prefix: "[SOCKET]: ",
+        event: this.getEventName(),
+        gameId: context.gameId,
+        durationMs: duration,
+      }
     );
   }
 }

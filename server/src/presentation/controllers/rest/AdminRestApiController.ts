@@ -92,118 +92,93 @@ export class AdminRestApiController {
     );
   }
 
+  /**
+   * Get admin dashboard data
+   * 
+   * Purpose: Answer "How long did admin dashboard query take?"
+   * Level: audit (admin action), performance (query timing)
+   */
   private getDashboard = async (req: Request, res: Response) => {
-    this.logger.audit("Admin dashboard requested", {
+    this.logger.audit("Admin dashboard accessed", {
       prefix: "[ADMIN]: ",
-      userId: req.user?.id,
+      adminUserId: req.user?.id,
     });
 
-    const log = this.logger.performance("Admin dashboard data fetch", {
-      userId: req.user?.id,
+    const log = this.logger.performance("Admin dashboard query", {
+      adminUserId: req.user?.id,
     });
 
-    try {
-      const timeframeRaw = req.query.timeframe as string | undefined;
-      const timeframeDays = timeframeRaw
-        ? parseInt(timeframeRaw, 10)
-        : undefined;
-      const data: AdminDashboardData = await this.adminService.getDashboardData(
-        { timeframeDays }
-      );
+    const timeframeRaw = req.query.timeframe as string | undefined;
+    const timeframeDays = timeframeRaw
+      ? parseInt(timeframeRaw, 10)
+      : undefined;
+    const data: AdminDashboardData = await this.adminService.getDashboardData(
+      { timeframeDays }
+    );
 
-      log.finish({
-        totalUsers: data.totalUsers,
-        redisKeys: data.systemHealth.redisKeys,
-      });
-      return res.status(HttpStatus.OK).json(data);
-    } catch (error) {
-      log.finish();
-      this.logger.error("Failed to fetch admin dashboard data", {
-        prefix: "[ADMIN]: ",
-        error: error instanceof Error ? error.message : String(error),
-        userId: req.user?.id,
-      });
-      throw error;
-    }
+    log.finish();
+    return res.status(HttpStatus.OK).json(data);
   };
 
+  /**
+   * Get admin users list with pagination
+   * 
+   * Purpose: Answer "How long did admin users query take?"
+   * Level: performance (query timing only, no audit needed for read)
+   */
   private getUsers = async (req: Request, res: Response) => {
-    this.logger.debug("Admin users list requested", {
-      prefix: "[ADMIN]: ",
-      userId: req.user?.id,
-      query: req.query,
+    const log = this.logger.performance("Admin users query", {
+      adminUserId: req.user?.id,
     });
 
-    const log = this.logger.performance("Admin users list fetch", {
-      userId: req.user?.id,
-      query: req.query,
-    });
+    const paginationQuery = new RequestDataValidator<UserPaginationOpts>(
+      req.query as unknown as UserPaginationOpts,
+      userPaginationScheme()
+    ).validate();
 
-    try {
-      const paginationQuery = new RequestDataValidator<UserPaginationOpts>(
-        req.query as unknown as UserPaginationOpts,
-        userPaginationScheme()
-      ).validate();
+    const data: AdminUserListData =
+      await this.adminService.listUsersWithStats(paginationQuery);
 
-      const data: AdminUserListData =
-        await this.adminService.listUsersWithStats(paginationQuery);
-
-      log.finish({
-        totalUsers: data.stats.total,
-        returnedUsers: data.data.length,
-      });
-      return res.status(HttpStatus.OK).json(data);
-    } catch (error) {
-      log.finish();
-
-      this.logger.error("Failed to fetch admin users list", {
-        prefix: "[ADMIN]: ",
-        error: error instanceof Error ? error.message : String(error),
-        userId: req.user?.id,
-      });
-      throw error;
-    }
+    log.finish();
+    return res.status(HttpStatus.OK).json(data);
   };
 
+  /**
+   * Get system health metrics
+   * 
+   * Purpose: Answer "What is system health status?"
+   * Level: audit (monitoring action), performance (query timing)
+   */
   private getSystemHealth = async (req: Request, res: Response) => {
-    this.logger.audit("System health check requested", {
+    this.logger.audit("System health check performed", {
       prefix: "[ADMIN]: ",
-      userId: req.user?.id,
+      adminUserId: req.user?.id,
     });
 
-    const log = this.logger.performance("System health check", {
-      userId: req.user?.id,
+    const log = this.logger.performance("System health query", {
+      adminUserId: req.user?.id,
     });
 
-    try {
-      const data: AdminSystemHealthData =
-        await this.adminService.getSystemHealth();
+    const data: AdminSystemHealthData =
+      await this.adminService.getSystemHealth();
 
-      log.finish({
-        redisConnected: data.redis.connected,
-        redisKeys: data.redis.keys,
-        estimatedRedisMB: data.redis.estimatedMemoryMB,
-      });
-      return res.status(HttpStatus.OK).json(data);
-    } catch (error) {
-      log.finish();
-
-      this.logger.error("Failed to fetch system health", {
-        prefix: "[ADMIN]: ",
-        error: error instanceof Error ? error.message : String(error),
-        userId: req.user?.id,
-      });
-      throw error;
-    }
+    log.finish();
+    return res.status(HttpStatus.OK).json(data);
   };
 
+  /**
+   * Ban user - security action
+   * 
+   * Purpose: Answer "Who banned which user and when?"
+   * Level: audit (immutable security event)
+   */
   private banUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
       { userId: Number(req.params.id) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
-    this.logger.audit("Admin user ban initiated", {
+    this.logger.audit("User banned", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
@@ -217,13 +192,19 @@ export class AdminRestApiController {
     });
   };
 
+  /**
+   * Unban user - security action
+   * 
+   * Purpose: Answer "Who unbanned which user and when?"
+   * Level: audit (immutable security event)
+   */
   private unbanUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
       { userId: Number(req.params.id) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
-    this.logger.audit("Admin user unban initiated", {
+    this.logger.audit("User unbanned", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
@@ -237,13 +218,19 @@ export class AdminRestApiController {
     });
   };
 
+  /**
+   * Delete user - security action
+   * 
+   * Purpose: Answer "Who deleted which user and when?"
+   * Level: audit (immutable security event)
+   */
   private deleteUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
       { userId: Number(req.params.id) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
-    this.logger.audit("Admin user delete initiated", {
+    this.logger.audit("User deleted", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
@@ -254,13 +241,19 @@ export class AdminRestApiController {
     return res.status(HttpStatus.NO_CONTENT).send();
   };
 
+  /**
+   * Restore deleted user - security action
+   * 
+   * Purpose: Answer "Who restored which user and when?"
+   * Level: audit (immutable security event)
+   */
   private restoreUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
       { userId: Number(req.params.id) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
-    this.logger.audit("Admin user restore initiated", {
+    this.logger.audit("User restored", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,

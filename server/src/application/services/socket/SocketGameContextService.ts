@@ -9,6 +9,10 @@ import { SocketUserDataService } from "infrastructure/services/socket/SocketUser
 
 /**
  * Service responsible for fetching and validating socket game context.
+ * 
+ * Purpose: Retrieve game context for socket handlers
+ * Logging: None needed - context retrieval is an implementation detail.
+ * Errors are thrown as ClientErrors and logged at the boundary.
  */
 
 export class SocketGameContextService {
@@ -36,12 +40,6 @@ export class SocketGameContextService {
       fetchDisconnected: false,
     });
 
-    // Log user activity for debugging (no additional Redis calls)
-    this.logger.debug(
-      `User ${userSession.id} performing socket action | SocketId: ${socketId} | GameId: ${userSession.gameId}`,
-      { prefix: "[SOCKET]: " }
-    );
-
     return new GameContext(userSession, game, currentPlayer);
   }
 
@@ -54,14 +52,6 @@ export class SocketGameContextService {
     if (!userData) {
       throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
     }
-
-    // Log user activity for debugging (no additional Redis calls)
-    this.logger.debug(
-      `User ${userData.id} socket activity | SocketId: ${socketId} | GameId: ${
-        userData.gameId || "none"
-      }`,
-      { prefix: "[SOCKET]: " }
-    );
 
     return userData;
   }
