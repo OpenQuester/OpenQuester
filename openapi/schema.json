@@ -1810,11 +1810,11 @@
             "examples": [10]
           },
           "password": {
-            "type": "string",
+            "type": ["null", "string"],
             "maxLength": 16,
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Optional password for private games. If not provided for a private game, a 4-character password will be auto-generated. Only accepts letters A-Z, a-z, digits 0-9, hyphen and underscore.",
-            "examples": ["MyPass-123"]
+            "description": "Optional password for private games. If not provided for a private game, a 4-character password (uppercase letters A-Z only) will be auto-generated. User-provided passwords can contain letters A-Z, a-z, digits 0-9, hyphen and underscore.",
+            "examples": ["MyPass-123", null]
           }
         }
       },

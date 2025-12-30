@@ -5,7 +5,7 @@ import {
 
 export class PasswordUtils {
   /**
-   * Generates a random password consisting of 4 characters from A-Za-z0-9-_
+   * Generates a random password consisting of 4 uppercase letters (A-Z)
    * @returns A 4-character random password
    */
   public static generateGamePassword(): string {

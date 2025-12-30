@@ -110,7 +110,7 @@ describe("PrivateGamePassword", () => {
       // Verify password was auto-generated
       expect(gameDataReceived.gameState.password).toBeDefined();
       expect(gameDataReceived.gameState.password).toHaveLength(4);
-      expect(gameDataReceived.gameState.password).toMatch(/^[A-Za-z0-9_-]+$/);
+      expect(gameDataReceived.gameState.password).toMatch(/^[A-Z]+$/);
 
       // Clean up
       await utils.deleteGame(app, gameId, [cookie]);
