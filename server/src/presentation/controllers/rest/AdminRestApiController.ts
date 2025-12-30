@@ -12,13 +12,20 @@ import {
   AdminSystemHealthData,
   AdminUserListData,
 } from "domain/types/admin/AdminTypes";
+import { UserMuteInputDTO } from "domain/types/dto/user/UserMuteInputDTO";
+import { UserMuteResponseDTO } from "domain/types/dto/user/UserMuteResponseDTO";
+import { UserUnmuteInputDTO } from "domain/types/dto/user/UserUnmuteInputDTO";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { checkPermissionMiddleware } from "presentation/middleware/permission/PermissionMiddleware";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
-import { userPaginationScheme } from "presentation/schemes/user/userSchemes";
+import {
+  userMuteScheme,
+  userPaginationScheme,
+  userUnmuteScheme,
+} from "presentation/schemes/user/userSchemes";
 
 /**
  * Handles admin panel REST API endpoints
@@ -251,20 +258,14 @@ export class AdminRestApiController {
   };
 
   private muteUser = async (req: Request, res: Response) => {
-    const { userId, mutedUntil } = new RequestDataValidator<{
-      userId: number;
-      mutedUntil: string;
-    }>(
+    const { userId, mutedUntil } = new RequestDataValidator<UserMuteInputDTO>(
       { userId: Number(req.params.id), mutedUntil: req.body.mutedUntil },
-      Joi.object({
-        userId: Joi.number().integer().min(0).required(),
-        mutedUntil: Joi.date().iso().required(),
-      })
+      userMuteScheme()
     ).validate();
 
     const mutedUntilDate = new Date(mutedUntil);
 
-    this.logger.audit("Admin user mute initiated", {
+    this.logger.trace("Admin user mute initiated", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
@@ -273,19 +274,21 @@ export class AdminRestApiController {
 
     await this.userService.mute(userId, mutedUntilDate);
 
-    return res.status(HttpStatus.OK).json({
+    const response: UserMuteResponseDTO = {
       userId,
       mutedUntil: mutedUntilDate.toISOString(),
-    });
+    };
+
+    return res.status(HttpStatus.OK).json(response);
   };
 
   private unmuteUser = async (req: Request, res: Response) => {
-    const { userId } = new RequestDataValidator<{ userId: number }>(
+    const { userId } = new RequestDataValidator<UserUnmuteInputDTO>(
       { userId: Number(req.params.id) },
-      Joi.object({ userId: Joi.number().integer().min(0).required() })
+      userUnmuteScheme()
     ).validate();
 
-    this.logger.audit("Admin user unmute initiated", {
+    this.logger.trace("Admin user unmute initiated", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
@@ -293,10 +296,12 @@ export class AdminRestApiController {
 
     await this.userService.unmute(userId);
 
-    return res.status(HttpStatus.OK).json({
+    const response: UserMuteResponseDTO = {
       userId,
       mutedUntil: null,
-    });
+    };
+
+    return res.status(HttpStatus.OK).json(response);
   };
 
   private deleteUser = async (req: Request, res: Response) => {
