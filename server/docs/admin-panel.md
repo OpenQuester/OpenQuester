@@ -52,12 +52,13 @@ Provides comprehensive overview of system statistics including user counts, rece
 - Method: **GET**
 - Permission: **VIEW_USERS_INFO**
 - Query parameters:
-  - `page` (optional): Page number for pagination (default: 1)
-  - `perPage` (optional): Results per page (default: 10, max: 100)
-  - `search` (optional): Search by username
-  - `role` (optional): Filter by role
-  - `banned` (optional): Filter by ban status (boolean)
-  - `deleted` (optional): Filter by deletion status (boolean)
+  - `limit` (optional): Results per page (default: 10, max: 100)
+  - `offset` (optional): Number of records to skip (default: 0)
+  - `search` (optional): Search by username or email
+  - `status` (optional): Filter by user status (`active`, `banned`, `deleted`)
+  - `userType` (optional): Filter by user type (`guest`, `registered`)
+  - `sortBy` (optional): Sort field (e.g., `id`, `created_at`, `username`)
+  - `order` (optional): Sort order (`asc` or `desc`)
 - Response: `AdminUserListData` = `{ data: UserDTO[], page, perPage, stats: UsersStats }`
 
 Returns paginated list of users with filtering options and aggregated statistics about total/active/deleted/banned/guest users.
