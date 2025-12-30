@@ -19,7 +19,6 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { FileSource } from "domain/enums/file/FileSource";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { Permissions } from "domain/enums/Permissions";
-import { ServerResponse } from "domain/enums/ServerResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { FileDTO } from "domain/types/dto/file/FileDTO";
 import { S3Context } from "domain/types/file/S3Context";
@@ -31,7 +30,6 @@ import { type User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { DependencyService } from "infrastructure/services/dependency/DependencyService";
 import { StorageUtils } from "infrastructure/utils/StorageUtils";
-import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class S3StorageService {
@@ -126,18 +124,17 @@ export class S3StorageService {
    * @param filename filename which will be assigned to file in bucket and DB
    * @returns
    */
+  /**
+   * Upload file from Discord CDN to S3
+   * 
+   * Purpose: Answer "Did Discord file upload succeed and how long did it take?"
+   * Level: performance (external call timing), error (upload failures)
+   */
   public async putFileFromDiscord(
     cdnLink: string,
     filename: string
   ): Promise<any> {
-    this.logger.trace(`Discord file upload started for ${filename}`, {
-      prefix: "[S3StorageService]: ",
-      cdnLink,
-      filename,
-    });
-
     const log = this.logger.performance(`Discord file upload`, {
-      cdnLink,
       filename,
     });
 
@@ -146,10 +143,11 @@ export class S3StorageService {
         .get(cdnLink, (res) => {
           if (res.statusCode !== 200) {
             this.logger.error(
-              `Failed to fetch file from CDN (${cdnLink}): ${res.statusCode}`,
+              `Discord CDN fetch failed`,
               {
-                prefix: "[S3StorageService]: ",
+                prefix: "[S3]: ",
                 statusCode: res.statusCode,
+                filename,
               }
             );
             log.finish();
@@ -181,13 +179,11 @@ export class S3StorageService {
               resolve(md5Hash);
             } catch (err) {
               this.logger.error(
-                TemplateUtils.text(ServerResponse.BUCKET_UPLOAD_FAILED, {
-                  filename,
-                  err,
-                }),
+                `S3 upload failed`,
                 {
-                  prefix: "[S3StorageService]: ",
-                  errorMessage: err,
+                  prefix: "[S3]: ",
+                  filename,
+                  error: err instanceof Error ? err.message : String(err),
                 }
               );
               resolve(false);
@@ -198,13 +194,10 @@ export class S3StorageService {
         })
         .on("error", (err) => {
           this.logger.error(
-            TemplateUtils.text(ServerResponse.BUCKET_UPLOAD_FAILED, {
-              cdnLink,
-              err,
-            }),
+            `Discord CDN request failed`,
             {
-              prefix: "[S3StorageService]: ",
-              errorMessage: err,
+              prefix: "[S3]: ",
+              error: err.message,
             }
           );
           resolve(false);
@@ -272,14 +265,23 @@ export class S3StorageService {
     return link;
   }
 
+  /**
+   * Delete file with usage validation
+   * 
+   * Purpose: Validate file deletion permissions
+   * Level: debug (usage validation details - helpful for troubleshooting)
+   */
   public async delete(filename: string, req: Request) {
     const usageRecords = await this.dependencyService.getFileUsage(filename);
 
     if (usageRecords.length < 1) {
       this.logger.debug(
-        `Trying to delete file ${filename} but no usage records found, user ${
-          req.user?.id || "unknown"
-        }`
+        `File deletion attempted but no usage records found`,
+        {
+          prefix: "[S3]: ",
+          filename,
+          userId: req.user?.id,
+        }
       );
       return;
     }
@@ -336,6 +338,8 @@ export class S3StorageService {
 
   /**
    * Delete file from S3 storage and remove from database (used for package deletion)
+   * 
+   * Purpose: Infrastructure operation - no logging needed unless it fails
    */
   public async deleteFileFromStorage(filename: string): Promise<void> {
     const filePath = StorageUtils.parseFilePath(filename);
@@ -351,6 +355,9 @@ export class S3StorageService {
   /**
    * Delete multiple files from S3 storage in batch
    * Note: Database file records should be removed separately before calling this method
+   * 
+   * Purpose: Answer "Did batch S3 deletion fail?"
+   * Level: error (only for failures)
    */
   public async deleteFilesFromStorage(filenames: string[]): Promise<void> {
     if (filenames.length === 0) {
@@ -380,7 +387,8 @@ export class S3StorageService {
         // Log any errors that occurred during batch deletion
         if (result.Errors && result.Errors.length > 0) {
           for (const error of result.Errors) {
-            this.logger.error(`Failed to delete file from S3 in batch`, {
+            this.logger.error(`S3 batch delete partial failure`, {
+              prefix: "[S3]: ",
               key: error.Key,
               code: error.Code,
               message: error.Message,
@@ -388,8 +396,9 @@ export class S3StorageService {
           }
         }
       } catch (error) {
-        this.logger.error(`Batch delete failed for files`, {
-          filenames: batch,
+        this.logger.error(`S3 batch delete failed`, {
+          prefix: "[S3]: ",
+          batchSize: batch.length,
           error: error instanceof Error ? error.message : String(error),
         });
         throw error;

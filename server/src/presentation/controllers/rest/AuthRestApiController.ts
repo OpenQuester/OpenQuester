@@ -79,11 +79,6 @@ export class AuthRestApiController {
       await this.socketUserDataService.findSocketIdByUserId(userId);
 
     if (existingSocketId && existingSocketId !== authDTO.socketId) {
-      this.logger.debug(
-        `User ${userId} has existing socket ${existingSocketId}, disconnecting it before allowing new connection ${authDTO.socketId}`,
-        { prefix: "[SOCKET]: " }
-      );
-
       // Force disconnect the existing socket
       const existingSocket = this.gameNamespace.sockets.get(existingSocketId);
       if (existingSocket) {
@@ -109,15 +104,14 @@ export class AuthRestApiController {
     res.status(HttpStatus.OK).send();
   };
 
+  /**
+   * Handle OAuth login
+   * 
+   * Purpose: Answer "Who logged in and how long did it take?"
+   * Level: audit (security event), performance (login timing)
+   */
   private handleOauthLogin = async (req: Request, res: Response) => {
-    const clientIp = req.ip;
     const log = this.logger.performance(`OAuth login`);
-
-    this.logger.trace("OAuth login attempt started", {
-      prefix: "[AUTH]: ",
-      clientIp,
-      userAgent: req.get("User-Agent"),
-    });
 
     const authDTO = new RequestDataValidator<Oauth2LoginDTO>(
       req.body,
@@ -145,37 +139,33 @@ export class AuthRestApiController {
         break;
       default:
         this.logger.warn(
-          `Unsupported OAuth provider: ${authDTO.oauthProvider}`,
+          `Unsupported OAuth provider attempted`,
           {
             prefix: "[AUTH]: ",
             provider: authDTO.oauthProvider,
-            clientIp,
           }
         );
         throw new ClientError(ClientResponse.OAUTH_PROVIDER_NOT_SUPPORTED);
     }
   };
 
+  /**
+   * Handle user logout
+   * 
+   * Purpose: Answer "Who logged out and when?"
+   * Level: audit (security event), performance (logout timing)
+   */
   private logout = async (req: Request, res: Response) => {
     const log = this.logger.performance(`User logout`);
     const sessionId = req.sessionID;
     const userId = req.session.userId;
-    const clientIp = req.ip;
-
-    this.logger.trace("User logout started", {
-      prefix: "[AUTH]: ",
-      userId,
-      sessionId,
-      clientIp,
-    });
 
     req.session.destroy(async (err) => {
       if (err) {
-        this.logger.error(`Session destroy error: ${err}`, {
+        this.logger.error(`Session destroy failed`, {
           prefix: "[AUTH]: ",
           userId,
-          sessionId,
-          clientIp,
+          error: String(err),
         });
         log.finish();
         throw new ServerError(
@@ -194,11 +184,8 @@ export class AuthRestApiController {
       log.finish();
 
       this.logger.audit(`User logged out`, {
+        prefix: "[AUTH]: ",
         userId,
-        sessionId,
-        clientIp,
-        userAgent: req.get("User-Agent"),
-        logoutTime: new Date(),
       });
 
       res.status(HttpStatus.OK).json({

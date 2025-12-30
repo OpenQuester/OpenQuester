@@ -406,7 +406,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
           { message: message },
           context.socketId
         );
-      } catch (emitError) {
+      } catch {
         // Socket might have disconnected - this is expected, no log needed
       }
 
