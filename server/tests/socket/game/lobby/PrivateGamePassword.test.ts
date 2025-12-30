@@ -58,7 +58,10 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should auto-generate a 4-character password for private game without password", async () => {
-    const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
+    const { socket, user, cookie } = await utils.createGameClient(
+      app,
+      userRepo
+    );
 
     try {
       // Create a test package
@@ -117,7 +120,10 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should use custom password for private game when provided", async () => {
-    const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
+    const { socket, user, cookie } = await utils.createGameClient(
+      app,
+      userRepo
+    );
 
     try {
       // Create a test package
@@ -176,7 +182,10 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should not set password for non-private games", async () => {
-    const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
+    const { socket, user, cookie } = await utils.createGameClient(
+      app,
+      userRepo
+    );
 
     try {
       // Create a test package
@@ -327,11 +336,15 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should allow joining private game with correct password", async () => {
-    const { socket: hostSocket, user, cookie } = await utils.createGameClient(
+    const {
+      socket: hostSocket,
+      user,
+      cookie,
+    } = await utils.createGameClient(app, userRepo);
+    const { socket: playerSocket } = await utils.createGameClient(
       app,
       userRepo
     );
-    const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
 
     try {
       // Create a test package
@@ -401,11 +414,15 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should reject joining private game with incorrect password", async () => {
-    const { socket: hostSocket, user, cookie } = await utils.createGameClient(
+    const {
+      socket: hostSocket,
+      user,
+      cookie,
+    } = await utils.createGameClient(app, userRepo);
+    const { socket: playerSocket } = await utils.createGameClient(
       app,
       userRepo
     );
-    const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
 
     try {
       // Create a test package
@@ -464,9 +481,8 @@ describe("PrivateGamePassword", () => {
 
       // Verify error was received
       expect(errorResult).toBeDefined();
-      expect((errorResult as { message: string }).message).toContain(
-        "game_join_password_invalid"
-      );
+      expect(errorResult.message.toLowerCase()).toContain("incorrect");
+      expect(errorResult.message.toLowerCase()).toContain("password");
 
       // Clean up
       await utils.deleteGame(app, gameId, [cookie]);
@@ -477,11 +493,15 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should reject joining private game without password", async () => {
-    const { socket: hostSocket, user, cookie } = await utils.createGameClient(
+    const {
+      socket: hostSocket,
+      user,
+      cookie,
+    } = await utils.createGameClient(app, userRepo);
+    const { socket: playerSocket } = await utils.createGameClient(
       app,
       userRepo
     );
-    const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
 
     try {
       // Create a test package
@@ -539,9 +559,8 @@ describe("PrivateGamePassword", () => {
 
       // Verify error was received
       expect(errorResult).toBeDefined();
-      expect((errorResult as { message: string }).message).toContain(
-        "game_join_password_invalid"
-      );
+      expect(errorResult.message.toLowerCase()).toContain("incorrect");
+      expect(errorResult.message.toLowerCase()).toContain("password");
 
       // Clean up
       await utils.deleteGame(app, gameId, [cookie]);

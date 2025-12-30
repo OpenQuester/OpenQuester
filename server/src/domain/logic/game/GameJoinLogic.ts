@@ -50,12 +50,16 @@ export class GameJoinLogic {
    * @throws ClientError if validation fails
    */
   public static validate(input: GameJoinValidationInput): void {
-    const { game, role, existingPlayer, targetSlot, password } = input;
+    const { game, role, existingPlayer, targetSlot, password, userId } = input;
 
-    // Check password for private games (skip if player is reconnecting)
+    // Check password for private games (skip if player is reconnecting or if user is game's creator)
     if (game.isPrivate && !existingPlayer) {
       const gamePassword = game.gameState.password;
-      if (gamePassword && gamePassword !== password) {
+      if (
+        gamePassword &&
+        gamePassword !== password &&
+        userId !== game.createdBy
+      ) {
         throw new ClientError(ClientResponse.GAME_JOIN_PASSWORD_INVALID);
       }
     }

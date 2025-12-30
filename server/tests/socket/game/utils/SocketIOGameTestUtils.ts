@@ -18,6 +18,7 @@ import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuest
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
@@ -99,7 +100,12 @@ export class SocketGameTestUtils {
     password?: string
   ): Promise<GameJoinOutputData> {
     return new Promise<GameJoinOutputData>((resolve) => {
-      const joinData: GameJoinData = { gameId, role, targetSlot: null, password };
+      const joinData: GameJoinData = {
+        gameId,
+        role,
+        targetSlot: null,
+        password,
+      };
       socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
         socket.gameId = gameId;
         socket.role = role;
@@ -117,15 +123,23 @@ export class SocketGameTestUtils {
     gameId: string,
     role: PlayerRole,
     password?: string
-  ): Promise<unknown> {
-    return new Promise<unknown>((resolve, reject) => {
-      const joinData: GameJoinData = { gameId, role, targetSlot: null, password };
-      socket.once("error", (error) => {
+  ): Promise<ErrorEventPayload> {
+    return new Promise<ErrorEventPayload>((resolve, reject) => {
+      const joinData: GameJoinData = {
+        gameId,
+        role,
+        targetSlot: null,
+        password,
+      };
+      socket.once("error", (error: ErrorEventPayload) => {
         resolve(error);
       });
       socket.emit(SocketIOGameEvents.JOIN, joinData);
       // Timeout in case no error is received
-      setTimeout(() => reject(new Error("Expected error but none received")), 5000);
+      setTimeout(
+        () => reject(new Error("Expected error but none received")),
+        5000
+      );
     });
   }
 
