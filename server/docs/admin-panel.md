@@ -10,7 +10,7 @@ Legend:
 Common payload shapes (backend types):
 
 - `UserDTO`: Standard user object with `{ id, username, avatarUrl, createdAt, deletedAt, banned, ... }`
-- `PaginatedResult<T>`: `{ data: T, page, perPage, stats: { total, pages } }`
+- `PaginatedResult<T>`: `{ data: T, pageInfo: { total } }`
 
 ---
 
