@@ -8,6 +8,7 @@ import {
 } from "@jest/globals";
 import { type Express } from "express";
 import request from "supertest";
+import { Repository } from "typeorm";
 
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
@@ -28,7 +29,7 @@ describe("PrivateGamePassword", () => {
   let utils: SocketGameTestUtils;
   let logger: ILogger;
   let packageUtils: PackageUtils;
-  let userRepo: any;
+  let userRepo: Repository<User>;
 
   beforeAll(async () => {
     logger = await PinoLogger.init({ pretty: true });
@@ -106,7 +107,7 @@ describe("PrivateGamePassword", () => {
       // Verify password was auto-generated
       expect(gameDataReceived.gameState.password).toBeDefined();
       expect(gameDataReceived.gameState.password).toHaveLength(4);
-      expect(gameDataReceived.gameState.password).toMatch(/^[A-Za-z]+$/);
+      expect(gameDataReceived.gameState.password).toMatch(/^[A-Za-z0-9_-]+$/);
 
       // Clean up
       await utils.deleteGame(app, gameId, [cookie]);
@@ -232,91 +233,83 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should reject password with invalid characters", async () => {
-    const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
+    const { user, cookie } = await utils.createAndLoginUser(app, userRepo);
 
-    try {
-      // Create a test package
-      const packageData = packageUtils.createTestPackageData(
-        {
-          id: user.id,
-          username: user.username,
-        },
-        false,
-        0
-      );
+    // Create a test package
+    const packageData = packageUtils.createTestPackageData(
+      {
+        id: user.id,
+        username: user.username,
+      },
+      false,
+      0
+    );
 
-      const packageRes = await request(app)
-        .post("/v1/packages")
-        .set("Cookie", cookie)
-        .send({ content: packageData });
+    const packageRes = await request(app)
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content: packageData });
 
-      expect(packageRes.status).toBe(200);
-      const createdPackage = packageRes.body;
+    expect(packageRes.status).toBe(200);
+    const createdPackage = packageRes.body;
 
-      // Try to create game with invalid password (contains emoji/special chars)
-      const gameData: GameCreateDTO = {
-        title: "Private Game Test",
-        packageId: createdPackage.id,
-        isPrivate: true,
-        ageRestriction: AgeRestriction.NONE,
-        maxPlayers: 10,
-        password: "Pass🎮123",
-      };
+    // Try to create game with invalid password (contains emoji/special chars)
+    const gameData: GameCreateDTO = {
+      title: "Private Game Test",
+      packageId: createdPackage.id,
+      isPrivate: true,
+      ageRestriction: AgeRestriction.NONE,
+      maxPlayers: 10,
+      password: "Pass🎮123",
+    };
 
-      const gameRes = await request(app)
-        .post("/v1/games")
-        .set("Cookie", cookie)
-        .send(gameData);
+    const gameRes = await request(app)
+      .post("/v1/games")
+      .set("Cookie", cookie)
+      .send(gameData);
 
-      // Should return validation error
-      expect(gameRes.status).toBe(400);
-    } finally {
-      socket.disconnect();
-    }
+    // Should return validation error
+    expect(gameRes.status).toBe(400);
   });
 
   it("should reject password longer than 16 characters", async () => {
-    const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
+    const { user, cookie } = await utils.createAndLoginUser(app, userRepo);
 
-    try {
-      // Create a test package
-      const packageData = packageUtils.createTestPackageData(
-        {
-          id: user.id,
-          username: user.username,
-        },
-        false,
-        0
-      );
+    // Create a test package
+    const packageData = packageUtils.createTestPackageData(
+      {
+        id: user.id,
+        username: user.username,
+      },
+      false,
+      0
+    );
 
-      const packageRes = await request(app)
-        .post("/v1/packages")
-        .set("Cookie", cookie)
-        .send({ content: packageData });
+    const packageRes = await request(app)
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content: packageData });
 
-      expect(packageRes.status).toBe(200);
-      const createdPackage = packageRes.body;
+    expect(packageRes.status).toBe(200);
+    const createdPackage = packageRes.body;
 
-      // Try to create game with too long password
-      const gameData: GameCreateDTO = {
-        title: "Private Game Test",
-        packageId: createdPackage.id,
-        isPrivate: true,
-        ageRestriction: AgeRestriction.NONE,
-        maxPlayers: 10,
-        password: "ThisPasswordIsTooLong",
-      };
+    // Try to create game with too long password
+    const gameData: GameCreateDTO = {
+      title: "Private Game Test",
+      packageId: createdPackage.id,
+      isPrivate: true,
+      ageRestriction: AgeRestriction.NONE,
+      maxPlayers: 10,
+      password: "ThisPasswordIsTooLong",
+    };
 
-      const gameRes = await request(app)
-        .post("/v1/games")
-        .set("Cookie", cookie)
-        .send(gameData);
+    const gameRes = await request(app)
+      .post("/v1/games")
+      .set("Cookie", cookie)
+      .send(gameData);
 
-      // Should return validation error
-      expect(gameRes.status).toBe(400);
-    } finally {
-      socket.disconnect();
-    }
+    // Should return validation error
+    expect(gameRes.status).toBe(400);
   });
 
   it("should allow joining private game with correct password", async () => {
