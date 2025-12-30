@@ -214,6 +214,71 @@ describe("Socket Game Chat Tests", () => {
       });
     });
 
+    it("should reject chat messages from globally muted players across different games", async () => {
+      // Get a player to globally mute
+      const mutedPlayerSocket = playerSockets[0];
+      const userData = await utils.getSocketUserData(mutedPlayerSocket);
+      if (!userData) {
+        throw new Error("User data not found for socket");
+      }
+
+      // Set global mute on the user (muted for 1 hour)
+      const mutedUntil = new Date(Date.now() + 3600000);
+      const user = await userRepo.findOne({ where: { id: userData.id } });
+      if (!user) {
+        throw new Error("User not found in database");
+      }
+      user.muted_until = mutedUntil;
+      await userRepo.save(user);
+
+      // Try to send a chat message in the current game
+      const errorPromise1 = utils.waitForEvent(
+        mutedPlayerSocket,
+        SocketIOEvents.ERROR
+      );
+
+      mutedPlayerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
+        message: "This message should be rejected in game 1",
+      });
+
+      const errorResult1 = await errorPromise1;
+      expect(errorResult1).toMatchObject({
+        message: expect.stringContaining("muted"),
+      });
+
+      // Leave the current game
+      await utils.leaveGame(mutedPlayerSocket);
+
+      // Create a new game and try to join
+      const setup2 = await utils.setupGameTestEnvironment(userRepo, app, 0, 0);
+      try {
+        // Join the new game with the muted player
+        await utils.joinSpecificGame(
+          mutedPlayerSocket,
+          setup2.gameId,
+          PlayerRole.PLAYER
+        );
+
+        // Try to send a chat message in the new game
+        const errorPromise2 = utils.waitForEvent(
+          mutedPlayerSocket,
+          SocketIOEvents.ERROR
+        );
+
+        mutedPlayerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
+          message: "This message should be rejected in game 2",
+        });
+
+        const errorResult2 = await errorPromise2;
+        expect(errorResult2).toMatchObject({
+          message: expect.stringContaining("muted"),
+        });
+      } finally {
+        // Cleanup the second game
+        await utils.cleanupGameClients(setup2);
+      }
+    });
+
     it("should retrieve chat history when joining a game", async () => {
       // Send some chat messages first
       const messages = ["First message", "Second message", "Third message"];
