@@ -18,7 +18,7 @@ class OqEditorRouter extends RootStackRouter {
         initial: true,
       ),
       AutoRoute(
-        page: RoundsListRoute.page,
+        page: RoundsListRouteNew.page,
         path: 'rounds',
       ),
       AutoRoute(
@@ -26,7 +26,7 @@ class OqEditorRouter extends RootStackRouter {
         path: 'rounds/:roundIndex',
       ),
       AutoRoute(
-        page: ThemesGridRoute.page,
+        page: ThemesGridRouteNew.page,
         path: 'rounds/:roundIndex/themes',
       ),
       AutoRoute(
@@ -34,7 +34,7 @@ class OqEditorRouter extends RootStackRouter {
         path: 'rounds/:roundIndex/themes/:themeIndex',
       ),
       AutoRoute(
-        page: QuestionsListRoute.page,
+        page: QuestionsListRouteNew.page,
         path: 'rounds/:roundIndex/themes/:themeIndex/questions',
       ),
       BlurDialogRoute<void>(
