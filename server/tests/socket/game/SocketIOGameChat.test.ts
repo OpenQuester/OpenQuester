@@ -623,11 +623,14 @@ describe("Socket Game Chat Tests", () => {
         const totalMessages = 120;
         const historyLimit = 100;
         // Send 120 messages
+        // Note: Small delay between messages ensures unique Redis timestamps
+        // (sorted set uses ms timestamp as score; equal scores have undefined order)
         for (let i = 1; i <= totalMessages; i++) {
           const msg = `msg-${i}`;
           senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message: msg });
           // Wait for the message to be processed (to avoid race conditions)
           await utils.waitForEvent(senderSocket, SocketIOEvents.CHAT_MESSAGE);
+          await new Promise((r) => setTimeout(r, 2)); // ensure unique timestamp
         }
 
         // Now join as a new player and check chat history
@@ -665,6 +668,8 @@ describe("Socket Game Chat Tests", () => {
         await utils.startGame(showmanSocket);
 
         // 3. Exchange 10 chat messages (sender alternates)
+        // Note: Small delay between messages ensures unique Redis timestamps
+        // (sorted set uses ms timestamp as score; equal scores have undefined order)
         const allMessages: string[] = [];
         for (let i = 1; i <= 10; i++) {
           const msg = `msg-${i}`;
@@ -672,12 +677,8 @@ describe("Socket Game Chat Tests", () => {
           const sender = i % 2 === 0 ? reconnectingSocket : senderSocket;
           sender.emit(SocketIOEvents.CHAT_MESSAGE, { message: msg });
           await utils.waitForEvent(sender, SocketIOEvents.CHAT_MESSAGE);
+          await new Promise((r) => setTimeout(r, 2)); // ensure unique timestamp
         }
-
-        await utils.waitForEvent(
-          reconnectingSocket,
-          SocketIOEvents.CHAT_MESSAGE
-        );
 
         // 4. Disconnect one player (simulate disconnect)
         await utils.disconnectAndCleanup(reconnectingSocket);
@@ -689,6 +690,7 @@ describe("Socket Game Chat Tests", () => {
           disconnectedMessages.push(msg);
           senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message: msg });
           await utils.waitForEvent(senderSocket, SocketIOEvents.CHAT_MESSAGE);
+          await new Promise((r) => setTimeout(r, 2)); // ensure unique timestamp
         }
 
         // 6. Reconnect the player (create a new socket for the same user)
@@ -710,7 +712,7 @@ describe("Socket Game Chat Tests", () => {
         expect(Array.isArray(gameData.chatMessages)).toBe(true);
         expect(gameData.chatMessages.length).toBe(15);
         const expected = [...allMessages, ...disconnectedMessages].reverse();
-        const actual = gameData.chatMessages.map((m: any) => m.message);
+        const actual = gameData.chatMessages.map((m) => m.message);
         expect(actual).toEqual(expected);
 
         await utils.disconnectAndCleanup(newReconnect);

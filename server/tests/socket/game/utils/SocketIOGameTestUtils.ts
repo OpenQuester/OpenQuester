@@ -21,7 +21,10 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
-import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+import {
+  GameJoinOutputData,
+  PlayerReadinessBroadcastData,
+} from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
@@ -93,8 +96,8 @@ export class SocketGameTestUtils {
     socket: GameClientSocket,
     gameId: string,
     role: PlayerRole
-  ): Promise<any> {
-    return new Promise<any>((resolve) => {
+  ): Promise<GameJoinOutputData> {
+    return new Promise<GameJoinOutputData>((resolve) => {
       const joinData: GameJoinData = { gameId, role, targetSlot: null };
       socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
         socket.gameId = gameId;
