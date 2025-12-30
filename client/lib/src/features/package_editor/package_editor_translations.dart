@@ -585,4 +585,234 @@ class AppOqEditorTranslations implements OqEditorTranslations {
 
   @override
   String get exportRecommended => LocaleKeys.oq_editor_export_recommended.tr();
+
+  // Search and filtering
+  @override
+  String get searchPlaceholder =>
+      LocaleKeys.oq_editor_search_placeholder.tr();
+
+  @override
+  String get searchResults => LocaleKeys.oq_editor_search_results.tr();
+
+  @override
+  String get jumpTo => LocaleKeys.oq_editor_jump_to.tr();
+
+  @override
+  String get filterByType => LocaleKeys.oq_editor_filter_by_type.tr();
+
+  @override
+  String get filterByPrice => LocaleKeys.oq_editor_filter_by_price.tr();
+
+  @override
+  String get hasMedia => LocaleKeys.oq_editor_has_media.tr();
+
+  @override
+  String get incomplete => LocaleKeys.oq_editor_incomplete.tr();
+
+  @override
+  String get allTypes => LocaleKeys.oq_editor_all_types.tr();
+
+  @override
+  String get clearFilters => LocaleKeys.oq_editor_clear_filters.tr();
+
+  // Dashboard and overview
+  @override
+  String get dashboard => LocaleKeys.oq_editor_dashboard.tr();
+
+  @override
+  String get packageOverview => LocaleKeys.oq_editor_package_overview.tr();
+
+  @override
+  String get packageStats => LocaleKeys.oq_editor_package_stats.tr();
+
+  @override
+  String get totalRounds => LocaleKeys.oq_editor_total_rounds.tr();
+
+  @override
+  String get totalThemes => LocaleKeys.oq_editor_total_themes.tr();
+
+  @override
+  String get totalQuestions => LocaleKeys.oq_editor_total_questions.tr();
+
+  @override
+  String get totalMediaFiles => LocaleKeys.oq_editor_total_media_files.tr();
+
+  @override
+  String get emptySections => LocaleKeys.oq_editor_empty_sections.tr();
+
+  @override
+  String get completionStatus => LocaleKeys.oq_editor_completion_status.tr();
+
+  @override
+  String get complete => LocaleKeys.oq_editor_complete.tr();
+
+  @override
+  String get filled => LocaleKeys.oq_editor_filled.tr();
+
+  @override
+  String get of => LocaleKeys.oq_editor_of.tr();
+
+  // List density and view modes
+  @override
+  String get viewMode => LocaleKeys.oq_editor_view_mode.tr();
+
+  @override
+  String get compactView => LocaleKeys.oq_editor_compact_view.tr();
+
+  @override
+  String get detailedView => LocaleKeys.oq_editor_detailed_view.tr();
+
+  @override
+  String get showAnswers => LocaleKeys.oq_editor_show_answers.tr();
+
+  @override
+  String get hideAnswers => LocaleKeys.oq_editor_hide_answers.tr();
+
+  // Navigation
+  @override
+  String get packageStructure => LocaleKeys.oq_editor_package_structure.tr();
+
+  @override
+  String get backToPackage => LocaleKeys.oq_editor_back_to_package.tr();
+
+  @override
+  String get goToRound => LocaleKeys.oq_editor_go_to_round.tr();
+
+  @override
+  String get goToTheme => LocaleKeys.oq_editor_go_to_theme.tr();
+
+  @override
+  String get goToQuestions => LocaleKeys.oq_editor_go_to_questions.tr();
+
+  // Batch operations
+  @override
+  String get selectMode => LocaleKeys.oq_editor_select_mode.tr();
+
+  @override
+  String get selectAll => LocaleKeys.oq_editor_select_all.tr();
+
+  @override
+  String get deselectAll => LocaleKeys.oq_editor_deselect_all.tr();
+
+  @override
+  String selectedCount(int count) =>
+      LocaleKeys.oq_editor_selected_count.tr(args: [count.toString()]);
+
+  @override
+  String get batchDelete => LocaleKeys.oq_editor_batch_delete.tr();
+
+  @override
+  String get batchMove => LocaleKeys.oq_editor_batch_move.tr();
+
+  @override
+  String get batchDuplicate => LocaleKeys.oq_editor_batch_duplicate.tr();
+
+  @override
+  String get moveToTheme => LocaleKeys.oq_editor_move_to_theme.tr();
+
+  // Question type colors
+  @override
+  String get questionTypeColorSimple =>
+      LocaleKeys.oq_editor_question_type_color_simple.tr();
+
+  @override
+  String get questionTypeColorStake =>
+      LocaleKeys.oq_editor_question_type_color_stake.tr();
+
+  @override
+  String get questionTypeColorSecret =>
+      LocaleKeys.oq_editor_question_type_color_secret.tr();
+
+  @override
+  String get questionTypeColorNoRisk =>
+      LocaleKeys.oq_editor_question_type_color_no_risk.tr();
+
+  // Editor improvements
+  @override
+  String get unsavedChanges => LocaleKeys.oq_editor_unsaved_changes.tr();
+
+  @override
+  String lastSaved(String time) =>
+      LocaleKeys.oq_editor_last_saved.tr(args: [time]);
+
+  @override
+  String get notSavedYet => LocaleKeys.oq_editor_not_saved_yet.tr();
+
+  @override
+  String get hideEditor => LocaleKeys.oq_editor_hide_editor.tr();
+
+  @override
+  String get showEditor => LocaleKeys.oq_editor_show_editor.tr();
+
+  @override
+  String get questionInProgress =>
+      LocaleKeys.oq_editor_question_in_progress.tr();
+
+  // Media indicators
+  @override
+  String get hasImage => LocaleKeys.oq_editor_has_image.tr();
+
+  @override
+  String get hasVideo => LocaleKeys.oq_editor_has_video.tr();
+
+  @override
+  String get hasAudio => LocaleKeys.oq_editor_has_audio.tr();
+
+  @override
+  String mediaCount(int count) =>
+      LocaleKeys.oq_editor_media_count.tr(args: [count.toString()]);
+
+  // Completion indicators
+  @override
+  String questionsFilled(int filled, int total) =>
+      LocaleKeys.oq_editor_questions_filled.tr(
+        args: [filled.toString(), total.toString()],
+      );
+
+  @override
+  String themesFilled(int filled, int total) =>
+      LocaleKeys.oq_editor_themes_filled.tr(
+        args: [filled.toString(), total.toString()],
+      );
+
+  @override
+  String roundsFilled(int filled, int total) =>
+      LocaleKeys.oq_editor_rounds_filled.tr(
+        args: [filled.toString(), total.toString()],
+      );
+
+  // Context and breadcrumbs
+  @override
+  String inRound(String roundName) =>
+      LocaleKeys.oq_editor_in_round.tr(args: [roundName]);
+
+  @override
+  String inTheme(String themeName) =>
+      LocaleKeys.oq_editor_in_theme.tr(args: [themeName]);
+
+  // Quick actions
+  @override
+  String get duplicate => LocaleKeys.oq_editor_duplicate.tr();
+
+  @override
+  String get move => LocaleKeys.oq_editor_move.tr();
+
+  @override
+  String get reorder => LocaleKeys.oq_editor_reorder.tr();
+
+  // Empty states
+  @override
+  String get emptyRound => LocaleKeys.oq_editor_empty_round.tr();
+
+  @override
+  String get emptyTheme => LocaleKeys.oq_editor_empty_theme.tr();
+
+  @override
+  String get addFirstRound => LocaleKeys.oq_editor_add_first_round.tr();
+
+  @override
+  String get addFirstTheme => LocaleKeys.oq_editor_add_first_theme.tr();
+
+  @override
+  String get addFirstQuestion => LocaleKeys.oq_editor_add_first_question.tr();
 }

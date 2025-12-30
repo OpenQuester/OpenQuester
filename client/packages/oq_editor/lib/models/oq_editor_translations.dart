@@ -245,4 +245,94 @@ abstract class OqEditorTranslations {
   String get uploadNowButton;
   String get exportAndUploadButton;
   String get exportRecommended;
+
+  /// Search and filtering
+  String get searchPlaceholder;
+  String get searchResults;
+  String get jumpTo;
+  String get filterByType;
+  String get filterByPrice;
+  String get hasMedia;
+  String get incomplete;
+  String get allTypes;
+  String get clearFilters;
+
+  /// Dashboard and overview
+  String get dashboard;
+  String get packageOverview;
+  String get packageStats;
+  String get totalRounds;
+  String get totalThemes;
+  String get totalQuestions;
+  String get totalMediaFiles;
+  String get emptySections;
+  String get completionStatus;
+  String get complete;
+  String get filled;
+  String get of;
+
+  /// List density and view modes
+  String get viewMode;
+  String get compactView;
+  String get detailedView;
+  String get showAnswers;
+  String get hideAnswers;
+
+  /// Navigation
+  String get packageStructure;
+  String get backToPackage;
+  String get goToRound;
+  String get goToTheme;
+  String get goToQuestions;
+
+  /// Batch operations
+  String get selectMode;
+  String get selectAll;
+  String get deselectAll;
+  String selectedCount(int count);
+  String get batchDelete;
+  String get batchMove;
+  String get batchDuplicate;
+  String get moveToTheme;
+
+  /// Question type colors and icons
+  String get questionTypeColorSimple;
+  String get questionTypeColorStake;
+  String get questionTypeColorSecret;
+  String get questionTypeColorNoRisk;
+
+  /// Editor improvements
+  String get unsavedChanges;
+  String lastSaved(String time);
+  String get notSavedYet;
+  String get hideEditor;
+  String get showEditor;
+  String get questionInProgress;
+
+  /// Media indicators
+  String get hasImage;
+  String get hasVideo;
+  String get hasAudio;
+  String mediaCount(int count);
+
+  /// Completion indicators
+  String questionsFilled(int filled, int total);
+  String themesFilled(int filled, int total);
+  String roundsFilled(int filled, int total);
+
+  /// Context and breadcrumbs
+  String inRound(String roundName);
+  String inTheme(String themeName);
+
+  /// Quick actions
+  String get duplicate;
+  String get move;
+  String get reorder;
+
+  /// Empty states
+  String get emptyRound;
+  String get emptyTheme;
+  String get addFirstRound;
+  String get addFirstTheme;
+  String get addFirstQuestion;
 }
