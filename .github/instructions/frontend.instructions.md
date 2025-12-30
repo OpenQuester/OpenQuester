@@ -1,5 +1,5 @@
 ---
-applyTo: "client/**/*
+applyTo: "client/**/*"
 ---
 
 # Frontend Coding Standards - Flutter/Dart
