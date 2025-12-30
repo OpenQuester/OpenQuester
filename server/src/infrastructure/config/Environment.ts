@@ -20,6 +20,8 @@ export enum EnvType {
   TEST = "test",
 }
 
+const ENV_PREFIX = "[ENV]: ";
+
 /**
  * Class of environment layer.
  * All `process.env` variables should be retrieved only trough this class.
@@ -138,9 +140,6 @@ export class Environment {
 
   /**
    * Load session configuration from Redis
-   * 
-   * Purpose: Answer "Was a new session secret generated?"
-   * Level: audit (security event - secret generation)
    */
   public async loadSessionConfig(length: number, redisClient: Redis) {
     const secret = await redisClient.get(SESSION_SECRET_REDIS_NSP);
@@ -148,7 +147,7 @@ export class Environment {
       this.SESSION_SECRET = secret;
     } else {
       this.logger.audit(`New session secret generated`, {
-        prefix: "[ENV]: ",
+        prefix: ENV_PREFIX,
       });
       this.SESSION_SECRET = await SessionUtils.generateSecret(length);
       await redisClient.set(SESSION_SECRET_REDIS_NSP, this.SESSION_SECRET);
@@ -163,9 +162,6 @@ export class Environment {
 
   /**
    * Environment variables loading logic and validation
-   * 
-   * Purpose: Answer "What environment is the server running in?"
-   * Level: info (application startup event)
    */
   private loadEnv(): void {
     if (!process?.env) {
@@ -184,9 +180,18 @@ export class Environment {
       );
     }
 
-    this.logger.info(`Server starting in ${this._type} environment`, {
-      prefix: "[ENV]: ",
-    });
+    switch (this._type) {
+      case EnvType.PROD:
+        this.logger.info("Running in production environment", {
+          prefix: ENV_PREFIX,
+        });
+        break;
+      case EnvType.DEV:
+        this.logger.info("Running in development environment", {
+          prefix: ENV_PREFIX,
+        });
+        break;
+    }
 
     this.loadDB();
 

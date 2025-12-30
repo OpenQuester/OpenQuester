@@ -286,19 +286,3 @@ try {
   // ErrorController already logged this
 }
 ```
-
-## Migration Notes
-
-During the refactoring (2025-01):
-- Removed ~80+ trace/debug logs from infrastructure/domain layers
-- Consolidated error logging to boundaries only
-- Removed success path logs (only failures need logging)
-- Applied structured metadata instead of string interpolation
-- ~27% reduction in log volume while improving diagnostic value
-
-## Questions?
-
-For questions about logging guidelines, refer to:
-- This document
-- Backend instructions: `.github/instructions/backend.instructions.md`
-- Issue #[original issue number] for context on the refactoring

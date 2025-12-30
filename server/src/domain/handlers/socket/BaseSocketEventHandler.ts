@@ -383,10 +383,6 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
 
   /**
    * Handle errors in a consistent way
-   * 
-   * Purpose: Answer "What socket event failed and why?"
-   * Level: error (only for genuine failures)
-   * Note: Errors already logged by ErrorController, only log socket-specific context
    */
   private async handleError(
     error: unknown,
@@ -439,18 +435,22 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   }
 
   /**
-   * Log successful execution - removed per Rule 2 (domain logic should not log)
-   * Success is the expected path, only failures need logging
+   * Log successful execution
    */
-  private logSuccess(_context: SocketEventContext, _duration: number): void {
-    // No logging - successful socket events don't answer diagnostic questions
+  private logSuccess(context: SocketEventContext, duration: number): void {
+    this.logger.trace(
+      `Socket event completed`,
+      {
+        prefix: "[SOCKET]: ",
+        event: this.getEventName(),
+        gameId: context.gameId,
+        durationMs: duration,
+      }
+    );
   }
 
   /**
    * Log unsuccessful execution
-   * 
-   * Purpose: Answer "Why did this socket event fail?"
-   * Level: warn (recoverable business failures)
    */
   private logUnsuccessful(context: SocketEventContext, duration: number): void {
     this.logger.warn(

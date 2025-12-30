@@ -3,10 +3,6 @@ import { ILogger } from "infrastructure/logger/ILogger";
 
 /**
  * Performance logging middleware to track request timing and performance metrics
- * 
- * Purpose: Answer "How long did this HTTP request take and what was its outcome?"
- * Level: performance (Transport layer boundary - request/response metrics)
- * Cardinality: Safe - enum status codes, no unbounded fields
  */
 export const performanceLogMiddleware =
   (logger: ILogger) => (req: Request, res: Response, next: NextFunction) => {
@@ -22,6 +18,8 @@ export const performanceLogMiddleware =
     const log = logger.performance(`HTTP request`, {
       method: req.method,
       url: decodedUrl,
+      userAgent: req.get("User-Agent"),
+      clientIp: req.ip,
       userId: req.session?.userId,
     });
 

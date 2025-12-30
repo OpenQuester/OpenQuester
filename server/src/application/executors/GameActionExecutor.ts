@@ -35,9 +35,6 @@ export class GameActionExecutor {
    * Submit action for execution.
    * Action must have a registered handler in GameActionHandlerRegistry.
    *
-   * Purpose: Answer "Was this game action executed or queued?"
-   * Level: warn (missing handler), debug (queuing decisions)
-   * 
    * @param action The action to execute
    * @returns Result indicating success/queued status
    */
@@ -46,6 +43,7 @@ export class GameActionExecutor {
       const error = `No handler registered for action type: ${action.type}`;
       this.logger.warn(error, {
         prefix: "[ACTION_EXECUTOR]: ",
+        actionId: action.id,
         actionType: action.type,
         gameId: action.gameId,
       });
@@ -60,6 +58,7 @@ export class GameActionExecutor {
         `Action queued due to lock contention`,
         {
           prefix: "[ACTION_EXECUTOR]: ",
+          actionId: action.id,
           actionType: action.type,
           gameId: action.gameId,
         }
@@ -77,9 +76,6 @@ export class GameActionExecutor {
 
   /**
    * Execute action via registered handler.
-   * 
-   * Purpose: Answer "Did this action execution fail?"
-   * Level: error (execution failures only)
    */
   private async executeAction(action: GameAction): Promise<GameActionResult> {
     const handler = this.handlerRegistry.get(action.type)!;
@@ -109,6 +105,7 @@ export class GameActionExecutor {
         `Action execution failed`,
         {
           prefix: "[ACTION_EXECUTOR]: ",
+          actionId: action.id,
           actionType: action.type,
           gameId: action.gameId,
           error: message,
@@ -122,9 +119,6 @@ export class GameActionExecutor {
 
   /**
    * Process all queued actions for a game sequentially.
-   * 
-   * Purpose: Answer "Why can't queued actions be processed?"
-   * Level: warn (unexpected lock contention), debug (queue processing)
    */
   private async processQueuedActions(gameId: string): Promise<void> {
     const queueLength = await this.queueService.getQueueLength(gameId);
