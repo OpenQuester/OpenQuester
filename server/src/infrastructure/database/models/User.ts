@@ -64,6 +64,9 @@ export class User implements UserModel {
   @Column({ default: false })
   is_guest!: boolean;
 
+  @Column({ type: "timestamp with time zone", nullable: true })
+  muted_until?: Date | null;
+
   @OneToMany(() => Package, (packageEntity) => packageEntity.author)
   packages!: Package[];
 
@@ -90,6 +93,7 @@ export class User implements UserModel {
     this.is_deleted = data.is_deleted;
     this.is_banned = data.is_banned ?? this.is_banned ?? false;
     this.is_guest = data.is_guest ?? this.is_guest ?? false;
+    this.muted_until = data.muted_until ?? this.muted_until ?? null;
     this.permissions = data.permissions ?? this.permissions ?? [];
   }
 
@@ -116,6 +120,7 @@ export class User implements UserModel {
       isDeleted: this.is_deleted,
       isBanned: this.is_banned,
       isGuest: this.is_guest,
+      mutedUntil: this.muted_until,
     };
   }
 }

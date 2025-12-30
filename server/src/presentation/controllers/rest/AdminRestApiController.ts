@@ -70,6 +70,19 @@ export class AdminRestApiController {
       asyncHandler(this.unbanUser)
     );
 
+    // User mute/unmute actions
+    router.post(
+      "/users/:id/mute",
+      checkPermissionMiddleware(Permissions.MUTE_PLAYER, this.logger),
+      asyncHandler(this.muteUser)
+    );
+
+    router.post(
+      "/users/:id/unmute",
+      checkPermissionMiddleware(Permissions.MUTE_PLAYER, this.logger),
+      asyncHandler(this.unmuteUser)
+    );
+
     // Admin user restore
     router.post(
       "/users/restore/:id",
@@ -234,6 +247,55 @@ export class AdminRestApiController {
     return res.status(HttpStatus.OK).json({
       userId,
       isBanned: false,
+    });
+  };
+
+  private muteUser = async (req: Request, res: Response) => {
+    const { userId, mutedUntil } = new RequestDataValidator<{
+      userId: number;
+      mutedUntil: string;
+    }>(
+      { userId: Number(req.params.id), mutedUntil: req.body.mutedUntil },
+      Joi.object({
+        userId: Joi.number().integer().min(0).required(),
+        mutedUntil: Joi.date().iso().required(),
+      })
+    ).validate();
+
+    const mutedUntilDate = new Date(mutedUntil);
+
+    this.logger.audit("Admin user mute initiated", {
+      prefix: "[ADMIN]: ",
+      targetUserId: userId,
+      adminUserId: req.user?.id,
+      mutedUntil: mutedUntilDate.toISOString(),
+    });
+
+    await this.userService.mute(userId, mutedUntilDate);
+
+    return res.status(HttpStatus.OK).json({
+      userId,
+      mutedUntil: mutedUntilDate.toISOString(),
+    });
+  };
+
+  private unmuteUser = async (req: Request, res: Response) => {
+    const { userId } = new RequestDataValidator<{ userId: number }>(
+      { userId: Number(req.params.id) },
+      Joi.object({ userId: Joi.number().integer().min(0).required() })
+    ).validate();
+
+    this.logger.audit("Admin user unmute initiated", {
+      prefix: "[ADMIN]: ",
+      targetUserId: userId,
+      adminUserId: req.user?.id,
+    });
+
+    await this.userService.unmute(userId);
+
+    return res.status(HttpStatus.OK).json({
+      userId,
+      mutedUntil: null,
     });
   };
 

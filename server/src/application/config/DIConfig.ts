@@ -738,7 +738,8 @@ export class DIConfig {
         ),
         Container.get<SocketGameContextService>(
           CONTAINER_TYPES.SocketGameContextService
-        )
+        ),
+        Container.get<UserService>(CONTAINER_TYPES.UserService)
       ),
       "service"
     );

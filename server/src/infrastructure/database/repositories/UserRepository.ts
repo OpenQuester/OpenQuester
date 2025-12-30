@@ -371,6 +371,50 @@ export class UserRepository {
     });
   }
 
+  public async mute(userId: number, mutedUntil: Date) {
+    const user = await this.get(userId, {
+      select: ["id", "updated_at", "muted_until"],
+      relations: [],
+    });
+
+    if (!user) {
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, 404);
+    }
+
+    user.muted_until = mutedUntil;
+    user.updated_at = new Date();
+    await this.cache.delete(user.id);
+    await this.repository.save(user);
+
+    this.logger.audit(`User '${user.id} | ${user.email}' is muted until ${mutedUntil.toISOString()}`, {
+      prefix: "[USER_REPOSITORY]: ",
+    });
+  }
+
+  public async unmute(userId: number) {
+    const user = await this.get(userId, {
+      select: ["id", "updated_at", "muted_until"],
+      relations: [],
+    });
+
+    if (!user) {
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, 404);
+    }
+
+    if (!user.muted_until) {
+      return;
+    }
+
+    user.muted_until = null;
+    user.updated_at = new Date();
+    await this.cache.delete(user.id);
+    await this.repository.save(user);
+
+    this.logger.audit(`User '${user.id} | ${user.email}' is unmuted`, {
+      prefix: "[USER_REPOSITORY]: ",
+    });
+  }
+
   public async update(user: User) {
     this.logger.debug(`Updating user ${user.id}`, {
       prefix: "[USER_REPOSITORY]: ",

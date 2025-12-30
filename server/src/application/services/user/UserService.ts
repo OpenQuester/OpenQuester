@@ -207,6 +207,32 @@ export class UserService {
     await this.userRepository.unban(userId);
   }
 
+  public async mute(userId: number, mutedUntil: Date) {
+    this.logger.audit("User mute initiated", {
+      userId,
+      mutedUntil,
+    });
+
+    await this.userRepository.mute(userId, mutedUntil);
+
+    this.logger.audit("User muted successfully", {
+      userId,
+      mutedUntil,
+    });
+  }
+
+  public async unmute(userId: number) {
+    this.logger.audit("User unmute initiated", {
+      userId,
+    });
+
+    await this.userRepository.unmute(userId);
+
+    this.logger.audit("User unmuted successfully", {
+      userId,
+    });
+  }
+
   public async restore(userId: number) {
     await this.userRepository.restore(userId);
   }
