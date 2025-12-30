@@ -464,7 +464,9 @@ describe("PrivateGamePassword", () => {
 
       // Verify error was received
       expect(errorResult).toBeDefined();
-      expect(errorResult.message).toContain("game_join_password_invalid");
+      expect((errorResult as { message: string }).message).toContain(
+        "game_join_password_invalid"
+      );
 
       // Clean up
       await utils.deleteGame(app, gameId, [cookie]);
@@ -537,7 +539,9 @@ describe("PrivateGamePassword", () => {
 
       // Verify error was received
       expect(errorResult).toBeDefined();
-      expect(errorResult.message).toContain("game_join_password_invalid");
+      expect((errorResult as { message: string }).message).toContain(
+        "game_join_password_invalid"
+      );
 
       // Clean up
       await utils.deleteGame(app, gameId, [cookie]);
