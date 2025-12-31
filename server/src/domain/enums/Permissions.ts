@@ -20,4 +20,5 @@ export enum Permissions {
   VIEW_SYSTEM_HEALTH = "view_system_health",
   VIEW_USERS_INFO = "view_users_info",
   BAN_USERS = "ban_users",
+  MUTE_PLAYER = "mute_player",
 }

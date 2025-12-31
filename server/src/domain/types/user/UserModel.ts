@@ -14,4 +14,5 @@ export interface UserModel extends BaseModel {
   permissions?: Permission[];
   is_banned?: boolean;
   is_guest?: boolean;
+  muted_until?: Date | null;
 }
