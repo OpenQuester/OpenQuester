@@ -187,10 +187,18 @@ class ContentXmlParser {
       throw Exception('Question have no files and text for answer $question');
     }
 
+    //TODO: Get showAnswerDuration from XML if available
+    final showAnswerDuration = switch (questionFiles.firstOrNull?.type) {
+      PackageFileType.video => 15000,
+      PackageFileType.audio => 10000,
+      _ => 5000,
+    };
+
     return switch (questionType) {
       QuestionType.simple => PackageQuestionUnion.simple(
         price: price,
         text: questionText,
+        showAnswerDuration: showAnswerDuration,
         type: SimpleQuestionType.simple,
         questionComment: questionComment,
         questionFiles: packageQuestionFiles,
@@ -209,6 +217,7 @@ class ContentXmlParser {
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
+        showAnswerDuration: showAnswerDuration,
         id: null,
         maxPrice: null,
         order: index,
@@ -222,6 +231,7 @@ class ContentXmlParser {
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
+        showAnswerDuration: showAnswerDuration,
         id: null,
         subType: SecretQuestionSubType.simple,
         allowedPrices: null,
@@ -237,6 +247,7 @@ class ContentXmlParser {
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
+        showAnswerDuration: showAnswerDuration,
         id: null,
         subType: NoRiskQuestionSubType.simple,
         order: index,
@@ -251,6 +262,7 @@ class ContentXmlParser {
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
+        showAnswerDuration: showAnswerDuration,
         isHidden: true,
         id: null,
         order: index,
@@ -264,7 +276,8 @@ class ContentXmlParser {
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
-        showDelay: 3000,
+        showAnswerDuration: showAnswerDuration,
+        showDelay: 3000, //TODO: Get showDelay from XML if available
         answers: rightAnswers
             .mapIndexed(
               (index, e) =>

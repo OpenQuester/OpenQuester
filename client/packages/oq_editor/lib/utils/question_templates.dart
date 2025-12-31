@@ -162,9 +162,9 @@ class QuestionTemplates {
         answerText: fileNameWithoutExt,
         answerHint: null,
         questionComment: null,
-        answerDelay: controller.lastUsedAnswerDelay,
         questionFiles: questionFiles,
         answerFiles: answerFiles,
+        showAnswerDuration: controller.lastUsedShowAnswerDuration,
       );
 
       if (context.mounted) {
