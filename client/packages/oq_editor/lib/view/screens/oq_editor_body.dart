@@ -2,16 +2,23 @@ import 'dart:async';
 
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'package:nb_utils/nb_utils.dart';
+import 'package:oq_editor/controllers/editor_navigation_controller.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
+import 'package:oq_editor/models/editor_navigation_state.dart';
 import 'package:oq_editor/models/package_encoding_exceptions.dart';
 import 'package:oq_editor/utils/package_encoding_helper.dart';
 import 'package:oq_editor/view/dialogs/encoding_progress_dialog.dart';
+import 'package:oq_editor/view/widgets/editor_breadcrumb.dart';
+import 'package:oq_editor/view/widgets/editor_dashboard.dart';
+import 'package:oq_editor/view/widgets/editor_search.dart';
+import 'package:oq_editor/view/widgets/editor_sidebar.dart';
 import 'package:oq_editor/view/widgets/package_size_indicator.dart';
-import 'package:oq_shared/ui/components/loading_button_builder.dart';
-import 'package:oq_shared/ui/max_size_container.dart';
+import 'package:oq_shared/oq_shared.dart';
+import 'package:watch_it/watch_it.dart';
 
-class OqEditorBody extends StatelessWidget {
+class OqEditorBody extends WatchingStatefulWidget {
   const OqEditorBody({
     required this.controller,
     required this.child,
@@ -21,14 +28,43 @@ class OqEditorBody extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false, // Prevents immediate pop so we can show the dialog
-      onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return; // Already popped, do nothing
+  State<OqEditorBody> createState() => _OqEditorBodyState();
+}
 
-        // Use a microtask to schedule the dialog
-        // after the current navigation lock is released
+class _OqEditorBodyState extends State<OqEditorBody> {
+  late final EditorNavigationController _navController;
+
+  OqEditorController get controller => widget.controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _navController = EditorNavigationController();
+    // Register the navigation controller
+    if (!GetIt.I.isRegistered<EditorNavigationController>()) {
+      GetIt.I.registerSingleton<EditorNavigationController>(_navController);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (GetIt.I.isRegistered<EditorNavigationController>()) {
+      GetIt.I.unregister<EditorNavigationController>(instance: _navController);
+    }
+    _navController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final navController = watchIt<EditorNavigationController>();
+    final isWideMode = UiModeUtils.wideModeOn(context);
+    final location = navController.location;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
         unawaited(
           Future.microtask(() async {
             if (context.mounted) await _backButtonHandler(context);
@@ -36,83 +72,200 @@ class OqEditorBody extends StatelessWidget {
         );
       },
       child: Scaffold(
-        body: MaxSizeContainer(
-          child: Scaffold(
-            appBar: AppBar(
-              title: Text(controller.translations.editorTitle),
-              leading: BackButton(
-                onPressed: () => _backButtonHandler(context),
+        body: Row(
+          children: [
+            // Sidebar (desktop only)
+            if (isWideMode) const EditorSidebar(),
+
+            // Main content area
+            Expanded(
+              child: Column(
+                children: [
+                  // App bar
+                  _buildAppBar(context, isWideMode),
+
+                  // Breadcrumb navigation
+                  const EditorBreadcrumb(),
+
+                  // Package size indicator
+                  PackageSizeIndicator(controller: controller),
+
+                  // Main content
+                  Expanded(
+                    child: _buildMainContent(location),
+                  ),
+                ],
               ),
-              actions: [
-                // Import button (handles both .oq and .siq files)
-                Builder(
-                  builder: (buttonContext) => LoadingButtonBuilder(
-                    onPressed: () => _handleImport(buttonContext),
-                    onError: (error, stackTrace) => _handleButtonError(
-                      buttonContext,
-                      controller.translations.errorImporting,
-                      error,
-                      stackTrace,
-                    ),
-                    builder: (context, child, onPressed) {
-                      return IconButton(
-                        icon: child,
-                        onPressed: onPressed,
-                        tooltip: controller.translations.importPackage,
-                      );
-                    },
-                    child: const Icon(Icons.upload_file),
-                  ),
-                ),
-                // Export button
-                Builder(
-                  builder: (buttonContext) => LoadingButtonBuilder(
-                    onPressed: () => _handleExport(buttonContext),
-                    onError: (error, stackTrace) => _handleButtonError(
-                      buttonContext,
-                      controller.translations.errorExporting,
-                      error,
-                      stackTrace,
-                    ),
-                    builder: (context, child, onPressed) {
-                      return IconButton(
-                        icon: child,
-                        onPressed: onPressed,
-                        tooltip: controller.translations.exportPackageTooltip,
-                      );
-                    },
-                    child: const Icon(Icons.download),
-                  ),
-                ),
-                // Save button
-                Builder(
-                  builder: (buttonContext) => LoadingButtonBuilder(
-                    onPressed: () => _handleSave(buttonContext),
-                    onError: (error, stackTrace) => _handleButtonError(
-                      buttonContext,
-                      controller.translations.errorSaving,
-                      error,
-                      stackTrace,
-                    ),
-                    builder: (context, child, onPressed) {
-                      return IconButton(
-                        icon: child,
-                        onPressed: onPressed,
-                        tooltip: controller.translations.saveButton,
-                      );
-                    },
-                    child: const Icon(Icons.save),
-                  ),
-                ),
-              ],
             ),
-            body: Column(
-              children: [
-                PackageSizeIndicator(controller: controller),
-                child.expand(),
-              ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppBar(BuildContext context, bool isWideMode) {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Back button / Menu
+          if (!isWideMode)
+            IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () => _showMobileDrawer(context),
+              tooltip: 'Menu',
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () => _backButtonHandler(context),
+              tooltip: controller.translations.backButton,
+            ),
+
+          const SizedBox(width: 8),
+
+          // Title
+          Expanded(
+            child: Text(
+              controller.translations.editorTitle,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ),
+
+          // Search
+          if (isWideMode)
+            const SizedBox(
+              width: 300,
+              child: EditorSearchBar(),
+            )
+          else
+            const EditorSearchButton(),
+
+          const SizedBox(width: 8),
+
+          // Actions
+          _buildActionButtons(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Import button
+        Builder(
+          builder: (buttonContext) => LoadingButtonBuilder(
+            onPressed: () => _handleImport(buttonContext),
+            onError: (error, stackTrace) => _handleButtonError(
+              buttonContext,
+              controller.translations.errorImporting,
+              error,
+              stackTrace,
+            ),
+            builder: (context, child, onPressed) {
+              return IconButton(
+                icon: child,
+                onPressed: onPressed,
+                tooltip: controller.translations.importPackage,
+              );
+            },
+            child: const Icon(Icons.upload_file),
+          ),
+        ),
+        // Export button
+        Builder(
+          builder: (buttonContext) => LoadingButtonBuilder(
+            onPressed: () => _handleExport(buttonContext),
+            onError: (error, stackTrace) => _handleButtonError(
+              buttonContext,
+              controller.translations.errorExporting,
+              error,
+              stackTrace,
+            ),
+            builder: (context, child, onPressed) {
+              return IconButton(
+                icon: child,
+                onPressed: onPressed,
+                tooltip: controller.translations.exportPackageTooltip,
+              );
+            },
+            child: const Icon(Icons.download),
+          ),
+        ),
+        // Save button
+        Builder(
+          builder: (buttonContext) => LoadingButtonBuilder(
+            onPressed: () => _handleSave(buttonContext),
+            onError: (error, stackTrace) => _handleButtonError(
+              buttonContext,
+              controller.translations.errorSaving,
+              error,
+              stackTrace,
+            ),
+            builder: (context, child, onPressed) {
+              return FilledButton.icon(
+                icon: child,
+                label: Text(controller.translations.saveButton),
+                onPressed: onPressed,
+              );
+            },
+            child: const Icon(Icons.save, size: 18),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMainContent(EditorNavigationLocation location) {
+    // Show dashboard for DashboardLocation
+    if (location is DashboardLocation) {
+      return const EditorDashboard();
+    }
+
+    // For all other locations, show the router content
+    return widget.child;
+  }
+
+  void _showMobileDrawer(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: scrollController,
+                child: const EditorSidebar(),
+              ),
+            ),
+          ],
         ),
       ),
     );

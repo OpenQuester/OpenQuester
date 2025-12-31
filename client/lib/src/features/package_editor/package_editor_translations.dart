@@ -585,4 +585,93 @@ class AppOqEditorTranslations implements OqEditorTranslations {
 
   @override
   String get exportRecommended => LocaleKeys.oq_editor_export_recommended.tr();
+
+  // New dashboard and navigation translations (hardcoded for now)
+  @override
+  String get dashboard => 'Dashboard';
+
+  @override
+  String get packageStructure => 'Package Structure';
+
+  @override
+  String get statistics => 'Statistics';
+
+  @override
+  String get quickActions => 'Quick Actions';
+
+  @override
+  String get completionStatus => 'Completion Status';
+
+  @override
+  String get structureOverview => 'Structure Overview';
+
+  @override
+  String get searchHint => 'Search questions, themes, rounds...';
+
+  @override
+  String get noResultsFound => 'No results found';
+
+  @override
+  String get searchTips => 'Search tips';
+
+  @override
+  String get clearFilter => 'Clear filter';
+
+  @override
+  String get compactView => 'Compact view';
+
+  @override
+  String get detailedView => 'Detailed view';
+
+  @override
+  String selectedCount(int count) => '$count selected';
+
+  @override
+  String get exitSelectionMode => 'Exit selection mode';
+
+  @override
+  String get selectItems => 'Select items';
+
+  @override
+  String get move => 'Move';
+
+  @override
+  String get duplicate => 'Duplicate';
+
+  @override
+  String get packageComplete =>
+      'Package is complete! All questions have content.';
+
+  @override
+  String emptyThemesCount(int count) => '$count empty themes';
+
+  @override
+  String incompleteQuestionsCount(int count) => '$count incomplete questions';
+
+  @override
+  String get filterAll => 'All';
+
+  @override
+  String get filterHasMedia => 'Has Media';
+
+  @override
+  String get filterIncomplete => 'Incomplete';
+
+  @override
+  String get manageRounds => 'Manage Rounds';
+
+  @override
+  String get addFromTemplate => 'Add from Template';
+
+  @override
+  String get withMedia => 'With Media';
+
+  @override
+  String get regular => 'Regular';
+
+  @override
+  String get final_ => 'Final';
+
+  @override
+  String get addQuestions => 'Add questions';
 }

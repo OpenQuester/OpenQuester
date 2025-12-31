@@ -245,4 +245,46 @@ abstract class OqEditorTranslations {
   String get uploadNowButton;
   String get exportAndUploadButton;
   String get exportRecommended;
+
+  /// Dashboard and navigation
+  String get dashboard;
+  String get packageStructure;
+  String get statistics;
+  String get quickActions;
+  String get completionStatus;
+  String get structureOverview;
+  String get searchHint;
+  String get noResultsFound;
+  String get searchTips;
+  String get clearFilter;
+
+  /// View modes
+  String get compactView;
+  String get detailedView;
+
+  /// Selection
+  String selectedCount(int count);
+  String get exitSelectionMode;
+  String get selectItems;
+  String get move;
+  String get duplicate;
+
+  /// Status messages
+  String get packageComplete;
+  String emptyThemesCount(int count);
+  String incompleteQuestionsCount(int count);
+
+  /// Filter labels
+  String get filterAll;
+  String get filterHasMedia;
+  String get filterIncomplete;
+
+  /// Other UI labels
+  String get manageRounds;
+  String get addFromTemplate;
+  String get withMedia;
+  String get regular;
+  String get final_;
+  String get addQuestions;
+  String get noQuestions;
 }
