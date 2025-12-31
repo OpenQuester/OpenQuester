@@ -138,7 +138,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Upload to Play Store (Internal Testing)
-        if: github.ref == 'refs/heads/main' && secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON != ''
+        if: github.ref == 'refs/heads/main'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
