@@ -34,7 +34,7 @@ class PlayerEditBtn extends WatchingWidget {
     final gameState = gameData?.gameState;
     final restrictions = player.restrictionData;
     final controller = getIt<GameLobbyEditorController>();
-    final currentRestrictions = SocketIOPlayerRestrictionInput(
+    final currentRestrictions = SocketIoPlayerRestrictionInput(
       playerId: player.meta.id,
       banned: restrictions.banned,
       muted: restrictions.muted,
@@ -42,7 +42,7 @@ class PlayerEditBtn extends WatchingWidget {
     );
 
     void changePlayerRestrictions(
-      SocketIOPlayerRestrictionInput newRestrictions,
+      SocketIoPlayerRestrictionInput newRestrictions,
     ) => controller.addPlayerRestriction(newRestrictions);
 
     Future<void> changeScore() async {

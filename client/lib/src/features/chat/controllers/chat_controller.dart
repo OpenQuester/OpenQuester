@@ -50,7 +50,7 @@ class SocketChatController extends ChangeNotifier {
 
     // Setup socket
     _socket = socket;
-    _socket?.on(SocketIOEvents.chatMessage.json!, _onChatMessage);
+    _socket?.on(SocketIoEvents.chatMessage.json!, _onChatMessage);
 
     notifyListeners();
   }
@@ -66,13 +66,13 @@ class SocketChatController extends ChangeNotifier {
     if (formatedMessage.isEmpty) return;
 
     _socket?.emit(
-      SocketIOEvents.chatMessage.json!,
-      SocketIOChatMessageContent(message: formatedMessage).toJson(),
+      SocketIoEvents.chatMessage.json!,
+      SocketIoChatMessageContent(message: formatedMessage).toJson(),
     );
   }
 
   Future<void> _onChatMessage(dynamic data) async {
-    final message = SocketIOChatMessageEventPayload.fromJson(
+    final message = SocketIoChatMessageEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
 

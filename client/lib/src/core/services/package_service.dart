@@ -181,10 +181,8 @@ class PackageService {
       logo: inputData.logo?.file != null
           ? PackageLogoFileItem(
               file: FileItem(
-                id: null,
-                md5: inputData.logo!.file.md5,
-                type: inputData.logo!.file.type,
-                link: null,
+                md5: inputData.logo!.file!.md5,
+                type: inputData.logo!.file!.type,
               ),
             )
           : null,
