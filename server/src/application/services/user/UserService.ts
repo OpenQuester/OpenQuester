@@ -336,7 +336,6 @@ export class UserService {
     const previousAvatar = user.avatar;
 
     user.avatar = updateData.avatar ?? user.avatar;
-    user.updated_at = new Date();
 
     if (updateData.birthday) {
       const date = new Date(updateData.birthday);
@@ -399,24 +398,6 @@ export class UserService {
   }
 
   /**
-   * Update user permissions by saving the user with new permissions
-   */
-  public async updateUserPermissions(user: User): Promise<void> {
-    this.logger.debug("Updating user permissions", {
-      userId: user.id,
-      permissionsCount: user.permissions?.length || 0,
-    });
-
-    // Add a method to UserRepository to handle permission updates
-    await this.userRepository.updateWithPermissions(user);
-
-    this.logger.audit(`User permissions updated: ${user.id}`, {
-      userId: user.id,
-      permissionsCount: user.permissions?.length || 0,
-    });
-  }
-
-  /**
    * Update user permissions with full business logic validation
    */
   public async updateUserPermissionsByNames(
@@ -467,10 +448,9 @@ export class UserService {
 
     // Update user permissions (replace all)
     user.permissions = newPermissions;
-    user.updated_at = new Date();
 
     // Save the user with updated permissions
-    await this.userRepository.updateWithPermissions(user);
+    await this.userRepository.update(user);
 
     this.logger.audit("User permissions updated", {
       userId,

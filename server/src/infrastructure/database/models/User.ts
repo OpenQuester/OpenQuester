@@ -123,4 +123,10 @@ export class User implements UserModel {
       mutedUntil: this.muted_until,
     };
   }
+
+  public get isMuted(): boolean {
+    return (
+      (this.muted_until ?? false) && new Date() < new Date(this.muted_until!)
+    );
+  }
 }

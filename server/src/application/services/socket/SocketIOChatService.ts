@@ -1,10 +1,10 @@
+import { UserService } from "application/services/user/UserService";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { ChatMessageDTO } from "domain/types/dto/game/chat/ChatMessageDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatSaveInputData } from "domain/types/socket/chat/ChatSaveInputData";
 import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
-import { UserService } from "application/services/user/UserService";
 import { SocketGameContextService } from "./SocketGameContextService";
 
 export class SocketIOChatService {
@@ -42,7 +42,7 @@ export class SocketIOChatService {
       relations: [],
     });
 
-    if (user.muted_until && new Date() < new Date(user.muted_until)) {
+    if (user.isMuted) {
       throw new ClientError(ClientResponse.YOU_ARE_MUTED);
     }
 

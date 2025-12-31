@@ -276,11 +276,10 @@ export class UserRepository {
     });
 
     // Save new user
-    user = await this.repository.save(user);
+    user = await this.save(user);
     if (data.avatar) {
       await this.fileUsageService.writeUsage(data.avatar, user);
     }
-    await this.cache.delete(user.id);
     return user;
   }
 
@@ -316,8 +315,6 @@ export class UserRepository {
 
   public async delete(user: User) {
     user.is_deleted = true;
-    user.updated_at = new Date();
-    await this.cache.delete(user.id);
     const updateResult = await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is deleted`, {
@@ -338,9 +335,7 @@ export class UserRepository {
     }
 
     user.is_banned = true;
-    user.updated_at = new Date();
-    await this.cache.delete(user.id);
-    await this.repository.save(user);
+    await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is banned`, {
       prefix: "[USER_REPOSITORY]: ",
@@ -362,9 +357,7 @@ export class UserRepository {
     }
 
     user.is_banned = false;
-    user.updated_at = new Date();
-    await this.cache.delete(user.id);
-    await this.repository.save(user);
+    await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is unbanned`, {
       prefix: "[USER_REPOSITORY]: ",
@@ -382,9 +375,7 @@ export class UserRepository {
     }
 
     user.muted_until = mutedUntil;
-    user.updated_at = new Date();
-    await this.cache.delete(user.id);
-    await this.repository.save(user);
+    await this.update(user);
 
     this.logger.audit(
       `User '${user.id} | ${
@@ -411,20 +402,20 @@ export class UserRepository {
     }
 
     user.muted_until = null;
-    user.updated_at = new Date();
-    await this.cache.delete(user.id);
-    await this.repository.save(user);
+    await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is unmuted`, {
       prefix: "[USER_REPOSITORY]: ",
     });
   }
 
+  /**
+   * Updates user entity fields, sets updated_at and clears cache
+   *
+   * Use this method if existing user modified. If creating - use `.save()`
+   */
   public async update(user: User) {
-    this.logger.debug(`Updating user ${user.id}`, {
-      prefix: "[USER_REPOSITORY]: ",
-    });
-
+    user.updated_at = new Date();
     await this.cache.delete(user.id);
     const updateResult = await this.repository.update(
       { id: user.id },
@@ -436,6 +427,8 @@ export class UserRepository {
         avatar: user.avatar ?? null,
         is_deleted: user.is_deleted,
         is_banned: user.is_banned,
+        muted_until: user.muted_until ?? null,
+        updated_at: user.updated_at,
       }
     );
 
@@ -465,22 +458,11 @@ export class UserRepository {
     }
 
     user.is_deleted = false;
-    user.updated_at = new Date();
-    await this.cache.delete(user.id);
-    await this.repository.save(user);
+    await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is restored`, {
       prefix: "[USER_REPOSITORY]: ",
     });
-  }
-
-  /**
-   * Update user with permissions using TypeORM's save method which handles many-to-many relationships
-   */
-  public async updateWithPermissions(user: User): Promise<void> {
-    // Clear cache before update
-    await this.cache.delete(user.id);
-    await this.repository.save(user);
   }
 
   /**
@@ -498,5 +480,14 @@ export class UserRepository {
       .getMany();
 
     return permissions;
+  }
+
+  /**
+   * Save updated user entity via repository, sets updated_at to current date and clears cache
+   */
+  public async save(user: User): Promise<User> {
+    user.updated_at = new Date();
+    await this.cache.delete(user.id);
+    return this.repository.save(user);
   }
 }
