@@ -1390,6 +1390,130 @@
         }
       }
     },
+    "/v1/admin/api/users/{id}/mute": {
+      "post": {
+        "summary": "Mute a user globally",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mutedUntil"],
+                "properties": {
+                  "mutedUntil": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp when the mute expires"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User muted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMuteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid date format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}/unmute": {
+      "post": {
+        "summary": "Unmute a user globally",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User unmuted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMuteResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/api/users/{id}": {
       "delete": {
         "summary": "Delete a user",
@@ -1513,7 +1637,8 @@
           "admin_panel_access",
           "view_system_health",
           "view_users_info",
-          "ban_users"
+          "ban_users",
+          "mute_player"
         ]
       },
       "PackageCreationInput": {
@@ -1580,6 +1705,12 @@
             "type": "boolean",
             "description": "Whether this is a guest user account",
             "examples": [false, true]
+          },
+          "mutedUntil": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the global mute expires, or null if not muted",
+            "examples": ["2024-01-01T12:00:00Z", null]
           },
           "permissions": {
             "type": "array",
@@ -2673,6 +2804,11 @@
             "default": 4000,
             "examples": [7000]
           },
+          "showAnswerDuration": {
+            "type": "integer",
+            "description": "Duration in milliseconds for showing the answer",
+            "examples": [5000]
+          },
           "questionComment": {
             "type": ["string", "null"],
             "description": "Comment or note about the question",
@@ -3571,6 +3707,7 @@
           "next-round",
           "answer-result",
           "skip-question-force",
+          "skip-show-answer",
           "game-pause",
           "game-unpause",
           "theme-eliminate",
@@ -3612,6 +3749,8 @@
           "question-finish",
           "answer-submitted",
           "answer-result",
+          "answer-show-start",
+          "answer-show-end",
           "next-round",
           "game-finished",
           "game-pause",
@@ -4055,6 +4194,16 @@
           }
         }
       },
+      "SocketIOAnswerShowStartEventPayload": {
+        "type": "object",
+        "description": "Signal event sent to all players when the show-answer phase starts. This phase displays the correct answer after a response. No payload - just a transition signal.",
+        "additionalProperties": false
+      },
+      "SocketIOAnswerShowEndEventPayload": {
+        "type": "object",
+        "description": "Signal event sent to all players when the show-answer phase ends. Game returns to question choosing state. No payload - just a transition signal.",
+        "additionalProperties": false
+      },
       "SocketIOAnswerResultInput": {
         "type": "object",
         "description": "Data sent by the showman to evaluate a player's answer",
@@ -4173,6 +4322,11 @@
             "description": "Delay in milliseconds before being able to answer, if applicable",
             "default": 4000,
             "examples": [7000]
+          },
+          "showAnswerDuration": {
+            "type": "integer",
+            "description": "Duration in milliseconds for showing the answer",
+            "examples": [5000]
           },
           "questionComment": {
             "type": ["string", "null"],
@@ -5259,6 +5413,20 @@
           },
           "isBanned": {
             "type": "boolean"
+          }
+        }
+      },
+      "UserMuteResponse": {
+        "type": "object",
+        "required": ["userId", "mutedUntil"],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "mutedUntil": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the mute expires, or null if not muted"
           }
         }
       },
