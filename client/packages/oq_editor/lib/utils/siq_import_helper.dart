@@ -198,10 +198,8 @@ class SiqImportHelper {
       logo: siqData.logo?.file != null
           ? PackageLogoFileItem(
               file: FileItem(
-                id: null,
-                md5: siqData.logo!.file.md5,
-                type: siqData.logo!.file.type,
-                link: null,
+                md5: siqData.logo!.file!.md5,
+                type: siqData.logo!.file!.type,
               ),
             )
           : null,

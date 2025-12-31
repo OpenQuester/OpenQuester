@@ -99,7 +99,6 @@ class RoundsListScreen extends WatchingWidget {
   Future<void> _showAddRoundDialog(BuildContext context) async {
     final controller = GetIt.I<OqEditorController>();
     final newRound = PackageRound(
-      id: null,
       order: 0,
       name: controller.translations.newRound,
       description: '',

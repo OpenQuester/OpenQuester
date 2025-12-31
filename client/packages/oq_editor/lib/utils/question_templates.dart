@@ -92,13 +92,10 @@ class QuestionTemplates {
 
       final questionFiles = [
         PackageQuestionFile(
-          id: null,
           order: 0,
           file: FileItem(
-            id: null,
             md5: questionHash,
             type: questionType,
-            link: null,
           ),
           displayTime: controller.lastUsedQuestionDisplayTime,
         ),
@@ -137,13 +134,10 @@ class QuestionTemplates {
 
             answerFiles = [
               PackageQuestionFile(
-                id: null,
                 order: 0,
                 file: FileItem(
-                  id: null,
                   md5: answerHash,
                   type: answerType,
-                  link: null,
                 ),
                 displayTime: controller.lastUsedAnswerDisplayTime,
               ),
@@ -154,14 +148,10 @@ class QuestionTemplates {
 
       // Create pre-filled question
       final question = PackageQuestionUnion.simple(
-        id: null,
         order: 0,
         type: SimpleQuestionType.simple,
         price: controller.lastUsedPrice,
-        text: null,
         answerText: fileNameWithoutExt,
-        answerHint: null,
-        questionComment: null,
         questionFiles: questionFiles,
         answerFiles: answerFiles,
         showAnswerDuration: controller.lastUsedShowAnswerDuration,

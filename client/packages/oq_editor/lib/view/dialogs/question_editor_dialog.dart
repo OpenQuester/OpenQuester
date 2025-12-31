@@ -109,7 +109,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
     if (questionFiles != null) {
       for (final file in questionFiles) {
-        if (file == null) continue;
         final ref = _getOrCreateMediaFileReference(
           controller,
           file.file.md5,
@@ -140,7 +139,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
     if (answerFiles != null) {
       for (final file in answerFiles) {
-        if (file == null) continue;
         final ref = _getOrCreateMediaFileReference(
           controller,
           file.file.md5,
@@ -966,7 +964,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
             : (_choiceAnswers.last.order) + 1;
         _choiceAnswers.add(
           QuestionChoiceAnswers(
-            id: null,
             order: order,
             text: result,
           ),
@@ -1144,13 +1141,10 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       _questionMediaFiles.map((uiFile) async {
         final hash = await controller.registerMediaFile(uiFile.reference);
         return PackageQuestionFile(
-          id: null,
           order: uiFile.order,
           file: FileItem(
-            id: null,
             md5: hash,
             type: uiFile.type,
-            link: null,
           ),
           displayTime: uiFile.displayTime,
         );
@@ -1161,13 +1155,10 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       _answerMediaFiles.map((uiFile) async {
         final hash = await controller.registerMediaFile(uiFile.reference);
         return PackageQuestionFile(
-          id: null,
           order: uiFile.order,
           file: FileItem(
-            id: null,
             md5: hash,
             type: uiFile.type,
-            link: null,
           ),
           displayTime: uiFile.displayTime,
         );
@@ -1262,7 +1253,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           questionComment: questionComment.isEmpty ? null : questionComment,
           showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
-          subType: null,
           showDelay: _choiceShowDelay,
           answers: _choiceAnswers,
           questionFiles: questionFiles.isEmpty ? null : questionFiles,

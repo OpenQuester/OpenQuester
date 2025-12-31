@@ -613,7 +613,7 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
                   _HealthRow(
                     label: LocaleKeys.admin_redis_memory.tr(),
                     value: [
-                      healthData.redis.estimatedMemoryMB.toStringAsFixed(2),
+                      healthData.redis.estimatedMemoryMb.toStringAsFixed(2),
                       'MB',
                     ].join(' '),
                     isHealthy: true,
