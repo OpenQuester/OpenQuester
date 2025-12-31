@@ -211,21 +211,27 @@
             "in": "query",
             "description": "Search by package description, not case sensitive",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageDescription" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageDescription"
+            }
           },
           {
             "name": "language",
             "in": "query",
             "description": "Filter by package language",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageLanguage" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageLanguage"
+            }
           },
           {
             "name": "authorId",
             "in": "query",
             "description": "Filter by author user id",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageAuthorId" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageAuthorId"
+            }
           },
           {
             "name": "tags",
@@ -234,42 +240,54 @@
             "required": false,
             "style": "form",
             "explode": true,
-            "schema": { "$ref": "#/components/schemas/PackageTags" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageTags"
+            }
           },
           {
             "name": "ageRestriction",
             "in": "query",
             "description": "Filter by age restriction",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/AgeRestriction" }
+            "schema": {
+              "$ref": "#/components/schemas/AgeRestriction"
+            }
           },
           {
             "name": "minRounds",
             "in": "query",
             "description": "Minimum rounds count",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageMinRounds" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageMinRounds"
+            }
           },
           {
             "name": "maxRounds",
             "in": "query",
             "description": "Maximum rounds count",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageMaxRounds" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageMaxRounds"
+            }
           },
           {
             "name": "minQuestions",
             "in": "query",
             "description": "Minimum questions count",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageMinQuestions" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageMinQuestions"
+            }
           },
           {
             "name": "maxQuestions",
             "in": "query",
             "description": "Maximum questions count",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageMaxQuestions" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageMaxQuestions"
+            }
           }
         ],
         "responses": {
@@ -358,6 +376,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidSessionResponse"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Insufficient permissions to delete this package",
             "content": {
@@ -374,16 +402,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PackageNotFoundResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvalidSessionResponse"
                 }
               }
             }
@@ -1621,7 +1639,8 @@
             "type": "integer",
             "examples": [1000]
           }
-        }
+        },
+        "required": ["total"]
       },
       "PermissionName": {
         "type": "string",
@@ -1727,7 +1746,16 @@
               }
             }
           }
-        }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "isDeleted",
+          "isGuest",
+          "permissions",
+          "updatedAt",
+          "username"
+        ]
       },
       "InputOauthLogin": {
         "type": "object",
@@ -1745,7 +1773,8 @@
             "examples": ["discord"],
             "enum": ["discord"]
           }
-        }
+        },
+        "required": ["oauthProvider", "token"]
       },
       "InputGuestLogin": {
         "type": "object",
@@ -1822,7 +1851,8 @@
               }
             }
           }
-        }
+        },
+        "required": ["details", "error"]
       },
       "LogoutResponse": {
         "type": "object",
@@ -1831,7 +1861,8 @@
             "type": "string",
             "examples": ["Logout successful"]
           }
-        }
+        },
+        "required": ["message"]
       },
       "GameListItemPlayersStats": {
         "type": "object",
@@ -1848,7 +1879,8 @@
             "description": "Player's game slot index (0-based). Only set for players with PLAYER role.",
             "examples": [0, 1, 2, null]
           }
-        }
+        },
+        "required": ["id", "role"]
       },
       "GameListItem": {
         "type": "object",
@@ -1913,7 +1945,18 @@
           "package": {
             "$ref": "#/components/schemas/PackageItem"
           }
-        }
+        },
+        "required": [
+          "ageRestriction",
+          "createdAt",
+          "createdBy",
+          "id",
+          "isPrivate",
+          "maxPlayers",
+          "package",
+          "players",
+          "title"
+        ]
       },
       "GameCreateData": {
         "type": "object",
@@ -1941,13 +1984,20 @@
             "examples": [10]
           },
           "password": {
-            "type": ["null", "string"],
+            "type": ["string", "null"],
             "maxLength": 16,
             "pattern": "^[A-Za-z0-9_-]+$",
             "description": "Optional password for private games. If not provided for a private game, a 4-character password (uppercase letters A-Z only) will be auto-generated. User-provided passwords can contain letters A-Z, a-z, digits 0-9, hyphen and underscore.",
             "examples": ["MyPass-123", null]
           }
-        }
+        },
+        "required": [
+          "ageRestriction",
+          "isPrivate",
+          "maxPlayers",
+          "packageId",
+          "title"
+        ]
       },
       "ShortUserInfo": {
         "type": "object",
@@ -1960,7 +2010,8 @@
             "type": "string",
             "examples": ["John"]
           }
-        }
+        },
+        "required": ["id", "username"]
       },
       "PackageTag": {
         "type": "object",
@@ -1975,7 +2026,7 @@
             "examples": ["anime"]
           }
         },
-        "required": ["tag"],
+        "required": ["id", "tag"],
         "description": "Individual tag object"
       },
       "PaginatedPackages": {
@@ -1990,7 +2041,8 @@
           "pageInfo": {
             "$ref": "#/components/schemas/PageInfo"
           }
-        }
+        },
+        "required": ["data", "pageInfo"]
       },
       "PackageListItem": {
         "type": "object",
@@ -2074,7 +2126,8 @@
               null
             ]
           }
-        }
+        },
+        "required": ["ageRestriction", "author", "createdAt", "id", "title"]
       },
       "OqPackage": {
         "type": "object",
@@ -2165,7 +2218,15 @@
               null
             ]
           }
-        }
+        },
+        "required": [
+          "ageRestriction",
+          "author",
+          "createdAt",
+          "id",
+          "rounds",
+          "title"
+        ]
       },
       "PackageItem": {
         "type": "object",
@@ -2226,7 +2287,17 @@
               "examples": ["Anime", "General"]
             }
           }
-        }
+        },
+        "required": [
+          "ageRestriction",
+          "author",
+          "createdAt",
+          "id",
+          "questionsCount",
+          "roundsCount",
+          "tags",
+          "title"
+        ]
       },
       "PaginatedUsers": {
         "type": "object",
@@ -2240,7 +2311,8 @@
           "pageInfo": {
             "$ref": "#/components/schemas/PageInfo"
           }
-        }
+        },
+        "required": ["data", "pageInfo"]
       },
       "PaginatedGames": {
         "type": "object",
@@ -2254,7 +2326,8 @@
           "pageInfo": {
             "$ref": "#/components/schemas/PageInfo"
           }
-        }
+        },
+        "required": ["data", "pageInfo"]
       },
       "OrderDirection": {
         "type": "string",
@@ -2292,7 +2365,9 @@
       },
       "PackageTags": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {
+          "type": "string"
+        },
         "description": "Tags filter; can also be provided as comma-separated string"
       },
       "PackageMinRounds": {
@@ -2378,7 +2453,8 @@
               }
             ]
           }
-        }
+        },
+        "required": ["id", "uploadLinks"]
       },
       "FileLinkResponse": {
         "type": "object",
@@ -2387,7 +2463,8 @@
             "type": "string",
             "examples": ["http://localhost:9000/file-get-link"]
           }
-        }
+        },
+        "required": ["url"]
       },
       "BadFilenameResponse": {
         "type": "object",
@@ -2396,7 +2473,8 @@
             "type": "string",
             "examples": ["Bad filename"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "FileUploadLinkResponse": {
         "type": "object",
@@ -2405,7 +2483,8 @@
             "type": "string",
             "examples": ["http://localhost:9000/file-upload-link"]
           }
-        }
+        },
+        "required": ["url"]
       },
       "DeleteRequestResponse": {
         "type": "object",
@@ -2414,7 +2493,8 @@
             "type": "string",
             "examples": ["Delete request sent"]
           }
-        }
+        },
+        "required": ["message"]
       },
       "PackageCorruptedResponse": {
         "type": "object",
@@ -2423,7 +2503,8 @@
             "type": "string",
             "examples": ["Package is corrupted!"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "BadRequestResponse": {
         "type": "object",
@@ -2432,7 +2513,8 @@
             "type": "string",
             "examples": ["Bad request"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "PackageNotFoundResponse": {
         "type": "object",
@@ -2441,7 +2523,8 @@
             "type": "string",
             "examples": ["Package not found"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "PackageDeleteResponse": {
         "type": "object",
@@ -2450,7 +2533,8 @@
             "type": "string",
             "examples": ["Package deleted successfully"]
           }
-        }
+        },
+        "required": ["message"]
       },
       "InvalidSessionResponse": {
         "type": "object",
@@ -2459,7 +2543,8 @@
             "type": "string",
             "examples": ["Session invalid or expired"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "UserNotFoundResponse": {
         "type": "object",
@@ -2468,7 +2553,8 @@
             "type": "string",
             "examples": ["User not found"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "PermissionDeniedResponse": {
         "type": "object",
@@ -2477,7 +2563,8 @@
             "type": "string",
             "examples": ["You don't have permission to perform this action"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "GeneralErrorResponse": {
         "type": "object",
@@ -2486,7 +2573,8 @@
             "type": "string",
             "examples": ["Authentication is failed, please try again"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "GameNotFoundResponse": {
         "type": "object",
@@ -2495,7 +2583,8 @@
             "type": "string",
             "examples": ["Game not found"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "SocketAlreadyLoggedInResponse": {
         "type": "object",
@@ -2503,7 +2592,8 @@
           "error": {
             "type": "string"
           }
-        }
+        },
+        "required": ["error"]
       },
       "GameEventSubscription": {
         "type": "object",
@@ -2536,7 +2626,7 @@
             "$ref": "#/components/schemas/GameListItem"
           }
         },
-        "required": ["type", "event", "data"]
+        "required": ["data", "event", "type"]
       },
       "GameDeleteEventSubscription": {
         "type": "object",
@@ -2555,7 +2645,7 @@
             "required": ["id"]
           }
         },
-        "required": ["type", "event", "data"]
+        "required": ["data", "event", "type"]
       },
       "AgeRestriction": {
         "type": "string",
@@ -2658,7 +2748,8 @@
             "text": "Option 4",
             "file": null
           }
-        ]
+        ],
+        "required": ["order"]
       },
       "QuestionAnswerText": {
         "type": ["string", "null"],
@@ -2708,7 +2799,7 @@
             "examples": ["https://example.com/file123"]
           }
         },
-        "required": ["md5"],
+        "required": ["md5", "type"],
         "description": "Basic file metadata"
       },
       "PackageLogoFileInput": {
@@ -2754,7 +2845,7 @@
             "examples": [5000]
           }
         },
-        "required": ["file", "displayTime"],
+        "required": ["displayTime", "file", "order"],
         "description": "Question media file structure for package creation"
       },
       "PackageQuestion": {
@@ -2841,7 +2932,13 @@
             ]
           }
         },
-        "required": ["price", "order", "type"],
+        "required": [
+          "isHidden",
+          "order",
+          "price",
+          "showAnswerDuration",
+          "type"
+        ],
         "description": "Base properties for all question types"
       },
       "ChoiceQuestion": {
@@ -3100,7 +3197,7 @@
             "description": "Themes in the round"
           }
         },
-        "required": ["name", "order", "type", "themes"],
+        "required": ["name", "order", "themes", "type"],
         "description": "Round structure for package"
       },
       "PackageCreateInputData": {
@@ -3182,7 +3279,7 @@
             "description": "Rounds in the package"
           }
         },
-        "required": ["title", "ageRestriction", "rounds"],
+        "required": ["ageRestriction", "rounds", "title"],
         "description": "Input for creating a new package; author is set via authentication"
       },
       "InputSocketIOAuth": {
@@ -3192,7 +3289,8 @@
             "type": "string",
             "examples": ["Q04nceF-7noEw52hAAAD"]
           }
-        }
+        },
+        "required": ["socketId"]
       },
       "PlayerRole": {
         "type": "string",
@@ -3216,7 +3314,8 @@
             "examples": [false],
             "description": "If true - player is banned from the game"
           }
-        }
+        },
+        "required": ["banned", "muted", "restricted"]
       },
       "PlayerMeta": {
         "type": "object",
@@ -3233,7 +3332,8 @@
             "type": ["string", "null"],
             "examples": ["https://example.image.com", null]
           }
-        }
+        },
+        "required": ["id", "username"]
       },
       "PlayerData": {
         "type": "object",
@@ -3267,7 +3367,15 @@
             "examples": [true, false],
             "default": false
           }
-        }
+        },
+        "required": [
+          "mediaDownloaded",
+          "meta",
+          "restrictionData",
+          "role",
+          "score",
+          "status"
+        ]
       },
       "SocketIOGameJoinInput": {
         "type": "object",
@@ -3292,7 +3400,8 @@
             "description": "Password for joining private games. Required when joining a private game. Can be null for public games.",
             "examples": ["Secret-123", null]
           }
-        }
+        },
+        "required": ["gameId", "role"]
       },
       "SocketIOGameLeaveEventPayload": {
         "type": "object",
@@ -3302,7 +3411,8 @@
             "examples": [5],
             "description": "Emitted to everyone in game, including sender. ID of the user who left the game"
           }
-        }
+        },
+        "required": ["user"]
       },
       "SocketIOChatMessageEventPayload": {
         "description": "Emitted to everyone in game, including sender. Data that sent to all players in room on chat message",
@@ -3312,6 +3422,7 @@
           },
           {
             "type": "object",
+            "required": ["uuid", "user", "timestamp"],
             "properties": {
               "uuid": {
                 "type": "string",
@@ -3346,7 +3457,7 @@
             "description": "When the user change occurred"
           }
         },
-        "required": ["userData", "timestamp"]
+        "required": ["timestamp", "userData"]
       },
       "SocketIONextRoundEventPayload": {
         "type": "object",
@@ -3354,7 +3465,8 @@
           "gameState": {
             "$ref": "#/components/schemas/GameState"
           }
-        }
+        },
+        "required": ["gameState"]
       },
       "SocketIOGameJoinEventPayload": {
         "type": "object",
@@ -3381,7 +3493,8 @@
               "$ref": "#/components/schemas/SocketIOChatMessageEventPayload"
             }
           }
-        }
+        },
+        "required": ["chatMessages", "gameState", "meta", "players"]
       },
       "SocketIOGameJoinMeta": {
         "type": "object",
@@ -3390,7 +3503,8 @@
             "type": "string",
             "examples": ["Game title"]
           }
-        }
+        },
+        "required": ["title"]
       },
       "GameState": {
         "type": "object",
@@ -3519,10 +3633,12 @@
             ],
             "description": "Stake question specific data - only set when a stake question is picked"
           }
-        }
+        },
+        "required": ["isPaused"]
       },
       "GameStateTimer": {
         "type": ["object", "null"],
+        "required": ["startedAt", "durationMs", "elapsedMs"],
         "properties": {
           "startedAt": {
             "type": "string",
@@ -3567,7 +3683,8 @@
           "answerType": {
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
           }
-        }
+        },
+        "required": ["answerType", "player", "result", "score"]
       },
       "SocketIOGameStartEventPayload": {
         "type": "object",
@@ -3576,7 +3693,8 @@
           "currentRound": {
             "$ref": "#/components/schemas/SocketIOGameStateRoundData"
           }
-        }
+        },
+        "required": ["currentRound"]
       },
       "SocketIOPlayerReadinessEventPayload": {
         "type": "object",
@@ -3606,7 +3724,12 @@
             "examples": [true]
           }
         },
-        "required": ["playerId", "isReady", "readyPlayers"]
+        "required": [
+          "autoStartTriggered",
+          "isReady",
+          "playerId",
+          "readyPlayers"
+        ]
       },
       "SocketIOGameStateRoundData": {
         "type": "object",
@@ -3632,7 +3755,8 @@
               "$ref": "#/components/schemas/SocketIOGameStateThemeData"
             }
           }
-        }
+        },
+        "required": ["name", "order", "themes", "type"]
       },
       "SocketIOGameStateThemeData": {
         "type": "object",
@@ -3655,7 +3779,8 @@
               "$ref": "#/components/schemas/SocketIOGameStateQuestionData"
             }
           }
-        }
+        },
+        "required": ["name", "order", "questions"]
       },
       "SocketIOGameStateQuestionData": {
         "type": "object",
@@ -3681,7 +3806,8 @@
             "type": "boolean",
             "description": "Marks if question was played before to disable picking action"
           }
-        }
+        },
+        "required": ["id", "isPlayed", "order"]
       },
       "SocketIOEvents": {
         "type": "string",
@@ -3792,7 +3918,8 @@
             "description": "ID of the player who skipped the question",
             "examples": [727]
           }
-        }
+        },
+        "required": ["playerId"]
       },
       "MediaDownloadStatusEventPayload": {
         "type": "object",
@@ -3825,7 +3952,7 @@
             ]
           }
         },
-        "required": ["playerId", "mediaDownloaded", "allPlayersReady"]
+        "required": ["allPlayersReady", "mediaDownloaded", "playerId"]
       },
       "SocketIOGameUnskipEventPayload": {
         "type": "object",
@@ -3836,7 +3963,8 @@
             "description": "ID of the player who unskipped the question",
             "examples": [727]
           }
-        }
+        },
+        "required": ["playerId"]
       },
       "SocketIOGamePauseEventPayload": {
         "type": "object",
@@ -3891,7 +4019,8 @@
             "description": "ID of the player who was kicked",
             "examples": [123]
           }
-        }
+        },
+        "required": ["playerId"]
       },
       "SocketIOPlayerRestrictionInput": {
         "type": "object",
@@ -3918,7 +4047,7 @@
             "examples": [false]
           }
         },
-        "required": ["playerId", "muted", "restricted", "banned"]
+        "required": ["banned", "muted", "playerId", "restricted"]
       },
       "SocketIOPlayerRestrictionEventPayload": {
         "type": "object",
@@ -3944,7 +4073,8 @@
             "description": "Whether the player is banned",
             "examples": [false]
           }
-        }
+        },
+        "required": ["banned", "muted", "playerId", "restricted"]
       },
       "SocketIOPlayerRoleChangeInput": {
         "type": "object",
@@ -3967,7 +4097,7 @@
             "description": "The new role for the player"
           }
         },
-        "required": ["playerId", "newRole"]
+        "required": ["newRole", "playerId"]
       },
       "SocketIOPlayerRoleChangeEventPayload": {
         "type": "object",
@@ -3989,7 +4119,8 @@
             },
             "description": "Updated list of all players with their current data"
           }
-        }
+        },
+        "required": ["newRole", "playerId", "players"]
       },
       "SocketIOPlayerScoreChangeInput": {
         "type": "object",
@@ -4006,7 +4137,7 @@
             "examples": [1500]
           }
         },
-        "required": ["playerId", "newScore"]
+        "required": ["newScore", "playerId"]
       },
       "SocketIOPlayerScoreChangeEventPayload": {
         "type": "object",
@@ -4022,7 +4153,8 @@
             "description": "The new score of the player",
             "examples": [1500]
           }
-        }
+        },
+        "required": ["newScore", "playerId"]
       },
       "SocketIOPlayerSlotChangeInput": {
         "type": "object",
@@ -4062,7 +4194,8 @@
             },
             "description": "Updated list of all players with their current data"
           }
-        }
+        },
+        "required": ["newSlot", "playerId", "players"]
       },
       "SocketIOTurnPlayerChangeInput": {
         "type": "object",
@@ -4095,7 +4228,8 @@
             "examples": ["Hello guys!"],
             "maxLength": 255
           }
-        }
+        },
+        "required": ["message"]
       },
       "SocketIOQuestionPickEventInput": {
         "type": "object",
@@ -4106,7 +4240,8 @@
             "description": "ID of the picked question",
             "examples": [25]
           }
-        }
+        },
+        "required": ["questionId"]
       },
       "SocketIOQuestionDataEventPayload": {
         "type": "object",
@@ -4118,7 +4253,8 @@
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
           }
-        }
+        },
+        "required": ["data", "timer"]
       },
       "SocketIOQuestionAnswerEventPayload": {
         "type": "object",
@@ -4132,7 +4268,8 @@
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
           }
-        }
+        },
+        "required": ["timer", "userId"]
       },
       "SocketIOAnswerSubmittedEventData": {
         "type": "object",
@@ -4216,7 +4353,8 @@
           "answerType": {
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
           }
-        }
+        },
+        "required": ["answerType", "scoreResult"]
       },
       "SocketIOSecretQuestionPickedEventPayload": {
         "type": "object",
@@ -4237,7 +4375,7 @@
             "examples": [456]
           }
         },
-        "required": ["pickerPlayerId", "transferType", "questionId"]
+        "required": ["pickerPlayerId", "questionId", "transferType"]
       },
       "SocketIOSecretQuestionTransferInputData": {
         "type": "object",
@@ -4271,7 +4409,7 @@
             "examples": [456]
           }
         },
-        "required": ["fromPlayerId", "toPlayerId", "questionId"]
+        "required": ["fromPlayerId", "questionId", "toPlayerId"]
       },
       "PackageQuestionData": {
         "type": "object",
@@ -4425,7 +4563,14 @@
               }
             ]
           }
-        }
+        },
+        "required": [
+          "isHidden",
+          "order",
+          "showAnswerDuration",
+          "subType",
+          "type"
+        ]
       },
       "ThemeEliminateInput": {
         "type": "object",
@@ -4459,7 +4604,7 @@
             "examples": [124]
           }
         },
-        "required": ["themeId", "eliminatedBy"]
+        "required": ["eliminatedBy", "themeId"]
       },
       "FinalAnswerSubmitInput": {
         "type": "object",
@@ -4489,7 +4634,7 @@
             "examples": ["This is my final answer"]
           }
         },
-        "required": ["playerId", "answerText"]
+        "required": ["answerText", "playerId"]
       },
       "FinalBidSubmitInput": {
         "type": "object",
@@ -4523,7 +4668,7 @@
             "examples": [true, false]
           }
         },
-        "required": ["playerId", "bidAmount"]
+        "required": ["bidAmount", "isAutomatic", "playerId"]
       },
       "FinalAnswerReviewInput": {
         "type": "object",
@@ -4567,7 +4712,7 @@
             "examples": [500]
           }
         },
-        "required": ["answerId", "playerId", "isCorrect", "scoreChange"]
+        "required": ["answerId", "isCorrect", "playerId", "scoreChange"]
       },
       "SocketIOGameAnswerType": {
         "type": "string",
@@ -4628,7 +4773,7 @@
             "examples": ["2024-01-01T00:01:00Z"]
           }
         },
-        "required": ["id", "playerId", "answer", "submittedAt"]
+        "required": ["answer", "id", "playerId", "submittedAt"]
       },
       "FinalRoundGameData": {
         "type": "object",
@@ -4675,18 +4820,22 @@
           },
           "questionData": {
             "oneOf": [
-              { "$ref": "#/components/schemas/FinalRoundQuestionData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/FinalRoundQuestionData"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Question data for the final round, set when transitioning from bidding to answering phase"
           }
         },
         "required": [
-          "phase",
-          "turnOrder",
-          "bids",
           "answers",
-          "eliminatedThemes"
+          "bids",
+          "eliminatedThemes",
+          "phase",
+          "turnOrder"
         ]
       },
       "FinalPhaseCompleteEventData": {
@@ -4703,7 +4852,7 @@
             "$ref": "#/components/schemas/GameStateTimer"
           }
         },
-        "required": ["phase", "nextPhase"]
+        "required": ["nextPhase", "phase", "timer"]
       },
       "FinalQuestionEventData": {
         "type": "object",
@@ -4858,7 +5007,7 @@
             "required": ["id", "order", "isPlayed"]
           }
         },
-        "required": ["themeId", "themeName", "question"]
+        "required": ["question", "themeId", "themeName"]
       },
       "AnswerReviewData": {
         "type": "object",
@@ -4894,11 +5043,12 @@
           }
         },
         "required": [
-          "playerId",
           "answerId",
           "answerText",
-          "scoreChange",
-          "answerType"
+          "answerType",
+          "isCorrect",
+          "playerId",
+          "scoreChange"
         ]
       },
       "FinalAnswerType": {
@@ -4946,10 +5096,10 @@
           }
         },
         "required": [
+          "biddingOrder",
+          "maxPrice",
           "pickerPlayerId",
           "questionId",
-          "maxPrice",
-          "biddingOrder",
           "timer"
         ]
       },
@@ -4967,7 +5117,7 @@
             "examples": [250, null]
           }
         },
-        "required": ["bidType", "bidAmount"]
+        "required": ["bidAmount", "bidType"]
       },
       "StakeBidSubmitOutputData": {
         "type": "object",
@@ -5010,11 +5160,11 @@
           }
         },
         "required": [
-          "playerId",
           "bidAmount",
           "bidType",
           "isPhaseComplete",
-          "nextBidderId"
+          "nextBidderId",
+          "playerId"
         ]
       },
       "StakeQuestionWinnerEventData": {
@@ -5032,7 +5182,7 @@
             "examples": [350]
           }
         },
-        "required": ["winnerPlayerId", "finalBid"]
+        "required": ["finalBid", "winnerPlayerId"]
       },
       "SecretQuestionGameData": {
         "type": "object",
@@ -5060,9 +5210,9 @@
         },
         "required": [
           "pickerPlayerId",
-          "transferType",
           "questionId",
-          "transferPhase"
+          "transferPhase",
+          "transferType"
         ]
       },
       "StakeQuestionGameData": {
@@ -5136,16 +5286,16 @@
           }
         },
         "required": [
-          "pickerPlayerId",
-          "questionId",
-          "maxPrice",
-          "bids",
-          "passedPlayers",
           "biddingOrder",
+          "biddingPhase",
+          "bids",
           "currentBidderIndex",
           "highestBid",
-          "winnerPlayerId",
-          "biddingPhase"
+          "maxPrice",
+          "passedPlayers",
+          "pickerPlayerId",
+          "questionId",
+          "winnerPlayerId"
         ]
       },
       "SocketIOStakeQuestionSubmittedEventPayload": {
@@ -5175,10 +5325,11 @@
           }
         },
         "required": [
-          "playerId",
           "bidAmount",
+          "bidType",
           "isPhaseComplete",
           "nextBidderId",
+          "playerId",
           "timer"
         ]
       },
@@ -5212,7 +5363,13 @@
             "$ref": "#/components/schemas/GameStateTimer"
           }
         },
-        "required": ["pickerPlayerId", "questionId", "timer", "maxPrice"]
+        "required": [
+          "biddingOrder",
+          "maxPrice",
+          "pickerPlayerId",
+          "questionId",
+          "timer"
+        ]
       },
       "SocketIOStakeQuestionWinnerEventPayload": {
         "type": "object",
@@ -5229,7 +5386,7 @@
             "examples": [2000]
           }
         },
-        "required": ["winnerPlayerId", "finalBid"]
+        "required": ["finalBid", "winnerPlayerId"]
       },
       "SocketIOStakeQuestionBidInput": {
         "type": "object",
@@ -5247,11 +5404,11 @@
       "AdminDashboardData": {
         "type": "object",
         "required": [
-          "totalUsers",
           "activeUsers",
           "deletedUsers",
           "recentUsers",
-          "systemHealth"
+          "systemHealth",
+          "totalUsers"
         ],
         "properties": {
           "totalUsers": {
@@ -5288,7 +5445,7 @@
       },
       "AdminUserListData": {
         "type": "object",
-        "required": ["data", "stats", "pageInfo"],
+        "required": ["data", "pageInfo", "stats"],
         "properties": {
           "data": {
             "type": "array",
@@ -5379,7 +5536,7 @@
       },
       "AdminPingData": {
         "type": "object",
-        "required": ["ok", "eventLoopLagMs", "redis", "timestamp"],
+        "required": ["eventLoopLagMs", "ok", "redis", "timestamp"],
         "properties": {
           "ok": {
             "type": "boolean"
@@ -5406,7 +5563,7 @@
       },
       "UserBanResponse": {
         "type": "object",
-        "required": ["userId", "isBanned"],
+        "required": ["isBanned", "userId"],
         "properties": {
           "userId": {
             "type": "integer"
@@ -5418,7 +5575,7 @@
       },
       "UserMuteResponse": {
         "type": "object",
-        "required": ["userId", "mutedUntil"],
+        "required": ["mutedUntil", "userId"],
         "properties": {
           "userId": {
             "type": "integer"
@@ -5432,7 +5589,7 @@
       },
       "UserRestoreResponse": {
         "type": "object",
-        "required": ["userId", "restored"],
+        "required": ["restored", "userId"],
         "properties": {
           "userId": {
             "type": "integer"

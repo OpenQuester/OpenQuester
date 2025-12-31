@@ -66,30 +66,30 @@ extension PackageRoundX on PackageRound {
   }
 }
 
-extension SocketIOGameStateThemeDataX on SocketIOGameStateThemeData {
-  List<SocketIOGameStateQuestionData> sortedQuestions() {
+extension SocketIoGameStateThemeDataX on SocketIoGameStateThemeData {
+  List<SocketIoGameStateQuestionData> sortedQuestions() {
     return questions.sortedByCompare((e) => e.order, (a, b) => a.compareTo(b));
   }
 }
 
-extension SocketIOGameStateRoundDataX on SocketIOGameStateRoundData {
-  List<SocketIOGameStateThemeData> sortedThemes() {
+extension SocketIoGameStateRoundDataX on SocketIoGameStateRoundData {
+  List<SocketIoGameStateThemeData> sortedThemes() {
     return themes.sortedByCompare((e) => e.order, (a, b) => a.compareTo(b));
   }
 
-  SocketIOGameStateRoundData changeQuestion({
+  SocketIoGameStateRoundData changeQuestion({
     required int? id,
-    required SocketIOGameStateQuestionData Function(
-      SocketIOGameStateQuestionData value,
+    required SocketIoGameStateQuestionData Function(
+      SocketIoGameStateQuestionData value,
     )
     onChange,
   }) {
     if (id == null) return this;
 
-    final themes = List<SocketIOGameStateThemeData>.from(this.themes);
+    final themes = List<SocketIoGameStateThemeData>.from(this.themes);
     for (var i = 0; i < themes.length; i++) {
       final theme = themes[i];
-      final questions = List<SocketIOGameStateQuestionData>.from(
+      final questions = List<SocketIoGameStateQuestionData>.from(
         theme.questions,
       );
       final questionIndex = questions.indexWhere((e) => e.id == id);
@@ -102,10 +102,10 @@ extension SocketIOGameStateRoundDataX on SocketIOGameStateRoundData {
   }
 }
 
-extension SocketIOGameJoinEventPayloadX on SocketIOGameJoinEventPayload {
+extension SocketIoGameJoinEventPayloadX on SocketIoGameJoinEventPayload {
   PlayerData get me => players.getById(ProfileController.getUser()!.id)!;
 
-  SocketIOGameJoinEventPayload changePlayer({
+  SocketIoGameJoinEventPayload changePlayer({
     required int? id,
     required PlayerData? Function(PlayerData value) onChange,
   }) {
@@ -127,7 +127,7 @@ extension SocketIOGameJoinEventPayloadX on SocketIOGameJoinEventPayload {
   }
 }
 
-extension SocketIOChatMessageEventPayloadX on SocketIOChatMessageEventPayload {
+extension SocketIoChatMessageEventPayloadX on SocketIoChatMessageEventPayload {
   TextMessage toChatMessage() {
     return TextMessage(
       id: uuid,

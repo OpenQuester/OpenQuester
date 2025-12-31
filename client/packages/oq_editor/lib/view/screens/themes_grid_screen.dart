@@ -133,7 +133,6 @@ class ThemesGridScreen extends WatchingWidget {
   void _addNewTheme(BuildContext context, int roundIndex) {
     final controller = GetIt.I<OqEditorController>();
     final newTheme = PackageTheme(
-      id: null,
       order: 0,
       name: controller.translations.newTheme,
       description: '',

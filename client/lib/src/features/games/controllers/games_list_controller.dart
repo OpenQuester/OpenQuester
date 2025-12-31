@@ -11,7 +11,7 @@ class GamesListController extends ListControllerBase<GameListItem> {
   Future<void> init() async {
     await super.init();
     getIt<SocketController>().general
-      ..on(SocketIOEvents.games.name, _onSocketEvent)
+      ..on(SocketIoEvents.games.name, _onSocketEvent)
       // Refresh list on reconnect
       ..onReconnect((_) => pagingController.refresh());
     queryFilter = null;
@@ -20,7 +20,7 @@ class GamesListController extends ListControllerBase<GameListItem> {
   @override
   Future<void> dispose() async {
     await super.dispose();
-    getIt<SocketController>().general.off(SocketIOEvents.games.name);
+    getIt<SocketController>().general.off(SocketIoEvents.games.name);
     _throttling.close();
   }
 
