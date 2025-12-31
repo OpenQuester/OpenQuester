@@ -6,9 +6,7 @@ import { type ILogger } from "infrastructure/logger/ILogger";
 
 /**
  * Express error handling middleware - outermost error boundary for HTTP requests
- * 
- * Purpose: Answer "What HTTP request failed and why?"
- * Level: error (Transport layer boundary - request failures)
+ *
  * Cardinality: Safe - error codes and messages are bounded
  * Note: ErrorController.resolveError handles actual error logging
  */

@@ -126,9 +126,6 @@ export class S3StorageService {
    */
   /**
    * Upload file from Discord CDN to S3
-   * 
-   * Purpose: Answer "Did Discord file upload succeed and how long did it take?"
-   * Level: performance (external call timing), error (upload failures)
    */
   public async putFileFromDiscord(
     cdnLink: string,
@@ -142,14 +139,11 @@ export class S3StorageService {
       https
         .get(cdnLink, (res) => {
           if (res.statusCode !== 200) {
-            this.logger.error(
-              `Discord CDN fetch failed`,
-              {
-                prefix: "[S3]: ",
-                statusCode: res.statusCode,
-                filename,
-              }
-            );
+            this.logger.error(`Discord CDN fetch failed`, {
+              prefix: "[S3]: ",
+              statusCode: res.statusCode,
+              filename,
+            });
             log.finish();
             resolve(false);
             return;
@@ -178,14 +172,11 @@ export class S3StorageService {
 
               resolve(md5Hash);
             } catch (err) {
-              this.logger.error(
-                `S3 upload failed`,
-                {
-                  prefix: "[S3]: ",
-                  filename,
-                  error: err instanceof Error ? err.message : String(err),
-                }
-              );
+              this.logger.error(`S3 upload failed`, {
+                prefix: "[S3]: ",
+                filename,
+                error: err instanceof Error ? err.message : String(err),
+              });
               resolve(false);
             } finally {
               log.finish();
@@ -193,13 +184,10 @@ export class S3StorageService {
           });
         })
         .on("error", (err) => {
-          this.logger.error(
-            `Discord CDN request failed`,
-            {
-              prefix: "[S3]: ",
-              error: err.message,
-            }
-          );
+          this.logger.error(`Discord CDN request failed`, {
+            prefix: "[S3]: ",
+            error: err.message,
+          });
           resolve(false);
         });
     });
@@ -267,22 +255,16 @@ export class S3StorageService {
 
   /**
    * Delete file with usage validation
-   * 
-   * Purpose: Validate file deletion permissions
-   * Level: debug (usage validation details - helpful for troubleshooting)
    */
   public async delete(filename: string, req: Request) {
     const usageRecords = await this.dependencyService.getFileUsage(filename);
 
     if (usageRecords.length < 1) {
-      this.logger.debug(
-        `File deletion attempted but no usage records found`,
-        {
-          prefix: "[S3]: ",
-          filename,
-          userId: req.user?.id,
-        }
-      );
+      this.logger.debug(`File deletion attempted but no usage records found`, {
+        prefix: "[S3]: ",
+        filename,
+        userId: req.user?.id,
+      });
       return;
     }
 
@@ -338,8 +320,6 @@ export class S3StorageService {
 
   /**
    * Delete file from S3 storage and remove from database (used for package deletion)
-   * 
-   * Purpose: Infrastructure operation - no logging needed unless it fails
    */
   public async deleteFileFromStorage(filename: string): Promise<void> {
     const filePath = StorageUtils.parseFilePath(filename);
@@ -355,9 +335,6 @@ export class S3StorageService {
   /**
    * Delete multiple files from S3 storage in batch
    * Note: Database file records should be removed separately before calling this method
-   * 
-   * Purpose: Answer "Did batch S3 deletion fail?"
-   * Level: error (only for failures)
    */
   public async deleteFilesFromStorage(filenames: string[]): Promise<void> {
     if (filenames.length === 0) {
@@ -676,10 +653,7 @@ export class S3StorageService {
   /**
    * Uploads random test files to S3 that are not tracked in the database.
    * Used for testing S3 cleanup jobs.
-   * 
-   * Purpose: Answer "How many test files were uploaded?"
-   * Level: audit (test data generation)
-   * 
+   *
    * @param count Number of random files to upload (default: 5)
    * @returns Array of uploaded filenames
    */
@@ -716,14 +690,11 @@ export class S3StorageService {
       }
     }
 
-    this.logger.audit(
-      `Test files uploaded to S3`,
-      {
-        prefix: "[S3]: ",
-        uploadedCount: uploadedFiles.length,
-        files: uploadedFiles,
-      }
-    );
+    this.logger.audit(`Test files uploaded to S3`, {
+      prefix: "[S3]: ",
+      uploadedCount: uploadedFiles.length,
+      files: uploadedFiles,
+    });
 
     return uploadedFiles;
   }

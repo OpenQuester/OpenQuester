@@ -106,9 +106,6 @@ export class AuthRestApiController {
 
   /**
    * Handle OAuth login
-   * 
-   * Purpose: Answer "Who logged in and how long did it take?"
-   * Level: audit (security event), performance (login timing)
    */
   private handleOauthLogin = async (req: Request, res: Response) => {
     const log = this.logger.performance(`OAuth login`);
@@ -138,22 +135,16 @@ export class AuthRestApiController {
         });
         break;
       default:
-        this.logger.warn(
-          `Unsupported OAuth provider attempted`,
-          {
-            prefix: "[AUTH]: ",
-            provider: authDTO.oauthProvider,
-          }
-        );
+        this.logger.warn(`Unsupported OAuth provider attempted`, {
+          prefix: "[AUTH]: ",
+          provider: authDTO.oauthProvider,
+        });
         throw new ClientError(ClientResponse.OAUTH_PROVIDER_NOT_SUPPORTED);
     }
   };
 
   /**
    * Handle user logout
-   * 
-   * Purpose: Answer "Who logged out and when?"
-   * Level: audit (security event), performance (logout timing)
    */
   private logout = async (req: Request, res: Response) => {
     const log = this.logger.performance(`User logout`);

@@ -114,9 +114,6 @@ export class AdminRestApiController {
 
   /**
    * Get admin dashboard data
-   *
-   * Purpose: Answer "How long did admin dashboard query take?"
-   * Level: audit (admin action), performance (query timing)
    */
   private getDashboard = async (req: Request, res: Response) => {
     this.logger.audit("Admin dashboard accessed", {
@@ -140,9 +137,6 @@ export class AdminRestApiController {
 
   /**
    * Get admin users list with pagination
-   *
-   * Purpose: Answer "How long did admin users query take?"
-   * Level: performance (query timing only, no audit needed for read)
    */
   private getUsers = async (req: Request, res: Response) => {
     const log = this.logger.performance("Admin users query", {
@@ -164,9 +158,6 @@ export class AdminRestApiController {
 
   /**
    * Get system health metrics
-   *
-   * Purpose: Answer "What is system health status?"
-   * Level: audit (monitoring action), performance (query timing)
    */
   private getSystemHealth = async (req: Request, res: Response) => {
     this.logger.audit("System health check performed", {
@@ -187,9 +178,6 @@ export class AdminRestApiController {
 
   /**
    * Ban user - security action
-   *
-   * Purpose: Answer "Who banned which user and when?"
-   * Level: audit (immutable security event)
    */
   private banUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
@@ -213,9 +201,6 @@ export class AdminRestApiController {
 
   /**
    * Unban user - security action
-   *
-   * Purpose: Answer "Who unbanned which user and when?"
-   * Level: audit (immutable security event)
    */
   private unbanUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
@@ -286,9 +271,6 @@ export class AdminRestApiController {
 
   /**
    * Delete user - security action
-   *
-   * Purpose: Answer "Who deleted which user and when?"
-   * Level: audit (immutable security event)
    */
   private deleteUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
@@ -309,9 +291,6 @@ export class AdminRestApiController {
 
   /**
    * Restore deleted user - security action
-   *
-   * Purpose: Answer "Who restored which user and when?"
-   * Level: audit (immutable security event)
    */
   private restoreUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(

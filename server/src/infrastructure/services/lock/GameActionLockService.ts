@@ -15,9 +15,6 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
  * 1. Action arrives → try acquireLock()
  * 2. If success → process action, releaseLock() when done
  * 3. If failure → action queued in GameActionQueueService
- * 
- * Logging: None needed - lock acquisition/release are implementation details
- * that don't answer business questions. Failures are handled at executor level.
  */
 export class GameActionLockService {
   private readonly LOCK_KEY_PREFIX = "game:action:lock";

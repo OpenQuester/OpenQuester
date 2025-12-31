@@ -20,8 +20,6 @@ export class RedisRepository {
 
   /**
    * Subscribe to Redis pub/sub channel
-   * 
-   * Purpose: Infrastructure operation - no logging needed unless it fails
    */
   public async subscribe(channel: string, callback?: Callback<unknown>) {
     if (callback) {
@@ -72,11 +70,9 @@ export class RedisRepository {
 
   /**
    * Private wrapper method to handle consistent logging for Redis operations
-   * 
-   * Purpose: Answer "How long did this Redis operation take?"
-   * Level: performance (database/external call timing)
+   *
    * Note: Removed trace logs - implementation details not useful for diagnosis
-   * 
+   *
    * @param operationName The name of the Redis operation (e.g., "Redis GET")
    * @param traceLogData Object containing data to log
    * @param operation The async Redis operation to execute
@@ -171,10 +167,7 @@ export class RedisRepository {
 
   /**
    * Cleanup Redis keys by pattern
-   * 
-   * Purpose: Answer "How many keys were cleaned up?"
-   * Level: info (cleanup outcome), performance (operation timing), error (failures)
-   * 
+   *
    * @param keyPattern Key pattern to cleanup, for example `game:*`
    * @param logEntity Log entity for correct logs, for example "game"
    */

@@ -11,41 +11,44 @@ This document defines logging standards for the OpenQuester backend, based on th
 Before adding a log, ask: **"What question does this answer?"**
 
 Examples:
+
 - ✅ "Which user performed what admin action?" → `audit` log
-- ✅ "Why did this HTTP request fail?" → `error` log  
+- ✅ "Why did this HTTP request fail?" → `error` log
 - ✅ "How long did this external API call take?" → `performance` log
 - ❌ "Function X was called" → No useful question
 
 ### 2. Layer Ownership: Log at boundaries only
 
-| Layer | What to Log | Examples |
-|-------|-------------|----------|
+| Layer                       | What to Log                             | Examples                                      |
+| --------------------------- | --------------------------------------- | --------------------------------------------- |
 | **Transport (HTTP/Socket)** | Request/response, status codes, latency | `performanceLogMiddleware`, `errorMiddleware` |
-| **Application** | Business outcomes, decisions | "User banned", "Game created" |
-| **Infrastructure** | External calls, errors, retries | S3 upload failures, Redis errors |
-| **Domain** | **Nothing** (keep pure) | Entities, value objects should not log |
+| **Application**             | Business outcomes, decisions            | "User banned", "Game created"                 |
+| **Infrastructure**          | External calls, errors, retries         | S3 upload failures, Redis errors              |
+| **Domain**                  | **Nothing** (keep pure)                 | Entities, value objects should not log        |
 
 ### 3. Strict Level Semantics
 
-| Level | When to Use | Environment | Examples |
-|-------|-------------|-------------|----------|
-| `trace` | Local debugging only | Never in production | Implementation details, variable values |
-| `debug` | Implementation details | Dev/staging only | Cache hits, query details |
-| `info` | Business events | All environments | "Game started", "User logged in" |
-| `performance` | Request/operation timing | All environments | HTTP request duration, DB query time |
-| `warn` | Unexpected but recovered | All environments | Lock contention, retry attempts |
-| `error` | Failures that break functionality | All environments | API errors, DB failures |
-| `audit` | Security/permission events | All environments | User banned, admin actions |
+| Level         | When to Use                       | Environment         | Examples                                |
+| ------------- | --------------------------------- | ------------------- | --------------------------------------- |
+| `trace`       | Local debugging only              | Never in production | Implementation details, variable values |
+| `debug`       | Implementation details            | Dev/staging only    | Cache hits, query details               |
+| `info`        | Business events                   | All environments    | "Game started", "User logged in"        |
+| `performance` | Request/operation timing          | All environments    | HTTP request duration, DB query time    |
+| `warn`        | Unexpected but recovered          | All environments    | Lock contention, retry attempts         |
+| `error`       | Failures that break functionality | All environments    | API errors, DB failures                 |
+| `audit`       | Security/permission events        | All environments    | User banned, admin actions              |
 
 ### 4. Cardinality & Size
 
 **Never log:**
+
 - Raw request bodies (unbounded size)
 - File contents
 - Full headers
 - Long arrays/objects
 
 **Instead log:**
+
 - IDs (gameId, userId)
 - Enums (action type, status)
 - Counts (player count, queue length)
@@ -124,15 +127,15 @@ this.logger.audit("User banned", {
 
 ### 8. Environment Rules
 
-| Level | Local | Dev | Staging | Production |
-|-------|-------|-----|---------|------------|
-| trace | ✅ | ❌ | ❌ | ❌ |
-| debug | ✅ | ✅ | ❌ | ❌ |
-| info | ✅ | ✅ | ✅ | ✅ |
-| performance | ✅ | ✅ | ✅ | ✅ |
-| warn | ✅ | ✅ | ✅ | ✅ |
-| error | ✅ | ✅ | ✅ | ✅ |
-| audit | ✅ | ✅ | ✅ | ✅ |
+| Level       | Local | Dev | Staging | Production |
+| ----------- | ----- | --- | ------- | ---------- |
+| trace       | ✅    | ❌  | ❌      | ❌         |
+| debug       | ✅    | ✅  | ❌      | ❌         |
+| info        | ✅    | ✅  | ✅      | ✅         |
+| performance | ✅    | ✅  | ✅      | ✅         |
+| warn        | ✅    | ✅  | ✅      | ✅         |
+| error       | ✅    | ✅  | ✅      | ✅         |
+| audit       | ✅    | ✅  | ✅      | ✅         |
 
 Set via `LOG_LEVEL` environment variable.
 
@@ -146,10 +149,9 @@ For every new log, document:
 4. **Cardinality:** Are all fields bounded?
 
 Example comment:
+
 ```typescript
 /**
- * Purpose: Answer "Which user was banned by which admin?"
- * Level: audit (security/permission event)
  * Cardinality: Safe - only user IDs (bounded integers)
  */
 this.logger.audit("User banned", {
@@ -161,11 +163,13 @@ this.logger.audit("User banned", {
 ### 10. Audit Preservation
 
 Audit logs must be:
+
 - **Immutable:** Never modified after creation
 - **Retained:** Configured retention period
 - **Reliable:** Separate sink if possible
 
 Audit log fields:
+
 - **Who:** `userId`, `adminUserId`
 - **What:** Action description
 - **When:** Timestamp (automatic)
@@ -268,7 +272,7 @@ this.logger.trace("Lock acquired");
 this.logger.info("Search query", { query: userInput });
 
 // ✅ Hash or truncate
-this.logger.debug("Search query", { 
+this.logger.debug("Search query", {
   queryHash: hash(userInput),
   queryLength: userInput.length,
 });

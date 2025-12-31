@@ -19,9 +19,6 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
  * - GameActionExecutor pushes actions when lock unavailable
  * - After releasing lock, GameActionExecutor drains queue recursively
  * - Queue cleared when game deleted/finished
- * 
- * Logging: None needed - queue operations are implementation details.
- * Queue state is visible via GameActionExecutor logs.
  */
 export class GameActionQueueService {
   private readonly QUEUE_KEY_PREFIX = "game:action:queue";

@@ -537,8 +537,7 @@ export class DIConfig {
         Container.get<SocketUserDataService>(
           CONTAINER_TYPES.SocketUserDataService
         ),
-        Container.get<GameService>(CONTAINER_TYPES.GameService),
-        this.logger
+        Container.get<GameService>(CONTAINER_TYPES.GameService)
       ),
       "service"
     );

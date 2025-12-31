@@ -4,22 +4,15 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { GameContext } from "domain/types/socket/game/GameContext";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
-import { type ILogger } from "infrastructure/logger/ILogger";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 
 /**
  * Service responsible for fetching and validating socket game context.
- * 
- * Purpose: Retrieve game context for socket handlers
- * Logging: None needed - context retrieval is an implementation detail.
- * Errors are thrown as ClientErrors and logged at the boundary.
  */
-
 export class SocketGameContextService {
   constructor(
     private readonly socketUserDataService: SocketUserDataService,
-    private readonly gameService: GameService,
-    private readonly logger: ILogger
+    private readonly gameService: GameService
   ) {
     //
   }

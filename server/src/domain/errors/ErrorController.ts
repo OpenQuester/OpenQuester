@@ -14,9 +14,7 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
 export class ErrorController {
   /**
    * Resolves error and returns its message and code
-   * 
-   * Purpose: Answer "What error occurred and should it be logged?"
-   * Level: error (for ServerError), none (for ClientError - expected failures)
+   *
    * Note: This is the single point where server errors are logged (Rule 6)
    */
   public static async resolveError(
