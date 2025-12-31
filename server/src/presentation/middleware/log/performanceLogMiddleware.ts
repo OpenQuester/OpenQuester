@@ -18,6 +18,8 @@ export const performanceLogMiddleware =
     const log = logger.performance(`HTTP request`, {
       method: req.method,
       url: decodedUrl,
+      rawUrl,
+      contentLength: req.headers["content-length"],
       userAgent: req.get("User-Agent"),
       clientIp: req.ip,
       userId: req.session?.userId,

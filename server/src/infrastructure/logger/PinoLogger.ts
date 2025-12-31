@@ -100,14 +100,22 @@ class PerformanceLogImpl implements PerformanceLog {
     const endTime = Date.now();
     const elapsedMs = endTime - this.startTime;
 
-    this.logger.log(LogType.PERFORMANCE, "Operation completed", {
+    // Merge finish-only metadata onto the original meta. In case of key conflicts,
+    // `additionalMeta` takes precedence over the metadata captured at start.
+    const mergedMeta = {
       operation: this.message,
       startedAt: this.startTime,
       finishedAt: endTime,
       durationMs: elapsedMs,
-      ...(this.meta ? this.meta : {}),
-      ...(additionalMeta ? additionalMeta : {}),
-    });
+      ...(this.meta ?? {}),
+      ...(additionalMeta ?? {}),
+    };
+
+    this.logger.log(
+      LogType.PERFORMANCE,
+      `${this.message} completed`,
+      mergedMeta
+    );
   }
 }
 

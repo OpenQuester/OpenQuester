@@ -185,13 +185,13 @@ export class AdminRestApiController {
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
+    await this.userService.ban(userId);
+
     this.logger.audit("User banned", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
-
-    await this.userService.ban(userId);
 
     return res.status(HttpStatus.OK).json({
       userId,
@@ -208,13 +208,13 @@ export class AdminRestApiController {
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
+    await this.userService.unban(userId);
+
     this.logger.audit("User unbanned", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
-
-    await this.userService.unban(userId);
 
     return res.status(HttpStatus.OK).json({
       userId,
@@ -230,14 +230,14 @@ export class AdminRestApiController {
 
     const mutedUntilDate = new Date(mutedUntil);
 
+    await this.userService.mute(userId, mutedUntilDate);
+
     this.logger.audit("User muted", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
       mutedUntil: mutedUntilDate.toISOString(),
     });
-
-    await this.userService.mute(userId, mutedUntilDate);
 
     const response: UserMuteResponseDTO = {
       userId,
@@ -253,13 +253,13 @@ export class AdminRestApiController {
       userUnmuteScheme()
     ).validate();
 
+    await this.userService.unmute(userId);
+
     this.logger.audit("User unmuted", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
-
-    await this.userService.unmute(userId);
 
     const response: UserMuteResponseDTO = {
       userId,
@@ -278,13 +278,13 @@ export class AdminRestApiController {
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
+    await this.userService.delete(userId);
+
     this.logger.audit("User deleted", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
-
-    await this.userService.delete(userId);
 
     return res.status(HttpStatus.NO_CONTENT).send();
   };
@@ -298,13 +298,13 @@ export class AdminRestApiController {
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
+    await this.userService.restore(userId);
+
     this.logger.audit("User restored", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
-
-    await this.userService.restore(userId);
 
     return res.status(HttpStatus.OK).json({ userId, restored: true });
   };

@@ -41,12 +41,14 @@ export class GameActionExecutor {
   public async submitAction(action: GameAction): Promise<GameActionResult> {
     if (!this.handlerRegistry.has(action.type)) {
       const error = `No handler registered for action type: ${action.type}`;
-      this.logger.warn(error, {
+
+      this.logger.error(error, {
         prefix: "[ACTION_EXECUTOR]: ",
         actionId: action.id,
         actionType: action.type,
         gameId: action.gameId,
       });
+
       return { success: false, error };
     }
 
