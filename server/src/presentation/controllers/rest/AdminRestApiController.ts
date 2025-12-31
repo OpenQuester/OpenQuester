@@ -12,13 +12,20 @@ import {
   AdminSystemHealthData,
   AdminUserListData,
 } from "domain/types/admin/AdminTypes";
+import { UserMuteInputDTO } from "domain/types/dto/user/UserMuteInputDTO";
+import { UserMuteResponseDTO } from "domain/types/dto/user/UserMuteResponseDTO";
+import { UserUnmuteInputDTO } from "domain/types/dto/user/UserUnmuteInputDTO";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { checkPermissionMiddleware } from "presentation/middleware/permission/PermissionMiddleware";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
-import { userPaginationScheme } from "presentation/schemes/user/userSchemes";
+import {
+  userMuteScheme,
+  userPaginationScheme,
+  userUnmuteScheme,
+} from "presentation/schemes/user/userSchemes";
 
 /**
  * Handles admin panel REST API endpoints
@@ -70,6 +77,19 @@ export class AdminRestApiController {
       asyncHandler(this.unbanUser)
     );
 
+    // User mute/unmute actions
+    router.post(
+      "/users/:id/mute",
+      checkPermissionMiddleware(Permissions.MUTE_PLAYER, this.logger),
+      asyncHandler(this.muteUser)
+    );
+
+    router.post(
+      "/users/:id/unmute",
+      checkPermissionMiddleware(Permissions.MUTE_PLAYER, this.logger),
+      asyncHandler(this.unmuteUser)
+    );
+
     // Admin user restore
     router.post(
       "/users/restore/:id",
@@ -94,7 +114,7 @@ export class AdminRestApiController {
 
   /**
    * Get admin dashboard data
-   * 
+   *
    * Purpose: Answer "How long did admin dashboard query take?"
    * Level: audit (admin action), performance (query timing)
    */
@@ -109,12 +129,10 @@ export class AdminRestApiController {
     });
 
     const timeframeRaw = req.query.timeframe as string | undefined;
-    const timeframeDays = timeframeRaw
-      ? parseInt(timeframeRaw, 10)
-      : undefined;
-    const data: AdminDashboardData = await this.adminService.getDashboardData(
-      { timeframeDays }
-    );
+    const timeframeDays = timeframeRaw ? parseInt(timeframeRaw, 10) : undefined;
+    const data: AdminDashboardData = await this.adminService.getDashboardData({
+      timeframeDays,
+    });
 
     log.finish();
     return res.status(HttpStatus.OK).json(data);
@@ -122,7 +140,7 @@ export class AdminRestApiController {
 
   /**
    * Get admin users list with pagination
-   * 
+   *
    * Purpose: Answer "How long did admin users query take?"
    * Level: performance (query timing only, no audit needed for read)
    */
@@ -136,8 +154,9 @@ export class AdminRestApiController {
       userPaginationScheme()
     ).validate();
 
-    const data: AdminUserListData =
-      await this.adminService.listUsersWithStats(paginationQuery);
+    const data: AdminUserListData = await this.adminService.listUsersWithStats(
+      paginationQuery
+    );
 
     log.finish();
     return res.status(HttpStatus.OK).json(data);
@@ -145,7 +164,7 @@ export class AdminRestApiController {
 
   /**
    * Get system health metrics
-   * 
+   *
    * Purpose: Answer "What is system health status?"
    * Level: audit (monitoring action), performance (query timing)
    */
@@ -168,7 +187,7 @@ export class AdminRestApiController {
 
   /**
    * Ban user - security action
-   * 
+   *
    * Purpose: Answer "Who banned which user and when?"
    * Level: audit (immutable security event)
    */
@@ -194,7 +213,7 @@ export class AdminRestApiController {
 
   /**
    * Unban user - security action
-   * 
+   *
    * Purpose: Answer "Who unbanned which user and when?"
    * Level: audit (immutable security event)
    */
@@ -218,9 +237,56 @@ export class AdminRestApiController {
     });
   };
 
+  private muteUser = async (req: Request, res: Response) => {
+    const { userId, mutedUntil } = new RequestDataValidator<UserMuteInputDTO>(
+      { userId: Number(req.params.id), mutedUntil: req.body.mutedUntil },
+      userMuteScheme()
+    ).validate();
+
+    const mutedUntilDate = new Date(mutedUntil);
+
+    this.logger.trace("Admin user mute initiated", {
+      prefix: "[ADMIN]: ",
+      targetUserId: userId,
+      adminUserId: req.user?.id,
+      mutedUntil: mutedUntilDate.toISOString(),
+    });
+
+    await this.userService.mute(userId, mutedUntilDate);
+
+    const response: UserMuteResponseDTO = {
+      userId,
+      mutedUntil: mutedUntilDate.toISOString(),
+    };
+
+    return res.status(HttpStatus.OK).json(response);
+  };
+
+  private unmuteUser = async (req: Request, res: Response) => {
+    const { userId } = new RequestDataValidator<UserUnmuteInputDTO>(
+      { userId: Number(req.params.id) },
+      userUnmuteScheme()
+    ).validate();
+
+    this.logger.trace("Admin user unmute initiated", {
+      prefix: "[ADMIN]: ",
+      targetUserId: userId,
+      adminUserId: req.user?.id,
+    });
+
+    await this.userService.unmute(userId);
+
+    const response: UserMuteResponseDTO = {
+      userId,
+      mutedUntil: null,
+    };
+
+    return res.status(HttpStatus.OK).json(response);
+  };
+
   /**
    * Delete user - security action
-   * 
+   *
    * Purpose: Answer "Who deleted which user and when?"
    * Level: audit (immutable security event)
    */
@@ -243,7 +309,7 @@ export class AdminRestApiController {
 
   /**
    * Restore deleted user - security action
-   * 
+   *
    * Purpose: Answer "Who restored which user and when?"
    * Level: audit (immutable security event)
    */

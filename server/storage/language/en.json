@@ -115,5 +115,6 @@
   "spectators_cannot_chat_while_answering": "Spectators cannot chat while player is answering",
   "cannot_join_final_round_as_player": "You cannot join as a player during final round",
   "package_search_rounds_min_more_max": "In package search, 'minRounds' cannot be greater than 'maxRounds'",
-  "package_search_questions_min_more_max": "In package search, 'minQuestions' cannot be greater than 'maxQuestions'"
+  "package_search_questions_min_more_max": "In package search, 'minQuestions' cannot be greater than 'maxQuestions'",
+  "only_showman_skip_show_answer": "Only showman can skip the show answer phase"
 }

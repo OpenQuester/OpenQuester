@@ -24,6 +24,14 @@ export const MEDIA_DOWNLOAD_TIMEOUT = SECOND_MS * 10;
 /** 75 seconds */
 export const GAME_FINAL_ANSWER_TIME = SECOND_MS * 75;
 
+// Show Answer Duration Constants
+/** 5 seconds - default duration for showing answer (text-only or image) */
+export const SHOW_ANSWER_DURATION_TEXT = SECOND_MS * 5;
+/** 10 seconds - default duration for showing answer with audio */
+export const SHOW_ANSWER_DURATION_AUDIO = SECOND_MS * 10;
+/** 15 seconds - default duration for showing answer with video */
+export const SHOW_ANSWER_DURATION_VIDEO = SECOND_MS * 15;
+
 // Final Round Constants
 /** 45 seconds */
 export const FINAL_ROUND_BID_TIME = SECOND_MS * 45;

@@ -20,4 +20,5 @@ export interface PackageQuestionImport {
   transferType?: PackageQuestionTransferType | null;
   priceMultiplier?: number | null;
   showDelay?: number | null;
+  showAnswerDuration: number;
 }

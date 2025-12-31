@@ -37,6 +37,7 @@ import { QuestionSkipActionHandler } from "domain/handlers/action/question/Quest
 import { QuestionUnskipActionHandler } from "domain/handlers/action/question/QuestionUnskipActionHandler";
 import { SecretQuestionTransferActionHandler } from "domain/handlers/action/question/SecretQuestionTransferActionHandler";
 import { SkipQuestionForceActionHandler } from "domain/handlers/action/question/SkipQuestionForceActionHandler";
+import { SkipShowAnswerActionHandler } from "domain/handlers/action/question/SkipShowAnswerActionHandler";
 import { StakeBidSubmitActionHandler } from "domain/handlers/action/question/StakeBidSubmitActionHandler";
 import { DisconnectActionHandler } from "domain/handlers/action/system/DisconnectActionHandler";
 import { TimerExpirationActionHandler } from "domain/handlers/action/timer/TimerExpirationActionHandler";
@@ -183,10 +184,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.ANSWER_RESULT,
-    new AnswerResultActionHandler(
-      socketIOQuestionService,
-      gameProgressionCoordinator
-    )
+    new AnswerResultActionHandler(socketIOQuestionService)
   );
 
   registry.register(
@@ -208,6 +206,11 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
       socketIOQuestionService,
       gameProgressionCoordinator
     )
+  );
+
+  registry.register(
+    GameActionType.SKIP_SHOW_ANSWER,
+    new SkipShowAnswerActionHandler(socketIOQuestionService)
   );
 
   registry.register(

@@ -49,6 +49,7 @@ export class GameQuestionMapper {
       priceMultiplier: question.priceMultiplier,
       questionComment: question.questionComment,
       questionFiles: question.questionFiles,
+      showAnswerDuration: question.showAnswerDuration,
       showDelay: question.showDelay,
       text: question.text,
       transferType: question.transferType,

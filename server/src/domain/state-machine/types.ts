@@ -16,6 +16,7 @@ export enum GamePhase {
   MEDIA_DOWNLOADING = "media-downloading",
   SHOWING = "showing",
   ANSWERING = "answering",
+  SHOWING_ANSWER = "showing-answer",
 
   // Special questions
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
@@ -169,6 +170,8 @@ export function getGamePhase(game: Game): GamePhase {
       return GamePhase.SHOWING;
     case QuestionState.ANSWERING:
       return GamePhase.ANSWERING;
+    case QuestionState.SHOWING_ANSWER:
+      return GamePhase.SHOWING_ANSWER;
     default:
       return GamePhase.LOBBY;
   }

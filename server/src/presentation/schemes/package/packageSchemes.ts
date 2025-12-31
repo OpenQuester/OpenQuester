@@ -48,6 +48,7 @@ const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
   answerHint: Joi.string().allow(null, ""),
   answerText: Joi.string().allow(null, ""),
   answerDelay: Joi.number().allow(null).default(5000),
+  showAnswerDuration: Joi.number().required(),
   questionComment: Joi.string().allow(null, ""),
   questionFiles: Joi.array().items(packageFileSchema).allow(null),
   answerFiles: Joi.array().items(packageFileSchema).allow(null),

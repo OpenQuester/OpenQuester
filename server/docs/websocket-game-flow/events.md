@@ -36,6 +36,9 @@ Click an event name to jump to its section.
 | Question    | [`answer-submitted`](#answer-submitted)                 | C→S + S→C |
 | Question    | [`answer-result`](#answer-result)                       | C→S + S→C |
 | Question    | [`question-finish`](#question-finish)                   | S→C       |
+| Question    | [`answer-show-start`](#answer-show-start)               | S→C       |
+| Question    | [`answer-show-end`](#answer-show-end)                   | S→C       |
+| Question    | [`skip-show-answer`](#skip-show-answer)                 | C→S + S→C |
 | Question    | [`question-skip`](#question-skip)                       | C→S + S→C |
 | Question    | [`question-unskip`](#question-unskip)                   | C→S + S→C |
 | Question    | [`skip-question-force`](#skip-question-force)           | C→S + S→C |
@@ -262,6 +265,25 @@ Edge cases (server-handled):
 - See scenarios:
   - [Showing timer expires (question was not answered)](scenarios.md#showing-timeout)
   - [All players skipped (question auto-finishes)](scenarios.md#all-skipped)
+
+### `answer-show-start`
+
+- Direction: **S→C** broadcast
+- Payload: `EmptyOutputData` (`{}`)
+- Description: Signal event sent to all players when the show-answer phase starts. This phase displays the correct answer after a response. No payload - just a transition signal.
+
+### `answer-show-end`
+
+- Direction: **S→C** broadcast
+- Payload: `EmptyOutputData` (`{}`)
+- Description: Signal event sent to all players when the show-answer phase ends. Game returns to question choosing state. No payload - just a transition signal.
+
+### `skip-show-answer`
+
+- Direction: **C→S** request, **S→C** broadcast
+- C→S payload: `EmptyInputData` (`{}`)
+- S→C payload: `EmptyOutputData` (`{}`)
+- Description: Allows the showman to skip the show-answer phase and immediately advance the game. Only the showman may emit this event, and it is only valid when the game is currently in the `SHOWING_ANSWER` state.
 
 ### `question-skip`
 
