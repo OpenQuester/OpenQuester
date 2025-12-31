@@ -286,5 +286,4 @@ abstract class OqEditorTranslations {
   String get regular;
   String get final_;
   String get addQuestions;
-  String get noQuestions;
 }
