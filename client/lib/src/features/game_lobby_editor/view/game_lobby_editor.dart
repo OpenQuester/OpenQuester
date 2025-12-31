@@ -303,6 +303,10 @@ class _ClosePlayerEditButton extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
+    watchValue(
+      (GameLobbyController c) => c.gameData,
+    );
+
     if (!getIt<GameLobbyController>().gameStarted) return const SizedBox();
 
     return Row(
