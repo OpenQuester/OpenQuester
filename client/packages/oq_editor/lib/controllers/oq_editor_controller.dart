@@ -85,7 +85,7 @@ class OqEditorController {
 
   /// Last used answer delay in milliseconds (persisted
   /// across question creations)
-  int lastUsedAnswerDelay = 5000;
+  int lastUsedShowAnswerDuration = 5000;
 
   /// Last used display time question for media files in milliseconds
   ///  (persisted across question creations)
