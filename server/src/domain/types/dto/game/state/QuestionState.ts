@@ -6,5 +6,6 @@ export enum QuestionState {
   ANSWERING = "answering",
   REVIEWING = "reviewing", // Final only for now
   SHOWING = "showing",
+  SHOWING_ANSWER = "showing_answer",
   SECRET_TRANSFER = "secret_transfer",
 }
