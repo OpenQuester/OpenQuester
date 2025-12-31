@@ -1,15 +1,9 @@
-import * as express from "express";
 import { type Express, type Request, type Response, Router } from "express";
-import fs from "fs";
 import Joi from "joi";
-import * as path from "path";
 
 import { AdminService } from "application/services/admin/AdminService";
 import { UserService } from "application/services/user/UserService";
-import {
-  ADMIN_PING_REDIS_SCAN_KEY,
-  ADMIN_STATIC_REL_PATH,
-} from "domain/constants/admin";
+import { ADMIN_PING_REDIS_SCAN_KEY } from "domain/constants/admin";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { Permissions } from "domain/enums/Permissions";
 import {
@@ -18,13 +12,20 @@ import {
   AdminSystemHealthData,
   AdminUserListData,
 } from "domain/types/admin/AdminTypes";
+import { UserMuteInputDTO } from "domain/types/dto/user/UserMuteInputDTO";
+import { UserMuteResponseDTO } from "domain/types/dto/user/UserMuteResponseDTO";
+import { UserUnmuteInputDTO } from "domain/types/dto/user/UserUnmuteInputDTO";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { checkPermissionMiddleware } from "presentation/middleware/permission/PermissionMiddleware";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
-import { userPaginationScheme } from "presentation/schemes/user/userSchemes";
+import {
+  userMuteScheme,
+  userPaginationScheme,
+  userUnmuteScheme,
+} from "presentation/schemes/user/userSchemes";
 
 /**
  * Handles admin panel REST API endpoints
@@ -38,29 +39,6 @@ export class AdminRestApiController {
     private readonly adminService: AdminService
   ) {
     const router = Router();
-
-    // Serve admin panel static files
-    const adminPanelPath = path.join(process.cwd(), ADMIN_STATIC_REL_PATH);
-
-    this.app.use("/v1/admin", async (req, res, next) => {
-      // If request is for API, continue to API routes
-      if (req.path.startsWith("/api/")) {
-        return next();
-      }
-
-      try {
-        await fs.promises.stat(adminPanelPath);
-        return express.static(adminPanelPath)(req, res, next);
-      } catch (error) {
-        this.logger.error("Failed to serve admin panel static files", {
-          prefix: "[ADMIN]: ",
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return res
-          .status(HttpStatus.NOT_FOUND)
-          .send("<h2>Admin panel not found (probably not built)</h2>");
-      }
-    });
 
     // API routes
     this.app.use("/v1/admin/api", router);
@@ -99,6 +77,19 @@ export class AdminRestApiController {
       asyncHandler(this.unbanUser)
     );
 
+    // User mute/unmute actions
+    router.post(
+      "/users/:id/mute",
+      checkPermissionMiddleware(Permissions.MUTE_PLAYER, this.logger),
+      asyncHandler(this.muteUser)
+    );
+
+    router.post(
+      "/users/:id/unmute",
+      checkPermissionMiddleware(Permissions.MUTE_PLAYER, this.logger),
+      asyncHandler(this.unmuteUser)
+    );
+
     // Admin user restore
     router.post(
       "/users/restore/:id",
@@ -119,14 +110,6 @@ export class AdminRestApiController {
       checkPermissionMiddleware(Permissions.VIEW_SYSTEM_HEALTH, this.logger),
       asyncHandler(this.ping)
     );
-
-    // Catch-all for SPA routing - serve index.html for non-API routes
-    this.app.get("/v1/admin/*", (req, res, next) => {
-      if (req.path.startsWith("/v1/admin/api/")) {
-        return next();
-      }
-      res.sendFile(path.join(adminPanelPath, "index.html"));
-    });
   }
 
   private getDashboard = async (req: Request, res: Response) => {
@@ -272,6 +255,53 @@ export class AdminRestApiController {
       userId,
       isBanned: false,
     });
+  };
+
+  private muteUser = async (req: Request, res: Response) => {
+    const { userId, mutedUntil } = new RequestDataValidator<UserMuteInputDTO>(
+      { userId: Number(req.params.id), mutedUntil: req.body.mutedUntil },
+      userMuteScheme()
+    ).validate();
+
+    const mutedUntilDate = new Date(mutedUntil);
+
+    this.logger.trace("Admin user mute initiated", {
+      prefix: "[ADMIN]: ",
+      targetUserId: userId,
+      adminUserId: req.user?.id,
+      mutedUntil: mutedUntilDate.toISOString(),
+    });
+
+    await this.userService.mute(userId, mutedUntilDate);
+
+    const response: UserMuteResponseDTO = {
+      userId,
+      mutedUntil: mutedUntilDate.toISOString(),
+    };
+
+    return res.status(HttpStatus.OK).json(response);
+  };
+
+  private unmuteUser = async (req: Request, res: Response) => {
+    const { userId } = new RequestDataValidator<UserUnmuteInputDTO>(
+      { userId: Number(req.params.id) },
+      userUnmuteScheme()
+    ).validate();
+
+    this.logger.trace("Admin user unmute initiated", {
+      prefix: "[ADMIN]: ",
+      targetUserId: userId,
+      adminUserId: req.user?.id,
+    });
+
+    await this.userService.unmute(userId);
+
+    const response: UserMuteResponseDTO = {
+      userId,
+      mutedUntil: null,
+    };
+
+    return res.status(HttpStatus.OK).json(response);
   };
 
   private deleteUser = async (req: Request, res: Response) => {

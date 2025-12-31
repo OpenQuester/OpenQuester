@@ -6,6 +6,11 @@ import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
 export interface GameListItemPlayersStats {
   id: number;
   role: PlayerRole;
+  /**
+   * Player's game slot index (0-based).
+   * Only set for players with PLAYER role.
+   */
+  slot: number | null;
 }
 
 export interface GameListItemDTO {

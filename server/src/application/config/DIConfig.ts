@@ -453,6 +453,7 @@ export class DIConfig {
         Container.get<CronJobFactory>(
           CONTAINER_TYPES.CronJobFactory
         ).createAllCronJobs(),
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
         this.logger
       ),
       "service"
@@ -737,7 +738,8 @@ export class DIConfig {
         ),
         Container.get<SocketGameContextService>(
           CONTAINER_TYPES.SocketGameContextService
-        )
+        ),
+        Container.get<UserService>(CONTAINER_TYPES.UserService)
       ),
       "service"
     );

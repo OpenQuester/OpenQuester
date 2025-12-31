@@ -140,11 +140,18 @@ export class Game {
     );
   }
 
-  public async addPlayer(meta: PlayerMeta, role: PlayerRole): Promise<Player> {
+  public async addPlayer(
+    meta: PlayerMeta,
+    role: PlayerRole,
+    targetSlot: number | null
+  ): Promise<Player> {
     const playerData = this._players.find((p) => p.meta.id === meta.id);
 
-    const slotIdx =
-      role === PlayerRole.PLAYER ? this._getFirstFreeSlotIndex() : null;
+    const slotIdx = this._resolveJoinSlot(
+      role,
+      targetSlot,
+      playerData?.gameSlot
+    );
 
     if (playerData) {
       playerData.gameStatus = PlayerGameStatus.IN_GAME;
@@ -559,6 +566,56 @@ export class Game {
 
   public getSkippedPlayers(): number[] {
     return this.gameState.skippedPlayers ?? [];
+  }
+
+  private _resolveJoinSlot(
+    role: PlayerRole,
+    targetSlot: number | null,
+    existingSlot: number | null | undefined
+  ): number | null {
+    if (role !== PlayerRole.PLAYER) {
+      return null;
+    }
+
+    return this._resolvePlayerJoinSlot(targetSlot, existingSlot);
+  }
+
+  private _resolvePlayerJoinSlot(
+    targetSlot: number | null,
+    existingSlot: number | null | undefined
+  ): number {
+    if (targetSlot !== null) {
+      return targetSlot;
+    }
+
+    const preservedSlot = this._getPreservedReconnectSlot(existingSlot);
+    if (preservedSlot !== null) {
+      return preservedSlot;
+    }
+
+    return this._getFirstFreeSlotIndex();
+  }
+
+  private _getPreservedReconnectSlot(
+    existingSlot: number | null | undefined
+  ): number | null {
+    if (ValueUtils.isBad(existingSlot)) {
+      return null;
+    }
+
+    return this._isSlotAvailable(existingSlot) ? existingSlot : null;
+  }
+
+  /**
+   * Check if a specific slot is available (not occupied by an in-game player)
+   */
+  private _isSlotAvailable(slot: number): boolean {
+    return !this._players.some(
+      (p) =>
+        p.role === PlayerRole.PLAYER &&
+        p.gameSlot === slot &&
+        p.gameStatus === PlayerGameStatus.IN_GAME
+    );
   }
 
   private _getFirstFreeSlotIndex(): number {

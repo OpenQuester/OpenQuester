@@ -66,7 +66,11 @@ export class PlayerRoleChangeLogic {
       }
       targetPlayer.gameSlot = firstFreeSlot;
       newSlot = firstFreeSlot;
-    } else if (newRole === PlayerRole.SPECTATOR) {
+    } else if (
+      newRole === PlayerRole.SPECTATOR ||
+      newRole === PlayerRole.SHOWMAN
+    ) {
+      // SPECTATOR and SHOWMAN roles don't have slots
       targetPlayer.gameSlot = null;
     }
 

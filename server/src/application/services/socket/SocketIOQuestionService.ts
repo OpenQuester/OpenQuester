@@ -17,12 +17,16 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { AnswerResultLogic } from "domain/logic/question/AnswerResultLogic";
+import {
+  AnswerResultLogic,
+  AnswerResultMutation,
+} from "domain/logic/question/AnswerResultLogic";
 import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { PlayerSkipLogic } from "domain/logic/question/PlayerSkipLogic";
 import { QuestionAnswerRequestLogic } from "domain/logic/question/QuestionAnswerRequestLogic";
 import { QuestionForceSkipLogic } from "domain/logic/question/QuestionForceSkipLogic";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
@@ -136,7 +140,24 @@ export class SocketIOQuestionService {
     // Process answer via Logic class
     const mutation = AnswerResultLogic.processAnswer(game, data);
 
-    // Update player answer statistics for persistence
+    await this.updatePlayerAnswerStats(game, mutation, data);
+
+    const timer = await this.resolveNextTimerState(game, mutation);
+    game.setTimer(timer);
+
+    await this.persistGameAndTimer(game, timer);
+
+    return AnswerResultLogic.buildResult({ game, mutation, timer });
+  }
+
+  /**
+   * Update player answer statistics (non-blocking).
+   */
+  private async updatePlayerAnswerStats(
+    game: Game,
+    mutation: AnswerResultMutation,
+    data: AnswerResultData
+  ): Promise<void> {
     try {
       await this.playerGameStatsService.updatePlayerAnswerStats(
         game.id,
@@ -153,27 +174,121 @@ export class SocketIOQuestionService {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
 
-    // Handle timer based on next state
-    let timer: GameStateTimerDTO | null = null;
-
-    if (mutation.nextState === QuestionState.SHOWING) {
-      if (mutation.allPlayersSkipped) {
-        // All players exhausted - reset to choosing
-        await this.socketQuestionStateService.resetToChoosingState(game);
-      } else {
-        // Continue question showing - restore saved timer
-        timer = await this.gameService.getTimer(game.id, QuestionState.SHOWING);
-      }
-    } else if (mutation.nextState === QuestionState.CHOOSING) {
-      // For correct answers, properly reset to choosing state
-      await this.socketQuestionStateService.resetToChoosingState(game);
+  /**
+   * Resolve timer state based on answer result mutation.
+   */
+  private async resolveNextTimerState(
+    game: Game,
+    mutation: AnswerResultMutation
+  ): Promise<GameStateTimerDTO | null> {
+    if (mutation.nextState === QuestionState.SHOWING_ANSWER) {
+      return this.setupShowAnswerTimer(game, mutation.question);
     }
 
-    game.setTimer(timer);
+    if (mutation.nextState === QuestionState.SHOWING) {
+      return mutation.allPlayersSkipped
+        ? this.handleAllPlayersExhausted(game, mutation)
+        : this.restoreShowingTimer(game);
+    }
 
-    // Save
+    return null;
+  }
+
+  /**
+   * Setup show answer timer for correct answer.
+   */
+  private async setupShowAnswerTimer(
+    game: Game,
+    question: PackageQuestionDTO | null
+  ): Promise<GameStateTimerDTO | null> {
+    if (!question) {
+      await this.socketQuestionStateService.resetToChoosingState(game);
+      return null;
+    }
+
+    const timerResult =
+      await this.socketQuestionStateService.setupQuestionTimer(
+        game,
+        question.showAnswerDuration,
+        QuestionState.SHOWING_ANSWER
+      );
+    return timerResult.value();
+  }
+
+  /**
+   * Handle all players exhausted - mark question played and setup show answer timer.
+   */
+  private async handleAllPlayersExhausted(
+    game: Game,
+    mutation: AnswerResultMutation
+  ): Promise<GameStateTimerDTO | null> {
+    const question = mutation.skippedQuestion ?? mutation.question;
+    if (!question) {
+      await this.socketQuestionStateService.resetToChoosingState(game);
+      return null;
+    }
+
+    const timerResult =
+      await this.socketQuestionStateService.setupQuestionTimer(
+        game,
+        question.showAnswerDuration,
+        QuestionState.SHOWING_ANSWER
+      );
+
+    this.markCurrentQuestionAsPlayed(game);
+    game.gameState.currentQuestion = null;
+
+    return timerResult.value();
+  }
+
+  /**
+   * Mark current question as played.
+   */
+  private markCurrentQuestionAsPlayed(game: Game): void {
+    const currentQuestion = game.gameState.currentQuestion;
+    if (!currentQuestion) return;
+
+    const questionData = GameQuestionMapper.getQuestionAndTheme(
+      game.package,
+      game.gameState.currentRound!.id,
+      currentQuestion.id!
+    );
+    if (!questionData) return;
+
+    GameQuestionMapper.setQuestionPlayed(
+      game,
+      questionData.question.id!,
+      questionData.theme.id!
+    );
+  }
+
+  /**
+   * Restore showing timer for continuing question display.
+   */
+  private async restoreShowingTimer(
+    game: Game
+  ): Promise<GameStateTimerDTO | null> {
+    const timer = await this.gameService.getTimer(
+      game.id,
+      QuestionState.SHOWING
+    );
+    if (timer) {
+      GamePauseLogic.updateTimerForResume(timer);
+    }
+    return timer;
+  }
+
+  /**
+   * Persist game state and timer to storage.
+   */
+  private async persistGameAndTimer(
+    game: Game,
+    timer: GameStateTimerDTO | null
+  ): Promise<void> {
     await this.gameService.updateGame(game);
+
     if (timer) {
       await this.gameService.saveTimer(
         timer,
@@ -184,8 +299,35 @@ export class SocketIOQuestionService {
       // Always make sure all timers are cleared if not meant to be running
       await this.gameService.clearTimer(game.id);
     }
+  }
 
-    return AnswerResultLogic.buildResult({ game, mutation, timer });
+  /**
+   * Skip the show-answer phase.
+   */
+  public async skipShowAnswer(socketId: string) {
+    const context = await this.socketGameContextService.fetchGameContext(
+      socketId
+    );
+    const game = context.game;
+    const currentPlayer = context.currentPlayer;
+
+    // Validate: only showman can skip
+    if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
+      throw new ClientError(ClientResponse.ONLY_SHOWMAN_SKIP_SHOW_ANSWER);
+    }
+
+    // Validate: must be in SHOWING_ANSWER state
+    if (game.gameState.questionState !== QuestionState.SHOWING_ANSWER) {
+      throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
+    }
+
+    // Cancel the show-answer timer
+    await this.gameService.clearTimer(game.id);
+
+    // Reset to choosing state
+    await this.socketQuestionStateService.resetToChoosingState(game);
+
+    return { game };
   }
 
   public async handleRoundProgression(game: Game) {

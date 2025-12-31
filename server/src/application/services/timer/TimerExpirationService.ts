@@ -9,7 +9,9 @@ import { Game } from "domain/entities/game/Game";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
+import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
 import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { QuestionShowingExpirationLogic } from "domain/logic/timer/QuestionShowingExpirationLogic";
 import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -60,7 +62,6 @@ export class TimerExpirationService {
       return {
         success: false,
         broadcasts: [],
-        shouldContinue: false,
       };
     }
 
@@ -79,7 +80,6 @@ export class TimerExpirationService {
           room: gameId,
         },
       ],
-      shouldContinue: false,
     };
   }
 
@@ -112,7 +112,6 @@ export class TimerExpirationService {
         success: true,
         game,
         broadcasts,
-        shouldContinue: false,
       };
     }
 
@@ -127,7 +126,48 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts,
-      shouldContinue: false,
+    };
+  }
+
+  /**
+   * Handle show answer timeout - transitions from SHOWING_ANSWER to CHOOSING.
+   * Called when the answer display timer expires after a correct answer or all players exhausted.
+   */
+  public async handleShowAnswerExpiration(
+    gameId: string
+  ): Promise<TimerExpirationResult> {
+    const game = await this.gameService.getGameEntity(
+      gameId,
+      GAME_TTL_IN_SECONDS
+    );
+
+    // Reset to choosing state
+    await this.socketQuestionStateService.resetToChoosingState(game);
+
+    const broadcasts: BroadcastEvent[] = [
+      ShowAnswerLogic.buildAnswerShowEndBroadcast(gameId),
+    ];
+
+    // Check if round progression is needed
+    if (!ShowAnswerLogic.shouldProgressRound(game)) {
+      return {
+        success: true,
+        game,
+        broadcasts,
+      };
+    }
+
+    // Handle round progression
+    const progressionBroadcasts = await this.handleRoundProgression(
+      game,
+      gameId
+    );
+    broadcasts.push(...progressionBroadcasts);
+
+    return {
+      success: true,
+      game,
+      broadcasts,
     };
   }
 
@@ -163,7 +203,6 @@ export class TimerExpirationService {
       broadcasts: [
         AnsweringExpirationLogic.buildBroadcast(gameId, answerResult, timer),
       ],
-      shouldContinue: false,
     };
   }
 
@@ -201,7 +240,6 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts,
-      shouldContinue: false,
     };
   }
 
@@ -225,7 +263,6 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts,
-      shouldContinue: false,
     };
   }
 
@@ -303,6 +340,11 @@ export class TimerExpirationService {
       QuestionState.SHOWING
     );
 
+    if (timer) {
+      // Update resumedAt since timer is being restored from saved state
+      GamePauseLogic.updateTimerForResume(timer);
+    }
+
     game.setTimer(timer);
     await this.gameService.updateGame(game);
 
@@ -356,7 +398,6 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts,
-      shouldContinue: false,
     };
   }
 }

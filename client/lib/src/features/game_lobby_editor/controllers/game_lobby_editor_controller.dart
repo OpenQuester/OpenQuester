@@ -8,39 +8,39 @@ class GameLobbyEditorController {
 
   void giveTurnToPlayer(int playerId) {
     _socket?.emit(
-      SocketIOGameSendEvents.turnPlayerChanged.json!,
-      SocketIOTurnPlayerChangeInput(newTurnPlayerId: playerId).toJson(),
+      SocketIoGameSendEvents.turnPlayerChanged.json!,
+      SocketIoTurnPlayerChangeInput(newTurnPlayerId: playerId).toJson(),
     );
   }
 
   void changeScore(int playerId, int newScore) {
     _socket?.emit(
-      SocketIOGameSendEvents.scoreChanged.json!,
-      SocketIOPlayerScoreChangeInput(
+      SocketIoGameSendEvents.scoreChanged.json!,
+      SocketIoPlayerScoreChangeInput(
         playerId: playerId,
         newScore: newScore,
       ).toJson(),
     );
   }
 
-  void addPlayerRestriction(SocketIOPlayerRestrictionInput restriction) {
+  void addPlayerRestriction(SocketIoPlayerRestrictionInput restriction) {
     _socket?.emit(
-      SocketIOGameSendEvents.playerRestricted.json!,
+      SocketIoGameSendEvents.playerRestricted.json!,
       restriction.toJson(),
     );
   }
 
   void kickPlayer(int playerId) {
     _socket?.emit(
-      SocketIOGameSendEvents.playerKicked.json!,
-      SocketIOPlayerKickInput(playerId: playerId).toJson(),
+      SocketIoGameSendEvents.playerKicked.json!,
+      SocketIoPlayerKickInput(playerId: playerId).toJson(),
     );
   }
 
   void playerRoleChange(PlayerRole newRole, [int? playerId]) {
     _socket?.emit(
-      SocketIOGameSendEvents.playerRoleChange.json!,
-      SocketIOPlayerRoleChangeInput(
+      SocketIoGameSendEvents.playerRoleChange.json!,
+      SocketIoPlayerRoleChangeInput(
         newRole: newRole,
         playerId: playerId ?? _lobbyController.gameData.value!.me.meta.id,
       ).toJson(),

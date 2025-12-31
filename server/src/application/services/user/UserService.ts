@@ -207,6 +207,32 @@ export class UserService {
     await this.userRepository.unban(userId);
   }
 
+  public async mute(userId: number, mutedUntil: Date) {
+    this.logger.audit("User mute initiated", {
+      userId,
+      mutedUntil,
+    });
+
+    await this.userRepository.mute(userId, mutedUntil);
+
+    this.logger.audit("User muted successfully", {
+      userId,
+      mutedUntil,
+    });
+  }
+
+  public async unmute(userId: number) {
+    this.logger.audit("User unmute initiated", {
+      userId,
+    });
+
+    await this.userRepository.unmute(userId);
+
+    this.logger.audit("User unmuted successfully", {
+      userId,
+    });
+  }
+
   public async restore(userId: number) {
     await this.userRepository.restore(userId);
   }
@@ -310,7 +336,6 @@ export class UserService {
     const previousAvatar = user.avatar;
 
     user.avatar = updateData.avatar ?? user.avatar;
-    user.updated_at = new Date();
 
     if (updateData.birthday) {
       const date = new Date(updateData.birthday);
@@ -373,24 +398,6 @@ export class UserService {
   }
 
   /**
-   * Update user permissions by saving the user with new permissions
-   */
-  public async updateUserPermissions(user: User): Promise<void> {
-    this.logger.debug("Updating user permissions", {
-      userId: user.id,
-      permissionsCount: user.permissions?.length || 0,
-    });
-
-    // Add a method to UserRepository to handle permission updates
-    await this.userRepository.updateWithPermissions(user);
-
-    this.logger.audit(`User permissions updated: ${user.id}`, {
-      userId: user.id,
-      permissionsCount: user.permissions?.length || 0,
-    });
-  }
-
-  /**
    * Update user permissions with full business logic validation
    */
   public async updateUserPermissionsByNames(
@@ -441,10 +448,9 @@ export class UserService {
 
     // Update user permissions (replace all)
     user.permissions = newPermissions;
-    user.updated_at = new Date();
 
     // Save the user with updated permissions
-    await this.userRepository.updateWithPermissions(user);
+    await this.userRepository.update(user);
 
     this.logger.audit("User permissions updated", {
       userId,

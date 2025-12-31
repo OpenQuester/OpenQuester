@@ -1,3 +1,4 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
@@ -12,59 +13,33 @@ import 'package:oq_editor/view/dialogs/display_time_dialog.dart';
 import 'package:oq_editor/view/widgets/media_files_section.dart';
 import 'package:oq_shared/oq_shared.dart';
 
-/// Result data from question editing dialog
-class QuestionEditResult {
-  const QuestionEditResult({
-    required this.question,
-  });
-
-  final PackageQuestionUnion question;
-}
-
-/// Comprehensive question editor dialog supporting all question types
+@RoutePage()
 class QuestionEditorDialog extends StatefulWidget {
   const QuestionEditorDialog({
-    required this.question,
-    required this.translations,
-    required this.roundIndex,
-    required this.themeIndex,
-    required this.questionIndex,
+    @PathParam() required this.roundIndex,
+    @PathParam() required this.themeIndex,
+    @PathParam() required this.questionIndex,
+    this.initialQuestion,
     super.key,
   });
 
-  final PackageQuestionUnion? question; // null for new question
-  final OqEditorTranslations translations;
   final int roundIndex;
   final int themeIndex;
-  final int? questionIndex; // null for new question
+
+  /// null for new question
+  final int? questionIndex;
+  final PackageQuestionUnion? initialQuestion;
 
   @override
   State<QuestionEditorDialog> createState() => _QuestionEditorDialogState();
-
-  /// Show the question editor dialog
-  static Future<QuestionEditResult?> show({
-    required BuildContext context,
-    required OqEditorTranslations translations,
-    required int roundIndex,
-    required int themeIndex,
-    PackageQuestionUnion? question,
-    int? questionIndex,
-  }) {
-    return showDialog<QuestionEditResult>(
-      context: context,
-      builder: (context) => QuestionEditorDialog(
-        question: question,
-        translations: translations,
-        roundIndex: roundIndex,
-        themeIndex: themeIndex,
-        questionIndex: questionIndex,
-      ),
-    );
-  }
 }
 
 class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
+  final OqEditorController controller = GetIt.I<OqEditorController>();
   final _formKey = GlobalKey<FormState>();
+  late final PackageQuestionUnion? initQuestion;
+
+  OqEditorTranslations get translations => controller.translations;
 
   // Controllers for common fields
   late final TextEditingController _textController;
@@ -104,16 +79,23 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   @override
   void initState() {
     super.initState();
+
+    initQuestion =
+        widget.initialQuestion ??
+        controller.getQuestionByIndices(
+          widget.roundIndex,
+          widget.themeIndex,
+          widget.questionIndex,
+        );
+
     _initializeFromQuestion();
     _loadExistingMediaFiles();
   }
 
   void _loadExistingMediaFiles() {
     // Load existing media files from question if editing
-    final q = widget.question;
+    final q = initQuestion;
     if (q == null) return;
-
-    final controller = GetIt.I<OqEditorController>();
 
     // Load question files
     final questionFiles = q.map(
@@ -127,7 +109,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
     if (questionFiles != null) {
       for (final file in questionFiles) {
-        if (file == null) continue;
         final ref = _getOrCreateMediaFileReference(
           controller,
           file.file.md5,
@@ -158,7 +139,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
     if (answerFiles != null) {
       for (final file in answerFiles) {
-        if (file == null) continue;
         final ref = _getOrCreateMediaFileReference(
           controller,
           file.file.md5,
@@ -190,8 +170,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   }
 
   void _initializeFromQuestion() {
-    final q = widget.question;
-    final controller = GetIt.I<OqEditorController>();
+    final q = initQuestion;
 
     if (q == null) {
       // New question - use saved defaults from controller
@@ -204,7 +183,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       _answerHintController = TextEditingController();
       _questionCommentController = TextEditingController();
       _answerDelayController = TextEditingController(
-        text: controller.lastUsedAnswerDelay.toString(),
+        text: controller.lastUsedShowAnswerDuration.toString(),
       );
     } else {
       // Edit existing question - extract all fields
@@ -342,17 +321,19 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(
-        widget.question == null
-            ? widget.translations.addQuestion
-            : widget.translations.editQuestion,
+        initQuestion == null
+            ? translations.addQuestion
+            : translations.editQuestion,
       ),
       contentPadding: 16.all,
       insetPadding: 16.all,
-      content: SizedBox(
-        width: 600,
+      backgroundColor: context.theme.cardColor,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 600),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
+            padding: 10.top,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -361,9 +342,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 DropdownButtonFormField<QuestionType>(
                   initialValue: _questionType,
                   decoration: InputDecoration(
-                    labelText: widget.translations.questionTypeLabel,
+                    labelText: translations.questionTypeLabel,
                     border: const OutlineInputBorder(),
-                    filled: true,
                   ),
                   items: QuestionType.values
                       .where((e) => e != QuestionType.$unknown)
@@ -388,9 +368,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 TextFormField(
                   controller: _textController,
                   decoration: InputDecoration(
-                    labelText: widget.translations.questionText,
+                    labelText: translations.questionText,
                     border: const OutlineInputBorder(),
-                    filled: true,
                   ),
                   maxLines: 3,
                   maxLength: 500,
@@ -401,19 +380,19 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 TextFormField(
                   controller: _priceController,
                   decoration: InputDecoration(
-                    labelText: widget.translations.questionPrice,
+                    labelText: translations.questionPrice,
                     border: const OutlineInputBorder(),
-                    filled: true,
-                    suffixText: widget.translations.pts,
+
+                    suffixText: translations.pts,
                   ),
                   keyboardType: TextInputType.number,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return widget.translations.fieldRequired;
+                      return translations.fieldRequired;
                     }
                     final price = int.tryParse(value);
                     if (price == null || price < 0) {
-                      return widget.translations.enterValidPositiveNumber;
+                      return translations.enterValidPositiveNumber;
                     }
                     return null;
                   },
@@ -426,15 +405,14 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   TextFormField(
                     controller: _answerTextController,
                     decoration: InputDecoration(
-                      labelText: widget.translations.questionAnswer,
+                      labelText: translations.questionAnswer,
                       border: const OutlineInputBorder(),
-                      filled: true,
                     ),
                     maxLines: 2,
                     maxLength: 200,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return widget.translations.fieldRequired;
+                        return translations.fieldRequired;
                       }
                       return null;
                     },
@@ -447,11 +425,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   controller: _answerHintController,
                   decoration: InputDecoration(
                     labelText:
-                        '${widget.translations.questionHint}'
-                        '(${widget.translations.optional})',
+                        '${translations.questionHint}'
+                        '(${translations.optional})',
                     border: const OutlineInputBorder(),
-                    filled: true,
-                    helperText: widget.translations.questionHintHelper,
+
+                    helperText: translations.questionHintHelper,
                   ),
                   maxLines: 2,
                   maxLength: 200,
@@ -462,11 +440,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   controller: _questionCommentController,
                   decoration: InputDecoration(
                     labelText:
-                        '${widget.translations.questionComment} '
-                        '(${widget.translations.optional})',
+                        '${translations.questionComment} '
+                        '(${translations.optional})',
                     border: const OutlineInputBorder(),
-                    filled: true,
-                    helperText: widget.translations.questionCommentHelper,
+
+                    helperText: translations.questionCommentHelper,
                   ),
                   maxLines: 2,
                   maxLength: 200,
@@ -476,20 +454,20 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 TextFormField(
                   controller: _answerDelayController,
                   decoration: InputDecoration(
-                    labelText: widget.translations.answerDelay,
+                    labelText: translations.answerDelay,
                     border: const OutlineInputBorder(),
-                    filled: true,
-                    suffixText: widget.translations.ms,
-                    helperText: widget.translations.answerDelayHint,
+
+                    suffixText: translations.ms,
+                    helperText: translations.answerDelayHint,
                   ),
                   keyboardType: TextInputType.number,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return widget.translations.required;
+                      return translations.required;
                     }
                     final delay = int.tryParse(value);
                     if (delay == null || delay < 0) {
-                      return widget.translations.enterValidNumber;
+                      return translations.enterValidNumber;
                     }
                     return null;
                   },
@@ -505,8 +483,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                         _isHidden = value ?? false;
                       });
                     },
-                    title: Text(widget.translations.isHidden),
-                    subtitle: Text(widget.translations.isHiddenDesc),
+                    title: Text(translations.isHidden),
+                    subtitle: Text(translations.isHiddenDesc),
                     contentPadding: EdgeInsets.zero,
                   ),
 
@@ -526,7 +504,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
                 // Media files section
                 MediaFilesSection(
-                  title: widget.translations.questionMediaFiles,
+                  title: translations.questionMediaFiles,
                   files: _questionMediaFiles,
                   onAdd: () => _addMediaFile(isQuestionMedia: true),
                   onRemove: (int index) {
@@ -543,7 +521,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 const SizedBox(height: 16),
 
                 MediaFilesSection(
-                  title: widget.translations.answerMediaFiles,
+                  title: translations.answerMediaFiles,
                   files: _answerMediaFiles,
                   onAdd: () => _addMediaFile(isQuestionMedia: false),
                   onRemove: (int index) {
@@ -564,11 +542,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(widget.translations.cancelButton),
+          child: Text(translations.cancelButton),
         ),
         FilledButton(
           onPressed: _saveQuestion,
-          child: Text(widget.translations.saveButton),
+          child: Text(translations.saveButton),
         ),
       ],
     );
@@ -576,25 +554,25 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
   String _getQuestionTypeName(QuestionType type) {
     return switch (type) {
-      QuestionType.simple => widget.translations.questionTypeSimple,
-      QuestionType.stake => widget.translations.questionTypeStake,
-      QuestionType.secret => widget.translations.questionTypeSecret,
-      QuestionType.noRisk => widget.translations.questionTypeNoRisk,
-      QuestionType.choice => widget.translations.questionTypeChoice,
-      QuestionType.hidden => widget.translations.questionTypeHidden,
-      QuestionType.$unknown => widget.translations.questionTypeUnknown,
+      QuestionType.simple => translations.questionTypeSimple,
+      QuestionType.stake => translations.questionTypeStake,
+      QuestionType.secret => translations.questionTypeSecret,
+      QuestionType.noRisk => translations.questionTypeNoRisk,
+      QuestionType.choice => translations.questionTypeChoice,
+      QuestionType.hidden => translations.questionTypeHidden,
+      QuestionType.$unknown => translations.questionTypeUnknown,
     };
   }
 
   Widget _buildTypeSpecificInfo() {
     final info = switch (_questionType) {
-      QuestionType.simple => widget.translations.questionTypeSimpleDesc,
-      QuestionType.stake => widget.translations.questionTypeStakeDesc,
-      QuestionType.secret => widget.translations.questionTypeSecretDesc,
-      QuestionType.noRisk => widget.translations.questionTypeNoRiskDesc,
-      QuestionType.choice => widget.translations.questionTypeChoiceDesc,
-      QuestionType.hidden => widget.translations.questionTypeHiddenDesc,
-      QuestionType.$unknown => widget.translations.questionTypeUnknownDesc,
+      QuestionType.simple => translations.questionTypeSimpleDesc,
+      QuestionType.stake => translations.questionTypeStakeDesc,
+      QuestionType.secret => translations.questionTypeSecretDesc,
+      QuestionType.noRisk => translations.questionTypeNoRiskDesc,
+      QuestionType.choice => translations.questionTypeChoiceDesc,
+      QuestionType.hidden => translations.questionTypeHiddenDesc,
+      QuestionType.$unknown => translations.questionTypeUnknownDesc,
     };
 
     return Card(
@@ -646,9 +624,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       DropdownButtonFormField<StakeQuestionSubType>(
         initialValue: _stakeSubType,
         decoration: InputDecoration(
-          labelText: widget.translations.stakeSubType,
+          labelText: translations.stakeSubType,
           border: const OutlineInputBorder(),
-          filled: true,
         ),
         items: StakeQuestionSubType.values
             .where((e) => e != StakeQuestionSubType.$unknown)
@@ -670,11 +647,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         initialValue: _stakeMaxPrice?.toString() ?? '',
         decoration: InputDecoration(
           labelText:
-              '${widget.translations.stakeMaxPrice} '
-              '(${widget.translations.optional})',
+              '${translations.stakeMaxPrice} '
+              '(${translations.optional})',
           border: const OutlineInputBorder(),
-          filled: true,
-          helperText: widget.translations.stakeMaxPriceHint,
+
+          helperText: translations.stakeMaxPriceHint,
         ),
         keyboardType: TextInputType.number,
         onChanged: (value) {
@@ -691,9 +668,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       DropdownButtonFormField<SecretQuestionSubType>(
         initialValue: _secretSubType,
         decoration: InputDecoration(
-          labelText: widget.translations.secretSubType,
+          labelText: translations.secretSubType,
           border: const OutlineInputBorder(),
-          filled: true,
         ),
         items: SecretQuestionSubType.values
             .where((e) => e != SecretQuestionSubType.$unknown)
@@ -714,9 +690,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       DropdownButtonFormField<QuestionTransferType>(
         initialValue: _secretTransferType,
         decoration: InputDecoration(
-          labelText: widget.translations.secretTransferType,
+          labelText: translations.secretTransferType,
           border: const OutlineInputBorder(),
-          filled: true,
         ),
         items: QuestionTransferType.values
             .where((e) => e != QuestionTransferType.$unknown)
@@ -744,7 +719,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    widget.translations.allowedPrices,
+                    translations.allowedPrices,
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   IconButton(
@@ -755,7 +730,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
               ),
               if (_secretAllowedPrices.isEmpty)
                 Text(
-                  widget.translations.noPricesSetDefaults,
+                  translations.noPricesSetDefaults,
                 ).paddingAll(8)
               else
                 Wrap(
@@ -785,9 +760,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       DropdownButtonFormField<NoRiskQuestionSubType>(
         initialValue: _noRiskSubType,
         decoration: InputDecoration(
-          labelText: widget.translations.noRiskSubType,
+          labelText: translations.noRiskSubType,
           border: const OutlineInputBorder(),
-          filled: true,
         ),
         items: NoRiskQuestionSubType.values
             .where((e) => e != NoRiskQuestionSubType.$unknown)
@@ -808,10 +782,10 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       DropdownButtonFormField<String>(
         initialValue: _noRiskPriceMultiplier,
         decoration: InputDecoration(
-          labelText: widget.translations.priceMultiplier,
+          labelText: translations.priceMultiplier,
           border: const OutlineInputBorder(),
-          filled: true,
-          helperText: widget.translations.priceMultiplierHint,
+
+          helperText: translations.priceMultiplierHint,
         ),
         items: const [
           DropdownMenuItem(value: '1.0', child: Text('1.0x')),
@@ -836,11 +810,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       TextFormField(
         initialValue: _choiceShowDelay.toString(),
         decoration: InputDecoration(
-          labelText: widget.translations.showDelay,
+          labelText: translations.showDelay,
           border: const OutlineInputBorder(),
-          filled: true,
-          suffixText: widget.translations.ms,
-          helperText: widget.translations.showDelayHint,
+
+          suffixText: translations.ms,
+          helperText: translations.showDelayHint,
         ),
         keyboardType: TextInputType.number,
         onChanged: (value) {
@@ -848,11 +822,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         },
         validator: (value) {
           if (value == null || value.trim().isEmpty) {
-            return widget.translations.required;
+            return translations.required;
           }
           final delay = int.tryParse(value);
           if (delay == null || delay < 0) {
-            return widget.translations.enterValidNumber;
+            return translations.enterValidNumber;
           }
           return null;
         },
@@ -868,7 +842,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${widget.translations.choiceAnswers} (${_choiceAnswers.length}/8)',
+                    '${translations.choiceAnswers} (${_choiceAnswers.length}/8)',
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   IconButton(
@@ -880,7 +854,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 ],
               ),
               if (_choiceAnswers.isEmpty)
-                Text(widget.translations.add2to8Choices).paddingAll(8)
+                Text(translations.add2to8Choices).paddingAll(8)
               else
                 ..._choiceAnswers.asMap().entries.map((entry) {
                   final index = entry.key;
@@ -889,7 +863,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                     leading: CircleAvatar(
                       child: Text('${index + 1}'),
                     ),
-                    title: Text(answer.text ?? widget.translations.emptyAnswer),
+                    title: Text(answer.text ?? translations.emptyAnswer),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete),
                       onPressed: () => _removeChoiceAnswer(index),
@@ -911,11 +885,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     final result = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(widget.translations.addAllowedPrice),
+        title: Text(translations.addAllowedPrice),
         content: TextField(
           controller: controller,
           decoration: InputDecoration(
-            labelText: widget.translations.price,
+            labelText: translations.price,
             border: const OutlineInputBorder(),
           ),
           keyboardType: TextInputType.number,
@@ -924,7 +898,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(widget.translations.cancelButton),
+            child: Text(translations.cancelButton),
           ),
           TextButton(
             onPressed: () {
@@ -933,7 +907,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 Navigator.pop(context, price);
               }
             },
-            child: Text(widget.translations.addButton),
+            child: Text(translations.addButton),
           ),
         ],
       ),
@@ -955,11 +929,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(widget.translations.addChoiceAnswer),
+        title: Text(translations.addChoiceAnswer),
         content: TextField(
           controller: textController,
           decoration: InputDecoration(
-            labelText: widget.translations.answerText,
+            labelText: translations.answerText,
             border: const OutlineInputBorder(),
           ),
           maxLength: 100,
@@ -968,7 +942,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(widget.translations.cancelButton),
+            child: Text(translations.cancelButton),
           ),
           TextButton(
             onPressed: () {
@@ -977,7 +951,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 Navigator.pop(context, text);
               }
             },
-            child: Text(widget.translations.addButton),
+            child: Text(translations.addButton),
           ),
         ],
       ),
@@ -990,7 +964,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
             : (_choiceAnswers.last.order) + 1;
         _choiceAnswers.add(
           QuestionChoiceAnswers(
-            id: null,
             order: order,
             text: result,
           ),
@@ -1007,11 +980,11 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(widget.translations.editChoiceAnswer),
+        title: Text(translations.editChoiceAnswer),
         content: TextField(
           controller: textController,
           decoration: InputDecoration(
-            labelText: widget.translations.answerText,
+            labelText: translations.answerText,
             border: const OutlineInputBorder(),
           ),
           maxLength: 100,
@@ -1020,7 +993,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(widget.translations.cancelButton),
+            child: Text(translations.cancelButton),
           ),
           TextButton(
             onPressed: () {
@@ -1029,7 +1002,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 Navigator.pop(context, text);
               }
             },
-            child: Text(widget.translations.saveButton),
+            child: Text(translations.saveButton),
           ),
         ],
       ),
@@ -1070,8 +1043,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           ? _questionMediaFiles
           : _answerMediaFiles;
 
-      final controller = GetIt.I<OqEditorController>();
-
       final mediaReference = MediaFileReference(
         platformFile: file,
       );
@@ -1095,7 +1066,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${widget.translations.errorAddingFile}: $e')),
+        SnackBar(content: Text('${translations.errorAddingFile}: $e')),
       );
     }
   }
@@ -1116,7 +1087,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       });
 
       // Save to controller for next file
-      final controller = GetIt.I<OqEditorController>();
       if (isQuestionMedia) {
         controller.lastUsedQuestionDisplayTime = result;
       } else {
@@ -1137,11 +1107,12 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     // Parse common optional fields
     final answerHint = _answerHintController.text.trim();
     final questionComment = _questionCommentController.text.trim();
-    final answerDelay = int.tryParse(_answerDelayController.text) ?? 4000;
+    final showAnswerDuration =
+        int.tryParse(_answerDelayController.text) ?? 4000;
 
     // Get existing order or use 0 for new
     final order =
-        widget.question?.map(
+        initQuestion?.map(
           simple: (q) => q.order,
           stake: (q) => q.order,
           secret: (q) => q.order,
@@ -1152,7 +1123,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         0;
 
     // Get existing ID
-    final id = widget.question?.map(
+    final id = initQuestion?.map(
       simple: (q) => q.id,
       stake: (q) => q.id,
       secret: (q) => q.id,
@@ -1162,21 +1133,18 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     );
 
     // Convert UiMediaFile to PackageQuestionFile with hash
-    final controller = GetIt.I<OqEditorController>()
+    controller
       // Save settings to controller for next question
       ..lastUsedPrice = price
-      ..lastUsedAnswerDelay = answerDelay;
+      ..lastUsedShowAnswerDuration = showAnswerDuration;
     final questionFiles = await Future.wait(
       _questionMediaFiles.map((uiFile) async {
         final hash = await controller.registerMediaFile(uiFile.reference);
         return PackageQuestionFile(
-          id: null,
           order: uiFile.order,
           file: FileItem(
-            id: null,
             md5: hash,
             type: uiFile.type,
-            link: null,
           ),
           displayTime: uiFile.displayTime,
         );
@@ -1187,13 +1155,10 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       _answerMediaFiles.map((uiFile) async {
         final hash = await controller.registerMediaFile(uiFile.reference);
         return PackageQuestionFile(
-          id: null,
           order: uiFile.order,
           file: FileItem(
-            id: null,
             md5: hash,
             type: uiFile.type,
-            link: null,
           ),
           displayTime: uiFile.displayTime,
         );
@@ -1213,7 +1178,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           questionFiles: questionFiles.isEmpty ? null : questionFiles,
           answerFiles: answerFiles.isEmpty ? null : answerFiles,
@@ -1229,7 +1194,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           subType: _stakeSubType,
           maxPrice: _stakeMaxPrice,
@@ -1247,7 +1212,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           subType: _secretSubType,
           allowedPrices: _secretAllowedPrices.isEmpty
@@ -1268,7 +1233,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           subType: _noRiskSubType,
           priceMultiplier: _noRiskPriceMultiplier,
@@ -1286,9 +1251,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
-          subType: null,
           showDelay: _choiceShowDelay,
           answers: _choiceAnswers,
           questionFiles: questionFiles.isEmpty ? null : questionFiles,
@@ -1305,7 +1269,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           questionFiles: questionFiles.isEmpty ? null : questionFiles,
           answerFiles: answerFiles.isEmpty ? null : answerFiles,
@@ -1322,7 +1286,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           questionFiles: questionFiles.isEmpty ? null : questionFiles,
           answerFiles: answerFiles.isEmpty ? null : answerFiles,
@@ -1338,4 +1302,13 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       );
     }
   }
+}
+
+/// Result data from question editing dialog
+class QuestionEditResult {
+  const QuestionEditResult({
+    required this.question,
+  });
+
+  final PackageQuestionUnion question;
 }

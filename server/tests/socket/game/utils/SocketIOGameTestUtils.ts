@@ -21,7 +21,10 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
-import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+import {
+  GameJoinOutputData,
+  PlayerReadinessBroadcastData,
+} from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
@@ -79,7 +82,7 @@ export class SocketGameTestUtils {
     role: PlayerRole
   ): Promise<void> {
     return new Promise<void>((resolve) => {
-      const joinData: GameJoinData = { gameId, role };
+      const joinData: GameJoinData = { gameId, role, targetSlot: null };
       socket.once(SocketIOGameEvents.GAME_DATA, () => {
         socket.gameId = gameId;
         socket.role = role;
@@ -93,9 +96,49 @@ export class SocketGameTestUtils {
     socket: GameClientSocket,
     gameId: string,
     role: PlayerRole
+  ): Promise<GameJoinOutputData> {
+    return new Promise<GameJoinOutputData>((resolve) => {
+      const joinData: GameJoinData = { gameId, role, targetSlot: null };
+      socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
+        socket.gameId = gameId;
+        socket.role = role;
+        resolve(gameData);
+      });
+      socket.emit(SocketIOGameEvents.JOIN, joinData);
+    });
+  }
+
+  /**
+   * Join a game with a specific target slot
+   */
+  public async joinGameWithSlot(
+    socket: GameClientSocket,
+    gameId: string,
+    role: PlayerRole,
+    targetSlot: number | null
+  ): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const joinData: GameJoinData = { gameId, role, targetSlot };
+      socket.once(SocketIOGameEvents.GAME_DATA, () => {
+        socket.gameId = gameId;
+        socket.role = role;
+        resolve();
+      });
+      socket.emit(SocketIOGameEvents.JOIN, joinData);
+    });
+  }
+
+  /**
+   * Join a game with a specific target slot and return game data
+   */
+  public async joinGameWithSlotAndData(
+    socket: GameClientSocket,
+    gameId: string,
+    role: PlayerRole,
+    targetSlot: number | null
   ): Promise<any> {
     return new Promise<any>((resolve) => {
-      const joinData: GameJoinData = { gameId, role };
+      const joinData: GameJoinData = { gameId, role, targetSlot };
       socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
         socket.gameId = gameId;
         socket.role = role;
@@ -738,6 +781,18 @@ export class SocketGameTestUtils {
   }
 
   /**
+   * Skips the show-answer phase by emitting the skip-show-answer event.
+   * Only the showman can skip this phase. Use this instead of waiting for
+   * ANSWER_SHOW_END to speed up tests.
+   */
+  public async skipShowAnswer(showmanSocket: GameClientSocket): Promise<void> {
+    return new Promise((resolve) => {
+      showmanSocket.once(SocketIOGameEvents.ANSWER_SHOW_END, resolve);
+      showmanSocket.emit(SocketIOGameEvents.SKIP_SHOW_ANSWER);
+    });
+  }
+
+  /**
    * Picks and completes any type of question (regular, secret, stake, etc.)
    * This method handles the full flow including secret question transfers and stake bidding
    */
@@ -825,10 +880,8 @@ export class SocketGameTestUtils {
 
       // Wait for appropriate event based on answer type
       if (answerType === AnswerResultType.CORRECT) {
-        await this.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.QUESTION_FINISH
-        );
+        // Skip show answer phase immediately for faster tests
+        await this.skipShowAnswer(showmanSocket);
       } else {
         await this.waitForEvent(
           playerSockets[0],
@@ -949,10 +1002,8 @@ export class SocketGameTestUtils {
 
       // Wait for appropriate event based on answer type
       if (answerType === AnswerResultType.CORRECT) {
-        await this.waitForEvent(
-          winnerSocket,
-          SocketIOGameEvents.QUESTION_FINISH
-        );
+        // Skip show answer phase immediately for faster tests
+        await this.skipShowAnswer(showmanSocket);
       } else {
         await this.waitForEvent(winnerSocket, SocketIOGameEvents.ANSWER_RESULT);
       }
@@ -980,10 +1031,8 @@ export class SocketGameTestUtils {
 
       // Wait for appropriate event based on answer type
       if (answerType === AnswerResultType.CORRECT) {
-        await this.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.QUESTION_FINISH
-        );
+        // Skip show answer phase immediately for faster tests
+        await this.skipShowAnswer(showmanSocket);
       } else {
         await this.waitForEvent(
           playerSockets[0],

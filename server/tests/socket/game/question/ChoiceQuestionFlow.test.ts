@@ -215,9 +215,9 @@ describe("Choice Question Flow Tests", () => {
           2000
         );
 
-        const questionFinishPromise = utils.waitForEvent(
+        const answerShowEndPromise = utils.waitForEvent(
           playerSocket,
-          SocketIOGameEvents.QUESTION_FINISH,
+          SocketIOGameEvents.ANSWER_SHOW_END,
           2000
         );
 
@@ -227,9 +227,13 @@ describe("Choice Question Flow Tests", () => {
           answerType: AnswerResultType.CORRECT,
         });
 
-        // Wait for both events
+        // Wait for answer result
         await answerResultPromise;
-        await questionFinishPromise;
+
+        // Skip show answer phase
+        await utils.skipShowAnswer(showmanSocket);
+
+        await answerShowEndPromise;
 
         const finalGameState = await utils.getGameState(gameId);
         expect(finalGameState!.questionState).toBe(QuestionState.CHOOSING);

@@ -1,3 +1,4 @@
+import { UserService } from "application/services/user/UserService";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { ChatMessageDTO } from "domain/types/dto/game/chat/ChatMessageDTO";
@@ -9,7 +10,8 @@ import { SocketGameContextService } from "./SocketGameContextService";
 export class SocketIOChatService {
   constructor(
     private readonly socketChatRepository: SocketChatRepository,
-    private readonly socketGameContextService: SocketGameContextService
+    private readonly socketGameContextService: SocketGameContextService,
+    private readonly userService: UserService
   ) {
     //
   }
@@ -34,6 +36,17 @@ export class SocketIOChatService {
       fetchDisconnected: true,
     });
 
+    // Check global mute status
+    const user = await this.userService.getRaw(context.userSession.id, {
+      select: ["id", "muted_until"],
+      relations: [],
+    });
+
+    if (user.isMuted) {
+      throw new ClientError(ClientResponse.YOU_ARE_MUTED);
+    }
+
+    // Check game-level mute
     const isMuted = context.game.isPlayerMuted(context.userSession.id);
 
     // Check if player is muted first

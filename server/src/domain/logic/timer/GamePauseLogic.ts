@@ -39,6 +39,14 @@ export class GamePauseLogic {
   }
 
   /**
+   * Update timer with resumedAt timestamp for resume operation.
+   * This is called when timer resumes after pause or restore from saved state.
+   */
+  public static updateTimerForResume(timer: GameStateTimerDTO): void {
+    timer.resumedAt = new Date();
+  }
+
+  /**
    * Build result for pause/unpause operations.
    */
   public static buildResult(input: GamePauseBuildResultInput): GamePauseResult {

@@ -42,6 +42,8 @@ export enum ClientResponse {
   PACKAGE_CORRUPTED = "package_corrupted",
   ORDER_DUPLICATED = "order_duplicated",
   CANNOT_UPLOAD_PACKAGE_AS_GUEST = "cannot_upload_package_as_guest",
+  PACKAGE_SEARCH_ROUNDS_MIN_MORE_MAX = "package_search_rounds_min_more_max",
+  PACKAGE_SEARCH_QUESTIONS_MIN_MORE_MAX = "package_search_questions_min_more_max",
 
   // File
   FILENAME_REQUIRED = "filename_required",
@@ -87,6 +89,7 @@ export enum ClientResponse {
   ONLY_SHOWMAN_SEND_ANSWER_RESULT = "only_showman_send_answer_result",
   ONLY_SHOWMAN_NEXT_ROUND = "only_showman_next_round",
   ONLY_SHOWMAN_SKIP_QUESTION_FORCE = "only_showman_skip_question_force",
+  ONLY_SHOWMAN_SKIP_SHOW_ANSWER = "only_showman_skip_show_answer",
   ONLY_SHOWMAN_CAN_PAUSE = "only_showman_can_pause",
   ONLY_SHOWMAN_CAN_UNPAUSE = "only_showman_can_unpause",
   ONLY_PLAYERS_CAN_SKIP = "only_players_can_skip",

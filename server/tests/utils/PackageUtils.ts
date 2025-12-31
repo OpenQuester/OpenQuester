@@ -1,3 +1,4 @@
+import { SHOW_ANSWER_DURATION_TEXT } from "domain/constants/game";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
@@ -39,6 +40,7 @@ export class PackageUtils {
                 text: "Simple question text",
                 answerText: "Simple answer",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 isHidden: false,
               } satisfies PackageQuestionDTO,
               {
@@ -49,6 +51,7 @@ export class PackageUtils {
                 text: "Stake question text",
                 answerText: "Stake answer",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 maxPrice: 400,
                 isHidden: false,
               } satisfies PackageQuestionDTO,
@@ -61,6 +64,7 @@ export class PackageUtils {
                 text: "Secret question text",
                 answerText: "Secret answer",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 allowedPrices: [100, 200, 300],
                 isHidden: false,
               } satisfies PackageQuestionDTO,
@@ -72,6 +76,7 @@ export class PackageUtils {
                 text: "No risk question text",
                 answerText: "No risk answer",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 priceMultiplier: 2,
                 isHidden: false,
               } satisfies PackageQuestionDTO,
@@ -83,6 +88,7 @@ export class PackageUtils {
                 text: "Hidden question text",
                 answerText: "Hidden answer",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 isHidden: true,
               } satisfies PackageQuestionDTO,
               {
@@ -93,6 +99,7 @@ export class PackageUtils {
                 text: "Choice question text",
                 answerText: "Choice answer",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 showDelay: 3000,
                 answers: [
                   {
@@ -126,6 +133,7 @@ export class PackageUtils {
                 text: "Another hidden question text",
                 answerText: "Another hidden answer",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 isHidden: true,
               } satisfies PackageQuestionDTO,
             ] as PackageQuestionDTO[],
@@ -154,6 +162,7 @@ export class PackageUtils {
                 text: "Final question text 1",
                 answerText: "Final answer 1",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 isHidden: false,
               } satisfies PackageQuestionDTO,
             ] as PackageQuestionDTO[],
@@ -171,6 +180,7 @@ export class PackageUtils {
                 text: "Final question text 2",
                 answerText: "Final answer 2",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 isHidden: false,
               } satisfies PackageQuestionDTO,
             ] as PackageQuestionDTO[],
@@ -188,6 +198,7 @@ export class PackageUtils {
                 text: "Final question text 3",
                 answerText: "Final answer 3",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 isHidden: false,
               } satisfies PackageQuestionDTO,
             ] as PackageQuestionDTO[],
@@ -215,6 +226,7 @@ export class PackageUtils {
                 text: "Simple question text 2",
                 answerText: "Simple answer 2",
                 answerDelay: 5000,
+                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
                 isHidden: false,
               } satisfies PackageQuestionDTO,
             ] as PackageQuestionDTO[],
@@ -233,6 +245,7 @@ export class PackageUtils {
           text: `Additional simple question ${index + 1}`,
           answerText: `Additional answer ${index + 1}`,
           answerDelay: 5000,
+          showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
           isHidden: false,
         })) satisfies PackageQuestionDTO[])
       );

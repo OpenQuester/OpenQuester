@@ -280,24 +280,27 @@ class MediaFileEncoder {
   }
 
   /// Update file hashes in a list of PackageQuestionFile objects
-  List<PackageQuestionFile?>? _updateQuestionFiles(
+  List<PackageQuestionFile>? _updateQuestionFiles(
     List<PackageQuestionFile?>? files,
     Map<String, String> hashMapping,
   ) {
     if (files == null) return null;
 
-    return files.map((file) {
-      if (file == null) return null;
+    return files
+        .map((file) {
+          if (file == null) return null;
 
-      final newHash = hashMapping[file.file.md5];
-      if (newHash != null && newHash != file.file.md5) {
-        logger?.d('Updating file hash: ${file.file.md5} -> $newHash');
-        return file.copyWith(
-          file: file.file.copyWith(md5: newHash),
-        );
-      }
-      return file;
-    }).toList();
+          final newHash = hashMapping[file.file.md5];
+          if (newHash != null && newHash != file.file.md5) {
+            logger?.d('Updating file hash: ${file.file.md5} -> $newHash');
+            return file.copyWith(
+              file: file.file.copyWith(md5: newHash),
+            );
+          }
+          return file;
+        })
+        .nonNulls
+        .toList();
   }
 
   /// Populate the cache with encoded file hashes

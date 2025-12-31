@@ -176,7 +176,7 @@ class _PlayerDragTarget extends WatchingWidget {
 }
 
 bool _playerAvailableToChange(
-  SocketIOGameJoinEventPayload? gameData,
+  SocketIoGameJoinEventPayload? gameData,
   PlayerData playerData,
 ) {
   final me = gameData?.me;
