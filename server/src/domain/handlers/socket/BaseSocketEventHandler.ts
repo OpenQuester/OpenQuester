@@ -5,6 +5,7 @@ import {
   SocketIOGameEvents,
   SocketIOUserEvents,
 } from "domain/enums/SocketIOEvents";
+import { ClientError } from "domain/errors/ClientError";
 import { ErrorController } from "domain/errors/ErrorController";
 import { GameAction } from "domain/types/action/GameAction";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
@@ -412,25 +413,19 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
         return;
       }
 
-      this.logger.error(
-        `Socket event failed`,
-        {
-          prefix: "[SOCKET]: ",
-          event: this.getEventName(),
-          error: message,
-          gameId: context.gameId,
-          durationMs: duration,
-        }
-      );
+      this.logger.error(`Socket event failed`, {
+        prefix: "[SOCKET]: ",
+        event: this.getEventName(),
+        error: message,
+        gameId: context.gameId,
+        durationMs: duration,
+      });
     } catch (handlingError) {
-      this.logger.error(
-        `Error while handling socket event error`,
-        {
-          prefix: "[SOCKET]: ",
-          handlingError: String(handlingError),
-          originalError: String(error),
-        }
-      );
+      this.logger.error(`Error while handling socket event error`, {
+        prefix: "[SOCKET]: ",
+        handlingError: String(handlingError),
+        originalError: String(error),
+      });
     }
   }
 
@@ -438,29 +433,23 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
    * Log successful execution
    */
   private logSuccess(context: SocketEventContext, duration: number): void {
-    this.logger.trace(
-      `Socket event completed`,
-      {
-        prefix: "[SOCKET]: ",
-        event: this.getEventName(),
-        gameId: context.gameId,
-        durationMs: duration,
-      }
-    );
+    this.logger.trace(`Socket event completed`, {
+      prefix: "[SOCKET]: ",
+      event: this.getEventName(),
+      gameId: context.gameId,
+      durationMs: duration,
+    });
   }
 
   /**
    * Log unsuccessful execution
    */
   private logUnsuccessful(context: SocketEventContext, duration: number): void {
-    this.logger.warn(
-      `Socket event unsuccessful`,
-      {
-        prefix: "[SOCKET]: ",
-        event: this.getEventName(),
-        gameId: context.gameId,
-        durationMs: duration,
-      }
-    );
+    this.logger.warn(`Socket event unsuccessful`, {
+      prefix: "[SOCKET]: ",
+      event: this.getEventName(),
+      gameId: context.gameId,
+      durationMs: duration,
+    });
   }
 }
