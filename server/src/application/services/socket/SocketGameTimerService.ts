@@ -2,31 +2,24 @@ import { GameService } from "application/services/game/GameService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { SECOND_MS } from "domain/constants/time";
 import { Game } from "domain/entities/game/Game";
-import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import {
+  GamePauseLogic,
+  GamePauseResult,
+} from "domain/logic/timer/GamePauseLogic";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 
-export interface GameTimerResult {
-  game: Game;
-  timer: GameStateTimerDTO | null;
-}
-
 export class SocketGameTimerService {
-  constructor(private readonly gameService: GameService) {}
-
-  /**
-   * Helper method to calculate elapsed time for a timer
-   */
-  private calculateElapsedTime(timer: GameStateTimerDTO): number {
-    return Date.now() - new Date(timer.startedAt).getTime();
+  constructor(private readonly gameService: GameService) {
+    //
   }
 
-  public async pauseGameTimer(game: Game): Promise<GameTimerResult> {
+  public async pauseGameTimer(game: Game): Promise<GamePauseResult> {
     const gameState = game.gameState;
     const questionState = gameState.questionState;
 
     const timer = await this.gameService.getTimer(game.id);
     if (timer) {
-      timer.elapsedMs = this.calculateElapsedTime(timer);
+      GamePauseLogic.updateTimerForPause(timer);
       // Save timer with elapsed time
       await this.gameService.saveTimer(
         timer,
@@ -42,10 +35,10 @@ export class SocketGameTimerService {
     game.setTimer(null);
     await this.gameService.updateGame(game);
 
-    return { game, timer };
+    return GamePauseLogic.buildResult({ game, timer });
   }
 
-  public async unpauseGameTimer(game: Game): Promise<GameTimerResult> {
+  public async unpauseGameTimer(game: Game): Promise<GamePauseResult> {
     const questionState = game.gameState.questionState;
 
     const timer = await this.gameService.getTimer(game.id, questionState!);
@@ -53,20 +46,18 @@ export class SocketGameTimerService {
     if (timer) {
       // Clear timer with elapsed time
       await this.gameService.clearTimer(game.id, questionState!);
-      // Update timer with new time to expire (minimum 1ms to avoid Redis errors)
-      const remainingMs = timer.durationMs - (timer?.elapsedMs || 0);
-      await this.gameService.saveTimer(
-        timer,
-        game.id,
-        Math.max(remainingMs, 1)
-      );
+      // Update timer with resumedAt timestamp
+      GamePauseLogic.updateTimerForResume(timer);
+      // Update timer with new time to expire
+      const remainingMs = GamePauseLogic.calculateRemainingTime(timer);
+      await this.gameService.saveTimer(timer, game.id, remainingMs);
     }
 
     game.unpause();
     game.setTimer(timer);
     await this.gameService.updateGame(game);
 
-    return { game, timer };
+    return GamePauseLogic.buildResult({ game, timer });
   }
 
   /**
@@ -84,7 +75,7 @@ export class SocketGameTimerService {
     questionState: QuestionState
   ): Promise<void> {
     const elapsedTimer = game.gameState.timer!;
-    elapsedTimer.elapsedMs = this.calculateElapsedTime(elapsedTimer);
+    GamePauseLogic.updateTimerForPause(elapsedTimer);
 
     await this.gameService.saveTimer(
       elapsedTimer,

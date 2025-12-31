@@ -13,7 +13,7 @@ import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PackageUploadResponse } from "domain/types/package/PackageUploadResponse";
-import { PackagePaginationOpts } from "domain/types/pagination/package/PackagePaginationOpts";
+import { PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { SelectOptions } from "domain/types/SelectOptions";
 import { Package } from "infrastructure/database/models/package/Package";
@@ -79,10 +79,10 @@ export class PackageService {
     return this.packageRepository.getCountsForPackage(packageId);
   }
 
-  public async listPackages(
-    paginationOpts: PackagePaginationOpts
+  public async searchPackages(
+    searchOpts: PackageSearchOpts
   ): Promise<PaginatedResult<Omit<PackageDTO, "rounds">[]>> {
-    const paginatedList = await this.packageRepository.list(paginationOpts);
+    const paginatedList = await this.packageRepository.search(searchOpts);
 
     const packageListItems = paginatedList.data.map((pack) => {
       return pack.toSimpleDTO(this.storage);

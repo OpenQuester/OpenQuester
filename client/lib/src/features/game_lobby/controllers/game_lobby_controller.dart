@@ -13,7 +13,7 @@ class GameLobbyController {
   Socket? socket;
   String? _gameId;
 
-  final gameData = ValueNotifier<SocketIOGameJoinEventPayload?>(null);
+  final gameData = ValueNotifier<SocketIoGameJoinEventPayload?>(null);
   final gameListData = ValueNotifier<GameListItem?>(null);
   final gameFinished = ValueNotifier<bool>(false);
   final lobbyEditorMode = ValueNotifier<bool>(false);
@@ -49,62 +49,62 @@ class GameLobbyController {
         ..onReconnect(_onReconnect)
         ..onReconnectFailed(_onDisconnect)
         ..onDisconnect(_onDisconnect)
-        ..on(SocketIOEvents.error.json!, onError)
-        ..on(SocketIOGameReceiveEvents.gameData.json!, _onGameData)
-        ..on(SocketIOGameReceiveEvents.start.json!, _onGameStart)
-        ..on(SocketIOGameReceiveEvents.userLeave.json!, _onUserLeave)
-        ..on(SocketIOGameReceiveEvents.join.json!, _onUserJoin)
-        ..on(SocketIOGameReceiveEvents.questionData.json!, _onQuestionPick)
-        ..on(SocketIOGameReceiveEvents.questionAnswer.json!, _onQuestionAnswer)
-        ..on(SocketIOGameReceiveEvents.answerResult.json!, _onAnswerResult)
-        ..on(SocketIOGameReceiveEvents.questionFinish.json!, _onQuestionFinish)
-        ..on(SocketIOGameReceiveEvents.answerSubmitted.json!, _onAnswerResult)
-        ..on(SocketIOGameReceiveEvents.nextRound.json!, _onNextRound)
-        ..on(SocketIOGameReceiveEvents.gameFinished.json!, _onGameFinish)
-        ..on(SocketIOGameReceiveEvents.gamePause.json!, _onGamePause)
-        ..on(SocketIOGameReceiveEvents.gameUnpause.json!, _onGameUnPause)
-        ..on(SocketIOGameReceiveEvents.questionSkip.json!, _onQuestionSkip)
-        ..on(SocketIOGameReceiveEvents.questionUnskip.json!, _onQuestionUnSkip)
-        ..on(SocketIOGameReceiveEvents.scoreChanged.json!, _onScoreChanged)
+        ..on(SocketIoEvents.error.json!, onError)
+        ..on(SocketIoGameReceiveEvents.gameData.json!, _onGameData)
+        ..on(SocketIoGameReceiveEvents.start.json!, _onGameStart)
+        ..on(SocketIoGameReceiveEvents.userLeave.json!, _onUserLeave)
+        ..on(SocketIoGameReceiveEvents.join.json!, _onUserJoin)
+        ..on(SocketIoGameReceiveEvents.questionData.json!, _onQuestionPick)
+        ..on(SocketIoGameReceiveEvents.questionAnswer.json!, _onQuestionAnswer)
+        ..on(SocketIoGameReceiveEvents.answerResult.json!, _onAnswerResult)
+        ..on(SocketIoGameReceiveEvents.questionFinish.json!, _onQuestionFinish)
+        ..on(SocketIoGameReceiveEvents.answerSubmitted.json!, _onAnswerResult)
+        ..on(SocketIoGameReceiveEvents.nextRound.json!, _onNextRound)
+        ..on(SocketIoGameReceiveEvents.gameFinished.json!, _onGameFinish)
+        ..on(SocketIoGameReceiveEvents.gamePause.json!, _onGamePause)
+        ..on(SocketIoGameReceiveEvents.gameUnpause.json!, _onGameUnPause)
+        ..on(SocketIoGameReceiveEvents.questionSkip.json!, _onQuestionSkip)
+        ..on(SocketIoGameReceiveEvents.questionUnskip.json!, _onQuestionUnSkip)
+        ..on(SocketIoGameReceiveEvents.scoreChanged.json!, _onScoreChanged)
         ..on(
-          SocketIOGameReceiveEvents.playerRestricted.json!,
+          SocketIoGameReceiveEvents.playerRestricted.json!,
           _onPlayerRestricted,
         )
         ..on(
-          SocketIOGameReceiveEvents.playerKicked.json!,
+          SocketIoGameReceiveEvents.playerKicked.json!,
           _onPlayerKicked,
         )
         ..on(
-          SocketIOGameReceiveEvents.turnPlayerChanged.json!,
+          SocketIoGameReceiveEvents.turnPlayerChanged.json!,
           _onPlayerTurnChanged,
         )
         ..on(
-          SocketIOGameReceiveEvents.playerRoleChange.json!,
+          SocketIoGameReceiveEvents.playerRoleChange.json!,
           _onPlayerRoleChange,
         )
-        ..on(SocketIOGameReceiveEvents.playerReady.json!, _onPlayerReady)
+        ..on(SocketIoGameReceiveEvents.playerReady.json!, _onPlayerReady)
         ..on(
-          SocketIOGameReceiveEvents.secretQuestionPicked.json!,
+          SocketIoGameReceiveEvents.secretQuestionPicked.json!,
           _onSecretQuestionPicked,
         )
         ..on(
-          SocketIOGameReceiveEvents.secretQuestionTransfer.json!,
+          SocketIoGameReceiveEvents.secretQuestionTransfer.json!,
           _onSecretQuestionTransfer,
         )
         ..on(
-          SocketIOGameReceiveEvents.stakeQuestionPicked.json!,
+          SocketIoGameReceiveEvents.stakeQuestionPicked.json!,
           _onStakeQuestionPicked,
         )
         ..on(
-          SocketIOGameReceiveEvents.stakeBidSubmit.json!,
+          SocketIoGameReceiveEvents.stakeBidSubmit.json!,
           _onStakeQuestionSubmitted,
         )
         ..on(
-          SocketIOGameReceiveEvents.stakeQuestionWinner.json!,
+          SocketIoGameReceiveEvents.stakeQuestionWinner.json!,
           _onStakeQuestionWinner,
         )
         ..on(
-          SocketIOGameReceiveEvents.mediaDownloadStatus.json!,
+          SocketIoGameReceiveEvents.mediaDownloadStatus.json!,
           _onMediaDownloadStatus,
         )
         ..connect();
@@ -154,15 +154,15 @@ class GameLobbyController {
 
       // Authenticate socket connection
       await Api.I.api.auth.postV1AuthSocket(
-        body: InputSocketIOAuth(socketId: socket!.id!),
+        body: InputSocketIoAuth(socketId: socket!.id!),
       );
 
-      final ioGameJoinInput = SocketIOGameJoinInput(
+      final ioGameJoinInput = SocketIoGameJoinInput(
         gameId: _gameId!,
         role: _getJoinRole(),
       );
 
-      socket?.emit(SocketIOGameSendEvents.join.json!, ioGameJoinInput.toJson());
+      socket?.emit(SocketIoGameSendEvents.join.json!, ioGameJoinInput.toJson());
     } catch (e, s) {
       logger.e(e, stackTrace: s);
       await clear();
@@ -252,7 +252,7 @@ class GameLobbyController {
   }
 
   Future<void> leave({bool force = false}) async {
-    socket?.emit(SocketIOGameSendEvents.userLeave.json!);
+    socket?.emit(SocketIoGameSendEvents.userLeave.json!);
     _leave();
   }
 
@@ -262,7 +262,7 @@ class GameLobbyController {
 
   Future<void> _onGameData(dynamic data) async {
     // Set global game data
-    gameData.value = SocketIOGameJoinEventPayload.fromJson(
+    gameData.value = SocketIoGameJoinEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
 
@@ -304,12 +304,14 @@ class GameLobbyController {
   void _updateChatUsers() {
     if (gameData.value == null) return;
     // Set chat users
-    final users = gameData.value!.players.map(UserX.fromPlayerData).toList();
+    final users = gameData.value!.players
+        .map(ChatUserX.fromPlayerData)
+        .toList();
     getIt<SocketChatController>().setUsers(users);
   }
 
   Future<void> _onGameStart(dynamic data) async {
-    final startData = SocketIOGameStartEventPayload.fromJson(
+    final startData = SocketIoGameStartEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
     gameData.value = gameData.value?.copyWith.gameState(
@@ -319,7 +321,7 @@ class GameLobbyController {
   }
 
   void startGame() {
-    socket?.emit(SocketIOGameSendEvents.start.json!);
+    socket?.emit(SocketIoGameSendEvents.start.json!);
   }
 
   String? onError(dynamic data) {
@@ -424,15 +426,15 @@ class GameLobbyController {
     }
 
     socket?.emit(
-      SocketIOGameSendEvents.questionPick.json!,
-      SocketIOQuestionPickEventInput(questionId: questionId).toJson(),
+      SocketIoGameSendEvents.questionPick.json!,
+      SocketIoQuestionPickEventInput(questionId: questionId).toJson(),
     );
   }
 
   void _onQuestionPick(dynamic data) {
     if (data is! Map) return;
 
-    final questionData = SocketIOQuestionDataEventPayload.fromJson(
+    final questionData = SocketIoQuestionDataEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
 
@@ -482,7 +484,7 @@ class GameLobbyController {
   Future<void> _onQuestionAnswer(dynamic data) async {
     if (data is! Map) return;
 
-    final questionData = SocketIOQuestionAnswerEventPayload.fromJson(
+    final questionData = SocketIoQuestionAnswerEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
 
@@ -498,7 +500,7 @@ class GameLobbyController {
   Future<void> _onAnswerResult(dynamic data) async {
     if (data is! Map) return;
 
-    final questionData = SocketIOAnswerResultEventPayload.fromJson(
+    final questionData = SocketIoAnswerResultEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
 
@@ -516,7 +518,7 @@ class GameLobbyController {
   }
 
   void _updateGameStateFromAnswerResult(
-    SocketIOAnswerResultEventPayload questionData,
+    SocketIoAnswerResultEventPayload questionData,
   ) {
     gameData.value = gameData.value?.copyWith
         .gameState(
@@ -567,7 +569,7 @@ class GameLobbyController {
     );
 
     _updateGameStateFromAnswerResult(
-      SocketIOAnswerResultEventPayload(
+      SocketIoAnswerResultEventPayload(
         answerFiles: questionData.answerFiles,
         answerText: questionData.answerText,
       ),
@@ -669,8 +671,8 @@ class GameLobbyController {
 
   Future<void> answerQuestion({String? answerText}) async {
     await socket?.emitWithAckAsync(
-      SocketIOGameSendEvents.answerSubmitted.json!,
-      SocketIOAnswerSubmittedEventData(answerText: answerText ?? '').toJson(),
+      SocketIoGameSendEvents.answerSubmitted.json!,
+      SocketIoAnswerSubmittedEventData(answerText: answerText ?? '').toJson(),
     );
   }
 
@@ -681,7 +683,7 @@ class GameLobbyController {
     if (gameData.value?.gameState.answeringPlayer != null) return;
     if (gameData.value?.gameState.isPaused ?? true) return;
 
-    socket?.emit(SocketIOGameSendEvents.questionAnswer.json!);
+    socket?.emit(SocketIoGameSendEvents.questionAnswer.json!);
   }
 
   void passQuestion({required bool pass}) {
@@ -693,8 +695,8 @@ class GameLobbyController {
 
     socket?.emit(
       pass
-          ? SocketIOGameSendEvents.questionSkip.json!
-          : SocketIOGameSendEvents.questionUnskip.json!,
+          ? SocketIoGameSendEvents.questionSkip.json!
+          : SocketIoGameSendEvents.questionUnskip.json!,
     );
   }
 
@@ -707,14 +709,14 @@ class GameLobbyController {
     final score = ((question.price ?? 0) * (multiplier ?? 1)).toInt();
 
     await socket?.emitWithAckAsync(
-      SocketIOGameSendEvents.answerResult.json!,
-      SocketIOAnswerResultInput(
+      SocketIoGameSendEvents.answerResult.json!,
+      SocketIoAnswerResultInput(
         scoreResult: playerAnswerIsRight ? score : -score,
         answerType: multiplier == 0
-            ? SocketIOGameAnswerType.skip
+            ? SocketIoGameAnswerType.skip
             : playerAnswerIsRight
-            ? SocketIOGameAnswerType.correct
-            : SocketIOGameAnswerType.wrong,
+            ? SocketIoGameAnswerType.correct
+            : SocketIoGameAnswerType.wrong,
       ).toJson(),
     );
   }
@@ -722,7 +724,7 @@ class GameLobbyController {
   void _onNextRound(dynamic data) {
     if (data is! Map) return;
 
-    final nextRoundData = SocketIONextRoundEventPayload.fromJson(
+    final nextRoundData = SocketIoNextRoundEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
 
@@ -743,7 +745,7 @@ class GameLobbyController {
     final me = gameData.value?.me;
     if (me == null) return;
     if (me.role != PlayerRole.showman) return;
-    socket?.emit(SocketIOGameSendEvents.nextRound.json!);
+    socket?.emit(SocketIoGameSendEvents.nextRound.json!);
   }
 
   void _onGamePause(dynamic data) => _setGamePause(isPaused: true);
@@ -753,7 +755,7 @@ class GameLobbyController {
 
     // Update timer after pause
     if (data is! Map) return;
-    final unpauseData = SocketIOGameUnpauseEventPayload.fromJson(
+    final unpauseData = SocketIoGameUnpauseEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
     gameData.value = gameData.value?.copyWith.gameState(
@@ -776,19 +778,19 @@ class GameLobbyController {
   void setPause({required bool pauseState}) {
     socket?.emit(
       pauseState
-          ? SocketIOGameSendEvents.gamePause.json!
-          : SocketIOGameSendEvents.gameUnpause.json!,
+          ? SocketIoGameSendEvents.gamePause.json!
+          : SocketIoGameSendEvents.gameUnpause.json!,
     );
   }
 
   void skipQuestion() {
-    socket?.emit(SocketIOGameSendEvents.skipQuestionForce.json!);
+    socket?.emit(SocketIoGameSendEvents.skipQuestionForce.json!);
   }
 
   Future<void> _onQuestionSkip(dynamic data) async {
     if (data is! Map) return;
 
-    final skippedPlayer = SocketIOGameSkipEventPayload.fromJson(
+    final skippedPlayer = SocketIoGameSkipEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
     gameData.value = gameData.value?.copyWith.gameState(
@@ -804,7 +806,7 @@ class GameLobbyController {
   void _onQuestionUnSkip(dynamic data) {
     if (data is! Map) return;
 
-    final unskippedPlayer = SocketIOGameUnskipEventPayload.fromJson(
+    final unskippedPlayer = SocketIoGameUnskipEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
     gameData.value = gameData.value?.copyWith.gameState(
@@ -819,7 +821,7 @@ class GameLobbyController {
   void _onPlayerRestricted(dynamic data) {
     if (data is! Map) return;
 
-    final restrictedPlayer = SocketIOPlayerRestrictionEventPayload.fromJson(
+    final restrictedPlayer = SocketIoPlayerRestrictionEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
     gameData.value = gameData.value?.changePlayer(
@@ -837,7 +839,7 @@ class GameLobbyController {
   void _onPlayerKicked(dynamic data) {
     if (data is! Map) return;
 
-    final kickedPlayer = SocketIOPlayerKickEventPayload.fromJson(
+    final kickedPlayer = SocketIoPlayerKickEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
     final playerId = kickedPlayer.playerId;
@@ -851,7 +853,7 @@ class GameLobbyController {
   void _onPlayerRoleChange(dynamic json) {
     if (json is! Map) return;
 
-    final data = SocketIOPlayerRoleChangeEventPayload.fromJson(
+    final data = SocketIoPlayerRoleChangeEventPayload.fromJson(
       json as Map<String, dynamic>,
     );
 
@@ -861,7 +863,7 @@ class GameLobbyController {
   void _onPlayerTurnChanged(dynamic json) {
     if (json is! Map) return;
 
-    final data = SocketIOTurnPlayerChangeEventPayload.fromJson(
+    final data = SocketIoTurnPlayerChangeEventPayload.fromJson(
       json as Map<String, dynamic>,
     );
 
@@ -873,7 +875,7 @@ class GameLobbyController {
   void _onScoreChanged(dynamic json) {
     if (json is! Map) return;
 
-    final data = SocketIOPlayerScoreChangeEventPayload.fromJson(
+    final data = SocketIoPlayerScoreChangeEventPayload.fromJson(
       json as Map<String, dynamic>,
     );
 
@@ -909,7 +911,7 @@ class GameLobbyController {
   void _onPlayerReady(dynamic json) {
     if (json is! Map) return;
 
-    final data = SocketIOPlayerReadinessEventPayload.fromJson(
+    final data = SocketIoPlayerReadinessEventPayload.fromJson(
       json as Map<String, dynamic>,
     );
 
@@ -921,15 +923,15 @@ class GameLobbyController {
   void playerReady({required bool ready}) {
     socket?.emit(
       ready
-          ? SocketIOGameSendEvents.playerReady.json!
-          : SocketIOGameSendEvents.playerUnready.json!,
+          ? SocketIoGameSendEvents.playerReady.json!
+          : SocketIoGameSendEvents.playerUnready.json!,
     );
   }
 
   void _onSecretQuestionPicked(dynamic json) {
     if (json is! Map) return;
 
-    final data = SocketIOSecretQuestionPickedEventPayload.fromJson(
+    final data = SocketIoSecretQuestionPickedEventPayload.fromJson(
       json as Map<String, dynamic>,
     );
 
@@ -939,8 +941,8 @@ class GameLobbyController {
       type: data.transferType,
       onPlayerSelected: (selectedPlayerId) {
         socket?.emit(
-          SocketIOGameSendEvents.secretQuestionTransfer.json!,
-          SocketIOSecretQuestionTransferInputData(
+          SocketIoGameSendEvents.secretQuestionTransfer.json!,
+          SocketIoSecretQuestionTransferInputData(
             targetPlayerId: selectedPlayerId,
           ).toJson(),
         );
@@ -951,7 +953,7 @@ class GameLobbyController {
   void _onSecretQuestionTransfer(dynamic json) {
     if (json is! Map) return;
 
-    final data = SocketIOSecretQuestionTransferEventPayload.fromJson(
+    final data = SocketIoSecretQuestionTransferEventPayload.fromJson(
       json as Map<String, dynamic>,
     );
 
@@ -964,7 +966,7 @@ class GameLobbyController {
   void _onStakeQuestionPicked(dynamic json) {
     if (json is! Map) return;
 
-    final data = SocketIOStakeQuestionPickedEventPayload.fromJson(
+    final data = SocketIoStakeQuestionPickedEventPayload.fromJson(
       json as Map<String, dynamic>,
     );
 
@@ -989,7 +991,7 @@ class GameLobbyController {
   void _onStakeQuestionSubmitted(dynamic json) {
     if (json is! Map) return;
 
-    final data = SocketIOStakeQuestionSubmittedEventPayload.fromJson(
+    final data = SocketIoStakeQuestionSubmittedEventPayload.fromJson(
       json as Map<String, dynamic>,
     );
 
@@ -1011,7 +1013,7 @@ class GameLobbyController {
   void _onStakeQuestionWinner(dynamic json) {
     if (json is! Map) return;
 
-    final data = SocketIOStakeQuestionWinnerEventPayload.fromJson(
+    final data = SocketIoStakeQuestionWinnerEventPayload.fromJson(
       json as Map<String, dynamic>,
     );
 
@@ -1040,15 +1042,15 @@ class GameLobbyController {
     );
   }
 
-  void submitQuestionBid(SocketIOStakeQuestionBidInput input) {
+  void submitQuestionBid(SocketIoStakeQuestionBidInput input) {
     socket?.emit(
-      SocketIOGameSendEvents.stakeBidSubmit.json!,
+      SocketIoGameSendEvents.stakeBidSubmit.json!,
       input.toJson(),
     );
   }
 
   void notifyMediaDownloaded() =>
-      socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
+      socket?.emit(SocketIoGameSendEvents.mediaDownloaded.json!);
 
   Future<void> _onMediaDownloadStatus(dynamic data) async {
     if (data is! Map) return;

@@ -18,6 +18,12 @@ import { GameJoinMeta } from "domain/types/socket/events/game/GameJoinMeta";
 export interface GameJoinInputData {
   gameId: string;
   role: PlayerRole;
+  /**
+   * Target slot for player role.
+   * If null, first available slot will be assigned.
+   * Only applicable when role is PLAYER.
+   */
+  targetSlot: number | null;
 }
 
 export interface ChatMessageInputData {

@@ -264,7 +264,7 @@ describe("Game Lock and Queue Mechanics", () => {
         );
         const questionFinishPromise = utils.waitForEvent(
           playerSockets[0],
-          SocketIOGameEvents.QUESTION_FINISH
+          SocketIOGameEvents.ANSWER_SHOW_END
         );
 
         // Emit both actions rapidly without waiting between them
@@ -275,12 +275,15 @@ describe("Game Lock and Queue Mechanics", () => {
           answerType: AnswerResultType.CORRECT,
         });
 
-        // Wait for all events to complete - queue should process them in order
-        const [answer, answerResult, questionFinish] = await Promise.all([
-          answerPromise,
-          answerResultPromise,
-          questionFinishPromise,
-        ]);
+        // Wait for answer and answer result events
+        const answer = await answerPromise;
+        const answerResult = await answerResultPromise;
+
+        // Skip show answer phase to avoid timeout
+        await utils.skipShowAnswer(showmanSocket);
+
+        // Wait for question finish
+        const questionFinish = await questionFinishPromise;
 
         // Verify all events were received
         expect(answer).toBeDefined();

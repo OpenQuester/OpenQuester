@@ -94,6 +94,8 @@ export const CONTAINER_TYPES = {
 
   // Action Queue System
   GameActionExecutor: Symbol("GameActionExecutor"),
+  GameActionHandlerRegistry: Symbol("GameActionHandlerRegistry"),
+  GameActionBroadcastService: Symbol("GameActionBroadcastService"),
   GameActionLockService: Symbol("GameActionLockService"),
   GameActionQueueService: Symbol("GameActionQueueService"),
 
@@ -110,6 +112,9 @@ export const CONTAINER_TYPES = {
   RoundHandlerFactory: Symbol("RoundHandlerFactory"),
   StatisticsWorkerFactory: Symbol("StatisticsWorkerFactory"),
   CronJobFactory: Symbol("CronJobFactory"),
+
+  // State Machine
+  PhaseTransitionRouter: Symbol("PhaseTransitionRouter"),
 
   // Cron Services
   CronSchedulerService: Symbol("CronSchedulerService"),

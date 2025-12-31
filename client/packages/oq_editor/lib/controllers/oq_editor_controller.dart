@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
-import 'package:oq_editor/models/editor_step.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
 import 'package:oq_editor/models/package_upload_state.dart';
+import 'package:oq_editor/router/router.gr.dart';
 import 'package:oq_editor/utils/editor_media_utils.dart';
 import 'package:oq_editor/utils/extensions.dart';
 import 'package:oq_editor/utils/media_file_encoder.dart';
@@ -26,6 +28,8 @@ class OqEditorController {
 
   /// Translation provider injected from parent app
   final OqEditorTranslations translations;
+
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   /// Optional logger for debug messages
   final BaseLogger? logger;
@@ -55,19 +59,10 @@ class OqEditorController {
     OqPackageX.empty,
   );
 
-  /// Current step in the editor workflow
-  final ValueNotifier<EditorStep> currentStep = ValueNotifier<EditorStep>(
-    EditorStep.packageInfo,
-  );
-
   /// Key to force refresh of the editor screen
   final ValueNotifier<Key> refreshKey = ValueNotifier<Key>(
     UniqueKey(),
   );
-
-  /// Navigation context tracking which round/theme/question is being edited
-  final ValueNotifier<EditorNavigationContext> navigationContext =
-      ValueNotifier<EditorNavigationContext>(EditorNavigationContext());
 
   /// Media file references map by hash
   /// Key: MD5 hash of file, Value: MediaFileReference for upload
@@ -90,7 +85,7 @@ class OqEditorController {
 
   /// Last used answer delay in milliseconds (persisted
   /// across question creations)
-  int lastUsedAnswerDelay = 5000;
+  int lastUsedShowAnswerDuration = 5000;
 
   /// Last used display time question for media files in milliseconds
   ///  (persisted across question creations)
@@ -317,7 +312,11 @@ class OqEditorController {
       package.value = result.package;
 
       // Navigate to package info screen
-      navigateToPackageInfo();
+      unawaited(
+        AutoRouter.of(
+          navigatorKey.currentContext!,
+        ).push(const PackageInfoRoute()),
+      );
       refreshKey.value = UniqueKey();
     } catch (e) {
       logger?.e('Error importing package: $e');
@@ -361,7 +360,11 @@ class OqEditorController {
             package.value = result.package;
 
             // Navigate to package info screen
-            navigateToPackageInfo();
+            unawaited(
+              AutoRouter.of(
+                navigatorKey.currentContext!,
+              ).push(const PackageInfoRoute()),
+            );
             refreshKey.value = UniqueKey();
 
             logger?.i(
@@ -424,7 +427,11 @@ class OqEditorController {
       package.value = result.package;
 
       // Navigate to package info screen
-      navigateToPackageInfo();
+      unawaited(
+        AutoRouter.of(
+          navigatorKey.currentContext!,
+        ).push(const PackageInfoRoute()),
+      );
       refreshKey.value = UniqueKey();
     } catch (e) {
       logger?.e('Error importing OQ package: $e');
@@ -464,7 +471,11 @@ class OqEditorController {
             package.value = result.package;
 
             // Navigate to package info screen
-            navigateToPackageInfo();
+            unawaited(
+              AutoRouter.of(
+                navigatorKey.currentContext!,
+              ).push(const PackageInfoRoute()),
+            );
             refreshKey.value = UniqueKey();
 
             logger?.i(
@@ -550,79 +561,6 @@ class OqEditorController {
       choice: (q) => q.copyWith(order: newOrder),
       hidden: (q) => q.copyWith(order: newOrder),
     );
-  }
-
-  // Navigation methods
-
-  /// Navigate to package info screen
-  void navigateToPackageInfo() {
-    currentStep.value = EditorStep.packageInfo;
-    navigationContext.value = navigationContext.value.toPackageLevel();
-  }
-
-  /// Navigate to rounds list screen
-  void navigateToRoundsList() {
-    currentStep.value = EditorStep.roundsList;
-    navigationContext.value = navigationContext.value.toRoundsLevel();
-  }
-
-  /// Navigate to round editor for specific round
-  void navigateToRoundEditor(int roundIndex) {
-    currentStep.value = EditorStep.roundEditor;
-    navigationContext.value = navigationContext.value.toRoundLevel(roundIndex);
-  }
-
-  /// Navigate to themes grid for specific round
-  void navigateToThemesGrid(int roundIndex) {
-    currentStep.value = EditorStep.themesGrid;
-    navigationContext.value = navigationContext.value.toThemesLevel(roundIndex);
-  }
-
-  /// Navigate to theme editor for specific theme
-  void navigateToThemeEditor(int roundIndex, int themeIndex) {
-    currentStep.value = EditorStep.themeEditor;
-    navigationContext.value = navigationContext.value.toThemeLevel(
-      roundIndex,
-      themeIndex,
-    );
-  }
-
-  /// Navigate to questions list for specific theme
-  void navigateToQuestionsList(int roundIndex, int themeIndex) {
-    currentStep.value = EditorStep.questionsList;
-    navigationContext.value = navigationContext.value.toThemeLevel(
-      roundIndex,
-      themeIndex,
-    );
-  }
-
-  /// Navigate back one step
-  void navigateBack() {
-    switch (currentStep.value) {
-      case EditorStep.packageInfo:
-        // Already at root, do nothing or close editor
-        break;
-      case EditorStep.roundsList:
-        navigateToPackageInfo();
-      case EditorStep.roundEditor:
-        navigateToRoundsList();
-      case EditorStep.themesGrid:
-        final roundIndex = navigationContext.value.roundIndex;
-        if (roundIndex != null) {
-          navigateToRoundEditor(roundIndex);
-        }
-      case EditorStep.themeEditor:
-        final roundIndex = navigationContext.value.roundIndex;
-        if (roundIndex != null) {
-          navigateToThemesGrid(roundIndex);
-        }
-      case EditorStep.questionsList:
-        final roundIndex = navigationContext.value.roundIndex;
-        final themeIndex = navigationContext.value.themeIndex;
-        if (roundIndex != null && themeIndex != null) {
-          navigateToThemeEditor(roundIndex, themeIndex);
-        }
-    }
   }
 
   // Package modification methods
@@ -879,9 +817,28 @@ class OqEditorController {
     await _mediaFileEncoder.dispose();
     await _encodingProgressController?.close();
     package.dispose();
-    currentStep.dispose();
-    navigationContext.dispose();
     refreshKey.dispose();
     _totalSizeMB.dispose();
+  }
+
+  PackageQuestionUnion? getQuestionByIndices(
+    int roundIndex,
+    int themeIndex,
+    int? questionIndex,
+  ) {
+    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) {
+      return null;
+    }
+    final round = package.value.rounds[roundIndex];
+    if (themeIndex < 0 || themeIndex >= round.themes.length) {
+      return null;
+    }
+    final theme = round.themes[themeIndex];
+    if (questionIndex == null ||
+        questionIndex < 0 ||
+        questionIndex >= theme.questions.length) {
+      return null;
+    }
+    return theme.questions[questionIndex];
   }
 }

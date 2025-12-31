@@ -44,15 +44,14 @@ export class GameStatisticsCollectorService {
 
   /**
    * Finish collecting statistics when game ends.
-   * Automatically saves statistics to database and cleans up Redis
+   * Automatically saves statistics to database and cleans up Redis.
+   * This method is idempotent - calling it multiple times is safe.
    */
   public async finishCollection(gameId: string): Promise<void> {
     this.logger.debug(`Collect statistics for game`, {
       prefix: "[GAME_STATISTICS_COLLECTOR]: ",
       gameId,
     });
-
-    const finishedAt = new Date();
 
     const gameStats = await this.statisticsService.get(gameId);
     if (!gameStats) {
@@ -65,6 +64,18 @@ export class GameStatisticsCollectorService {
       return;
     }
 
+    // Guard against duplicate finishCollection calls
+    if (gameStats.finishedAt) {
+      this.logger.debug(
+        `Statistics for game ${gameId} already finished, skipping duplicate call`,
+        {
+          prefix: "[GAME_STATISTICS_COLLECTOR]: ",
+        }
+      );
+      return;
+    }
+
+    const finishedAt = new Date();
     const duration = finishedAt.getTime() - gameStats.startedAt.getTime();
 
     await this.statisticsService.update(gameStats, {
@@ -88,22 +99,5 @@ export class GameStatisticsCollectorService {
     await this.statisticsWorkerFactory.executeGameStatisticsPersistence(
       updatedStats
     );
-  }
-
-  /**
-   * Check if statistics collection is active for a game
-   */
-  public async isCollecting(gameId: string): Promise<boolean> {
-    const stats = await this.statisticsService.get(gameId);
-    return stats !== null && stats.finishedAt === null;
-  }
-
-  /**
-   * Get current statistics for a game
-   */
-  public async getCurrentStats(
-    gameId: string
-  ): Promise<GameStatisticsData | null> {
-    return this.statisticsService.get(gameId);
   }
 }

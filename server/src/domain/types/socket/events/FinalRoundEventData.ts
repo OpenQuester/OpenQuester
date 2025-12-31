@@ -1,10 +1,8 @@
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import {
-  AnswerReviewData,
-  FinalRoundQuestionData,
-} from "domain/types/socket/finalround/FinalRoundResults";
+import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
+import { AnswerReviewData } from "domain/types/socket/finalround/FinalRoundResults";
 
 /**
  * Data for theme elimination in final round

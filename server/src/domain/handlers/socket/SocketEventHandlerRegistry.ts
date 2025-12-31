@@ -35,9 +35,10 @@ export class SocketEventHandlerRegistry {
 
     if (this.handlers.has(eventName)) {
       this.logger.warn(
-        `Handler for event ${eventName} is already registered. Overriding.`,
+        `Handler for event ${eventName} is already registered. Skipping duplicate.`,
         { prefix: "[SOCKET]: " }
       );
+      return; // Prevent duplicate registration which causes double event handling
     }
 
     this.handlers.set(eventName, handler);

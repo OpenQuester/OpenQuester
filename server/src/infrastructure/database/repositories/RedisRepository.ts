@@ -39,6 +39,17 @@ export class RedisRepository {
     return this._subClient.on(event, callback);
   }
 
+  public off(
+    event: string,
+    callback: (channel: string, message: string) => void
+  ) {
+    return this._subClient.off(event, callback);
+  }
+
+  public async unsubscribe(channel: string): Promise<void> {
+    await this._subClient.unsubscribe(channel);
+  }
+
   public async setLockKey(lockValue: string, expire?: number) {
     return this._client.set(
       lockValue,

@@ -1,129 +1,138 @@
+import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
+import 'package:oq_editor/router/router.gr.dart';
 import 'package:watch_it/watch_it.dart';
 
 /// Grid view of themes within a round
+@RoutePage()
 class ThemesGridScreen extends WatchingWidget {
-  const ThemesGridScreen({super.key});
+  const ThemesGridScreen({@pathParam required this.roundIndex, super.key});
+  final int roundIndex;
 
   @override
   Widget build(BuildContext context) {
     final controller = GetIt.I<OqEditorController>();
     final package = watchValue((OqEditorController c) => c.package);
-    final navContext = watchValue(
-      (OqEditorController c) => c.navigationContext,
-    );
+
     final translations = controller.translations;
 
-    final roundIndex = navContext.roundIndex;
-    if (roundIndex == null || roundIndex >= package.rounds.length) {
-      return Center(child: Text(translations.invalidRound));
+    if (roundIndex >= package.rounds.length) {
+      return Scaffold(
+        body: Text(translations.invalidRound).center(),
+      );
     }
 
     final round = package.rounds[roundIndex];
     final themes = round.themes;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Header
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: controller.navigateBack,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      translations.themes,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    Text(
-                      round.name,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              FilledButton.icon(
-                onPressed: () => _addNewTheme(context, roundIndex),
-                icon: const Icon(Icons.add),
-                label: Text(translations.addTheme),
-              ),
-            ],
-          ),
-        ),
-
-        // Themes grid or empty state
-        Expanded(
-          child: themes.isEmpty
-              ? Center(
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
                   child: Column(
-                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.dashboard_outlined,
-                        size: 64,
-                        color: Theme.of(context).colorScheme.outline,
-                      ),
-                      const SizedBox(height: 16),
                       Text(
-                        translations.noThemes,
-                        style: Theme.of(context).textTheme.titleMedium
+                        translations.themes,
+                        style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
                             ),
+                      ),
+                      Text(
+                        round.name,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
-                )
-              : GridView.builder(
-                  padding: const EdgeInsets.all(16),
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 450,
-                    mainAxisSpacing: 16,
-                    crossAxisSpacing: 16,
-                    childAspectRatio: 1.2,
-                  ),
-                  itemCount: themes.length,
-                  itemBuilder: (context, index) {
-                    final theme = themes[index];
-                    return _ThemeCard(
-                      theme: theme,
-                      roundIndex: roundIndex,
-                      themeIndex: index,
-                      onTap: () =>
-                          controller.navigateToThemeEditor(roundIndex, index),
-                      onDelete: () =>
-                          _confirmDeleteTheme(context, roundIndex, index),
-                      onViewQuestions: () =>
-                          controller.navigateToQuestionsList(roundIndex, index),
-                    );
-                  },
                 ),
-        ),
-      ],
+                FilledButton.icon(
+                  onPressed: () => _addNewTheme(context, roundIndex),
+                  icon: const Icon(Icons.add),
+                  label: Text(translations.addTheme),
+                ),
+              ],
+            ),
+          ),
+
+          // Themes grid or empty state
+          Expanded(
+            child: themes.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.dashboard_outlined,
+                          size: 64,
+                          color: Theme.of(context).colorScheme.outline,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          translations.noThemes,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
+                  )
+                : GridView.builder(
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate:
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 450,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          childAspectRatio: 1.2,
+                        ),
+                    itemCount: themes.length,
+                    itemBuilder: (context, index) {
+                      final theme = themes[index];
+                      return _ThemeCard(
+                        theme: theme,
+                        roundIndex: roundIndex,
+                        themeIndex: index,
+                        onTap: () => context.router.push(
+                          ThemeEditorRoute(
+                            roundIndex: roundIndex,
+                            themeIndex: index,
+                          ),
+                        ),
+                        onDelete: () =>
+                            _confirmDeleteTheme(context, roundIndex, index),
+                        onViewQuestions: () => context.router.push(
+                          QuestionsListRoute(
+                            roundIndex: roundIndex,
+                            themeIndex: index,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
   void _addNewTheme(BuildContext context, int roundIndex) {
     final controller = GetIt.I<OqEditorController>();
     final newTheme = PackageTheme(
-      id: null,
       order: 0,
       name: controller.translations.newTheme,
       description: '',

@@ -30,7 +30,6 @@ class ContentXmlParser {
     final themes = themesXml?.childElements.mapIndexed(_parseTheme).toList();
 
     return PackageRound(
-      id: null,
       name: name,
       themes: await Future.wait(themes ?? []),
       description: description,
@@ -54,7 +53,6 @@ class ContentXmlParser {
       name: name,
       description: comment.nullOnEmpty,
       questions: await Future.wait(questions),
-      id: null,
       order: index,
     );
   }
@@ -161,7 +159,6 @@ class ContentXmlParser {
     final packageQuestionFiles = questionFiles
         .mapIndexed(
           (index, e) => PackageQuestionFile(
-            id: null,
             file: e,
             order: index,
             displayTime: 20000,
@@ -171,7 +168,6 @@ class ContentXmlParser {
     final packageAnswerFiles = answerFiles
         .mapIndexed(
           (index, e) => PackageQuestionFile(
-            id: null,
             file: e,
             order: index,
             displayTime: 15000,
@@ -187,17 +183,24 @@ class ContentXmlParser {
       throw Exception('Question have no files and text for answer $question');
     }
 
+    //TODO: Get showAnswerDuration from XML if available
+    final showAnswerDuration = switch (questionFiles.firstOrNull?.type) {
+      PackageFileType.video => 15000,
+      PackageFileType.audio => 10000,
+      _ => 5000,
+    };
+
     return switch (questionType) {
       QuestionType.simple => PackageQuestionUnion.simple(
         price: price,
         text: questionText,
+        showAnswerDuration: showAnswerDuration,
         type: SimpleQuestionType.simple,
         questionComment: questionComment,
         questionFiles: packageQuestionFiles,
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
-        id: null,
         order: index,
       ),
       QuestionType.stake => PackageQuestionUnion.stake(
@@ -209,7 +212,7 @@ class ContentXmlParser {
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
-        id: null,
+        showAnswerDuration: showAnswerDuration,
         maxPrice: null,
         order: index,
       ),
@@ -222,9 +225,8 @@ class ContentXmlParser {
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
-        id: null,
+        showAnswerDuration: showAnswerDuration,
         subType: SecretQuestionSubType.simple,
-        allowedPrices: null,
         transferType: transferType,
         order: index,
       ),
@@ -237,7 +239,7 @@ class ContentXmlParser {
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
-        id: null,
+        showAnswerDuration: showAnswerDuration,
         subType: NoRiskQuestionSubType.simple,
         order: index,
         priceMultiplier: '2',
@@ -251,8 +253,8 @@ class ContentXmlParser {
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
+        showAnswerDuration: showAnswerDuration,
         isHidden: true,
-        id: null,
         order: index,
       ),
       QuestionType.choice => PackageQuestionUnion.choice(
@@ -264,15 +266,13 @@ class ContentXmlParser {
         answerText: answerText,
         answerHint: hostHint,
         answerFiles: packageAnswerFiles,
-        showDelay: 3000,
+        showAnswerDuration: showAnswerDuration,
+        showDelay: 3000, //TODO: Get showDelay from XML if available
         answers: rightAnswers
             .mapIndexed(
-              (index, e) =>
-                  QuestionChoiceAnswers(id: null, text: e, order: index),
+              (index, e) => QuestionChoiceAnswers(text: e, order: index),
             )
             .toList(),
-        id: null,
-        subType: null,
         order: index,
       ),
       QuestionType.$unknown => throw Exception('QuestionType.unknown'),
@@ -297,9 +297,7 @@ class ContentXmlParser {
     if (itemHash == null) return null;
 
     final md5 = itemHash.$2;
-    final file = itemType == null
-        ? null
-        : FileItem(id: null, link: null, md5: md5, type: itemType);
+    final file = itemType == null ? null : FileItem(md5: md5, type: itemType);
 
     return file;
   }

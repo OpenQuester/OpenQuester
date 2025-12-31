@@ -14,5 +14,6 @@ export interface UserDTO {
   isDeleted: boolean;
   isBanned: boolean;
   isGuest: boolean;
+  mutedUntil?: Date | null;
   permissions: PermissionDTO[] | [];
 }

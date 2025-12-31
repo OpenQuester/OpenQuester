@@ -9,7 +9,10 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import {
+  SocketIOEvents,
+  SocketIOGameEvents,
+} from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -177,5 +180,229 @@ describe("Game Join Slot Allocation Edge Cases", () => {
     } finally {
       await utils.disconnectAndCleanup(showmanSocket);
     }
+  });
+
+  describe("Target Slot Selection", () => {
+    it("should allow joining with a specific target slot", async () => {
+      const { socket: showmanSocket, gameId } =
+        await utils.createGameWithShowman(app, userRepo);
+
+      try {
+        const { socket: playerSocket, user } = await utils.createGameClient(
+          app,
+          userRepo
+        );
+
+        // Join with target slot 2
+        const gameDataPromise = utils.waitForEvent(
+          playerSocket,
+          SocketIOGameEvents.GAME_DATA
+        );
+        playerSocket.emit(SocketIOGameEvents.JOIN, {
+          gameId,
+          role: PlayerRole.PLAYER,
+          targetSlot: 2,
+        });
+        await gameDataPromise;
+
+        const game = await utils.getGameFromGameService(gameId);
+        const player = game.getPlayer(user.id, { fetchDisconnected: false });
+
+        expect(player).toBeDefined();
+        expect(player!.gameSlot).toBe(2);
+
+        await utils.disconnectAndCleanup(playerSocket);
+      } finally {
+        await utils.disconnectAndCleanup(showmanSocket);
+      }
+    });
+
+    it("should reject joining with an invalid slot number (out of range)", async () => {
+      const { socket: showmanSocket, gameId } =
+        await utils.createGameWithShowman(app, userRepo);
+
+      try {
+        const { socket: playerSocket } = await utils.createGameClient(
+          app,
+          userRepo
+        );
+
+        const errorPromise = utils.waitForEvent(
+          playerSocket,
+          SocketIOEvents.ERROR
+        );
+        playerSocket.emit(SocketIOGameEvents.JOIN, {
+          gameId,
+          role: PlayerRole.PLAYER,
+          targetSlot: 999, // Invalid slot
+        });
+        const error = await errorPromise;
+
+        expect(error.message).toContain("Invalid slot number");
+
+        await utils.disconnectAndCleanup(playerSocket);
+      } finally {
+        await utils.disconnectAndCleanup(showmanSocket);
+      }
+    });
+
+    it("should reject joining with an already occupied slot", async () => {
+      const { socket: showmanSocket, gameId } =
+        await utils.createGameWithShowman(app, userRepo);
+
+      try {
+        // First player joins with slot 1
+        const { socket: player1Socket } = await utils.createGameClient(
+          app,
+          userRepo
+        );
+        const gameData1Promise = utils.waitForEvent(
+          player1Socket,
+          SocketIOGameEvents.GAME_DATA
+        );
+        player1Socket.emit(SocketIOGameEvents.JOIN, {
+          gameId,
+          role: PlayerRole.PLAYER,
+          targetSlot: 1,
+        });
+        await gameData1Promise;
+
+        // Second player tries to join with same slot
+        const { socket: player2Socket } = await utils.createGameClient(
+          app,
+          userRepo
+        );
+        const errorPromise = utils.waitForEvent(
+          player2Socket,
+          SocketIOEvents.ERROR
+        );
+        player2Socket.emit(SocketIOGameEvents.JOIN, {
+          gameId,
+          role: PlayerRole.PLAYER,
+          targetSlot: 1, // Same slot as player 1
+        });
+        const error = await errorPromise;
+
+        expect(error.message).toContain("already occupied");
+
+        await utils.disconnectAndCleanup(player1Socket);
+        await utils.disconnectAndCleanup(player2Socket);
+      } finally {
+        await utils.disconnectAndCleanup(showmanSocket);
+      }
+    });
+
+    it("should auto-assign first available slot when targetSlot is not provided", async () => {
+      const { socket: showmanSocket, gameId } =
+        await utils.createGameWithShowman(app, userRepo);
+
+      try {
+        // First player joins with slot 0
+        const { socket: player1Socket } = await utils.createGameClient(
+          app,
+          userRepo
+        );
+        const gameData1Promise = utils.waitForEvent(
+          player1Socket,
+          SocketIOGameEvents.GAME_DATA
+        );
+        player1Socket.emit(SocketIOGameEvents.JOIN, {
+          gameId,
+          role: PlayerRole.PLAYER,
+          targetSlot: 0,
+        });
+        await gameData1Promise;
+
+        // Second player joins without targetSlot
+        const { socket: player2Socket, user: user2 } =
+          await utils.createGameClient(app, userRepo);
+        const gameData2Promise = utils.waitForEvent(
+          player2Socket,
+          SocketIOGameEvents.GAME_DATA
+        );
+        player2Socket.emit(SocketIOGameEvents.JOIN, {
+          gameId,
+          role: PlayerRole.PLAYER,
+          // No targetSlot - should auto-assign
+        });
+        await gameData2Promise;
+
+        const game = await utils.getGameFromGameService(gameId);
+        const player2 = game.getPlayer(user2.id, { fetchDisconnected: false });
+
+        expect(player2).toBeDefined();
+        // Should get slot 1 since slot 0 is taken
+        expect(player2!.gameSlot).toBe(1);
+
+        await utils.disconnectAndCleanup(player1Socket);
+        await utils.disconnectAndCleanup(player2Socket);
+      } finally {
+        await utils.disconnectAndCleanup(showmanSocket);
+      }
+    });
+
+    it("should ignore targetSlot for spectator role", async () => {
+      const { socket: showmanSocket, gameId } =
+        await utils.createGameWithShowman(app, userRepo);
+
+      try {
+        const { socket: spectatorSocket, user } = await utils.createGameClient(
+          app,
+          userRepo
+        );
+
+        // Join as spectator with targetSlot (should be ignored)
+        const gameDataPromise = utils.waitForEvent(
+          spectatorSocket,
+          SocketIOGameEvents.GAME_DATA
+        );
+        spectatorSocket.emit(SocketIOGameEvents.JOIN, {
+          gameId,
+          role: PlayerRole.SPECTATOR,
+          targetSlot: 2, // Should be ignored for spectators
+        });
+        await gameDataPromise;
+
+        const game = await utils.getGameFromGameService(gameId);
+        const spectator = game.getPlayer(user.id, { fetchDisconnected: false });
+
+        expect(spectator).toBeDefined();
+        expect(spectator!.role).toBe(PlayerRole.SPECTATOR);
+        expect(spectator!.gameSlot).toBeNull();
+
+        await utils.disconnectAndCleanup(spectatorSocket);
+      } finally {
+        await utils.disconnectAndCleanup(showmanSocket);
+      }
+    });
+
+    it("should reject negative slot numbers", async () => {
+      const { socket: showmanSocket, gameId } =
+        await utils.createGameWithShowman(app, userRepo);
+
+      try {
+        const { socket: playerSocket } = await utils.createGameClient(
+          app,
+          userRepo
+        );
+
+        const errorPromise = utils.waitForEvent(
+          playerSocket,
+          SocketIOEvents.ERROR
+        );
+        playerSocket.emit(SocketIOGameEvents.JOIN, {
+          gameId,
+          role: PlayerRole.PLAYER,
+          targetSlot: -1,
+        });
+        const error = await errorPromise;
+
+        expect(error.message).toContain("must be greater than or equal to 0");
+
+        await utils.disconnectAndCleanup(playerSocket);
+      } finally {
+        await utils.disconnectAndCleanup(showmanSocket);
+      }
+    });
   });
 });

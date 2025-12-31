@@ -105,9 +105,18 @@ describe("SocketIOTimers", () => {
         );
         expect(answerResult.answerResult.result).toBeLessThan(0);
 
-        // Verify game state changed to SHOWING
+        const stateTransitioned = await testUtils.waitForCondition(
+          async () => {
+            const state = await socketUtils.getGameState(gameId);
+            return state!.questionState === QuestionState.SHOWING;
+          },
+          2000,
+          50
+        );
+        expect(stateTransitioned).toBe(true);
+
+        // Verify game state left ANSWERING and answering player is cleared
         const finalState = await socketUtils.getGameState(gameId);
-        expect(finalState!.questionState).toBe(QuestionState.SHOWING);
         expect(finalState!.answeringPlayer).toBeNull();
       } finally {
         await socketUtils.cleanupGameClients(setup);

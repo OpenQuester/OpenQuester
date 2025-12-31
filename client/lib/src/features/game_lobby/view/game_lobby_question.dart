@@ -3,7 +3,7 @@ import 'package:openquester/common_imports.dart';
 
 class GameQuestion extends WatchingWidget {
   const GameQuestion({required this.question, super.key});
-  final SocketIOGameStateQuestionData question;
+  final SocketIoGameStateQuestionData question;
 
   @override
   Widget build(BuildContext context) {

@@ -165,8 +165,7 @@ export class SocketGameValidationService {
    */
   public validateCurrentRound(game: Game): void {
     if (!game.gameState.currentRound) {
-      // TODO: Should be ROUND_NOT_STARTED when lobby implemented
-      throw new ClientError(ClientResponse.GAME_NOT_STARTED);
+      throw new ClientError(ClientResponse.ROUND_NOT_STARTED);
     }
   }
 

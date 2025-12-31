@@ -14,7 +14,7 @@ import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { PackagePaginationOpts } from "domain/types/pagination/package/PackagePaginationOpts";
+import { PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 
 // File schema for basic file properties
@@ -48,6 +48,7 @@ const baseQuestionSchema = Joi.object<PackageQuestionDTO>({
   answerHint: Joi.string().allow(null, ""),
   answerText: Joi.string().allow(null, ""),
   answerDelay: Joi.number().allow(null).default(5000),
+  showAnswerDuration: Joi.number().required(),
   questionComment: Joi.string().allow(null, ""),
   questionFiles: Joi.array().items(packageFileSchema).allow(null),
   answerFiles: Joi.array().items(packageFileSchema).allow(null),
@@ -248,9 +249,28 @@ export const packIdScheme = () =>
     packageId: Joi.number().required(),
   });
 
-export const packagePaginationScheme = () =>
-  Joi.object<PackagePaginationOpts>({
+export const packageSearchScheme = () =>
+  Joi.object<PackageSearchOpts>({
     title: Joi.string().optional(),
+    description: Joi.string().optional(),
+    language: Joi.string().optional(),
+    authorId: Joi.number().optional(),
+    tags: Joi.alternatives()
+      .try(
+        Joi.array().items(Joi.string()),
+        Joi.string().custom((value) => {
+          // Handle comma-separated string as array
+          return value.split(",").map((tag: string) => tag.trim());
+        })
+      )
+      .optional(),
+    ageRestriction: Joi.string()
+      .valid(...Object.values(AgeRestriction))
+      .optional(),
+    minRounds: Joi.number().min(0).optional(),
+    maxRounds: Joi.number().min(0).optional(),
+    minQuestions: Joi.number().min(0).optional(),
+    maxQuestions: Joi.number().min(0).optional(),
     sortBy: Joi.string()
       .valid("id", "title", "created_at", "author")
       .default("created_at"),

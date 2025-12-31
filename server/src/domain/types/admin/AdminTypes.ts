@@ -6,12 +6,14 @@ export interface UsersStats {
   active: number;
   deleted: number;
   banned: number;
+  guests: number;
 }
 
 export interface AdminDashboardData {
   totalUsers: number;
   activeUsers: number;
   deletedUsers: number;
+  guestsUsers: number;
   recentUsers: UserDTO[];
   systemHealth: {
     redisConnected: boolean;

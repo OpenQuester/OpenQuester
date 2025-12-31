@@ -3,7 +3,7 @@ import 'package:openquester/common_imports.dart';
 
 class GameLobbyTheme extends StatelessWidget {
   const GameLobbyTheme({required this.theme, super.key});
-  final SocketIOGameStateThemeData theme;
+  final SocketIoGameStateThemeData theme;
 
   @override
   Widget build(BuildContext context) {

@@ -29,5 +29,4 @@ export interface ServiceResult<TData = unknown> {
  */
 export interface TimerExpirationResult extends ServiceResult {
   game?: Game;
-  shouldContinue: boolean;
 }

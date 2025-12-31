@@ -2,14 +2,11 @@ import { Server as IOServer, Namespace, Socket } from "socket.io";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
-import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
-import { UserService } from "application/services/user/UserService";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import { SocketEventHandlerFactory } from "domain/handlers/socket/SocketEventHandlerFactory";
@@ -27,11 +24,8 @@ export class SocketIOInitializer {
     private readonly socketIOChatService: SocketIOChatService,
     private readonly socketUserDataService: SocketUserDataService,
     private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly finalRoundService: FinalRoundService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
-    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly socketGameContextService: SocketGameContextService,
-    private readonly userService: UserService,
     private readonly gameProgressionCoordinator: GameProgressionCoordinator,
     private readonly gameActionExecutor: GameActionExecutor,
     private readonly logger: ILogger
@@ -40,12 +34,9 @@ export class SocketIOInitializer {
       this.socketIOGameService,
       this.socketIOChatService,
       this.socketUserDataService,
-      this.finalRoundService,
       this.userNotificationRoomService,
       this.socketIOQuestionService,
-      this.gameStatisticsCollectorService,
       this.socketGameContextService,
-      this.userService,
       this.gameProgressionCoordinator,
       this.gameActionExecutor,
       this.logger

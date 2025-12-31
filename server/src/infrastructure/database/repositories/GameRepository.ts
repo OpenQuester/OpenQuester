@@ -320,6 +320,16 @@ export class GameRepository {
 
   /**
    * Cleans up all active games from Redis on server start.
+   *
+   * For each game:
+   * 1. Sets all players as disconnected
+   * 2. If game has an active timer:
+   *    - Clears existing Redis timer keys
+   *    - Recreates timer starting from 0 (elapsedMs=0)
+   *    - Pauses the game
+   * 3. Updates game state in Redis
+   *
+   * This ensures games can continue after server restart without stuck states.
    */
   public async cleanupAllGames(): Promise<void> {
     const acquired = await this.redisService.setLockKey(
@@ -334,6 +344,7 @@ export class GameRepository {
 
     const keys = await this.redisService.scan(this.getGameKey("*"));
     let gamesCounter = 0;
+    let timerRecoveryCounter = 0;
 
     const gamesPromises = [];
     const games: Game[] = [];
@@ -355,9 +366,16 @@ export class GameRepository {
     const gamesUpdates = [];
 
     for (const game of games) {
+      // Set all players as disconnected
       game.players.forEach((player) => {
         player.gameStatus = PlayerGameStatus.DISCONNECTED;
       });
+
+      // Handle timer recovery for games with active timers
+      if (game.gameState.timer && game.gameState.questionState) {
+        await this._recoverGameTimer(game);
+        timerRecoveryCounter++;
+      }
 
       gamesCounter++;
       gamesUpdates.push(this.updateGame(game));
@@ -366,7 +384,46 @@ export class GameRepository {
     await Promise.all(gamesUpdates);
 
     this.logger.info(
-      `Games updated: ${gamesCounter}, in ${Date.now() - startTime} ms`,
+      `Games updated: ${gamesCounter}, timers recovered: ${timerRecoveryCounter}, in ${
+        Date.now() - startTime
+      } ms`,
+      { prefix: "[GameRepository]: " }
+    );
+  }
+
+  /**
+   * Recovers timer state for a game after server restart.
+   *
+   * 1. Clears any existing timer keys (may have expired during downtime)
+   * 2. Recreates the timer starting from 0 (elapsedMs=0)
+   * 3. Saves it as a paused timer restore point
+   * 4. Pauses the game
+   */
+  private async _recoverGameTimer(game: Game): Promise<void> {
+    const timer = game.gameState.timer!;
+    const questionState = game.gameState.questionState!;
+
+    // Clear any existing timer keys
+    await this.clearTimer(game.id);
+    await this.clearTimer(game.id, questionState);
+
+    // Restart timer from 0 on server restart.
+    // Rationale: timers might have expired while server was down and the expiration
+    // event would be missed. We restore the game to a safe paused state and allow
+    // resuming from this restore point.
+    timer.elapsedMs = 0;
+    timer.startedAt = new Date();
+
+    // Save paused timer with question state suffix for later unpause
+    const pausedTimerTtl = Math.ceil(GAME_TTL_IN_SECONDS * 1000 * 1.25);
+    await this.saveTimer(timer, game.id, questionState, pausedTimerTtl);
+
+    // Pause game and clear active timer
+    game.pause();
+    game.setTimer(null);
+
+    this.logger.debug(
+      `Timer recovered for game ${game.id}: state=${questionState}, elapsed=${timer.elapsedMs}ms/${timer.durationMs}ms`,
       { prefix: "[GameRepository]: " }
     );
   }
@@ -446,6 +503,7 @@ export class GameRepository {
       players: game.players.map((p) => ({
         id: p.meta.id,
         role: p.role,
+        slot: p.gameSlot,
       })),
       createdBy: {
         id: createdBy.id,

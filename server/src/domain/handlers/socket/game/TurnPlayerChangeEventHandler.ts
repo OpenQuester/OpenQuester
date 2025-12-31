@@ -7,9 +7,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   BaseSocketEventHandler,
-  SocketBroadcastTarget,
   SocketEventContext,
-  SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import {
   TurnPlayerChangeBroadcastData,
@@ -70,32 +68,5 @@ export class TurnPlayerChangeEventHandler extends BaseSocketEventHandler<
     _context: SocketEventContext
   ): Promise<void> {
     // Authorization handled by service layer
-  }
-
-  protected async execute(
-    data: TurnPlayerChangeInputData,
-    context: SocketEventContext
-  ): Promise<SocketEventResult<TurnPlayerChangeBroadcastData>> {
-    const result = await this.socketIOGameService.changeTurnPlayer(
-      context.socketId,
-      data.newTurnPlayerId
-    );
-
-    const broadcastData: TurnPlayerChangeBroadcastData = {
-      newTurnPlayerId: data.newTurnPlayerId,
-    };
-
-    return {
-      success: true,
-      data: broadcastData,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.TURN_PLAYER_CHANGED,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        },
-      ],
-    };
   }
 }
