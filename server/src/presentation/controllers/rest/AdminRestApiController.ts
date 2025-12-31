@@ -230,7 +230,7 @@ export class AdminRestApiController {
 
     const mutedUntilDate = new Date(mutedUntil);
 
-    this.logger.trace("Admin user mute initiated", {
+    this.logger.audit("User muted", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,
@@ -253,7 +253,7 @@ export class AdminRestApiController {
       userUnmuteScheme()
     ).validate();
 
-    this.logger.trace("Admin user unmute initiated", {
+    this.logger.audit("User unmuted", {
       prefix: "[ADMIN]: ",
       targetUserId: userId,
       adminUserId: req.user?.id,

@@ -54,15 +54,12 @@ export class GameActionExecutor {
 
     if (!lockAcquired) {
       await this.queueService.pushAction(action);
-      this.logger.debug(
-        `Action queued due to lock contention`,
-        {
-          prefix: "[ACTION_EXECUTOR]: ",
-          actionId: action.id,
-          actionType: action.type,
-          gameId: action.gameId,
-        }
-      );
+      this.logger.debug(`Action queued due to lock contention`, {
+        prefix: "[ACTION_EXECUTOR]: ",
+        actionId: action.id,
+        actionType: action.type,
+        gameId: action.gameId,
+      });
       return { success: true };
     }
 
@@ -98,17 +95,13 @@ export class GameActionExecutor {
     } catch (error) {
       const { message } = await ErrorController.resolveError(
         error,
-        this.logger
-      );
-
-      this.logger.error(
-        `Action execution failed`,
+        this.logger,
+        undefined,
         {
-          prefix: "[ACTION_EXECUTOR]: ",
+          source: "action-executor",
           actionId: action.id,
           actionType: action.type,
           gameId: action.gameId,
-          error: message,
         }
       );
 
@@ -127,14 +120,11 @@ export class GameActionExecutor {
       return;
     }
 
-    this.logger.debug(
-      `Processing queued actions`,
-      {
-        prefix: "[ACTION_EXECUTOR]: ",
-        gameId,
-        queueLength,
-      }
-    );
+    this.logger.debug(`Processing queued actions`, {
+      prefix: "[ACTION_EXECUTOR]: ",
+      gameId,
+      queueLength,
+    });
 
     const lockAcquired = await this.lockService.acquireLock(gameId);
 

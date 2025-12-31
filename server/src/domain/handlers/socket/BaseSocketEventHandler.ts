@@ -393,7 +393,15 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
     try {
       const { message } = await ErrorController.resolveError(
         error,
-        this.logger
+        this.logger,
+        undefined,
+        {
+          source: "socket",
+          event: this.getEventName(),
+          gameId: context.gameId,
+          userId: context.userId,
+          durationMs: duration,
+        }
       );
 
       // Emit error to the socket that originated this action
@@ -412,14 +420,6 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
         // Client errors are expected - no logging needed
         return;
       }
-
-      this.logger.error(`Socket event failed`, {
-        prefix: "[SOCKET]: ",
-        event: this.getEventName(),
-        error: message,
-        gameId: context.gameId,
-        durationMs: duration,
-      });
     } catch (handlingError) {
       this.logger.error(`Error while handling socket event error`, {
         prefix: "[SOCKET]: ",
@@ -445,7 +445,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
    * Log unsuccessful execution
    */
   private logUnsuccessful(context: SocketEventContext, duration: number): void {
-    this.logger.warn(`Socket event unsuccessful`, {
+    this.logger.debug(`Socket event unsuccessful`, {
       prefix: "[SOCKET]: ",
       event: this.getEventName(),
       gameId: context.gameId,

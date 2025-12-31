@@ -145,10 +145,11 @@ export class UserService {
 
     log.finish();
 
-    this.logger.audit(`New user created: ${user.email}`, {
+    this.logger.audit("User created", {
       userId: user.id,
-      email: user.email,
-      username: user.username,
+      email: data.email,
+      username: data.username,
+      isGuest: user.is_guest,
     });
 
     return user;
@@ -208,29 +209,11 @@ export class UserService {
   }
 
   public async mute(userId: number, mutedUntil: Date) {
-    this.logger.audit("User mute initiated", {
-      userId,
-      mutedUntil,
-    });
-
     await this.userRepository.mute(userId, mutedUntil);
-
-    this.logger.audit("User muted successfully", {
-      userId,
-      mutedUntil,
-    });
   }
 
   public async unmute(userId: number) {
-    this.logger.audit("User unmute initiated", {
-      userId,
-    });
-
     await this.userRepository.unmute(userId);
-
-    this.logger.audit("User unmuted successfully", {
-      userId,
-    });
   }
 
   public async restore(userId: number) {
@@ -296,9 +279,8 @@ export class UserService {
 
     log.finish();
 
-    this.logger.audit(`User deleted: ${userId}`, {
+    this.logger.audit("User deleted", {
       userId,
-      deletedAt: new Date(),
     });
 
     return result;
@@ -369,9 +351,9 @@ export class UserService {
         updateData.avatar && updateData.avatar.id != previousAvatar?.id,
     });
 
-    this.logger.audit(`User updated: ${user.id}`, {
+    this.logger.audit("User updated", {
       userId: user.id,
-      changedFields: Object.keys(updateUserData),
+      changedFieldsCount: Object.keys(updateUserData).length,
       updatedAt: user.updated_at,
     });
 

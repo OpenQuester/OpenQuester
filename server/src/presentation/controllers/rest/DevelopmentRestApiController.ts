@@ -124,9 +124,9 @@ export class DevelopmentRestApiController {
 
         res.json({ success: true, games });
       } catch (err: any) {
-        const error = await ErrorController.resolveError(err, this.logger);
-        this.logger.error(`DEV: Generate games error: ${error.message}`, {
-          prefix: "[DEV]: ",
+        await ErrorController.resolveError(err, this.logger, undefined, {
+          source: "dev",
+          operation: "generate-games",
         });
         res.status(500).json({ error: `Failed to generate games` });
       }
@@ -156,9 +156,9 @@ export class DevelopmentRestApiController {
           files: uploadedFiles,
         });
       } catch (err: any) {
-        const error = await ErrorController.resolveError(err, this.logger);
-        this.logger.error(`DEV: Upload test S3 files error: ${error.message}`, {
-          prefix: "[DEV]: ",
+        const error = await ErrorController.resolveError(err, this.logger, undefined, {
+          source: "dev",
+          operation: "upload-test-s3-files",
         });
         res
           .status(500)

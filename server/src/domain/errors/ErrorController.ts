@@ -20,7 +20,8 @@ export class ErrorController {
   public static async resolveError(
     error: unknown,
     logger: ILogger,
-    headers?: IncomingHttpHeaders
+    headers?: IncomingHttpHeaders,
+    contextMeta?: Record<string, unknown>
   ): Promise<{
     message: string;
     code: number;
@@ -51,6 +52,7 @@ export class ErrorController {
         prefix: "[ERROR]: ",
         error: error.message,
         stack: error.stack,
+        ...(contextMeta ?? {}),
       });
       return {
         message: ServerResponse.INTERNAL_SERVER_ERROR,
@@ -70,6 +72,7 @@ export class ErrorController {
     logger.error(`Unknown error type encountered`, {
       prefix: "[ERROR]: ",
       error: JSON.stringify(error),
+      ...(contextMeta ?? {}),
     });
     return {
       message: ServerResponse.INTERNAL_SERVER_ERROR,

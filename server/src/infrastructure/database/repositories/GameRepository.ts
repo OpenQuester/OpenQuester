@@ -63,7 +63,7 @@ export class GameRepository {
     }
 
     const validatedData = GameRedisValidator.validateRedisData(data);
-    return GameMapper.deserializeGameHash(validatedData, this.logger);
+    return GameMapper.deserializeGameHash(validatedData);
   }
 
   public async updateGame(game: Game): Promise<void> {
@@ -207,25 +207,22 @@ export class GameRepository {
       fetchIds: true,
     });
 
-    const game = new Game(
-      {
-        id: gameId,
-        title: gameData.title,
-        createdBy: createdBy.id,
-        createdAt: new Date(),
-        isPrivate: gameData.isPrivate,
-        ageRestriction: gameData.ageRestriction,
-        maxPlayers: gameData.maxPlayers,
-        startedAt: null,
-        finishedAt: null,
-        package: packageDTO,
-        roundsCount: counts.roundsCount,
-        questionsCount: counts.questionsCount,
-        players: [],
-        gameState: GameStateMapper.initGameState(),
-      },
-      this.logger
-    );
+    const game = new Game({
+      id: gameId,
+      title: gameData.title,
+      createdBy: createdBy.id,
+      createdAt: new Date(),
+      isPrivate: gameData.isPrivate,
+      ageRestriction: gameData.ageRestriction,
+      maxPlayers: gameData.maxPlayers,
+      startedAt: null,
+      finishedAt: null,
+      package: packageDTO,
+      roundsCount: counts.roundsCount,
+      questionsCount: counts.questionsCount,
+      players: [],
+      gameState: GameStateMapper.initGameState(),
+    });
 
     const pipeline = this.redisService.pipeline();
     pipeline.hset(key, GameMapper.serializeGameToHash(game));
@@ -556,18 +553,12 @@ export class GameRepository {
           const validatedData = GameRedisValidator.validateRedisData(
             data as Record<string, string>
           );
-          return GameMapper.deserializeGameHash(validatedData, this.logger);
+          return GameMapper.deserializeGameHash(validatedData);
         } catch (error) {
-          // Log short data without package to avoid large logs
-          const shortData = { ...(data as Record<string, string>) };
-          shortData.package = "";
-
-          // Log validation error and ignore invalid games
           this.logger.warn("Skipping invalid game Redis data", {
             prefix: "[GAME_REPOSITORY]: ",
             error: error instanceof Error ? error.message : String(error),
-            gameIds,
-            shortData,
+            gameIdsCount: gameIds.length,
           });
         }
       })

@@ -10,10 +10,10 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
 // Custom levels configuration for Pino
 export const customLevels = {
   trace: 10, // LogType.VERBOSE
-  performance: 15, // LogType.PERFORMANCE
   debug: 20, // LogType.DEBUG
   info: 30, // LogType.INFO
   warn: 40, // LogType.WARN
+  performance: 35, // LogType.PERFORMANCE (between info and warn)
   error: 50, // LogType.ERROR
   audit: 60, // LogType.AUDIT
   migration: 70, // LogType.MIGRATION
@@ -99,22 +99,15 @@ class PerformanceLogImpl implements PerformanceLog {
   public finish(additionalMeta?: object): void {
     const endTime = Date.now();
     const elapsedMs = endTime - this.startTime;
-    const elapsedTime = this.formatElapsedTime(elapsedMs);
 
-    const completedMessage = `${this.message} completed in ${elapsedTime}`;
-    this.logger.log(LogType.PERFORMANCE, completedMessage, {
+    this.logger.log(LogType.PERFORMANCE, "Operation completed", {
+      operation: this.message,
+      startedAt: this.startTime,
+      finishedAt: endTime,
+      durationMs: elapsedMs,
       ...(this.meta ? this.meta : {}),
       ...(additionalMeta ? additionalMeta : {}),
     });
-  }
-
-  private formatElapsedTime(milliseconds: number): string {
-    if (milliseconds > 1000) {
-      this.logger.warn(
-        `Performance log took longer than 1 second: ${milliseconds}ms`
-      );
-    }
-    return `${milliseconds}ms`;
   }
 }
 
@@ -196,7 +189,7 @@ export class PinoLogger implements ILogger {
             translateTime: "SYS:standard",
             ignore: "pid,hostname",
             customLevels:
-              "trace:10,debug:20,info:30,warn:40,error:50,audit:60,performance:65,migration:70",
+              "trace:10,debug:20,info:30,performance:35,warn:40,error:50,audit:60,migration:70",
             useOnlyCustomProps: true,
             customColors:
               "trace:dim,debug:cyan,info:green,warn:yellow,error:red,audit:magenta,performance:blue,migration:brightWhite",
@@ -353,8 +346,14 @@ export class PinoLogger implements ILogger {
     const envLevel =
       (process.env.LOG_LEVEL as LogLevel) || this.logLevel || "info";
 
-    // Only log if message level is at or above env log level
-    if (!this.checkAccess(envLevel, messageLevel)) {
+    // Performance logs:
+    // - never emit to terminal/stdout
+    // - always write to performance log file regardless of LOG_LEVEL
+    const shouldEmitToTerminal = type !== LogType.PERFORMANCE;
+    const shouldBypassLevelGateForFile = type === LogType.PERFORMANCE;
+
+    const hasAccessByLevel = this.checkAccess(envLevel, messageLevel);
+    if (!hasAccessByLevel && !shouldBypassLevelGateForFile) {
       return;
     }
 
@@ -379,7 +378,7 @@ export class PinoLogger implements ILogger {
     const msgWithPrefix = prefix ? `${prefix}${sanitizedMsg}` : sanitizedMsg;
 
     // Log to terminal - pass meta (without prefix) as first arg if present, then message
-    if (this.terminalLogger) {
+    if (this.terminalLogger && shouldEmitToTerminal && hasAccessByLevel) {
       if (sanitizedMeta) {
         this.terminalLogger[method](sanitizedMeta, msgWithPrefix);
       } else {
@@ -399,7 +398,7 @@ export class PinoLogger implements ILogger {
   }
 
   public checkAccess(logLevel: LogLevel, requiredLogLevel: LogLevel) {
-    // Custom level hierarchy: trace(10) < debug(20) < info(30) < warn(40) < error(50) < audit(60) < performance(65) < migration(70)
+    // Custom level hierarchy: trace(10) < debug(20) < info(30) < performance(35) < warn(40) < error(50) < audit(60) < migration(70)
     const currentLevel = customLevels[logLevel];
     const requiredLevel = customLevels[requiredLogLevel];
 
