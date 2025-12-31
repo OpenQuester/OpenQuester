@@ -160,10 +160,18 @@ describe("Socket Game State Tests", () => {
 
               // Showman counts it as correct answer
               await new Promise<void>((resolveAnswer) => {
+                // Wait for ANSWER_SHOW_START first, then skip the show answer phase
                 playerSockets[0].once(
-                  SocketIOGameEvents.QUESTION_FINISH,
+                  SocketIOGameEvents.ANSWER_SHOW_START,
                   () => {
-                    resolveAnswer();
+                    // Skip show answer phase for faster test
+                    showmanSocket.once(
+                      SocketIOGameEvents.ANSWER_SHOW_END,
+                      () => {
+                        resolveAnswer();
+                      }
+                    );
+                    showmanSocket.emit(SocketIOGameEvents.SKIP_SHOW_ANSWER);
                   }
                 );
 
@@ -173,7 +181,7 @@ describe("Socket Game State Tests", () => {
                 });
               });
 
-              // Continue to next question immediately
+              // Continue to next question after show answer phase
               setTimeout(playQuestion, 100);
             } catch {
               // If we can't pick more questions, the game should finish soon

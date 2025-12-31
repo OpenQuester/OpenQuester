@@ -52,6 +52,7 @@ import { AddIsGuestAndNameField_1755120048973 as AddGuestAndNameField } from "./
 import { AddPackageManagementPermissions_0_20_1_1756640611182 as AddPackageManagementPermissions } from "./migrations/0.20.1_AddPackageManagementPermissions_1756640611182";
 import { AddMutePlayerPermission_0_21_0_1767095975972 as AddMutePlayerPermission } from "./migrations/0.21.0_AddMutePlayerPermission_1767095975972";
 import { AddMutedUntilToUser_0_21_0_1767095976000 as AddMutedUntilToUser } from "./migrations/0.21.0_Part2AddMutedUntilToUser_1767095976000";
+import { AddShowAnswerDurationToPackageQuestion_0_22_0_1766934959798 as AddShowAnswerDuration } from "./migrations/0.22.0_AddShowAnswerDurationToPackageQuestion_1766934959798";
 
 // Init env synchronously for migration scripts
 /* eslint-disable-next-line node/no-sync */
@@ -127,6 +128,7 @@ export const AppDataSource = new DataSource({
     AddPackageManagementPermissions,
     AddMutePlayerPermission,
     AddMutedUntilToUser,
+    AddShowAnswerDuration,
   ],
   poolSize: 25,
   migrationsRun: true,

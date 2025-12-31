@@ -166,7 +166,7 @@ describe("Question Answer Edge Cases", () => {
           );
         const questionFinishPromise = utils.waitForEvent(
           showmanSocket,
-          SocketIOGameEvents.QUESTION_FINISH,
+          SocketIOGameEvents.ANSWER_SHOW_END,
           3000
         );
 
@@ -183,8 +183,11 @@ describe("Question Answer Edge Cases", () => {
         expect(answerResult.answerResult.answerType).toBe(
           AnswerResultType.WRONG
         );
-        // Timer should be null since question auto-skipped
-        expect(answerResult.timer).toBeNull();
+        // Timer should NOT be null since we now show answer even if everyone skipped
+        expect(answerResult.timer).not.toBeNull();
+
+        // Skip the show answer phase
+        await utils.skipShowAnswer(showmanSocket);
 
         const questionFinish = await questionFinishPromise;
         expect(questionFinish).toBeDefined();
@@ -287,7 +290,7 @@ describe("Question Answer Edge Cases", () => {
           );
         const questionFinishPromise = utils.waitForEvent(
           showmanSocket,
-          SocketIOGameEvents.QUESTION_FINISH,
+          SocketIOGameEvents.ANSWER_SHOW_END,
           3000
         );
 
@@ -299,7 +302,9 @@ describe("Question Answer Edge Cases", () => {
 
         // Both events should be received
         const answerResult = await answerResultPromise;
-        expect(answerResult.timer).toBeNull();
+        expect(answerResult.timer).not.toBeNull();
+
+        await utils.skipShowAnswer(showmanSocket);
 
         await questionFinishPromise;
 

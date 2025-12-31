@@ -40,9 +40,11 @@ export interface AnswerResultBuildResultInput {
 export class AnswerResultLogic {
   /**
    * Determine the next question state based on answer correctness.
+   * For correct answers or all players exhausted, transitions to SHOWING_ANSWER
+   * to display the answer before moving to CHOOSING.
    */
   public static determineNextState(isCorrect: boolean): QuestionState {
-    return isCorrect ? QuestionState.CHOOSING : QuestionState.SHOWING;
+    return isCorrect ? QuestionState.SHOWING_ANSWER : QuestionState.SHOWING;
   }
 
   /**

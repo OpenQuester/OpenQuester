@@ -75,6 +75,9 @@ export class TimerExpirationActionHandler
           gameId
         );
 
+      case QuestionState.SHOWING_ANSWER:
+        return this.timerExpirationService.handleShowAnswerExpiration(gameId);
+
       case QuestionState.ANSWERING:
         return this.timerExpirationService.handleAnsweringExpiration(gameId);
 
