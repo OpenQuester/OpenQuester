@@ -1,6 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
 
+/// Question type enum for UI purposes
+enum EditorQuestionType {
+  simple,
+  stake,
+  secret,
+  noRisk,
+  choice,
+  hidden,
+}
+
 /// Unified card component for editor items (rounds, themes, questions)
 /// Provides consistent styling and interaction patterns across the editor
 class EditorItemCard extends StatelessWidget {
@@ -320,7 +330,7 @@ class QuestionTypeChip extends StatelessWidget {
     super.key,
   });
 
-  final QuestionType type;
+  final EditorQuestionType type;
   final String label;
   final bool isCompact;
 
@@ -357,38 +367,36 @@ class QuestionTypeChip extends StatelessWidget {
 
   (Color, IconData) _getTypeStyle(BuildContext context) {
     return switch (type) {
-      QuestionType.simple => (Colors.blue, Icons.help_outline),
-      QuestionType.stake => (Colors.amber.shade700, Icons.monetization_on_outlined),
-      QuestionType.secret => (Colors.purple, Icons.visibility_off_outlined),
-      QuestionType.noRisk => (Colors.green, Icons.shield_outlined),
-      QuestionType.choice => (Colors.orange, Icons.list_alt_outlined),
-      QuestionType.hidden => (Colors.grey, Icons.lock_outline),
-      QuestionType.$unknown => (Colors.grey, Icons.help_outline),
+      EditorQuestionType.simple => (Colors.blue, Icons.help_outline),
+      EditorQuestionType.stake => (Colors.amber.shade700, Icons.monetization_on_outlined),
+      EditorQuestionType.secret => (Colors.purple, Icons.visibility_off_outlined),
+      EditorQuestionType.noRisk => (Colors.green, Icons.shield_outlined),
+      EditorQuestionType.choice => (Colors.orange, Icons.list_alt_outlined),
+      EditorQuestionType.hidden => (Colors.grey, Icons.lock_outline),
     };
   }
 }
 
 /// Helper to get accent color for question type
-Color getQuestionTypeColor(QuestionType type) {
+Color getQuestionTypeColor(EditorQuestionType type) {
   return switch (type) {
-    QuestionType.simple => Colors.blue,
-    QuestionType.stake => Colors.amber.shade700,
-    QuestionType.secret => Colors.purple,
-    QuestionType.noRisk => Colors.green,
-    QuestionType.choice => Colors.orange,
-    QuestionType.hidden => Colors.grey,
-    QuestionType.$unknown => Colors.grey,
+    EditorQuestionType.simple => Colors.blue,
+    EditorQuestionType.stake => Colors.amber.shade700,
+    EditorQuestionType.secret => Colors.purple,
+    EditorQuestionType.noRisk => Colors.green,
+    EditorQuestionType.choice => Colors.orange,
+    EditorQuestionType.hidden => Colors.grey,
   };
 }
 
 /// Helper to get question type from PackageQuestionUnion
-QuestionType getQuestionType(PackageQuestionUnion question) {
+EditorQuestionType getQuestionType(PackageQuestionUnion question) {
   return question.map(
-    simple: (_) => QuestionType.simple,
-    stake: (_) => QuestionType.stake,
-    secret: (_) => QuestionType.secret,
-    noRisk: (_) => QuestionType.noRisk,
-    choice: (_) => QuestionType.choice,
-    hidden: (_) => QuestionType.hidden,
+    simple: (_) => EditorQuestionType.simple,
+    stake: (_) => EditorQuestionType.stake,
+    secret: (_) => EditorQuestionType.secret,
+    noRisk: (_) => EditorQuestionType.noRisk,
+    choice: (_) => EditorQuestionType.choice,
+    hidden: (_) => EditorQuestionType.hidden,
   );
 }
