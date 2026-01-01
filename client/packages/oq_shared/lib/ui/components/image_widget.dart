@@ -66,7 +66,7 @@ class _ImageWidgetState extends State<ImageWidget> {
               if (widget.forcedLoaderBuilder != null) {
                 return widget.forcedLoaderBuilder!(context, child);
               }
-              return child;
+              return loaded ? child.fadeIn() : child;
             },
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null && !loaded) {
@@ -76,7 +76,7 @@ class _ImageWidgetState extends State<ImageWidget> {
 
               return child;
             },
-          ).fadeIn();
+          );
 
     // Default to 48px diameter (24 radius) when avatarRadius is not provided.
     final size = widget.avatarRadius != null

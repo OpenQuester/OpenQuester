@@ -1,51 +1,60 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
-class SettingsSidebar extends StatelessWidget {
-  const SettingsSidebar({super.key});
-
-  static const double maxWidth = 340;
+@RoutePage()
+class SettingsDialog extends StatelessWidget {
+  const SettingsDialog({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // TODO: Close on swipe left or add close button
-    return Drawer(
-      width: maxWidth,
-      child: SafeArea(
-        child: ListView(
-          padding: 12.all,
-          children: const [
-            _Header(),
-            SizedBox(height: 8),
-            _AppearanceSection(),
-            SizedBox(height: 8),
-            _GameSettingsSection(),
+    return AdaptiveDialog(
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (context) => Card(
+        elevation: 0,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: 16.all,
+              decoration: BoxDecoration(
+                color: context.theme.colorScheme.primaryContainer.withValues(
+                  alpha: 0.3,
+                ),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.settings_outlined,
+                    color: context.theme.colorScheme.primary,
+                  ),
+                  Text(
+                    LocaleKeys.settings_title.tr(),
+                    style: context.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ).paddingLeft(8),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            ListView(
+              shrinkWrap: true,
+              padding: 12.all,
+              children: const [
+                SizedBox(height: 8),
+                _AppearanceSection(),
+                SizedBox(height: 8),
+                _GameSettingsSection(),
+                SizedBox(height: 8),
+              ],
+            ).flexible(),
           ],
-        ),
+        ).constrained(const BoxConstraints(minHeight: 500)),
       ),
     );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          Icons.settings_outlined,
-          color: context.theme.colorScheme.primary,
-        ),
-        Text(
-          'settings_title'.tr(),
-          style: context.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ).paddingLeft(8),
-      ],
-    ).paddingSymmetric(horizontal: 4, vertical: 8);
   }
 }
 
@@ -58,6 +67,7 @@ class _AppearanceSection extends StatelessWidget {
       title: Text(LocaleKeys.theme_appearance.tr()),
       leading: const Icon(Icons.palette_outlined),
       expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      initiallyExpanded: true,
       childrenPadding: 12.horizontal + 12.bottom,
       children: const [
         _ThemeModeSelector(),
@@ -79,6 +89,7 @@ class _GameSettingsSection extends WatchingWidget {
       title: Text(LocaleKeys.game_settings.tr()),
       leading: const Icon(Icons.tune_outlined),
       expandedCrossAxisAlignment: CrossAxisAlignment.start,
+      initiallyExpanded: true,
       children: [
         _BoolSetting(
           title: LocaleKeys.settings_limit_desktop_width.tr(),

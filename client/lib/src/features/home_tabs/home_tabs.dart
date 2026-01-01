@@ -1,43 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
-import 'package:openquester/src/features/settings/view/settings_sidebar.dart';
 
 @RoutePage()
-class HomeTabsScreen extends WatchingStatefulWidget {
+class HomeTabsScreen extends StatelessWidget {
   const HomeTabsScreen({super.key});
-
-  @override
-  State<HomeTabsScreen> createState() => _HomeTabsScreenState();
-}
-
-class _HomeTabsScreenState extends State<HomeTabsScreen> {
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
-  void _openSettings() {
-    _scaffoldKey.currentState?.openDrawer();
-  }
 
   @override
   Widget build(BuildContext context) {
     final isWideModeOn = UiModeUtils.wideModeOn(context);
 
     return Scaffold(
-      key: _scaffoldKey,
-      drawer: const SettingsSidebar(),
-      drawerScrimColor: context.theme.colorScheme.scrim.withValues(alpha: 0.35),
       body: MaxSizeContainer(
-        child: isWideModeOn
-            ? _WideHome(onOpenSettings: _openSettings)
-            : _MobileHome(onOpenSettings: _openSettings),
+        child: isWideModeOn ? const _WideHome() : const _MobileHome(),
       ),
     );
   }
 }
 
 class _MobileHome extends WatchingStatefulWidget {
-  const _MobileHome({required this.onOpenSettings});
-
-  final VoidCallback onOpenSettings;
+  const _MobileHome();
 
   @override
   State<_MobileHome> createState() => _MobileHomeState();
@@ -51,10 +32,7 @@ class _MobileHomeState extends State<_MobileHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: _AppBarLeading(
-          wideMode: false,
-          onOpenSettings: widget.onOpenSettings,
-        ),
+        leading: const _AppBarLeading(wideMode: false),
         leadingWidth: 120,
         scrolledUnderElevation: 0,
         actions: [
@@ -107,9 +85,8 @@ class _MobileHomeState extends State<_MobileHome> {
 }
 
 class _AppBarLeading extends StatelessWidget {
-  const _AppBarLeading({required this.wideMode, required this.onOpenSettings});
+  const _AppBarLeading({required this.wideMode});
   final bool wideMode;
-  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -118,8 +95,8 @@ class _AppBarLeading extends StatelessWidget {
       spacing: 8,
       children: [
         IconButton(
-          onPressed: onOpenSettings,
-          tooltip: 'settings_title'.tr(),
+          onPressed: () => const SettingsRoute().push<void>(context),
+          tooltip: LocaleKeys.settings_title.tr(),
           icon: const Icon(Icons.settings_outlined, size: 28),
         ),
         const _AdminDashboardIconButton(),
@@ -177,17 +154,14 @@ class _OpenEditorButton extends StatelessWidget {
 }
 
 class _WideHome extends WatchingWidget {
-  const _WideHome({required this.onOpenSettings});
-
-  final VoidCallback onOpenSettings;
+  const _WideHome();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: _AppBarLeading(
+        leading: const _AppBarLeading(
           wideMode: true,
-          onOpenSettings: onOpenSettings,
         ),
         leadingWidth: 200,
         actions: [

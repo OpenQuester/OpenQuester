@@ -19,6 +19,7 @@ class AppTheme {
     final colorScheme = theme.colorScheme.copyWith(
       surface: pureDarkColor,
       surfaceContainerLow: pureDarkColor,
+      shadow: pureDark ? Colors.white.withValues(alpha: .1) : null,
       surfaceContainer: pureDark
           ? theme.colorScheme.surfaceContainer.withBrightness(-0.1)
           : null,

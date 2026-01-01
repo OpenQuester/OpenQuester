@@ -1,31 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
-// Keep for backward compatibility, but primary access is through ProfileDialog
 @RoutePage()
-class ProfileScreen extends WatchingWidget {
-  const ProfileScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const ProfileDialog();
-  }
-}
-
 class ProfileDialog extends WatchingWidget {
   const ProfileDialog({super.key});
-
-  Future<void> show(BuildContext context) async {
-    return showDialog<void>(
-      context: context,
-      builder: (context) => this,
-    );
-  }
 
   Future<void> showIfUnauthorized(BuildContext context) async {
     final isAuthorized = getIt<AuthController>().authorized;
     if (isAuthorized) return;
-    await show(context);
+    await const ProfileRoute().push<void>(context);
   }
 
   @override
@@ -240,9 +223,9 @@ class _ProfileContent extends WatchingWidget {
                 children: [
                   _ProfileAvatar(user: user).withSize(width: 80, height: 80),
                   FilledButton.tonal(
-                    onPressed: () {
+                    onPressed: () async {
                       onClose?.call();
-                      getIt<ProfileController>().changeAvatar();
+                      await getIt<ProfileController>().changeAvatar();
                     },
                     child: Text(LocaleKeys.profile_change_avatar.tr()),
                   ),
@@ -305,9 +288,9 @@ class _ProfileContent extends WatchingWidget {
                 onBeforeLogin: () => onClose?.call(),
               ),
             FilledButton.tonalIcon(
-              onPressed: () {
+              onPressed: () async {
                 onClose?.call();
-                getIt.get<AuthController>().logOut();
+                await getIt.get<AuthController>().logOut();
               },
               icon: const Icon(Icons.logout_outlined),
               label: Text(LocaleKeys.login_logout.tr()),
