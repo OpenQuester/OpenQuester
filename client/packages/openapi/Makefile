@@ -16,7 +16,7 @@ endif
 
 .PHONY: build gen_files clean
 
-build: gen_files
+build: clean gen_files
 	$(PURO_CMD) dart run build_runner build -d
 
 gen_files:

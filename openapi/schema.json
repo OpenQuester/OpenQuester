@@ -211,21 +211,27 @@
             "in": "query",
             "description": "Search by package description, not case sensitive",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageDescription" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageDescription"
+            }
           },
           {
             "name": "language",
             "in": "query",
             "description": "Filter by package language",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageLanguage" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageLanguage"
+            }
           },
           {
             "name": "authorId",
             "in": "query",
             "description": "Filter by author user id",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageAuthorId" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageAuthorId"
+            }
           },
           {
             "name": "tags",
@@ -234,42 +240,54 @@
             "required": false,
             "style": "form",
             "explode": true,
-            "schema": { "$ref": "#/components/schemas/PackageTags" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageTags"
+            }
           },
           {
             "name": "ageRestriction",
             "in": "query",
             "description": "Filter by age restriction",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/AgeRestriction" }
+            "schema": {
+              "$ref": "#/components/schemas/AgeRestriction"
+            }
           },
           {
             "name": "minRounds",
             "in": "query",
             "description": "Minimum rounds count",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageMinRounds" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageMinRounds"
+            }
           },
           {
             "name": "maxRounds",
             "in": "query",
             "description": "Maximum rounds count",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageMaxRounds" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageMaxRounds"
+            }
           },
           {
             "name": "minQuestions",
             "in": "query",
             "description": "Minimum questions count",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageMinQuestions" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageMinQuestions"
+            }
           },
           {
             "name": "maxQuestions",
             "in": "query",
             "description": "Maximum questions count",
             "required": false,
-            "schema": { "$ref": "#/components/schemas/PackageMaxQuestions" }
+            "schema": {
+              "$ref": "#/components/schemas/PackageMaxQuestions"
+            }
           }
         ],
         "responses": {
@@ -358,6 +376,16 @@
               }
             }
           },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidSessionResponse"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Insufficient permissions to delete this package",
             "content": {
@@ -374,16 +402,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PackageNotFoundResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication required",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvalidSessionResponse"
                 }
               }
             }
@@ -1136,6 +1154,472 @@
           }
         }
       }
+    },
+    "/v1/admin/api/dashboard": {
+      "get": {
+        "summary": "Get admin dashboard data",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "timeframe",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "Timeframe in days for statistics"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDashboardData"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users": {
+      "get": {
+        "summary": "Get users list for admin panel",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/UsersSortBy"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/OrderDirection"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PaginationLimit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PaginationOffset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users list retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserListData"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/system/health": {
+      "get": {
+        "summary": "Get system health status",
+        "tags": ["Admin"],
+        "responses": {
+          "200": {
+            "description": "System health retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminSystemHealthData"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/system/ping": {
+      "get": {
+        "summary": "Ping system for health check",
+        "tags": ["Admin"],
+        "responses": {
+          "200": {
+            "description": "Ping successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPingData"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}/ban": {
+      "post": {
+        "summary": "Ban a user",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User banned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserBanResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}/unban": {
+      "post": {
+        "summary": "Unban a user",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User unbanned successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserBanResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}/mute": {
+      "post": {
+        "summary": "Mute a user globally",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mutedUntil"],
+                "properties": {
+                  "mutedUntil": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO 8601 timestamp when the mute expires"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User muted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMuteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid date format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}/unmute": {
+      "post": {
+        "summary": "Unmute a user globally",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User unmuted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserMuteResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/{id}": {
+      "delete": {
+        "summary": "Delete a user",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "User deleted successfully"
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/api/users/restore/{id}": {
+      "post": {
+        "summary": "Restore a deleted user",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User restored successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRestoreResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1155,7 +1639,8 @@
             "type": "integer",
             "examples": [1000]
           }
-        }
+        },
+        "required": ["total"]
       },
       "PermissionName": {
         "type": "string",
@@ -1171,7 +1656,8 @@
           "admin_panel_access",
           "view_system_health",
           "view_users_info",
-          "ban_users"
+          "ban_users",
+          "mute_player"
         ]
       },
       "PackageCreationInput": {
@@ -1198,7 +1684,7 @@
           "name": {
             "type": ["string", "null"],
             "description": "Display name of the user",
-            "examples": ["John Doe", "测试用户", null]
+            "examples": ["John Doe", null]
           },
           "email": {
             "type": ["string", "null"],
@@ -1239,6 +1725,12 @@
             "description": "Whether this is a guest user account",
             "examples": [false, true]
           },
+          "mutedUntil": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the global mute expires, or null if not muted",
+            "examples": ["2024-01-01T12:00:00Z", null]
+          },
           "permissions": {
             "type": "array",
             "items": {
@@ -1254,7 +1746,16 @@
               }
             }
           }
-        }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "isDeleted",
+          "isGuest",
+          "permissions",
+          "updatedAt",
+          "username"
+        ]
       },
       "InputOauthLogin": {
         "type": "object",
@@ -1272,7 +1773,8 @@
             "examples": ["discord"],
             "enum": ["discord"]
           }
-        }
+        },
+        "required": ["oauthProvider", "token"]
       },
       "InputGuestLogin": {
         "type": "object",
@@ -1280,7 +1782,7 @@
           "username": {
             "type": "string",
             "description": "Display name for the guest user (1-50 characters, allows Unicode letters, numbers, spaces)",
-            "examples": ["Guest Player", "测试用户", "Гість123"],
+            "examples": ["Guest Player"],
             "minLength": 1,
             "maxLength": 50
           }
@@ -1349,7 +1851,8 @@
               }
             }
           }
-        }
+        },
+        "required": ["details", "error"]
       },
       "LogoutResponse": {
         "type": "object",
@@ -1358,7 +1861,8 @@
             "type": "string",
             "examples": ["Logout successful"]
           }
-        }
+        },
+        "required": ["message"]
       },
       "GameListItemPlayersStats": {
         "type": "object",
@@ -1375,7 +1879,8 @@
             "description": "Player's game slot index (0-based). Only set for players with PLAYER role.",
             "examples": [0, 1, 2, null]
           }
-        }
+        },
+        "required": ["id", "role"]
       },
       "GameListItem": {
         "type": "object",
@@ -1440,7 +1945,18 @@
           "package": {
             "$ref": "#/components/schemas/PackageItem"
           }
-        }
+        },
+        "required": [
+          "ageRestriction",
+          "createdAt",
+          "createdBy",
+          "id",
+          "isPrivate",
+          "maxPlayers",
+          "package",
+          "players",
+          "title"
+        ]
       },
       "GameCreateData": {
         "type": "object",
@@ -1466,8 +1982,22 @@
             "minimum": 2,
             "maximum": 15,
             "examples": [10]
+          },
+          "password": {
+            "type": ["string", "null"],
+            "maxLength": 16,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Optional password for private games. If not provided for a private game, a 4-character password (uppercase letters A-Z only) will be auto-generated. User-provided passwords can contain letters A-Z, a-z, digits 0-9, hyphen and underscore.",
+            "examples": ["MyPass-123", null]
           }
-        }
+        },
+        "required": [
+          "ageRestriction",
+          "isPrivate",
+          "maxPlayers",
+          "packageId",
+          "title"
+        ]
       },
       "ShortUserInfo": {
         "type": "object",
@@ -1480,7 +2010,8 @@
             "type": "string",
             "examples": ["John"]
           }
-        }
+        },
+        "required": ["id", "username"]
       },
       "PackageTag": {
         "type": "object",
@@ -1495,7 +2026,7 @@
             "examples": ["anime"]
           }
         },
-        "required": ["tag"],
+        "required": ["id", "tag"],
         "description": "Individual tag object"
       },
       "PaginatedPackages": {
@@ -1507,8 +2038,11 @@
               "$ref": "#/components/schemas/PackageListItem"
             }
           },
-          "pageInfo": { "$ref": "#/components/schemas/PageInfo" }
-        }
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        },
+        "required": ["data", "pageInfo"]
       },
       "PackageListItem": {
         "type": "object",
@@ -1545,8 +2079,12 @@
           },
           "logo": {
             "oneOf": [
-              { "$ref": "#/components/schemas/PackageLogoFileItem" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/PackageLogoFileItem"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Logo file for the package"
           },
@@ -1558,19 +2096,38 @@
             "description": "Tags for the package. Can be null or an array of tag objects",
             "examples": [
               [
-                { "id": 18, "tag": "anime" },
-                { "id": 19, "tag": "movie" },
-                { "id": 20, "tag": "general" },
-                { "id": 21, "tag": "games" }
+                {
+                  "id": 18,
+                  "tag": "anime"
+                },
+                {
+                  "id": 19,
+                  "tag": "movie"
+                },
+                {
+                  "id": 20,
+                  "tag": "general"
+                },
+                {
+                  "id": 21,
+                  "tag": "games"
+                }
               ],
               [
-                { "id": 22, "tag": "trivia" },
-                { "id": 23, "tag": "fun" }
+                {
+                  "id": 22,
+                  "tag": "trivia"
+                },
+                {
+                  "id": 23,
+                  "tag": "fun"
+                }
               ],
               null
             ]
           }
-        }
+        },
+        "required": ["ageRestriction", "author", "createdAt", "id", "title"]
       },
       "OqPackage": {
         "type": "object",
@@ -1607,14 +2164,20 @@
           },
           "logo": {
             "oneOf": [
-              { "$ref": "#/components/schemas/PackageLogoFileItem" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/PackageLogoFileItem"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Logo file for the package"
           },
           "rounds": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/PackageRound" },
+            "items": {
+              "$ref": "#/components/schemas/PackageRound"
+            },
             "description": "Rounds in the package"
           },
           "tags": {
@@ -1625,19 +2188,45 @@
             "description": "Tags for the package. Can be null or an array of tag objects",
             "examples": [
               [
-                { "id": 18, "tag": "anime" },
-                { "id": 19, "tag": "movie" },
-                { "id": 20, "tag": "general" },
-                { "id": 21, "tag": "games" }
+                {
+                  "id": 18,
+                  "tag": "anime"
+                },
+                {
+                  "id": 19,
+                  "tag": "movie"
+                },
+                {
+                  "id": 20,
+                  "tag": "general"
+                },
+                {
+                  "id": 21,
+                  "tag": "games"
+                }
               ],
               [
-                { "id": 22, "tag": "trivia" },
-                { "id": 23, "tag": "fun" }
+                {
+                  "id": 22,
+                  "tag": "trivia"
+                },
+                {
+                  "id": 23,
+                  "tag": "fun"
+                }
               ],
               null
             ]
           }
-        }
+        },
+        "required": [
+          "ageRestriction",
+          "author",
+          "createdAt",
+          "id",
+          "rounds",
+          "title"
+        ]
       },
       "PackageItem": {
         "type": "object",
@@ -1674,8 +2263,12 @@
           },
           "logo": {
             "oneOf": [
-              { "$ref": "#/components/schemas/PackageLogoFileItem" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/PackageLogoFileItem"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Logo file for the package"
           },
@@ -1694,7 +2287,17 @@
               "examples": ["Anime", "General"]
             }
           }
-        }
+        },
+        "required": [
+          "ageRestriction",
+          "author",
+          "createdAt",
+          "id",
+          "questionsCount",
+          "roundsCount",
+          "tags",
+          "title"
+        ]
       },
       "PaginatedUsers": {
         "type": "object",
@@ -1708,7 +2311,8 @@
           "pageInfo": {
             "$ref": "#/components/schemas/PageInfo"
           }
-        }
+        },
+        "required": ["data", "pageInfo"]
       },
       "PaginatedGames": {
         "type": "object",
@@ -1722,7 +2326,8 @@
           "pageInfo": {
             "$ref": "#/components/schemas/PageInfo"
           }
-        }
+        },
+        "required": ["data", "pageInfo"]
       },
       "OrderDirection": {
         "type": "string",
@@ -1760,7 +2365,9 @@
       },
       "PackageTags": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {
+          "type": "string"
+        },
         "description": "Tags filter; can also be provided as comma-separated string"
       },
       "PackageMinRounds": {
@@ -1841,10 +2448,13 @@
               "type": "string"
             },
             "examples": [
-              { "uniqueIdentifier": "https://example.com/upload/file.jpg" }
+              {
+                "uniqueIdentifier": "https://example.com/upload/file.jpg"
+              }
             ]
           }
-        }
+        },
+        "required": ["id", "uploadLinks"]
       },
       "FileLinkResponse": {
         "type": "object",
@@ -1853,7 +2463,8 @@
             "type": "string",
             "examples": ["http://localhost:9000/file-get-link"]
           }
-        }
+        },
+        "required": ["url"]
       },
       "BadFilenameResponse": {
         "type": "object",
@@ -1862,7 +2473,8 @@
             "type": "string",
             "examples": ["Bad filename"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "FileUploadLinkResponse": {
         "type": "object",
@@ -1871,7 +2483,8 @@
             "type": "string",
             "examples": ["http://localhost:9000/file-upload-link"]
           }
-        }
+        },
+        "required": ["url"]
       },
       "DeleteRequestResponse": {
         "type": "object",
@@ -1880,7 +2493,8 @@
             "type": "string",
             "examples": ["Delete request sent"]
           }
-        }
+        },
+        "required": ["message"]
       },
       "PackageCorruptedResponse": {
         "type": "object",
@@ -1889,7 +2503,8 @@
             "type": "string",
             "examples": ["Package is corrupted!"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "BadRequestResponse": {
         "type": "object",
@@ -1898,7 +2513,8 @@
             "type": "string",
             "examples": ["Bad request"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "PackageNotFoundResponse": {
         "type": "object",
@@ -1907,7 +2523,8 @@
             "type": "string",
             "examples": ["Package not found"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "PackageDeleteResponse": {
         "type": "object",
@@ -1916,7 +2533,8 @@
             "type": "string",
             "examples": ["Package deleted successfully"]
           }
-        }
+        },
+        "required": ["message"]
       },
       "InvalidSessionResponse": {
         "type": "object",
@@ -1925,7 +2543,8 @@
             "type": "string",
             "examples": ["Session invalid or expired"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "UserNotFoundResponse": {
         "type": "object",
@@ -1934,7 +2553,8 @@
             "type": "string",
             "examples": ["User not found"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "PermissionDeniedResponse": {
         "type": "object",
@@ -1943,7 +2563,8 @@
             "type": "string",
             "examples": ["You don't have permission to perform this action"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "GeneralErrorResponse": {
         "type": "object",
@@ -1952,7 +2573,8 @@
             "type": "string",
             "examples": ["Authentication is failed, please try again"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "GameNotFoundResponse": {
         "type": "object",
@@ -1961,7 +2583,8 @@
             "type": "string",
             "examples": ["Game not found"]
           }
-        }
+        },
+        "required": ["error"]
       },
       "SocketAlreadyLoggedInResponse": {
         "type": "object",
@@ -1969,7 +2592,8 @@
           "error": {
             "type": "string"
           }
-        }
+        },
+        "required": ["error"]
       },
       "GameEventSubscription": {
         "type": "object",
@@ -1983,8 +2607,12 @@
           }
         },
         "oneOf": [
-          { "$ref": "#/components/schemas/GameUpdateEventSubscription" },
-          { "$ref": "#/components/schemas/GameDeleteEventSubscription" }
+          {
+            "$ref": "#/components/schemas/GameUpdateEventSubscription"
+          },
+          {
+            "$ref": "#/components/schemas/GameDeleteEventSubscription"
+          }
         ]
       },
       "GameUpdateEventSubscription": {
@@ -1998,7 +2626,7 @@
             "$ref": "#/components/schemas/GameListItem"
           }
         },
-        "required": ["type", "event", "data"]
+        "required": ["data", "event", "type"]
       },
       "GameDeleteEventSubscription": {
         "type": "object",
@@ -2017,7 +2645,7 @@
             "required": ["id"]
           }
         },
-        "required": ["type", "event", "data"]
+        "required": ["data", "event", "type"]
       },
       "AgeRestriction": {
         "type": "string",
@@ -2060,7 +2688,9 @@
       },
       "QuestionAllowedPrices": {
         "type": ["array", "null"],
-        "items": { "type": "integer" },
+        "items": {
+          "type": "integer"
+        },
         "minItems": 2,
         "maxItems": 5,
         "examples": [
@@ -2085,8 +2715,12 @@
           },
           "file": {
             "oneOf": [
-              { "$ref": "#/components/schemas/FileItem" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/FileItem"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "File associated with the answer option"
           }
@@ -2114,7 +2748,8 @@
             "text": "Option 4",
             "file": null
           }
-        ]
+        ],
+        "required": ["order"]
       },
       "QuestionAnswerText": {
         "type": ["string", "null"],
@@ -2164,7 +2799,7 @@
             "examples": ["https://example.com/file123"]
           }
         },
-        "required": ["md5"],
+        "required": ["md5", "type"],
         "description": "Basic file metadata"
       },
       "PackageLogoFileInput": {
@@ -2210,7 +2845,7 @@
             "examples": [5000]
           }
         },
-        "required": ["file", "displayTime"],
+        "required": ["displayTime", "file", "order"],
         "description": "Question media file structure for package creation"
       },
       "PackageQuestion": {
@@ -2246,8 +2881,12 @@
           },
           "answerText": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionAnswerText" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionAnswerText"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "answerDelay": {
@@ -2255,6 +2894,11 @@
             "description": "Delay in milliseconds before being able to answer, if applicable",
             "default": 4000,
             "examples": [7000]
+          },
+          "showAnswerDuration": {
+            "type": "integer",
+            "description": "Duration in milliseconds for showing the answer",
+            "examples": [5000]
           },
           "questionComment": {
             "type": ["string", "null"],
@@ -2269,7 +2913,9 @@
                   "$ref": "#/components/schemas/PackageQuestionFile"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           },
           "answerFiles": {
@@ -2280,21 +2926,36 @@
                   "$ref": "#/components/schemas/PackageQuestionFile"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           }
         },
-        "required": ["price", "order", "type"],
+        "required": [
+          "isHidden",
+          "order",
+          "price",
+          "showAnswerDuration",
+          "type"
+        ],
         "description": "Base properties for all question types"
       },
       "ChoiceQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["choice"] },
-              "subType": { "const": "simple" },
+              "type": {
+                "type": "string",
+                "enum": ["choice"]
+              },
+              "subType": {
+                "const": "simple"
+              },
               "showDelay": {
                 "$ref": "#/components/schemas/QuestionShowDelay"
               },
@@ -2312,11 +2973,16 @@
       },
       "SecretQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["secret"] },
+              "type": {
+                "type": "string",
+                "enum": ["secret"]
+              },
               "subType": {
                 "type": "string",
                 "enum": ["simple", "customPrice"],
@@ -2332,7 +2998,11 @@
             },
             "required": ["subType", "transferType"],
             "if": {
-              "properties": { "subType": { "const": "customPrice" } }
+              "properties": {
+                "subType": {
+                  "const": "customPrice"
+                }
+              }
             },
             "then": {
               "required": ["allowedPrices"]
@@ -2343,11 +3013,16 @@
       },
       "NoRiskQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["noRisk"] },
+              "type": {
+                "type": "string",
+                "enum": ["noRisk"]
+              },
               "subType": {
                 "type": "string",
                 "enum": ["simple", "forEveryone"],
@@ -2365,11 +3040,16 @@
       },
       "SimpleQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["simple"] }
+              "type": {
+                "type": "string",
+                "enum": ["simple"]
+              }
             },
             "description": "Simple question type"
           }
@@ -2377,11 +3057,16 @@
       },
       "StakeQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["stake"] },
+              "type": {
+                "type": "string",
+                "enum": ["stake"]
+              },
               "subType": {
                 "type": "string",
                 "enum": ["simple", "forEveryone"],
@@ -2399,11 +3084,16 @@
       },
       "HiddenQuestion": {
         "allOf": [
-          { "$ref": "#/components/schemas/PackageQuestion" },
+          {
+            "$ref": "#/components/schemas/PackageQuestion"
+          },
           {
             "type": "object",
             "properties": {
-              "type": { "type": "string", "enum": ["hidden"] }
+              "type": {
+                "type": "string",
+                "enum": ["hidden"]
+              }
             },
             "description": "Hidden question type"
           }
@@ -2411,12 +3101,24 @@
       },
       "PackageQuestionUnion": {
         "oneOf": [
-          { "$ref": "#/components/schemas/SimpleQuestion" },
-          { "$ref": "#/components/schemas/StakeQuestion" },
-          { "$ref": "#/components/schemas/SecretQuestion" },
-          { "$ref": "#/components/schemas/NoRiskQuestion" },
-          { "$ref": "#/components/schemas/ChoiceQuestion" },
-          { "$ref": "#/components/schemas/HiddenQuestion" }
+          {
+            "$ref": "#/components/schemas/SimpleQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/StakeQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/SecretQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/NoRiskQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/ChoiceQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/HiddenQuestion"
+          }
         ],
         "discriminator": {
           "propertyName": "type",
@@ -2489,11 +3191,13 @@
           },
           "themes": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/PackageTheme" },
+            "items": {
+              "$ref": "#/components/schemas/PackageTheme"
+            },
             "description": "Themes in the round"
           }
         },
-        "required": ["name", "order", "type", "themes"],
+        "required": ["name", "order", "themes", "type"],
         "description": "Round structure for package"
       },
       "PackageCreateInputData": {
@@ -2520,8 +3224,12 @@
           },
           "logo": {
             "oneOf": [
-              { "$ref": "#/components/schemas/PackageLogoFileInput" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/PackageLogoFileInput"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Logo file for the package"
           },
@@ -2533,25 +3241,45 @@
             "description": "Tags for the package. Can be null or an array of tag objects",
             "examples": [
               [
-                { "id": 18, "tag": "anime" },
-                { "id": 19, "tag": "movie" },
-                { "id": 20, "tag": "general" },
-                { "id": 21, "tag": "games" }
+                {
+                  "id": 18,
+                  "tag": "anime"
+                },
+                {
+                  "id": 19,
+                  "tag": "movie"
+                },
+                {
+                  "id": 20,
+                  "tag": "general"
+                },
+                {
+                  "id": 21,
+                  "tag": "games"
+                }
               ],
               [
-                { "id": 22, "tag": "trivia" },
-                { "id": 23, "tag": "fun" }
+                {
+                  "id": 22,
+                  "tag": "trivia"
+                },
+                {
+                  "id": 23,
+                  "tag": "fun"
+                }
               ],
               null
             ]
           },
           "rounds": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/PackageRound" },
+            "items": {
+              "$ref": "#/components/schemas/PackageRound"
+            },
             "description": "Rounds in the package"
           }
         },
-        "required": ["title", "ageRestriction", "rounds"],
+        "required": ["ageRestriction", "rounds", "title"],
         "description": "Input for creating a new package; author is set via authentication"
       },
       "InputSocketIOAuth": {
@@ -2561,7 +3289,8 @@
             "type": "string",
             "examples": ["Q04nceF-7noEw52hAAAD"]
           }
-        }
+        },
+        "required": ["socketId"]
       },
       "PlayerRole": {
         "type": "string",
@@ -2585,7 +3314,8 @@
             "examples": [false],
             "description": "If true - player is banned from the game"
           }
-        }
+        },
+        "required": ["banned", "muted", "restricted"]
       },
       "PlayerMeta": {
         "type": "object",
@@ -2602,7 +3332,8 @@
             "type": ["string", "null"],
             "examples": ["https://example.image.com", null]
           }
-        }
+        },
+        "required": ["id", "username"]
       },
       "PlayerData": {
         "type": "object",
@@ -2636,7 +3367,15 @@
             "examples": [true, false],
             "default": false
           }
-        }
+        },
+        "required": [
+          "mediaDownloaded",
+          "meta",
+          "restrictionData",
+          "role",
+          "score",
+          "status"
+        ]
       },
       "SocketIOGameJoinInput": {
         "type": "object",
@@ -2653,8 +3392,16 @@
             "minimum": 0,
             "description": "Optional target slot for player role. If not provided, first available slot will be assigned. Only applicable when role is PLAYER.",
             "examples": [0, 1, 2]
+          },
+          "password": {
+            "type": ["string", "null"],
+            "maxLength": 16,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Password for joining private games. Required when joining a private game. Can be null for public games.",
+            "examples": ["Secret-123", null]
           }
-        }
+        },
+        "required": ["gameId", "role"]
       },
       "SocketIOGameLeaveEventPayload": {
         "type": "object",
@@ -2664,14 +3411,18 @@
             "examples": [5],
             "description": "Emitted to everyone in game, including sender. ID of the user who left the game"
           }
-        }
+        },
+        "required": ["user"]
       },
       "SocketIOChatMessageEventPayload": {
         "description": "Emitted to everyone in game, including sender. Data that sent to all players in room on chat message",
         "allOf": [
-          { "$ref": "#/components/schemas/SocketIOChatMessageContent" },
+          {
+            "$ref": "#/components/schemas/SocketIOChatMessageContent"
+          },
           {
             "type": "object",
+            "required": ["uuid", "user", "timestamp"],
             "properties": {
               "uuid": {
                 "type": "string",
@@ -2706,7 +3457,7 @@
             "description": "When the user change occurred"
           }
         },
-        "required": ["userData", "timestamp"]
+        "required": ["timestamp", "userData"]
       },
       "SocketIONextRoundEventPayload": {
         "type": "object",
@@ -2714,7 +3465,8 @@
           "gameState": {
             "$ref": "#/components/schemas/GameState"
           }
-        }
+        },
+        "required": ["gameState"]
       },
       "SocketIOGameJoinEventPayload": {
         "type": "object",
@@ -2741,7 +3493,8 @@
               "$ref": "#/components/schemas/SocketIOChatMessageEventPayload"
             }
           }
-        }
+        },
+        "required": ["chatMessages", "gameState", "meta", "players"]
       },
       "SocketIOGameJoinMeta": {
         "type": "object",
@@ -2750,7 +3503,8 @@
             "type": "string",
             "examples": ["Game title"]
           }
-        }
+        },
+        "required": ["title"]
       },
       "GameState": {
         "type": "object",
@@ -2774,14 +3528,22 @@
           },
           "currentRound": {
             "oneOf": [
-              { "$ref": "#/components/schemas/SocketIOGameStateRoundData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/SocketIOGameStateRoundData"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "currentQuestion": {
             "oneOf": [
-              { "$ref": "#/components/schemas/PackageQuestionData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/PackageQuestionData"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "answeringPlayer": {
@@ -2805,18 +3567,33 @@
           },
           "timer": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "finalRoundData": {
             "oneOf": [
-              { "$ref": "#/components/schemas/FinalRoundGameData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/FinalRoundGameData"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "currentTurnPlayerId": {
-            "oneOf": [{ "type": "integer" }, { "type": "null" }],
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Id of player whose turn it is to pick a question or eliminate theme"
           },
           "readyPlayers": {
@@ -2828,28 +3605,40 @@
                 },
                 "description": "Array of player IDs who are ready to start the game"
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ],
             "examples": [[1, 2, 3]]
           },
           "secretQuestionData": {
             "oneOf": [
-              { "$ref": "#/components/schemas/SecretQuestionGameData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/SecretQuestionGameData"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Secret question specific data - only set when a secret question is picked"
           },
           "stakeQuestionData": {
             "oneOf": [
-              { "$ref": "#/components/schemas/StakeQuestionGameData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/StakeQuestionGameData"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Stake question specific data - only set when a stake question is picked"
           }
-        }
+        },
+        "required": ["isPaused"]
       },
       "GameStateTimer": {
         "type": ["object", "null"],
+        "required": ["startedAt", "durationMs", "elapsedMs"],
         "properties": {
           "startedAt": {
             "type": "string",
@@ -2894,7 +3683,8 @@
           "answerType": {
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
           }
-        }
+        },
+        "required": ["answerType", "player", "result", "score"]
       },
       "SocketIOGameStartEventPayload": {
         "type": "object",
@@ -2903,7 +3693,8 @@
           "currentRound": {
             "$ref": "#/components/schemas/SocketIOGameStateRoundData"
           }
-        }
+        },
+        "required": ["currentRound"]
       },
       "SocketIOPlayerReadinessEventPayload": {
         "type": "object",
@@ -2933,7 +3724,12 @@
             "examples": [true]
           }
         },
-        "required": ["playerId", "isReady", "readyPlayers"]
+        "required": [
+          "autoStartTriggered",
+          "isReady",
+          "playerId",
+          "readyPlayers"
+        ]
       },
       "SocketIOGameStateRoundData": {
         "type": "object",
@@ -2959,7 +3755,8 @@
               "$ref": "#/components/schemas/SocketIOGameStateThemeData"
             }
           }
-        }
+        },
+        "required": ["name", "order", "themes", "type"]
       },
       "SocketIOGameStateThemeData": {
         "type": "object",
@@ -2985,7 +3782,8 @@
               "$ref": "#/components/schemas/SocketIOGameStateQuestionData"
             }
           }
-        }
+        },
+        "required": ["name", "order", "questions"]
       },
       "SocketIOGameStateQuestionData": {
         "type": "object",
@@ -3011,7 +3809,8 @@
             "type": "boolean",
             "description": "Marks if question was played before to disable picking action"
           }
-        }
+        },
+        "required": ["id", "isPlayed", "order"]
       },
       "SocketIOEvents": {
         "type": "string",
@@ -3037,6 +3836,7 @@
           "next-round",
           "answer-result",
           "skip-question-force",
+          "skip-show-answer",
           "game-pause",
           "game-unpause",
           "theme-eliminate",
@@ -3078,6 +3878,8 @@
           "question-finish",
           "answer-submitted",
           "answer-result",
+          "answer-show-start",
+          "answer-show-end",
           "next-round",
           "game-finished",
           "game-pause",
@@ -3119,7 +3921,8 @@
             "description": "ID of the player who skipped the question",
             "examples": [727]
           }
-        }
+        },
+        "required": ["playerId"]
       },
       "MediaDownloadStatusEventPayload": {
         "type": "object",
@@ -3143,12 +3946,16 @@
           "timer": {
             "description": "Question timer (only present when allPlayersReady is true)",
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
-        "required": ["playerId", "mediaDownloaded", "allPlayersReady"]
+        "required": ["allPlayersReady", "mediaDownloaded", "playerId"]
       },
       "SocketIOGameUnskipEventPayload": {
         "type": "object",
@@ -3159,7 +3966,8 @@
             "description": "ID of the player who unskipped the question",
             "examples": [727]
           }
-        }
+        },
+        "required": ["playerId"]
       },
       "SocketIOGamePauseEventPayload": {
         "type": "object",
@@ -3167,8 +3975,12 @@
         "properties": {
           "timer": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }
@@ -3179,8 +3991,12 @@
         "properties": {
           "timer": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }
@@ -3206,7 +4022,8 @@
             "description": "ID of the player who was kicked",
             "examples": [123]
           }
-        }
+        },
+        "required": ["playerId"]
       },
       "SocketIOPlayerRestrictionInput": {
         "type": "object",
@@ -3233,7 +4050,7 @@
             "examples": [false]
           }
         },
-        "required": ["playerId", "muted", "restricted", "banned"]
+        "required": ["banned", "muted", "playerId", "restricted"]
       },
       "SocketIOPlayerRestrictionEventPayload": {
         "type": "object",
@@ -3259,14 +4076,22 @@
             "description": "Whether the player is banned",
             "examples": [false]
           }
-        }
+        },
+        "required": ["banned", "muted", "playerId", "restricted"]
       },
       "SocketIOPlayerRoleChangeInput": {
         "type": "object",
         "description": "Data sent to change a player's role",
         "properties": {
           "playerId": {
-            "oneOf": [{ "type": "integer" }, { "type": "null" }],
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "ID of the player whose role to change",
             "examples": [123, null]
           },
@@ -3275,7 +4100,7 @@
             "description": "The new role for the player"
           }
         },
-        "required": ["playerId", "newRole"]
+        "required": ["newRole", "playerId"]
       },
       "SocketIOPlayerRoleChangeEventPayload": {
         "type": "object",
@@ -3297,7 +4122,8 @@
             },
             "description": "Updated list of all players with their current data"
           }
-        }
+        },
+        "required": ["newRole", "playerId", "players"]
       },
       "SocketIOPlayerScoreChangeInput": {
         "type": "object",
@@ -3314,7 +4140,7 @@
             "examples": [1500]
           }
         },
-        "required": ["playerId", "newScore"]
+        "required": ["newScore", "playerId"]
       },
       "SocketIOPlayerScoreChangeEventPayload": {
         "type": "object",
@@ -3330,7 +4156,8 @@
             "description": "The new score of the player",
             "examples": [1500]
           }
-        }
+        },
+        "required": ["newScore", "playerId"]
       },
       "SocketIOPlayerSlotChangeInput": {
         "type": "object",
@@ -3370,7 +4197,8 @@
             },
             "description": "Updated list of all players with their current data"
           }
-        }
+        },
+        "required": ["newSlot", "playerId", "players"]
       },
       "SocketIOTurnPlayerChangeInput": {
         "type": "object",
@@ -3403,7 +4231,8 @@
             "examples": ["Hello guys!"],
             "maxLength": 255
           }
-        }
+        },
+        "required": ["message"]
       },
       "SocketIOQuestionPickEventInput": {
         "type": "object",
@@ -3414,7 +4243,8 @@
             "description": "ID of the picked question",
             "examples": [25]
           }
-        }
+        },
+        "required": ["questionId"]
       },
       "SocketIOQuestionDataEventPayload": {
         "type": "object",
@@ -3426,7 +4256,8 @@
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
           }
-        }
+        },
+        "required": ["data", "timer"]
       },
       "SocketIOQuestionAnswerEventPayload": {
         "type": "object",
@@ -3440,7 +4271,8 @@
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
           }
-        }
+        },
+        "required": ["timer", "userId"]
       },
       "SocketIOAnswerSubmittedInput": {
         "type": "object",
@@ -3459,14 +4291,22 @@
         "properties": {
           "answerResult": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateAnsweredPlayer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateAnsweredPlayer"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "timer": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "answerFiles": {
@@ -3477,16 +4317,32 @@
                   "$ref": "#/components/schemas/PackageQuestionFile"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           },
           "answerText": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionAnswerText" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionAnswerText"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }
+      },
+      "SocketIOAnswerShowStartEventPayload": {
+        "type": "object",
+        "description": "Signal event sent to all players when the show-answer phase starts. This phase displays the correct answer after a response. No payload - just a transition signal.",
+        "additionalProperties": false
+      },
+      "SocketIOAnswerShowEndEventPayload": {
+        "type": "object",
+        "description": "Signal event sent to all players when the show-answer phase ends. Game returns to question choosing state. No payload - just a transition signal.",
+        "additionalProperties": false
       },
       "SocketIOAnswerResultInput": {
         "type": "object",
@@ -3500,7 +4356,8 @@
           "answerType": {
             "$ref": "#/components/schemas/SocketIOGameAnswerType"
           }
-        }
+        },
+        "required": ["answerType", "scoreResult"]
       },
       "SocketIOSecretQuestionPickedEventPayload": {
         "type": "object",
@@ -3521,7 +4378,7 @@
             "examples": [456]
           }
         },
-        "required": ["pickerPlayerId", "transferType", "questionId"]
+        "required": ["pickerPlayerId", "questionId", "transferType"]
       },
       "SocketIOSecretQuestionTransferInputData": {
         "type": "object",
@@ -3555,7 +4412,7 @@
             "examples": [456]
           }
         },
-        "required": ["fromPlayerId", "toPlayerId", "questionId"]
+        "required": ["fromPlayerId", "questionId", "toPlayerId"]
       },
       "PackageQuestionData": {
         "type": "object",
@@ -3593,8 +4450,12 @@
           },
           "answerText": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionAnswerText" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionAnswerText"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "answerDelay": {
@@ -3602,6 +4463,11 @@
             "description": "Delay in milliseconds before being able to answer, if applicable",
             "default": 4000,
             "examples": [7000]
+          },
+          "showAnswerDuration": {
+            "type": "integer",
+            "description": "Duration in milliseconds for showing the answer",
+            "examples": [5000]
           },
           "questionComment": {
             "type": ["string", "null"],
@@ -3616,7 +4482,9 @@
                   "$ref": "#/components/schemas/PackageQuestionFile"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           },
           "answerFiles": {
@@ -3627,7 +4495,9 @@
                   "$ref": "#/components/schemas/PackageQuestionFile"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           },
           "subType": {
@@ -3635,32 +4505,52 @@
           },
           "maxPrice": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionMaxPrice" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionMaxPrice"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "allowedPrices": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionAllowedPrices" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionAllowedPrices"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "transferType": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionTransferType" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionTransferType"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "priceMultiplier": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionPriceMultiplier" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionPriceMultiplier"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "showDelay": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionShowDelay" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionShowDelay"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "answers": {
@@ -3671,10 +4561,19 @@
                   "$ref": "#/components/schemas/QuestionChoiceAnswers"
                 }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           }
-        }
+        },
+        "required": [
+          "isHidden",
+          "order",
+          "showAnswerDuration",
+          "subType",
+          "type"
+        ]
       },
       "SocketIOThemeEliminateInput": {
         "type": "object",
@@ -3708,7 +4607,7 @@
             "examples": [124]
           }
         },
-        "required": ["themeId", "eliminatedBy"]
+        "required": ["eliminatedBy", "themeId"]
       },
       "SocketIOFinalAnswerSubmitInput": {
         "type": "object",
@@ -3738,7 +4637,7 @@
             "examples": ["This is my final answer"]
           }
         },
-        "required": ["playerId", "answerText"]
+        "required": ["answerText", "playerId"]
       },
       "SocketIOFinalBidSubmitInput": {
         "type": "object",
@@ -3772,7 +4671,7 @@
             "examples": [true, false]
           }
         },
-        "required": ["playerId", "bidAmount"]
+        "required": ["bidAmount", "isAutomatic", "playerId"]
       },
       "SocketIOFinalAnswerReviewInput": {
         "type": "object",
@@ -3816,7 +4715,7 @@
             "examples": [500]
           }
         },
-        "required": ["answerId", "playerId", "isCorrect", "scoreChange"]
+        "required": ["answerId", "isCorrect", "playerId", "scoreChange"]
       },
       "SocketIOGameAnswerType": {
         "type": "string",
@@ -3877,7 +4776,7 @@
             "examples": ["2024-01-01T00:01:00Z"]
           }
         },
-        "required": ["id", "playerId", "answer", "submittedAt"]
+        "required": ["answer", "id", "playerId", "submittedAt"]
       },
       "FinalRoundGameData": {
         "type": "object",
@@ -3900,7 +4799,12 @@
               "type": "integer"
             },
             "description": "Player bids mapped by player ID",
-            "examples": [{ "123": 500, "124": 300 }]
+            "examples": [
+              {
+                "123": 500,
+                "124": 300
+              }
+            ]
           },
           "answers": {
             "type": "array",
@@ -3919,18 +4823,22 @@
           },
           "questionData": {
             "oneOf": [
-              { "$ref": "#/components/schemas/FinalRoundQuestionData" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/FinalRoundQuestionData"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Question data for the final round, set when transitioning from bidding to answering phase"
           }
         },
         "required": [
-          "phase",
-          "turnOrder",
-          "bids",
           "answers",
-          "eliminatedThemes"
+          "bids",
+          "eliminatedThemes",
+          "phase",
+          "turnOrder"
         ]
       },
       "SocketIOFinalPhaseCompletePayload": {
@@ -3947,7 +4855,7 @@
             "$ref": "#/components/schemas/GameStateTimer"
           }
         },
-        "required": ["phase", "nextPhase"]
+        "required": ["nextPhase", "phase", "timer"]
       },
       "SocketIOFinalQuestionEventDataPayload": {
         "type": "object",
@@ -3968,17 +4876,25 @@
           },
           "nextPhase": {
             "oneOf": [
-              { "$ref": "#/components/schemas/FinalRoundPhase" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/FinalRoundPhase"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "allReviews": {
             "oneOf": [
               {
                 "type": "array",
-                "items": { "$ref": "#/components/schemas/AnswerReviewData" }
+                "items": {
+                  "$ref": "#/components/schemas/AnswerReviewData"
+                }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ],
             "description": "All answers revealed when transitioning to reviewing phase"
           }
@@ -3993,19 +4909,34 @@
             "oneOf": [
               {
                 "type": "array",
-                "items": { "$ref": "#/components/schemas/PackageQuestionFile" }
+                "items": {
+                  "$ref": "#/components/schemas/PackageQuestionFile"
+                }
               },
-              { "type": "null" }
+              {
+                "type": "null"
+              }
             ]
           },
           "answerText": {
             "oneOf": [
-              { "$ref": "#/components/schemas/QuestionAnswerText" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/QuestionAnswerText"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "nextTurnPlayerId": {
-            "oneOf": [{ "type": "integer" }, { "type": "null" }],
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "ID of the next player to take their turn, null if no next player (game finished)"
           }
         },
@@ -4079,7 +5010,7 @@
             "required": ["id", "order", "isPlayed"]
           }
         },
-        "required": ["themeId", "themeName", "question"]
+        "required": ["question", "themeId", "themeName"]
       },
       "AnswerReviewData": {
         "type": "object",
@@ -4115,11 +5046,12 @@
           }
         },
         "required": [
-          "playerId",
           "answerId",
           "answerText",
-          "scoreChange",
-          "answerType"
+          "answerType",
+          "isCorrect",
+          "playerId",
+          "scoreChange"
         ]
       },
       "FinalAnswerType": {
@@ -4167,10 +5099,10 @@
           }
         },
         "required": [
+          "biddingOrder",
+          "maxPrice",
           "pickerPlayerId",
           "questionId",
-          "maxPrice",
-          "biddingOrder",
           "timer"
         ]
       },
@@ -4188,7 +5120,7 @@
             "examples": [250, null]
           }
         },
-        "required": ["bidType", "bidAmount"]
+        "required": ["bidAmount", "bidType"]
       },
       "StakeBidSubmitOutputData": {
         "type": "object",
@@ -4220,18 +5152,22 @@
           },
           "timer": {
             "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/GameStateTimer"
+              },
+              {
+                "type": "null"
+              }
             ],
             "description": "Timer for the next bid or remaining time (30 seconds per bid)"
           }
         },
         "required": [
-          "playerId",
           "bidAmount",
           "bidType",
           "isPhaseComplete",
-          "nextBidderId"
+          "nextBidderId",
+          "playerId"
         ]
       },
       "StakeQuestionWinnerEventData": {
@@ -4249,7 +5185,7 @@
             "examples": [350]
           }
         },
-        "required": ["winnerPlayerId", "finalBid"]
+        "required": ["finalBid", "winnerPlayerId"]
       },
       "SecretQuestionGameData": {
         "type": "object",
@@ -4277,9 +5213,9 @@
         },
         "required": [
           "pickerPlayerId",
-          "transferType",
           "questionId",
-          "transferPhase"
+          "transferPhase",
+          "transferType"
         ]
       },
       "StakeQuestionGameData": {
@@ -4307,7 +5243,13 @@
               "type": ["integer", "null"]
             },
             "description": "Current bids from all players (playerId -> highest bid amount)",
-            "examples": [{ "123": 500, "124": 300, "125": null }]
+            "examples": [
+              {
+                "123": 500,
+                "124": 300,
+                "125": null
+              }
+            ]
           },
           "passedPlayers": {
             "type": "array",
@@ -4347,16 +5289,16 @@
           }
         },
         "required": [
-          "pickerPlayerId",
-          "questionId",
-          "maxPrice",
-          "bids",
-          "passedPlayers",
           "biddingOrder",
+          "biddingPhase",
+          "bids",
           "currentBidderIndex",
           "highestBid",
-          "winnerPlayerId",
-          "biddingPhase"
+          "maxPrice",
+          "passedPlayers",
+          "pickerPlayerId",
+          "questionId",
+          "winnerPlayerId"
         ]
       },
       "SocketIOStakeQuestionSubmittedEventPayload": {
@@ -4386,10 +5328,11 @@
           }
         },
         "required": [
-          "playerId",
           "bidAmount",
+          "bidType",
           "isPhaseComplete",
           "nextBidderId",
+          "playerId",
           "timer"
         ]
       },
@@ -4423,7 +5366,13 @@
             "$ref": "#/components/schemas/GameStateTimer"
           }
         },
-        "required": ["pickerPlayerId", "questionId", "timer", "maxPrice"]
+        "required": [
+          "biddingOrder",
+          "maxPrice",
+          "pickerPlayerId",
+          "questionId",
+          "timer"
+        ]
       },
       "SocketIOStakeQuestionWinnerEventPayload": {
         "type": "object",
@@ -4440,7 +5389,7 @@
             "examples": [2000]
           }
         },
-        "required": ["winnerPlayerId", "finalBid"]
+        "required": ["finalBid", "winnerPlayerId"]
       },
       "SocketIOStakeQuestionBidInput": {
         "type": "object",
@@ -4454,6 +5403,204 @@
           }
         },
         "required": ["bidAmount", "bidType"]
+      },
+      "AdminDashboardData": {
+        "type": "object",
+        "required": [
+          "activeUsers",
+          "deletedUsers",
+          "recentUsers",
+          "systemHealth",
+          "totalUsers"
+        ],
+        "properties": {
+          "totalUsers": {
+            "type": "integer"
+          },
+          "activeUsers": {
+            "type": "integer"
+          },
+          "deletedUsers": {
+            "type": "integer"
+          },
+          "recentUsers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponseUser"
+            }
+          },
+          "systemHealth": {
+            "type": "object",
+            "required": ["redisConnected", "redisKeys", "serverUptimeSeconds"],
+            "properties": {
+              "redisConnected": {
+                "type": "boolean"
+              },
+              "redisKeys": {
+                "type": "integer"
+              },
+              "serverUptimeSeconds": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "AdminUserListData": {
+        "type": "object",
+        "required": ["data", "pageInfo", "stats"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponseUser"
+            }
+          },
+          "stats": {
+            "type": "object",
+            "required": ["total", "active", "deleted", "banned"],
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "active": {
+                "type": "integer"
+              },
+              "deleted": {
+                "type": "integer"
+              },
+              "banned": {
+                "type": "integer"
+              }
+            }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        }
+      },
+      "AdminSystemHealthData": {
+        "type": "object",
+        "required": ["redis", "server", "timestamp"],
+        "properties": {
+          "redis": {
+            "type": "object",
+            "required": [
+              "connected",
+              "keys",
+              "estimatedMemoryBytes",
+              "estimatedMemoryMB",
+              "averageKeySizeKB"
+            ],
+            "properties": {
+              "connected": {
+                "type": "boolean"
+              },
+              "keys": {
+                "type": "integer"
+              },
+              "estimatedMemoryBytes": {
+                "type": "number"
+              },
+              "estimatedMemoryMB": {
+                "type": "number"
+              },
+              "averageKeySizeKB": {
+                "type": "number"
+              }
+            }
+          },
+          "server": {
+            "type": "object",
+            "required": ["uptime", "memory"],
+            "properties": {
+              "uptime": {
+                "type": "number"
+              },
+              "memory": {
+                "type": "object",
+                "required": ["used", "total"],
+                "properties": {
+                  "used": {
+                    "type": "number"
+                  },
+                  "total": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AdminPingData": {
+        "type": "object",
+        "required": ["eventLoopLagMs", "ok", "redis", "timestamp"],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "eventLoopLagMs": {
+            "type": "number"
+          },
+          "redis": {
+            "type": "object",
+            "required": ["connected", "responseMs"],
+            "properties": {
+              "connected": {
+                "type": "boolean"
+              },
+              "responseMs": {
+                "type": "number"
+              }
+            }
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        }
+      },
+      "UserBanResponse": {
+        "type": "object",
+        "required": ["isBanned", "userId"],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "isBanned": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UserMuteResponse": {
+        "type": "object",
+        "required": ["mutedUntil", "userId"],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "mutedUntil": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the mute expires, or null if not muted"
+          }
+        }
+      },
+      "UserRestoreResponse": {
+        "type": "object",
+        "required": ["restored", "userId"],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "restored": {
+            "type": "boolean"
+          }
+        }
       }
     }
   }

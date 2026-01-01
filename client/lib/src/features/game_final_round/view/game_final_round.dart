@@ -34,7 +34,7 @@ class GameFinalRoundBody extends WatchingWidget {
                 onTap: !allowToSelect
                     ? null
                     : () => getIt<GameLobbyThemePickerController>().pick(
-                        theme.id,
+                        theme.id!,
                       ),
               );
             },
@@ -61,7 +61,7 @@ class _GameFinalRoundTile extends WatchingWidget {
     required this.selected,
     required this.onTap,
   });
-  final SocketIOGameStateThemeData data;
+  final SocketIoGameStateThemeData data;
   final bool enabled;
   final bool selected;
   final VoidCallback? onTap;

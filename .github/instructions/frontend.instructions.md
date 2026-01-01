@@ -1,5 +1,5 @@
 ---
-applyTo: "client/**/*
+applyTo: "client/**/*"
 ---
 
 # Frontend Coding Standards - Flutter/Dart
@@ -29,6 +29,10 @@ features/feature_name/
 ```
 
 ## Coding Style
+
+### Project-Specific Components
+
+- **Adaptive Dialog**: When referring to "adaptive dialog", use the `AdaptiveDialog` widget (`lib/src/features/dialog/view/adaptive_dialog.dart`), not Flutter's `showAdaptiveDialog`. This custom widget automatically adapts to show as a dialog on wide screens and a bottom sheet on mobile.
 
 ### Imports and Exports
 

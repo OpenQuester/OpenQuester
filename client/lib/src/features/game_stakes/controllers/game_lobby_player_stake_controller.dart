@@ -6,18 +6,18 @@ class GameLobbyPlayerStakesController extends ChangeNotifier {
   bool isBidding = false;
   int? bidderId;
   Map<int, int?>? bids;
-  SocketIOStakeQuestionBidInput? bid = const SocketIOStakeQuestionBidInput(
+  SocketIoStakeQuestionBidInput? bid = const SocketIoStakeQuestionBidInput(
     bidAmount: null,
     bidType: StakeBidType.normal,
   );
 
-  void Function(SocketIOStakeQuestionBidInput bid)? _onPlayerBid;
+  void Function(SocketIoStakeQuestionBidInput bid)? _onPlayerBid;
 
   /// Show selection UI
   void startBidding({
     required int bidderId,
     required Map<int, int?> bids,
-    required void Function(SocketIOStakeQuestionBidInput bid) onPlayerBid,
+    required void Function(SocketIoStakeQuestionBidInput bid) onPlayerBid,
   }) {
     isBidding = true;
     _onPlayerBid = onPlayerBid;
@@ -26,7 +26,7 @@ class GameLobbyPlayerStakesController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void changeBid(SocketIOStakeQuestionBidInput bid) {
+  void changeBid(SocketIoStakeQuestionBidInput bid) {
     this.bid = bid;
     notifyListeners();
   }
@@ -41,7 +41,7 @@ class GameLobbyPlayerStakesController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void confirmSelection(SocketIOStakeQuestionBidInput bid) {
+  void confirmSelection(SocketIoStakeQuestionBidInput bid) {
     this.bid = bid;
     _onPlayerBid?.call(bid);
     notifyListeners();

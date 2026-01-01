@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
 @RoutePage()
-class HomeTabsScreen extends WatchingWidget {
+class HomeTabsScreen extends StatelessWidget {
   const HomeTabsScreen({super.key});
 
   @override
@@ -32,10 +32,11 @@ class _MobileHomeState extends State<_MobileHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const ProfileBtn(),
-        title: Text(_destionations[index].$2.label),
+        leading: const _AppBarLeading(wideMode: false),
+        leadingWidth: 120,
         scrolledUnderElevation: 0,
         actions: [
+          const ProfileBtn(wideMode: false).paddingRight(8),
           IconButton(
             onPressed: () => setState(() => showSearch = !showSearch),
             icon: Icon(showSearch ? Icons.search_off : Icons.search),
@@ -83,6 +84,45 @@ class _MobileHomeState extends State<_MobileHome> {
   }
 }
 
+class _AppBarLeading extends StatelessWidget {
+  const _AppBarLeading({required this.wideMode});
+  final bool wideMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 8,
+      children: [
+        IconButton(
+          onPressed: () => const SettingsRoute().push<void>(context),
+          tooltip: LocaleKeys.settings_title.tr(),
+          icon: const Icon(Icons.settings_outlined, size: 28),
+        ),
+        const _AdminDashboardIconButton(),
+      ],
+    ).paddingAll(8);
+  }
+}
+
+class _AdminDashboardIconButton extends WatchingWidget {
+  const _AdminDashboardIconButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final user = watchValue((ProfileController e) => e.user);
+    final hasAdminAccess = user.havePermission(PermissionName.adminPanelAccess);
+
+    if (!hasAdminAccess) return const SizedBox.shrink();
+
+    return IconButton(
+      onPressed: () => const AdminDashboardRoute().push<void>(context),
+      tooltip: LocaleKeys.admin_dashboard.tr(),
+      icon: const Icon(Icons.admin_panel_settings_outlined, size: 28),
+    );
+  }
+}
+
 class _StartGameButton extends StatelessWidget {
   const _StartGameButton();
 
@@ -119,7 +159,15 @@ class _WideHome extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(leading: const ProfileBtn()),
+      appBar: AppBar(
+        leading: const _AppBarLeading(
+          wideMode: true,
+        ),
+        leadingWidth: 200,
+        actions: [
+          const ProfileBtn(wideMode: true).paddingRight(12),
+        ],
+      ),
       body: SafeArea(
         child: Row(
           spacing: 42,
@@ -127,7 +175,7 @@ class _WideHome extends WatchingWidget {
             const _WideHomeLeftBar(),
             const _GameList(wideMode: true).expand(),
           ],
-        ),
+        ).paddingTop(16),
       ),
     );
   }
@@ -172,6 +220,7 @@ class GamesSearchBar extends StatelessWidget {
       hintText: LocaleKeys.type_to_find_games.tr(),
       onChanged: getIt<GamesListController>().search,
       trailing: const [Icon(Icons.search)],
+      padding: WidgetStatePropertyAll(16.horizontal),
     );
   }
 }
@@ -187,7 +236,10 @@ class _WideHomeLeftBar extends StatelessWidget {
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 16,
-        children: [_StartGameButton(), _OpenEditorButton()],
+        children: [
+          _StartGameButton(),
+          _OpenEditorButton(),
+        ],
       ).paddingLeft(16),
     );
   }

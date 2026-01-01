@@ -7,73 +7,12 @@ class GameLobbyEditor extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: 16.all,
+      padding: 16.all + 48.bottom + screenBottomInset(context).bottom,
       children: const [
-        _ReadyButton(),
         _RoleGroup(PlayerRole.showman, showDisconnected: false),
         _RoleGroup(PlayerRole.player),
         _RoleGroup(PlayerRole.spectator),
-      ],
-    );
-  }
-}
-
-class _ReadyButton extends WatchingWidget {
-  const _ReadyButton();
-
-  @override
-  Widget build(BuildContext context) {
-    final gameData = watchValue((GameLobbyController e) => e.gameData);
-
-    if (getIt<GameLobbyController>().gameStarted) return const SizedBox();
-
-    final playerCount = gameData?.players.where((p) => p.isPlayer).length;
-    final readyPlayers = gameData?.gameState.readyPlayers;
-    final imReady = readyPlayers?.contains(gameData?.me.meta.id) ?? false;
-    final imShowman = gameData?.me.isShowman ?? false;
-    final imSpectator = gameData?.me.isSpectator ?? false;
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 8,
-      children: [
-        if (!imShowman)
-          Text(
-            LocaleKeys.game_lobby_hint.tr(),
-            style: context.textTheme.bodyMedium,
-          ),
-        if (!imSpectator)
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              FilledButton.tonal(
-                onPressed: () {
-                  final controller = getIt<GameLobbyController>();
-                  if (imShowman) {
-                    controller.startGame();
-                  } else {
-                    controller.playerReady(ready: !imReady);
-                  }
-                },
-                child: Text(
-                  imShowman
-                      ? [
-                          LocaleKeys.start_game.tr(),
-                          ' ',
-                          '(',
-                          LocaleKeys.game_lobby_editor_ready.tr(),
-                          ' ',
-                          ':',
-                          ' ${readyPlayers?.length ?? 0}/$playerCount',
-                          ')',
-                        ].join()
-                      : imReady
-                      ? LocaleKeys.game_lobby_editor_not_ready.tr()
-                      : LocaleKeys.game_lobby_editor_ready.tr(),
-                ),
-              ),
-            ],
-          ).paddingAll(16),
+        _ClosePlayerEditButton(),
       ],
     );
   }
@@ -234,7 +173,7 @@ class _PlayerDragTarget extends WatchingWidget {
 }
 
 bool _playerAvailableToChange(
-  SocketIOGameJoinEventPayload? gameData,
+  SocketIoGameJoinEventPayload? gameData,
   PlayerData playerData,
 ) {
   final me = gameData?.me;
@@ -284,6 +223,34 @@ class _RoleTitle extends WatchingWidget {
     return Text(
       [roleName, count].nonNulls.join(' '),
       style: context.textTheme.headlineMedium,
+    );
+  }
+}
+
+class _ClosePlayerEditButton extends WatchingWidget {
+  const _ClosePlayerEditButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final gameStarted = gameData?.gameStarted ?? false;
+
+    if (!gameStarted) return const SizedBox();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        FilledButton.tonal(
+          style: const ButtonStyle(
+            minimumSize: WidgetStatePropertyAll(Size(60, 50)),
+          ),
+          onPressed: () {
+            final controller = getIt<GameLobbyController>();
+            controller.lobbyEditorMode.value = false;
+          },
+          child: Text(LocaleKeys.game_lobby_editor_close_player_editor.tr()),
+        ),
+      ],
     );
   }
 }

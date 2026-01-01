@@ -61,15 +61,12 @@ class MediaUploadHelper {
 
     // Create FileItem reference
     final fileItem = FileItem(
-      id: null,
       md5: md5Hash,
       type: media.type,
-      link: null,
     );
 
     // Create PackageQuestionFile reference
     return PackageQuestionFile(
-      id: null,
       order: media.order,
       file: fileItem,
       displayTime: media.displayTime,

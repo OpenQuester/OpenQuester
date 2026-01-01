@@ -25,8 +25,8 @@ class PlayerBidControls extends WatchingWidget {
       final bidAmount = int.tryParse(bidAmountText);
       if (bidAmount == null) return;
 
-      stakeController.confirmSelection(
-        SocketIOStakeQuestionBidInput(
+      getIt<GameLobbyController>().submitQuestionBid(
+        SocketIoStakeQuestionBidInput(
           bidAmount: bidAmount,
           bidType: StakeBidType.normal,
         ),
@@ -42,7 +42,7 @@ class PlayerBidControls extends WatchingWidget {
             runSpacing: 8,
             children: [
               const _BidBtn(
-                SocketIOStakeQuestionBidInput(
+                SocketIoStakeQuestionBidInput(
                   bidAmount: null,
                   bidType: StakeBidType.pass,
                 ),
@@ -55,16 +55,16 @@ class PlayerBidControls extends WatchingWidget {
                   )
                   .map(
                     (e) => _BidBtn(
-                      SocketIOStakeQuestionBidInput(
+                      SocketIoStakeQuestionBidInput(
                         bidAmount: e,
                         bidType: StakeBidType.normal,
                       ),
                     ),
                   ),
               _BidBtn(null, onCustom),
-              _BidBtn(
-                SocketIOStakeQuestionBidInput(
-                  bidAmount: gameData?.me.score,
+              const _BidBtn(
+                SocketIoStakeQuestionBidInput(
+                  bidAmount: null,
                   bidType: StakeBidType.allIn,
                 ),
               ),
@@ -78,7 +78,7 @@ class PlayerBidControls extends WatchingWidget {
 
 class _BidBtn extends StatelessWidget {
   const _BidBtn(this.input, [this.customButtonCallback]);
-  final SocketIOStakeQuestionBidInput? input;
+  final SocketIoStakeQuestionBidInput? input;
   final VoidCallback? customButtonCallback;
 
   @override

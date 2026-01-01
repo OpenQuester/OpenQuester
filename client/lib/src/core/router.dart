@@ -13,7 +13,8 @@ class AppRouter extends RootStackRouter {
   List<AutoRoute> get routes {
     return [
       AutoRoute(page: HomeTabsRoute.page, path: '/', initial: true),
-      AutoRoute(page: ProfileRoute.page, path: '/profile'),
+      BlurDialogRoute<void>(page: ProfileRoute.page, path: '/profile'),
+      BlurDialogRoute<void>(page: SettingsRoute.page, path: '/settings'),
       BlurDialogRoute<void>(page: CreateGameRoute.page, path: '/games/create'),
       BlurDialogRoute<void>(
         page: GamePreviewRoute.page,
@@ -26,6 +27,7 @@ class AppRouter extends RootStackRouter {
         path: '/editor',
         children: OqEditorRouter.editorRoutes(),
       ),
+      AutoRoute(page: AdminDashboardRoute.page, path: '/admin'),
     ];
   }
 

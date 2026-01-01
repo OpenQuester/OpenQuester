@@ -110,3 +110,14 @@ export const userPermissionsUpdateScheme = () =>
       .required()
       .description("Array of permission names to assign to the user"),
   });
+
+export const userMuteScheme = () =>
+  Joi.object({
+    userId: Joi.number().integer().min(0).required(),
+    mutedUntil: Joi.date().iso().greater("now").required(),
+  });
+
+export const userUnmuteScheme = () =>
+  Joi.object({
+    userId: Joi.number().integer().min(0).required(),
+  });
