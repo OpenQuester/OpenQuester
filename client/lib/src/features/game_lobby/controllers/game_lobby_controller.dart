@@ -1166,7 +1166,6 @@ class GameLobbyController {
       getIt<GameLobbyPlayerStakesController>().clear();
       getIt<GameLobbyThemePickerController>().clear();
       getIt<GameLobbyReviewController>().clear();
-      getIt<GameLobbyReviewController>().clear();
     } else if (finalRoundData.phase == FinalRoundPhase.reviewing) {
       getIt<GameLobbyPlayerStakesController>().clear();
       getIt<GameLobbyThemePickerController>().clear();

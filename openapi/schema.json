@@ -4668,7 +4668,8 @@
           "isAutomatic": {
             "type": "boolean",
             "description": "Whether the bid was automatically submitted (e.g., when player disconnects during bidding phase)",
-            "examples": [true, false]
+            "examples": [true, false],
+            "default": false
           }
         },
         "required": ["bidAmount", "isAutomatic", "playerId"]
@@ -4965,7 +4966,7 @@
       },
       "FinalRoundQuestionData": {
         "type": "object",
-        "description": "Question data for final round",
+        "description": "Question data for final round with full question details excluding answer information",
         "properties": {
           "themeId": {
             "type": "integer",
@@ -4978,36 +4979,7 @@
             "examples": ["Geography"]
           },
           "question": {
-            "type": "object",
-            "description": "Question state data",
-            "properties": {
-              "id": {
-                "type": "integer",
-                "description": "Question ID",
-                "examples": [187]
-              },
-              "order": {
-                "type": "integer",
-                "description": "Question order",
-                "examples": [1]
-              },
-              "price": {
-                "type": ["integer", "null"],
-                "description": "Question price/points",
-                "examples": [500]
-              },
-              "questionComment": {
-                "type": ["string", "null"],
-                "description": "Question comment",
-                "examples": ["Geography question"]
-              },
-              "isPlayed": {
-                "type": "boolean",
-                "description": "Whether question has been played",
-                "examples": [false]
-              }
-            },
-            "required": ["id", "order", "isPlayed"]
+            "$ref": "#/components/schemas/PackageQuestion"
           }
         },
         "required": ["question", "themeId", "themeName"]

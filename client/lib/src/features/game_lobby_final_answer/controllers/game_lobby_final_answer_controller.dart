@@ -3,7 +3,6 @@ import 'package:openquester/common_imports.dart';
 
 @singleton
 class GameLobbyFinalAnswerController extends ChangeNotifier {
-  bool isPicking = false;
   String? userAnswer;
   void Function(String answer)? _onSelected;
 
@@ -13,7 +12,6 @@ class GameLobbyFinalAnswerController extends ChangeNotifier {
     required String? initialAnswer,
     required void Function(String answer) onSelected,
   }) {
-    isPicking = true;
     userAnswer = initialAnswer;
     _onSelected = onSelected;
 
@@ -32,7 +30,6 @@ class GameLobbyFinalAnswerController extends ChangeNotifier {
   }
 
   void stop() {
-    isPicking = false;
     userAnswer = null;
     _onSelected = null;
     notifyListeners();
