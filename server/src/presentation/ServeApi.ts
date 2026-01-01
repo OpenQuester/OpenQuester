@@ -26,6 +26,8 @@ import { ErrorController } from "domain/errors/ErrorController";
 import { EnvType } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { type Database } from "infrastructure/database/Database";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogReaderService } from "infrastructure/services/log/LogReaderService";
 import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -69,11 +71,11 @@ export class ServeApi {
   public async init() {
     const initStartTime = Date.now();
     this._context.logger.trace("API initialization started", {
-      prefix: "[ServeApi]: ",
+      prefix: LOG_PREFIX.SERVE_API,
     });
 
     const log = this._context.logger.performance(`API initialization`, {
-      prefix: "[ServeApi]: ",
+      prefix: LOG_PREFIX.SERVE_API,
     });
 
     try {
@@ -116,7 +118,7 @@ export class ServeApi {
       this._context.logger.error(
         `API initialization failed after ${failureTime}ms`,
         {
-          prefix: "[ServeApi]: ",
+          prefix: LOG_PREFIX.SERVE_API,
           failureTime,
         }
       );
@@ -178,6 +180,9 @@ export class ServeApi {
       gameActionExecutor: Container.get<GameActionExecutor>(
         CONTAINER_TYPES.GameActionExecutor
       ),
+      logReaderService: Container.get<LogReaderService>(
+        CONTAINER_TYPES.LogReaderService
+      ),
     };
 
     // REST
@@ -210,7 +215,8 @@ export class ServeApi {
       deps.userService,
       deps.redisService,
       this._context.logger,
-      deps.adminService
+      deps.adminService,
+      deps.logReaderService
     );
     new SwaggerRestApiController(deps.app, this._context.logger);
 

@@ -17,6 +17,7 @@ import {
   GameLeaveBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
 export class LeaveGameEventHandler extends BaseSocketEventHandler<
@@ -104,14 +105,14 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
         if (activePlayers.length === 0 && gameNotStartedOrFinished) {
           this.logger.debug(
             `Deleting empty game ${gameId} after last player left`,
-            { prefix: "[USER_NOTIFICATIONS]: " }
+            { prefix: LOG_PREFIX.NOTIFICATION }
           );
           await this.socketIOGameService.deleteGameInternally(gameId);
         }
       } catch (error) {
         this.logger.error(
           `Could not clean up user notification rooms for game ${gameId}: ${error}`,
-          { prefix: "[USER_NOTIFICATIONS]: " }
+          { prefix: LOG_PREFIX.NOTIFICATION }
         );
       }
 

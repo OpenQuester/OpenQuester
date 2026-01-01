@@ -8,6 +8,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { Language } from "domain/types/text/translation";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -49,7 +50,7 @@ export class ErrorController {
     // Server errors: unexpected failures that break responsibility
     if (error instanceof ServerError) {
       logger.error(`Server error occurred`, {
-        prefix: "[ERROR]: ",
+        prefix: LOG_PREFIX.ERROR,
         error: error.message,
         stack: error.stack,
         ...(contextMeta ?? {}),
@@ -70,7 +71,7 @@ export class ErrorController {
 
     // Unknown error type - treat as server error
     logger.error(`Unknown error type encountered`, {
-      prefix: "[ERROR]: ",
+      prefix: LOG_PREFIX.ERROR,
       error: JSON.stringify(error),
       ...(contextMeta ?? {}),
     });

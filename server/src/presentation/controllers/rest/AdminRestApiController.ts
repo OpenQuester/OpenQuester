@@ -17,9 +17,19 @@ import { UserMuteResponseDTO } from "domain/types/dto/user/UserMuteResponseDTO";
 import { UserUnmuteInputDTO } from "domain/types/dto/user/UserUnmuteInputDTO";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogTag } from "infrastructure/logger/LogTag";
+import {
+  LogFilter,
+  LogReaderService,
+} from "infrastructure/services/log/LogReaderService";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { checkPermissionMiddleware } from "presentation/middleware/permission/PermissionMiddleware";
+import {
+  LogQueryParams,
+  logQueryParamsScheme,
+} from "presentation/schemes/log/logSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 import {
   userMuteScheme,
@@ -36,7 +46,8 @@ export class AdminRestApiController {
     private readonly userService: UserService,
     private readonly redisService: RedisService,
     private readonly logger: ILogger,
-    private readonly adminService: AdminService
+    private readonly adminService: AdminService,
+    private readonly logReaderService: LogReaderService
   ) {
     const router = Router();
 
@@ -62,6 +73,13 @@ export class AdminRestApiController {
       "/system/health",
       checkPermissionMiddleware(Permissions.VIEW_SYSTEM_HEALTH, this.logger),
       asyncHandler(this.getSystemHealth)
+    );
+
+    // System logs retrieval
+    router.get(
+      "/system/logs",
+      checkPermissionMiddleware(Permissions.VIEW_SYSTEM_LOGS, this.logger),
+      asyncHandler(this.getLogs)
     );
 
     // User ban/unban actions
@@ -117,7 +135,7 @@ export class AdminRestApiController {
    */
   private getDashboard = async (req: Request, res: Response) => {
     this.logger.audit("Admin dashboard accessed", {
-      prefix: "[ADMIN]: ",
+      prefix: LOG_PREFIX.ADMIN,
       adminUserId: req.user?.id,
     });
 
@@ -161,7 +179,7 @@ export class AdminRestApiController {
    */
   private getSystemHealth = async (req: Request, res: Response) => {
     this.logger.audit("System health check performed", {
-      prefix: "[ADMIN]: ",
+      prefix: LOG_PREFIX.ADMIN,
       adminUserId: req.user?.id,
     });
 
@@ -188,7 +206,7 @@ export class AdminRestApiController {
     await this.userService.ban(userId);
 
     this.logger.audit("User banned", {
-      prefix: "[ADMIN]: ",
+      prefix: LOG_PREFIX.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
@@ -211,7 +229,7 @@ export class AdminRestApiController {
     await this.userService.unban(userId);
 
     this.logger.audit("User unbanned", {
-      prefix: "[ADMIN]: ",
+      prefix: LOG_PREFIX.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
@@ -233,7 +251,7 @@ export class AdminRestApiController {
     await this.userService.mute(userId, mutedUntilDate);
 
     this.logger.audit("User muted", {
-      prefix: "[ADMIN]: ",
+      prefix: LOG_PREFIX.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
       mutedUntil: mutedUntilDate.toISOString(),
@@ -256,7 +274,7 @@ export class AdminRestApiController {
     await this.userService.unmute(userId);
 
     this.logger.audit("User unmuted", {
-      prefix: "[ADMIN]: ",
+      prefix: LOG_PREFIX.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
@@ -281,7 +299,7 @@ export class AdminRestApiController {
     await this.userService.delete(userId);
 
     this.logger.audit("User deleted", {
-      prefix: "[ADMIN]: ",
+      prefix: LOG_PREFIX.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
@@ -301,7 +319,7 @@ export class AdminRestApiController {
     await this.userService.restore(userId);
 
     this.logger.audit("User restored", {
-      prefix: "[ADMIN]: ",
+      prefix: LOG_PREFIX.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
@@ -344,5 +362,61 @@ export class AdminRestApiController {
       timestamp: new Date().toISOString(),
     };
     return res.status(HttpStatus.OK).json(payload);
+  };
+
+  /**
+   * Get system logs with filtering support.
+   *
+   * Query params validated via Joi schema (logQueryParamsScheme):
+   * - levels: comma-separated log levels (e.g., "error,warn,info")
+   * - tags: comma-separated tags (e.g., "game,socket")
+   * - correlationId: filter by specific correlation ID (UUID v4)
+   * - gameId: filter by game ID (4-char alphanumeric)
+   * - userId: filter by user ID
+   * - since: ISO timestamp for start of time range
+   * - until: ISO timestamp for end of time range
+   * - search: text search in message (max 100 chars)
+   * - limit: max entries (default: 100, max: 1000)
+   * - offset: pagination offset (default: 0)
+   */
+  private getLogs = async (req: Request, res: Response) => {
+    this.logger.audit("System logs accessed", {
+      prefix: LOG_PREFIX.ADMIN,
+      adminUserId: req.user?.id,
+    });
+
+    // Validate query params via Joi
+    const validated = new RequestDataValidator<LogQueryParams>(
+      req.query as unknown as LogQueryParams,
+      logQueryParamsScheme
+    ).validate();
+
+    // Build filter from validated params
+    const filter: LogFilter = {
+      levels: validated.levels as unknown as string[] | undefined,
+      tags: validated.tags as unknown as LogTag[] | undefined,
+      correlationId: validated.correlationId,
+      gameId: validated.gameId,
+      userId: validated.userId,
+      since: validated.since,
+      until: validated.until,
+      search: validated.search,
+      limit: validated.limit,
+      offset: validated.offset,
+    };
+
+    // Fetch logs
+    const logs = await this.logReaderService.readLogs(filter);
+
+    // TODO: Add total count for pagination when optimized (expensive O(n) scan)
+    // Consider: Redis-based count cache with 30s TTL, invalidate on rotation
+
+    return res.status(HttpStatus.OK).json({
+      logs,
+      filter: {
+        ...filter,
+        tags: filter.tags ? Array.from(filter.tags) : undefined,
+      },
+    });
   };
 }

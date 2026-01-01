@@ -4,6 +4,7 @@ import pino from "pino";
 import type SonicBoom from "sonic-boom";
 
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogContextService } from "infrastructure/logger/LogContext";
 import { LogType } from "infrastructure/logger/LogType";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -52,6 +53,16 @@ const defaultLogPaths: Record<LogType, string> = {
   [LogType.MIGRATION]: path.join(defaultLogDir, "migration.log"),
   [LogType.VERBOSE]: path.join(defaultLogDir, "trace.log"),
 };
+
+/**
+ * Unified log file for multi-instance support.
+ * All logs are written here with full metadata for retrieval via REST API.
+ * TODO: For high-volume production, consider rotating logs or using external log aggregation.
+ */
+const UNIFIED_LOG_PATH = path.join(defaultLogDir, "unified.log");
+
+/** Export for LogReaderService */
+export const getUnifiedLogPath = (): string => UNIFIED_LOG_PATH;
 
 async function ensureLogDirs(paths: string[]): Promise<void> {
   const uniqueDirs = [
@@ -122,6 +133,7 @@ class PerformanceLogImpl implements PerformanceLog {
 export class PinoLogger implements ILogger {
   private readonly loggers: Map<LogType, CustomLogger> = new Map();
   private terminalLogger: CustomLogger | null = null;
+  private unifiedLogger: CustomLogger | null = null;
   private fileStreams: SonicBoom[] = [];
   private initialized = false;
   private logLevel = (process.env.LOG_LEVEL as LogLevel) || "info";
@@ -138,7 +150,7 @@ export class PinoLogger implements ILogger {
     const logger = new PinoLogger();
     try {
       const mergedLogPaths = { ...defaultLogPaths, ...config.logPaths };
-      const allPaths = Object.values(mergedLogPaths);
+      const allPaths = [...Object.values(mergedLogPaths), UNIFIED_LOG_PATH];
       await ensureLogDirs(allPaths);
 
       // Initialize terminal logger
@@ -146,6 +158,9 @@ export class PinoLogger implements ILogger {
 
       // Initialize file loggers
       logger.initFileLoggers(mergedLogPaths);
+
+      // Initialize unified logger for multi-instance support
+      logger.initUnifiedLogger();
 
       logger.initialized = true;
       return logger;
@@ -242,6 +257,56 @@ export class PinoLogger implements ILogger {
         );
       }
     }
+  }
+
+  /**
+   * Initialize unified logger that writes all logs to a single file.
+   * Used for multi-instance log retrieval via REST API.
+   */
+  private initUnifiedLogger(): void {
+    try {
+      const stream = pino.destination({
+        dest: UNIFIED_LOG_PATH,
+        sync: false,
+        mkdir: true,
+      });
+
+      this.fileStreams.push(stream);
+
+      // Unified logger accepts all levels
+      this.unifiedLogger = pino(
+        {
+          level: "trace",
+          customLevels,
+          useOnlyCustomLevels: true,
+          formatters: {
+            level: (label: string) => ({ level: label }),
+          },
+        },
+        stream
+      ) as CustomLogger;
+    } catch (error) {
+      console.error(`Failed to create unified logger:`, error);
+    }
+  }
+
+  /**
+   * Get context metadata from LogContextService for auto-injection.
+   */
+  private getContextMeta(): Record<string, unknown> {
+    const ctx = LogContextService.getContext();
+    if (!ctx) return {};
+
+    const meta: Record<string, unknown> = {
+      correlationId: ctx.correlationId,
+    };
+
+    if (ctx.userId !== undefined) meta.userId = ctx.userId;
+    if (ctx.gameId !== undefined) meta.gameId = ctx.gameId;
+    if (ctx.socketId !== undefined) meta.socketId = ctx.socketId;
+    if (ctx.tags.size > 0) meta.tags = Array.from(ctx.tags);
+
+    return meta;
   }
 
   private getCustomLevel(type: LogType): CustomLevel {
@@ -365,6 +430,9 @@ export class PinoLogger implements ILogger {
       return;
     }
 
+    // Auto-inject context from LogContextService
+    const contextMeta = this.getContextMeta();
+
     // Extract prefix from meta if present, and remove it from metaObj
     let prefix: string | undefined;
     let metaObj: Record<string, unknown> | undefined = undefined;
@@ -378,8 +446,11 @@ export class PinoLogger implements ILogger {
       delete metaObj.prefix;
     }
 
+    // Merge context meta with provided meta (provided meta takes precedence)
+    const mergedMeta = { ...contextMeta, ...(metaObj ?? {}) };
+
     const sanitizedMsg = this.sanitizeMessage(msg);
-    const sanitizedMeta = this.sanitizeMeta(metaObj);
+    const sanitizedMeta = this.sanitizeMeta(mergedMeta);
     const method = this.getLogMethod(type);
 
     // Prepend prefix to message if present
@@ -402,6 +473,16 @@ export class PinoLogger implements ILogger {
       } else {
         fileLogger[method](msgWithPrefix);
       }
+    }
+
+    // Write to unified log file for REST API retrieval (multi-instance support)
+    // Always write to unified log regardless of level (filtering done at read time)
+    if (this.unifiedLogger) {
+      const unifiedMeta = {
+        ...sanitizedMeta,
+        timestamp: new Date().toISOString(),
+      };
+      this.unifiedLogger[method](unifiedMeta, msgWithPrefix);
     }
   }
 

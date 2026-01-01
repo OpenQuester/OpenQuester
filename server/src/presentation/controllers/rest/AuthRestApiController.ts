@@ -26,6 +26,7 @@ import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { RegisterUser } from "domain/types/user/RegisterUser";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 import { PerformanceLog } from "infrastructure/logger/PinoLogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -136,7 +137,7 @@ export class AuthRestApiController {
         break;
       default:
         this.logger.warn(`Unsupported OAuth provider attempted`, {
-          prefix: "[AUTH]: ",
+          prefix: LOG_PREFIX.AUTH,
           provider: authDTO.oauthProvider,
         });
         throw new ClientError(ClientResponse.OAUTH_PROVIDER_NOT_SUPPORTED);
@@ -154,7 +155,7 @@ export class AuthRestApiController {
     req.session.destroy(async (err) => {
       if (err) {
         this.logger.error(`Session destroy failed`, {
-          prefix: "[AUTH]: ",
+          prefix: LOG_PREFIX.AUTH,
           userId,
           error: String(err),
         });
@@ -175,7 +176,7 @@ export class AuthRestApiController {
       log.finish();
 
       this.logger.audit(`User logged out`, {
-        prefix: "[AUTH]: ",
+        prefix: LOG_PREFIX.AUTH,
         userId,
       });
 
@@ -282,7 +283,7 @@ export class AuthRestApiController {
     const log = this.logger.performance(`Guest login`);
 
     this.logger.trace("Guest login attempt started", {
-      prefix: "[AUTH]: ",
+      prefix: LOG_PREFIX.AUTH,
       clientIp,
       userAgent: req.get("User-Agent"),
     });
@@ -335,7 +336,7 @@ export class AuthRestApiController {
     req.session.save((err) => {
       if (err) {
         this.logger.error(`Session save error: ${err}`, {
-          prefix: "[AUTH]: ",
+          prefix: LOG_PREFIX.AUTH,
           userId: userData?.id,
           clientIp,
         });

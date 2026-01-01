@@ -8,6 +8,7 @@ import {
   PaginationOrder,
 } from "domain/types/pagination/PaginationOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -49,7 +50,7 @@ export class GameIndexManager {
     gameData: GameIndexesInputDTO
   ) {
     this.logger.debug("Removing game from indexes", {
-      prefix: "[GameIndexManager]: ",
+      prefix: LOG_PREFIX.GAME_INDEX,
       gameId,
     });
     return Promise.all([
@@ -151,7 +152,7 @@ export class GameIndexManager {
         const ttlResult = ttlResults[index];
         if (ttlResult[1] === null) {
           this.logger.error(`TTL command failed for game:${gameId}`, {
-            prefix: "[GameIndexManager]: ",
+            prefix: LOG_PREFIX.GAME_INDEX,
           });
           return;
         }
@@ -166,14 +167,14 @@ export class GameIndexManager {
     // Clean up orphaned gameIds
     if (orphanedGameIds.length > 0) {
       this.logger.info(`Found ${orphanedGameIds.length} orphaned gameIds`, {
-        prefix: "[GameIndexManager]: ",
+        prefix: LOG_PREFIX.GAME_INDEX,
       });
       const cleanupPromises = orphanedGameIds.map((gameId: string) =>
         this.removeGameFromAllIndexes(gameId).catch((err) => {
           this.logger.error(
             `Failed to clean indexes for game ${gameId}: ${err}`,
             {
-              prefix: "[GameIndexManager]: ",
+              prefix: LOG_PREFIX.GAME_INDEX,
             }
           );
         })

@@ -3,6 +3,7 @@ import {
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { type ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 import { Socket } from "socket.io";
 import { BaseSocketEventHandler } from "./BaseSocketEventHandler";
@@ -36,7 +37,7 @@ export class SocketEventHandlerRegistry {
     if (this.handlers.has(eventName)) {
       this.logger.warn(
         `Handler for event ${eventName} is already registered. Skipping duplicate.`,
-        { prefix: "[SOCKET]: " }
+        { prefix: LOG_PREFIX.SOCKET_REGISTRY }
       );
       return; // Prevent duplicate registration which causes double event handling
     }

@@ -4,6 +4,7 @@ import { SocketIOUserEvents } from "domain/enums/SocketIOEvents";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { UserChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 
 /**
  * Service for managing user notification rooms.
@@ -37,7 +38,7 @@ export class UserNotificationRoomService {
     if (!socket) {
       this.logger.error(
         `Socket ${socketId} not found when subscribing to user ${userId} notifications (likely disconnected)`,
-        { prefix: "[USER_NOTIFICATIONS]: " }
+        { prefix: LOG_PREFIX.NOTIFICATION }
       );
       return;
     }
@@ -45,7 +46,7 @@ export class UserNotificationRoomService {
     await socket.join(roomName);
     this.logger.trace(
       `Socket ${socketId} subscribed to user ${userId} notifications (room: ${roomName})`,
-      { prefix: "[USER_NOTIFICATIONS]: " }
+      { prefix: LOG_PREFIX.NOTIFICATION }
     );
   }
 
@@ -62,7 +63,7 @@ export class UserNotificationRoomService {
     if (!socket) {
       this.logger.error(
         `Socket ${socketId} not found when unsubscribing from user ${userId} notifications (likely disconnected)`,
-        { prefix: "[USER_NOTIFICATIONS]: " }
+        { prefix: LOG_PREFIX.NOTIFICATION }
       );
       return;
     }
@@ -70,7 +71,7 @@ export class UserNotificationRoomService {
     await socket.leave(roomName);
     this.logger.trace(
       `Socket ${socketId} unsubscribed from user ${userId} notifications (room: ${roomName})`,
-      { prefix: "[USER_NOTIFICATIONS]: " }
+      { prefix: LOG_PREFIX.NOTIFICATION }
     );
   }
 
@@ -88,7 +89,7 @@ export class UserNotificationRoomService {
     if (!gameRoom || gameRoom.size === 0) {
       this.logger.error(
         `Game room ${gameId} not found or empty when subscribing to user ${userId} notifications`,
-        { prefix: "[USER_NOTIFICATIONS]: " }
+        { prefix: LOG_PREFIX.NOTIFICATION }
       );
       return;
     }
@@ -98,7 +99,7 @@ export class UserNotificationRoomService {
 
     this.logger.trace(
       `All players in game ${gameId} (${gameRoom.size} sockets) subscribed to user ${userId} notifications (room: ${userRoom})`,
-      { prefix: "[USER_NOTIFICATIONS]: " }
+      { prefix: LOG_PREFIX.NOTIFICATION }
     );
   }
 
@@ -116,7 +117,7 @@ export class UserNotificationRoomService {
     if (!gameRoom) {
       this.logger.error(
         `Game room ${gameId} not found when unsubscribing from user ${userId} notifications`,
-        { prefix: "[USER_NOTIFICATIONS]: " }
+        { prefix: LOG_PREFIX.NOTIFICATION }
       );
       return;
     }
@@ -126,7 +127,7 @@ export class UserNotificationRoomService {
 
     this.logger.trace(
       `All players in game ${gameId} unsubscribed from user ${userId} notifications (room: ${userRoom})`,
-      { prefix: "[USER_NOTIFICATIONS]: " }
+      { prefix: LOG_PREFIX.NOTIFICATION }
     );
   }
 
@@ -170,7 +171,7 @@ export class UserNotificationRoomService {
 
     this.logger.debug(
       `Emitted user change event for user ${userData.id} to room ${roomName} (${socketsInRoom} sockets)`,
-      { prefix: "[USER_NOTIFICATIONS]: " }
+      { prefix: LOG_PREFIX.NOTIFICATION }
     );
   }
 }

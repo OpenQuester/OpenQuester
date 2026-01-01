@@ -1,5 +1,6 @@
 import { ICronJob } from "domain/types/cron/ICronJob";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 
 /**
  * Abstract base class for cron job implementations
@@ -22,7 +23,7 @@ export abstract class BaseCronJob implements ICronJob {
 
     try {
       this.logger.info(`Starting cron job: ${this.name}`, {
-        prefix: "[CRON]: ",
+        prefix: LOG_PREFIX.CRON,
         job: this.name,
       });
 
@@ -30,14 +31,14 @@ export abstract class BaseCronJob implements ICronJob {
 
       const duration = Date.now() - startTime;
       this.logger.info(`Completed cron job: ${this.name}`, {
-        prefix: "[CRON]: ",
+        prefix: LOG_PREFIX.CRON,
         job: this.name,
         durationMs: duration,
       });
     } catch (error) {
       const duration = Date.now() - startTime;
       this.logger.error(`Failed to execute cron job: ${this.name}`, {
-        prefix: "[CRON]: ",
+        prefix: LOG_PREFIX.CRON,
         job: this.name,
         durationMs: duration,
         error: error instanceof Error ? error.message : String(error),

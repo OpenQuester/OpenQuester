@@ -14,6 +14,7 @@ import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Database } from "infrastructure/database/Database";
 import { AppDataSource } from "infrastructure/database/DataSource";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { ServeApi } from "presentation/ServeApi";
 
@@ -36,12 +37,12 @@ const main = async () => {
 
   // No gray method in PinoLogger; use info with prefix for now
   logger.info(`Allowed CORS origins for socket.io: [${allowedHosts}]`, {
-    prefix: "[IO CORS]: ",
+    prefix: LOG_PREFIX.IO_CORS,
   });
   if (allowedHosts.some((host) => host === "*")) {
     allOriginsAllowed = true;
     logger.warn("Current socket.io CORS allows all origins !!", {
-      prefix: "[IO CORS]: ",
+      prefix: LOG_PREFIX.IO_CORS,
     });
   }
 

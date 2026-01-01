@@ -9,6 +9,7 @@ import { ApiContext } from "application/context/ApiContext";
 import { ClientError } from "domain/errors/ClientError";
 import { EnvType } from "infrastructure/config/Environment";
 import { verifySession } from "presentation/middleware/authMiddleware";
+import { correlationMiddleware } from "presentation/middleware/correlationMiddleware";
 import { performanceLogMiddleware } from "presentation/middleware/log/performanceLogMiddleware";
 
 const CORS_PREFIX = "[CORS]: ";
@@ -97,6 +98,10 @@ export class MiddlewareController {
       })
     );
     this.ctx.app.disable("x-powered-by");
+
+    // Correlation ID middleware - must be before performance logging
+    this.ctx.app.use(correlationMiddleware());
+
     this.ctx.app.use(performanceLogMiddleware(this.ctx.logger));
 
     // Trust first proxy to enable secure cookies

@@ -5,6 +5,9 @@ import { ErrorController } from "domain/errors/ErrorController";
 import { GameAction, GameActionResult } from "domain/types/action/GameAction";
 import { GameActionHandlerResult } from "domain/types/action/GameActionHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogContextService } from "infrastructure/logger/LogContext";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogTag } from "infrastructure/logger/LogTag";
 import { GameActionLockService } from "infrastructure/services/lock/GameActionLockService";
 import { GameActionQueueService } from "infrastructure/services/queue/GameActionQueueService";
 
@@ -39,11 +42,15 @@ export class GameActionExecutor {
    * @returns Result indicating success/queued status
    */
   public async submitAction(action: GameAction): Promise<GameActionResult> {
+    // Ensure log context has game and action tags
+    LogContextService.setGameId(action.gameId);
+    LogContextService.addTag(LogTag.QUEUE);
+
     if (!this.handlerRegistry.has(action.type)) {
       const error = `No handler registered for action type: ${action.type}`;
 
       this.logger.error(error, {
-        prefix: "[ACTION_EXECUTOR]: ",
+        prefix: LOG_PREFIX.ACTION,
         actionId: action.id,
         actionType: action.type,
         gameId: action.gameId,
@@ -52,12 +59,19 @@ export class GameActionExecutor {
       return { success: false, error };
     }
 
+    this.logger.info(`Action submitted`, {
+      prefix: LOG_PREFIX.ACTION,
+      actionId: action.id,
+      actionType: action.type,
+      gameId: action.gameId,
+    });
+
     const lockAcquired = await this.lockService.acquireLock(action.gameId);
 
     if (!lockAcquired) {
       await this.queueService.pushAction(action);
-      this.logger.debug(`Action queued due to lock contention`, {
-        prefix: "[ACTION_EXECUTOR]: ",
+      this.logger.info(`Action queued (lock contention)`, {
+        prefix: LOG_PREFIX.ACTION,
         actionId: action.id,
         actionType: action.type,
         gameId: action.gameId,
@@ -78,6 +92,7 @@ export class GameActionExecutor {
    */
   private async executeAction(action: GameAction): Promise<GameActionResult> {
     const handler = this.handlerRegistry.get(action.type)!;
+    const startTime = Date.now();
 
     try {
       const result: GameActionHandlerResult = await handler.execute(action);
@@ -89,12 +104,24 @@ export class GameActionExecutor {
         );
       }
 
+      const durationMs = Date.now() - startTime;
+      this.logger.info(`Action executed`, {
+        prefix: LOG_PREFIX.ACTION,
+        actionId: action.id,
+        actionType: action.type,
+        gameId: action.gameId,
+        success: result.success,
+        durationMs,
+        broadcastCount: result.broadcasts?.length ?? 0,
+      });
+
       return {
         success: result.success,
         data: result.data,
         error: result.error,
       };
     } catch (error) {
+      const durationMs = Date.now() - startTime;
       const { message } = await ErrorController.resolveError(
         error,
         this.logger,
@@ -104,6 +131,7 @@ export class GameActionExecutor {
           actionId: action.id,
           actionType: action.type,
           gameId: action.gameId,
+          durationMs,
         }
       );
 
@@ -122,8 +150,8 @@ export class GameActionExecutor {
       return;
     }
 
-    this.logger.debug(`Processing queued actions`, {
-      prefix: "[ACTION_EXECUTOR]: ",
+    this.logger.info(`Processing queued actions`, {
+      prefix: LOG_PREFIX.ACTION,
       gameId,
       queueLength,
     });
@@ -134,7 +162,7 @@ export class GameActionExecutor {
       this.logger.warn(
         `Cannot process queue - lock held by another operation`,
         {
-          prefix: "[ACTION_EXECUTOR]: ",
+          prefix: LOG_PREFIX.ACTION,
           gameId,
         }
       );

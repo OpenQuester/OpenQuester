@@ -14,6 +14,7 @@ import { type Express } from "express";
 
 import { Environment } from "infrastructure/config/Environment";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 
 export class DevelopmentRestApiController {
@@ -37,7 +38,7 @@ export class DevelopmentRestApiController {
       try {
         const num = req.params.num ? `-${req.params.num}` : "";
         this.logger.audit(`Dev login request triggered`, {
-          prefix: "[DEV]: ",
+          prefix: LOG_PREFIX.DEV,
           id: req.params.num,
         });
         let user = await this.userService.findOne(
@@ -71,7 +72,7 @@ export class DevelopmentRestApiController {
         req.session.save((err) => {
           if (err) {
             this.logger.error(`Session save error: ${err}`, {
-              prefix: "[DEV]: ",
+              prefix: LOG_PREFIX.DEV,
             });
             return res.status(500).json({ error: "Session save failed" });
           }
@@ -87,7 +88,7 @@ export class DevelopmentRestApiController {
         });
       } catch (error) {
         this.logger.error(`Login error: ${error}`, {
-          prefix: "[DEV]: ",
+          prefix: LOG_PREFIX.DEV,
         });
         res.status(500).json({ error: "Login failed" });
       }
@@ -105,7 +106,7 @@ export class DevelopmentRestApiController {
         const packageId = parseInt(req.body.packageId);
 
         this.logger.audit(`Dev generate games triggered`, {
-          prefix: "[DEV]: ",
+          prefix: LOG_PREFIX.DEV,
           count,
           packageId,
         });
@@ -137,7 +138,7 @@ export class DevelopmentRestApiController {
         const count = parseInt(req.query.count as string) || 5;
 
         this.logger.audit(`Dev upload test S3 files triggered`, {
-          prefix: "[DEV]: ",
+          prefix: LOG_PREFIX.DEV,
           count,
         });
 
@@ -156,10 +157,15 @@ export class DevelopmentRestApiController {
           files: uploadedFiles,
         });
       } catch (err: any) {
-        const error = await ErrorController.resolveError(err, this.logger, undefined, {
-          source: "dev",
-          operation: "upload-test-s3-files",
-        });
+        const error = await ErrorController.resolveError(
+          err,
+          this.logger,
+          undefined,
+          {
+            source: "dev",
+            operation: "upload-test-s3-files",
+          }
+        );
         res
           .status(500)
           .json({ error: `Failed to upload test S3 files: ${error.message}` });

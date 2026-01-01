@@ -13,6 +13,7 @@ import {
 import { TimerActionPayload } from "domain/types/action/TimerActionPayload";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 
 /**
  * Stateless action handler for timer expiration events.
@@ -34,7 +35,7 @@ export class TimerExpirationActionHandler
     const { questionState } = payload;
 
     this.logger.debug(`Timer expiration for game ${gameId}`, {
-      prefix: "[TIMER_ACTION]: ",
+      prefix: LOG_PREFIX.TIMER,
       questionState,
     });
 

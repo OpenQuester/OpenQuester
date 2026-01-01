@@ -3,6 +3,7 @@ import Redis, { Callback, RedisKey, RedisValue } from "ioredis";
 import { REDIS_LOCK_KEY_EXPIRE_DEFAULT } from "domain/constants/redis";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
 import {
   RedisLogSanitizer,
   type RedisLogData,
@@ -186,14 +187,14 @@ export class RedisRepository {
         await this.delMultiple(keys);
 
         this.logger.info(`Redis keys cleaned up`, {
-          prefix: "[REDIS]: ",
+          prefix: LOG_PREFIX.REDIS,
           entity: logEntity,
           count: keys.length,
         });
       }
     } catch (err: any) {
       this.logger.error(`Redis cleanup failed`, {
-        prefix: "[REDIS]: ",
+        prefix: LOG_PREFIX.REDIS,
         entity: logEntity,
         error: err.message,
       });

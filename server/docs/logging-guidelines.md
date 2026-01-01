@@ -4,6 +4,42 @@
 
 This document defines logging standards for the OpenQuester backend, based on the 10 rules for effective production logging. These guidelines ensure logs answer diagnostic questions without overwhelming operators.
 
+## Quick Reference: Correlation Tracking
+
+Every request/socket event automatically gets a `correlationId` via `LogContextService` (AsyncLocalStorage-based). Use this to trace execution across async boundaries.
+
+**Architecture Flow:**
+
+```
+HTTP Request / Socket Event
+        ↓
+correlationMiddleware / BaseSocketEventHandler
+        ↓
+LogContextService.runAsync() creates context
+        ↓
+All logs auto-include: correlationId, tags, gameId, userId
+        ↓
+Written to logs/unified.log (all instances)
+        ↓
+GET /v1/admin/api/system/logs (filter by correlationId, tags, etc.)
+```
+
+**Key Files:**
+
+- `infrastructure/logger/LogContext.ts` - AsyncLocalStorage context management
+- `infrastructure/logger/LogTag.ts` - Predefined tags enum
+- `infrastructure/logger/PinoLogger.ts` - Logger with context auto-injection
+- `infrastructure/services/log/LogReaderService.ts` - Read/filter unified logs
+- `presentation/middleware/correlationMiddleware.ts` - HTTP context setup
+
+**Example: Trace a request**
+
+```bash
+# Get correlationId from response header (x-correlation-id) or log output
+# Then filter logs:
+GET /v1/admin/api/system/logs?correlationId=abc-123
+```
+
 ## The 10 Rules
 
 ### 1. Golden Rule: Every log must answer a question
