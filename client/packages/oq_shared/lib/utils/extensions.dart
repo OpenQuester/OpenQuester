@@ -112,7 +112,6 @@ extension PlatformFileX on PlatformFile {
 }
 
 extension FadeInExtension on Widget {
-  /// Aplica una animación de fade in con opciones personalizables
   Widget fadeIn({
     Key? key,
     Duration duration = const Duration(milliseconds: 800),

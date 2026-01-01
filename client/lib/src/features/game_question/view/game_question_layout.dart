@@ -54,7 +54,7 @@ class GameQuestionLayout extends WatchingWidget {
               SizedBox(width: 250, child: bottomContent).flexible(),
           ],
         ).expand(),
-        if (!questionMediaOnLeft && bottomContent != null) bottomContent!,
+        if (!questionMediaOnLeft) ?bottomContent,
       ],
     );
   }

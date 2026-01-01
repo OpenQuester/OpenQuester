@@ -305,8 +305,11 @@ class GameLobbyController {
       _showQuestion();
       _showFinalRound();
       _showStakeQuestion();
-    } catch (e) {
+    } catch (e, s) {
       onError(e);
+      if (!_joinCompleter.isCompleted) {
+        _joinCompleter.completeError(e, s);
+      }
     }
   }
 
