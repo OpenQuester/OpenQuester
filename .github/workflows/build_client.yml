@@ -145,7 +145,7 @@ jobs:
           packageName: com.asion.openquester
           releaseFiles: ./client/build/app/outputs/bundle/release/*.aab
           track: internal
-          status: completed
+          status: draft
           inAppUpdatePriority: 3
 
   build_windows:
