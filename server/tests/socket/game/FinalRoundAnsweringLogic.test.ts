@@ -11,7 +11,7 @@ import {
 } from "domain/types/socket/events/FinalAnswerReviewData";
 import {
   FinalAnswerSubmitOutputData,
-  FinalAutoLossEventData,
+  SocketIOFinalAutoLossEventPayload,
   FinalSubmitEndEventData,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
@@ -201,10 +201,10 @@ describe("Final Round Answering Logic", () => {
       expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.ANSWERING);
 
       // Listen for auto-loss events
-      const autoLossEvents: FinalAutoLossEventData[] = [];
+      const autoLossEvents: SocketIOFinalAutoLossEventPayload[] = [];
       showmanSocket.on(
         SocketIOGameEvents.FINAL_AUTO_LOSS,
-        (data: FinalAutoLossEventData) => {
+        (data: SocketIOFinalAutoLossEventPayload) => {
           autoLossEvents.push(data);
         }
       );
@@ -389,10 +389,10 @@ describe("Final Round Answering Logic", () => {
       );
 
       // Listen for auto-loss events
-      const autoLossEvents: FinalAutoLossEventData[] = [];
+      const autoLossEvents: SocketIOFinalAutoLossEventPayload[] = [];
       showmanSocket.on(
         SocketIOGameEvents.FINAL_AUTO_LOSS,
-        (data: FinalAutoLossEventData) => {
+        (data: SocketIOFinalAutoLossEventPayload) => {
           autoLossEvents.push(data);
         }
       );
