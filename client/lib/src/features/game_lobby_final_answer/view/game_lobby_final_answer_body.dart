@@ -37,11 +37,13 @@ class GameFinalAnswerBody extends WatchingWidget {
     final layout = GameQuestionLayout(
       text: questionData?.question.text,
       file: questionData?.question.questionFiles?.firstOrNull,
-      bottomContent: questionMediaOnLeft
+      bottomContent: (gameData?.imShowman ?? false)
+          ? null
+          : questionMediaOnLeft
           ? answerInput
           : Flexible(child: answerInput.center()),
     );
 
-    return SafeArea(child: layout.paddingAll(16));
+    return SafeArea(child: SingleChildScrollView(child: layout.paddingAll(16)));
   }
 }

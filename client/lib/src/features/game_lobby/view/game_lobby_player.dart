@@ -59,10 +59,7 @@ class GameLobbyPlayer extends WatchingWidget {
                   ),
                   decoration: BoxDecoration(borderRadius: 8.circular),
                   clipBehavior: Clip.antiAlias,
-                  child: ImageWidget(
-                    key: ValueKey(player.meta.avatar),
-                    url: player.meta.avatar,
-                  ),
+                  child: ImageWidget(url: player.meta.avatar),
                 ),
               ),
               Stack(

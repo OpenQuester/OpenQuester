@@ -171,7 +171,7 @@ export class FinalRoundStateManager {
       answer: answerText,
       submittedAt: new Date(),
       autoLoss: answerText.trim().length === 0,
-      isCorrect: answerText.trim().length === 0 ? false : undefined,
+      isCorrect: undefined, // Always undefined initially - showman must review
     };
 
     data.answers.push(answer);

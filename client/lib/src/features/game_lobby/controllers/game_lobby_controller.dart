@@ -272,6 +272,7 @@ class GameLobbyController {
       getIt<GameLobbyThemePickerController>().clear();
       getIt<GameLobbyPlayerStakesController>().clear();
       getIt<GameLobbyReviewController>().clear();
+      getIt<GameLobbyFinalAnswerController>().clear();
       _joinCompleter = JoinCompleter();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
@@ -283,9 +284,7 @@ class GameLobbyController {
     _leave();
   }
 
-  void toggleDesktopChat() {
-    showChat.value = !showChat.value;
-  }
+  void toggleDesktopChat() => showChat.value = !showChat.value;
 
   Future<void> _onGameData(dynamic data) async {
     try {
@@ -523,11 +522,15 @@ class GameLobbyController {
     _showQuestion();
   }
 
-  void _showQuestion() {
+  void _showQuestion({bool dontWaitForPlayers = false}) {
     final question = gameData.value?.gameState.currentQuestion;
     if (question == null) return;
 
-    getIt<GameQuestionController>().questionData.value = GameQuestionData(
+    final controller = getIt<GameQuestionController>();
+    if (dontWaitForPlayers) {
+      controller.ignoreWaitingForPlayers = true;
+    }
+    controller.questionData.value = GameQuestionData(
       file: question.questionFiles?.firstOrNull,
       text: question.text,
     );
@@ -1151,36 +1154,39 @@ class GameLobbyController {
   void _showFinalRound() {
     final finalRoundData = gameData.value?.gameState.finalRoundData;
     if (finalRoundData == null) return;
-    if (finalRoundData.phase == FinalRoundPhase.themeElimination) {
-      getIt<GameLobbyThemePickerController>().startSelect(
-        onSelected: (themeId) => socket?.emit(
-          SocketIoGameSendEvents.themeEliminate.json!,
-          SocketIoThemeEliminateInput(themeId: themeId).toJson(),
-        ),
-      );
-    } else if (finalRoundData.phase == FinalRoundPhase.bidding) {
-      getIt<GameLobbyPlayerStakesController>().startBidding(
-        allPlayersBid: true,
-        bidderId: finalRoundData.turnOrder.first,
-        bids: finalRoundData.bids.map(
-          (key, value) => MapEntry(int.parse(key), value),
-        ),
-        onPlayerBid: (bid) => socket?.emit(
-          SocketIoGameSendEvents.finalBidSubmit.json!,
-          SocketIoFinalBidSubmitInput(bid: bid.bidAmount ?? 0).toJson(),
-        ),
-      );
-    } else if (finalRoundData.phase == FinalRoundPhase.answering) {
-      getIt<GameLobbyPlayerStakesController>().clear();
-      getIt<GameLobbyThemePickerController>().clear();
-      getIt<GameLobbyReviewController>().clear();
 
-      // Show question
-      _showQuestion();
+    switch (finalRoundData.phase) {
+      case FinalRoundPhase.themeElimination:
+        getIt<GameLobbyThemePickerController>().startSelect(
+          onSelected: (themeId) => socket?.emit(
+            SocketIoGameSendEvents.themeEliminate.json!,
+            SocketIoThemeEliminateInput(themeId: themeId).toJson(),
+          ),
+        );
 
-      // Start answer controller for players
-      final me = gameData.value?.me;
-      if (me?.role == PlayerRole.player) {
+      case FinalRoundPhase.bidding:
+        getIt<GameLobbyPlayerStakesController>().startBidding(
+          allPlayersBid: true,
+          bidderId: finalRoundData.turnOrder.first,
+          bids: finalRoundData.bids.map(
+            (key, value) => MapEntry(int.parse(key), value),
+          ),
+          onPlayerBid: (bid) => socket?.emit(
+            SocketIoGameSendEvents.finalBidSubmit.json!,
+            SocketIoFinalBidSubmitInput(bid: bid.bidAmount ?? 0).toJson(),
+          ),
+        );
+
+      case FinalRoundPhase.answering:
+        getIt<GameLobbyPlayerStakesController>().clear();
+        getIt<GameLobbyThemePickerController>().clear();
+        getIt<GameLobbyReviewController>().clear();
+
+        // Show question
+        _showQuestion();
+
+        // Start answer controller for players
+        final me = gameData.value?.me;
         final existingAnswer = finalRoundData.answers
             .where((a) => a.playerId == me?.meta.id)
             .firstOrNull
@@ -1195,11 +1201,28 @@ class GameLobbyController {
             );
           },
         );
-      }
-    } else if (finalRoundData.phase == FinalRoundPhase.reviewing) {
-      getIt<GameLobbyPlayerStakesController>().clear();
-      getIt<GameLobbyThemePickerController>().clear();
-      getIt<GameLobbyReviewController>().startReview();
+
+      case FinalRoundPhase.reviewing:
+        getIt<GameLobbyPlayerStakesController>().clear();
+        getIt<GameLobbyThemePickerController>().clear();
+        getIt<GameLobbyReviewController>().startReview(
+          answers: finalRoundData.answers,
+          bids: finalRoundData.bids.map(
+            (key, value) => MapEntry(int.parse(key), value),
+          ),
+          onReview: (answerId, isCorrect) {
+            socket?.emit(
+              SocketIoGameSendEvents.finalAnswerReview.json!,
+              SocketIoFinalAnswerReviewInput(
+                answerId: answerId,
+                isCorrect: isCorrect,
+              ).toJson(),
+            );
+          },
+        );
+
+      default:
+        break;
     }
   }
 
@@ -1250,7 +1273,6 @@ class GameLobbyController {
       questionData: data.questionData,
     );
 
-    getIt<GameQuestionController>().ignoreWaitingForPlayers = true;
     _showQuestion();
   }
 

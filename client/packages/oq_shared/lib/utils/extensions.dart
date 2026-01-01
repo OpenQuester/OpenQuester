@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:animate_do/animate_do.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:nb_utils/nb_utils.dart';
@@ -108,4 +109,30 @@ extension PlatformFileX on PlatformFile {
 
   /// Check if bytes are available synchronously
   bool get hasBytesSync => bytes != null;
+}
+
+extension FadeInExtension on Widget {
+  /// Aplica una animación de fade in con opciones personalizables
+  Widget fadeIn({
+    Key? key,
+    Duration duration = const Duration(milliseconds: 800),
+    Duration delay = Duration.zero,
+    void Function(AnimationController)? controller,
+    bool manualTrigger = false,
+    bool animate = true,
+    void Function(AnimateDoDirection direction)? onFinish,
+    Curve curve = Curves.easeOut,
+  }) {
+    return FadeIn(
+      key: key,
+      duration: duration,
+      delay: delay,
+      controller: controller,
+      manualTrigger: manualTrigger,
+      animate: animate,
+      onFinish: onFinish,
+      curve: curve,
+      child: this,
+    );
+  }
 }

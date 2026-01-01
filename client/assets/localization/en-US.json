@@ -146,7 +146,12 @@
     "waiting_for_answer": "Lets hear the answer",
     "no_risk_question": "No-risk question",
     "select_question": "Select question",
-    "stake_question": "Stake question"
+    "stake_question": "Stake question",
+    "waiting_for_players": "Waiting for players",
+    "answer_final_question": "Answer the final question",
+    "waiting_for_review": "Waiting for review",
+    "reviewing_answers": "Reviewing answers",
+    "picking_theme": "Picking theme"
   },
   "confirm": "Confirm",
   "game_secret_question": {

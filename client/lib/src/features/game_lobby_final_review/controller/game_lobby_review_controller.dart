@@ -5,12 +5,21 @@ import 'package:openquester/common_imports.dart';
 class GameLobbyReviewController extends ChangeNotifier {
   bool isReviewing = false;
   String? currentReviewingAnswerId;
+  List<FinalRoundAnswer> answers = [];
+  Map<int, int> bids = {};
+  void Function(String answerId, bool isCorrect)? onReview;
 
   /// Start the review phase
-  void startReview() {
-    if (isReviewing) return;
+  void startReview({
+    required List<FinalRoundAnswer> answers,
+    required Map<int, int> bids,
+    required void Function(String answerId, bool isCorrect) onReview,
+  }) {
     isReviewing = true;
     currentReviewingAnswerId = null;
+    this.answers = answers;
+    this.bids = bids;
+    this.onReview = onReview;
     notifyListeners();
   }
 
@@ -19,20 +28,11 @@ class GameLobbyReviewController extends ChangeNotifier {
     required String answerId,
     required bool isCorrect,
   }) async {
-    final socket = getIt<GameLobbyController>().socket;
-    if (socket == null) return;
-
     try {
       currentReviewingAnswerId = answerId;
       notifyListeners();
 
-      socket.emit(
-        SocketIoGameSendEvents.finalAnswerReview.json!,
-        SocketIoFinalAnswerReviewInput(
-          answerId: answerId,
-          isCorrect: isCorrect,
-        ).toJson(),
-      );
+      onReview?.call(answerId, isCorrect);
     } catch (e) {
       logger.e(e);
       await getIt<ToastController>().show(
@@ -45,6 +45,9 @@ class GameLobbyReviewController extends ChangeNotifier {
   void clear() {
     isReviewing = false;
     currentReviewingAnswerId = null;
+    answers = [];
+    bids = {};
+    onReview = null;
     notifyListeners();
   }
 
