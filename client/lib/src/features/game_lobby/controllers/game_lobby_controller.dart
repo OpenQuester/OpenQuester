@@ -288,23 +288,27 @@ class GameLobbyController {
   }
 
   Future<void> _onGameData(dynamic data) async {
-    // Set global game data
-    gameData.value = SocketIoGameJoinEventPayload.fromJson(
-      data as Map<String, dynamic>,
-    );
+    try {
+      // Set global game data
+      gameData.value = SocketIoGameJoinEventPayload.fromJson(
+        data as Map<String, dynamic>,
+      );
 
-    _joinCompleter.complete(true);
+      _joinCompleter.complete(true);
 
-    // Set editor mode after loading game but not starting
-    if (!gameStarted) {
-      lobbyEditorMode.value = true;
+      // Set editor mode after loading game but not starting
+      if (!gameStarted) {
+        lobbyEditorMode.value = true;
+      }
+
+      await _initChat();
+
+      _showQuestion();
+      _showFinalRound();
+      _showStakeQuestion();
+    } catch (e) {
+      onError(e);
     }
-
-    await _initChat();
-
-    _showQuestion();
-    _showFinalRound();
-    _showStakeQuestion();
   }
 
   void _onNextRound(dynamic data) {
@@ -1246,6 +1250,7 @@ class GameLobbyController {
       questionData: data.questionData,
     );
 
+    getIt<GameQuestionController>().ignoreWaitingForPlayers = true;
     _showQuestion();
   }
 

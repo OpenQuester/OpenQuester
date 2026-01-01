@@ -2855,6 +2855,9 @@
             "type": ["integer", "null"],
             "examples": [187]
           },
+          "type": {
+            "$ref": "#/components/schemas/QuestionType"
+          },
           "order": {
             "$ref": "#/components/schemas/PackageEntitiesOrder"
           },
@@ -2896,7 +2899,7 @@
             "examples": [7000]
           },
           "showAnswerDuration": {
-            "type": "integer",
+            "type": ["integer", "null"],
             "description": "Duration in milliseconds for showing the answer",
             "examples": [5000]
           },
@@ -3539,7 +3542,7 @@
           "currentQuestion": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/PackageQuestionData"
+                "$ref": "#/components/schemas/PackageQuestion"
               },
               {
                 "type": "null"
@@ -4251,7 +4254,7 @@
         "description": "Data sent to players when a question is picked, containing question details and timer",
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/PackageQuestionData"
+            "$ref": "#/components/schemas/PackageQuestion"
           },
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
@@ -4414,167 +4417,7 @@
         },
         "required": ["fromPlayerId", "questionId", "toPlayerId"]
       },
-      "PackageQuestionData": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": ["integer", "null"],
-            "examples": [187]
-          },
-          "type": {
-            "$ref": "#/components/schemas/QuestionType"
-          },
-          "order": {
-            "$ref": "#/components/schemas/PackageEntitiesOrder"
-          },
-          "price": {
-            "type": ["integer", "null"],
-            "description": "Price is null only if price is hidden",
-            "examples": [200, null]
-          },
-          "isHidden": {
-            "type": "boolean",
-            "default": false,
-            "description": "Whether the question is hidden",
-            "examples": [false]
-          },
-          "text": {
-            "type": ["string", "null"],
-            "description": "Question text",
-            "examples": ["Where is Kyiv located?"]
-          },
-          "answerHint": {
-            "type": ["string", "null"],
-            "description": "Hint for the answer",
-            "examples": ["It's in Europe"]
-          },
-          "answerText": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionAnswerText"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "answerDelay": {
-            "type": ["integer", "null"],
-            "description": "Delay in milliseconds before being able to answer, if applicable",
-            "default": 4000,
-            "examples": [7000]
-          },
-          "showAnswerDuration": {
-            "type": "integer",
-            "description": "Duration in milliseconds for showing the answer",
-            "examples": [5000]
-          },
-          "questionComment": {
-            "type": ["string", "null"],
-            "description": "Comment or note about the question",
-            "examples": ["You have to say full country name"]
-          },
-          "questionFiles": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/PackageQuestionFile"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "answerFiles": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/PackageQuestionFile"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "subType": {
-            "$ref": "#/components/schemas/QuestionSubType"
-          },
-          "maxPrice": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionMaxPrice"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "allowedPrices": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionAllowedPrices"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "transferType": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionTransferType"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "priceMultiplier": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionPriceMultiplier"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "showDelay": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionShowDelay"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "answers": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/QuestionChoiceAnswers"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "isHidden",
-          "order",
-          "showAnswerDuration",
-          "subType",
-          "type"
-        ]
-      },
+
       "SocketIOThemeEliminateInput": {
         "type": "object",
         "description": "Data sent to eliminate a theme in final round",
@@ -4632,7 +4475,7 @@
             "examples": [123]
           },
           "answerText": {
-            "type": "string",
+            "type": ["string", "null"],
             "description": "The submitted answer text",
             "examples": ["This is my final answer"]
           }
