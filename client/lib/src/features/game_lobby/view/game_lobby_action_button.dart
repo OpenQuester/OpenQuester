@@ -7,8 +7,9 @@ class LobbyActionButton extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final gameStarted = gameData?.gameStarted ?? false;
 
-    if (getIt<GameLobbyController>().gameStarted) return const SizedBox();
+    if (gameStarted) return const SizedBox();
 
     final playerCount = gameData?.players
         .where((p) => p.role == PlayerRole.player)
