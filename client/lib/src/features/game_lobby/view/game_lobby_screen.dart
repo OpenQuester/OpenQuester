@@ -137,12 +137,17 @@ class _BodyBuilder extends WatchingWidget {
     final isReviewing = watchPropertyValue(
       (GameLobbyReviewController e) => e.isReviewing,
     );
+    final isAnsweringFinal = watchPropertyValue(
+      (GameLobbyFinalAnswerController e) => e.isAnswering,
+    );
 
     Widget body;
     if (lobbyEditorMode) {
       body = const GameLobbyEditor().fadeIn();
     } else if (isReviewing) {
       body = const GameFinalReviewBody().fadeIn();
+    } else if (isAnsweringFinal) {
+      body = const GameFinalAnswerBody().fadeIn();
     } else if (isBidding) {
       body = const GameStakeQuestionBody();
     } else if (isPickingTheme) {

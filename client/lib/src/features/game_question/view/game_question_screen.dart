@@ -12,46 +12,11 @@ class GameQuestionScreen extends WatchingWidget {
     final fileData = watchValue((GameQuestionController e) => e.questionData);
     final file = fileData?.file;
     final questionText = fileData?.text;
-    final questionMediaOnLeft = GameLobbyStyles.questionMediaOnLeft(context);
 
-    final scrollController = createOnce(
-      ScrollController.new,
-      dispose: (c) => c.dispose(),
-    );
-    final questionTextWidget = _questionTextAndButtons(
-      context: context,
+    final layout = GameQuestionLayout(
       text: questionText,
       file: file,
-      scrollController: scrollController,
-    );
-
-    final column = Column(
-      spacing: 16,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const GameQuestionTimer(),
-        Flex(
-          spacing: 16,
-          mainAxisAlignment: MainAxisAlignment.center,
-          direction: questionMediaOnLeft ? Axis.horizontal : Axis.vertical,
-          children: [
-            if (!questionMediaOnLeft && questionTextWidget != null)
-              questionTextWidget.flexible(flex: file != null ? 0 : 1),
-            if (file != null) GameQuestionMediaWidget(file: file).expand(),
-            if (questionMediaOnLeft && questionTextWidget != null)
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: file == null ? double.infinity : 150,
-                  maxHeight: file == null ? double.infinity : 300,
-                ),
-                child: questionTextWidget,
-              ).expand(),
-            if (questionMediaOnLeft)
-              const _QuestionBottom().withWidth(250).flexible(),
-          ],
-        ).expand(),
-        if (!questionMediaOnLeft) const _QuestionBottom(),
-      ],
+      bottomContent: const _QuestionBottom(),
     );
 
     return SafeArea(
@@ -66,7 +31,7 @@ class GameQuestionScreen extends WatchingWidget {
               onSecondaryTapDown: (_) =>
                   getIt<GameLobbyController>().onAnswer(),
               supportedDevices: const {PointerDeviceKind.mouse},
-              child: column.paddingAll(16),
+              child: layout.paddingAll(16),
             ),
           ),
         ),
@@ -87,41 +52,6 @@ class GameQuestionScreen extends WatchingWidget {
         onInvoke: (_) => getIt<GameLobbyController>().onAnswer(),
       ),
     };
-  }
-
-  Widget? _questionTextAndButtons({
-    required BuildContext context,
-    required ScrollController scrollController,
-    required String? text,
-    required PackageQuestionFile? file,
-  }) {
-    if (text.isEmptyOrNull) return null;
-
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 50, minWidth: 250),
-      child: Scrollbar(
-        trackVisibility: true,
-        thumbVisibility: true,
-        controller: scrollController,
-        child: Row(
-          children: [
-            ListView(
-              shrinkWrap: true,
-              controller: scrollController,
-              children: [
-                Text(
-                  text ?? '',
-                  style: file != null
-                      ? context.textTheme.bodyLarge
-                      : context.textTheme.headlineLarge,
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ).expand(),
-          ],
-        ),
-      ),
-    );
   }
 }
 

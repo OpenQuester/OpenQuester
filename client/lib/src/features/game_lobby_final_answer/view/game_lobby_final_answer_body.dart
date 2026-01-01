@@ -7,12 +7,16 @@ class GameFinalAnswerBody extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final controller = watchIt<GameLobbyFinalAnswerController>();
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final questionData = gameData?.gameState.finalRoundData?.questionData;
 
-    final body = Column(
+    final questionMediaOnLeft = GameLobbyStyles.questionMediaOnLeft(context);
+
+    final answerInput = Column(
       spacing: 16,
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        const GameQuestionTimer(),
         TextFormField(
           initialValue: controller.userAnswer,
           minLines: 4,
@@ -22,7 +26,7 @@ class GameFinalAnswerBody extends WatchingWidget {
             labelText: LocaleKeys.game_final_round_write_your_answer.tr(),
           ),
           onChanged: controller.onChange,
-        ).center().expand(),
+        ),
         FilledButton(
           onPressed: controller.userAnswer == null ? null : controller.confirm,
           child: Text(LocaleKeys.confirm.tr()),
@@ -30,6 +34,14 @@ class GameFinalAnswerBody extends WatchingWidget {
       ],
     );
 
-    return SafeArea(child: body.paddingAll(16));
+    final layout = GameQuestionLayout(
+      text: questionData?.question.text,
+      file: questionData?.question.questionFiles?.firstOrNull,
+      bottomContent: questionMediaOnLeft
+          ? answerInput
+          : Flexible(child: answerInput.center()),
+    );
+
+    return SafeArea(child: layout.paddingAll(16));
   }
 }

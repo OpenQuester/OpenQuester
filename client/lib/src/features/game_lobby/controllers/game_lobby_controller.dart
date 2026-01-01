@@ -124,6 +124,10 @@ class GameLobbyController {
           _onFinalQuestionData,
         )
         ..on(
+          SocketIoGameReceiveEvents.finalAnswerSubmit.json!,
+          _onFinalAnswerSubmit,
+        )
+        ..on(
           SocketIoGameReceiveEvents.finalAnswerReview.json!,
           _onFinalAnswerReview,
         )
@@ -1166,6 +1170,28 @@ class GameLobbyController {
       getIt<GameLobbyPlayerStakesController>().clear();
       getIt<GameLobbyThemePickerController>().clear();
       getIt<GameLobbyReviewController>().clear();
+
+      // Show question
+      _showQuestion();
+
+      // Start answer controller for players
+      final me = gameData.value?.me;
+      if (me?.role == PlayerRole.player) {
+        final existingAnswer = finalRoundData.answers
+            .where((a) => a.playerId == me?.meta.id)
+            .firstOrNull
+            ?.answer;
+
+        getIt<GameLobbyFinalAnswerController>().startSelect(
+          initialAnswer: existingAnswer,
+          onSelected: (answer) {
+            socket?.emit(
+              SocketIoGameSendEvents.finalAnswerSubmit.json!,
+              SocketIoFinalAnswerSubmitInput(answerText: answer).toJson(),
+            );
+          },
+        );
+      }
     } else if (finalRoundData.phase == FinalRoundPhase.reviewing) {
       getIt<GameLobbyPlayerStakesController>().clear();
       getIt<GameLobbyThemePickerController>().clear();
@@ -1221,6 +1247,20 @@ class GameLobbyController {
     );
 
     _showQuestion();
+  }
+
+  void _onFinalAnswerSubmit(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIoFinalAnswerSubmitPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    // If this is my answer, stop the controller
+    final myId = gameData.value?.me.meta.id;
+    if (data.playerId == myId) {
+      getIt<GameLobbyFinalAnswerController>().stop();
+    }
   }
 
   void _onFinalAnswerReview(dynamic json) {
