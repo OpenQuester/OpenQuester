@@ -105,8 +105,8 @@ class _ImageWidgetState extends State<ImageWidget> {
   Widget placeholder() {
     return Container(
       color: context.theme.primaryColor,
-      padding: 16.all,
-      child: widget.placeholder ?? const SizedBox.shrink(),
+      constraints: const BoxConstraints(minHeight: 24, minWidth: 24),
+      child: widget.placeholder.center(),
     );
   }
 }
