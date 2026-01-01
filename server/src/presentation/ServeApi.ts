@@ -255,9 +255,6 @@ export class ServeApi {
     // Clean up games indexes that expires while server was down (if any)
     await gameService.cleanOrphanedGames();
 
-    // Clean up all authorized socket sessions
-    await socketUserDataService.cleanupAllSession();
-
     // Init key expiration listeners
     await pubSub.initKeyExpirationHandling();
 
