@@ -25,7 +25,7 @@ class GameLobbyController {
   String? get gameId => _gameId;
 
   int get myId => ProfileController.getUser()!.id;
-  bool get gameStarted => gameData.value?.gameState.currentRound != null;
+  bool get gameStarted => gameData.value?.gameStarted ?? false;
 
   JoinCompleter _joinCompleter = JoinCompleter();
 

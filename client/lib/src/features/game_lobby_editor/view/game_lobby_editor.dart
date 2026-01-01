@@ -12,6 +12,7 @@ class GameLobbyEditor extends WatchingWidget {
         _RoleGroup(PlayerRole.showman, showDisconnected: false),
         _RoleGroup(PlayerRole.player),
         _RoleGroup(PlayerRole.spectator),
+        _ClosePlayerEditButton(),
       ],
     );
   }
@@ -226,6 +227,34 @@ class _RoleTitle extends WatchingWidget {
     return Text(
       [roleName, count].nonNulls.join(' '),
       style: context.textTheme.headlineMedium,
+    );
+  }
+}
+
+class _ClosePlayerEditButton extends WatchingWidget {
+  const _ClosePlayerEditButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final gameStarted = gameData?.gameStarted ?? false;
+
+    if (!gameStarted) return const SizedBox();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        FilledButton.tonal(
+          style: const ButtonStyle(
+            minimumSize: WidgetStatePropertyAll(Size(60, 50)),
+          ),
+          onPressed: () {
+            final controller = getIt<GameLobbyController>();
+            controller.lobbyEditorMode.value = false;
+          },
+          child: Text(LocaleKeys.game_lobby_editor_close_player_editor.tr()),
+        ),
+      ],
     );
   }
 }
