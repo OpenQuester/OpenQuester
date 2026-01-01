@@ -125,6 +125,8 @@ extension SocketIoGameJoinEventPayloadX on SocketIoGameJoinEventPayload {
 
     return copyWith(players: players);
   }
+
+  bool get gameStarted => gameState.currentRound != null;
 }
 
 extension SocketIoChatMessageEventPayloadX on SocketIoChatMessageEventPayload {

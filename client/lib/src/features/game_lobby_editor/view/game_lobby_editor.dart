@@ -25,8 +25,9 @@ class _ReadyButton extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final gameStarted = gameData?.gameStarted ?? false;
 
-    if (getIt<GameLobbyController>().gameStarted) return const SizedBox();
+    if (gameStarted) return const SizedBox();
 
     final playerCount = gameData?.players
         .where((p) => p.role == PlayerRole.player)
@@ -303,11 +304,10 @@ class _ClosePlayerEditButton extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
-    watchValue(
-      (GameLobbyController c) => c.gameData,
-    );
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final gameStarted = gameData?.gameStarted ?? false;
 
-    if (!getIt<GameLobbyController>().gameStarted) return const SizedBox();
+    if (!gameStarted) return const SizedBox();
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
