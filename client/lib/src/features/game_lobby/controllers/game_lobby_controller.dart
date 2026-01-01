@@ -875,7 +875,7 @@ class GameLobbyController {
     gameData.value = gameData.value?.changePlayer(
       id: restrictedPlayer.playerId,
       onChange: (player) => player.copyWith(
-        restrictionData: RestrictionsEventData(
+        restrictionData: PlayerRestrictions(
           banned: restrictedPlayer.banned,
           muted: restrictedPlayer.muted,
           restricted: restrictedPlayer.restricted,

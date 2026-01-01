@@ -3299,7 +3299,7 @@
         "type": "string",
         "enum": ["showman", "player", "spectator"]
       },
-      "RestrictionsEventData": {
+      "PlayerRestrictions": {
         "type": "object",
         "properties": {
           "muted": {
@@ -3349,7 +3349,7 @@
             "$ref": "#/components/schemas/PlayerRole"
           },
           "restrictionData": {
-            "$ref": "#/components/schemas/RestrictionsEventData"
+            "$ref": "#/components/schemas/PlayerRestrictions"
           },
           "score": {
             "type": "integer",
@@ -4786,7 +4786,7 @@
         },
         "required": ["answerFiles", "answerText"]
       },
-      "FinalAutoLossEventData": {
+      "SocketIOFinalAutoLossEventPayload": {
         "type": "object",
         "description": "Data sent when a player automatically loses in final round",
         "properties": {

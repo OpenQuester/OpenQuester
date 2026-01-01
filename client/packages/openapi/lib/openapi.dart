@@ -122,6 +122,7 @@ export 'src/models/permissions.dart';
 export 'src/models/player_data.dart';
 export 'src/models/player_data_status.dart';
 export 'src/models/player_meta.dart';
+export 'src/models/player_restrictions.dart';
 export 'src/models/player_role.dart';
 export 'src/models/question.dart';
 export 'src/models/question_allowed_prices.dart';
