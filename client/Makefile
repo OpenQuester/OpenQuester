@@ -49,7 +49,7 @@ START_TIME := $(shell $(GET_TIME))
 # Full build pipeline: generates API, builds packages, runs pre-run tasks, indexes, and formats
 pre_build: gen_api pre_build_packages pre_run gen_indexes format
 	$(call time_target,pre_build,$(START_TIME))
-	@notify-send -u normal "Build Complete" "pre_build finished successfully" && paplay /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || @echo "Notification skipped"
+	@notify-send -u normal "Build Complete" "pre_build finished successfully" 2>/dev/null && paplay /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || echo "Notification skipped"
 
 # Pre-run tasks: generates files, workers, and localization
 pre_run: START_TIME_RUN := $(shell $(GET_TIME))

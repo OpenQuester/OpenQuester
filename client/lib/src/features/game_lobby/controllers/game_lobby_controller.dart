@@ -392,8 +392,11 @@ class GameLobbyController {
 
   void _onUserLeave(dynamic data) {
     if (data is! Map) return;
-    final userId = int.tryParse(data['user']?.toString() ?? '');
-    final user = gameData.value?.players.getById(userId);
+
+    final leaveData = SocketIoGameLeaveEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+    final user = gameData.value?.players.getById(leaveData.user);
     if (user == null) return;
 
     // If i am leaving - close game
