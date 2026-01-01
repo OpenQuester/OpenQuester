@@ -6,14 +6,15 @@ import 'package:nb_utils/nb_utils.dart';
 import 'package:oq_shared/oq_shared.dart';
 
 class ImageWidget extends StatefulWidget {
-  const ImageWidget({
+  ImageWidget({
     required this.url,
     this.avatarRadius,
     this.fit = BoxFit.cover,
     this.afterLoad,
     this.forcedLoaderBuilder,
-    super.key,
-  });
+    this.placeholder,
+    Key? key,
+  }) : super(key: key ?? (url.isEmptyOrNull ? null : ValueKey(url!)));
 
   final String? url;
   final double? avatarRadius;
@@ -21,6 +22,7 @@ class ImageWidget extends StatefulWidget {
   final VoidCallback? afterLoad;
   final Widget Function(BuildContext context, Widget child)?
   forcedLoaderBuilder;
+  final Widget? placeholder;
 
   @override
   State<ImageWidget> createState() => _ImageWidgetState();
@@ -59,12 +61,16 @@ class _ImageWidgetState extends State<ImageWidget> {
     final child = imageProvider == null
         ? placeholder()
         : Image(
+            key: ValueKey(imageProvider),
             image: imageProvider!,
             fit: widget.fit,
             errorBuilder: (_, _, _) => placeholder(),
             frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
               if (widget.forcedLoaderBuilder != null) {
                 return widget.forcedLoaderBuilder!(context, child);
+              }
+              if (wasSynchronouslyLoaded) {
+                return child;
               }
               return loaded ? child.fadeIn() : child;
             },
@@ -78,10 +84,9 @@ class _ImageWidgetState extends State<ImageWidget> {
             },
           );
 
-    // Default to 48px diameter (24 radius) when avatarRadius is not provided.
     final size = widget.avatarRadius != null
         ? (widget.avatarRadius! * 2)
-        : 48.0;
+        : null;
 
     return AnimatedContainer(
       duration: Durations.medium1,
@@ -98,14 +103,10 @@ class _ImageWidgetState extends State<ImageWidget> {
   }
 
   Widget placeholder() {
-    final radius = widget.avatarRadius ?? 24.0;
     return Container(
-      alignment: Alignment.center,
-      child: Icon(
-        Icons.person,
-        size: radius,
-        color: context.theme.colorScheme.onSurface,
-      ),
+      color: context.theme.primaryColor,
+      padding: 16.all,
+      child: widget.placeholder ?? const SizedBox.shrink(),
     );
   }
 }

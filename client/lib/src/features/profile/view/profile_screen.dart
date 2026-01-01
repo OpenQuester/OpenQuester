@@ -67,12 +67,6 @@ class ProfileCard extends WatchingWidget {
                 ? _LoginContent(onClose: onClose)
                 : _ProfileContent(user: user, onClose: onClose),
           ),
-          const Column(
-            spacing: 12,
-            children: [
-              _AppInfo(),
-            ],
-          ).paddingSymmetric(horizontal: 12).paddingBottom(12),
         ],
       ),
     );
@@ -366,37 +360,6 @@ class _InfoRow extends StatelessWidget {
             ),
           ],
         ).paddingLeft(8).expand(),
-      ],
-    );
-  }
-}
-
-class _AppInfo extends StatelessWidget {
-  const _AppInfo();
-
-  @override
-  Widget build(BuildContext context) {
-    return // App info
-    Column(
-      spacing: 4,
-      children: [
-        const UpdateBtn(),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const SizedBox(width: 42),
-            Text(
-              getIt<AutoUpdateController>().getCurrentVersion,
-              style: context.textTheme.bodySmall?.copyWith(
-                color: context.theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            IconButton(
-              onPressed: () => getIt<TalkerLogger>().showTalkerDialog(context),
-              icon: const Icon(Icons.bug_report_outlined, size: 16),
-            ),
-          ],
-        ),
       ],
     );
   }

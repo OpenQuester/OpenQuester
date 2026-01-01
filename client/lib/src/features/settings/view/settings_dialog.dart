@@ -49,10 +49,11 @@ class SettingsDialog extends StatelessWidget {
                 SizedBox(height: 8),
                 _GameSettingsSection(),
                 SizedBox(height: 8),
+                _AppInfo(),
               ],
             ).flexible(),
           ],
-        ).constrained(const BoxConstraints(minHeight: 500)),
+        ).constrained(const BoxConstraints(minHeight: 400)),
       ),
     );
   }
@@ -210,6 +211,36 @@ class _SeedSelector extends WatchingWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _AppInfo extends StatelessWidget {
+  const _AppInfo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      spacing: 4,
+      children: [
+        const UpdateBtn(),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const SizedBox(width: 42),
+            Text(
+              getIt<AutoUpdateController>().getCurrentVersion,
+              style: context.textTheme.bodySmall?.copyWith(
+                color: context.theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            IconButton(
+              onPressed: () => getIt<TalkerLogger>().showTalkerDialog(context),
+              icon: const Icon(Icons.bug_report_outlined, size: 16),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

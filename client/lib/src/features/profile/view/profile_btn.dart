@@ -69,6 +69,10 @@ class ProfileBtn extends WatchingWidget {
           ImageWidget(
             url: avatarUrl,
             avatarRadius: 24,
+            placeholder: const Icon(
+              Icons.person,
+              size: 24,
+            ),
           ),
         ],
       ),
