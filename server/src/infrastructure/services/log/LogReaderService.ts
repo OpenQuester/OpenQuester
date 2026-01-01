@@ -1,9 +1,11 @@
-import { createReadStream } from "fs";
-import { access, constants } from "fs/promises";
-import readline from "readline";
+import { statSync } from "fs";
+import { access, constants, open } from "fs/promises";
 
 import { LogTag } from "infrastructure/logger/LogTag";
 import { getUnifiedLogPath } from "infrastructure/logger/PinoLogger";
+
+/** Default chunk size for reading log file from end (64KB) */
+const READ_CHUNK_SIZE = 64 * 1024;
 
 /**
  * Parsed log entry from unified.log
@@ -49,10 +51,22 @@ export interface LogFilter {
   until?: string;
   /** Search in message text (case-insensitive) */
   search?: string;
-  /** Maximum number of entries to return (default: 100) */
+  /** Number of lines to SCAN from log file (default: 100, max: 1000) */
   limit?: number;
-  /** Offset for pagination (default: 0) */
+  /** Number of lines to SKIP before starting scan (default: 0) */
   offset?: number;
+}
+
+/**
+ * Result from log scan operation
+ */
+export interface LogScanResult {
+  /** Matching log entries within scanned window */
+  logs: LogEntry[];
+  /** Number of lines scanned */
+  scanned: number;
+  /** Number of lines skipped (offset) */
+  skipped: number;
 }
 
 /**
@@ -61,20 +75,18 @@ export interface LogFilter {
  *
  * Follows Single Responsibility: only reads/filters logs, doesn't write.
  *
+ * SCAN-BASED PAGINATION:
+ * - `limit` = number of lines to scan (not results to return)
+ * - `offset` = number of lines to skip before scanning
+ * - Returns all matches within scan window (may be 0 to limit)
+ * - Fast, predictable response time regardless of filter strictness
+ *
  * TODO: Production scaling improvements:
  * 1. Log rotation: Implement date-based rotation (e.g., unified-2025-01-01.log)
- *    and update readLogs() to scan multiple files. Consider using winston-daily-rotate-file
- *    or a custom RotatingFileTransport.
- * 2. Indexing: For >100k entries, add Redis-based index:
- *    - Store correlationId → [lineNumbers] mapping
- *    - Store gameId → [lineNumbers] mapping
- *    - Rebuild index on rotation
- * 3. External storage: For enterprise scale, integrate with:
- *    - Elasticsearch (full-text search, aggregations)
- *    - Grafana Loki (label-based queries, cost-effective)
- *    - AWS CloudWatch Logs (if on AWS)
- * 4. Streaming: Add WebSocket endpoint using readline + EventEmitter to
- *    tail -f the log file and emit new entries to connected admins.
+ *    and update readLogs() to scan multiple files.
+ * 2. Indexing: For >100k entries, add Redis-based index for correlationId/gameId.
+ * 3. External storage: For enterprise scale, integrate with Elasticsearch/Loki.
+ * 4. Streaming: Add WebSocket endpoint for real-time log tailing.
  */
 export class LogReaderService {
   private readonly logPath: string;
@@ -96,49 +108,53 @@ export class LogReaderService {
   }
 
   /**
-   * Read logs with filters applied.
-   * Reads file in reverse order (newest first).
+   * Read logs using scan-based pagination.
    *
-   * TODO: Performance optimization for large files (>10MB):
-   * - Current: O(n) full scan, loads all matching entries into memory
-   * - Option A: Read file in reverse using fs.read() with byte offsets
-   * - Option B: Maintain line offset index in Redis for fast seeks
-   * - Option C: Use external log aggregator that supports efficient queries
-   * For now, acceptable for admin debugging use case (<1000 req/day).
+   * SCAN STRATEGY (not "find until N matches"):
+   * - `limit`: Number of lines to SCAN from the file (default: 100)
+   * - `offset`: Number of lines to SKIP before starting scan
+   * - Returns all matching entries within the scanned window
+   *
+   * This ensures predictable, fast response times regardless of filter strictness.
+   * With rare filters (e.g., specific correlationId), you may get fewer results,
+   * but the scan completes quickly. Client can request next page to find more.
+   *
+   * Memory usage: O(limit) - only scanned lines in memory.
+   * Time complexity: O(offset + limit) - skips offset, scans limit lines.
    */
-  async readLogs(filter: LogFilter = {}): Promise<LogEntry[]> {
+  async readLogs(filter: LogFilter = {}): Promise<LogScanResult> {
     const limit = filter.limit ?? 100;
     const offset = filter.offset ?? 0;
 
     if (!(await this.fileExists())) {
-      return [];
+      return { logs: [], scanned: 0, skipped: 0 };
     }
 
     const entries: LogEntry[] = [];
-    let matchCount = 0;
-    let skipCount = 0;
+    let linesScanned = 0;
+    let linesSkipped = 0;
 
-    const fileStream = createReadStream(this.logPath, { encoding: "utf8" });
-    const rl = readline.createInterface({
-      input: fileStream,
-      crlfDelay: Infinity,
-    });
-
-    // Collect all matching entries first
-    // TODO: Memory optimization - for files >50MB, implement streaming pagination:
-    // 1. Track byte offset of each match
-    // 2. On subsequent page requests, seek to stored offset
-    // 3. This avoids re-scanning entire file for each page
-
-    const allMatching: LogEntry[] = [];
-
-    for await (const line of rl) {
+    // Read file from end in chunks
+    for await (const line of this.readLinesFromEnd()) {
       if (!line.trim()) continue;
+
+      // Skip `offset` lines first
+      if (linesSkipped < offset) {
+        linesSkipped++;
+        continue;
+      }
+
+      // Stop after scanning `limit` lines
+      if (linesScanned >= limit) {
+        break;
+      }
+
+      linesScanned++;
 
       try {
         const entry = this.parseLine(line);
         if (entry && this.matchesFilter(entry, filter)) {
-          allMatching.push(entry);
+          entries.push(entry);
         }
       } catch {
         // Skip malformed lines
@@ -146,31 +162,72 @@ export class LogReaderService {
       }
     }
 
-    // Return in reverse order (newest first) with pagination
-    const reversed = allMatching.reverse();
-    for (const entry of reversed) {
-      if (skipCount < offset) {
-        skipCount++;
-        continue;
-      }
-
-      entries.push(entry);
-      matchCount++;
-
-      if (matchCount >= limit) break;
-    }
-
-    return entries;
+    return {
+      logs: entries,
+      scanned: linesScanned,
+      skipped: linesSkipped,
+    };
   }
 
   /**
-   * Get total count of logs matching filter (for pagination).
+   * Async generator that yields lines from file end to start.
+   * Reads file in chunks for memory efficiency.
    *
-   * TODO: Caching strategy for count queries:
-   * - Cache key: hash of filter params (levels, tags, correlationId, etc.)
-   * - TTL: 30 seconds (logs change frequently)
-   * - Invalidate on log rotation
-   * - Use Redis INCR to track approximate counts per minute
+   * This enables streaming pagination without loading entire file.
+   */
+  private async *readLinesFromEnd(): AsyncGenerator<string> {
+    const stats = statSync(this.logPath);
+    const fileSize = stats.size;
+
+    if (fileSize === 0) return;
+
+    const fd = await open(this.logPath, "r");
+
+    try {
+      let position = fileSize;
+      let leftover = "";
+
+      while (position > 0) {
+        // Calculate chunk to read
+        const chunkSize = Math.min(READ_CHUNK_SIZE, position);
+        position -= chunkSize;
+
+        // Read chunk
+        const buffer = Buffer.alloc(chunkSize);
+        await fd.read(buffer, 0, chunkSize, position);
+        const chunk = buffer.toString("utf8") + leftover;
+
+        // Split into lines
+        const lines = chunk.split("\n");
+
+        // First element may be partial line (continues from previous chunk)
+        leftover = lines.shift() || "";
+
+        // Yield lines in reverse order (newest first)
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (line) {
+            yield line;
+          }
+        }
+      }
+
+      // Yield any remaining content from the start of file
+      if (leftover.trim()) {
+        yield leftover.trim();
+      }
+    } finally {
+      await fd.close();
+    }
+  }
+
+  /**
+   * Get total count of logs matching filter (for pagination info).
+   *
+   * Note: This still requires full scan. For production, consider:
+   * - Caching count with short TTL (30s)
+   * - Approximate counts from periodic sampling
+   * - Skip count endpoint entirely (use "hasMore" flag instead)
    */
   async countLogs(filter: LogFilter = {}): Promise<number> {
     if (!(await this.fileExists())) {
@@ -179,13 +236,7 @@ export class LogReaderService {
 
     let count = 0;
 
-    const fileStream = createReadStream(this.logPath, { encoding: "utf8" });
-    const rl = readline.createInterface({
-      input: fileStream,
-      crlfDelay: Infinity,
-    });
-
-    for await (const line of rl) {
+    for await (const line of this.readLinesFromEnd()) {
       if (!line.trim()) continue;
 
       try {

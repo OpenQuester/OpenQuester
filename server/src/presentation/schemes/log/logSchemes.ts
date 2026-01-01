@@ -4,19 +4,25 @@ import { LogTag } from "infrastructure/logger/LogTag";
 
 /** Maximum characters allowed in search query (prevents regex DoS) */
 const SEARCH_MAX_LENGTH = 100;
-/** Default number of log entries per page */
-const LIMIT_DEFAULT = 100;
-/** Maximum number of log entries per request */
-const LIMIT_MAX = 1000;
-/** Minimum number of log entries per request */
-const LIMIT_MIN = 1;
-/** Minimum pagination offset */
+/** Default number of lines to scan per request */
+const SCAN_LIMIT_DEFAULT = 100;
+/** Maximum number of lines to scan per request */
+const SCAN_LIMIT_MAX = 1000;
+/** Minimum number of lines to scan per request */
+const SCAN_LIMIT_MIN = 1;
+/** Minimum lines to skip before scanning */
 const OFFSET_MIN = 0;
 /** Game ID format: 4 uppercase alphanumeric characters */
 const GAME_ID_PATTERN = /^[A-Z0-9]{4}$/;
 
 /**
  * Query params for GET /admin/api/system/logs endpoint.
+ *
+ * SCAN-BASED PAGINATION:
+ * - `limit`: Number of log lines to SCAN (not results to return)
+ * - `offset`: Number of lines to SKIP before starting scan
+ * - Response may contain 0 to `limit` matching entries
+ * - Use `hasMore` and `nextOffset` from response for pagination
  */
 export interface LogQueryParams {
   /** Comma-separated log levels (e.g., "error,warn,info") */
@@ -35,9 +41,9 @@ export interface LogQueryParams {
   until?: string;
   /** Text search in message */
   search?: string;
-  /** Max entries (default: 100, max: 1000) */
+  /** Number of lines to SCAN (default: 100, max: 1000) */
   limit?: number;
-  /** Pagination offset (default: 0) */
+  /** Lines to SKIP before scanning (default: 0) */
   offset?: number;
 }
 
@@ -95,12 +101,12 @@ export const logQueryParamsScheme = Joi.object<LogQueryParams>({
   // Search text - limit length to prevent regex DoS
   search: Joi.string().optional().max(SEARCH_MAX_LENGTH),
 
-  // Pagination
+  // Scan-based pagination
   limit: Joi.number()
     .optional()
     .integer()
-    .min(LIMIT_MIN)
-    .max(LIMIT_MAX)
-    .default(LIMIT_DEFAULT),
+    .min(SCAN_LIMIT_MIN)
+    .max(SCAN_LIMIT_MAX)
+    .default(SCAN_LIMIT_DEFAULT),
   offset: Joi.number().optional().integer().min(OFFSET_MIN).default(OFFSET_MIN),
 });

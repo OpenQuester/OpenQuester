@@ -405,14 +405,16 @@ export class AdminRestApiController {
       offset: validated.offset,
     };
 
-    // Fetch logs
-    const logs = await this.logReaderService.readLogs(filter);
-
-    // TODO: Add total count for pagination when optimized (expensive O(n) scan)
-    // Consider: Redis-based count cache with 30s TTL, invalidate on rotation
+    // Fetch logs using scan-based pagination
+    const result = await this.logReaderService.readLogs(filter);
 
     return res.status(HttpStatus.OK).json({
-      logs,
+      logs: result.logs,
+      pagination: {
+        scanned: result.scanned,
+        skipped: result.skipped,
+        matched: result.logs.length,
+      },
       filter: {
         ...filter,
         tags: filter.tags ? Array.from(filter.tags) : undefined,
