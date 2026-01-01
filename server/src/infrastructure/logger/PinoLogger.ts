@@ -61,8 +61,14 @@ const defaultLogPaths: Record<LogType, string> = {
  */
 const UNIFIED_LOG_PATH = path.join(defaultLogDir, "unified.log");
 
-/** Export for LogReaderService */
-export const getUnifiedLogPath = (): string => UNIFIED_LOG_PATH;
+/**
+ * Export for LogReaderService.
+ * Supports LOG_FILE_PATH env override for testing with isolated temp files.
+ *
+ * Use direct process.env access since Environment class depends on logger
+ */
+export const getUnifiedLogPath = (): string =>
+  process.env.LOG_FILE_PATH || UNIFIED_LOG_PATH;
 
 async function ensureLogDirs(paths: string[]): Promise<void> {
   const uniqueDirs = [
