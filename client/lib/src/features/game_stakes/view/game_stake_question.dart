@@ -32,7 +32,10 @@ class GameStakeQuestionBody extends WatchingWidget {
             if (!(gameData?.imSpectator ?? true))
               AppAnimatedSwitcher(
                 sizeTransitionAxis: direction,
-                visible: playerMakesABid || (gameData?.imShowman ?? false),
+                visible:
+                    stakeController.allPlayersBid ||
+                    playerMakesABid ||
+                    (gameData?.imShowman ?? false),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxWidth: questionMediaOnLeft ? 250 : double.infinity,

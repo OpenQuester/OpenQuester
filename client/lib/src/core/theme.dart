@@ -116,8 +116,11 @@ class AppTheme {
 class ExtraColors extends ThemeExtension<ExtraColors> {
   const ExtraColors({required this.success, required this.warning});
 
-  final Color? success;
-  final Color? warning;
+  final Color success;
+  final Color warning;
+
+  static ExtraColors of(BuildContext context) =>
+      Theme.of(context).extension<ExtraColors>()!;
 
   @override
   ThemeExtension<ExtraColors> copyWith({Color? success, Color? warning}) {
@@ -129,15 +132,15 @@ class ExtraColors extends ThemeExtension<ExtraColors> {
 
   @override
   ThemeExtension<ExtraColors> lerp(
-    covariant ThemeExtension<ExtraColors>? other,
+    covariant ThemeExtension<ExtraColors> other,
     double t,
   ) {
     if (other is! ExtraColors) {
       return this;
     }
     return ExtraColors(
-      success: Color.lerp(success, other.success, t),
-      warning: Color.lerp(warning, other.warning, t),
+      success: Color.lerp(success, other.success, t) ?? success,
+      warning: Color.lerp(warning, other.warning, t) ?? warning,
     );
   }
 }

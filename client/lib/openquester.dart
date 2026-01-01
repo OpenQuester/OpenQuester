@@ -75,6 +75,8 @@ export 'src/features/game_lobby_editor/view/game_lobby_editor_players.dart';
 export 'src/features/game_lobby_editor/view/player_edit_btn.dart';
 export 'src/features/game_lobby_final_answer/controllers/game_lobby_final_answer_controller.dart';
 export 'src/features/game_lobby_final_answer/view/game_lobby_final_answer_body.dart';
+export 'src/features/game_lobby_final_review/controller/game_lobby_review_controller.dart';
+export 'src/features/game_lobby_final_review/view/game_final_review_body.dart';
 export 'src/features/game_lobby_player_picker/controllers/game_lobby_player_picker_controller.dart';
 export 'src/features/game_lobby_player_picker/view/game_lobby_player_picker.dart';
 export 'src/features/game_preview/controllers/game_preview_controller.dart';

@@ -45,7 +45,7 @@ class ToastController {
 
     if (context != null) {
       wideMode = UiModeUtils.wideModeOn(context);
-      extraColors = Theme.of(context).extension<ExtraColors>();
+      extraColors = ExtraColors.of(context);
     }
 
     final primaryColor = switch (type) {

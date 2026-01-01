@@ -27,10 +27,10 @@ extension DurationX on Duration {
 
 extension IPackageItemAgeRestrictionX on AgeRestriction {
   (String, Color)? format(BuildContext context) {
-    final colors = Theme.of(context).extension<ExtraColors>()!;
+    final colors = ExtraColors.of(context);
     return {
-      AgeRestriction.a12: ('12+', colors.success!),
-      AgeRestriction.a16: ('16+', colors.warning!),
+      AgeRestriction.a12: ('12+', colors.success),
+      AgeRestriction.a16: ('16+', colors.warning),
       AgeRestriction.a18: ('18+', context.theme.colorScheme.error),
     }[this];
   }

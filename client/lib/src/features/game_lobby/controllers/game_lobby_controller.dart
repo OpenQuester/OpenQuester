@@ -119,6 +119,14 @@ class GameLobbyController {
           SocketIoGameReceiveEvents.finalBidSubmit.json!,
           _onFinalBidSubmit,
         )
+        ..on(
+          SocketIoGameReceiveEvents.finalQuestionData.json!,
+          _onFinalQuestionData,
+        )
+        ..on(
+          SocketIoGameReceiveEvents.finalAnswerReview.json!,
+          _onFinalAnswerReview,
+        )
         ..connect();
 
       return await _joinCompleter.future;
@@ -259,6 +267,7 @@ class GameLobbyController {
       getIt<GameLobbyPlayerPickerController>().clear();
       getIt<GameLobbyThemePickerController>().clear();
       getIt<GameLobbyPlayerStakesController>().clear();
+      getIt<GameLobbyReviewController>().clear();
       _joinCompleter = JoinCompleter();
     } catch (e, s) {
       logger.e(e, stackTrace: s);
@@ -1025,6 +1034,7 @@ class GameLobbyController {
         -1;
 
     getIt<GameLobbyPlayerStakesController>().startBidding(
+      allPlayersBid: false,
       bidderId: bidderId,
       bids: stakeData.bids.map((key, value) => MapEntry(int.parse(key), value)),
       onPlayerBid: (bid) => socket?.emit(
@@ -1142,6 +1152,7 @@ class GameLobbyController {
       );
     } else if (finalRoundData.phase == FinalRoundPhase.bidding) {
       getIt<GameLobbyPlayerStakesController>().startBidding(
+        allPlayersBid: true,
         bidderId: finalRoundData.turnOrder.first,
         bids: finalRoundData.bids.map(
           (key, value) => MapEntry(int.parse(key), value),
@@ -1154,6 +1165,12 @@ class GameLobbyController {
     } else if (finalRoundData.phase == FinalRoundPhase.answering) {
       getIt<GameLobbyPlayerStakesController>().clear();
       getIt<GameLobbyThemePickerController>().clear();
+      getIt<GameLobbyReviewController>().clear();
+      getIt<GameLobbyReviewController>().clear();
+    } else if (finalRoundData.phase == FinalRoundPhase.reviewing) {
+      getIt<GameLobbyPlayerStakesController>().clear();
+      getIt<GameLobbyThemePickerController>().clear();
+      getIt<GameLobbyReviewController>().startReview();
     }
   }
 
@@ -1191,6 +1208,57 @@ class GameLobbyController {
         (key, value) => MapEntry(int.parse(key), value),
       ),
     );
+  }
+
+  void _onFinalQuestionData(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIoFinalQuestionEventDataPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    gameData.value = gameData.value?.copyWith.gameState.finalRoundData!(
+      questionData: data.questionData,
+    );
+
+    _showQuestion();
+  }
+
+  void _onFinalAnswerReview(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIoFinalAnswerReviewPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    final finalRoundData = gameData.value?.gameState.finalRoundData;
+    if (finalRoundData == null) return;
+
+    // Update the answer in the answers list
+    final updatedAnswers = finalRoundData.answers.map((answer) {
+      if (answer.id == data.answerId) {
+        return answer.copyWith(
+          isCorrect: data.isCorrect,
+          reviewedAt: DateTime.now(),
+        );
+      }
+      return answer;
+    }).toList();
+
+    gameData.value = gameData.value!.copyWith.gameState.finalRoundData!(
+      answers: updatedAnswers,
+    );
+
+    // Update player score
+    gameData.value = gameData.value?.changePlayer(
+      id: data.playerId,
+      onChange: (player) => player.copyWith(
+        score: player.score + data.scoreChange,
+      ),
+    );
+
+    // Clear currentReviewingAnswerId
+    getIt<GameLobbyReviewController>().updateReviewingAnswerId(null);
   }
 
   void notifyMediaDownloaded() =>

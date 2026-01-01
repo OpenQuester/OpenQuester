@@ -21,7 +21,7 @@ class GameLobbyPlayer extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
-    final extraColors = Theme.of(context).extension<ExtraColors>()!;
+    final extraColors = ExtraColors.of(context);
     final foregroundColor = Colors.black.withValues(alpha: .4);
     final borderColor = switch (settings.playerAnswerState) {
       PlayerAnswerState.wrong => Colors.red,

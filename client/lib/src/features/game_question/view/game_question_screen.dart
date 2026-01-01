@@ -314,11 +314,11 @@ class _ShowmanControls extends WatchingWidget {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final playerAnswering = gameData?.gameState.answeringPlayer != null;
 
-    final extraColors = Theme.of(context).extension<ExtraColors>();
+    final extraColors = ExtraColors.of(context);
 
     ButtonStyle buttonStyle({required bool correctAnswer}) {
       final background = correctAnswer
-          ? extraColors?.success
+          ? extraColors.success
           : context.theme.colorScheme.error;
       return ButtonStyle(
         backgroundColor: WidgetStatePropertyAll(background),
