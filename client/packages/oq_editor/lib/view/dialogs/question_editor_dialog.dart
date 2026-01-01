@@ -109,7 +109,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
     if (questionFiles != null) {
       for (final file in questionFiles) {
-        if (file == null) continue;
         final ref = _getOrCreateMediaFileReference(
           controller,
           file.file.md5,
@@ -140,7 +139,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
     if (answerFiles != null) {
       for (final file in answerFiles) {
-        if (file == null) continue;
         final ref = _getOrCreateMediaFileReference(
           controller,
           file.file.md5,
@@ -185,7 +183,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       _answerHintController = TextEditingController();
       _questionCommentController = TextEditingController();
       _answerDelayController = TextEditingController(
-        text: controller.lastUsedAnswerDelay.toString(),
+        text: controller.lastUsedShowAnswerDuration.toString(),
       );
     } else {
       // Edit existing question - extract all fields
@@ -966,7 +964,6 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
             : (_choiceAnswers.last.order) + 1;
         _choiceAnswers.add(
           QuestionChoiceAnswers(
-            id: null,
             order: order,
             text: result,
           ),
@@ -1110,7 +1107,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     // Parse common optional fields
     final answerHint = _answerHintController.text.trim();
     final questionComment = _questionCommentController.text.trim();
-    final answerDelay = int.tryParse(_answerDelayController.text) ?? 4000;
+    final showAnswerDuration =
+        int.tryParse(_answerDelayController.text) ?? 4000;
 
     // Get existing order or use 0 for new
     final order =
@@ -1138,18 +1136,15 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     controller
       // Save settings to controller for next question
       ..lastUsedPrice = price
-      ..lastUsedAnswerDelay = answerDelay;
+      ..lastUsedShowAnswerDuration = showAnswerDuration;
     final questionFiles = await Future.wait(
       _questionMediaFiles.map((uiFile) async {
         final hash = await controller.registerMediaFile(uiFile.reference);
         return PackageQuestionFile(
-          id: null,
           order: uiFile.order,
           file: FileItem(
-            id: null,
             md5: hash,
             type: uiFile.type,
-            link: null,
           ),
           displayTime: uiFile.displayTime,
         );
@@ -1160,13 +1155,10 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       _answerMediaFiles.map((uiFile) async {
         final hash = await controller.registerMediaFile(uiFile.reference);
         return PackageQuestionFile(
-          id: null,
           order: uiFile.order,
           file: FileItem(
-            id: null,
             md5: hash,
             type: uiFile.type,
-            link: null,
           ),
           displayTime: uiFile.displayTime,
         );
@@ -1186,7 +1178,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           questionFiles: questionFiles.isEmpty ? null : questionFiles,
           answerFiles: answerFiles.isEmpty ? null : answerFiles,
@@ -1202,7 +1194,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           subType: _stakeSubType,
           maxPrice: _stakeMaxPrice,
@@ -1220,7 +1212,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           subType: _secretSubType,
           allowedPrices: _secretAllowedPrices.isEmpty
@@ -1241,7 +1233,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           subType: _noRiskSubType,
           priceMultiplier: _noRiskPriceMultiplier,
@@ -1259,9 +1251,8 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
-          subType: null,
           showDelay: _choiceShowDelay,
           answers: _choiceAnswers,
           questionFiles: questionFiles.isEmpty ? null : questionFiles,
@@ -1278,7 +1269,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           questionFiles: questionFiles.isEmpty ? null : questionFiles,
           answerFiles: answerFiles.isEmpty ? null : answerFiles,
@@ -1295,7 +1286,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           answerText: answerText.isEmpty ? null : answerText,
           answerHint: answerHint.isEmpty ? null : answerHint,
           questionComment: questionComment.isEmpty ? null : questionComment,
-          answerDelay: answerDelay,
+          showAnswerDuration: showAnswerDuration,
           isHidden: _isHidden,
           questionFiles: questionFiles.isEmpty ? null : questionFiles,
           answerFiles: answerFiles.isEmpty ? null : answerFiles,

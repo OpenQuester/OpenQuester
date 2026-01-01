@@ -300,6 +300,7 @@ export class PackageRepository {
               transferType: questionData.transferType,
               priceMultiplier: questionData.priceMultiplier,
               showDelay: questionData.showDelay,
+              showAnswerDuration: questionData.showAnswerDuration,
             });
             questionsToSave.push(question);
             orders.add(questionData.order);

@@ -25,6 +25,7 @@ export enum GameActionType {
   QUESTION_SKIP = "question-skip",
   QUESTION_UNSKIP = "question-unskip",
   SKIP_QUESTION_FORCE = "skip-question-force",
+  SKIP_SHOW_ANSWER = "skip-show-answer",
   SECRET_QUESTION_TRANSFER = "secret-question-transfer",
   STAKE_BID_SUBMIT = "stake-bid-submit",
 

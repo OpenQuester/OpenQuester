@@ -30,9 +30,6 @@ class ProfileController {
     );
     await Api.I.api.users.patchV1Me(
       body: InputUpdateUser(
-        username: null,
-        email: null,
-        birthday: null,
         avatar: filename,
       ),
     );

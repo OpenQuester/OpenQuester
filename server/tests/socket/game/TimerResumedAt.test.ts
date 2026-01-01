@@ -371,7 +371,7 @@ describe("Timer resumedAt Field", () => {
 
         // Verify new player receives game state with resumedAt
         expect(gameData.gameState.timer).toBeDefined();
-        expect(gameData.gameState.timer.resumedAt).not.toBeNull();
+        expect(gameData.gameState.timer!.resumedAt).not.toBeNull();
 
         // Cleanup new socket
         await utils.disconnectAndCleanup(newPlayerSocket);

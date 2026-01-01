@@ -1,6 +1,4 @@
-import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   SocketBroadcastTarget,
@@ -15,6 +13,7 @@ import {
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import {
@@ -30,9 +29,10 @@ export class AnswerResultActionHandler
     GameActionHandler<AnswerResultData, QuestionAnswerResultEventPayload>
 {
   constructor(
-    private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly gameProgressionCoordinator: GameProgressionCoordinator
-  ) {}
+    private readonly socketIOQuestionService: SocketIOQuestionService
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<AnswerResultData>
@@ -49,59 +49,46 @@ export class AnswerResultActionHandler
       action.payload
     );
 
-    const shouldFinishQuestion =
+    const shouldShowAnswer =
       playerAnswerResult.answerType === AnswerResultType.CORRECT ||
       allPlayersSkipped;
 
-    if (shouldFinishQuestion) {
+    if (shouldShowAnswer) {
       const questionData = allPlayersSkipped ? skippedQuestion : question;
-      return this.buildQuestionFinishResult(
+      return this.buildShowAnswerResult(
         game.id,
         playerAnswerResult,
         questionData ?? null,
-        game
+        timer,
+        game.gameState.currentTurnPlayerId ?? null
       );
     }
 
     return this.buildContinueQuestionResult(game.id, playerAnswerResult, timer);
   }
 
-  private async buildQuestionFinishResult(
+  /**
+   * Build result for transitioning to SHOWING_ANSWER state.
+   * Sends ANSWER_RESULT → QUESTION_FINISH → ANSWER_SHOW_START (empty payload).
+   */
+  private buildShowAnswerResult(
     gameId: string,
     playerAnswerResult: GameStateAnsweredPlayerData,
     questionData: PackageQuestionDTO | null,
-    game: Game
-  ): Promise<GameActionHandlerResult<QuestionAnswerResultEventPayload>> {
-    const { isGameFinished, nextGameState } =
-      await this.socketIOQuestionService.handleRoundProgression(game);
-
-    const progressionResult =
-      await this.gameProgressionCoordinator.processGameProgression({
-        game,
-        isGameFinished,
-        nextGameState,
-        questionFinishData: {
-          answerFiles: questionData?.answerFiles ?? null,
-          answerText: questionData?.answerText ?? null,
-          nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-        },
-      });
-
+    timer: GameStateTimerDTO | null,
+    nextTurnPlayerId: number | null
+  ): GameActionHandlerResult<QuestionAnswerResultEventPayload> {
     const answerResultPayload = QuestionAnswerResultLogic.buildSocketPayload({
       answerResult: playerAnswerResult,
-      timer: null,
+      timer,
     });
 
-    const questionFinishWithAnswer: QuestionFinishWithAnswerEventPayload = {
+    const questionFinishPayload: QuestionFinishWithAnswerEventPayload = {
       answerFiles: questionData?.answerFiles ?? null,
       answerText: questionData?.answerText ?? null,
-      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+      nextTurnPlayerId,
       answerResult: playerAnswerResult,
     };
-
-    const additionalBroadcasts = progressionResult.broadcasts.filter(
-      (broadcast) => broadcast.event !== SocketIOGameEvents.QUESTION_FINISH
-    );
 
     const broadcasts: SocketEventBroadcast<unknown>[] = [
       {
@@ -112,11 +99,16 @@ export class AnswerResultActionHandler
       },
       {
         event: SocketIOGameEvents.QUESTION_FINISH,
-        data: questionFinishWithAnswer,
+        data: questionFinishPayload,
         target: SocketBroadcastTarget.GAME,
         gameId,
       },
-      ...(additionalBroadcasts as SocketEventBroadcast<unknown>[]),
+      {
+        event: SocketIOGameEvents.ANSWER_SHOW_START,
+        data: {} satisfies AnswerShowStartEventPayload,
+        target: SocketBroadcastTarget.GAME,
+        gameId,
+      },
     ];
 
     return { success: true, data: answerResultPayload, broadcasts };

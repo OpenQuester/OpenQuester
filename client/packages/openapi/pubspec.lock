@@ -461,10 +461,10 @@ packages:
     dependency: "direct dev"
     description:
       name: swagger_parser
-      sha256: "46393e7145cbe51de92e8a17bef136fb09b59bc313bbfb50e1e018fdaa42b766"
+      sha256: cf4c80870256d6f74778fe19ead03f3a3293494eb8ab659915b26718698c9749
       url: "https://pub.dev"
     source: hosted
-    version: "1.23.2"
+    version: "1.37.1"
   term_glyph:
     dependency: transitive
     description:

@@ -20,6 +20,7 @@ export const USER_SELECT_FIELDS: Array<keyof User> = [
   "is_deleted",
   "is_banned",
   "is_guest",
+  "muted_until",
 ];
 
 export const USER_RELATIONS: Array<keyof User> = ["avatar", "permissions"];

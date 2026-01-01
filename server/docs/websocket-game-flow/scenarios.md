@@ -332,12 +332,14 @@ Events:
 
 Server behavior:
 
-- Ends the question early and returns to choosing.
+- Ends the question early and returns to choosing (after show answer phase).
 
 Events:
 
 - `answer-result`
 - `question-finish`
+- `answer-show-start`
+- (after timer) `answer-show-end`
 
 ### <a id="correct-answer"></a> Correct answer (turn advances, question cleared)
 
@@ -345,11 +347,14 @@ Server behavior:
 
 - Marks the question as played and clears `currentQuestion`.
 - In simple rounds, the answering player becomes the next `currentTurnPlayerId`.
+- Transitions to show-answer phase.
 
 Events:
 
 - `answer-result`
 - `question-finish`
+- `answer-show-start`
+- (after timer) `answer-show-end`
 
 ### <a id="give-up-skip"></a> “Give up” skip is treated as wrong answer
 

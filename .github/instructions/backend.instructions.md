@@ -4,6 +4,16 @@ applyTo: "server/**/*"
 
 # OpenQuester Backend Instructions
 
+## Important Documentation References
+
+Before working on backend code, familiarize yourself with these key documents:
+
+- **Final Round Flow:** `server/docs/final-round-flow.md` - Comprehensive guide to final round phases (theme elimination → bidding → answering → reviewing)
+- **Game Action Executor:** `server/docs/game-action-executor.md` - Critical understanding of the action queue system that prevents race conditions
+- **Media Sync:** `server/docs/media-download-sync.md` - How media synchronization works across clients
+
+These documents provide essential context for game mechanics and technical architecture decisions.
+
 ## Architecture Overview
 
 **Clean Architecture (4 layers):**
