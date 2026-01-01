@@ -14,6 +14,9 @@ class GameLobbyMenu extends WatchingWidget {
     final me = gameData?.me;
     final pauseState = gameData?.gameState.isPaused ?? false;
     final imShowman = me?.role == PlayerRole.showman;
+    final lobbyEditorMode = watchValue(
+      (GameLobbyController e) => e.lobbyEditorMode,
+    );
 
     return PopupMenuButton(
       itemBuilder: (BuildContext context) => [
@@ -27,17 +30,13 @@ class GameLobbyMenu extends WatchingWidget {
             await Clipboard.setData(ClipboardData(text: link.toString()));
           },
         ),
-        PopupMenuItem<void>(
-          child: Text(
-            controller.lobbyEditorMode.value
-                ? LocaleKeys.game_lobby_editor_close_player_editor.tr()
-                : LocaleKeys.game_lobby_editor_open_player_editor.tr(),
+        if (!lobbyEditorMode)
+          PopupMenuItem<void>(
+            child: Text(
+              LocaleKeys.game_lobby_editor_open_player_editor.tr(),
+            ),
+            onTap: () => controller.lobbyEditorMode.value = true,
           ),
-          onTap: () {
-            controller.lobbyEditorMode.value =
-                !controller.lobbyEditorMode.value;
-          },
-        ),
         if (imShowman) ...[
           PopupMenuItem<void>(
             child: Text(
