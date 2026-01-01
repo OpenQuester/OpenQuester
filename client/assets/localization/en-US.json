@@ -8,6 +8,9 @@
   },
   "clicker": "Clicker",
   "profile": "Profile",
+  "profile_change_avatar": "Change Avatar",
+  "login_title": "Log in",
+  "settings_title": "Settings",
   "test": "Test",
   "created_by": "created by {}",
   "rounds": {

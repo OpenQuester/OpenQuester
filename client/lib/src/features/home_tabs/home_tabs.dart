@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
 @RoutePage()
-class HomeTabsScreen extends WatchingWidget {
+class HomeTabsScreen extends StatelessWidget {
   const HomeTabsScreen({super.key});
 
   @override
@@ -33,10 +33,10 @@ class _MobileHomeState extends State<_MobileHome> {
     return Scaffold(
       appBar: AppBar(
         leading: const _AppBarLeading(wideMode: false),
-        leadingWidth: 110,
-        title: Text(_destionations[index].$2.label),
+        leadingWidth: 120,
         scrolledUnderElevation: 0,
         actions: [
+          const ProfileBtn(wideMode: false).paddingRight(8),
           IconButton(
             onPressed: () => setState(() => showSearch = !showSearch),
             icon: Icon(showSearch ? Icons.search_off : Icons.search),
@@ -94,10 +94,32 @@ class _AppBarLeading extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       spacing: 8,
       children: [
-        ProfileBtn(wideMode: wideMode).flexible(),
-        AdminDashboardButton(wideMode: wideMode).flexible(),
+        IconButton(
+          onPressed: () => const SettingsRoute().push<void>(context),
+          tooltip: LocaleKeys.settings_title.tr(),
+          icon: const Icon(Icons.settings_outlined, size: 28),
+        ),
+        const _AdminDashboardIconButton(),
       ],
     ).paddingAll(8);
+  }
+}
+
+class _AdminDashboardIconButton extends WatchingWidget {
+  const _AdminDashboardIconButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final user = watchValue((ProfileController e) => e.user);
+    final hasAdminAccess = user.havePermission(PermissionName.adminPanelAccess);
+
+    if (!hasAdminAccess) return const SizedBox.shrink();
+
+    return IconButton(
+      onPressed: () => const AdminDashboardRoute().push<void>(context),
+      tooltip: LocaleKeys.admin_dashboard.tr(),
+      icon: const Icon(Icons.admin_panel_settings_outlined, size: 28),
+    );
   }
 }
 
@@ -138,8 +160,13 @@ class _WideHome extends WatchingWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const _AppBarLeading(wideMode: true),
-        leadingWidth: 280,
+        leading: const _AppBarLeading(
+          wideMode: true,
+        ),
+        leadingWidth: 200,
+        actions: [
+          const ProfileBtn(wideMode: true).paddingRight(12),
+        ],
       ),
       body: SafeArea(
         child: Row(
@@ -148,7 +175,7 @@ class _WideHome extends WatchingWidget {
             const _WideHomeLeftBar(),
             const _GameList(wideMode: true).expand(),
           ],
-        ),
+        ).paddingTop(16),
       ),
     );
   }
