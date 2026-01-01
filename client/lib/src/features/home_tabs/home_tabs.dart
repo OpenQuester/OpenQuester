@@ -193,6 +193,7 @@ class GamesSearchBar extends StatelessWidget {
       hintText: LocaleKeys.type_to_find_games.tr(),
       onChanged: getIt<GamesListController>().search,
       trailing: const [Icon(Icons.search)],
+      padding: WidgetStatePropertyAll(16.horizontal),
     );
   }
 }
