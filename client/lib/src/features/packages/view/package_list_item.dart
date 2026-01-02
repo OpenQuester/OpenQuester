@@ -38,7 +38,8 @@ class PackageListItemWidget extends StatelessWidget {
                       height: 40,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
-                        color: context.theme.colorScheme.surfaceContainerHighest,
+                        color:
+                            context.theme.colorScheme.surfaceContainerHighest,
                       ),
                       child: const Icon(Icons.image, size: 20),
                     ),
@@ -95,7 +96,7 @@ class PackageListItemWidget extends StatelessWidget {
                       .map(
                         (tag) => Chip(
                           label: Text(
-                            tag,
+                            tag.tag,
                             style: context.textTheme.labelSmall,
                           ),
                           padding: EdgeInsets.zero,

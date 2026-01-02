@@ -409,7 +409,7 @@ class _SearchPackageButton extends StatelessWidget {
 
     return FilledButton.tonalIcon(
       onPressed: () async {
-        final package = await PackageSearchRoute().push<PackageListItem>(
+        final package = await const PackageSearchRoute().push<PackageListItem>(
           context,
         );
         if (package == null) return;

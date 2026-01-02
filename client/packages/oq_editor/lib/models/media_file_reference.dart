@@ -10,10 +10,14 @@ import 'package:video_player/video_player.dart';
 class MediaFileReference {
   MediaFileReference({
     required this.platformFile,
+    this.url,
   });
 
   /// Platform file reference (contains path, not bytes)
   final PlatformFile platformFile;
+
+  /// Optional URL for remote media files
+  final String? url;
 
   /// Shared video player controller for video/audio files
   /// This allows preview and dialog to use the same controller

@@ -14,11 +14,21 @@ class MediaPreviewWidget extends StatelessWidget {
     required this.type,
     this.size = 80,
     super.key,
-  });
+  }) : _url = null;
 
-  final MediaFileReference mediaFile;
+  /// Creates a preview widget from a URL
+  const MediaPreviewWidget.fromUrl({
+    required String url,
+    required this.type,
+    this.size = 80,
+    super.key,
+  }) : mediaFile = null,
+       _url = url;
+
+  final MediaFileReference? mediaFile;
   final PackageFileType type;
   final double size;
+  final String? _url;
 
   @override
   Widget build(BuildContext context) {
@@ -50,8 +60,18 @@ class MediaPreviewWidget extends StatelessWidget {
   }
 
   Widget _buildImagePreview() {
+    // Use URL if available (from remote or MediaFileReference)
+    final url = _url ?? mediaFile?.url;
+    if (url != null) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildErrorPreview(),
+      );
+    }
+
     // Use bytes if available (works on both web and native)
-    final bytes = mediaFile.platformFile.bytesSync;
+    final bytes = mediaFile?.platformFile.bytesSync;
     if (bytes != null) {
       return Image.memory(
         bytes,
@@ -61,9 +81,9 @@ class MediaPreviewWidget extends StatelessWidget {
     }
 
     // On native platforms, use file path if bytes not available
-    if (!kIsWeb && mediaFile.platformFile.path != null) {
+    if (!kIsWeb && mediaFile?.platformFile.path != null) {
       return Image.file(
-        File(mediaFile.platformFile.path!),
+        File(mediaFile!.platformFile.path!),
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) => _buildErrorPreview(),
       );
@@ -73,15 +93,35 @@ class MediaPreviewWidget extends StatelessWidget {
   }
 
   Widget _buildVideoPreview(BuildContext context) {
+    // For URL-based previews, show a video icon placeholder
+    if (_url != null || mediaFile?.url != null) {
+      return Center(
+        child: Icon(
+          Icons.play_circle_outline,
+          size: size * 0.5,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
     return VideoPreviewWidget(
-      mediaFile: mediaFile,
+      mediaFile: mediaFile!,
       size: size,
     );
   }
 
   Widget _buildAudioPreview(BuildContext context) {
+    // For URL-based previews, show an audio icon placeholder
+    if (_url != null || mediaFile?.url != null) {
+      return Center(
+        child: Icon(
+          Icons.audiotrack,
+          size: size * 0.5,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
     return AudioPreviewWidget(
-      mediaFile: mediaFile,
+      mediaFile: mediaFile!,
       size: size,
     );
   }

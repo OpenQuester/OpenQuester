@@ -14,6 +14,7 @@ analyzer:
     document_ignores: ignore
     unnecessary_library_directive: ignore
     one_member_abstracts: ignore
+    use_setters_to_change_properties: ignore
   exclude:
     - "**/*_generated.dart"
     - "**/*.freezed.dart"

@@ -17,6 +17,10 @@
     "one": "{} round",
     "other": "{} rounds"
   },
+  "questions": {
+    "one": "{} question",
+    "other": "{} questions"
+  },
   "game_tile_tooltips": {
     "players": "Players playing/maximum",
     "rounds": "Rounds played/total",
@@ -275,7 +279,9 @@
     "question_hint_helper": "Hint to help players answer",
     "question_comment_helper": "Additional context or notes",
     "question_media_files": "Question Media Files",
+    "question_media": "Question Media",
     "answer_media_files": "Answer Media Files",
+    "answer_media": "Answer Media",
     "add_media_file": "Add media file",
     "no_media_files": "No media files added",
     "preview": "Preview",
@@ -408,9 +414,10 @@
   "search_packages": "Search Packages",
   "search_placeholder": "Search by title or description...",
   "filters": "Filters",
+  "show_filters": "Show Filters",
+  "hide_filters": "Hide Filters",
   "clear_filters": "Clear All Filters",
   "apply": "Apply",
-  "cancel": "Cancel",
   "filter_by_language": "Language",
   "filter_by_author": "Author",
   "filter_by_tags": "Tags",

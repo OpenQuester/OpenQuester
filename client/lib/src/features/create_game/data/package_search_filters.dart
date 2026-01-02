@@ -5,7 +5,7 @@ part 'package_search_filters.freezed.dart';
 
 /// Filter options for package search
 @freezed
-class PackageSearchFilters with _$PackageSearchFilters {
+abstract class PackageSearchFilters with _$PackageSearchFilters {
   const factory PackageSearchFilters({
     String? title,
     String? description,
