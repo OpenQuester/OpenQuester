@@ -513,7 +513,7 @@ class GameLobbyController {
     final finalQuestion = gameData.value?.gameState.finalRoundData?.questionData;
     if (finalQuestion != null) {
       getIt<GameQuestionController>().questionData.value = GameQuestionData(
-        text: finalQuestion.question.questionComment,
+        text: finalQuestion.question.text,
         file: finalQuestion.question.questionFiles?.firstOrNull,
       );
     }
@@ -1126,7 +1126,7 @@ class GameLobbyController {
 
     // Show the final round question
     getIt<GameQuestionController>().questionData.value = GameQuestionData(
-      text: questionData.questionData.question.questionComment,
+      text: questionData.questionData.question.text,
       file: questionData.questionData.question.questionFiles?.firstOrNull,
     );
   }
