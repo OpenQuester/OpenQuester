@@ -17,22 +17,26 @@ docs/privacy/
 ### Setup Instructions
 
 1. **Create Cloudflare Pages Project**
+
    - Go to [Cloudflare Dashboard](https://dash.cloudflare.com/) → Pages
    - Create a new project named `openquester-privacy`
    - Choose "Direct Upload" method (GitHub Actions will handle deployment)
 
 2. **Configure GitHub Secrets**
    Add the following secrets to your GitHub repository:
+
    - `CLOUDFLARE_API_TOKEN`: Your Cloudflare API token with Pages permissions
    - `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare account ID
 
    To get these values:
+
    - **API Token**: Cloudflare Dashboard → My Profile → API Tokens → Create Token
      - Use template: "Edit Cloudflare Workers"
      - Or create custom token with permissions: `Account.Cloudflare Pages:Edit`
    - **Account ID**: Cloudflare Dashboard → Pages → Account ID (in the URL or sidebar)
 
 3. **Deploy**
+
    - The workflow automatically deploys on:
      - Push to `main` branch affecting privacy policy files
      - Manual workflow dispatch
@@ -73,10 +77,13 @@ Or use any static file server.
 ### Troubleshooting
 
 **Issue**: Deployment fails with authentication error
+
 - **Solution**: Verify `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets are correctly set
 
 **Issue**: Privacy policy content not loading
+
 - **Solution**: Check that PRIVACY_POLICY.md is being copied correctly in the workflow
 
 **Issue**: Custom domain not working
+
 - **Solution**: Verify DNS records and SSL/TLS settings in Cloudflare dashboard
