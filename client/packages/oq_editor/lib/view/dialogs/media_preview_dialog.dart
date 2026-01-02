@@ -16,9 +16,25 @@ class MediaPreviewDialog extends StatelessWidget {
   const MediaPreviewDialog({
     required this.mediaFile,
     super.key,
-  });
+  }) : _url = null,
+       _type = null,
+       _fileName = null;
 
-  final UiMediaFile mediaFile;
+  /// Create a dialog from a URL
+  const MediaPreviewDialog.fromUrl({
+    required String url,
+    required PackageFileType type,
+    String? fileName,
+    super.key,
+  }) : mediaFile = null,
+       _url = url,
+       _type = type,
+       _fileName = fileName;
+
+  final UiMediaFile? mediaFile;
+  final String? _url;
+  final PackageFileType? _type;
+  final String? _fileName;
 
   /// Show the media preview dialog
   static Future<void> show(
@@ -28,6 +44,23 @@ class MediaPreviewDialog extends StatelessWidget {
     return showDialog<void>(
       context: context,
       builder: (context) => MediaPreviewDialog(mediaFile: mediaFile),
+    );
+  }
+
+  /// Show the media preview dialog from URL
+  static Future<void> showFromUrl(
+    BuildContext context,
+    String url,
+    PackageFileType type, {
+    String? fileName,
+  }) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => MediaPreviewDialog.fromUrl(
+        url: url,
+        type: type,
+        fileName: fileName,
+      ),
     );
   }
 
@@ -54,7 +87,7 @@ class MediaPreviewDialog extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        mediaFile.platformFile.name,
+                        _getFileName(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w600,
@@ -94,13 +127,14 @@ class MediaPreviewDialog extends StatelessWidget {
   }
 
   Widget _buildMediaContent(BuildContext context) {
-    switch (mediaFile.type) {
+    final type = _type ?? mediaFile!.type;
+    switch (type) {
       case PackageFileType.image:
-        return _ImagePreview(mediaFile: mediaFile);
+        return _buildImagePreview();
       case PackageFileType.video:
-        return _VideoPreview(mediaFile: mediaFile);
+        return _buildVideoPreview();
       case PackageFileType.audio:
-        return _AudioPreview(mediaFile: mediaFile);
+        return _buildAudioPreview();
       case PackageFileType.$unknown:
         return const Icon(
           Icons.file_present,
@@ -110,14 +144,77 @@ class MediaPreviewDialog extends StatelessWidget {
     }
   }
 
+  Widget _buildImagePreview() {
+    // URL-based preview
+    if (_url != null) {
+      return InteractiveViewer(
+        child: Image.network(
+          _url!,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
+        ),
+      );
+    }
+
+    // UiMediaFile-based preview
+    return _ImagePreview(mediaFile: mediaFile!);
+  }
+
+  Widget _buildVideoPreview() {
+    // URL-based preview
+    if (_url != null) {
+      return _UrlVideoPreview(url: _url!);
+    }
+
+    // UiMediaFile-based preview
+    return _VideoPreview(mediaFile: mediaFile!);
+  }
+
+  Widget _buildAudioPreview() {
+    // URL-based preview
+    if (_url != null) {
+      return _UrlAudioPreview(url: _url!);
+    }
+
+    // UiMediaFile-based preview
+    return _AudioPreview(mediaFile: mediaFile!);
+  }
+
+  String _getFileName() {
+    if (_fileName != null) return _fileName!;
+    if (_url != null) return _url!.split('/').last;
+    return mediaFile!.platformFile.name;
+  }
+
   String _getFileInfo() {
-    final size = mediaFile.platformFile.size;
+    // For URL-based preview
+    if (_url != null) {
+      final type = _type!.name.toUpperCase();
+      return type;
+    }
+
+    // For UiMediaFile-based preview
+    final size = mediaFile!.platformFile.size;
     final sizeStr = _formatFileSize(size);
-    final type = mediaFile.type.name.toUpperCase();
-    final displayTime = mediaFile.displayTime;
+    final type = mediaFile!.type.name.toUpperCase();
+    final displayTime = mediaFile!.displayTime;
     final displayTimeStr = ' • Display: ${displayTime}ms';
 
     return '$type • $sizeStr$displayTimeStr';
+  }
+
+  Widget _buildErrorWidget() {
+    return const Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.broken_image, color: Colors.red, size: 64),
+        SizedBox(height: 16),
+        Text(
+          'Failed to load media',
+          style: TextStyle(color: Colors.white),
+        ),
+      ],
+    );
   }
 
   String _formatFileSize(int bytes) {
@@ -493,6 +590,202 @@ class _AudioPreviewState extends State<_AudioPreview> {
   void dispose() {
     // Don't dispose controller here - it's shared
     // It will be disposed when MediaFileReference is removed
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return _buildErrorWidget();
+    }
+
+    if (!_isInitialized || _controller == null) {
+      return const CircularProgressIndicator(color: Colors.white);
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Audio visualizer icon
+          Container(
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Theme.of(context).colorScheme.primaryContainer,
+                  Theme.of(context).colorScheme.secondaryContainer,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ValueListenableBuilder(
+              valueListenable: _controller!,
+              builder: (context, value, child) {
+                return Center(
+                  child: Icon(
+                    value.isPlaying ? Icons.music_note : Icons.music_note,
+                    size: 80,
+                    color: Colors.white,
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+          _VideoControls(controller: _controller!),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget() {
+    return const Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.error_outline, color: Colors.red, size: 64),
+        SizedBox(height: 16),
+        Text(
+          'Failed to load audio',
+          style: TextStyle(color: Colors.white),
+        ),
+      ],
+    );
+  }
+}
+
+/// Video preview widget for URL-based media
+class _UrlVideoPreview extends StatefulWidget {
+  const _UrlVideoPreview({required this.url});
+
+  final String url;
+
+  @override
+  State<_UrlVideoPreview> createState() => _UrlVideoPreviewState();
+}
+
+class _UrlVideoPreviewState extends State<_UrlVideoPreview> {
+  VideoPlayerController? _controller;
+  bool _isInitialized = false;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_initializeVideo());
+  }
+
+  Future<void> _initializeVideo() async {
+    try {
+      _controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.url),
+      );
+      await _controller!.initialize();
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError) {
+      return _buildErrorWidget();
+    }
+
+    if (!_isInitialized || _controller == null) {
+      return const CircularProgressIndicator(color: Colors.white);
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AspectRatio(
+          aspectRatio: _controller!.value.aspectRatio,
+          child: VideoPlayer(_controller!),
+        ).center().expand(),
+        const SizedBox(height: 16),
+        _VideoControls(controller: _controller!),
+      ],
+    );
+  }
+
+  Widget _buildErrorWidget() {
+    return const Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.error_outline, color: Colors.red, size: 64),
+        SizedBox(height: 16),
+        Text(
+          'Failed to load video',
+          style: TextStyle(color: Colors.white),
+        ),
+      ],
+    );
+  }
+}
+
+/// Audio preview widget for URL-based media
+class _UrlAudioPreview extends StatefulWidget {
+  const _UrlAudioPreview({required this.url});
+
+  final String url;
+
+  @override
+  State<_UrlAudioPreview> createState() => _UrlAudioPreviewState();
+}
+
+class _UrlAudioPreviewState extends State<_UrlAudioPreview> {
+  VideoPlayerController? _controller;
+  bool _isInitialized = false;
+  bool _hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_initializeAudio());
+  }
+
+  Future<void> _initializeAudio() async {
+    try {
+      _controller = VideoPlayerController.networkUrl(
+        Uri.parse(widget.url),
+      );
+      await _controller!.initialize();
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
     super.dispose();
   }
 
