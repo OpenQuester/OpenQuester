@@ -42,7 +42,13 @@ class AppTheme {
       cardColor: pureDarkColor,
       colorScheme: colorScheme,
       extensions: const [
-        ExtraColors(success: Color(0xFF7CE883), warning: Color(0xFFFFE078)),
+        ExtraColors(
+          success: Color(0xFF7CE883),
+          warning: Color(0xFFFFE078),
+          gold: Color(0xFFFFD700),
+          silver: Color(0xFFC0C0C0),
+          bronze: Color(0xFFCD7F32),
+        ),
       ],
     );
   }
@@ -114,19 +120,37 @@ class AppTheme {
 }
 
 class ExtraColors extends ThemeExtension<ExtraColors> {
-  const ExtraColors({required this.success, required this.warning});
+  const ExtraColors({
+    required this.success,
+    required this.warning,
+    required this.gold,
+    required this.silver,
+    required this.bronze,
+  });
 
   final Color success;
   final Color warning;
+  final Color gold;
+  final Color silver;
+  final Color bronze;
 
   static ExtraColors of(BuildContext context) =>
       Theme.of(context).extension<ExtraColors>()!;
 
   @override
-  ThemeExtension<ExtraColors> copyWith({Color? success, Color? warning}) {
+  ThemeExtension<ExtraColors> copyWith({
+    Color? success,
+    Color? warning,
+    Color? gold,
+    Color? silver,
+    Color? bronze,
+  }) {
     return ExtraColors(
       success: success ?? this.success,
       warning: warning ?? this.warning,
+      gold: gold ?? this.gold,
+      silver: silver ?? this.silver,
+      bronze: bronze ?? this.bronze,
     );
   }
 
@@ -141,6 +165,9 @@ class ExtraColors extends ThemeExtension<ExtraColors> {
     return ExtraColors(
       success: Color.lerp(success, other.success, t) ?? success,
       warning: Color.lerp(warning, other.warning, t) ?? warning,
+      gold: Color.lerp(gold, other.gold, t) ?? gold,
+      silver: Color.lerp(silver, other.silver, t) ?? silver,
+      bronze: Color.lerp(bronze, other.bronze, t) ?? bronze,
     );
   }
 }

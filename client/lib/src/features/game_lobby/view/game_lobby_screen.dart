@@ -147,7 +147,7 @@ class _BodyBuilder extends WatchingWidget {
               case GameLobbyState.loading:
                 body = const CircularProgressIndicator().center();
               case GameLobbyState.finished:
-                body = const _GameFinishedScreen();
+                body = const GameFinishedScreen();
               case GameLobbyState.questionActive:
                 body = const GameQuestionScreen();
               case GameLobbyState.showingThemes:
@@ -191,19 +191,6 @@ class _GamePausedScreen extends WatchingWidget {
           ).paddingTop(16),
       ],
     ).paddingAll(16).paddingBottom(32).center();
-  }
-}
-
-class _GameFinishedScreen extends StatelessWidget {
-  const _GameFinishedScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      LocaleKeys.game_is_finished.tr(),
-      style: context.textTheme.displaySmall,
-      textAlign: TextAlign.center,
-    ).paddingAll(16).center();
   }
 }
 

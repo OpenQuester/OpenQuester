@@ -26,7 +26,7 @@ class PlayerBidControls extends WatchingWidget {
       final bidAmount = int.tryParse(bidAmountText);
       if (bidAmount == null) return;
 
-      getIt<GameLobbyController>().submitQuestionBid(
+      stakeController.confirmSelection(
         SocketIoStakeQuestionBidInput(
           bidAmount: bidAmount,
           bidType: StakeBidType.normal,

@@ -44,32 +44,22 @@ class _ShowmanReviewView extends WatchingWidget {
       );
     }
 
-    return Column(
-      children: [
-        Text(
-          LocaleKeys.game_final_round_review_answers_title.tr(),
-          style: context.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ).paddingSymmetric(vertical: 16),
-        ListView.builder(
-          padding: 16.all,
-          itemCount: answers.length,
-          itemBuilder: (context, index) {
-            final answer = answers[index];
-            final player = players[answer.playerId];
-            final bidAmount = bids[answer.playerId.toString()] ?? 0;
-            final isReviewed = answer.isCorrect != null;
+    return ListView.builder(
+      padding: 16.all,
+      itemCount: answers.length,
+      itemBuilder: (context, index) {
+        final answer = answers[index];
+        final player = players[answer.playerId];
+        final bidAmount = bids[answer.playerId.toString()] ?? 0;
+        final isReviewed = answer.isCorrect != null;
 
-            return _AnswerReviewCard(
-              answer: answer,
-              player: player,
-              bidAmount: bidAmount,
-              isReviewed: isReviewed,
-            ).paddingBottom(12);
-          },
-        ).expand(),
-      ],
+        return _AnswerReviewCard(
+          answer: answer,
+          player: player,
+          bidAmount: bidAmount,
+          isReviewed: isReviewed,
+        ).paddingBottom(12);
+      },
     );
   }
 }

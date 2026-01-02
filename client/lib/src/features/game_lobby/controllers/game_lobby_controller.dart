@@ -132,6 +132,10 @@ class GameLobbyController {
           SocketIoGameReceiveEvents.finalAnswerReview.json!,
           _onFinalAnswerReview,
         )
+        ..on(
+          SocketIoGameReceiveEvents.questionFinish.json!,
+          _onFinalQuestionFinish,
+        )
         ..connect();
 
       return await _joinCompleter.future;
@@ -294,7 +298,9 @@ class GameLobbyController {
         data as Map<String, dynamic>,
       );
 
-      _joinCompleter.complete(true);
+      if (!_joinCompleter.isCompleted) {
+        _joinCompleter.complete(true);
+      }
 
       // Set editor mode after loading game but not starting
       if (!gameStarted) {
@@ -1307,6 +1313,9 @@ class GameLobbyController {
     gameData.value = gameData.value?.copyWith.gameState.finalRoundData!(
       questionData: data.questionData,
     );
+    gameData.value = gameData.value?.copyWith.gameState(
+      currentQuestion: data.questionData.question,
+    );
 
     _showQuestion(dontWaitForPlayers: true);
   }
@@ -1360,6 +1369,31 @@ class GameLobbyController {
 
     // Clear currentReviewingAnswerId
     getIt<GameLobbyReviewController>().updateReviewingAnswerId(null);
+  }
+
+  Future<void> _onFinalQuestionFinish(dynamic json) async {
+    if (json is! Map) return;
+
+    final data = SocketIoQuestionFinishEventPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    // Update current question with answer data
+    gameData.value = gameData.value?.copyWith.gameState(
+      currentQuestion: gameData.value?.gameState.currentQuestion?.copyWith(
+        answerFiles: data.answerFiles,
+        answerText: data.answerText,
+      ),
+    );
+
+    // Clear controllers
+    getIt<GameLobbyPlayerStakesController>().clear();
+    getIt<GameLobbyThemePickerController>().clear();
+    getIt<GameLobbyReviewController>().clear();
+    getIt<GameLobbyFinalAnswerController>().clear();
+
+    // Show the answer
+    await _showAnswer();
   }
 
   void notifyMediaDownloaded() =>

@@ -57,6 +57,7 @@ export 'src/features/dialog/view/adaptive_dialog.dart';
 export 'src/features/dialog/view/dialog_container.dart';
 export 'src/features/game_final_round/controllers/game_lobby_player_theme_controller.dart';
 export 'src/features/game_final_round/view/game_final_round.dart';
+export 'src/features/game_finished/view/game_finished_screen.dart';
 export 'src/features/game_lobby/controllers/game_lobby_controller.dart';
 export 'src/features/game_lobby/data/player_answer_state.dart';
 export 'src/features/game_lobby/view/game_lobby_action_button.dart';

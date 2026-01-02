@@ -91,6 +91,8 @@
   "delete_lobby_confirmation": "Do you want to delete the lobby?",
   "volume": "Volume",
   "game_is_finished": "Game is finished. Thanks for playing :)",
+  "final_scores": "Final Scores",
+  "no_players": "No players participated",
   "game_is_paused": "Game is paused",
   "pause": "Pause",
   "resume_game": "Resume game",

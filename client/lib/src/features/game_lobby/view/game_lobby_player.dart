@@ -188,10 +188,15 @@ class _MediaDownloadIndicator extends WatchingWidget {
     final questionData = watchValue(
       (GameQuestionController e) => e.questionData,
     );
+    final waitingForPlayers = watchValue(
+      (GameQuestionController e) => e.waitingForPlayers,
+    );
 
     final hasMedia = questionData?.file != null;
     final mediaDownloaded = player.mediaDownloaded;
-    if (!hasMedia || mediaDownloaded) return const SizedBox.shrink();
+    if (!hasMedia || mediaDownloaded || !waitingForPlayers) {
+      return const SizedBox.shrink();
+    }
 
     // Show loader if not downloaded yet
     return const CircularProgressIndicator(strokeWidth: 1, color: Colors.white)

@@ -18,8 +18,6 @@ class GameFinalAnswerBody extends WatchingWidget {
       children: [
         TextFormField(
           initialValue: controller.userAnswer,
-          minLines: 4,
-          maxLines: 6,
           decoration: InputDecoration(
             border: const OutlineInputBorder(),
             labelText: LocaleKeys.game_final_round_write_your_answer.tr(),
