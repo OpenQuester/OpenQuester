@@ -3,6 +3,7 @@ import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
 import { Permissions } from "domain/enums/Permissions";
+import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -11,6 +12,7 @@ import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { LogTestUtils, TestLogEntry } from "tests/utils/LogTestUtils";
+import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 
 /**
  * E2E tests for GET /v1/admin/api/system/logs endpoint.
@@ -64,8 +66,8 @@ describe("Admin Logs API", () => {
 
   beforeEach(async () => {
     // Clear data between tests
-    await userRepo.delete({});
-    await permRepo.delete({});
+    await deleteAll(userRepo);
+    await deleteAll(permRepo);
     logTestUtils.clearLogFile();
 
     // Create VIEW_SYSTEM_LOGS permission
@@ -105,9 +107,16 @@ describe("Admin Logs API", () => {
   });
 
   afterEach(async () => {
-    await userRepo.delete({});
-    await permRepo.delete({});
+    await deleteAll(userRepo);
+    await deleteAll(permRepo);
     logTestUtils.clearLogFile();
+
+    // Clear Redis user cache to prevent stale cached users from affecting subsequent tests
+    const redisClient = RedisConfig.getClient();
+    const keys = await redisClient.keys("cache:user:*");
+    if (keys.length > 0) {
+      await redisClient.del(...keys);
+    }
   });
 
   afterAll(async () => {

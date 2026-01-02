@@ -19,6 +19,7 @@ import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 
 describe("Game Statistics Persistence Tests", () => {
   let testEnv: TestEnvironment;
@@ -47,8 +48,8 @@ describe("Game Statistics Persistence Tests", () => {
 
   beforeEach(async () => {
     await testEnv.clearRedis();
-    await playerGameStatsRepo.delete({});
-    await gameStatsRepo.delete({});
+    await deleteAll(playerGameStatsRepo);
+    await deleteAll(gameStatsRepo);
   });
 
   afterAll(async () => {

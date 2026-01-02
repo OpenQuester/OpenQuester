@@ -14,6 +14,7 @@ import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { PackageUtils } from "tests/utils/PackageUtils";
 import { TestUtils } from "tests/utils/TestUtils";
+import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 
 describe("Package Search API", () => {
   let testEnv: TestEnvironment;
@@ -52,9 +53,9 @@ describe("Package Search API", () => {
 
   beforeEach(async () => {
     await testEnv.clearRedis();
-    await packageRepo.delete({});
-    await packageTagRepo.delete({});
-    await userRepo.delete({});
+    await deleteAll(packageRepo);
+    await deleteAll(packageTagRepo);
+    await deleteAll(userRepo);
 
     // Create test users
     const loginData1 = await testUtils.createAndLoginUser("testuser1");
@@ -66,9 +67,9 @@ describe("Package Search API", () => {
   });
 
   afterEach(async () => {
-    await packageRepo.delete({});
-    await packageTagRepo.delete({});
-    await userRepo.delete({});
+    await deleteAll(packageRepo);
+    await deleteAll(packageTagRepo);
+    await deleteAll(userRepo);
   });
 
   afterAll(async () => {

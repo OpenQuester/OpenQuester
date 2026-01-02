@@ -10,6 +10,7 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
+import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 
 async function preparePermission(
   permRepo: Repository<Permission>,
@@ -73,8 +74,8 @@ describe("User Permissions Management", () => {
   });
 
   afterEach(async () => {
-    await userRepo.delete({});
-    await permRepo.delete({});
+    await deleteAll(userRepo);
+    await deleteAll(permRepo);
 
     // Clear Redis cache
     const redisClient = RedisConfig.getClient();
@@ -94,7 +95,7 @@ describe("User Permissions Management", () => {
   });
 
   beforeEach(async () => {
-    await userRepo.delete({});
+    await deleteAll(userRepo);
   });
 
   it("should update user permissions successfully", async () => {

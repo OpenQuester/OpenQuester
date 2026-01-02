@@ -16,6 +16,7 @@ import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { PackageUtils } from "tests/utils/PackageUtils";
 import { TestUtils } from "tests/utils/TestUtils";
+import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 
 async function createPackages(
   count: number,
@@ -108,9 +109,9 @@ describe("PackageRestApiController", () => {
   });
 
   afterEach(async () => {
-    await userRepo.delete({});
-    await packageRepo.delete({});
-    await permRepo.delete({});
+    await deleteAll(packageRepo);
+    await deleteAll(userRepo);
+    await deleteAll(permRepo);
   });
 
   afterAll(async () => {
@@ -125,9 +126,9 @@ describe("PackageRestApiController", () => {
   });
 
   beforeEach(async () => {
-    await userRepo.delete({});
-    await packageRepo.delete({});
-    await permRepo.delete({});
+    await deleteAll(packageRepo);
+    await deleteAll(userRepo);
+    await deleteAll(permRepo);
   });
 
   it("should create package successfully", async () => {
