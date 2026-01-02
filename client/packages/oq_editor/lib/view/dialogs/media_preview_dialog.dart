@@ -3,12 +3,12 @@ import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/ui_media_file.dart';
 import 'package:oq_editor/view/widgets/media_preview_widget.dart';
-import 'package:oq_shared/oq_shared.dart';
 
 /// Fullscreen dialog to preview media files (images, videos, audio)
 class MediaPreviewDialog extends StatelessWidget {
   const MediaPreviewDialog({
     required this.mediaFile,
+    this.autoPlay = true,
     super.key,
   }) : _url = null,
        _type = null,
@@ -19,6 +19,7 @@ class MediaPreviewDialog extends StatelessWidget {
     required String url,
     required PackageFileType type,
     String? fileName,
+    this.autoPlay = true,
     super.key,
   }) : mediaFile = null,
        _url = url,
@@ -29,6 +30,7 @@ class MediaPreviewDialog extends StatelessWidget {
   final String? _url;
   final PackageFileType? _type;
   final String? _fileName;
+  final bool autoPlay;
 
   /// Show the media preview dialog
   static Future<void> show(
@@ -122,18 +124,20 @@ class MediaPreviewDialog extends StatelessWidget {
 
   Widget _buildMediaContent(BuildContext context) {
     final type = _type ?? mediaFile!.type;
-    
+
     // Use MediaPreviewWidget with fullscreen settings for URL-based media
     if (_url != null) {
       return MediaPreviewWidget.fromUrl(
-        url: _url!,
+        url: _url,
         type: type,
         fit: BoxFit.contain,
         enablePlayback: true,
         interactive: true,
+        autoPlay: autoPlay,
+        size: null,
       );
     }
-    
+
     // Use MediaPreviewWidget with fullscreen settings for file-based media
     return MediaPreviewWidget(
       mediaFile: mediaFile!.reference,
@@ -141,12 +145,14 @@ class MediaPreviewDialog extends StatelessWidget {
       fit: BoxFit.contain,
       enablePlayback: true,
       interactive: true,
+      autoPlay: autoPlay,
+      size: null,
     );
   }
 
   String _getFileName() {
-    if (_fileName != null) return _fileName!;
-    if (_url != null) return _url!.split('/').last;
+    if (_fileName != null) return _fileName;
+    if (_url != null) return _url.split('/').last;
     return mediaFile!.platformFile.name;
   }
 
@@ -165,20 +171,6 @@ class MediaPreviewDialog extends StatelessWidget {
     final displayTimeStr = ' • Display: ${displayTime}ms';
 
     return '$type • $sizeStr$displayTimeStr';
-  }
-
-  Widget _buildErrorWidget() {
-    return const Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.broken_image, color: Colors.red, size: 64),
-        SizedBox(height: 16),
-        Text(
-          'Failed to load media',
-          style: TextStyle(color: Colors.white),
-        ),
-      ],
-    );
   }
 
   String _formatFileSize(int bytes) {

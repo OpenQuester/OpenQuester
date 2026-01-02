@@ -19,7 +19,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
   final _maxQuestionsController = TextEditingController();
 
   var _filters = const PackageSearchFilters();
-  var _showFilters = true;
+  var _showFilters = false;
 
   @override
   void dispose() {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
-import 'package:oq_editor/view/dialogs/media_preview_dialog.dart';
 import 'package:oq_editor/view/widgets/media_preview_widget.dart';
 
 @RoutePage(deferredLoading: false)
@@ -466,19 +465,9 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
       return _buildMediaError(context);
     }
 
-    return GestureDetector(
-      onTap: () {
-        MediaPreviewDialog.showFromUrl(
-          context,
-          mediaUrl,
-          file.file.type,
-          fileName: file.file.name,
-        );
-      },
-      child: MediaPreviewWidget.fromUrl(
-        url: mediaUrl,
-        type: file.file.type,
-      ),
+    return MediaPreviewWidget.fromUrl(
+      url: mediaUrl,
+      type: file.file.type,
     );
   }
 
