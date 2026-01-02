@@ -346,7 +346,7 @@ function initializeThemeEliminationUI(state: ThemeEliminationState) {
 
 function canEliminateTheme(
   themeId: number,
-  state: ThemeEliminationState
+  state: ThemeEliminationState,
 ): boolean {
   // Theme must be available
   if (state.eliminatedThemes.includes(themeId)) return false;
@@ -985,12 +985,10 @@ The OpenAPI schema defines the following relevant types:
 ### Common Error Scenarios
 
 1. **Invalid Theme Elimination**
-
    - Eliminating a theme when it's not your turn
    - Eliminating an already eliminated theme
 
 2. **Invalid Bid Submission**
-
    - Bidding less than 1 point
    - Bidding more than current score
    - Submitting bid when not eligible

@@ -44,18 +44,8 @@ Join games in the role that suits you best:
 ### 📦 Community Content
 
 - **Package System** - Play community-created question packages on any topic
-- **Native Format** - Use `.oq` packages optimized for OpenQuester
 - **SIGame Compatibility** - Import `.siq` packages from SIGame _(Work in Progress)_
 - **Create Your Own** - Build and share custom packages with the community
-
-### 🌐 Cross-Platform
-
-- **Windows** - Full desktop support
-- **Linux** - Native Linux builds
-- **macOS** - macOS support _(Work in Progress)_
-- **Android** - Mobile gameplay on Google Play
-- **iOS** - iOS support _(Coming Soon)_
-- **Web** - Browser-based access
 
 ### 🎨 Modern Experience
 
@@ -123,8 +113,10 @@ Download the latest version for your platform from the [**Releases Page**](https
 
 - **Windows**: `.exe` installer
 - **Linux**: `.AppImage`, `.deb`, or `.tar.gz`
+- **macOS**: macOS support _(Work in Progress)_
 - **Android**: `.apk` or Google Play Store _(Coming Soon)_
-- **Web**: Browser version
+- **iOS**: iOS support _(Coming Soon)_
+- **Web**: [Browser version](https://web.openquester.app)
 
 ### Development Builds
 
@@ -156,6 +148,8 @@ For the latest features and updates, check our [GitHub Actions](https://github.c
 
 - **[Docker](https://www.docker.com/)** - Containerization
 - **[GitHub Actions](https://github.com/features/actions)** - CI/CD pipelines
+- **[Cloudflare Pages](https://pages.cloudflare.com/)** - Static site hosting
+- **[AWS S3](https://aws.amazon.com/s3/)** / **[MinIO](https://min.io/)** - Object storage
 - **[Jest](https://jestjs.io/)** - Backend testing framework
 - **[ESLint](https://eslint.org/)** - Code linting
 
@@ -236,7 +230,7 @@ We welcome contributions from developers, designers, translators, and quiz enthu
 
 - Follow the existing code style and conventions
 - Write meaningful commit messages (use [Conventional Commits](https://www.conventionalcommits.org/))
-- Add tests for new features
+- Add tests for new backend features
 - Update documentation as needed
 - Ensure all tests pass before submitting PR
 
@@ -257,7 +251,6 @@ We welcome contributions from developers, designers, translators, and quiz enthu
 - **[GitHub Discussions](https://github.com/OpenQuester/OpenQuester/discussions)** - Ask questions, share ideas
 - **[GitHub Issues](https://github.com/OpenQuester/OpenQuester/issues)** - Report bugs, request features
 - **Discord Server** - Chat with the community _(Coming Soon)_
-- **Telegram** - Contact [@sukui_code](https://t.me/sukui_code)
 
 ---
 
@@ -279,10 +272,10 @@ We take your privacy seriously. OpenQuester collects minimal data necessary for 
 | Core Gameplay      | ✅ Complete    | Fully functional multiplayer quiz |
 | Frontend (Desktop) | ✅ Complete    | Windows, Linux                    |
 | Frontend (Mobile)  | 🚧 In Progress | Android beta, iOS planned         |
+| Frontend (Web)     | ✅ Complete    | Browser-based gameplay            |
 | Backend API        | ✅ Complete    | RESTful + WebSocket               |
 | Package System     | ✅ Complete    | Native `.oq` format               |
 | SIGame Import      | 🚧 In Progress | `.siq` compatibility              |
-| Web Version        | 📅 Planned     | Browser-based gameplay            |
 | Matchmaking        | 📅 Planned     | Public game discovery             |
 | Achievements       | 📅 Planned     | Player progression system         |
 
