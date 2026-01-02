@@ -60,34 +60,31 @@ class GameQuestionMediaWidget extends WatchingWidget {
 
     if (waitingForPlayers) return child;
 
-    return AspectRatio(
-      aspectRatio: 1,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: 8.circular,
-          border: Border.all(color: borderColor),
-        ),
-        constraints: const BoxConstraints(minHeight: 300),
-        clipBehavior: Clip.antiAlias,
-        child: AnimatedCrossFade(
-          alignment: Alignment.center,
-          duration: Durations.long2,
-          crossFadeState: showMedia
-              ? CrossFadeState.showSecond
-              : CrossFadeState.showFirst,
-          firstChild: SizedBox.expand(child: loader.center()),
-          secondChild: SizedBox.expand(child: child.center()),
-          layoutBuilder: (topChild, topChildKey, bottomChild, bottomChildKey) {
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                Positioned.fill(key: bottomChildKey, child: bottomChild),
-                Positioned.fill(key: topChildKey, child: topChild),
-              ],
-            );
-          },
-        ),
-      ).center(),
-    );
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: 8.circular,
+        border: Border.all(color: borderColor),
+      ),
+      constraints: const BoxConstraints(minHeight: 300),
+      clipBehavior: Clip.antiAlias,
+      child: AnimatedCrossFade(
+        alignment: Alignment.center,
+        duration: Durations.long2,
+        crossFadeState: showMedia
+            ? CrossFadeState.showSecond
+            : CrossFadeState.showFirst,
+        firstChild: SizedBox.expand(child: loader.center()),
+        secondChild: SizedBox.expand(child: child.center()),
+        layoutBuilder: (topChild, topChildKey, bottomChild, bottomChildKey) {
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(key: bottomChildKey, child: bottomChild),
+              Positioned.fill(key: topChildKey, child: topChild),
+            ],
+          );
+        },
+      ),
+    ).center();
   }
 }

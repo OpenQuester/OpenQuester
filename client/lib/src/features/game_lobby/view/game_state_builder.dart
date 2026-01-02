@@ -72,6 +72,8 @@ class GameStateBuilder extends WatchingWidget {
     GameLobbyState state;
     if (lobbyEditorMode) {
       state = GameLobbyState.editorMode;
+    } else if (gameFinished) {
+      state = GameLobbyState.finished;
     } else if (isReviewingFinalAnswers) {
       state = GameLobbyState.reviewingFinalAnswers;
     } else if (isAnsweringFinal) {
@@ -84,8 +86,6 @@ class GameStateBuilder extends WatchingWidget {
       state = GameLobbyState.pickingPlayer;
     } else if (gameData?.gameState.currentRound == null) {
       state = GameLobbyState.loading;
-    } else if (gameFinished) {
-      state = GameLobbyState.finished;
     } else if (gameData?.gameState.stakeQuestionData?.biddingPhase ?? false) {
       state = GameLobbyState.biddingPhaseFromState;
     } else if (currentQuestion != null) {

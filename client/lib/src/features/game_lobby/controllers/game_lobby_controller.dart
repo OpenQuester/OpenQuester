@@ -821,6 +821,12 @@ class GameLobbyController {
 
   void _onGameFinish(dynamic data) {
     gameFinished.value = true;
+    unawaited(getIt<GameQuestionController>().clear());
+    getIt<GameLobbyPlayerPickerController>().clear();
+    getIt<GameLobbyThemePickerController>().clear();
+    getIt<GameLobbyPlayerStakesController>().clear();
+    getIt<GameLobbyReviewController>().clear();
+    getIt<GameLobbyFinalAnswerController>().clear();
   }
 
   void skipRound() {

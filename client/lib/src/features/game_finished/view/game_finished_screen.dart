@@ -39,6 +39,7 @@ class GameFinishedScreen extends WatchingWidget {
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 600),
               child: Card.outlined(
+                clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
                     for (var i = 0; i < players.length; i++)
