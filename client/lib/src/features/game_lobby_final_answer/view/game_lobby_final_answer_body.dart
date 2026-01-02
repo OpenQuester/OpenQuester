@@ -14,7 +14,6 @@ class GameFinalAnswerBody extends WatchingWidget {
 
     final answerInput = Column(
       spacing: 16,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
         TextFormField(
@@ -44,6 +43,6 @@ class GameFinalAnswerBody extends WatchingWidget {
           : Flexible(child: answerInput.center()),
     );
 
-    return SafeArea(child: SingleChildScrollView(child: layout.paddingAll(16)));
+    return SafeArea(child: layout.paddingAll(16));
   }
 }

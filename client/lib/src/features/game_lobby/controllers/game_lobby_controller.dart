@@ -400,7 +400,7 @@ class GameLobbyController {
     final leaveData = SocketIoGameLeaveEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
-    final user = gameData.value?.players.getById(leaveData.user);
+    final user = gameData.value?.players.getById(leaveData.userId);
     if (user == null) return;
 
     // If i am leaving - close game

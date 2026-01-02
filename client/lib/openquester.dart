@@ -115,6 +115,7 @@ export 'src/features/profile/controller/profile_controller.dart';
 export 'src/features/profile/view/profile_btn.dart';
 export 'src/features/profile/view/profile_screen.dart';
 export 'src/features/settings/view/settings_dialog.dart';
+export 'src/ui/components/conditional_scroll_builder.dart';
 export 'src/ui/components/score_text.dart';
 export 'src/utils/error_handler.dart';
 export 'src/utils/extensions.dart';
