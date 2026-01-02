@@ -1,0 +1,51 @@
+name: Deploy Documentation to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'PRIVACY_POLICY.md'
+      - 'websites/docs/**'
+      - 'server/docs/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    
+    name: Deploy Documentation Site
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.146.0'
+          extended: true
+      
+      - name: Copy privacy policy to docs content
+        run: |
+          cp PRIVACY_POLICY.md websites/docs/content/docs/privacy.md
+      
+      - name: Build Hugo docs site
+        run: |
+          cd websites/docs
+          hugo --minify
+      
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: openquester-docs
+          directory: websites/docs/public
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
+          wranglerVersion: '3'

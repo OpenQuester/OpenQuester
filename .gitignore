@@ -30,3 +30,8 @@ content.xml
 
 # IntelliJ
 .idea/
+
+# Hugo
+websites/*/public/
+websites/*/resources/
+.hugo_build.lock
