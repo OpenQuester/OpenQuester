@@ -1394,7 +1394,7 @@ class GameLobbyController {
 
     // Update phase
     gameData.value = gameData.value!.copyWith.gameState.finalRoundData!(
-      phase: data.phase,
+      phase: data.nextPhase ?? data.phase,
     );
 
     // Update answers if provided (revealed when transitioning to reviewing)

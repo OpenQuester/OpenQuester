@@ -63,18 +63,20 @@ class GameLobbyPlayers extends WatchingWidget {
             final allowEdit =
                 gameData?.me.role == PlayerRole.showman &&
                 player.role == PlayerRole.player;
-
+            final onPlayerTap = allowEdit
+                ? () => PlayerEditBtn.showEditMenu(
+                    context: context,
+                    player: player,
+                    offset: Offset(
+                      constrains.maxWidth,
+                      constrains.maxHeight / 2,
+                    ),
+                  )
+                : null;
+                
             return InkWell(
-              onTap: allowEdit
-                  ? () => PlayerEditBtn.showEditMenu(
-                      context: context,
-                      player: player,
-                      offset: Offset(
-                        constrains.maxWidth,
-                        constrains.maxHeight / 2,
-                      ),
-                    )
-                  : null,
+              onTap: onPlayerTap,
+              onSecondaryTap: onPlayerTap,
               borderRadius: 16.circular,
               child: GameLobbyPlayer(
                 player: player,
