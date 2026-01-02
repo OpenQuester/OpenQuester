@@ -1,8 +1,0 @@
-# Redirects for Cloudflare Pages
-
-# Redirect root to index
-/privacy /privacy/index.html 200
-/ /privacy/index.html 200
-
-# 404 page
-/* /privacy/index.html 404

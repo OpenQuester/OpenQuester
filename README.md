@@ -55,7 +55,7 @@ Join games in the role that suits you best:
 - **macOS** - macOS support _(Work in Progress)_
 - **Android** - Mobile gameplay on Google Play
 - **iOS** - iOS support _(Coming Soon)_
-- **Web** - Browser-based access _(Planned)_
+- **Web** - Browser-based access
 
 ### 🎨 Modern Experience
 

@@ -1,3 +1,8 @@
+---
+title: Privacy Policy
+weight: 10
+---
+
 # Privacy Policy for OpenQuester
 
 **Last Updated: January 2, 2026**
