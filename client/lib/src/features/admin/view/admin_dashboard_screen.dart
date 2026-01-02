@@ -857,8 +857,10 @@ class _MoreUserButton extends StatelessWidget {
   }
 
   Future<DateTime?> _showMuteDurationDialog(BuildContext context) async {
-    // Use a special marker for custom option
-    final customMarker = DateTime(1970); // Epoch as marker
+    // Use a special marker for custom option to differentiate from preset durations
+    // This marker (Unix epoch) will never conflict with real mute times since
+    // all mute times must be in the future (validated in _showCustomDateTimePicker)
+    final customMarker = DateTime(1970);
     
     final result = await showDialog<DateTime>(
       context: context,
@@ -871,25 +873,25 @@ class _MoreUserButton extends StatelessWidget {
             Text(LocaleKeys.admin_select_mute_duration.tr()),
             const SizedBox(height: 16),
             ListTile(
-              title: Text(LocaleKeys.admin_mute_until.tr(args: ['15 minutes'])),
+              title: Text(LocaleKeys.admin_mute_for_15_minutes.tr()),
               onTap: () => Navigator.of(context).pop(
                 DateTime.now().add(const Duration(minutes: 15)),
               ),
             ),
             ListTile(
-              title: Text(LocaleKeys.admin_mute_until.tr(args: ['1 hour'])),
+              title: Text(LocaleKeys.admin_mute_for_1_hour.tr()),
               onTap: () => Navigator.of(context).pop(
                 DateTime.now().add(const Duration(hours: 1)),
               ),
             ),
             ListTile(
-              title: Text(LocaleKeys.admin_mute_until.tr(args: ['24 hours'])),
+              title: Text(LocaleKeys.admin_mute_for_24_hours.tr()),
               onTap: () => Navigator.of(context).pop(
                 DateTime.now().add(const Duration(hours: 24)),
               ),
             ),
             ListTile(
-              title: Text(LocaleKeys.admin_mute_until.tr(args: ['custom'])),
+              title: Text(LocaleKeys.admin_mute_custom.tr()),
               onTap: () => Navigator.of(context).pop(customMarker),
             ),
           ],
@@ -933,12 +935,25 @@ class _MoreUserButton extends StatelessWidget {
     
     if (selectedTime == null) return null;
     
-    return DateTime(
+    final combinedDateTime = DateTime(
       selectedDate.year,
       selectedDate.month,
       selectedDate.day,
       selectedTime.hour,
       selectedTime.minute,
     );
+    
+    // Validate that the selected date/time is in the future
+    final nowAfterPick = DateTime.now();
+    if (!combinedDateTime.isAfter(nowAfterPick)) {
+      if (context.mounted) {
+        await getIt<ToastController>().show(
+          LocaleKeys.admin_mute_time_must_be_future.tr(),
+        );
+      }
+      return null;
+    }
+    
+    return combinedDateTime;
   }
 }

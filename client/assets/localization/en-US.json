@@ -407,8 +407,13 @@
     "user_muted_success": "User muted successfully",
     "user_unmuted_success": "User unmuted successfully",
     "mute_duration": "Mute Duration",
-    "mute_until": "Mute Until",
-    "select_mute_duration": "Select how long to mute this user"
+    "select_mute_duration": "Select how long to mute this user",
+    "custom_mute_until": "Mute Until",
+    "mute_for_15_minutes": "Mute for 15 minutes",
+    "mute_for_1_hour": "Mute for 1 hour",
+    "mute_for_24_hours": "Mute for 24 hours",
+    "mute_custom": "Custom duration",
+    "mute_time_must_be_future": "Mute time must be in the future"
   },
   "something_went_wrong": "Something went wrong",
   "just_now": "Just now",
