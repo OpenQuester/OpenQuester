@@ -52,15 +52,15 @@ export class JoinGameActionHandler
       );
     }
 
-    // Join player through service
+    // Join player through service - returns broadcasts
     const result = await this.socketIOGameService.joinPlayer(
       payload,
       user,
       socketId
     );
-    const { player, game } = result;
+    const { game, player } = result.data;
 
-    // Prepare the response data
+    // Prepare the response data for the joining player
     const gameJoinData: GameJoinOutputData = {
       meta: {
         title: game.title,
@@ -74,19 +74,15 @@ export class JoinGameActionHandler
       ),
     };
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.JOIN,
-        data: player.toDTO(),
-        target: SocketBroadcastTarget.GAME,
-        gameId: payload.gameId,
-      },
+    // Combine service broadcasts with socket-specific GAME_DATA broadcast
+    const broadcasts: SocketEventBroadcast[] = [
+      ...result.broadcasts,
       {
         event: SocketIOGameEvents.GAME_DATA,
         data: gameJoinData,
         target: SocketBroadcastTarget.SOCKET,
         socketId: socketId,
-      },
+      } satisfies SocketEventBroadcast<GameJoinOutputData>,
     ];
 
     return { success: true, data: gameJoinData, broadcasts };

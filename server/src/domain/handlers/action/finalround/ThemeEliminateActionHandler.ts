@@ -31,31 +31,18 @@ export class ThemeEliminateActionHandler
   public async execute(
     action: GameAction<ThemeEliminateInputData>
   ): Promise<GameActionHandlerResult<ThemeEliminateOutputData>> {
-    const { game, eliminatedBy, themeId, nextPlayerId, isPhaseComplete } =
-      await this.finalRoundService.handleThemeEliminate(
-        action.socketId,
-        action.payload.themeId
-      );
+    const result = await this.finalRoundService.handleThemeEliminate(
+      action.socketId,
+      action.payload.themeId
+    );
 
-    const outputData: ThemeEliminateOutputData = {
-      themeId,
-      eliminatedBy,
-      nextPlayerId,
-    };
-
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.THEME_ELIMINATE,
-        data: outputData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<ThemeEliminateOutputData>,
-    ];
+    // Start with broadcasts from the result (includes THEME_ELIMINATE + transition broadcasts)
+    const broadcasts: SocketEventBroadcast[] = [...result.broadcasts];
 
     // If phase is complete (moved to bidding), handle automatic bidding
-    if (isPhaseComplete) {
+    if (result.isPhaseComplete) {
       const biddingPhaseResult =
-        await this.finalRoundService.initializeBiddingPhase(game.id);
+        await this.finalRoundService.initializeBiddingPhase(result.game.id);
 
       // Add automatic bid events
       for (const autoBid of biddingPhaseResult.automaticBids) {
@@ -67,21 +54,9 @@ export class ThemeEliminateActionHandler
             isAutomatic: true,
           } satisfies FinalBidSubmitOutputData,
           target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
+          gameId: result.game.id,
         } satisfies SocketEventBroadcast<FinalBidSubmitOutputData>);
       }
-
-      // Emit FINAL_PHASE_COMPLETE for theme_elimination → bidding transition
-      broadcasts.push({
-        event: SocketIOGameEvents.FINAL_PHASE_COMPLETE,
-        data: {
-          phase: FinalRoundPhase.THEME_ELIMINATION,
-          nextPhase: FinalRoundPhase.BIDDING,
-          timer: biddingPhaseResult.timer,
-        } satisfies FinalPhaseCompleteEventData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<FinalPhaseCompleteEventData>);
 
       // If all players auto-bid, emit question data and bidding → answering transition
       if (biddingPhaseResult.questionData) {
@@ -91,7 +66,7 @@ export class ThemeEliminateActionHandler
             questionData: biddingPhaseResult.questionData,
           } satisfies FinalQuestionEventData,
           target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
+          gameId: result.game.id,
         } satisfies SocketEventBroadcast<FinalQuestionEventData>);
 
         broadcasts.push({
@@ -102,11 +77,11 @@ export class ThemeEliminateActionHandler
             timer: biddingPhaseResult.timer,
           } satisfies FinalPhaseCompleteEventData,
           target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
+          gameId: result.game.id,
         } satisfies SocketEventBroadcast<FinalPhaseCompleteEventData>);
       }
     }
 
-    return { success: true, data: outputData, broadcasts };
+    return { success: true, data: result.data, broadcasts };
   }
 }

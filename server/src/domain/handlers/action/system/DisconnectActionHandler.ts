@@ -1,15 +1,11 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
+import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 
 export interface DisconnectResult {
   gameId: string | null;
@@ -30,29 +26,10 @@ export class DisconnectActionHandler
   ): Promise<GameActionHandlerResult<DisconnectResult>> {
     const result = await this.socketIOGameService.leaveLobby(action.socketId);
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [];
-
-    // Add leave event if needed
-    if (result.emit && result.data) {
-      broadcasts.push({
-        event: SocketIOGameEvents.LEAVE,
-        data: result.data,
-        target: SocketBroadcastTarget.GAME,
-        gameId: result.data.gameId,
-      });
-    }
-
-    // Add any additional broadcasts (e.g., answer-result from auto-skip)
-    if (result.broadcasts) {
-      for (const broadcast of result.broadcasts) {
-        broadcasts.push({
-          event: broadcast.event,
-          data: broadcast.data,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.data?.gameId ?? "",
-        });
-      }
-    }
+    // Service generates type-safe broadcasts with satisfies - just convert format
+    const broadcasts = result.broadcasts
+      ? convertBroadcasts(result.broadcasts)
+      : [];
 
     return {
       success: true,

@@ -165,13 +165,16 @@ export class FinalRoundStateManager {
       throw new ServerError("Final round data not initialized");
     }
 
+    const isAutoLoss = answerText.trim().length === 0;
+
     const answer: FinalRoundAnswer = {
       id: ValueUtils.generateUUID(),
       playerId,
       answer: answerText,
       submittedAt: new Date(),
-      autoLoss: answerText.trim().length === 0,
-      isCorrect: undefined, // Always undefined initially - showman must review
+      autoLoss: isAutoLoss,
+      // Auto-loss answers are automatically marked as incorrect (no showman review needed)
+      isCorrect: isAutoLoss ? false : undefined,
     };
 
     data.answers.push(answer);

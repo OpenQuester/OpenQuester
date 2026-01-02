@@ -1,7 +1,24 @@
 import { Game } from "domain/entities/game/Game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import {
+  SocketBroadcastTarget,
+  SocketEventBroadcast,
+} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { GameStartBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+
+/**
+ * Result from game start operation
+ */
+export interface GameStartResult {
+  data: {
+    game: Game;
+    currentRound: GameStateDTO["currentRound"];
+  };
+  broadcasts: SocketEventBroadcast[];
+}
 
 export class GameStartLogic {
   public static buildInitialGameState(game: Game): GameStateDTO {
@@ -18,6 +35,27 @@ export class GameStartLogic {
       timer: null,
       currentTurnPlayerId,
       skippedPlayers: null,
+    };
+  }
+
+  /**
+   * Build result with broadcasts for game start
+   */
+  public static buildResult(game: Game): GameStartResult {
+    const currentRound = game.gameState.currentRound!;
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event: SocketIOGameEvents.START,
+        data: { currentRound } satisfies GameStartBroadcastData,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<GameStartBroadcastData>,
+    ];
+
+    return {
+      data: { game, currentRound },
+      broadcasts,
     };
   }
 }

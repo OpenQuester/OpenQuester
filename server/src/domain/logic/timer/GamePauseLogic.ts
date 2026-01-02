@@ -1,14 +1,29 @@
 import { Game } from "domain/entities/game/Game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import {
+  SocketBroadcastTarget,
+  SocketEventBroadcast,
+} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import {
+  GamePauseBroadcastData,
+  GameUnpauseBroadcastData,
+} from "domain/types/socket/events/SocketEventInterfaces";
 
-export interface GamePauseResult {
+export interface GamePauseData {
   game: Game;
   timer: GameStateTimerDTO | null;
+}
+
+export interface GamePauseResult {
+  data: GamePauseData;
+  broadcasts: SocketEventBroadcast[];
 }
 
 export interface GamePauseBuildResultInput {
   game: Game;
   timer: GameStateTimerDTO | null;
+  isPause: boolean;
 }
 
 /**
@@ -47,14 +62,28 @@ export class GamePauseLogic {
   }
 
   /**
-   * Build result for pause/unpause operations.
+   * Build result for pause/unpause operations with broadcasts.
    */
   public static buildResult(input: GamePauseBuildResultInput): GamePauseResult {
-    const { game, timer } = input;
+    const { game, timer, isPause } = input;
+
+    const broadcastData = { timer } satisfies GamePauseBroadcastData;
+    const event = isPause
+      ? SocketIOGameEvents.GAME_PAUSE
+      : SocketIOGameEvents.GAME_UNPAUSE;
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event,
+        data: broadcastData,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<GamePauseBroadcastData>,
+    ];
 
     return {
-      game,
-      timer,
+      data: { game, timer },
+      broadcasts,
     };
   }
 }

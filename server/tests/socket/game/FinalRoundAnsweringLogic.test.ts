@@ -11,8 +11,8 @@ import {
 } from "domain/types/socket/events/FinalAnswerReviewData";
 import {
   FinalAnswerSubmitOutputData,
-  SocketIOFinalAutoLossEventPayload,
   FinalSubmitEndEventData,
+  SocketIOFinalAutoLossEventPayload,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { User } from "infrastructure/database/models/User";
