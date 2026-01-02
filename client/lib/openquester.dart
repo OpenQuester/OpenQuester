@@ -99,6 +99,7 @@ export 'src/features/package_upload/data/package_upload_cart.dart';
 export 'src/features/package_upload/view/upload_package_button.dart';
 export 'src/features/packages/controllers/package_controller.dart';
 export 'src/features/packages/controllers/packages_list_controller.dart';
+export 'src/features/packages/view/package_detail_dialog.dart';
 export 'src/features/packages/view/package_list_item.dart';
 export 'src/features/packages/view/packages_list.dart';
 export 'src/features/paginated_list/controllers/list_controller_base.dart';

@@ -10,33 +10,128 @@ class PackageListItemWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: ListTile(
-        title: Text(item.title, overflow: TextOverflow.ellipsis, maxLines: 2)
-            .withTooltip(msg: LocaleKeys.game_tile_tooltips_packages_title.tr())
-            .shrink(),
-        subtitle: Text(
-          _packInfo(context),
-          overflow: TextOverflow.ellipsis,
-          maxLines: 2,
-        ).paddingTop(4).shrink(),
-        titleAlignment: ListTileTitleAlignment.bottom,
-        contentPadding: const EdgeInsets.only(right: 16, left: 4),
-        mouseCursor: MouseCursor.defer,
-      ).paddingSymmetric(horizontal: 2),
-    ).paddingSymmetric(horizontal: 6);
+      child: InkWell(
+        onTap: () => _showPackageDetails(context),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: 12.all,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 8,
+            children: [
+              // Title row
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.title,
+                      style: context.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 2,
+                    ),
+                  ),
+                  if (item.logo != null)
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: context.theme.colorScheme.surfaceContainerHighest,
+                      ),
+                      child: const Icon(Icons.image, size: 20),
+                    ),
+                ],
+              ),
+              // Description
+              if (item.description?.isNotEmpty ?? false)
+                Text(
+                  item.description!,
+                  style: context.textTheme.bodyMedium?.copyWith(
+                    color: context.theme.colorScheme.onSurface.withValues(
+                      alpha: 0.7,
+                    ),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 2,
+                ),
+              // Metadata row
+              Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  _buildMetadata(
+                    context,
+                    Icons.person_outline,
+                    item.author.username,
+                  ),
+                  if (item.language != null)
+                    _buildMetadata(
+                      context,
+                      Icons.language,
+                      item.language!,
+                    ),
+                  _buildMetadata(
+                    context,
+                    Icons.calendar_today,
+                    DateFormat.yMd().format(item.createdAt),
+                  ),
+                  if (item.ageRestriction != AgeRestriction.none)
+                    _buildMetadata(
+                      context,
+                      Icons.shield_outlined,
+                      item.ageRestriction.format(context)?.$1 ?? '',
+                    ),
+                ],
+              ),
+              // Tags
+              if (item.tags?.isNotEmpty ?? false)
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: item.tags!
+                      .sublist(0, min(5, item.tags!.length))
+                      .map(
+                        (tag) => Chip(
+                          label: Text(
+                            tag,
+                            style: context.textTheme.labelSmall,
+                          ),
+                          padding: EdgeInsets.zero,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      )
+                      .toList(),
+                ),
+            ],
+          ),
+        ),
+      ),
+    ).paddingSymmetric(horizontal: 6, vertical: 4);
   }
 
-  String _packInfo(BuildContext context) {
-    final ageRestriction = item.ageRestriction.format(context);
-    return [
-      [
-        ageRestriction?.$1,
-        DateFormat.yMd().format(item.createdAt),
-        if (item.tags?.isNotEmpty ?? false)
-          item.tags!.sublist(0, min(5, item.tags!.length)).join(', '),
-        // LocaleKeys.rounds.plural(item.rounds.length),
-        LocaleKeys.created_by.tr(args: [item.author.username]),
-      ].nonNulls.join(' • '),
-    ].join('\n');
+  Widget _buildMetadata(BuildContext context, IconData icon, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 4,
+      children: [
+        Icon(
+          icon,
+          size: 14,
+          color: context.theme.colorScheme.onSurface.withValues(alpha: 0.6),
+        ),
+        Text(
+          text,
+          style: context.textTheme.bodySmall?.copyWith(
+            color: context.theme.colorScheme.onSurface.withValues(alpha: 0.7),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showPackageDetails(BuildContext context) async {
+    await PackageDetailRoute(packageId: item.id).push<void>(context);
   }
 }
