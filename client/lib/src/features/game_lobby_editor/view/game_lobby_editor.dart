@@ -78,8 +78,8 @@ class _Player extends WatchingWidget {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final playerAvailableToChange = _playerAvailableToChange(gameData, player);
     final playerBoxConstraints = BoxConstraints.expand(
-      width: 350,
-      height: GameLobbyStyles.players.height,
+      width: GameLobbyStyles.playersInEditor.width,
+      height: GameLobbyStyles.playersInEditor.height,
     );
 
     final child = GameLobbyPlayer(
@@ -133,8 +133,8 @@ class _PlayerDragTarget extends WatchingWidget {
     };
 
     final playerBoxConstraints = BoxConstraints.expand(
-      width: 350,
-      height: GameLobbyStyles.players.height,
+      width: GameLobbyStyles.playersInEditor.width,
+      height: GameLobbyStyles.playersInEditor.height,
     );
 
     return ConstrainedBox(
