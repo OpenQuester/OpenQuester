@@ -22,6 +22,12 @@
 
     <title>Privacy Policy - OpenQuester</title>
 
+    <!-- Markdown parser and sanitizer libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"
+        integrity="sha256-MfilOjbVXDy/0lxSk5au5fI84S+OYPcbC4hcHTp22hg=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.8/dist/purify.min.js"
+        integrity="sha256-OKaEY5AqWGvJCPl1v+hvoKnUdWhxPCetdVl61cY9CT0=" crossorigin="anonymous"></script>
+
     <style>
         * {
             margin: 0;
@@ -220,7 +226,7 @@
     <div class="container">
         <header>
             <h1>Privacy Policy for OpenQuester</h1>
-            <p class="last-updated"><strong>Last Updated:</strong> January 2, 2026</p>
+            <p class="last-updated" id="last-updated-date"></p>
         </header>
 
         <nav class="toc">
@@ -248,8 +254,8 @@
             <p><strong>OpenQuester Team</strong></p>
             <p>This privacy policy applies to all versions of OpenQuester across all platforms.</p>
             <a href="https://github.com/OpenQuester/OpenQuester" class="github-link" target="_blank"
-                rel="noopener noreferrer">
-                <svg height="20" width="20" viewBox="0 0 16 16" fill="currentColor">
+                rel="noopener noreferrer" aria-label="View OpenQuester on GitHub">
+                <svg height="20" width="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                     <path
                         d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
                 </svg>
@@ -259,67 +265,76 @@
     </div>
 
     <script>
+        // Configure marked for proper heading IDs
+        marked.use({
+            renderer: {
+                heading(text, level) {
+                    const id = text.toLowerCase()
+                        .replace(/[^\w\s-]/g, '')
+                        .replace(/\s+/g, '-')
+                        .replace(/-+/g, '-');
+                    return `<h${level} id="${id}">${text}</h${level}>`;
+                }
+            }
+        });
+
         // Load and render markdown content
         async function loadPrivacyPolicy() {
             try {
-                const response = await fetch('../../PRIVACY_POLICY.md');
+                const response = await fetch('./PRIVACY_POLICY.md');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
                 const markdown = await response.text();
 
-                // Simple markdown to HTML conversion
-                let html = markdown
-                    // Remove title and date (already in header)
+                // Extract the last updated date
+                const dateMatch = markdown.match(/\*\*Last Updated:\s*([^*]+)\*\*/);
+                if (dateMatch) {
+                    const lastUpdatedElement = document.getElementById('last-updated-date');
+                    lastUpdatedElement.innerHTML = `<strong>Last Updated:</strong> ${DOMPurify.sanitize(dateMatch[1].trim())}`;
+                }
+
+                // Remove title and date from markdown (already in header)
+                let cleanedMarkdown = markdown
                     .replace(/^# Privacy Policy for OpenQuester\s*\n/, '')
-                    .replace(/\*\*Last Updated:.*?\*\*\s*\n/, '')
+                    .replace(/\*\*Last Updated:.*?\*\*\s*\n/, '');
 
-                    // Headers
-                    .replace(/^## (.*?)$/gm, '<h2 id="$1">$1</h2>')
-                    .replace(/^### (.*?)$/gm, '<h3>$1</h3>')
-                    .replace(/^#### (.*?)$/gm, '<h4>$1</h4>')
+                // Parse markdown to HTML
+                const rawHtml = marked.parse(cleanedMarkdown);
 
-                    // Bold
-                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-
-                    // Lists
-                    .replace(/^- (.*?)$/gm, '<li>$1</li>')
-
-                    // Links
-                    .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
-
-                    // Paragraphs
-                    .split('\n\n')
-                    .map(para => {
-                        if (para.startsWith('<h') || para.startsWith('<li>')) {
-                            return para;
-                        }
-                        if (para.includes('<li>')) {
-                            return '<ul>' + para + '</ul>';
-                        }
-                        return para.trim() ? '<p>' + para + '</p>' : '';
-                    })
-                    .join('\n');
-
-                // Generate IDs for sections
-                html = html.replace(/<h2[^>]*>(.*?)<\/h2>/g, (match, title) => {
-                    const id = title.toLowerCase()
-                        .replace(/[^\w\s]/g, '')
-                        .replace(/\s+/g, '-');
-                    return `<h2 id="${id}">${title}</h2>`;
+                // Sanitize HTML to prevent XSS
+                const sanitizedHtml = DOMPurify.sanitize(rawHtml, {
+                    ALLOWED_TAGS: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'li', 'a', 'strong', 'em', 'code', 'pre', 'blockquote', 'hr'],
+                    ALLOWED_ATTR: ['href', 'target', 'rel', 'id'],
+                    ALLOW_DATA_ATTR: false
                 });
 
-                document.getElementById('content').innerHTML = html;
+                document.getElementById('content').innerHTML = sanitizedHtml;
             } catch (error) {
                 console.error('Failed to load privacy policy:', error);
-                document.getElementById('content').innerHTML =
-                    '<p>Failed to load privacy policy. Please try again later or visit our <a href="https://github.com/OpenQuester/OpenQuester">GitHub repository</a>.</p>';
+                document.getElementById('content').innerHTML = DOMPurify.sanitize(
+                    '<p>Failed to load privacy policy. Please try again later or visit our <a href="https://github.com/OpenQuester/OpenQuester" target="_blank" rel="noopener noreferrer">GitHub repository</a>.</p>'
+                );
             }
         }
 
         // Load content when page loads
-        loadPrivacyPolicy();
+        if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+            loadPrivacyPolicy();
+        } else {
+            document.getElementById('content').innerHTML = '<p>Loading required libraries...</p>';
+            // Wait for libraries to load
+            const checkLibraries = setInterval(() => {
+                if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
+                    clearInterval(checkLibraries);
+                    loadPrivacyPolicy();
+                }
+            }, 100);
+        }
 
         // Smooth scrolling for anchor links
         document.addEventListener('click', (e) => {
-            if (e.target.tagName === 'A' && e.target.getAttribute('href').startsWith('#')) {
+            if (e.target.tagName === 'A' && e.target.getAttribute('href')?.startsWith('#')) {
                 e.preventDefault();
                 const id = e.target.getAttribute('href').slice(1);
                 const element = document.getElementById(id);
