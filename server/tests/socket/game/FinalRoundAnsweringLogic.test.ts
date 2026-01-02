@@ -3,6 +3,7 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { FinalAnswerType } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import {
@@ -148,6 +149,13 @@ describe("Final Round Answering Logic", () => {
       expect(submitEndEvent!.allReviews![0].answerText).toBeDefined();
       expect(submitEndEvent!.allReviews![1].answerText).toBeDefined();
 
+      // Verify valid answers have isCorrect: null (need showman review)
+      // and answerType: 'pending'
+      for (const review of submitEndEvent!.allReviews!) {
+        expect(review.isCorrect).toBeNull();
+        expect(review.answerType).toBe(FinalAnswerType.PENDING);
+      }
+
       // Verify game state transitioned to reviewing
       gameState = await utils.getGameState(gameId);
       expect(gameState.questionState).toBe(QuestionState.REVIEWING);
@@ -249,11 +257,21 @@ describe("Final Round Answering Logic", () => {
       expect(submitEndEvent).not.toBeNull();
       expect(submitEndEvent!.allReviews).toHaveLength(2);
 
-      // Verify the empty answer is marked as auto-loss
+      // Verify the empty answer is marked as auto-loss with isCorrect: false
       const autoLossReview = submitEndEvent!.allReviews!.find(
         (review) => review.answerText === ""
       );
       expect(autoLossReview).toBeDefined();
+      expect(autoLossReview!.isCorrect).toBe(false);
+      expect(autoLossReview!.answerType).toBe(FinalAnswerType.AUTO_LOSS);
+
+      // Verify the valid answer has isCorrect: null (needs showman review)
+      const validReview = submitEndEvent!.allReviews!.find(
+        (review) => review.answerText === "Player 2 answer"
+      );
+      expect(validReview).toBeDefined();
+      expect(validReview!.isCorrect).toBeNull();
+      expect(validReview!.answerType).toBe(FinalAnswerType.PENDING);
 
       // Clean up
       showmanSocket.disconnect();

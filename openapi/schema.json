@@ -4417,7 +4417,6 @@
         },
         "required": ["fromPlayerId", "questionId", "toPlayerId"]
       },
-
       "SocketIOThemeEliminateInput": {
         "type": "object",
         "description": "Data sent to eliminate a theme in final round",
@@ -4855,9 +4854,9 @@
             "$ref": "#/components/schemas/FinalAnswerType"
           },
           "isCorrect": {
-            "type": "boolean",
-            "description": "Whether the answer is correct (optional, present after review)",
-            "examples": [true]
+            "type": ["boolean", "null"],
+            "description": "Whether the answer is correct. null for unreviewed valid answers (showman needs to review), false for auto-loss or manually reviewed as incorrect",
+            "examples": [true, false, null]
           }
         },
         "required": [
@@ -4871,9 +4870,9 @@
       },
       "FinalAnswerType": {
         "type": "string",
-        "enum": ["correct", "wrong", "auto_loss"],
-        "description": "Type of final round answer result",
-        "examples": ["correct"]
+        "enum": ["correct", "wrong", "auto_loss", "pending"],
+        "description": "Type of final round answer result: correct (reviewed as correct), wrong (reviewed as wrong), auto_loss (empty answer, auto-marked wrong), pending (needs showman review)",
+        "examples": ["correct", "pending"]
       },
       "StakeBidType": {
         "type": "string",

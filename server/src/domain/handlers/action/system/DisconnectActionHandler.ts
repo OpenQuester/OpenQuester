@@ -1,3 +1,4 @@
+import { PlayerLeaveReason } from "application/services/player/PlayerLeaveService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { GameAction } from "domain/types/action/GameAction";
 import {
@@ -24,7 +25,10 @@ export class DisconnectActionHandler
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<DisconnectResult>> {
-    const result = await this.socketIOGameService.leaveLobby(action.socketId);
+    const result = await this.socketIOGameService.leaveLobby(
+      action.socketId,
+      PlayerLeaveReason.DISCONNECT
+    );
 
     // Service generates type-safe broadcasts with satisfies - just convert format
     const broadcasts = result.broadcasts

@@ -16,7 +16,8 @@ export interface AnswerReviewData {
   answerText: string;
   scoreChange: number;
   answerType: FinalAnswerType;
-  isCorrect?: boolean;
+  /** Whether answer is correct. null for unreviewed valid answers (showman needs to review) */
+  isCorrect: boolean | null;
 }
 
 export interface ThemeEliminateResult {

@@ -49,6 +49,7 @@ import {
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { GameLobbyLeaveData } from "domain/types/game/GameRoomLeaveData";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -192,13 +193,27 @@ export class SocketIOGameService {
     return GameStartLogic.buildResult(game);
   }
 
-  public async leaveLobby(socketId: string): Promise<GameLobbyLeaveData> {
+  public async leaveLobby(
+    socketId: string,
+    reason: PlayerLeaveReason = PlayerLeaveReason.LEAVE
+  ): Promise<GameLobbyLeaveData> {
     const result = await this.playerLeaveService.handlePlayerLeave(socketId, {
-      reason: PlayerLeaveReason.LEAVE,
+      reason,
     });
 
     if (!result.shouldEmitLeave) {
       return { emit: false };
+    }
+
+    const activePlayers = result.game.players.filter(
+      (p) => p.gameStatus === PlayerGameStatus.IN_GAME
+    );
+
+    const gameNotStartedOrFinished =
+      result.game.startedAt === null || result.game.finishedAt !== null;
+
+    if (activePlayers.length === 0 && gameNotStartedOrFinished) {
+      await this.deleteGameInternally(result.game.id);
     }
 
     return {
@@ -732,13 +747,6 @@ export class SocketIOGameService {
    */
   public async deleteGameInternally(gameId: string) {
     await this.gameService.deleteInternally(gameId);
-  }
-
-  /**
-   * Helper method to get first free slot index
-   */
-  private _getFirstFreeSlotIndex(game: Game): number {
-    return PlayerRoleChangeLogic.getFirstFreeSlot(game);
   }
 
   public async getGameStateBroadcastMap(

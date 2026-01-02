@@ -158,14 +158,13 @@ export class FinalRoundStateManager {
   public static addAnswer(
     game: Game,
     playerId: number,
-    answerText: string
+    answerText: string,
+    isAutoLoss: boolean
   ): FinalRoundAnswer {
     const data = this.getFinalRoundData(game);
     if (!data) {
       throw new ServerError("Final round data not initialized");
     }
-
-    const isAutoLoss = answerText.trim().length === 0;
 
     const answer: FinalRoundAnswer = {
       id: ValueUtils.generateUUID(),
