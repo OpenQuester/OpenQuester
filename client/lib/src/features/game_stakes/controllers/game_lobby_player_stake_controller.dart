@@ -24,6 +24,7 @@ class GameLobbyPlayerStakesController extends ChangeNotifier {
     bool isFinalRound = false,
   }) {
     isBidding = true;
+    this.isFinalRound = isFinalRound;
     this.allPlayersBid = allPlayersBid;
     _onPlayerBid = onPlayerBid;
     this.bids = bids;

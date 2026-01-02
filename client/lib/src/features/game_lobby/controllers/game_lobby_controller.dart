@@ -1201,10 +1201,15 @@ class GameLobbyController {
           bids: finalRoundData.bids.map(
             (key, value) => MapEntry(int.parse(key), value),
           ),
-          onPlayerBid: (bid) => socket?.emit(
-            SocketIoGameSendEvents.finalBidSubmit.json!,
-            SocketIoFinalBidSubmitInput(bid: bid.bidAmount ?? 0).toJson(),
-          ),
+          onPlayerBid: (bid) {
+            final amount = bid.bidType == StakeBidType.allIn
+                ? gameData.value?.players.getById(myId)?.score ?? 0
+                : bid.bidAmount ?? 0;
+            socket?.emit(
+              SocketIoGameSendEvents.finalBidSubmit.json!,
+              SocketIoFinalBidSubmitInput(bid: amount).toJson(),
+            );
+          },
         );
 
       case FinalRoundPhase.answering:
@@ -1213,7 +1218,7 @@ class GameLobbyController {
         getIt<GameLobbyReviewController>().clear();
 
         // Show question
-        _showQuestion();
+        _showQuestion(dontWaitForPlayers: true);
 
         // Start answer controller for players
         final me = gameData.value?.me;
