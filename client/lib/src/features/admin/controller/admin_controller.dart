@@ -220,6 +220,57 @@ class AdminController extends ChangeNotifier {
     }
   }
 
+  Future<bool> muteUser(int userId, DateTime mutedUntil) async {
+    if (!ProfileController.userHavePermission(PermissionName.mutePlayer)) {
+      await getIt<ToastController>().show(
+        LocaleKeys.admin_no_permission.tr(),
+      );
+      return false;
+    }
+
+    try {
+      await Api.I.api.admin.postV1AdminApiUsersIdMute(
+        id: userId,
+        mutedUntil: mutedUntil.toIso8601String(),
+      );
+      await getIt<ToastController>().show(
+        LocaleKeys.admin_user_muted_success.tr(),
+        type: ToastType.success,
+      );
+      return true;
+    } catch (e) {
+      await getIt<ToastController>().show(
+        Api.parseError(e) ?? LocaleKeys.something_went_wrong.tr(),
+      );
+      logger.e('Failed to mute user', error: e);
+      return false;
+    }
+  }
+
+  Future<bool> unmuteUser(int userId) async {
+    if (!ProfileController.userHavePermission(PermissionName.mutePlayer)) {
+      await getIt<ToastController>().show(
+        LocaleKeys.admin_no_permission.tr(),
+      );
+      return false;
+    }
+
+    try {
+      await Api.I.api.admin.postV1AdminApiUsersIdUnmute(id: userId);
+      await getIt<ToastController>().show(
+        LocaleKeys.admin_user_unmuted_success.tr(),
+        type: ToastType.success,
+      );
+      return true;
+    } catch (e) {
+      await getIt<ToastController>().show(
+        Api.parseError(e) ?? LocaleKeys.something_went_wrong.tr(),
+      );
+      logger.e('Failed to unmute user', error: e);
+      return false;
+    }
+  }
+
   void clearError() {
     _error = null;
     notifyListeners();
