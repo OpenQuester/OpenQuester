@@ -399,6 +399,7 @@ class GameLobbyController {
     // Complete the join completer with false if not already completed
     if (!_joinCompleter.isCompleted) {
       _joinCompleter.complete(false);
+      unawaited(clear());
     }
 
     return errorText;
