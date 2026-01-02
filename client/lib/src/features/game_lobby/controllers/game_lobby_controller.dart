@@ -136,6 +136,10 @@ class GameLobbyController {
           SocketIoGameReceiveEvents.questionFinish.json!,
           _onFinalQuestionFinish,
         )
+        ..on(
+          SocketIoGameReceiveEvents.finalSubmitEnd.json!,
+          _onFinalSubmitEnd,
+        )
         ..connect();
 
       return await _joinCompleter.future;
@@ -1369,6 +1373,50 @@ class GameLobbyController {
 
     // Clear currentReviewingAnswerId
     getIt<GameLobbyReviewController>().updateReviewingAnswerId(null);
+  }
+
+  void _onFinalSubmitEnd(dynamic json) {
+    if (json is! Map) return;
+
+    final data = SocketIoFinalSubmitEndPayload.fromJson(
+      json as Map<String, dynamic>,
+    );
+
+    final finalRoundData = gameData.value?.gameState.finalRoundData;
+    if (finalRoundData == null) return;
+
+    // Update phase
+    gameData.value = gameData.value!.copyWith.gameState.finalRoundData!(
+      phase: data.phase,
+    );
+
+    // Update answers if provided (revealed when transitioning to reviewing)
+    if (data.allReviews != null) {
+      final convertedAnswers = data.allReviews!.map((review) {
+        // Find existing answer to preserve submittedAt
+        final existing = finalRoundData.answers.firstWhereOrNull(
+          (a) => a.id == review.answerId,
+        );
+        return FinalRoundAnswer(
+          id: review.answerId,
+          playerId: review.playerId,
+          answer: review.answerText,
+          submittedAt: existing?.submittedAt ?? DateTime.now(),
+          isCorrect: review.isCorrect,
+          reviewedAt: DateTime.now(),
+        );
+      }).toList();
+
+      gameData.value = gameData.value!.copyWith.gameState.finalRoundData!(
+        answers: convertedAnswers,
+      );
+    }
+
+    // Clear answer controller
+    getIt<GameLobbyFinalAnswerController>().clear();
+
+    // Show the final round based on new phase
+    _showFinalRound();
   }
 
   Future<void> _onFinalQuestionFinish(dynamic json) async {

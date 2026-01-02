@@ -12,8 +12,9 @@ class GameFinalRoundBody extends WatchingWidget {
     final eliminatedThemes =
         gameData?.gameState.finalRoundData?.eliminatedThemes ?? [];
     final allowToSelect =
-        gameData?.gameState.currentTurnPlayerId == gameData?.me.meta.id ||
-        (gameData?.me.isShowman ?? false);
+        (gameData?.gameState.currentTurnPlayerId == gameData?.me.meta.id ||
+            (gameData?.me.isShowman ?? false)) &&
+        gameData?.me.isSpectator == false;
 
     final body = Column(
       spacing: 16,
@@ -70,6 +71,15 @@ class _GameFinalRoundTile extends WatchingWidget {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
+      shape: selected
+          ? RoundedRectangleBorder(
+              side: BorderSide(
+                color: context.theme.colorScheme.primary,
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            )
+          : null,
       elevation: enabled
           ? selected
                 ? 8
