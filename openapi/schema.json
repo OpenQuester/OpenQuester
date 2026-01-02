@@ -5772,7 +5772,7 @@
         "properties": {
           "level": {
             "type": "string",
-            "enum": ["trace", "debug", "info", "warn", "error", "audit"],
+            "enum": ["trace", "debug", "info", "performance", "warn", "error", "audit"],
             "description": "Log level"
           },
           "timestamp": {
@@ -5785,20 +5785,20 @@
             "description": "Log message"
           },
           "correlationId": {
-            "type": "string",
+            "type": ["string", "null"],
             "format": "uuid",
             "description": "Correlation ID for request tracing"
           },
           "userId": {
-            "type": "integer",
+            "type": ["integer", "null"],
             "description": "User who triggered this log"
           },
           "gameId": {
-            "type": "string",
+            "type": ["string", "null"],
             "description": "Game context (4-char code)"
           },
           "socketId": {
-            "type": "string",
+            "type": ["string", "null"],
             "description": "Socket ID"
           },
           "tags": {
