@@ -6,6 +6,7 @@ weight: 20
 # Media Download Synchronization Feature
 
 ## Overview
+
 This feature ensures fair gameplay by tracking when players have downloaded media content for questions. The game displays visual indicators on player cards showing the download status of each player.
 
 ## Event Flow Diagram
@@ -99,6 +100,7 @@ Legend:
 ## Files Modified
 
 ### Backend
+
 - `server/src/domain/enums/SocketIOEvents.ts` - Added new event enums
   ```typescript
   MEDIA_DOWNLOADED = "media-downloaded",      // Client -> Server
@@ -122,6 +124,7 @@ Legend:
 - `openapi/schema.json` - Updated OpenAPI schema
 
 ### Frontend
+
 - `client/lib/src/features/game_question/controllers/game_question_controller.dart` - Send media downloaded event
   - Calls `notifyMediaDownloaded()` after media loads or immediately if no media
 - `client/lib/src/features/game_lobby/controllers/game_lobby_controller.dart` - Handle status events
@@ -135,6 +138,7 @@ Legend:
 ## API Usage Examples
 
 ### Client-Side (Dart/Flutter)
+
 ```dart
 // Emit media downloaded event (done automatically by GameQuestionController)
 socket?.emit(SocketIOGameSendEvents.mediaDownloaded.json!);
@@ -153,6 +157,7 @@ socket?.on(SocketIOGameReceiveEvents.mediaDownloadStatus.json!, (data) {
 ```
 
 ### Server-Side (TypeScript)
+
 ```typescript
 // The handler automatically:
 // 1. Marks player as downloaded
