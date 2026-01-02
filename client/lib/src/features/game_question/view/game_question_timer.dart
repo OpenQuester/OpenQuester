@@ -11,7 +11,10 @@ class GameQuestionTimer extends WatchingWidget {
 
     if (timer == null) return const SizedBox.shrink();
 
-    final diff = DateTime.now().difference(timer.startedAt);
+    // Use resumedAt if available (when timer was paused/resumed),
+    // otherwise use startedAt (when timer first started)
+    final referenceTime = timer.resumedAt ?? timer.startedAt;
+    final diff = DateTime.now().difference(referenceTime);
     final elapsedMs = timer.elapsedMs + diff.inMilliseconds;
     final timeLeft = Duration(milliseconds: timer.durationMs - elapsedMs);
     final beginPoint = (1 / (timer.durationMs / elapsedMs)).clamp(0, 1);
