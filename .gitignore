@@ -34,4 +34,5 @@ content.xml
 # Hugo
 websites/*/public/
 websites/*/resources/
+websites/*/themes/
 .hugo_build.lock

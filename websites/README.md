@@ -3,7 +3,7 @@
 This directory contains the Hugo-based websites for OpenQuester:
 
 - **`docs/`** - Documentation site hosted at `docs.openquester.app`
-- **`landing/`** - Landing page hosted at `openquester.app`
+- **`landing/`** - Landing page hosted at `web.openquester.app`
 
 ## Architecture
 
@@ -51,7 +51,7 @@ websites/docs/content/
 
 ### Landing Page (`landing/`)
 
-- **URL**: https://openquester.app
+- **URL**: https://web.openquester.app
 - **Type**: Static HTML with inline CSS
 - **Features**:
   - Hero section with CTAs
@@ -131,7 +131,17 @@ Both sites deploy automatically via GitHub Actions to Cloudflare Pages:
   - `.github/workflows/deploy-docs.yml` - Documentation site
   - `.github/workflows/deploy-landing.yml` - Landing page
 
+**Note**: Hugo themes are downloaded during workflow execution and are not committed to the repository.
+
 ### Cloudflare Pages Projects
+
+1. **openquester-docs** → `docs.openquester.app`
+   - Deploys on changes to: `PRIVACY_POLICY.md`, `websites/docs/`, `server/docs/`
+   - Workflow: `.github/workflows/deploy-docs.yml`
+
+2. **openquester-landing** → `web.openquester.app`
+   - Deploys on changes to: `websites/landing/`
+   - Workflow: `.github/workflows/deploy-landing.yml`
 
 Two projects need to be created in Cloudflare Pages dashboard:
 
@@ -139,7 +149,7 @@ Two projects need to be created in Cloudflare Pages dashboard:
    - Custom domain: `docs.openquester.app`
    
 2. **openquester-landing** - for landing page
-   - Custom domain: `openquester.app`
+   - Custom domain: `web.openquester.app`
 
 ### Required GitHub Secrets
 
@@ -153,7 +163,7 @@ Add these secrets to the repository:
 After deployment, configure custom domains in Cloudflare Pages:
 
 1. Go to Cloudflare Pages → Select project → Custom domains
-2. Add custom domain (e.g., `docs.openquester.app` or `openquester.app`)
+2. Add custom domain (e.g., `docs.openquester.app` or `web.openquester.app`)
 3. Follow DNS configuration instructions
 4. Wait for SSL certificate provisioning
 

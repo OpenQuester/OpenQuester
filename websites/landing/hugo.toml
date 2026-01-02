@@ -1,4 +1,4 @@
-baseURL = 'https://openquester.app/'
+baseURL = 'https://web.openquester.app/'
 languageCode = 'en-us'
 title = 'OpenQuester - Open-Source Multiplayer Quiz Game'
 theme = 'hugo-smol'

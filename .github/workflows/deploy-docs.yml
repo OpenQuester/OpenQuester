@@ -30,6 +30,12 @@ jobs:
           hugo-version: '0.146.0'
           extended: true
       
+      - name: Download Hugo themes
+        run: |
+          cd websites/docs/themes
+          git clone --depth 1 https://github.com/alex-shpak/hugo-book hugo-book
+          rm -rf hugo-book/.git
+      
       - name: Copy privacy policy to docs content
         run: |
           cp PRIVACY_POLICY.md websites/docs/content/docs/privacy.md
