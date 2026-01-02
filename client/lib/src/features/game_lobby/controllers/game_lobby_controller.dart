@@ -1118,16 +1118,15 @@ class GameLobbyController {
   }
 
   void _onFinalQuestionData(dynamic data) {
-    if (data is! Map) return;
+    if (data is! Map<String, dynamic>) return;
 
-    final questionData = FinalQuestionEventData.fromJson(
-      data as Map<String, dynamic>,
-    );
+    final questionData = FinalQuestionEventData.fromJson(data);
 
     // Show the final round question
+    final question = questionData.questionData.question;
     getIt<GameQuestionController>().questionData.value = GameQuestionData(
-      text: questionData.questionData.question.text,
-      file: questionData.questionData.question.questionFiles?.firstOrNull,
+      text: question.text,
+      file: question.questionFiles?.firstOrNull,
     );
   }
 }
