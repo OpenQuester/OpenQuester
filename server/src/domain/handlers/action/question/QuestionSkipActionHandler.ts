@@ -1,10 +1,6 @@
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,

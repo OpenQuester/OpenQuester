@@ -5,10 +5,7 @@ import {
   SocketEventBroadcast,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import {
-  GamePauseBroadcastData,
-  GameUnpauseBroadcastData,
-} from "domain/types/socket/events/SocketEventInterfaces";
+import { GamePauseBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 
 export interface GamePauseData {
   game: Game;

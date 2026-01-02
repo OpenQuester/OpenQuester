@@ -58,7 +58,7 @@ export class JoinGameActionHandler
       user,
       socketId
     );
-    const { game, player } = result.data;
+    const { game } = result.data;
 
     // Prepare the response data for the joining player
     const gameJoinData: GameJoinOutputData = {
