@@ -108,6 +108,10 @@ class GameLobbyController {
           SocketIoGameReceiveEvents.mediaDownloadStatus.json!,
           _onMediaDownloadStatus,
         )
+        ..on(
+          SocketIoGameReceiveEvents.finalQuestionData.json!,
+          _onFinalQuestionData,
+        )
         ..connect();
 
       return await _joinCompleter.future;
@@ -495,13 +499,24 @@ class GameLobbyController {
   }
 
   void _showQuestion() {
+    // Check for regular question
     final question = gameData.value?.gameState.currentQuestion;
-    if (question == null) return;
+    if (question != null) {
+      getIt<GameQuestionController>().questionData.value = GameQuestionData(
+        file: question.questionFiles?.firstOrNull,
+        text: question.text,
+      );
+      return;
+    }
 
-    getIt<GameQuestionController>().questionData.value = GameQuestionData(
-      file: question.questionFiles?.firstOrNull,
-      text: question.text,
-    );
+    // Check for final round question (when joining during answering phase)
+    final finalQuestion = gameData.value?.gameState.finalRoundData?.questionData;
+    if (finalQuestion != null) {
+      getIt<GameQuestionController>().questionData.value = GameQuestionData(
+        text: finalQuestion.question.questionComment,
+        file: finalQuestion.question.questionFiles?.firstOrNull,
+      );
+    }
   }
 
   Future<void> _onQuestionAnswer(dynamic data) async {
@@ -1100,6 +1115,20 @@ class GameLobbyController {
       }
       await getIt<GameQuestionController>().onAllPlayersReady();
     }
+  }
+
+  void _onFinalQuestionData(dynamic data) {
+    if (data is! Map) return;
+
+    final questionData = FinalQuestionEventData.fromJson(
+      data as Map<String, dynamic>,
+    );
+
+    // Show the final round question
+    getIt<GameQuestionController>().questionData.value = GameQuestionData(
+      text: questionData.questionData.question.questionComment,
+      file: questionData.questionData.question.questionFiles?.firstOrNull,
+    );
   }
 }
 
