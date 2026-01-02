@@ -272,8 +272,12 @@
                     const id = text.toLowerCase()
                         .replace(/[^\w\s-]/g, '')
                         .replace(/\s+/g, '-')
-                        .replace(/-+/g, '-');
-                    return `<h${level} id="${id}">${text}</h${level}>`;
+                        .replace(/-+/g, '-')
+                        .replace(/^-+|-+$/g, '')  // Remove leading/trailing hyphens
+                        .trim();
+                    // Fallback to a generated ID if empty
+                    const finalId = id || `heading-${Date.now()}`;
+                    return `<h${level} id="${finalId}">${text}</h${level}>`;
                 }
             }
         });
@@ -323,20 +327,29 @@
             loadPrivacyPolicy();
         } else {
             document.getElementById('content').innerHTML = '<p>Loading required libraries...</p>';
-            // Wait for libraries to load
+            // Wait for libraries to load with timeout
+            let attempts = 0;
+            const maxAttempts = 100; // 10 seconds maximum
             const checkLibraries = setInterval(() => {
+                attempts++;
                 if (typeof marked !== 'undefined' && typeof DOMPurify !== 'undefined') {
                     clearInterval(checkLibraries);
                     loadPrivacyPolicy();
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkLibraries);
+                    document.getElementById('content').innerHTML = DOMPurify?.sanitize 
+                        ? DOMPurify.sanitize('<p>Failed to load required libraries. Please check your internet connection and try again.</p>')
+                        : '<p>Failed to load required libraries. Please check your internet connection and try again.</p>';
                 }
             }, 100);
         }
 
         // Smooth scrolling for anchor links
         document.addEventListener('click', (e) => {
-            if (e.target.tagName === 'A' && e.target.getAttribute('href')?.startsWith('#')) {
+            const anchor = e.target.closest('a');
+            if (anchor && anchor.getAttribute('href')?.startsWith('#')) {
                 e.preventDefault();
-                const id = e.target.getAttribute('href').slice(1);
+                const id = anchor.getAttribute('href').slice(1);
                 const element = document.getElementById(id);
                 if (element) {
                     element.scrollIntoView({ behavior: 'smooth' });
