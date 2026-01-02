@@ -180,10 +180,10 @@ class GameQuestionController {
     getIt<GameLobbyController>().notifyMediaDownloaded();
   }
 
-  static const minVol = 0.003;
+  static const minVol = 0.015;
   static const maxVol = 1;
   static final double b = math.log(maxVol / minVol);
 
   double _toLogVolume(double linear) =>
-      minVol * math.exp(b * linear.clamp(minVol, maxVol));
+      minVol * math.exp(b * linear.clamp(0, 1));
 }
