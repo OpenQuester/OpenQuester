@@ -29,36 +29,34 @@ class GameQuestionLayout extends WatchingWidget {
       scrollController: scrollController,
     );
 
-    return ConditionalScrollBuilder(
-      minHeightThreshold: 600,
-      child: Column(
-        spacing: 16,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const GameQuestionTimer(),
-          Flex(
-            spacing: 16,
-            mainAxisAlignment: MainAxisAlignment.center,
-            direction: questionMediaOnLeft ? Axis.horizontal : Axis.vertical,
-            children: [
-              if (!questionMediaOnLeft && questionTextWidget != null)
-                questionTextWidget.flexible(flex: file != null ? 0 : 1),
-              if (file != null) GameQuestionMediaWidget(file: file!).expand(),
-              if (questionMediaOnLeft && questionTextWidget != null)
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: file == null ? double.infinity : 150,
-                    maxHeight: file == null ? double.infinity : 300,
-                  ),
-                  child: questionTextWidget,
-                ).expand(),
-              if (questionMediaOnLeft && bottomContent != null)
-                SizedBox(width: 250, child: bottomContent).flexible(),
-            ],
-          ).expand(),
-          if (!questionMediaOnLeft) ?bottomContent,
-        ],
-      ),
+    //TODO: Fix overflow
+    return Column(
+      spacing: 16,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const GameQuestionTimer(),
+        Flex(
+          spacing: 16,
+          mainAxisAlignment: MainAxisAlignment.center,
+          direction: questionMediaOnLeft ? Axis.horizontal : Axis.vertical,
+          children: [
+            if (!questionMediaOnLeft && questionTextWidget != null)
+              questionTextWidget.flexible(flex: file != null ? 0 : 1),
+            if (file != null) GameQuestionMediaWidget(file: file!).expand(),
+            if (questionMediaOnLeft && questionTextWidget != null)
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: file == null ? double.infinity : 150,
+                  maxHeight: file == null ? double.infinity : 300,
+                ),
+                child: questionTextWidget,
+              ).expand(),
+            if (questionMediaOnLeft && bottomContent != null)
+              SizedBox(width: 250, child: bottomContent).flexible(),
+          ],
+        ).expand(),
+        if (!questionMediaOnLeft) ?bottomContent,
+      ],
     );
   }
 

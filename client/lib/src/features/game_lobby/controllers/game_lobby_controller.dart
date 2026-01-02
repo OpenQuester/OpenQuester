@@ -1308,7 +1308,7 @@ class GameLobbyController {
       questionData: data.questionData,
     );
 
-    _showQuestion();
+    _showQuestion(dontWaitForPlayers: true);
   }
 
   void _onFinalAnswerSubmit(dynamic json) {

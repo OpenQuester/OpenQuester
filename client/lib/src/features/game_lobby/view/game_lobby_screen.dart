@@ -133,7 +133,7 @@ class _BodyBuilder extends WatchingWidget {
             switch (state) {
               case GameLobbyState.editorMode:
                 body = const GameLobbyEditor();
-              case GameLobbyState.reviewing:
+              case GameLobbyState.reviewingFinalAnswers:
                 body = const GameFinalReviewBody();
               case GameLobbyState.answeringFinal:
                 body = const GameFinalAnswerBody();

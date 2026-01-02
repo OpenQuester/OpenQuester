@@ -7,7 +7,7 @@ enum GameLobbyState {
   editorMode,
 
   /// Final round reviewing phase
-  reviewing,
+  reviewingFinalAnswers,
 
   /// Final round answering phase
   answeringFinal,
@@ -63,19 +63,17 @@ class GameStateBuilder extends WatchingWidget {
       (GameLobbyThemePickerController e) => e.isPicking,
     );
     final gameFinished = watchValue((GameLobbyController e) => e.gameFinished);
-    final isReviewing = watchPropertyValue(
-      (GameLobbyReviewController e) => e.isReviewing,
-    );
-    final isAnsweringFinal = watchPropertyValue(
-      (GameLobbyFinalAnswerController e) => e.isAnswering,
-    );
+    final finalRoundPhase = gameData?.gameState.finalRoundData?.phase;
+    final isAnsweringFinal = finalRoundPhase == FinalRoundPhase.answering;
+    final isReviewingFinalAnswers =
+        finalRoundPhase == FinalRoundPhase.reviewing;
 
     // Determine current state (order matters!)
     GameLobbyState state;
     if (lobbyEditorMode) {
       state = GameLobbyState.editorMode;
-    } else if (isReviewing) {
-      state = GameLobbyState.reviewing;
+    } else if (isReviewingFinalAnswers) {
+      state = GameLobbyState.reviewingFinalAnswers;
     } else if (isAnsweringFinal) {
       state = GameLobbyState.answeringFinal;
     } else if (isBidding) {

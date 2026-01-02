@@ -15,7 +15,7 @@ class GameLobbyTitle extends WatchingWidget {
         switch (state) {
           case GameLobbyState.editorMode:
             title = '';
-          case GameLobbyState.reviewing:
+          case GameLobbyState.reviewingFinalAnswers:
             title = imShowman
                 ? LocaleKeys.game_title_reviewing_answers.tr()
                 : LocaleKeys.game_title_waiting_for_review.tr();
