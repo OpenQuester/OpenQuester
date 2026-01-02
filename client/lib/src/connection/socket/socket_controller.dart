@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:openquester/common_imports.dart';
 import 'package:socket_io_client/socket_io_client.dart';
-import 'package:talker/talker.dart' hide TalkerLogger;
+import 'package:talker/talker.dart' as talker show LogLevel;
+import 'package:talker/talker.dart' hide LogLevel, TalkerLogger;
 
 @Singleton(order: 3)
 class SocketController {
@@ -154,7 +155,7 @@ class SocketController {
         key: outgoing
             ? AppTalkerKeys.socketIoRequest.name
             : AppTalkerKeys.socketIoResponse.name,
-        logLevel: LogLevel.verbose,
+        logLevel: talker.LogLevel.verbose,
         time: DateTime.now(),
         title: outgoing ? 'Socket Outgoing' : 'Socket Incoming',
         pen: outgoing ? (AnsiPen()..cyan()) : (AnsiPen()..green()),
