@@ -462,7 +462,7 @@ class _UserListItem extends WatchingWidget {
 
     // Check if user is currently muted
     final isMuted = user.mutedUntil != null &&
-        DateTime.parse(user.mutedUntil!).isAfter(DateTime.now());
+        user.mutedUntil!.isAfter(DateTime.now());
 
     return Card(
       child: ListTile(
@@ -491,8 +491,7 @@ class _UserListItem extends WatchingWidget {
                     label: Text(
                       LocaleKeys.admin_muted_until.tr(
                         args: [
-                          DateTime.parse(user.mutedUntil!)
-                              .toRelativeString(),
+                          user.mutedUntil!.toRelativeString(),
                         ],
                       ),
                     ),
@@ -710,7 +709,7 @@ class _MoreUserButton extends StatelessWidget {
     final controller = getIt<AdminController>();
     // Check if user is currently muted
     final isMuted = user.mutedUntil != null &&
-        DateTime.parse(user.mutedUntil!).isAfter(DateTime.now());
+        user.mutedUntil!.isAfter(DateTime.now());
 
     return PopupMenuButton<AdminActionType>(
       icon: const Icon(Icons.more_vert),
@@ -858,6 +857,9 @@ class _MoreUserButton extends StatelessWidget {
   }
 
   Future<DateTime?> _showMuteDurationDialog(BuildContext context) async {
+    // Use a special marker for custom option
+    final customMarker = DateTime(1970); // Epoch as marker
+    
     final result = await showDialog<DateTime>(
       context: context,
       builder: (context) => AlertDialog(
@@ -869,40 +871,26 @@ class _MoreUserButton extends StatelessWidget {
             Text(LocaleKeys.admin_select_mute_duration.tr()),
             const SizedBox(height: 16),
             ListTile(
+              title: Text(LocaleKeys.admin_mute_until.tr(args: ['15 minutes'])),
+              onTap: () => Navigator.of(context).pop(
+                DateTime.now().add(const Duration(minutes: 15)),
+              ),
+            ),
+            ListTile(
               title: Text(LocaleKeys.admin_mute_until.tr(args: ['1 hour'])),
               onTap: () => Navigator.of(context).pop(
                 DateTime.now().add(const Duration(hours: 1)),
               ),
             ),
             ListTile(
-              title: Text(LocaleKeys.admin_mute_until.tr(args: ['6 hours'])),
+              title: Text(LocaleKeys.admin_mute_until.tr(args: ['24 hours'])),
               onTap: () => Navigator.of(context).pop(
-                DateTime.now().add(const Duration(hours: 6)),
+                DateTime.now().add(const Duration(hours: 24)),
               ),
             ),
             ListTile(
-              title: Text(LocaleKeys.admin_mute_until.tr(args: ['1 day'])),
-              onTap: () => Navigator.of(context).pop(
-                DateTime.now().add(const Duration(days: 1)),
-              ),
-            ),
-            ListTile(
-              title: Text(LocaleKeys.admin_mute_until.tr(args: ['1 week'])),
-              onTap: () => Navigator.of(context).pop(
-                DateTime.now().add(const Duration(days: 7)),
-              ),
-            ),
-            ListTile(
-              title: Text(LocaleKeys.admin_mute_until.tr(args: ['1 month'])),
-              onTap: () => Navigator.of(context).pop(
-                DateTime.now().add(const Duration(days: 30)),
-              ),
-            ),
-            ListTile(
-              title: Text(LocaleKeys.admin_mute_until.tr(args: ['1 year'])),
-              onTap: () => Navigator.of(context).pop(
-                DateTime.now().add(const Duration(days: 365)),
-              ),
+              title: Text(LocaleKeys.admin_mute_until.tr(args: ['custom'])),
+              onTap: () => Navigator.of(context).pop(customMarker),
             ),
           ],
         ),
@@ -914,6 +902,43 @@ class _MoreUserButton extends StatelessWidget {
         ],
       ),
     );
+    
+    // If custom was selected, show the date/time picker
+    if (result != null && result == customMarker) {
+      return _showCustomDateTimePicker(context);
+    }
+    
     return result;
+  }
+
+  Future<DateTime?> _showCustomDateTimePicker(BuildContext context) async {
+    final now = DateTime.now();
+    final initialDate = now.add(const Duration(hours: 1));
+    
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    
+    if (selectedDate == null) return null;
+    
+    if (!context.mounted) return null;
+    
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+    );
+    
+    if (selectedTime == null) return null;
+    
+    return DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
   }
 }
