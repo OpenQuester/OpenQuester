@@ -6,6 +6,7 @@ import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/ui_media_file.dart';
 import 'package:oq_editor/utils/blob_helper.dart';
+import 'package:oq_editor/view/widgets/media_preview_widget.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
@@ -128,13 +129,26 @@ class MediaPreviewDialog extends StatelessWidget {
 
   Widget _buildMediaContent(BuildContext context) {
     final type = _type ?? mediaFile!.type;
+    
+    // Use MediaPreviewWidget with fullscreen settings
+    if (_url != null) {
+      return MediaPreviewWidget.fromUrl(
+        url: _url!,
+        type: type,
+        fit: BoxFit.contain,
+        enablePlayback: true,
+        interactive: true,
+      );
+    }
+    
+    // For UiMediaFile-based preview, use legacy widgets
     switch (type) {
       case PackageFileType.image:
-        return _buildImagePreview();
+        return _ImagePreview(mediaFile: mediaFile!);
       case PackageFileType.video:
-        return _buildVideoPreview();
+        return _VideoPreview(mediaFile: mediaFile!);
       case PackageFileType.audio:
-        return _buildAudioPreview();
+        return _AudioPreview(mediaFile: mediaFile!);
       case PackageFileType.$unknown:
         return const Icon(
           Icons.file_present,
@@ -142,42 +156,6 @@ class MediaPreviewDialog extends StatelessWidget {
           size: 64,
         );
     }
-  }
-
-  Widget _buildImagePreview() {
-    // URL-based preview
-    if (_url != null) {
-      return InteractiveViewer(
-        child: Image.network(
-          _url!,
-          fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
-        ),
-      );
-    }
-
-    // UiMediaFile-based preview
-    return _ImagePreview(mediaFile: mediaFile!);
-  }
-
-  Widget _buildVideoPreview() {
-    // URL-based preview
-    if (_url != null) {
-      return _UrlVideoPreview(url: _url!);
-    }
-
-    // UiMediaFile-based preview
-    return _VideoPreview(mediaFile: mediaFile!);
-  }
-
-  Widget _buildAudioPreview() {
-    // URL-based preview
-    if (_url != null) {
-      return _UrlAudioPreview(url: _url!);
-    }
-
-    // UiMediaFile-based preview
-    return _AudioPreview(mediaFile: mediaFile!);
   }
 
   String _getFileName() {
@@ -590,202 +568,6 @@ class _AudioPreviewState extends State<_AudioPreview> {
   void dispose() {
     // Don't dispose controller here - it's shared
     // It will be disposed when MediaFileReference is removed
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_hasError) {
-      return _buildErrorWidget();
-    }
-
-    if (!_isInitialized || _controller == null) {
-      return const CircularProgressIndicator(color: Colors.white);
-    }
-
-    return SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Audio visualizer icon
-          Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Theme.of(context).colorScheme.primaryContainer,
-                  Theme.of(context).colorScheme.secondaryContainer,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ValueListenableBuilder(
-              valueListenable: _controller!,
-              builder: (context, value, child) {
-                return Center(
-                  child: Icon(
-                    value.isPlaying ? Icons.music_note : Icons.music_note,
-                    size: 80,
-                    color: Colors.white,
-                  ),
-                );
-              },
-            ),
-          ),
-          const SizedBox(height: 24),
-          _VideoControls(controller: _controller!),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorWidget() {
-    return const Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.error_outline, color: Colors.red, size: 64),
-        SizedBox(height: 16),
-        Text(
-          'Failed to load audio',
-          style: TextStyle(color: Colors.white),
-        ),
-      ],
-    );
-  }
-}
-
-/// Video preview widget for URL-based media
-class _UrlVideoPreview extends StatefulWidget {
-  const _UrlVideoPreview({required this.url});
-
-  final String url;
-
-  @override
-  State<_UrlVideoPreview> createState() => _UrlVideoPreviewState();
-}
-
-class _UrlVideoPreviewState extends State<_UrlVideoPreview> {
-  VideoPlayerController? _controller;
-  bool _isInitialized = false;
-  bool _hasError = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_initializeVideo());
-  }
-
-  Future<void> _initializeVideo() async {
-    try {
-      _controller = VideoPlayerController.networkUrl(
-        Uri.parse(widget.url),
-      );
-      await _controller!.initialize();
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _hasError = true;
-        });
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_hasError) {
-      return _buildErrorWidget();
-    }
-
-    if (!_isInitialized || _controller == null) {
-      return const CircularProgressIndicator(color: Colors.white);
-    }
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        AspectRatio(
-          aspectRatio: _controller!.value.aspectRatio,
-          child: VideoPlayer(_controller!),
-        ).center().expand(),
-        const SizedBox(height: 16),
-        _VideoControls(controller: _controller!),
-      ],
-    );
-  }
-
-  Widget _buildErrorWidget() {
-    return const Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.error_outline, color: Colors.red, size: 64),
-        SizedBox(height: 16),
-        Text(
-          'Failed to load video',
-          style: TextStyle(color: Colors.white),
-        ),
-      ],
-    );
-  }
-}
-
-/// Audio preview widget for URL-based media
-class _UrlAudioPreview extends StatefulWidget {
-  const _UrlAudioPreview({required this.url});
-
-  final String url;
-
-  @override
-  State<_UrlAudioPreview> createState() => _UrlAudioPreviewState();
-}
-
-class _UrlAudioPreviewState extends State<_UrlAudioPreview> {
-  VideoPlayerController? _controller;
-  bool _isInitialized = false;
-  bool _hasError = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_initializeAudio());
-  }
-
-  Future<void> _initializeAudio() async {
-    try {
-      _controller = VideoPlayerController.networkUrl(
-        Uri.parse(widget.url),
-      );
-      await _controller!.initialize();
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _hasError = true;
-        });
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
     super.dispose();
   }
 
