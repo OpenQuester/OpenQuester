@@ -11,7 +11,7 @@
 
 **OpenQuester** is a free, open-source multiplayer quiz game inspired by [SIGame](https://github.com/VladimirKhil/SI). Play engaging quiz sessions with friends, create custom question packages, and enjoy a modern, cross-platform experience.
 
-[📥 Download](#-download) • [✨ Features](#-features) • [📸 Screenshots](#-screenshots) • [🛠️ Tech Stack](#️-tech-stack) • [🤝 Contributing](#-contributing)
+[🌐 Website](https://web.openquester.app) • [📚 Docs](https://docs.openquester.app) • [📥 Download](#-download) • [✨ Features](#-features) • [📸 Screenshots](#-screenshots) • [🛠️ Tech Stack](#️-tech-stack) • [🤝 Contributing](#-contributing)
 
 </div>
 
@@ -124,6 +124,7 @@ Download the latest version for your platform from the [**Releases Page**](https
 - **Windows**: `.exe` installer
 - **Linux**: `.AppImage`, `.deb`, or `.tar.gz`
 - **Android**: `.apk` or Google Play Store _(Coming Soon)_
+- **Web**: Browser version
 
 ### Development Builds
 
@@ -210,6 +211,7 @@ For detailed setup instructions, see:
 
 ## 📚 Documentation
 
+- **[Online Documentation](https://docs.openquester.app)** - Complete documentation site
 - **[API Documentation](server/docs/)** - Backend API reference
 - **[Game Flow](server/docs/game-action-executor.md)** - Understanding the game mechanics
 - **[Final Round](server/docs/final-round-flow.md)** - Final round implementation details
@@ -307,7 +309,8 @@ This means you can freely use, modify, and distribute this software, even for co
 
 - **GitHub**: [@OpenQuester](https://github.com/OpenQuester)
 - **Email**: <support@asion.dev>
-- **Website**: _Work in Progress_
+- **Website**: [web.openquester.app](https://web.openquester.app)
+- **Documentation**: [docs.openquester.app](https://docs.openquester.app)
 
 ---
 
