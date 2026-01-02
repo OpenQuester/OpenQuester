@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/view/widgets/audio_preview_widget.dart';
-import 'package:oq_editor/view/widgets/url_image_widget.dart';
 import 'package:oq_editor/view/widgets/video_preview_widget.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:universal_io/io.dart';
@@ -64,10 +63,10 @@ class MediaPreviewWidget extends StatelessWidget {
     // Use URL if available (from remote or MediaFileReference)
     final url = _url ?? mediaFile?.url;
     if (url != null) {
-      return UrlImageWidget(
-        url: url,
+      return Image.network(
+        url,
         fit: BoxFit.cover,
-        errorWidget: _buildErrorPreview(),
+        errorBuilder: (context, error, stackTrace) => _buildErrorPreview(),
       );
     }
 
