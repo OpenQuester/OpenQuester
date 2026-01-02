@@ -265,6 +265,9 @@
     </div>
 
     <script>
+        // Counter for unique heading IDs
+        let headingCounter = 0;
+        
         // Configure marked for proper heading IDs
         marked.use({
             renderer: {
@@ -276,7 +279,7 @@
                         .replace(/^-+|-+$/g, '')  // Remove leading/trailing hyphens
                         .trim();
                     // Fallback to a generated ID if empty
-                    const finalId = id || `heading-${Date.now()}`;
+                    const finalId = id || `heading-${++headingCounter}`;
                     return `<h${level} id="${finalId}">${text}</h${level}>`;
                 }
             }
@@ -337,9 +340,8 @@
                     loadPrivacyPolicy();
                 } else if (attempts >= maxAttempts) {
                     clearInterval(checkLibraries);
-                    document.getElementById('content').innerHTML = DOMPurify?.sanitize 
-                        ? DOMPurify.sanitize('<p>Failed to load required libraries. Please check your internet connection and try again.</p>')
-                        : '<p>Failed to load required libraries. Please check your internet connection and try again.</p>';
+                    document.getElementById('content').innerHTML = 
+                        '<p>Failed to load required libraries. Please check your internet connection and try again.</p>';
                 }
             }, 100);
         }
