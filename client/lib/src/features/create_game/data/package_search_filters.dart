@@ -1,37 +1,12 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:openquester/common_imports.dart';
 
+part 'package_search_filters.freezed.dart';
+
 /// Filter options for package search
-class PackageSearchFilters {
-  const PackageSearchFilters({
-    this.title,
-    this.description,
-    this.language,
-    this.authorId,
-    this.tags,
-    this.ageRestriction,
-    this.minRounds,
-    this.maxRounds,
-    this.minQuestions,
-    this.maxQuestions,
-    this.sortBy = PackagesSortBy.createdAt,
-    this.order = OrderDirection.desc,
-  });
-
-  final String? title;
-  final String? description;
-  final String? language;
-  final int? authorId;
-  final List<String>? tags;
-  final AgeRestriction? ageRestriction;
-  final int? minRounds;
-  final int? maxRounds;
-  final int? minQuestions;
-  final int? maxQuestions;
-  final PackagesSortBy sortBy;
-  final OrderDirection order;
-
-  /// Creates a copy with modified fields
-  PackageSearchFilters copyWith({
+@freezed
+class PackageSearchFilters with _$PackageSearchFilters {
+  const factory PackageSearchFilters({
     String? title,
     String? description,
     String? language,
@@ -42,24 +17,11 @@ class PackageSearchFilters {
     int? maxRounds,
     int? minQuestions,
     int? maxQuestions,
-    PackagesSortBy? sortBy,
-    OrderDirection? order,
-  }) {
-    return PackageSearchFilters(
-      title: title ?? this.title,
-      description: description ?? this.description,
-      language: language ?? this.language,
-      authorId: authorId ?? this.authorId,
-      tags: tags ?? this.tags,
-      ageRestriction: ageRestriction ?? this.ageRestriction,
-      minRounds: minRounds ?? this.minRounds,
-      maxRounds: maxRounds ?? this.maxRounds,
-      minQuestions: minQuestions ?? this.minQuestions,
-      maxQuestions: maxQuestions ?? this.maxQuestions,
-      sortBy: sortBy ?? this.sortBy,
-      order: order ?? this.order,
-    );
-  }
+    @Default(PackagesSortBy.createdAt) PackagesSortBy sortBy,
+    @Default(OrderDirection.desc) OrderDirection order,
+  }) = _PackageSearchFilters;
+
+  const PackageSearchFilters._();
 
   /// Checks if any filters are active
   bool get hasActiveFilters =>

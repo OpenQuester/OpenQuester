@@ -16,6 +16,10 @@ class AppRouter extends RootStackRouter {
       BlurDialogRoute<void>(page: ProfileRoute.page, path: '/profile'),
       BlurDialogRoute<void>(page: SettingsRoute.page, path: '/settings'),
       BlurDialogRoute<void>(page: CreateGameRoute.page, path: '/games/create'),
+      BlurDialogRoute<PackageListItem>(
+        page: PackageSearchRoute.page,
+        path: '/packages/search',
+      ),
       BlurDialogRoute<void>(
         page: GamePreviewRoute.page,
         path: '/games/:gameId/preview',

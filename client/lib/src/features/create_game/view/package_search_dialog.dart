@@ -1,9 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
-/// A beautiful, comprehensive package search dialog with filters
+@RoutePage(deferredLoading: false)
 class PackageSearchDialog extends StatefulWidget {
   const PackageSearchDialog({super.key});
 
@@ -20,17 +18,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
   final _maxQuestionsController = TextEditingController();
 
   var _filters = const PackageSearchFilters();
-  Timer? _debounce;
-  List<PackageListItem> _results = [];
-  bool _isLoading = false;
   bool _showFilters = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController.addListener(_onSearchChanged);
-    _loadInitialResults();
-  }
 
   @override
   void dispose() {
@@ -39,94 +27,13 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
     _maxRoundsController.dispose();
     _minQuestionsController.dispose();
     _maxQuestionsController.dispose();
-    _debounce?.cancel();
     super.dispose();
-  }
-
-  void _onSearchChanged() {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      _applySearch();
-    });
-  }
-
-  void _applySearch() {
-    setState(() {
-      _filters = _filters.copyWith(
-        title: _searchController.text.isEmpty ? null : _searchController.text,
-      );
-    });
-    _performSearch();
-  }
-
-  Future<void> _loadInitialResults() async {
-    setState(() => _isLoading = true);
-    try {
-      final response = await _controller.getPage(
-        ListRequest(offset: 0, limit: 10),
-      );
-      setState(() {
-        _results = response.list;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        await getIt<ToastController>().show(
-          LocaleKeys.something_went_wrong.tr(),
-        );
-      }
-    }
-  }
-
-  Future<void> _performSearch() async {
-    setState(() => _isLoading = true);
-    try {
-      final list = await Api.I.api.packages.getV1Packages(
-        limit: 10,
-        offset: 0,
-        order: _filters.order,
-        sortBy: _filters.sortBy,
-        title: _filters.title,
-        description: _filters.description,
-        language: _filters.language,
-        authorId: _filters.authorId,
-        tags: _filters.tags,
-        ageRestriction: _filters.ageRestriction,
-        minRounds: _filters.minRounds,
-        maxRounds: _filters.maxRounds,
-        minQuestions: _filters.minQuestions,
-        maxQuestions: _filters.maxQuestions,
-      );
-      setState(() {
-        _results = list.data;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        await getIt<ToastController>().show(
-          LocaleKeys.something_went_wrong.tr(),
-        );
-      }
-    }
-  }
-
-  void _clearFilters() {
-    setState(() {
-      _filters = _filters.clearAll();
-      _searchController.clear();
-      _minRoundsController.clear();
-      _maxRoundsController.clear();
-      _minQuestionsController.clear();
-      _maxQuestionsController.clear();
-    });
-    _performSearch();
   }
 
   void _applyFilters() {
     setState(() {
       _filters = _filters.copyWith(
+        title: _searchController.text.isEmpty ? null : _searchController.text,
         minRounds: _minRoundsController.text.isEmpty
             ? null
             : int.tryParse(_minRoundsController.text),
@@ -142,7 +49,21 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
       );
       _showFilters = false;
     });
-    _performSearch();
+    _controller.updateFilters(_filters);
+    _controller.pagingController.refresh();
+  }
+
+  void _clearFilters() {
+    setState(() {
+      _filters = _filters.clearAll();
+      _searchController.clear();
+      _minRoundsController.clear();
+      _maxRoundsController.clear();
+      _minQuestionsController.clear();
+      _maxQuestionsController.clear();
+    });
+    _controller.updateFilters(_filters);
+    _controller.pagingController.refresh();
   }
 
   @override
@@ -158,7 +79,15 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
             _buildSearchBar(context),
             if (_showFilters) _buildFiltersSection(context),
             if (_filters.hasActiveFilters) _buildActiveFilters(context),
-            _buildResultsList(context),
+            Expanded(
+              child: PaginatedListWidget<PackagesListController,
+                  PackageListItem>(
+                itemBuilder: (context, item, index) => InkWell(
+                  onTap: () => Navigator.of(context).pop(item),
+                  child: PackageListItemWidget(item: item),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -185,7 +114,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
           ).paddingRight(12),
           Expanded(
             child: Text(
-              LocaleKeys.package_search_title.tr(),
+              LocaleKeys.search_packages.tr(),
               style: context.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w600,
                 color: context.theme.colorScheme.onSurface,
@@ -198,7 +127,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
               color: context.theme.colorScheme.primary,
             ),
             onPressed: () => setState(() => _showFilters = !_showFilters),
-            tooltip: LocaleKeys.package_search_filters.tr(),
+            tooltip: LocaleKeys.filters.tr(),
           ),
         ],
       ),
@@ -211,14 +140,14 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
-          hintText: LocaleKeys.package_search_search_placeholder.tr(),
+          hintText: LocaleKeys.search_placeholder.tr(),
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear),
                   onPressed: () {
                     _searchController.clear();
-                    _applySearch();
+                    _applyFilters();
                   },
                 )
               : null,
@@ -226,6 +155,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
+        onSubmitted: (_) => _applyFilters(),
       ),
     );
   }
@@ -251,7 +181,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
         spacing: 16,
         children: [
           Text(
-            LocaleKeys.package_search_filters.tr(),
+            LocaleKeys.filters.tr(),
             style: context.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
             ),
@@ -266,13 +196,13 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
               Expanded(
                 child: FilledButton.tonal(
                   onPressed: _clearFilters,
-                  child: Text(LocaleKeys.package_search_clear_filters.tr()),
+                  child: Text(LocaleKeys.clear_filters.tr()),
                 ),
               ),
               Expanded(
                 child: FilledButton(
                   onPressed: _applyFilters,
-                  child: Text(LocaleKeys.package_search_apply.tr()),
+                  child: Text(LocaleKeys.apply.tr()),
                 ),
               ),
             ],
@@ -290,8 +220,8 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
           child: TextField(
             controller: _minRoundsController,
             decoration: InputDecoration(
-              labelText: LocaleKeys.package_search_filter_by_rounds.tr(),
-              hintText: LocaleKeys.package_search_min.tr(),
+              labelText: LocaleKeys.filter_by_rounds.tr(),
+              hintText: LocaleKeys.min.tr(),
               border: const OutlineInputBorder(),
             ),
             keyboardType: TextInputType.number,
@@ -302,7 +232,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
           child: TextField(
             controller: _maxRoundsController,
             decoration: InputDecoration(
-              hintText: LocaleKeys.package_search_max.tr(),
+              hintText: LocaleKeys.max.tr(),
               border: const OutlineInputBorder(),
             ),
             keyboardType: TextInputType.number,
@@ -320,8 +250,8 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
           child: TextField(
             controller: _minQuestionsController,
             decoration: InputDecoration(
-              labelText: LocaleKeys.package_search_filter_by_questions.tr(),
-              hintText: LocaleKeys.package_search_min.tr(),
+              labelText: LocaleKeys.filter_by_questions.tr(),
+              hintText: LocaleKeys.min.tr(),
               border: const OutlineInputBorder(),
             ),
             keyboardType: TextInputType.number,
@@ -332,7 +262,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
           child: TextField(
             controller: _maxQuestionsController,
             decoration: InputDecoration(
-              hintText: LocaleKeys.package_search_max.tr(),
+              hintText: LocaleKeys.max.tr(),
               border: const OutlineInputBorder(),
             ),
             keyboardType: TextInputType.number,
@@ -346,7 +276,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
     return DropdownButtonFormField<AgeRestriction?>(
       value: _filters.ageRestriction,
       decoration: InputDecoration(
-        labelText: LocaleKeys.package_search_filter_by_age.tr(),
+        labelText: LocaleKeys.filter_by_age.tr(),
         border: const OutlineInputBorder(),
       ),
       items: [
@@ -377,25 +307,25 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
           child: DropdownButtonFormField<PackagesSortBy>(
             value: _filters.sortBy,
             decoration: InputDecoration(
-              labelText: LocaleKeys.package_search_sort_by.tr(),
+              labelText: LocaleKeys.sort_by.tr(),
               border: const OutlineInputBorder(),
             ),
             items: [
               DropdownMenuItem(
                 value: PackagesSortBy.createdAt,
-                child: Text(LocaleKeys.package_search_sort_created_at.tr()),
+                child: Text(LocaleKeys.sort_created_at.tr()),
               ),
               DropdownMenuItem(
                 value: PackagesSortBy.title,
-                child: Text(LocaleKeys.package_search_sort_title.tr()),
+                child: Text(LocaleKeys.sort_title.tr()),
               ),
               DropdownMenuItem(
                 value: PackagesSortBy.author,
-                child: Text(LocaleKeys.package_search_sort_author.tr()),
+                child: Text(LocaleKeys.sort_author.tr()),
               ),
               DropdownMenuItem(
                 value: PackagesSortBy.id,
-                child: Text(LocaleKeys.package_search_sort_id.tr()),
+                child: Text(LocaleKeys.sort_id.tr()),
               ),
             ],
             onChanged: (value) {
@@ -416,11 +346,11 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
             items: [
               DropdownMenuItem(
                 value: OrderDirection.asc,
-                child: Text(LocaleKeys.package_search_order_asc.tr()),
+                child: Text(LocaleKeys.order_asc.tr()),
               ),
               DropdownMenuItem(
                 value: OrderDirection.desc,
-                child: Text(LocaleKeys.package_search_order_desc.tr()),
+                child: Text(LocaleKeys.order_desc.tr()),
               ),
             ],
             onChanged: (value) {
@@ -457,7 +387,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
             children: [
               Expanded(
                 child: Text(
-                  LocaleKeys.package_search_active_filters.tr(),
+                  LocaleKeys.active_filters.tr(),
                   style: context.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -465,7 +395,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
               ),
               TextButton(
                 onPressed: _clearFilters,
-                child: Text(LocaleKeys.package_search_clear_filters.tr()),
+                child: Text(LocaleKeys.clear_filters.tr()),
               ),
             ],
           ),
@@ -478,7 +408,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
                   'Title: ${_filters.title}',
                   () {
                     _searchController.clear();
-                    _applySearch();
+                    _applyFilters();
                   },
                 ),
               if (_filters.minRounds != null || _filters.maxRounds != null)
@@ -493,7 +423,8 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
                       _minRoundsController.clear();
                       _maxRoundsController.clear();
                     });
-                    _performSearch();
+                    _controller.updateFilters(_filters);
+                    _controller.pagingController.refresh();
                   },
                 ),
               if (_filters.minQuestions != null ||
@@ -509,7 +440,8 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
                       _minQuestionsController.clear();
                       _maxQuestionsController.clear();
                     });
-                    _performSearch();
+                    _controller.updateFilters(_filters);
+                    _controller.pagingController.refresh();
                   },
                 ),
               if (_filters.ageRestriction != null)
@@ -519,7 +451,8 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
                     setState(() {
                       _filters = _filters.copyWith(ageRestriction: null);
                     });
-                    _performSearch();
+                    _controller.updateFilters(_filters);
+                    _controller.pagingController.refresh();
                   },
                 ),
             ],
@@ -534,58 +467,6 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
       label: Text(label),
       deleteIcon: const Icon(Icons.close, size: 18),
       onDeleted: onRemove,
-    );
-  }
-
-  Widget _buildResultsList(BuildContext context) {
-    if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      ).paddingAll(32);
-    }
-
-    if (_results.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 8,
-          children: [
-            Icon(
-              Icons.inbox_outlined,
-              size: 64,
-              color: context.theme.colorScheme.onSurface.withValues(
-                alpha: 0.5,
-              ),
-            ),
-            Text(
-              LocaleKeys.nothing_found.tr(),
-              style: context.textTheme.titleMedium?.copyWith(
-                color: context.theme.colorScheme.onSurface.withValues(
-                  alpha: 0.7,
-                ),
-              ),
-            ),
-          ],
-        ).paddingAll(32),
-      );
-    }
-
-    return Flexible(
-      child: ListView.separated(
-        shrinkWrap: true,
-        itemCount: _results.length,
-        separatorBuilder: (_, __) => Divider(
-          height: 1,
-          color: context.theme.colorScheme.outline.withValues(alpha: 0.2),
-        ),
-        itemBuilder: (context, index) {
-          final item = _results[index];
-          return InkWell(
-            onTap: () => Navigator.of(context).pop(item),
-            child: PackageListItemWidget(item: item),
-          );
-        },
-      ),
     );
   }
 }

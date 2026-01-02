@@ -409,11 +409,8 @@ class _SearchPackageButton extends StatelessWidget {
 
     return FilledButton.tonalIcon(
       onPressed: () async {
-        final package = await Navigator.of(context).push<PackageListItem>(
-          DialogRoute<PackageListItem>(
-            context: context,
-            builder: (_) => const PackageSearchDialog(),
-          ),
+        final package = await PackageSearchRoute().push<PackageListItem>(
+          context,
         );
         if (package == null) return;
         controller.state.value = state.copyWith(package: package);
