@@ -6,6 +6,7 @@ import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/ui_media_file.dart';
 import 'package:oq_editor/utils/blob_helper.dart';
+import 'package:oq_editor/view/widgets/url_image_widget.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
@@ -148,10 +149,10 @@ class MediaPreviewDialog extends StatelessWidget {
     // URL-based preview
     if (_url != null) {
       return InteractiveViewer(
-        child: Image.network(
-          _url!,
+        child: UrlImageWidget(
+          url: _url!,
           fit: BoxFit.contain,
-          errorBuilder: (context, error, stackTrace) => _buildErrorWidget(),
+          errorWidget: _buildErrorWidget(),
         ),
       );
     }
