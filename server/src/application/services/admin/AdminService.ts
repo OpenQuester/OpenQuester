@@ -15,7 +15,7 @@ import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 
 interface RedisSnapshot {
@@ -93,7 +93,7 @@ export class AdminService {
       return { keys: allKeys.length, connected: true };
     } catch (error) {
       this.logger.error("Failed to scan Redis keys", {
-        prefix: LOG_PREFIX.ADMIN,
+        prefix: LogPrefix.ADMIN,
         error: error instanceof Error ? error.message : String(error),
       });
       return { keys: 0, connected: false };

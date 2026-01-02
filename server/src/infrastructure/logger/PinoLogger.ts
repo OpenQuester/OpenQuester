@@ -5,6 +5,7 @@ import type SonicBoom from "sonic-boom";
 
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogContextService } from "infrastructure/logger/LogContext";
+import { LogMeta } from "infrastructure/logger/LogMeta";
 import { LogType } from "infrastructure/logger/LogType";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -104,9 +105,9 @@ class PerformanceLogImpl implements PerformanceLog {
   private readonly startTime: number;
   private readonly logger: PinoLogger;
   private readonly message: string;
-  private readonly meta?: object;
+  private readonly meta: LogMeta;
 
-  constructor(logger: PinoLogger, message: string, meta?: object) {
+  constructor(logger: PinoLogger, message: string, meta: LogMeta) {
     this.startTime = Date.now();
     this.logger = logger;
     this.message = message;
@@ -119,7 +120,7 @@ class PerformanceLogImpl implements PerformanceLog {
 
     // Merge finish-only metadata onto the original meta. In case of key conflicts,
     // `additionalMeta` takes precedence over the metadata captured at start.
-    const mergedMeta = {
+    const mergedMeta: LogMeta = {
       operation: this.message,
       startedAt: this.startTime,
       finishedAt: endTime,
@@ -374,40 +375,40 @@ export class PinoLogger implements ILogger {
     return hasValidKeys ? sanitized : undefined;
   }
 
-  public trace(msg: string, meta?: object): void {
+  public trace(msg: string, meta: LogMeta): void {
     this.log(LogType.VERBOSE, msg, meta);
   }
 
-  public debug(msg: string, meta?: object): void {
+  public debug(msg: string, meta: LogMeta): void {
     this.log(LogType.DEBUG, msg, meta);
   }
 
-  public info(msg: string, meta?: object): void {
+  public info(msg: string, meta: LogMeta): void {
     this.log(LogType.INFO, msg, meta);
   }
 
-  public warn(msg: string, meta?: object): void {
+  public warn(msg: string, meta: LogMeta): void {
     this.log(LogType.WARN, msg, meta);
   }
 
-  public error(msg: string, meta?: object): void {
+  public error(msg: string, meta: LogMeta): void {
     this.log(LogType.ERROR, msg, meta);
   }
 
-  public audit(msg: string, meta?: object): void {
+  public audit(msg: string, meta: LogMeta): void {
     this.log(LogType.AUDIT, msg, meta);
   }
 
-  public performance(msg: string, meta?: object): PerformanceLog {
+  public performance(msg: string, meta: LogMeta): PerformanceLog {
     return new PerformanceLogImpl(this, msg, meta);
   }
 
-  public migration(msg: string, meta?: object): void {
+  public migration(msg: string, meta: LogMeta): void {
     const message = `Migration completed: ${msg}`;
     this.log(LogType.MIGRATION, message, meta);
   }
 
-  public log(type: LogType, msg: unknown, meta?: unknown): void {
+  public log(type: LogType, msg: unknown, meta: LogMeta): void {
     this.ensureInitialized();
 
     // Map log type to effective log level for access control

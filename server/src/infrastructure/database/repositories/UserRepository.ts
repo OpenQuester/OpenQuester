@@ -14,7 +14,7 @@ import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { QueryBuilder } from "infrastructure/database/QueryBuilder";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 export class UserRepository {
   constructor(
@@ -35,7 +35,7 @@ export class UserRepository {
     const cached = await this.cache.get(id, selectOptions);
     if (cached) {
       this.logger.trace(`User ${id} cache hit`, {
-        prefix: LOG_PREFIX.USER,
+        prefix: LogPrefix.USER,
       });
       const user = new User();
       user.import(cached);
@@ -78,7 +78,7 @@ export class UserRepository {
     this.logger.trace("findOne for user with options: ", {
       where,
       selectOptions,
-      prefix: LOG_PREFIX.USER,
+      prefix: LogPrefix.USER,
     });
 
     const qb = await QueryBuilder.buildFindQuery<User>(
@@ -319,7 +319,7 @@ export class UserRepository {
     const updateResult = await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is deleted`, {
-      prefix: LOG_PREFIX.USER,
+      prefix: LogPrefix.USER,
     });
 
     return updateResult;
@@ -339,7 +339,7 @@ export class UserRepository {
     await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is banned`, {
-      prefix: LOG_PREFIX.USER,
+      prefix: LogPrefix.USER,
     });
   }
 
@@ -361,7 +361,7 @@ export class UserRepository {
     await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is unbanned`, {
-      prefix: LOG_PREFIX.USER,
+      prefix: LogPrefix.USER,
     });
   }
 
@@ -383,7 +383,7 @@ export class UserRepository {
         user.email
       }' is muted until ${mutedUntil.toISOString()}`,
       {
-        prefix: LOG_PREFIX.USER,
+        prefix: LogPrefix.USER,
       }
     );
   }
@@ -406,7 +406,7 @@ export class UserRepository {
     await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is unmuted`, {
-      prefix: LOG_PREFIX.USER,
+      prefix: LogPrefix.USER,
     });
   }
 
@@ -434,7 +434,7 @@ export class UserRepository {
     );
 
     this.logger.audit(`User '${user.id} | ${user.email}' is updated`, {
-      prefix: LOG_PREFIX.USER,
+      prefix: LogPrefix.USER,
     });
 
     return updateResult;
@@ -462,7 +462,7 @@ export class UserRepository {
     await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is restored`, {
-      prefix: LOG_PREFIX.USER,
+      prefix: LogPrefix.USER,
     });
   }
 

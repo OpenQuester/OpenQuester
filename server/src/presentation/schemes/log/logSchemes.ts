@@ -47,7 +47,15 @@ export interface LogQueryParams {
   offset?: number;
 }
 
-const validLevels = ["trace", "debug", "info", "warn", "error", "audit"];
+const validLevels = [
+  "trace",
+  "debug",
+  "info",
+  "performance",
+  "warn",
+  "error",
+  "audit",
+];
 const validTags = Object.values(LogTag);
 
 /**

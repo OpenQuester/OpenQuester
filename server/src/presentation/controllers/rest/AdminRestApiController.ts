@@ -17,7 +17,7 @@ import { UserMuteResponseDTO } from "domain/types/dto/user/UserMuteResponseDTO";
 import { UserUnmuteInputDTO } from "domain/types/dto/user/UserUnmuteInputDTO";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { LogTag } from "infrastructure/logger/LogTag";
 import {
   LogFilter,
@@ -135,11 +135,12 @@ export class AdminRestApiController {
    */
   private getDashboard = async (req: Request, res: Response) => {
     this.logger.audit("Admin dashboard accessed", {
-      prefix: LOG_PREFIX.ADMIN,
+      prefix: LogPrefix.ADMIN,
       adminUserId: req.user?.id,
     });
 
     const log = this.logger.performance("Admin dashboard query", {
+      prefix: LogPrefix.ADMIN,
       adminUserId: req.user?.id,
     });
 
@@ -158,6 +159,7 @@ export class AdminRestApiController {
    */
   private getUsers = async (req: Request, res: Response) => {
     const log = this.logger.performance("Admin users query", {
+      prefix: LogPrefix.ADMIN,
       adminUserId: req.user?.id,
     });
 
@@ -179,11 +181,12 @@ export class AdminRestApiController {
    */
   private getSystemHealth = async (req: Request, res: Response) => {
     this.logger.audit("System health check performed", {
-      prefix: LOG_PREFIX.ADMIN,
+      prefix: LogPrefix.ADMIN,
       adminUserId: req.user?.id,
     });
 
     const log = this.logger.performance("System health query", {
+      prefix: LogPrefix.ADMIN,
       adminUserId: req.user?.id,
     });
 
@@ -206,7 +209,7 @@ export class AdminRestApiController {
     await this.userService.ban(userId);
 
     this.logger.audit("User banned", {
-      prefix: LOG_PREFIX.ADMIN,
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
@@ -229,7 +232,7 @@ export class AdminRestApiController {
     await this.userService.unban(userId);
 
     this.logger.audit("User unbanned", {
-      prefix: LOG_PREFIX.ADMIN,
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
@@ -251,7 +254,7 @@ export class AdminRestApiController {
     await this.userService.mute(userId, mutedUntilDate);
 
     this.logger.audit("User muted", {
-      prefix: LOG_PREFIX.ADMIN,
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
       mutedUntil: mutedUntilDate.toISOString(),
@@ -274,7 +277,7 @@ export class AdminRestApiController {
     await this.userService.unmute(userId);
 
     this.logger.audit("User unmuted", {
-      prefix: LOG_PREFIX.ADMIN,
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
@@ -299,7 +302,7 @@ export class AdminRestApiController {
     await this.userService.delete(userId);
 
     this.logger.audit("User deleted", {
-      prefix: LOG_PREFIX.ADMIN,
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
@@ -319,7 +322,7 @@ export class AdminRestApiController {
     await this.userService.restore(userId);
 
     this.logger.audit("User restored", {
-      prefix: LOG_PREFIX.ADMIN,
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
@@ -381,7 +384,7 @@ export class AdminRestApiController {
    */
   private getLogs = async (req: Request, res: Response) => {
     this.logger.audit("System logs accessed", {
-      prefix: LOG_PREFIX.ADMIN,
+      prefix: LogPrefix.ADMIN,
       adminUserId: req.user?.id,
     });
 
@@ -414,10 +417,6 @@ export class AdminRestApiController {
         scanned: result.scanned,
         skipped: result.skipped,
         matched: result.logs.length,
-      },
-      filter: {
-        ...filter,
-        tags: filter.tags ? Array.from(filter.tags) : undefined,
       },
     });
   };

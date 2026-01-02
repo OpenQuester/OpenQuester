@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Performance logging middleware to track request timing and performance metrics
@@ -16,6 +17,7 @@ export const performanceLogMiddleware =
     }
 
     const log = logger.performance(`HTTP request`, {
+      prefix: LogPrefix.HTTP,
       method: req.method,
       url: decodedUrl,
       rawUrl,

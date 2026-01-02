@@ -13,6 +13,7 @@ import { SessionDTO } from "domain/types/dto/auth/SessionDTO";
 import { Environment, EnvType } from "infrastructure/config/Environment";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
@@ -123,7 +124,10 @@ async function handleSessionValidationError(
     return unauthorizedError(req, res);
   }
   logger.error(
-    `Unknown error during session validation: ${JSON.stringify(err)}`
+    `Unknown error during session validation: ${JSON.stringify(err)}`,
+    {
+      prefix: LogPrefix.AUTH,
+    }
   );
 
   return res

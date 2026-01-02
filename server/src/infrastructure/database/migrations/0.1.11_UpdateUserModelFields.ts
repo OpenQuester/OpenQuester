@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class UpdateUserModelFields_0_1_11_1723107959823
@@ -47,7 +48,7 @@ export class UpdateUserModelFields_0_1_11_1723107959823
         isNullable: true,
       })
     );
-    logger.migration("0.1.11");
+    logger.migration("0.1.11", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

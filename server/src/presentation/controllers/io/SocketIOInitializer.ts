@@ -12,7 +12,7 @@ import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import { SocketEventHandlerFactory } from "domain/handlers/socket/SocketEventHandlerFactory";
 import { SocketEventHandlerRegistry } from "domain/handlers/socket/SocketEventHandlerRegistry";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 
@@ -54,7 +54,7 @@ export class SocketIOInitializer {
     this.logger.trace(
       `Socket Game controllers initialization started for ${socket.id}`,
       {
-        prefix: LOG_PREFIX.SOCKET_INIT,
+        prefix: LogPrefix.SOCKET_INIT,
         socketId: socket.id,
       }
     );
@@ -85,7 +85,7 @@ export class SocketIOInitializer {
     this.logger.trace(
       `Registered ${registryStats.totalHandlers} standardized socket handlers`,
       {
-        prefix: LOG_PREFIX.SOCKET_INIT,
+        prefix: LogPrefix.SOCKET_INIT,
         socketId: socket.id,
         gameEvents: registryStats.gameEvents,
         systemEvents: registryStats.systemEvents,

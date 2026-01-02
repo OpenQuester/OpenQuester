@@ -20,6 +20,7 @@ import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class UserService {
@@ -45,10 +46,12 @@ export class UserService {
     paginationOpts: UserPaginationOpts
   ): Promise<PaginatedResult<UserDTO[]>> {
     this.logger.debug("Users listing with pagination options: ", {
+      prefix: LogPrefix.USER,
       paginationOpts,
     });
 
     const log = this.logger.performance(`User listing`, {
+      prefix: LogPrefix.USER,
       paginationOpts,
     });
 
@@ -93,11 +96,13 @@ export class UserService {
     selectOptions?: SelectOptions<User>
   ): Promise<User> {
     this.logger.debug("Retrieving user with options: ", {
+      prefix: LogPrefix.USER,
       userId,
       selectOptions,
     });
 
     const log = this.logger.performance(`User retrieval`, {
+      prefix: LogPrefix.USER,
       userId,
       selectOptions,
     });
@@ -113,6 +118,7 @@ export class UserService {
 
     if (!user) {
       this.logger.trace(`User not found: ${userId}`, {
+        prefix: LogPrefix.USER,
         userId,
       });
       log.finish();
@@ -133,11 +139,13 @@ export class UserService {
 
   public async create(data: RegisterUser) {
     this.logger.trace("User creation started", {
+      prefix: LogPrefix.USER,
       email: data.email,
       username: data.username,
     });
 
     const log = this.logger.performance(`User creation`, {
+      prefix: LogPrefix.USER,
       email: data.email,
       username: data.username,
     });
@@ -146,6 +154,7 @@ export class UserService {
     log.finish();
 
     this.logger.audit("User created", {
+      prefix: LogPrefix.USER,
       userId: user.id,
       email: data.email,
       username: data.username,
@@ -230,6 +239,7 @@ export class UserService {
     for (const socket of userSockets) {
       if (!this._gameLobbyLeaver) {
         this.logger.warn("Game lobby leaver not set; skipping forced leave.", {
+          prefix: LogPrefix.USER,
           userId,
         });
         return;
@@ -253,6 +263,7 @@ export class UserService {
    */
   private async performDelete(userId: number) {
     this.logger.debug("User deletion started", {
+      prefix: LogPrefix.USER,
       userId,
     });
 
@@ -265,6 +276,7 @@ export class UserService {
       this.logger.warn(
         `User deletion failed - ${user ? "already deleted" : "not found"}`,
         {
+          prefix: LogPrefix.USER,
           userId,
         }
       );
@@ -272,6 +284,7 @@ export class UserService {
     }
 
     const log = this.logger.performance(`User deletion`, {
+      prefix: LogPrefix.USER,
       userId,
     });
 
@@ -280,6 +293,7 @@ export class UserService {
     log.finish();
 
     this.logger.audit("User deleted", {
+      prefix: LogPrefix.USER,
       userId,
     });
 
@@ -294,6 +308,7 @@ export class UserService {
     updateUserData: UpdateUserDTO
   ): Promise<UserDTO> {
     this.logger.trace("User update started", {
+      prefix: LogPrefix.USER,
       userId: user.id,
       updateFields: Object.keys(updateUserData),
     });
@@ -328,6 +343,7 @@ export class UserService {
     }
 
     const log = this.logger.performance(`User update`, {
+      prefix: LogPrefix.USER,
       userId: user.id,
       changedFields: Object.keys(updateUserData),
     });
@@ -352,6 +368,7 @@ export class UserService {
     });
 
     this.logger.audit("User updated", {
+      prefix: LogPrefix.USER,
       userId: user.id,
       changedFieldsCount: Object.keys(updateUserData).length,
       updatedAt: user.updated_at,
@@ -387,6 +404,7 @@ export class UserService {
     permissionNames: string[]
   ): Promise<UserDTO> {
     this.logger.debug("User permissions update initiated", {
+      prefix: LogPrefix.USER,
       userId,
       permissionsCount: permissionNames.length,
       permissionNames,
@@ -435,6 +453,7 @@ export class UserService {
     await this.userRepository.update(user);
 
     this.logger.audit("User permissions updated", {
+      prefix: LogPrefix.USER,
       userId,
       oldPermissionsCount,
       newPermissionsCount: newPermissions.length,
@@ -460,6 +479,7 @@ export class UserService {
     );
 
     this.logger.debug("Found permissions while permission change", {
+      prefix: LogPrefix.USER,
       requestedCount: permissionNames.length,
       foundCount: permissions.length,
       foundNames: permissions.map((p: Permission) => p.name),

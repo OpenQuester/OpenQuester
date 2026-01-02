@@ -2,7 +2,6 @@ import {
   GameAction,
   SerializedGameAction,
 } from "domain/types/action/GameAction";
-import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 
 /**
@@ -23,10 +22,7 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
 export class GameActionQueueService {
   private readonly QUEUE_KEY_PREFIX = "game:action:queue";
 
-  constructor(
-    private readonly redisService: RedisService,
-    private readonly logger: ILogger
-  ) {
+  constructor(private readonly redisService: RedisService) {
     //
   }
 

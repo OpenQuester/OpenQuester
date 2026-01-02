@@ -17,6 +17,7 @@ import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { File } from "infrastructure/database/models/File";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import {
@@ -219,6 +220,7 @@ export class UserRestApiController {
       ).validate();
 
     this.logger.info("User permissions update request received", {
+      prefix: LogPrefix.USER,
       targetUserId: validatedUserData.userId,
       requestorUserId: req.user?.id,
       permissionsCount: validatedPermissionsData.permissions.length,
@@ -232,6 +234,7 @@ export class UserRestApiController {
     );
 
     this.logger.audit("User permissions update completed successfully", {
+      prefix: LogPrefix.USER,
       targetUserId: validatedUserData.userId,
       requestorUserId: req.user?.id,
     });

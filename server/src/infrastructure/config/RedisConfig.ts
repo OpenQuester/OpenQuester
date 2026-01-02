@@ -4,8 +4,9 @@ import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
 import { Environment } from "infrastructure/config/Environment";
 import { type ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
-const REDIS_PREFIX = "[REDIS]: ";
+const REDIS_PREFIX = LogPrefix.REDIS;
 
 export class RedisConfig {
   private static _client: Redis;

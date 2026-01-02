@@ -2,7 +2,7 @@ import { BaseCronJob } from "application/jobs/BaseCronJob";
 import { FileService } from "application/services/file/FileService";
 import { CRON_EXP_2_AM_DAILY } from "domain/constants/cron";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 
 /**
@@ -43,9 +43,11 @@ export class S3FilesCleanupJob extends BaseCronJob {
    * 4. After processing all batches, delete all orphaned files
    */
   protected async run(): Promise<void> {
-    const log = this.logger.performance("S3 Files Cleanup Job");
+    const log = this.logger.performance("S3 Files Cleanup Job", {
+      prefix: LogPrefix.S3_CLEANUP,
+    });
     this.logger.info("Starting S3 files cleanup process", {
-      prefix: LOG_PREFIX.S3_CLEANUP,
+      prefix: LogPrefix.S3_CLEANUP,
     });
 
     const BATCH_SIZE = 1000;
@@ -96,18 +98,27 @@ export class S3FilesCleanupJob extends BaseCronJob {
           totalOrphaned += batchOrphaned.length;
 
           this.logger.debug(
-            `Batch ${batchNumber} processed: deleted ${batchOrphaned.length} orphaned files`
+            `Batch ${batchNumber} processed: deleted ${batchOrphaned.length} orphaned files`,
+            {
+              prefix: LogPrefix.S3_CLEANUP,
+              batchNumber,
+              deletedCount: batchOrphaned.length,
+            }
           );
         } else {
           this.logger.debug(
-            `Batch ${batchNumber} processed: no orphaned files`
+            `Batch ${batchNumber} processed: no orphaned files`,
+            {
+              prefix: LogPrefix.S3_CLEANUP,
+              batchNumber,
+            }
           );
         }
       }
 
       // Log final statistics
       this.logger.info("S3 file processing complete", {
-        prefix: LOG_PREFIX.S3_CLEANUP,
+        prefix: LogPrefix.S3_CLEANUP,
         totalS3Files,
         totalIgnored,
         totalProcessed: totalS3Files - totalIgnored,
@@ -118,7 +129,7 @@ export class S3FilesCleanupJob extends BaseCronJob {
 
       if (totalOrphaned === 0) {
         this.logger.info("No orphaned files found in S3", {
-          prefix: LOG_PREFIX.S3_CLEANUP,
+          prefix: LogPrefix.S3_CLEANUP,
         });
         return;
       }
@@ -126,13 +137,13 @@ export class S3FilesCleanupJob extends BaseCronJob {
       this.logger.info(
         `Successfully cleaned up ${totalOrphaned} orphaned files from S3`,
         {
-          prefix: LOG_PREFIX.S3_CLEANUP,
+          prefix: LogPrefix.S3_CLEANUP,
           deletedCount: totalOrphaned,
         }
       );
     } catch (error) {
       this.logger.error("S3 cleanup process failed", {
-        prefix: LOG_PREFIX.S3_CLEANUP,
+        prefix: LogPrefix.S3_CLEANUP,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });

@@ -20,6 +20,7 @@ import { Permission } from "infrastructure/database/models/Permission";
 import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { User } from "infrastructure/database/models/User";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 // Migrations imports
@@ -67,8 +68,13 @@ try {
   if (err instanceof Error) {
     message = err.message;
   }
-  logger.error(ServerResponse.FAILED_TO_LOAD_ENV);
-  logger.error(`Error message: ${message}`);
+  logger.error(ServerResponse.FAILED_TO_LOAD_ENV, {
+    prefix: LogPrefix.SERVER,
+  });
+  logger.error(`Error message: ${message}`, {
+    prefix: LogPrefix.SERVER,
+    message,
+  });
   // Bravely exit from process since it's migration process created by TypeORM
   process.exit(0);
 }

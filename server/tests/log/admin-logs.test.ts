@@ -681,7 +681,7 @@ describe("Admin Logs API", () => {
   // ============================================================================
 
   describe("Response Structure", () => {
-    it("should include logs, pagination, and filter in response", async () => {
+    it("should include logs and pagination in response", async () => {
       logTestUtils.writeEntries(sampleEntries);
 
       const res = await request(app)
@@ -693,16 +693,11 @@ describe("Admin Logs API", () => {
       // Verify response structure
       expect(res.body).toHaveProperty("logs");
       expect(res.body).toHaveProperty("pagination");
-      expect(res.body).toHaveProperty("filter");
 
       // Verify pagination structure
       expect(res.body.pagination).toHaveProperty("scanned");
       expect(res.body.pagination).toHaveProperty("skipped");
       expect(res.body.pagination).toHaveProperty("matched");
-
-      // Verify filter echoed back
-      expect(res.body.filter.levels).toEqual(["info"]);
-      expect(res.body.filter.limit).toBe(5);
     });
   });
 });

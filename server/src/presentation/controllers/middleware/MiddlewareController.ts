@@ -8,11 +8,12 @@ import Redis from "ioredis";
 import { ApiContext } from "application/context/ApiContext";
 import { ClientError } from "domain/errors/ClientError";
 import { EnvType } from "infrastructure/config/Environment";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { verifySession } from "presentation/middleware/authMiddleware";
 import { correlationMiddleware } from "presentation/middleware/correlationMiddleware";
 import { performanceLogMiddleware } from "presentation/middleware/log/performanceLogMiddleware";
 
-const CORS_PREFIX = "[CORS]: ";
+const CORS_PREFIX = LogPrefix.CORS;
 
 export class MiddlewareController {
   private readonly allowedHosts: string[];

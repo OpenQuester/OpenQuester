@@ -8,7 +8,7 @@ import { ServerError } from "domain/errors/ServerError";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { Namespace, Server, Socket } from "socket.io";
 
 type IOEVent = SocketIOEvents | SocketIOGameEvents | SocketIOUserEvents;
@@ -106,7 +106,7 @@ export class SocketIOEventEmitter {
       this.logger.error(
         `Error in role-based filtering emit: ${JSON.stringify(error)}`,
         {
-          prefix: LOG_PREFIX.IO_EMITTER,
+          prefix: LogPrefix.IO_EMITTER,
         }
       );
       // Fallback to regular room emit if role-based filtering fails

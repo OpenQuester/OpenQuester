@@ -4,7 +4,7 @@ import path from "path";
 
 import { Language, Translation } from "domain/types/text/translation";
 import { type ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 /**
@@ -28,11 +28,11 @@ export class TranslateService {
       await this._loadTranslation("en");
       await this._loadTranslationKeys();
       this._logger?.info("TranslateService initialized successfully", {
-        prefix: LOG_PREFIX.TRANSLATE,
+        prefix: LogPrefix.TRANSLATE,
       });
     } catch (error) {
       this._logger?.error(`Failed to initialize TranslateService: ${error}`, {
-        prefix: LOG_PREFIX.TRANSLATE,
+        prefix: LogPrefix.TRANSLATE,
       });
     }
   }
@@ -53,7 +53,7 @@ export class TranslateService {
     if (!translation) {
       this._logger?.warn(
         "Failed to load English translation for keys extraction",
-        { prefix: LOG_PREFIX.TRANSLATE }
+        { prefix: LogPrefix.TRANSLATE }
       );
       return;
     }
@@ -85,7 +85,7 @@ export class TranslateService {
 
       this._translationsMap.set(language, translation);
       this._logger?.info(`Translation loading for '${language}' is completed`, {
-        prefix: LOG_PREFIX.TRANSLATE,
+        prefix: LogPrefix.TRANSLATE,
       });
       return translation;
     } catch {
@@ -120,7 +120,7 @@ export class TranslateService {
     if (!translation) {
       this._logger?.warn(
         `Translation for language '${selectedLang}' not found. Returning key.`,
-        { prefix: LOG_PREFIX.TRANSLATE }
+        { prefix: LogPrefix.TRANSLATE }
       );
       return translationKey;
     }

@@ -14,7 +14,7 @@ import { type Express } from "express";
 
 import { Environment } from "infrastructure/config/Environment";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 
 export class DevelopmentRestApiController {
@@ -38,7 +38,7 @@ export class DevelopmentRestApiController {
       try {
         const num = req.params.num ? `-${req.params.num}` : "";
         this.logger.audit(`Dev login request triggered`, {
-          prefix: LOG_PREFIX.DEV,
+          prefix: LogPrefix.DEV,
           id: req.params.num,
         });
         let user = await this.userService.findOne(
@@ -72,7 +72,7 @@ export class DevelopmentRestApiController {
         req.session.save((err) => {
           if (err) {
             this.logger.error(`Session save error: ${err}`, {
-              prefix: LOG_PREFIX.DEV,
+              prefix: LogPrefix.DEV,
             });
             return res.status(500).json({ error: "Session save failed" });
           }
@@ -88,7 +88,7 @@ export class DevelopmentRestApiController {
         });
       } catch (error) {
         this.logger.error(`Login error: ${error}`, {
-          prefix: LOG_PREFIX.DEV,
+          prefix: LogPrefix.DEV,
         });
         res.status(500).json({ error: "Login failed" });
       }
@@ -106,7 +106,7 @@ export class DevelopmentRestApiController {
         const packageId = parseInt(req.body.packageId);
 
         this.logger.audit(`Dev generate games triggered`, {
-          prefix: LOG_PREFIX.DEV,
+          prefix: LogPrefix.DEV,
           count,
           packageId,
         });
@@ -138,7 +138,7 @@ export class DevelopmentRestApiController {
         const count = parseInt(req.query.count as string) || 5;
 
         this.logger.audit(`Dev upload test S3 files triggered`, {
-          prefix: LOG_PREFIX.DEV,
+          prefix: LogPrefix.DEV,
           count,
         });
 

@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddSearchIndexes_0_15_3_1752686138751
@@ -98,7 +99,7 @@ export class AddSearchIndexes_0_15_3_1752686138751
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.15.3");
+    logger.migration("0.15.3", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

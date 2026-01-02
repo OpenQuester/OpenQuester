@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddDeleteFilePermission_0_3_9_1730832569761
@@ -12,7 +13,7 @@ export class AddDeleteFilePermission_0_3_9_1730832569761
       `INSERT INTO "permission" (name) VALUES ('delete_file');`
     );
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.3.9");
+    logger.migration("0.3.9", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

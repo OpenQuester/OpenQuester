@@ -28,7 +28,7 @@ import { type Package } from "infrastructure/database/models/package/Package";
 import { Permission } from "infrastructure/database/models/Permission";
 import { type User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { DependencyService } from "infrastructure/services/dependency/DependencyService";
 import { StorageUtils } from "infrastructure/utils/StorageUtils";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
@@ -133,6 +133,7 @@ export class S3StorageService {
     filename: string
   ): Promise<any> {
     const log = this.logger.performance(`Discord file upload`, {
+      prefix: LogPrefix.S3,
       filename,
     });
 
@@ -141,7 +142,7 @@ export class S3StorageService {
         .get(cdnLink, (res) => {
           if (res.statusCode !== 200) {
             this.logger.error(`Discord CDN fetch failed`, {
-              prefix: LOG_PREFIX.S3,
+              prefix: LogPrefix.S3,
               statusCode: res.statusCode,
               filename,
             });
@@ -174,7 +175,7 @@ export class S3StorageService {
               resolve(md5Hash);
             } catch (err) {
               this.logger.error(`S3 upload failed`, {
-                prefix: LOG_PREFIX.S3,
+                prefix: LogPrefix.S3,
                 filename,
                 error: err instanceof Error ? err.message : String(err),
               });
@@ -186,7 +187,7 @@ export class S3StorageService {
         })
         .on("error", (err) => {
           this.logger.error(`Discord CDN request failed`, {
-            prefix: LOG_PREFIX.S3,
+            prefix: LogPrefix.S3,
             error: err.message,
           });
           resolve(false);
@@ -262,7 +263,7 @@ export class S3StorageService {
 
     if (usageRecords.length < 1) {
       this.logger.debug(`File deletion attempted but no usage records found`, {
-        prefix: LOG_PREFIX.S3,
+        prefix: LogPrefix.S3,
         filename,
         userId: req.user?.id,
       });
@@ -366,7 +367,7 @@ export class S3StorageService {
         if (result.Errors && result.Errors.length > 0) {
           for (const error of result.Errors) {
             this.logger.error(`S3 batch delete partial failure`, {
-              prefix: LOG_PREFIX.S3,
+              prefix: LogPrefix.S3,
               key: error.Key,
               code: error.Code,
               message: error.Message,
@@ -375,7 +376,7 @@ export class S3StorageService {
         }
       } catch (error) {
         this.logger.error(`S3 batch delete failed`, {
-          prefix: LOG_PREFIX.S3,
+          prefix: LogPrefix.S3,
           batchSize: batch.length,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -421,7 +422,11 @@ export class S3StorageService {
           // Log progress for large buckets
           if (totalProcessed % 10000 === 0) {
             this.logger.info(
-              `List S3 files in batches: Processed ${totalProcessed} files so far...`
+              `List S3 files in batches: Processed ${totalProcessed} files so far...`,
+              {
+                prefix: LogPrefix.S3_CLEANUP,
+                totalProcessed,
+              }
             );
           }
         }
@@ -429,6 +434,7 @@ export class S3StorageService {
         continuationToken = response.NextContinuationToken;
       } catch (error) {
         this.logger.error(`Failed to list S3 objects in batches`, {
+          prefix: LogPrefix.S3_CLEANUP,
           continuationToken,
           totalProcessed,
           error: error instanceof Error ? error.message : String(error),
@@ -454,7 +460,7 @@ export class S3StorageService {
     this.logger.info(
       `Starting batch deletion of ${s3Keys.length} files from S3`,
       {
-        prefix: LOG_PREFIX.S3_CLEANUP,
+        prefix: LogPrefix.S3_CLEANUP,
         batches: Math.ceil(s3Keys.length / BATCH_SIZE),
       }
     );
@@ -490,7 +496,7 @@ export class S3StorageService {
           totalErrors += result.Errors.length;
           for (const error of result.Errors) {
             this.logger.error(`Failed to delete file from S3 in batch`, {
-              prefix: LOG_PREFIX.S3_CLEANUP,
+              prefix: LogPrefix.S3_CLEANUP,
               key: error.Key,
               code: error.Code,
               message: error.Message,
@@ -503,7 +509,7 @@ export class S3StorageService {
             s3Keys.length / BATCH_SIZE
           )} completed`,
           {
-            prefix: LOG_PREFIX.S3_CLEANUP,
+            prefix: LogPrefix.S3_CLEANUP,
             deletedInBatch: batchDeleted - (result.Errors?.length || 0),
             errorsInBatch: result.Errors?.length || 0,
             totalProgress: `${totalDeleted}/${s3Keys.length}`,
@@ -512,7 +518,7 @@ export class S3StorageService {
       } catch (error) {
         totalErrors += batch.length;
         this.logger.error(`Batch delete failed entirely`, {
-          prefix: LOG_PREFIX.S3_CLEANUP,
+          prefix: LogPrefix.S3_CLEANUP,
           batchSize: batch.length,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -524,7 +530,7 @@ export class S3StorageService {
         totalDeleted - totalErrors
       } succeeded, ${totalErrors} failed`,
       {
-        prefix: LOG_PREFIX.S3_CLEANUP,
+        prefix: LogPrefix.S3_CLEANUP,
         totalFiles: s3Keys.length,
         successCount: totalDeleted - totalErrors,
         errorCount: totalErrors,
@@ -660,7 +666,7 @@ export class S3StorageService {
    */
   public async uploadRandomTestFiles(count: number = 5): Promise<string[]> {
     this.logger.audit(`Uploading test files to S3`, {
-      prefix: LOG_PREFIX.S3,
+      prefix: LogPrefix.S3,
       count,
     });
 
@@ -683,7 +689,7 @@ export class S3StorageService {
         uploadedFiles.push(md5Hash);
       } catch (err) {
         this.logger.error(`Test file upload failed`, {
-          prefix: LOG_PREFIX.S3,
+          prefix: LogPrefix.S3,
           fileNumber: i + 1,
           totalCount: count,
           error: err instanceof Error ? err.message : String(err),
@@ -692,7 +698,7 @@ export class S3StorageService {
     }
 
     this.logger.audit(`Test files uploaded to S3`, {
-      prefix: LOG_PREFIX.S3,
+      prefix: LogPrefix.S3,
       uploadedCount: uploadedFiles.length,
       files: uploadedFiles,
     });

@@ -13,7 +13,7 @@ import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { type ILogger } from "infrastructure/logger/ILogger";
 import { LogContextService } from "infrastructure/logger/LogContext";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { LogTag } from "infrastructure/logger/LogTag";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
@@ -103,6 +103,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
 
       // Log socket event received (info level for production tracing)
       this.logger.info(`Socket event received: ${this.getEventName()}`, {
+        prefix: LogPrefix.SOCKET,
         userId: this.socket.userId,
         socketId: this.socket.id,
       });
@@ -448,7 +449,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
       }
     } catch (handlingError) {
       this.logger.error(`Error while handling socket event error`, {
-        prefix: LOG_PREFIX.SOCKET,
+        prefix: LogPrefix.SOCKET,
         handlingError: String(handlingError),
         originalError: String(error),
       });
@@ -460,7 +461,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
    */
   private logSuccess(context: SocketEventContext, duration: number): void {
     this.logger.trace(`Socket event completed`, {
-      prefix: LOG_PREFIX.SOCKET,
+      prefix: LogPrefix.SOCKET,
       event: this.getEventName(),
       gameId: context.gameId,
       durationMs: duration,
@@ -472,7 +473,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
    */
   private logUnsuccessful(context: SocketEventContext, duration: number): void {
     this.logger.debug(`Socket event unsuccessful`, {
-      prefix: LOG_PREFIX.SOCKET,
+      prefix: LogPrefix.SOCKET,
       event: this.getEventName(),
       gameId: context.gameId,
       durationMs: duration,

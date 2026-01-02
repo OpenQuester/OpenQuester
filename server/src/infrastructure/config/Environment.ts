@@ -9,6 +9,7 @@ import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
 import { EnvVar } from "domain/types/env/env";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { LogLevel } from "infrastructure/logger/PinoLogger";
 import { SessionUtils } from "infrastructure/utils/SessionUtils";
 import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
@@ -20,7 +21,7 @@ export enum EnvType {
   TEST = "test",
 }
 
-const ENV_PREFIX = "[ENV]: ";
+const ENV_PREFIX = LogPrefix.ENV;
 
 /**
  * Class of environment layer.

@@ -7,7 +7,7 @@ import {
   getGamePhase,
 } from "domain/state-machine/types";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Routes transition requests to the correct handler based on current phase
@@ -49,7 +49,7 @@ export class PhaseTransitionRouter {
 
     if (handlers.length === 0) {
       this.logger.error(`No handlers registered for phase ${currentPhase}`, {
-        prefix: LOG_PREFIX.STATE_MACHINE,
+        prefix: LogPrefix.STATE_MACHINE,
       });
       return null;
     }
@@ -63,7 +63,7 @@ export class PhaseTransitionRouter {
       this.logger.trace(
         `Executing transition: ${handler.fromPhase} -> ${handler.toPhase} (trigger: ${ctx.trigger})`,
         {
-          prefix: LOG_PREFIX.STATE_MACHINE,
+          prefix: LogPrefix.STATE_MACHINE,
           gameId: ctx.game.id,
           trigger: ctx.trigger,
           triggeredBy: ctx.triggeredBy,
@@ -76,7 +76,7 @@ export class PhaseTransitionRouter {
         this.logger.trace(
           `Transition completed: ${handler.fromPhase} -> ${handler.toPhase}`,
           {
-            prefix: LOG_PREFIX.STATE_MACHINE,
+            prefix: LogPrefix.STATE_MACHINE,
             gameId: ctx.game.id,
             broadcastCount: result.broadcasts.length,
           }
@@ -87,7 +87,7 @@ export class PhaseTransitionRouter {
         this.logger.error(
           `Transition failed: ${handler.fromPhase} -> ${handler.toPhase}: ${error}`,
           {
-            prefix: LOG_PREFIX.STATE_MACHINE,
+            prefix: LogPrefix.STATE_MACHINE,
             gameId: ctx.game.id,
             error,
           }
@@ -99,7 +99,7 @@ export class PhaseTransitionRouter {
     this.logger.trace(
       `No transition possible from phase ${currentPhase} (${handlers.length} handlers checked)`,
       {
-        prefix: LOG_PREFIX.STATE_MACHINE,
+        prefix: LogPrefix.STATE_MACHINE,
         gameId: ctx.game.id,
         trigger: ctx.trigger,
       }
@@ -130,13 +130,13 @@ export class PhaseTransitionRouter {
 
       this.logger.debug(
         `Registered handler: ${handler.fromPhase} -> ${handler.toPhase}`,
-        { prefix: LOG_PREFIX.STATE_MACHINE }
+        { prefix: LogPrefix.STATE_MACHINE }
       );
     }
 
     this.logger.debug(
       `PhaseTransitionRouter initialized with ${handlers.length} handlers`,
-      { prefix: LOG_PREFIX.STATE_MACHINE }
+      { prefix: LogPrefix.STATE_MACHINE }
     );
   }
 }

@@ -38,6 +38,7 @@ import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { GameJoinResult } from "domain/types/socket/game/GameJoinResult";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -166,6 +167,7 @@ export class SocketIOGameService {
       );
     } catch (error) {
       this.logger.warn("Failed to start statistics collection", {
+        prefix: LogPrefix.STATS,
         gameId: game.id,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -498,7 +500,10 @@ export class SocketIOGameService {
       );
 
       if (!socketId) {
-        this.logger.debug(`No active socket found for banned user ${userId}`);
+        this.logger.debug(`No active socket found for banned user ${userId}`, {
+          prefix: LogPrefix.SOCKET,
+          userId,
+        });
         return;
       }
 
@@ -506,19 +511,31 @@ export class SocketIOGameService {
       const socket = this.gameNamespace.sockets.get(socketId);
       if (socket) {
         this.logger.debug(
-          `Force disconnecting socket ${socketId} for banned user ${userId}`
+          `Force disconnecting socket ${socketId} for banned user ${userId}`,
+          {
+            prefix: LogPrefix.SOCKET,
+            userId,
+            socketId,
+          }
         );
         socket.disconnect(true); // Force disconnect
       } else {
         this.logger.debug(
-          `Socket ${socketId} not found in namespace for user ${userId}`
+          `Socket ${socketId} not found in namespace for user ${userId}`,
+          {
+            prefix: LogPrefix.SOCKET,
+            userId,
+            socketId,
+          }
         );
       }
     } catch (error) {
-      this.logger.error(
-        `Failed to force disconnect user ${userId}:`,
-        error as object
-      );
+      this.logger.error(`Failed to force disconnect user ${userId}`, {
+        prefix: LogPrefix.SOCKET,
+        userId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
     }
   }
 

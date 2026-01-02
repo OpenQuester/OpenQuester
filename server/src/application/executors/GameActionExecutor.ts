@@ -6,7 +6,7 @@ import { GameAction, GameActionResult } from "domain/types/action/GameAction";
 import { GameActionHandlerResult } from "domain/types/action/GameActionHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogContextService } from "infrastructure/logger/LogContext";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { LogTag } from "infrastructure/logger/LogTag";
 import { GameActionLockService } from "infrastructure/services/lock/GameActionLockService";
 import { GameActionQueueService } from "infrastructure/services/queue/GameActionQueueService";
@@ -50,7 +50,7 @@ export class GameActionExecutor {
       const error = `No handler registered for action type: ${action.type}`;
 
       this.logger.error(error, {
-        prefix: LOG_PREFIX.ACTION,
+        prefix: LogPrefix.ACTION,
         actionId: action.id,
         actionType: action.type,
         gameId: action.gameId,
@@ -60,7 +60,7 @@ export class GameActionExecutor {
     }
 
     this.logger.info(`Action submitted`, {
-      prefix: LOG_PREFIX.ACTION,
+      prefix: LogPrefix.ACTION,
       actionId: action.id,
       actionType: action.type,
       gameId: action.gameId,
@@ -71,7 +71,7 @@ export class GameActionExecutor {
     if (!lockAcquired) {
       await this.queueService.pushAction(action);
       this.logger.info(`Action queued (lock contention)`, {
-        prefix: LOG_PREFIX.ACTION,
+        prefix: LogPrefix.ACTION,
         actionId: action.id,
         actionType: action.type,
         gameId: action.gameId,
@@ -106,7 +106,7 @@ export class GameActionExecutor {
 
       const durationMs = Date.now() - startTime;
       this.logger.info(`Action executed`, {
-        prefix: LOG_PREFIX.ACTION,
+        prefix: LogPrefix.ACTION,
         actionId: action.id,
         actionType: action.type,
         gameId: action.gameId,
@@ -151,7 +151,7 @@ export class GameActionExecutor {
     }
 
     this.logger.info(`Processing queued actions`, {
-      prefix: LOG_PREFIX.ACTION,
+      prefix: LogPrefix.ACTION,
       gameId,
       queueLength,
     });
@@ -162,7 +162,7 @@ export class GameActionExecutor {
       this.logger.warn(
         `Cannot process queue - lock held by another operation`,
         {
-          prefix: LOG_PREFIX.ACTION,
+          prefix: LogPrefix.ACTION,
           gameId,
         }
       );

@@ -4,7 +4,7 @@ import { Game } from "domain/entities/game/Game";
 import { GameMode } from "domain/enums/GameMode";
 import { GameStatisticsData } from "domain/types/statistics/GameStatisticsData";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Service responsible for collecting game statistics during gameplay
@@ -50,7 +50,7 @@ export class GameStatisticsCollectorService {
    */
   public async finishCollection(gameId: string): Promise<void> {
     this.logger.debug(`Collect statistics for game`, {
-      prefix: LOG_PREFIX.STATS,
+      prefix: LogPrefix.STATS,
       gameId,
     });
 
@@ -59,7 +59,7 @@ export class GameStatisticsCollectorService {
       this.logger.warn(
         `No statistics found for game ${gameId}, cannot finish collection`,
         {
-          prefix: LOG_PREFIX.STATS,
+          prefix: LogPrefix.STATS,
         }
       );
       return;
@@ -70,7 +70,7 @@ export class GameStatisticsCollectorService {
       this.logger.debug(
         `Statistics for game ${gameId} already finished, skipping duplicate call`,
         {
-          prefix: LOG_PREFIX.STATS,
+          prefix: LogPrefix.STATS,
         }
       );
       return;
@@ -85,7 +85,7 @@ export class GameStatisticsCollectorService {
     });
 
     this.logger.info(`Statistics collection finished for game`, {
-      prefix: LOG_PREFIX.STATS,
+      prefix: LogPrefix.STATS,
       gameId,
       duration: `${duration}ms`,
     });

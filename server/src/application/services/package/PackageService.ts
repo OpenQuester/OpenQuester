@@ -20,6 +20,7 @@ import { Package } from "infrastructure/database/models/package/Package";
 import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { PackageRepository } from "infrastructure/database/repositories/PackageRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { DependencyService } from "infrastructure/services/dependency/DependencyService";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
@@ -307,6 +308,7 @@ export class PackageService {
       } catch (error) {
         // Log error but don't fail the entire operation
         this.logger.error(`Failed to delete files from S3 in batch`, {
+          prefix: LogPrefix.S3,
           filenames: filesDeletedFromDB,
           packageId,
           error: error instanceof Error ? error.message : String(error),
@@ -314,6 +316,9 @@ export class PackageService {
       }
     }
 
-    this.logger.audit(`Package ${packageId} deleted successfully`);
+    this.logger.audit(`Package ${packageId} deleted successfully`, {
+      prefix: LogPrefix.ADMIN,
+      packageId,
+    });
   }
 }

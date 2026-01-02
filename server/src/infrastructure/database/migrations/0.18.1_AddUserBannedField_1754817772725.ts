@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddUserBannedField_0_18_1_1754817772725
@@ -19,7 +20,9 @@ export class AddUserBannedField_0_18_1_1754817772725
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.18.1 - Added is_banned column to user table");
+    logger.migration("0.18.1 - Added is_banned column to user table", {
+      prefix: LogPrefix.MIGRATION,
+    });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

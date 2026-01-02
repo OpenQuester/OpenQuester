@@ -153,8 +153,7 @@ export class DIConfig {
     Container.register(
       CONTAINER_TYPES.GameActionQueueService,
       new GameActionQueueService(
-        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
-        this.logger
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
       ),
       "service"
     );

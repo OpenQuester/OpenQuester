@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class MakeAnswerAndQuestionDisplayTimeNullable_1747925123456
@@ -18,7 +19,7 @@ export class MakeAnswerAndQuestionDisplayTimeNullable_1747925123456
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.15.2-2");
+    logger.migration("0.15.2-2", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

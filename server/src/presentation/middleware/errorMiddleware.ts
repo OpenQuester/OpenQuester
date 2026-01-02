@@ -3,7 +3,7 @@ import { type NextFunction, type Request, type Response } from "express";
 import { BaseError } from "domain/errors/BaseError";
 import { ErrorController } from "domain/errors/ErrorController";
 import { type ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Express error handling middleware - outermost error boundary for HTTP requests
@@ -25,7 +25,7 @@ export const errorMiddleware =
     } else {
       // This should never happen - indicates framework misconfiguration
       logger.error(`Error middleware invoked without error`, {
-        prefix: LOG_PREFIX.ERROR_MIDDLEWARE,
+        prefix: LogPrefix.ERROR_MIDDLEWARE,
       });
       return next();
     }

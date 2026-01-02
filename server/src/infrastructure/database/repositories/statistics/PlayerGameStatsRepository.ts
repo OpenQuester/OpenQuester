@@ -13,6 +13,7 @@ import {
 import { PlayerGameStatsRedisValidator } from "domain/validators/PlayerGameStatsRedisValidator";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 
 /**
@@ -107,7 +108,7 @@ export class PlayerGameStatsRepository {
               `Skipping invalid Redis data for user: ${
                 error instanceof Error ? error.message : String(error)
               }`,
-              { data, key, userId }
+              { prefix: LogPrefix.PLAYER_STATS, data, key, userId }
             );
           }
         }

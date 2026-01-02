@@ -26,7 +26,7 @@ import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { RegisterUser } from "domain/types/user/RegisterUser";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PerformanceLog } from "infrastructure/logger/PinoLogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -109,7 +109,9 @@ export class AuthRestApiController {
    * Handle OAuth login
    */
   private handleOauthLogin = async (req: Request, res: Response) => {
-    const log = this.logger.performance(`OAuth login`);
+    const log = this.logger.performance(`OAuth login`, {
+      prefix: LogPrefix.AUTH,
+    });
 
     const authDTO = new RequestDataValidator<Oauth2LoginDTO>(
       req.body,
@@ -137,7 +139,7 @@ export class AuthRestApiController {
         break;
       default:
         this.logger.warn(`Unsupported OAuth provider attempted`, {
-          prefix: LOG_PREFIX.AUTH,
+          prefix: LogPrefix.AUTH,
           provider: authDTO.oauthProvider,
         });
         throw new ClientError(ClientResponse.OAUTH_PROVIDER_NOT_SUPPORTED);
@@ -148,14 +150,16 @@ export class AuthRestApiController {
    * Handle user logout
    */
   private logout = async (req: Request, res: Response) => {
-    const log = this.logger.performance(`User logout`);
+    const log = this.logger.performance(`User logout`, {
+      prefix: LogPrefix.AUTH,
+    });
     const sessionId = req.sessionID;
     const userId = req.session.userId;
 
     req.session.destroy(async (err) => {
       if (err) {
         this.logger.error(`Session destroy failed`, {
-          prefix: LOG_PREFIX.AUTH,
+          prefix: LogPrefix.AUTH,
           userId,
           error: String(err),
         });
@@ -176,7 +180,7 @@ export class AuthRestApiController {
       log.finish();
 
       this.logger.audit(`User logged out`, {
-        prefix: LOG_PREFIX.AUTH,
+        prefix: LogPrefix.AUTH,
         userId,
       });
 
@@ -280,10 +284,12 @@ export class AuthRestApiController {
 
   private handleGuestLogin = async (req: Request, res: Response) => {
     const clientIp = req.ip;
-    const log = this.logger.performance(`Guest login`);
+    const log = this.logger.performance(`Guest login`, {
+      prefix: LogPrefix.AUTH,
+    });
 
     this.logger.trace("Guest login attempt started", {
-      prefix: LOG_PREFIX.AUTH,
+      prefix: LogPrefix.AUTH,
       clientIp,
       userAgent: req.get("User-Agent"),
     });
@@ -336,7 +342,7 @@ export class AuthRestApiController {
     req.session.save((err) => {
       if (err) {
         this.logger.error(`Session save error: ${err}`, {
-          prefix: LOG_PREFIX.AUTH,
+          prefix: LogPrefix.AUTH,
           userId: userData?.id,
           clientIp,
         });
@@ -347,6 +353,7 @@ export class AuthRestApiController {
       options.performanceLog?.finish();
 
       this.logger.audit(options.successMessage, {
+        prefix: LogPrefix.AUTH,
         userId: userData?.id,
         ...options.auditData,
         clientIp,

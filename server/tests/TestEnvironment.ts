@@ -27,7 +27,7 @@ export class TestEnvironment {
 
   public async teardown(): Promise<void> {
     this.logger.info("Tearing down test environment...", {
-      prefix: "[TEST]: ",
+      prefix: LogPrefix.TEST,
     });
     if (this.testDataSource) {
       await this.testDataSource.destroy();

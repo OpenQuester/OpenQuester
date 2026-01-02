@@ -3,7 +3,7 @@ import Redis, { Callback, RedisKey, RedisValue } from "ioredis";
 import { REDIS_LOCK_KEY_EXPIRE_DEFAULT } from "domain/constants/redis";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import {
   RedisLogSanitizer,
   type RedisLogData,
@@ -89,10 +89,10 @@ export class RedisRepository {
       ? this.sanitizeLogData(performanceLogData)
       : this.sanitizeLogData(traceLogData);
 
-    const log = this.logger.performance(
-      operationName,
-      sanitizedPerformanceData
-    );
+    const log = this.logger.performance(operationName, {
+      prefix: LogPrefix.REDIS,
+      ...sanitizedPerformanceData,
+    });
 
     try {
       const result = await operation();
@@ -177,6 +177,7 @@ export class RedisRepository {
     logEntity: string
   ): Promise<void> {
     const log = this.logger.performance(`Redis cleanup`, {
+      prefix: LogPrefix.REDIS,
       keyPattern,
       logEntity,
     });
@@ -187,14 +188,14 @@ export class RedisRepository {
         await this.delMultiple(keys);
 
         this.logger.info(`Redis keys cleaned up`, {
-          prefix: LOG_PREFIX.REDIS,
+          prefix: LogPrefix.REDIS,
           entity: logEntity,
           count: keys.length,
         });
       }
     } catch (err: any) {
       this.logger.error(`Redis cleanup failed`, {
-        prefix: LOG_PREFIX.REDIS,
+        prefix: LogPrefix.REDIS,
         entity: logEntity,
         error: err.message,
       });

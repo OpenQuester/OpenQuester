@@ -5747,7 +5747,7 @@
       },
       "SystemLogsResponse": {
         "type": "object",
-        "required": ["logs", "pagination", "filter"],
+        "required": ["logs", "pagination"],
         "description": "Response from system logs endpoint with scan-based pagination",
         "properties": {
           "logs": {
@@ -5759,11 +5759,38 @@
           },
           "pagination": {
             "$ref": "#/components/schemas/LogPagination"
-          },
-          "filter": {
-            "$ref": "#/components/schemas/LogFilter"
           }
         }
+      },
+      "LogLevel": {
+        "type": "string",
+        "description": "Log level",
+        "enum": [
+          "trace",
+          "debug",
+          "info",
+          "performance",
+          "warn",
+          "error",
+          "audit"
+        ]
+      },
+      "LogTag": {
+        "type": "string",
+        "description": "Categorization tag",
+        "enum": [
+          "http",
+          "socket",
+          "game",
+          "auth",
+          "admin",
+          "timer",
+          "queue",
+          "media",
+          "db",
+          "redis",
+          "cron"
+        ]
       },
       "LogEntry": {
         "type": "object",
@@ -5771,9 +5798,7 @@
         "description": "A single log entry",
         "properties": {
           "level": {
-            "type": "string",
-            "enum": ["trace", "debug", "info", "performance", "warn", "error", "audit"],
-            "description": "Log level"
+            "$ref": "#/components/schemas/LogLevel"
           },
           "timestamp": {
             "type": "string",
@@ -5804,20 +5829,7 @@
           "tags": {
             "type": "array",
             "items": {
-              "type": "string",
-              "enum": [
-                "http",
-                "socket",
-                "game",
-                "auth",
-                "admin",
-                "timer",
-                "queue",
-                "media",
-                "db",
-                "redis",
-                "cron"
-              ]
+              "$ref": "#/components/schemas/LogTag"
             },
             "description": "Categorization tags"
           },
@@ -5844,50 +5856,6 @@
           "matched": {
             "type": "integer",
             "description": "Number of entries returned (0 to limit)"
-          }
-        }
-      },
-      "LogFilter": {
-        "type": "object",
-        "description": "Applied filter parameters",
-        "properties": {
-          "levels": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "correlationId": {
-            "type": "string"
-          },
-          "gameId": {
-            "type": "string"
-          },
-          "userId": {
-            "type": "integer"
-          },
-          "since": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "until": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "search": {
-            "type": "string"
-          },
-          "limit": {
-            "type": "integer"
-          },
-          "offset": {
-            "type": "integer"
           }
         }
       }

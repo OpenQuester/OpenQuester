@@ -27,7 +27,7 @@ import { GameRedisValidator } from "domain/validators/GameRedisValidator";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LOG_PREFIX } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
@@ -193,7 +193,7 @@ export class GameRepository {
       this.logger.warn(
         `Game id collisions while game creation: ${collisionsCounter}`,
         {
-          prefix: LOG_PREFIX.GAME,
+          prefix: LogPrefix.GAME,
         }
       );
     }
@@ -243,7 +243,7 @@ export class GameRepository {
    */
   public async deleteInternally(gameId: string): Promise<void> {
     this.logger.debug("Delete game internally", {
-      prefix: LOG_PREFIX.GAME,
+      prefix: LogPrefix.GAME,
       gameId,
     });
 
@@ -258,7 +258,7 @@ export class GameRepository {
 
   public async deleteGame(user: number, gameId: string) {
     this.logger.debug("Delete game", {
-      prefix: LOG_PREFIX.GAME,
+      prefix: LogPrefix.GAME,
       gameId,
     });
     const key = this.getGameKey(gameId);
@@ -385,7 +385,7 @@ export class GameRepository {
       `Games updated: ${gamesCounter}, timers recovered: ${timerRecoveryCounter}, in ${
         Date.now() - startTime
       } ms`,
-      { prefix: LOG_PREFIX.GAME }
+      { prefix: LogPrefix.GAME }
     );
   }
 
@@ -422,7 +422,7 @@ export class GameRepository {
 
     this.logger.debug(
       `Timer recovered for game ${game.id}: state=${questionState}, elapsed=${timer.elapsedMs}ms/${timer.durationMs}ms`,
-      { prefix: LOG_PREFIX.GAME }
+      { prefix: LogPrefix.GAME }
     );
   }
 
@@ -557,7 +557,7 @@ export class GameRepository {
           return GameMapper.deserializeGameHash(validatedData);
         } catch (error) {
           this.logger.warn("Skipping invalid game Redis data", {
-            prefix: LOG_PREFIX.GAME,
+            prefix: LogPrefix.GAME,
             error: error instanceof Error ? error.message : String(error),
             gameIdsCount: gameIds.length,
           });

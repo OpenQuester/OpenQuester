@@ -14,6 +14,7 @@ import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { GameRepository } from "infrastructure/database/repositories/GameRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 export class GameService {
   constructor(
@@ -30,6 +31,7 @@ export class GameService {
     updatedTtl?: number
   ): Promise<GameListItemDTO> {
     const log = this.logger.performance(`Game retrieval`, {
+      prefix: LogPrefix.GAME,
       gameId,
       updatedTtl,
     });

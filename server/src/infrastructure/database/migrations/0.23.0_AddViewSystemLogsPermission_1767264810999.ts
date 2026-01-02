@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddViewSystemLogsPermission_0_23_0_1767264810999
@@ -14,7 +15,9 @@ export class AddViewSystemLogsPermission_0_23_0_1767264810999
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.23.0 - Added view_system_logs permission");
+    logger.migration("0.23.0 - Added view_system_logs permission", {
+      prefix: LogPrefix.MIGRATION,
+    });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
