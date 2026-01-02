@@ -3409,17 +3409,13 @@
       "SocketIOGameLeaveEventPayload": {
         "type": "object",
         "properties": {
-          "userId": {
+          "user": {
             "type": "integer",
             "examples": [5],
             "description": "Emitted to everyone in game, including sender. ID of the user who left the game"
-          },
-          "gameId": {
-            "type": "string",
-            "examples": ["Q31X"]
           }
         },
-        "required": ["userId", "gameId"]
+        "required": ["user"]
       },
       "SocketIOChatMessageEventPayload": {
         "description": "Emitted to everyone in game, including sender. Data that sent to all players in room on chat message",

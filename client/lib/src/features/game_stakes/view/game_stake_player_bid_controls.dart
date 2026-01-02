@@ -3,7 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:openquester/openquester.dart';
 
 class PlayerBidControls extends WatchingWidget {
-  const PlayerBidControls({super.key});
+  const PlayerBidControls({super.key, this.showPassButton = true});
+  final bool showPassButton;
 
   @override
   Widget build(BuildContext context) {
@@ -41,12 +42,13 @@ class PlayerBidControls extends WatchingWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              const _BidBtn(
-                SocketIoStakeQuestionBidInput(
-                  bidAmount: null,
-                  bidType: StakeBidType.pass,
+              if (showPassButton)
+                const _BidBtn(
+                  SocketIoStakeQuestionBidInput(
+                    bidAmount: null,
+                    bidType: StakeBidType.pass,
+                  ),
                 ),
-              ),
               ...[100, 1000]
                   .where(
                     (e) =>

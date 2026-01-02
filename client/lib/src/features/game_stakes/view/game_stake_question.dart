@@ -10,8 +10,12 @@ class GameStakeQuestionBody extends WatchingWidget {
     final stakeController = watchIt<GameLobbyPlayerStakesController>();
     final playerMakesABid = gameData?.me.meta.id == stakeController.bidderId;
     final questionMediaOnLeft = GameLobbyStyles.questionMediaOnLeft(context);
-
     final direction = questionMediaOnLeft ? Axis.horizontal : Axis.vertical;
+
+    final showControls =
+        !(gameData?.imSpectator ?? true) &&
+        !(stakeController.isFinalRound && (gameData?.imShowman ?? false));
+
     final body = Column(
       spacing: 16,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -29,7 +33,7 @@ class GameStakeQuestionBody extends WatchingWidget {
                 child: GameStakeQuestionBids(),
               ),
             ).center().expand(),
-            if (!(gameData?.imSpectator ?? true))
+            if (showControls)
               AppAnimatedSwitcher(
                 sizeTransitionAxis: direction,
                 visible:
@@ -40,7 +44,9 @@ class GameStakeQuestionBody extends WatchingWidget {
                   constraints: BoxConstraints(
                     maxWidth: questionMediaOnLeft ? 250 : double.infinity,
                   ),
-                  child: const PlayerBidControls().center(),
+                  child: PlayerBidControls(
+                    showPassButton: !stakeController.isFinalRound,
+                  ).center(),
                 ),
               ),
           ],

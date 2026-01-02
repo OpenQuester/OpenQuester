@@ -400,7 +400,7 @@ class GameLobbyController {
     final leaveData = SocketIoGameLeaveEventPayload.fromJson(
       data as Map<String, dynamic>,
     );
-    final user = gameData.value?.players.getById(leaveData.userId);
+    final user = gameData.value?.players.getById(leaveData.user);
     if (user == null) return;
 
     // If i am leaving - close game
@@ -1196,6 +1196,7 @@ class GameLobbyController {
       case FinalRoundPhase.bidding:
         getIt<GameLobbyPlayerStakesController>().startBidding(
           allPlayersBid: true,
+          isFinalRound: true,
           bidderId: finalRoundData.turnOrder.first,
           bids: finalRoundData.bids.map(
             (key, value) => MapEntry(int.parse(key), value),

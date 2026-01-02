@@ -5,6 +5,7 @@ import 'package:openquester/common_imports.dart';
 class GameLobbyPlayerStakesController extends ChangeNotifier {
   bool isBidding = false;
   bool allPlayersBid = false;
+  bool isFinalRound = false;
   int? bidderId;
   Map<int, int?>? bids;
   SocketIoStakeQuestionBidInput? bid = const SocketIoStakeQuestionBidInput(
@@ -20,6 +21,7 @@ class GameLobbyPlayerStakesController extends ChangeNotifier {
     required bool allPlayersBid,
     required Map<int, int?> bids,
     required void Function(SocketIoStakeQuestionBidInput bid) onPlayerBid,
+    bool isFinalRound = false,
   }) {
     isBidding = true;
     this.allPlayersBid = allPlayersBid;
@@ -53,6 +55,7 @@ class GameLobbyPlayerStakesController extends ChangeNotifier {
   void stopSelection() {
     bid = null;
     isBidding = false;
+    isFinalRound = false;
     bidderId = null;
     _onPlayerBid = null;
     bids = null;
