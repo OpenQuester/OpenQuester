@@ -54,6 +54,7 @@ class GameLobbyController {
         ..on(SocketIoGameReceiveEvents.start.json!, _onGameStart)
         ..on(SocketIoGameReceiveEvents.userLeave.json!, _onUserLeave)
         ..on(SocketIoGameReceiveEvents.join.json!, _onUserJoin)
+        ..on(SocketIoUserReceiveEvents.userChange.json!, _onUserChange)
         ..on(SocketIoGameReceiveEvents.questionData.json!, _onQuestionPick)
         ..on(SocketIoGameReceiveEvents.questionAnswer.json!, _onQuestionAnswer)
         ..on(SocketIoGameReceiveEvents.answerResult.json!, _onAnswerResult)
@@ -461,6 +462,28 @@ class GameLobbyController {
         ),
       );
     }
+  }
+
+  void _onUserChange(dynamic data) {
+    if (data is! Map) return;
+
+    final payload = SocketIoUserChangeEventPayload.fromJson(
+      data as Map<String, dynamic>,
+    );
+
+    // Update player's meta information (avatar, username, etc.)
+    gameData.value = gameData.value?.changePlayer(
+      id: payload.userData.id,
+      onChange: (player) => player.copyWith(
+        meta: player.meta.copyWith(
+          username: payload.userData.username,
+          avatar: payload.userData.avatar,
+        ),
+      ),
+    );
+
+    // Update chat users to reflect the changes
+    _updateChatUsers();
   }
 
   void onQuestionPick(int questionId) {
