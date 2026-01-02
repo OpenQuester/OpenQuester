@@ -439,7 +439,7 @@ class _UrlAudioPreviewState extends State<_UrlAudioPreview> {
     try {
       final (controller, tmpFile) = await VideoPlayerUtils.createController(
         url: widget.url,
-        fileExtension: 'webp',
+        fileExtension: 'webm',
       );
       _controller = controller;
       _tmpFile = tmpFile;

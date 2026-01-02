@@ -288,7 +288,8 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
           ),
         ),
         subtitle: Text(
-          '$themeCount themes • $questionCount questions',
+          '${LocaleKeys.themes_count.tr(args: [themeCount.toString()])} • '
+          '${LocaleKeys.questions.plural(questionCount)}',
           style: context.textTheme.bodySmall,
         ),
         children: round.themes

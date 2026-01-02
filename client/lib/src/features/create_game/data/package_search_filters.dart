@@ -29,7 +29,7 @@ abstract class PackageSearchFilters with _$PackageSearchFilters {
       description != null ||
       language != null ||
       authorId != null ||
-      tags != null && tags!.isNotEmpty ||
+      (tags?.isNotEmpty ?? false) ||
       ageRestriction != null ||
       minRounds != null ||
       maxRounds != null ||

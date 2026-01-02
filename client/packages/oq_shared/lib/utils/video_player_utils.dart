@@ -76,6 +76,13 @@ class VideoPlayerUtils {
   static final double _b = math.log(maxVol / minVol);
 
   /// Converts linear volume (0-1) to logarithmic scale for natural perception
-  static double toLogVolume(double linear) =>
-      minVol * math.exp(_b * linear.clamp(minVol, maxVol));
-}
+  /// Ensures that 0 maps to true silence while preserving the log curve
+  /// for positive values.
+  static double toLogVolume(double linear) {
+    if (linear <= 0) {
+      return 0;
+    }
+
+    final clamped = linear.clamp(0.0, maxVol);
+    return minVol * math.exp(_b * (clamped as double));
+  }

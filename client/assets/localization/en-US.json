@@ -418,6 +418,7 @@
   "hide_filters": "Hide Filters",
   "clear_filters": "Clear All Filters",
   "apply": "Apply",
+  "any": "Any",
   "filter_by_language": "Language",
   "filter_by_author": "Author",
   "filter_by_tags": "Tags",
@@ -436,6 +437,7 @@
   "active_filters": "Active Filters",
   "no_filters": "No filters applied",
   "results_count": "{} package(s) found",
+  "themes_count": "{} themes",
   "loading_packages": "Loading packages...",
   "select_package": "Select Package"
 }

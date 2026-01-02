@@ -5,6 +5,9 @@ import 'package:openquester/openquester.dart';
 
 class PackageListItemWidget extends StatelessWidget {
   const PackageListItemWidget({required this.item, super.key});
+  
+  static const int _maxVisibleTags = 5;
+  
   final PackageListItem item;
 
   @override
@@ -92,7 +95,7 @@ class PackageListItemWidget extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 6,
                   children: item.tags!
-                      .sublist(0, min(5, item.tags!.length))
+                      .sublist(0, min(_maxVisibleTags, item.tags!.length))
                       .map(
                         (tag) => Chip(
                           label: Text(

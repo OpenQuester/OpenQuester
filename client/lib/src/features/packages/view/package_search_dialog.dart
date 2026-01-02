@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:openquester/openquester.dart';
@@ -11,6 +13,9 @@ class PackageSearchDialog extends StatefulWidget {
 }
 
 class _PackageSearchDialogState extends State<PackageSearchDialog> {
+  static const double _filtersPanelExpandedHeight = 540;
+  static const int _maxVisibleTags = 5;
+  
   final PackagesListController _controller = getIt<PackagesListController>();
   final _searchController = TextEditingController();
   final _minRoundsController = TextEditingController();
@@ -20,6 +25,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
 
   var _filters = const PackageSearchFilters();
   var _showFilters = false;
+  Timer? _debounce;
 
   @override
   void dispose() {
@@ -28,7 +34,15 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
     _maxRoundsController.dispose();
     _minQuestionsController.dispose();
     _maxQuestionsController.dispose();
+    _debounce?.cancel();
     super.dispose();
+  }
+
+  void _onSearchChanged() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _applyFilters();
+    });
   }
 
   void _applyFilters() {
@@ -103,7 +117,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
       pinned: true,
       elevation: 0,
       automaticallyImplyLeading: false,
-      expandedHeight: _showFilters ? 540 : null,
+      expandedHeight: _showFilters ? _filtersPanelExpandedHeight : null,
       stretch: true,
       title: Row(
         children: [
@@ -179,7 +193,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
           ),
         ),
         onSubmitted: (_) => _applyFilters(),
-        onChanged: (_) => _applyFilters(),
+        onChanged: (_) => _onSearchChanged(),
       ).paddingAll(16),
     );
   }
@@ -261,7 +275,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
       spacing: 8,
       children: [
         Expanded(
-          child: TextField(
+          child: TextFormField(
             controller: _minQuestionsController,
             decoration: InputDecoration(
               labelText: LocaleKeys.filter_by_questions.tr(),
@@ -274,7 +288,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
         ),
         const Text('—'),
         Expanded(
-          child: TextField(
+          child: TextFormField(
             controller: _maxQuestionsController,
             decoration: InputDecoration(
               hintText: LocaleKeys.max.tr(),
@@ -419,9 +433,9 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
                 _buildFilterChip(
                   [
                     '${LocaleKeys.filter_by_rounds.tr()}:',
-                    _filters.minRounds ?? '∞',
+                    _filters.minRounds?.toString() ?? LocaleKeys.any.tr(),
                     '-',
-                    _filters.maxRounds ?? '∞',
+                    _filters.maxRounds?.toString() ?? LocaleKeys.any.tr(),
                   ].join(' '),
                   () {
                     setState(() {
@@ -441,9 +455,9 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
                 _buildFilterChip(
                   [
                     '${LocaleKeys.filter_by_questions.tr()}:',
-                    _filters.minQuestions ?? '∞',
+                    _filters.minQuestions?.toString() ?? LocaleKeys.any.tr(),
                     '-',
-                    _filters.maxQuestions ?? '∞',
+                    _filters.maxQuestions?.toString() ?? LocaleKeys.any.tr(),
                   ].join(' '),
                   () {
                     setState(() {
