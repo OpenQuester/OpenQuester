@@ -42,12 +42,13 @@ class AutoUpdateController {
     if (kIsWeb) return '';
     if (Platform.isWindows) return 'OpenQuester-x86_64-$version-Installer.exe';
     if (Platform.isAndroid) return 'app-release.apk';
+    if (Platform.isLinux) return 'OpenQuester-x86_64.AppImage';
     return '';
   }
 
   bool get showUpdateBtn {
     if (kIsWeb) return false;
-    return Platform.isWindows || Platform.isAndroid;
+    return Platform.isWindows || Platform.isAndroid || Platform.isLinux;
   }
 
   Future<void> openInstallFile() async {
