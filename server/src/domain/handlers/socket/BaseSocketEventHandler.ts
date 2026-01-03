@@ -5,12 +5,16 @@ import {
   SocketIOGameEvents,
   SocketIOUserEvents,
 } from "domain/enums/SocketIOEvents";
+import { ClientError } from "domain/errors/ClientError";
 import { ErrorController } from "domain/errors/ErrorController";
 import { GameAction } from "domain/types/action/GameAction";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { type ILogger } from "infrastructure/logger/ILogger";
+import { LogContextService } from "infrastructure/logger/LogContext";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogTag } from "infrastructure/logger/LogTag";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 import { Socket } from "socket.io";
@@ -82,50 +86,74 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   /**
    * Main entry point for handling socket events
    * Implements the template method pattern with hooks for subclasses
+   * Wraps execution in LogContext for correlation ID tracking
    */
   public async handle(data: TInput): Promise<void> {
-    const context = this.createContext();
-    const startTime = Date.now();
+    // Create log context for this socket event
+    const logContext = LogContextService.createContext({
+      userId: this.socket.userId,
+      socketId: this.socket.id,
+      tags: new Set([LogTag.SOCKET]),
+    });
 
-    try {
-      // Pre-execution hooks
-      await this.beforeHandle(data, context);
+    // Run entire handler within log context - all logs will include correlationId
+    await LogContextService.runAsync(logContext, async () => {
+      const context = this.createContext();
+      const startTime = Date.now();
 
-      // Input validation
-      const validatedData = await this.validateInput(data);
+      // Log socket event received (info level for production tracing)
+      this.logger.debug(`Socket event received: ${this.getEventName()}`, {
+        prefix: LogPrefix.SOCKET,
+        userId: this.socket.userId,
+        socketId: this.socket.id,
+      });
 
-      // Authorization check
-      await this.authorize(validatedData, context);
+      try {
+        // Pre-execution hooks
+        await this.beforeHandle(data, context);
 
-      // Check if this action should use the action queue system
-      const gameId = await this.getGameIdForAction(validatedData, context);
-      const hasRegisteredHandler = gameId && this.hasRegisteredHandler();
+        // Input validation
+        const validatedData = await this.validateInput(data);
 
-      if (hasRegisteredHandler) {
-        // Use action executor with locking and queuing
-        await this.handleWithActionQueue(
-          validatedData,
-          context,
-          gameId,
-          startTime
-        );
-      } else if (this.canExecuteDirectly()) {
-        // Only handlers that explicitly implement execute() can bypass the queue
-        await this.executeDirectly(validatedData, context, startTime);
-      } else if (!gameId && this.allowsNullGameId()) {
-        // Handler explicitly allows null gameId - silently succeed (no-op)
-        this.logSuccess(context, Date.now() - startTime);
-      } else {
-        // No registered action handler and no direct execute - this is a configuration error
-        throw new Error(
-          `No registered action handler for ${this.constructor.name}. ` +
-            `All game actions must have a registered handler in ActionHandlerConfig.`
-        );
+        // Authorization check
+        await this.authorize(validatedData, context);
+
+        // Check if this action should use the action queue system
+        const gameId = await this.getGameIdForAction(validatedData, context);
+        const hasRegisteredHandler = gameId && this.hasRegisteredHandler();
+
+        // Set game context for logs if available
+        if (gameId) {
+          LogContextService.setGameId(gameId);
+          LogContextService.addTag(LogTag.GAME);
+        }
+
+        if (hasRegisteredHandler) {
+          // Use action executor with locking and queuing
+          await this.handleWithActionQueue(
+            validatedData,
+            context,
+            gameId,
+            startTime
+          );
+        } else if (this.canExecuteDirectly()) {
+          // Only handlers that explicitly implement execute() can bypass the queue
+          await this.executeDirectly(validatedData, context, startTime);
+        } else if (!gameId && this.allowsNullGameId()) {
+          // Handler explicitly allows null gameId - silently succeed (no-op)
+          this.logSuccess(context, Date.now() - startTime);
+        } else {
+          // No registered action handler and no direct execute - this is a configuration error
+          throw new Error(
+            `No registered action handler for ${this.constructor.name}. ` +
+              `All game actions must have a registered handler in ActionHandlerConfig.`
+          );
+        }
+      } catch (error) {
+        // Error handling
+        await this.handleError(error, context, Date.now() - startTime);
       }
-    } catch (error) {
-      // Error handling
-      await this.handleError(error, context, Date.now() - startTime);
-    }
+    });
   }
 
   /**
@@ -392,41 +420,39 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
     try {
       const { message } = await ErrorController.resolveError(
         error,
-        this.logger
+        this.logger,
+        undefined,
+        {
+          source: "socket",
+          event: this.getEventName(),
+          gameId: context.gameId,
+          userId: context.userId,
+          durationMs: duration,
+        }
       );
 
       // Emit error to the socket that originated this action
-      // For queued actions, context.socketId contains the original socket
       try {
         this.eventEmitter.emitToSocket<ErrorEventPayload>(
           SocketIOEvents.ERROR,
           { message: message },
           context.socketId
         );
-      } catch (emitError) {
-        // Socket might have disconnected, log but don't throw
-        this.logger.debug(
-          `Failed to emit error to socket ${context.socketId}: ${emitError}`,
-          { prefix: "[SOCKET]: " }
-        );
+      } catch {
+        // Socket might have disconnected - this is expected, no log needed
       }
 
-      // Log error with full context and original error details for server-side debugging
-      this.logger.error(
-        `Socket event error in ${this.getEventName()}: ${message} | SocketId: ${
-          context.socketId
-        } | UserId: ${context.userId} | GameId: ${
-          context.gameId
-        } | Duration: ${duration}ms | OriginalError: ${String(error)}`,
-        { prefix: "[SOCKET]: " }
-      );
+      // Only log if this adds context beyond what ErrorController already logged
+      if (error instanceof ClientError) {
+        // Client errors are expected - no logging needed
+        return;
+      }
     } catch (handlingError) {
-      this.logger.error(
-        `Error while handling socket event error: ${handlingError} | OriginalError: ${String(
-          error
-        )} | SocketId: ${context.socketId}`,
-        { prefix: "[SOCKET]: " }
-      );
+      this.logger.error(`Error while handling socket event error`, {
+        prefix: LogPrefix.SOCKET,
+        handlingError: String(handlingError),
+        originalError: String(error),
+      });
     }
   }
 
@@ -434,21 +460,23 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
    * Log successful execution
    */
   private logSuccess(context: SocketEventContext, duration: number): void {
-    const eventName = this.getEventName();
-    this.logger.debug(
-      `Socket event ${eventName} completed successfully | SocketId: ${context.socketId} | UserId: ${context.userId} | GameId: ${context.gameId} | Duration: ${duration}ms`,
-      { prefix: "[SOCKET]: " }
-    );
+    this.logger.trace(`Socket event completed`, {
+      prefix: LogPrefix.SOCKET,
+      event: this.getEventName(),
+      gameId: context.gameId,
+      durationMs: duration,
+    });
   }
 
   /**
    * Log unsuccessful execution
    */
   private logUnsuccessful(context: SocketEventContext, duration: number): void {
-    const eventName = this.getEventName();
-    this.logger.error(
-      `Socket event ${eventName} completed unsuccessfully | SocketId: ${context.socketId} | UserId: ${context.userId} | GameId: ${context.gameId} | Duration: ${duration}ms`,
-      { prefix: "[SOCKET]: " }
-    );
+    this.logger.debug(`Socket event unsuccessful`, {
+      prefix: LogPrefix.SOCKET,
+      event: this.getEventName(),
+      gameId: context.gameId,
+      durationMs: duration,
+    });
   }
 }

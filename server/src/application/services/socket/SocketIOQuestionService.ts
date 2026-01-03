@@ -53,6 +53,7 @@ import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 export class SocketIOQuestionService {
   constructor(
@@ -173,7 +174,7 @@ export class SocketIOQuestionService {
     } catch (error) {
       // Log but don't throw - statistics shouldn't break game flow
       this.logger.warn("Failed to update player answer statistics", {
-        prefix: "[SOCKET_QUESTION_SERVICE]: ",
+        prefix: LogPrefix.SOCKET_QUESTION,
         gameId: game.id,
         playerId: mutation.playerAnswerResult.player,
         error: error instanceof Error ? error.message : String(error),
@@ -586,7 +587,7 @@ export class SocketIOQuestionService {
     > = new Map();
 
     const log = this.logger.performance("Get players broadcast map", {
-      prefix: "[SOCKET]: ",
+      prefix: LogPrefix.SOCKET,
       operationsCount: socketsIds.length,
     });
 
@@ -638,7 +639,7 @@ export class SocketIOQuestionService {
     }
 
     const log = this.logger.performance("Get players broadcast map", {
-      prefix: "[SOCKET]: ",
+      prefix: LogPrefix.SOCKET,
       operationsCount: socketsIds.length,
     });
 
@@ -791,7 +792,7 @@ export class SocketIOQuestionService {
       );
     } catch (error) {
       this.logger.warn("Failed to update player answer statistics on give up", {
-        prefix: "[SOCKET_QUESTION_SERVICE]: ",
+        prefix: LogPrefix.SOCKET_QUESTION,
         gameId: game.id,
         playerId: playerAnswerResult.player,
         error: error instanceof Error ? error.message : String(error),

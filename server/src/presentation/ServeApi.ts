@@ -26,6 +26,8 @@ import { ErrorController } from "domain/errors/ErrorController";
 import { EnvType } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { type Database } from "infrastructure/database/Database";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogReaderService } from "infrastructure/services/log/LogReaderService";
 import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -69,11 +71,11 @@ export class ServeApi {
   public async init() {
     const initStartTime = Date.now();
     this._context.logger.trace("API initialization started", {
-      prefix: "[ServeApi]: ",
+      prefix: LogPrefix.SERVE_API,
     });
 
     const log = this._context.logger.performance(`API initialization`, {
-      prefix: "[ServeApi]: ",
+      prefix: LogPrefix.SERVE_API,
     });
 
     try {
@@ -91,7 +93,10 @@ export class ServeApi {
 
       // Initialize server listening
       this._server = this._app.listen(this._port, () => {
-        this._context.logger.info(`App listening on port: ${this._port}`);
+        this._context.logger.info(`App listening on port: ${this._port}`, {
+          prefix: LogPrefix.SERVE_API,
+          port: this._port,
+        });
       });
       this._io.listen(this._server);
 
@@ -116,7 +121,7 @@ export class ServeApi {
       this._context.logger.error(
         `API initialization failed after ${failureTime}ms`,
         {
-          prefix: "[ServeApi]: ",
+          prefix: LogPrefix.SERVE_API,
           failureTime,
         }
       );
@@ -125,7 +130,10 @@ export class ServeApi {
         err,
         this._context.logger
       );
-      this._context.logger.error(`API initialization error: ${error.message}`);
+      this._context.logger.error(`API initialization error: ${error.message}`, {
+        prefix: LogPrefix.SERVE_API,
+        errorMessage: error.message,
+      });
     }
   }
 
@@ -178,6 +186,9 @@ export class ServeApi {
       gameActionExecutor: Container.get<GameActionExecutor>(
         CONTAINER_TYPES.GameActionExecutor
       ),
+      logReaderService: Container.get<LogReaderService>(
+        CONTAINER_TYPES.LogReaderService
+      ),
     };
 
     // REST
@@ -210,7 +221,8 @@ export class ServeApi {
       deps.userService,
       deps.redisService,
       this._context.logger,
-      deps.adminService
+      deps.adminService,
+      deps.logReaderService
     );
     new SwaggerRestApiController(deps.app, this._context.logger);
 

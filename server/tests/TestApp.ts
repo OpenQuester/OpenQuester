@@ -11,6 +11,7 @@ import { CronSchedulerService } from "application/services/cron/CronSchedulerSer
 import { Environment } from "infrastructure/config/Environment";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Database } from "infrastructure/database/Database";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { ServeApi } from "presentation/ServeApi";
@@ -19,24 +20,25 @@ import { setTestEnvDefaults } from "tests/utils/utils";
 
 export async function bootstrapTestApp(testDataSource: DataSource) {
   const logger = await PinoLogger.init({ pretty: true });
+  const prefix = LogPrefix.TEST;
 
-  logger.info("Setting up test application...");
+  logger.info("Setting up test application...", { prefix });
   // Patch Database singleton to use test datasource
   const db = Database.getInstance(testDataSource, logger);
   const app = express();
 
-  logger.info("Setting up test environment...");
+  logger.info("Setting up test environment...", { prefix });
   setTestEnvDefaults();
 
   // Connect to Redis
-  logger.info("Connecting to Redis...");
+  logger.info("Connecting to Redis...", { prefix });
   const redis = RedisConfig.getClient();
   const sub = RedisConfig.getSubClient();
 
   await RedisConfig.initConfig();
   await RedisConfig.waitForConnection();
 
-  logger.info("Connecting to Socket.IO...");
+  logger.info("Connecting to Socket.IO...", { prefix });
   const httpServer = createServer(app);
   const io = new IOServer(httpServer, {
     cors: { origin: "*" },
@@ -61,7 +63,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   );
 
   // Register test-only controller for session/cookie handling after body parser
-  logger.info("Setting up test REST API controller...");
+  logger.info("Setting up test REST API controller...", { prefix });
   new TestRestApiController(app);
 
   // Build ApiContext and ServeApi as in production
@@ -75,7 +77,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
 
   context.env.load(true);
 
-  logger.info("Initializing API server...");
+  logger.info("Initializing API server...", { prefix });
   const api = new ServeApi(context);
   await api.init();
 
@@ -86,7 +88,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     const cronScheduler = Container.get<CronSchedulerService>(
       CONTAINER_TYPES.CronSchedulerService
     );
-    logger.info("Stopping cron scheduler...");
+    logger.info("Stopping cron scheduler...", { prefix });
     await cronScheduler.stopAll();
 
     // Unsubscribe from Redis keyspace notifications to prevent duplicate
@@ -94,20 +96,22 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     const pubSub = Container.get<RedisPubSubService>(
       CONTAINER_TYPES.RedisPubSubService
     );
-    logger.info("Unsubscribing from Redis keyspace notifications...");
+    logger.info("Unsubscribing from Redis keyspace notifications...", {
+      prefix,
+    });
     await pubSub.unsubscribe();
 
     await io.close();
     if (httpServer.listening) {
       return new Promise<void>((resolve) => {
         httpServer.close(() => {
-          logger.info("HTTP server closed");
+          logger.info("HTTP server closed", { prefix });
           resolve();
         });
       });
     }
   }
 
-  logger.info("Test app initialized");
+  logger.info("Test app initialized", { prefix });
   return { app, httpServer, dataSource: testDataSource, cleanup };
 }

@@ -42,20 +42,7 @@ export class GameActionLockService {
     const lockKey = this.getLockKey(gameId);
     const acquired = await this.redisService.setLockKey(lockKey, ttl);
 
-    if (acquired === "OK") {
-      this.logger.trace(`Action lock acquired for game ${gameId}`, {
-        prefix: "[ACTION_LOCK]: ",
-        gameId,
-        ttl,
-      });
-      return true;
-    }
-
-    this.logger.trace(`Failed to acquire action lock for game ${gameId}`, {
-      prefix: "[ACTION_LOCK]: ",
-      gameId,
-    });
-    return false;
+    return acquired === "OK";
   }
 
   /**
@@ -64,11 +51,6 @@ export class GameActionLockService {
   public async releaseLock(gameId: string): Promise<void> {
     const lockKey = this.getLockKey(gameId);
     await this.redisService.del(lockKey);
-
-    this.logger.trace(`Action lock released for game ${gameId}`, {
-      prefix: "[ACTION_LOCK]: ",
-      gameId,
-    });
   }
 
   /**

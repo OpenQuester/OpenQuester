@@ -42,6 +42,7 @@ import { StakeBidSubmitActionHandler } from "domain/handlers/action/question/Sta
 import { DisconnectActionHandler } from "domain/handlers/action/system/DisconnectActionHandler";
 import { TimerExpirationActionHandler } from "domain/handlers/action/timer/TimerExpirationActionHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Dependencies required for configuring action handlers.
@@ -292,6 +293,6 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   registry.register(GameActionType.TIMER_FINAL_ANSWERING_EXPIRED, timerHandler);
 
   logger.info(`Registered ${registry.getStats().total} action handlers`, {
-    prefix: "[ACTION_CONFIG]: ",
+    prefix: LogPrefix.ACTION_CONFIG,
   });
 }

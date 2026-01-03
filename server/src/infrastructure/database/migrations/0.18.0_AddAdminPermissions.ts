@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddAdminPermissions_0_18_0_1754499351456
@@ -18,7 +19,9 @@ export class AddAdminPermissions_0_18_0_1754499351456
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.18.0 - Added admin panel permissions");
+    logger.migration("0.18.0 - Added admin panel permissions", {
+      prefix: LogPrefix.MIGRATION,
+    });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

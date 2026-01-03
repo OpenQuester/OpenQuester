@@ -10,6 +10,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { TimerExpirationResult } from "domain/types/service/ServiceResult";
 import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Stateless action handler for timer expiration events.
@@ -31,7 +32,7 @@ export class TimerExpirationActionHandler
     const { questionState } = payload;
 
     this.logger.debug(`Timer expiration for game ${gameId}`, {
-      prefix: "[TIMER_ACTION]: ",
+      prefix: LogPrefix.TIMER,
       questionState,
     });
 
@@ -77,7 +78,10 @@ export class TimerExpirationActionHandler
         return this.timerExpirationService.handleBiddingExpiration(gameId);
 
       default:
-        this.logger.warn(`Unhandled question state: ${questionState}`);
+        this.logger.warn(`Unhandled question state: ${questionState}`, {
+          prefix: LogPrefix.TIMER,
+          questionState,
+        });
         return { success: false, broadcasts: [] };
     }
   }

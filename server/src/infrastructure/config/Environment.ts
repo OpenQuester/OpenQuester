@@ -9,6 +9,7 @@ import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
 import { EnvVar } from "domain/types/env/env";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { LogLevel } from "infrastructure/logger/PinoLogger";
 import { SessionUtils } from "infrastructure/utils/SessionUtils";
 import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
@@ -19,7 +20,8 @@ export enum EnvType {
   PROD = "prod",
   TEST = "test",
 }
-const ENV_PREFIX = "[ENV]: ";
+
+const ENV_PREFIX = LogPrefix.ENV;
 
 /**
  * Class of environment layer.
@@ -137,12 +139,15 @@ export class Environment {
     }
   }
 
+  /**
+   * Load session configuration from Redis
+   */
   public async loadSessionConfig(length: number, redisClient: Redis) {
     const secret = await redisClient.get(SESSION_SECRET_REDIS_NSP);
     if (secret) {
       this.SESSION_SECRET = secret;
     } else {
-      this.logger.audit(`Generating new session secret`, {
+      this.logger.audit(`New session secret generated`, {
         prefix: ENV_PREFIX,
       });
       this.SESSION_SECRET = await SessionUtils.generateSecret(length);

@@ -91,6 +91,7 @@ export const CONTAINER_TYPES = {
   GameProgressionCoordinator: Symbol("GameProgressionCoordinator"),
   GameLifecycleService: Symbol("GameLifecycleService"),
   GameEventBroadcastService: Symbol("GameEventBroadcastService"),
+  LogReaderService: Symbol("LogReaderService"),
 
   // Action Queue System
   GameActionExecutor: Symbol("GameActionExecutor"),

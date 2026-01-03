@@ -4,9 +4,10 @@ import path from "path";
 import Swagger from "swagger-ui-express";
 
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 
-const SWAGGER_PREFIX = "[SWAGGER]: ";
+const SWAGGER_PREFIX = LogPrefix.SWAGGER;
 
 export class SwaggerRestApiController {
   private _jsonPath: string;

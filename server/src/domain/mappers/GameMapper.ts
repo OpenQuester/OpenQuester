@@ -3,7 +3,6 @@ import { Player } from "domain/entities/game/Player";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameRedisHashDTO } from "domain/types/dto/game/GameRedisHashDTO";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
-import { ILogger } from "infrastructure/logger/ILogger";
 
 export class GameMapper {
   /**
@@ -33,30 +32,22 @@ export class GameMapper {
    * @param data Redis hash data is basically object with key-value pairs of strings
    * @returns Game instance
    */
-  public static deserializeGameHash(
-    data: GameRedisHashDTO,
-    logger: ILogger
-  ): Game {
-    return new Game(
-      {
-        id: data.id,
-        title: data.title,
-        createdBy: parseInt(data.createdBy),
-        createdAt: new Date(parseInt(data.createdAt)),
-        isPrivate: data.isPrivate === "1",
-        ageRestriction: data.ageRestriction as AgeRestriction,
-        maxPlayers: parseInt(data.maxPlayers),
-        startedAt: data.startedAt ? new Date(parseInt(data.startedAt)) : null,
-        finishedAt: data.finishedAt
-          ? new Date(parseInt(data.finishedAt))
-          : null,
-        package: JSON.parse(data.package),
-        roundsCount: parseInt(data.roundsCount),
-        questionsCount: parseInt(data.questionsCount),
-        players: JSON.parse(data.players).map((p: PlayerDTO) => new Player(p)),
-        gameState: JSON.parse(data.gameState),
-      },
-      logger
-    );
+  public static deserializeGameHash(data: GameRedisHashDTO): Game {
+    return new Game({
+      id: data.id,
+      title: data.title,
+      createdBy: parseInt(data.createdBy),
+      createdAt: new Date(parseInt(data.createdAt)),
+      isPrivate: data.isPrivate === "1",
+      ageRestriction: data.ageRestriction as AgeRestriction,
+      maxPlayers: parseInt(data.maxPlayers),
+      startedAt: data.startedAt ? new Date(parseInt(data.startedAt)) : null,
+      finishedAt: data.finishedAt ? new Date(parseInt(data.finishedAt)) : null,
+      package: JSON.parse(data.package),
+      roundsCount: parseInt(data.roundsCount),
+      questionsCount: parseInt(data.questionsCount),
+      players: JSON.parse(data.players).map((p: PlayerDTO) => new Player(p)),
+      gameState: JSON.parse(data.gameState),
+    });
   }
 }

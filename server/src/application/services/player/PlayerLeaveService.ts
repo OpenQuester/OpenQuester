@@ -29,6 +29,7 @@ import {
 import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
 import { PlayerKickBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 
 /**
@@ -542,6 +543,7 @@ export class PlayerLeaveService {
       this.logger.warn(
         "Failed to handle final round turn player leave auto-elimination",
         {
+          prefix: LogPrefix.GAME,
           gameId: game.id,
           error: error instanceof Error ? error.message : String(error),
         }
