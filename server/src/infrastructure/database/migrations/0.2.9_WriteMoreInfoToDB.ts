@@ -6,6 +6,7 @@ import {
   TableForeignKey,
 } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class WriteMoreInfoToDB_0_2_9_1725692779638
@@ -77,7 +78,7 @@ export class WriteMoreInfoToDB_0_2_9_1725692779638
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.2.9");
+    logger.migration("0.2.9", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

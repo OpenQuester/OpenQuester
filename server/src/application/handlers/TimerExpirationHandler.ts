@@ -12,6 +12,7 @@ import { TimerActionPayload } from "domain/types/action/TimerActionPayload";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 /**
@@ -41,7 +42,10 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     const gameId = key.split(":")[1];
 
     if (!gameId) {
-      this.logger.warn(`Invalid timer key format: ${key}`);
+      this.logger.warn(`Invalid timer key format: ${key}`, {
+        prefix: LogPrefix.TIMER_EXPIRATION,
+        key,
+      });
       return;
     }
 

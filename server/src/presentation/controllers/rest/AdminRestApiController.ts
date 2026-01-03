@@ -17,9 +17,19 @@ import { UserMuteResponseDTO } from "domain/types/dto/user/UserMuteResponseDTO";
 import { UserUnmuteInputDTO } from "domain/types/dto/user/UserUnmuteInputDTO";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogTag } from "infrastructure/logger/LogTag";
+import {
+  LogFilter,
+  LogReaderService,
+} from "infrastructure/services/log/LogReaderService";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { checkPermissionMiddleware } from "presentation/middleware/permission/PermissionMiddleware";
+import {
+  LogQueryParams,
+  logQueryParamsScheme,
+} from "presentation/schemes/log/logSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 import {
   userMuteScheme,
@@ -36,7 +46,8 @@ export class AdminRestApiController {
     private readonly userService: UserService,
     private readonly redisService: RedisService,
     private readonly logger: ILogger,
-    private readonly adminService: AdminService
+    private readonly adminService: AdminService,
+    private readonly logReaderService: LogReaderService
   ) {
     const router = Router();
 
@@ -62,6 +73,13 @@ export class AdminRestApiController {
       "/system/health",
       checkPermissionMiddleware(Permissions.VIEW_SYSTEM_HEALTH, this.logger),
       asyncHandler(this.getSystemHealth)
+    );
+
+    // System logs retrieval
+    router.get(
+      "/system/logs",
+      checkPermissionMiddleware(Permissions.VIEW_SYSTEM_LOGS, this.logger),
+      asyncHandler(this.getLogs)
     );
 
     // User ban/unban actions
@@ -112,124 +130,89 @@ export class AdminRestApiController {
     );
   }
 
+  /**
+   * Get admin dashboard data
+   */
   private getDashboard = async (req: Request, res: Response) => {
-    this.logger.audit("Admin dashboard requested", {
-      prefix: "[ADMIN]: ",
-      userId: req.user?.id,
+    this.logger.audit("Admin dashboard accessed", {
+      prefix: LogPrefix.ADMIN,
+      adminUserId: req.user?.id,
     });
 
-    const log = this.logger.performance("Admin dashboard data fetch", {
-      userId: req.user?.id,
+    const log = this.logger.performance("Admin dashboard query", {
+      prefix: LogPrefix.ADMIN,
+      adminUserId: req.user?.id,
     });
 
-    try {
-      const timeframeRaw = req.query.timeframe as string | undefined;
-      const timeframeDays = timeframeRaw
-        ? parseInt(timeframeRaw, 10)
-        : undefined;
-      const data: AdminDashboardData = await this.adminService.getDashboardData(
-        { timeframeDays }
-      );
+    const timeframeRaw = req.query.timeframe as string | undefined;
+    const timeframeDays = timeframeRaw ? parseInt(timeframeRaw, 10) : undefined;
+    const data: AdminDashboardData = await this.adminService.getDashboardData({
+      timeframeDays,
+    });
 
-      log.finish({
-        totalUsers: data.totalUsers,
-        redisKeys: data.systemHealth.redisKeys,
-      });
-      return res.status(HttpStatus.OK).json(data);
-    } catch (error) {
-      log.finish();
-      this.logger.error("Failed to fetch admin dashboard data", {
-        prefix: "[ADMIN]: ",
-        error: error instanceof Error ? error.message : String(error),
-        userId: req.user?.id,
-      });
-      throw error;
-    }
+    log.finish();
+    return res.status(HttpStatus.OK).json(data);
   };
 
+  /**
+   * Get admin users list with pagination
+   */
   private getUsers = async (req: Request, res: Response) => {
-    this.logger.debug("Admin users list requested", {
-      prefix: "[ADMIN]: ",
-      userId: req.user?.id,
-      query: req.query,
+    const log = this.logger.performance("Admin users query", {
+      prefix: LogPrefix.ADMIN,
+      adminUserId: req.user?.id,
     });
 
-    const log = this.logger.performance("Admin users list fetch", {
-      userId: req.user?.id,
-      query: req.query,
-    });
+    const paginationQuery = new RequestDataValidator<UserPaginationOpts>(
+      req.query as unknown as UserPaginationOpts,
+      userPaginationScheme()
+    ).validate();
 
-    try {
-      const paginationQuery = new RequestDataValidator<UserPaginationOpts>(
-        req.query as unknown as UserPaginationOpts,
-        userPaginationScheme()
-      ).validate();
+    const data: AdminUserListData = await this.adminService.listUsersWithStats(
+      paginationQuery
+    );
 
-      const data: AdminUserListData =
-        await this.adminService.listUsersWithStats(paginationQuery);
-
-      log.finish({
-        totalUsers: data.stats.total,
-        returnedUsers: data.data.length,
-      });
-      return res.status(HttpStatus.OK).json(data);
-    } catch (error) {
-      log.finish();
-
-      this.logger.error("Failed to fetch admin users list", {
-        prefix: "[ADMIN]: ",
-        error: error instanceof Error ? error.message : String(error),
-        userId: req.user?.id,
-      });
-      throw error;
-    }
+    log.finish();
+    return res.status(HttpStatus.OK).json(data);
   };
 
+  /**
+   * Get system health metrics
+   */
   private getSystemHealth = async (req: Request, res: Response) => {
-    this.logger.audit("System health check requested", {
-      prefix: "[ADMIN]: ",
-      userId: req.user?.id,
+    this.logger.audit("System health check performed", {
+      prefix: LogPrefix.ADMIN,
+      adminUserId: req.user?.id,
     });
 
-    const log = this.logger.performance("System health check", {
-      userId: req.user?.id,
+    const log = this.logger.performance("System health query", {
+      prefix: LogPrefix.ADMIN,
+      adminUserId: req.user?.id,
     });
 
-    try {
-      const data: AdminSystemHealthData =
-        await this.adminService.getSystemHealth();
+    const data: AdminSystemHealthData =
+      await this.adminService.getSystemHealth();
 
-      log.finish({
-        redisConnected: data.redis.connected,
-        redisKeys: data.redis.keys,
-        estimatedRedisMB: data.redis.estimatedMemoryMB,
-      });
-      return res.status(HttpStatus.OK).json(data);
-    } catch (error) {
-      log.finish();
-
-      this.logger.error("Failed to fetch system health", {
-        prefix: "[ADMIN]: ",
-        error: error instanceof Error ? error.message : String(error),
-        userId: req.user?.id,
-      });
-      throw error;
-    }
+    log.finish();
+    return res.status(HttpStatus.OK).json(data);
   };
 
+  /**
+   * Ban user - security action
+   */
   private banUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
       { userId: Number(req.params.id) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
-    this.logger.audit("Admin user ban initiated", {
-      prefix: "[ADMIN]: ",
+    await this.userService.ban(userId);
+
+    this.logger.audit("User banned", {
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
-
-    await this.userService.ban(userId);
 
     return res.status(HttpStatus.OK).json({
       userId,
@@ -237,19 +220,22 @@ export class AdminRestApiController {
     });
   };
 
+  /**
+   * Unban user - security action
+   */
   private unbanUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
       { userId: Number(req.params.id) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
-    this.logger.audit("Admin user unban initiated", {
-      prefix: "[ADMIN]: ",
+    await this.userService.unban(userId);
+
+    this.logger.audit("User unbanned", {
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
-
-    await this.userService.unban(userId);
 
     return res.status(HttpStatus.OK).json({
       userId,
@@ -265,14 +251,14 @@ export class AdminRestApiController {
 
     const mutedUntilDate = new Date(mutedUntil);
 
-    this.logger.trace("Admin user mute initiated", {
-      prefix: "[ADMIN]: ",
+    await this.userService.mute(userId, mutedUntilDate);
+
+    this.logger.audit("User muted", {
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
       mutedUntil: mutedUntilDate.toISOString(),
     });
-
-    await this.userService.mute(userId, mutedUntilDate);
 
     const response: UserMuteResponseDTO = {
       userId,
@@ -288,13 +274,13 @@ export class AdminRestApiController {
       userUnmuteScheme()
     ).validate();
 
-    this.logger.trace("Admin user unmute initiated", {
-      prefix: "[ADMIN]: ",
+    await this.userService.unmute(userId);
+
+    this.logger.audit("User unmuted", {
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
-
-    await this.userService.unmute(userId);
 
     const response: UserMuteResponseDTO = {
       userId,
@@ -304,36 +290,42 @@ export class AdminRestApiController {
     return res.status(HttpStatus.OK).json(response);
   };
 
+  /**
+   * Delete user - security action
+   */
   private deleteUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
       { userId: Number(req.params.id) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
-    this.logger.audit("Admin user delete initiated", {
-      prefix: "[ADMIN]: ",
+    await this.userService.delete(userId);
+
+    this.logger.audit("User deleted", {
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
 
-    await this.userService.delete(userId);
-
     return res.status(HttpStatus.NO_CONTENT).send();
   };
 
+  /**
+   * Restore deleted user - security action
+   */
   private restoreUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<{ userId: number }>(
       { userId: Number(req.params.id) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
-    this.logger.audit("Admin user restore initiated", {
-      prefix: "[ADMIN]: ",
+    await this.userService.restore(userId);
+
+    this.logger.audit("User restored", {
+      prefix: LogPrefix.ADMIN,
       targetUserId: userId,
       adminUserId: req.user?.id,
     });
-
-    await this.userService.restore(userId);
 
     return res.status(HttpStatus.OK).json({ userId, restored: true });
   };
@@ -373,5 +365,59 @@ export class AdminRestApiController {
       timestamp: new Date().toISOString(),
     };
     return res.status(HttpStatus.OK).json(payload);
+  };
+
+  /**
+   * Get system logs with filtering support.
+   *
+   * Query params validated via Joi schema (logQueryParamsScheme):
+   * - levels: comma-separated log levels (e.g., "error,warn,info")
+   * - tags: comma-separated tags (e.g., "game,socket")
+   * - correlationId: filter by specific correlation ID (UUID v4)
+   * - gameId: filter by game ID (4-char alphanumeric)
+   * - userId: filter by user ID
+   * - since: ISO timestamp for start of time range
+   * - until: ISO timestamp for end of time range
+   * - search: text search in message (max 100 chars)
+   * - limit: max entries (default: 100, max: 1000)
+   * - offset: pagination offset (default: 0)
+   */
+  private getLogs = async (req: Request, res: Response) => {
+    this.logger.audit("System logs accessed", {
+      prefix: LogPrefix.ADMIN,
+      adminUserId: req.user?.id,
+    });
+
+    // Validate query params via Joi
+    const validated = new RequestDataValidator<LogQueryParams>(
+      req.query as unknown as LogQueryParams,
+      logQueryParamsScheme
+    ).validate();
+
+    // Build filter from validated params
+    const filter: LogFilter = {
+      levels: validated.levels as unknown as string[] | undefined,
+      tags: validated.tags as unknown as LogTag[] | undefined,
+      correlationId: validated.correlationId,
+      gameId: validated.gameId,
+      userId: validated.userId,
+      since: validated.since,
+      until: validated.until,
+      search: validated.search,
+      limit: validated.limit,
+      offset: validated.offset,
+    };
+
+    // Fetch logs using scan-based pagination
+    const result = await this.logReaderService.readLogs(filter);
+
+    return res.status(HttpStatus.OK).json({
+      logs: result.logs,
+      pagination: {
+        scanned: result.scanned,
+        skipped: result.skipped,
+        matched: result.logs.length,
+      },
+    });
   };
 }

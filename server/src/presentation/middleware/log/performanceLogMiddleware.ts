@@ -1,12 +1,13 @@
 import { NextFunction, Request, Response } from "express";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Performance logging middleware to track request timing and performance metrics
  */
 export const performanceLogMiddleware =
   (logger: ILogger) => (req: Request, res: Response, next: NextFunction) => {
-    // Decode percent-encoded (e.g. Cyrillic) characters for readability; keep raw
+    // Decode percent-encoded (e.g. Cyrillic) characters for readability
     const rawUrl = req.originalUrl;
     let decodedUrl = rawUrl;
     try {
@@ -15,21 +16,12 @@ export const performanceLogMiddleware =
       // Fallback silently if malformed encoding
     }
 
-    const log = logger.performance(`API request`, {
+    const log = logger.performance(`HTTP request`, {
+      prefix: LogPrefix.HTTP,
       method: req.method,
       url: decodedUrl,
       rawUrl,
-      userAgent: req.get("User-Agent"),
-      clientIp: req.ip,
-      userId: req.session?.userId,
-    });
-
-    // Log request start
-    logger.trace(`Request started: ${req.method} ${decodedUrl}`, {
-      prefix: "[PERF]: ",
-      method: req.method,
-      url: decodedUrl,
-      rawUrl,
+      contentLength: req.headers["content-length"],
       userAgent: req.get("User-Agent"),
       clientIp: req.ip,
       userId: req.session?.userId,
@@ -41,7 +33,6 @@ export const performanceLogMiddleware =
       // Log performance metrics
       log.finish({
         statusCode: res.statusCode,
-        contentLength: res.get("content-length") || 0,
       });
 
       // Call original end

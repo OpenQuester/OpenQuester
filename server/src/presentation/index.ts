@@ -14,6 +14,7 @@ import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Database } from "infrastructure/database/Database";
 import { AppDataSource } from "infrastructure/database/DataSource";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { ServeApi } from "presentation/ServeApi";
 
@@ -22,8 +23,11 @@ const main = async () => {
 
   // Set loggers on static services
   setLoggers(logger);
-  logger.info(`Initializing API Context`);
-  logger.info(`API version: ${process.env.npm_package_version}`);
+  logger.info(`Initializing API Context`, { prefix: LogPrefix.SERVER });
+  logger.info(`API version: ${process.env.npm_package_version}`, {
+    prefix: LogPrefix.SERVER,
+    apiVersion: process.env.npm_package_version,
+  });
 
   // Initialize api context
   const app = express();
@@ -36,12 +40,12 @@ const main = async () => {
 
   // No gray method in PinoLogger; use info with prefix for now
   logger.info(`Allowed CORS origins for socket.io: [${allowedHosts}]`, {
-    prefix: "[IO CORS]: ",
+    prefix: LogPrefix.IO_CORS,
   });
   if (allowedHosts.some((host) => host === "*")) {
     allOriginsAllowed = true;
     logger.warn("Current socket.io CORS allows all origins !!", {
-      prefix: "[IO CORS]: ",
+      prefix: LogPrefix.IO_CORS,
     });
   }
 
@@ -94,7 +98,7 @@ const main = async () => {
   });
 
   if (context.env.SOCKET_IO_ADMIN_UI_ENABLE) {
-    logger.info("Socket.IO Admin UI enabled");
+    logger.info("Socket.IO Admin UI enabled", { prefix: LogPrefix.SERVER });
     instrument(io, {
       auth: {
         type: "basic",
@@ -105,7 +109,10 @@ const main = async () => {
     });
   }
 
-  logger.info(`Starting server process: ${process.pid}`);
+  logger.info(`Starting server process: ${process.pid}`, {
+    prefix: LogPrefix.SERVER,
+    pid: process.pid,
+  });
 
   context.env.load(false);
 
@@ -122,7 +129,7 @@ const main = async () => {
   await api.init();
 
   if (!api || !api.server) {
-    logger.error(`API serve error`);
+    logger.error(`API serve error`, { prefix: LogPrefix.SERVE_API });
     await gracefulShutdown(context, api?.server, logger);
   }
 };
@@ -135,12 +142,15 @@ async function gracefulShutdown(
 ) {
   if (error instanceof Error) {
     await ErrorController.resolveError(error, logger);
-    logger.warn("Server closed due to error");
+    logger.warn("Server closed due to error", {
+      prefix: LogPrefix.SERVER,
+      error: error.message,
+    });
     await logger.close();
     process.exit(1);
   }
   if (!server) {
-    logger.warn("Server not initiated");
+    logger.warn("Server not initiated", { prefix: LogPrefix.SERVER });
     await logger.close();
     return process.exit(1);
   }
@@ -154,10 +164,13 @@ async function gracefulShutdown(
     const cronScheduler = Container.get<CronSchedulerService>(
       CONTAINER_TYPES.CronSchedulerService
     );
-    logger.info("Stopping cron scheduler...");
+    logger.info("Stopping cron scheduler...", {
+      prefix: LogPrefix.CRON_SCHEDULER,
+    });
     await cronScheduler.stopAll();
   } catch (error) {
     logger.warn("Failed to stop cron scheduler", {
+      prefix: LogPrefix.CRON_SCHEDULER,
       error: error instanceof Error ? error.message : String(error),
     });
   }
@@ -166,7 +179,7 @@ async function gracefulShutdown(
   await ctx.db.disconnect();
   await ctx.io.close();
   await RedisConfig.disconnect();
-  logger.info("Server closed gracefully");
+  logger.info("Server closed gracefully", { prefix: LogPrefix.SERVER });
   await logger.close();
   process.exit(0);
 }

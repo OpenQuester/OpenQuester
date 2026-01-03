@@ -1351,6 +1351,152 @@
         }
       }
     },
+    "/v1/admin/api/system/logs": {
+      "get": {
+        "summary": "Get system logs with filtering (scan-based pagination)",
+        "description": "Retrieves system logs using scan-based pagination. The `limit` parameter specifies how many log lines to SCAN (not results to return). Returns all matching entries within the scanned window. Requires VIEW_SYSTEM_LOGS permission.",
+        "tags": ["Admin"],
+        "parameters": [
+          {
+            "name": "levels",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated log levels to filter by",
+            "schema": {
+              "type": "string",
+              "examples": ["error,warn", "info,audit"]
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated tags to filter by",
+            "schema": {
+              "type": "string",
+              "examples": ["game,socket", "auth,admin"]
+            }
+          },
+          {
+            "name": "correlationId",
+            "in": "query",
+            "required": false,
+            "description": "Filter by correlation ID (UUID v4)",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "examples": ["d91098af-0e40-4990-89fe-8b00e26ade80"]
+            }
+          },
+          {
+            "name": "gameId",
+            "in": "query",
+            "required": false,
+            "description": "Filter by game ID (4-char alphanumeric)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{4}$",
+              "examples": ["AB12"]
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "description": "Filter by user ID",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "description": "Filter logs from this ISO timestamp",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "description": "Filter logs until this ISO timestamp",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Text search in log message (max 100 chars)",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Number of log lines to SCAN (not results count)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Number of lines to skip before scanning",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Logs retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemLogsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied (requires VIEW_SYSTEM_LOGS)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/api/system/ping": {
       "get": {
         "summary": "Ping system for health check",
@@ -5559,6 +5705,120 @@
           },
           "restored": {
             "type": "boolean"
+          }
+        }
+      },
+      "SystemLogsResponse": {
+        "type": "object",
+        "required": ["logs", "pagination"],
+        "description": "Response from system logs endpoint with scan-based pagination",
+        "properties": {
+          "logs": {
+            "type": "array",
+            "description": "Matching log entries within the scanned window",
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/LogPagination"
+          }
+        }
+      },
+      "LogLevel": {
+        "type": "string",
+        "description": "Log level",
+        "enum": [
+          "trace",
+          "debug",
+          "info",
+          "performance",
+          "warn",
+          "error",
+          "audit"
+        ]
+      },
+      "LogTag": {
+        "type": "string",
+        "description": "Categorization tag",
+        "enum": [
+          "http",
+          "socket",
+          "game",
+          "auth",
+          "admin",
+          "timer",
+          "queue",
+          "media",
+          "db",
+          "redis",
+          "cron"
+        ]
+      },
+      "LogEntry": {
+        "type": "object",
+        "required": ["level", "timestamp", "msg"],
+        "description": "A single log entry",
+        "properties": {
+          "level": {
+            "$ref": "#/components/schemas/LogLevel"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp of log entry"
+          },
+          "msg": {
+            "type": "string",
+            "description": "Log message"
+          },
+          "correlationId": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Correlation ID for request tracing"
+          },
+          "userId": {
+            "type": ["integer", "null"],
+            "description": "User who triggered this log"
+          },
+          "gameId": {
+            "type": ["string", "null"],
+            "description": "Game context (4-char code)"
+          },
+          "socketId": {
+            "type": ["string", "null"],
+            "description": "Socket ID"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogTag"
+            },
+            "description": "Categorization tags"
+          },
+          "meta": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Additional structured metadata"
+          }
+        }
+      },
+      "LogPagination": {
+        "type": "object",
+        "required": ["scanned", "skipped", "matched"],
+        "description": "Scan-based pagination info",
+        "properties": {
+          "scanned": {
+            "type": "integer",
+            "description": "Number of log lines scanned in this request"
+          },
+          "skipped": {
+            "type": "integer",
+            "description": "Number of lines skipped (offset)"
+          },
+          "matched": {
+            "type": "integer",
+            "description": "Number of entries returned (0 to limit)"
           }
         }
       }

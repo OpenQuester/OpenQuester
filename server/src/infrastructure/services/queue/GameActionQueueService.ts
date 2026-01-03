@@ -2,7 +2,6 @@ import {
   GameAction,
   SerializedGameAction,
 } from "domain/types/action/GameAction";
-import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 
 /**
@@ -23,10 +22,7 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
 export class GameActionQueueService {
   private readonly QUEUE_KEY_PREFIX = "game:action:queue";
 
-  constructor(
-    private readonly redisService: RedisService,
-    private readonly logger: ILogger
-  ) {
+  constructor(private readonly redisService: RedisService) {
     //
   }
 
@@ -47,13 +43,6 @@ export class GameActionQueueService {
     };
 
     await this.redisService.rpush(queueKey, JSON.stringify(serialized));
-
-    this.logger.trace(`Action pushed to queue: ${action.type}`, {
-      prefix: "[ACTION_QUEUE]: ",
-      gameId: action.gameId,
-      actionId: action.id,
-      actionType: action.type,
-    });
   }
 
   /**
@@ -106,10 +95,6 @@ export class GameActionQueueService {
   public async clearQueue(gameId: string): Promise<void> {
     const queueKey = this.getQueueKey(gameId);
     await this.redisService.del(queueKey);
-
-    this.logger.debug(`Cleared action queue for game ${gameId}`, {
-      prefix: "[ACTION_QUEUE]: ",
-    });
   }
 
   private deserializeAction(serialized: string): GameAction {

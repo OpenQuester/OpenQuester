@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddOrderColumn_1745439282807 implements MigrationInterface {
@@ -64,7 +65,7 @@ export class AddOrderColumn_1745439282807 implements MigrationInterface {
     }
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.11.4");
+    logger.migration("0.11.4", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

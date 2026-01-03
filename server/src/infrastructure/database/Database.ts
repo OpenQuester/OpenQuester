@@ -3,8 +3,9 @@ import { DataSource, EntityTarget, ObjectLiteral, Repository } from "typeorm";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
 import { type ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
-const DB_PREFIX = "[DB]: ";
+const DB_PREFIX = LogPrefix.DB;
 
 /**
  * Handles Database initialization and management

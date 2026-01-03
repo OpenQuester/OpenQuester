@@ -1,6 +1,7 @@
 import { GameActionType } from "domain/enums/GameActionType";
 import { GameActionHandler } from "domain/types/action/GameActionHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Registry for game action handlers.
@@ -27,13 +28,13 @@ export class GameActionHandlerRegistry {
     if (this.handlers.has(actionType)) {
       this.logger.warn(
         `Action handler for ${actionType} already registered. Overriding.`,
-        { prefix: "[ACTION_REGISTRY]: " }
+        { prefix: LogPrefix.ACTION_REGISTRY }
       );
     }
 
     this.handlers.set(actionType, handler as GameActionHandler);
     this.logger.info(`Registered action handler for ${actionType}`, {
-      prefix: "[ACTION_REGISTRY]: ",
+      prefix: LogPrefix.ACTION_REGISTRY,
     });
   }
 

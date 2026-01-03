@@ -8,6 +8,7 @@ import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputD
 import { ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -68,9 +69,13 @@ describe("Socket Game Chat Tests", () => {
     try {
       await testEnv.teardown();
       if (cleanup) await cleanup();
-      logger.info("Test environment torn down successfully.");
+      logger.info("Test environment torn down successfully.", {
+        prefix: LogPrefix.TEST,
+      });
     } catch (err) {
-      logger.error(`Error during teardown: ${JSON.stringify(err)}`);
+      logger.error(`Error during teardown: ${JSON.stringify(err)}`, {
+        prefix: LogPrefix.TEST,
+      });
     }
   });
 
@@ -521,9 +526,6 @@ describe("Socket Game Chat Tests", () => {
             playerSockets[1].on(
               SocketIOEvents.CHAT_MESSAGE,
               (data: ChatMessageBroadcastData) => {
-                logger.debug(
-                  `Received chat message during pause: ${JSON.stringify(data)}`
-                );
                 clearTimeout(timeout);
                 expect(data.message).toBe(testMessage);
                 expect(data.user).toBeDefined();

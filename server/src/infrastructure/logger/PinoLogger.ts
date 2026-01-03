@@ -4,16 +4,18 @@ import pino from "pino";
 import type SonicBoom from "sonic-boom";
 
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogContextService } from "infrastructure/logger/LogContext";
+import { LogMeta } from "infrastructure/logger/LogMeta";
 import { LogType } from "infrastructure/logger/LogType";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 // Custom levels configuration for Pino
 export const customLevels = {
   trace: 10, // LogType.VERBOSE
-  performance: 15, // LogType.PERFORMANCE
   debug: 20, // LogType.DEBUG
   info: 30, // LogType.INFO
   warn: 40, // LogType.WARN
+  performance: 35, // LogType.PERFORMANCE (between info and warn)
   error: 50, // LogType.ERROR
   audit: 60, // LogType.AUDIT
   migration: 70, // LogType.MIGRATION
@@ -53,6 +55,22 @@ const defaultLogPaths: Record<LogType, string> = {
   [LogType.VERBOSE]: path.join(defaultLogDir, "trace.log"),
 };
 
+/**
+ * Unified log file for multi-instance support.
+ * All logs are written here with full metadata for retrieval via REST API.
+ * TODO: For high-volume production, consider rotating logs or using external log aggregation.
+ */
+const UNIFIED_LOG_PATH = path.join(defaultLogDir, "unified.log");
+
+/**
+ * Export for LogReaderService.
+ * Supports LOG_FILE_PATH env override for testing with isolated temp files.
+ *
+ * Use direct process.env access since Environment class depends on logger
+ */
+export const getUnifiedLogPath = (): string =>
+  process.env.LOG_FILE_PATH || UNIFIED_LOG_PATH;
+
 async function ensureLogDirs(paths: string[]): Promise<void> {
   const uniqueDirs = [
     ...new Set(paths.map((filePath) => path.dirname(filePath))),
@@ -87,9 +105,9 @@ class PerformanceLogImpl implements PerformanceLog {
   private readonly startTime: number;
   private readonly logger: PinoLogger;
   private readonly message: string;
-  private readonly meta?: object;
+  private readonly meta: LogMeta;
 
-  constructor(logger: PinoLogger, message: string, meta?: object) {
+  constructor(logger: PinoLogger, message: string, meta: LogMeta) {
     this.startTime = Date.now();
     this.logger = logger;
     this.message = message;
@@ -99,28 +117,30 @@ class PerformanceLogImpl implements PerformanceLog {
   public finish(additionalMeta?: object): void {
     const endTime = Date.now();
     const elapsedMs = endTime - this.startTime;
-    const elapsedTime = this.formatElapsedTime(elapsedMs);
 
-    const completedMessage = `${this.message} completed in ${elapsedTime}`;
-    this.logger.log(LogType.PERFORMANCE, completedMessage, {
-      ...(this.meta ? this.meta : {}),
-      ...(additionalMeta ? additionalMeta : {}),
-    });
-  }
+    // Merge finish-only metadata onto the original meta. In case of key conflicts,
+    // `additionalMeta` takes precedence over the metadata captured at start.
+    const mergedMeta: LogMeta = {
+      operation: this.message,
+      startedAt: this.startTime,
+      finishedAt: endTime,
+      durationMs: elapsedMs,
+      ...(this.meta ?? {}),
+      ...(additionalMeta ?? {}),
+    };
 
-  private formatElapsedTime(milliseconds: number): string {
-    if (milliseconds > 1000) {
-      this.logger.warn(
-        `Performance log took longer than 1 second: ${milliseconds}ms`
-      );
-    }
-    return `${milliseconds}ms`;
+    this.logger.log(
+      LogType.PERFORMANCE,
+      `${this.message} completed`,
+      mergedMeta
+    );
   }
 }
 
 export class PinoLogger implements ILogger {
   private readonly loggers: Map<LogType, CustomLogger> = new Map();
   private terminalLogger: CustomLogger | null = null;
+  private unifiedLogger: CustomLogger | null = null;
   private fileStreams: SonicBoom[] = [];
   private initialized = false;
   private logLevel = (process.env.LOG_LEVEL as LogLevel) || "info";
@@ -137,7 +157,7 @@ export class PinoLogger implements ILogger {
     const logger = new PinoLogger();
     try {
       const mergedLogPaths = { ...defaultLogPaths, ...config.logPaths };
-      const allPaths = Object.values(mergedLogPaths);
+      const allPaths = [...Object.values(mergedLogPaths), UNIFIED_LOG_PATH];
       await ensureLogDirs(allPaths);
 
       // Initialize terminal logger
@@ -145,6 +165,9 @@ export class PinoLogger implements ILogger {
 
       // Initialize file loggers
       logger.initFileLoggers(mergedLogPaths);
+
+      // Initialize unified logger for multi-instance support
+      logger.initUnifiedLogger();
 
       logger.initialized = true;
       return logger;
@@ -174,7 +197,10 @@ export class PinoLogger implements ILogger {
   }
 
   private initTerminalLogger(config: LoggerConfig): void {
-    const logLevel = config.logLevel || "trace";
+    // Stdout should stay quiet and predictable:
+    // - always emit only info+ to terminal, regardless of LOG_LEVEL
+    // - keep LOG_LEVEL behavior for file/unified sinks
+    const logLevel: CustomLevel = "info";
 
     const pinoOptions = {
       level: logLevel,
@@ -196,7 +222,7 @@ export class PinoLogger implements ILogger {
             translateTime: "SYS:standard",
             ignore: "pid,hostname",
             customLevels:
-              "trace:10,debug:20,info:30,warn:40,error:50,audit:60,performance:65,migration:70",
+              "trace:10,debug:20,info:30,performance:35,warn:40,error:50,audit:60,migration:70",
             useOnlyCustomProps: true,
             customColors:
               "trace:dim,debug:cyan,info:green,warn:yellow,error:red,audit:magenta,performance:blue,migration:brightWhite",
@@ -241,6 +267,56 @@ export class PinoLogger implements ILogger {
         );
       }
     }
+  }
+
+  /**
+   * Initialize unified logger that writes all logs to a single file.
+   * Used for multi-instance log retrieval via REST API.
+   */
+  private initUnifiedLogger(): void {
+    try {
+      const stream = pino.destination({
+        dest: UNIFIED_LOG_PATH,
+        sync: false,
+        mkdir: true,
+      });
+
+      this.fileStreams.push(stream);
+
+      // Unified logger accepts all levels
+      this.unifiedLogger = pino(
+        {
+          level: "trace",
+          customLevels,
+          useOnlyCustomLevels: true,
+          formatters: {
+            level: (label: string) => ({ level: label }),
+          },
+        },
+        stream
+      ) as CustomLogger;
+    } catch (error) {
+      console.error(`Failed to create unified logger:`, error);
+    }
+  }
+
+  /**
+   * Get context metadata from LogContextService for auto-injection.
+   */
+  private getContextMeta(): Record<string, unknown> {
+    const ctx = LogContextService.getContext();
+    if (!ctx) return {};
+
+    const meta: Record<string, unknown> = {
+      correlationId: ctx.correlationId,
+    };
+
+    if (ctx.userId !== undefined) meta.userId = ctx.userId;
+    if (ctx.gameId !== undefined) meta.gameId = ctx.gameId;
+    if (ctx.socketId !== undefined) meta.socketId = ctx.socketId;
+    if (ctx.tags.size > 0) meta.tags = Array.from(ctx.tags);
+
+    return meta;
   }
 
   private getCustomLevel(type: LogType): CustomLevel {
@@ -302,40 +378,40 @@ export class PinoLogger implements ILogger {
     return hasValidKeys ? sanitized : undefined;
   }
 
-  public trace(msg: string, meta?: object): void {
+  public trace(msg: string, meta: LogMeta): void {
     this.log(LogType.VERBOSE, msg, meta);
   }
 
-  public debug(msg: string, meta?: object): void {
+  public debug(msg: string, meta: LogMeta): void {
     this.log(LogType.DEBUG, msg, meta);
   }
 
-  public info(msg: string, meta?: object): void {
+  public info(msg: string, meta: LogMeta): void {
     this.log(LogType.INFO, msg, meta);
   }
 
-  public warn(msg: string, meta?: object): void {
+  public warn(msg: string, meta: LogMeta): void {
     this.log(LogType.WARN, msg, meta);
   }
 
-  public error(msg: string, meta?: object): void {
+  public error(msg: string, meta: LogMeta): void {
     this.log(LogType.ERROR, msg, meta);
   }
 
-  public audit(msg: string, meta?: object): void {
+  public audit(msg: string, meta: LogMeta): void {
     this.log(LogType.AUDIT, msg, meta);
   }
 
-  public performance(msg: string, meta?: object): PerformanceLog {
+  public performance(msg: string, meta: LogMeta): PerformanceLog {
     return new PerformanceLogImpl(this, msg, meta);
   }
 
-  public migration(msg: string, meta?: object): void {
+  public migration(msg: string, meta: LogMeta): void {
     const message = `Migration completed: ${msg}`;
     this.log(LogType.MIGRATION, message, meta);
   }
 
-  public log(type: LogType, msg: unknown, meta?: unknown): void {
+  public log(type: LogType, msg: unknown, meta: LogMeta): void {
     this.ensureInitialized();
 
     // Map log type to effective log level for access control
@@ -353,10 +429,27 @@ export class PinoLogger implements ILogger {
     const envLevel =
       (process.env.LOG_LEVEL as LogLevel) || this.logLevel || "info";
 
-    // Only log if message level is at or above env log level
-    if (!this.checkAccess(envLevel, messageLevel)) {
+    // Terminal always shows only info+ (but still includes warn/error/audit/etc).
+    const terminalLevel: LogLevel = "info";
+
+    // Performance logs:
+    // - never emit to terminal/stdout
+    // - always write to performance log file and unified log regardless of LOG_LEVEL
+    const isPerformance = type === LogType.PERFORMANCE;
+    const shouldEmitToTerminal = !isPerformance;
+
+    const canWriteToFiles =
+      this.checkAccess(envLevel, messageLevel) || isPerformance;
+    const canWriteToTerminal =
+      shouldEmitToTerminal && this.checkAccess(terminalLevel, messageLevel);
+
+    // If this log doesn't go anywhere, skip all work.
+    if (!canWriteToFiles && !canWriteToTerminal) {
       return;
     }
+
+    // Auto-inject context from LogContextService
+    const contextMeta = this.getContextMeta();
 
     // Extract prefix from meta if present, and remove it from metaObj
     let prefix: string | undefined;
@@ -371,15 +464,18 @@ export class PinoLogger implements ILogger {
       delete metaObj.prefix;
     }
 
+    // Merge context meta with provided meta (provided meta takes precedence)
+    const mergedMeta = { ...contextMeta, ...(metaObj ?? {}) };
+
     const sanitizedMsg = this.sanitizeMessage(msg);
-    const sanitizedMeta = this.sanitizeMeta(metaObj);
+    const sanitizedMeta = this.sanitizeMeta(mergedMeta);
     const method = this.getLogMethod(type);
 
     // Prepend prefix to message if present
     const msgWithPrefix = prefix ? `${prefix}${sanitizedMsg}` : sanitizedMsg;
 
     // Log to terminal - pass meta (without prefix) as first arg if present, then message
-    if (this.terminalLogger) {
+    if (this.terminalLogger && canWriteToTerminal) {
       if (sanitizedMeta) {
         this.terminalLogger[method](sanitizedMeta, msgWithPrefix);
       } else {
@@ -387,19 +483,31 @@ export class PinoLogger implements ILogger {
       }
     }
 
-    // Log to file for this type (with meta if present)
-    const fileLogger = this.loggers.get(type);
-    if (fileLogger) {
-      if (sanitizedMeta) {
-        fileLogger[method](sanitizedMeta, msgWithPrefix);
-      } else {
-        fileLogger[method](msgWithPrefix);
+    if (canWriteToFiles) {
+      // Log to file for this type (with meta if present)
+      const fileLogger = this.loggers.get(type);
+      if (fileLogger) {
+        if (sanitizedMeta) {
+          fileLogger[method](sanitizedMeta, msgWithPrefix);
+        } else {
+          fileLogger[method](msgWithPrefix);
+        }
+      }
+
+      // Write to unified log file for REST API retrieval (multi-instance support)
+      // NOTE: Unified logs are still gated by LOG_LEVEL (except performance which is always written).
+      if (this.unifiedLogger) {
+        const unifiedMeta = {
+          ...sanitizedMeta,
+          timestamp: new Date().toISOString(),
+        };
+        this.unifiedLogger[method](unifiedMeta, msgWithPrefix);
       }
     }
   }
 
   public checkAccess(logLevel: LogLevel, requiredLogLevel: LogLevel) {
-    // Custom level hierarchy: trace(10) < debug(20) < info(30) < warn(40) < error(50) < audit(60) < performance(65) < migration(70)
+    // Custom level hierarchy: trace(10) < debug(20) < info(30) < performance(35) < warn(40) < error(50) < audit(60) < migration(70)
     const currentLevel = customLevels[logLevel];
     const requiredLevel = customLevels[requiredLogLevel];
 

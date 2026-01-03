@@ -21,4 +21,7 @@ export enum Permissions {
   VIEW_USERS_INFO = "view_users_info",
   BAN_USERS = "ban_users",
   MUTE_PLAYER = "mute_player",
+
+  // Logging
+  VIEW_SYSTEM_LOGS = "view_system_logs",
 }

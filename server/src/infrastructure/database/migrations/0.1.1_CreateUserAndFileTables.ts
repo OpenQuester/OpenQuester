@@ -6,6 +6,7 @@ import {
   TableUnique,
 } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class CreateUserAndFileTables_0_1_1_1722683756069
@@ -99,7 +100,7 @@ export class CreateUserAndFileTables_0_1_1_1722683756069
       })
     );
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.1.1");
+    logger.migration("0.1.1", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

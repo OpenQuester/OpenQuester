@@ -3,6 +3,7 @@ import { DataSource } from "typeorm";
 
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { RedisTestUtils } from "tests/utils/RedisTestUtils";
 import { createTestAppDataSource } from "tests/utils/utils";
 
@@ -27,7 +28,7 @@ export class TestEnvironment {
 
   public async teardown(): Promise<void> {
     this.logger.info("Tearing down test environment...", {
-      prefix: "[TEST]: ",
+      prefix: LogPrefix.TEST,
     });
     if (this.testDataSource) {
       await this.testDataSource.destroy();

@@ -3,6 +3,7 @@ import { PlayerGameStatsData } from "domain/types/statistics/PlayerGameStatsData
 import { PlayerGameStatsRedisUpdate } from "domain/types/statistics/PlayerGameStatsRedisData";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Service for managing player game statistics
@@ -25,7 +26,7 @@ export class PlayerGameStatsService {
     joinedAt: Date
   ): Promise<void> {
     this.logger.debug("Initializing player session", {
-      prefix: "[PLAYER_GAME_STATS]: ",
+      prefix: LogPrefix.PLAYER_STATS,
       gameId,
       userId,
     });
@@ -46,7 +47,7 @@ export class PlayerGameStatsService {
       await this.repository.initializeStats(gameId, userId, sessionData);
     } catch (error) {
       this.logger.warn("Failed to initialize player statistics session", {
-        prefix: "[PLAYER_GAME_STATS]: ",
+        prefix: LogPrefix.PLAYER_STATS,
         gameId: gameId,
         userId: userId,
         error: error instanceof Error ? error.message : String(error),
@@ -64,7 +65,7 @@ export class PlayerGameStatsService {
     leftAt: Date
   ): Promise<void> {
     this.logger.debug("Ending player session", {
-      prefix: "[PLAYER_GAME_STATS]: ",
+      prefix: LogPrefix.PLAYER_STATS,
       gameId,
       userId,
     });
@@ -76,7 +77,7 @@ export class PlayerGameStatsService {
       });
     } catch (error) {
       this.logger.error("Failed to end player session", {
-        prefix: "[PLAYER_GAME_STATS]: ",
+        prefix: LogPrefix.PLAYER_STATS,
         gameId,
         userId,
         error: error instanceof Error ? error.message : String(error),
@@ -94,7 +95,7 @@ export class PlayerGameStatsService {
       await this.repository.updateStats(gameId, userId, { leftAt: "" });
     } catch (error) {
       this.logger.error("Failed to clear player left time", {
-        prefix: "[PLAYER_GAME_STATS]: ",
+        prefix: LogPrefix.PLAYER_STATS,
         gameId,
         userId,
         error: error instanceof Error ? error.message : String(error),
@@ -133,7 +134,7 @@ export class PlayerGameStatsService {
       await this.repository.updateStats(gameId, userId, updates);
     } catch (error) {
       this.logger.error("Failed to update player answer statistics", {
-        prefix: "[PLAYER_GAME_STATS]: ",
+        prefix: LogPrefix.PLAYER_STATS,
         gameId,
         userId,
         error: error instanceof Error ? error.message : String(error),
@@ -154,7 +155,7 @@ export class PlayerGameStatsService {
 
     if (livePlayerStats.length === 0) {
       this.logger.warn("No player statistics found in Redis", {
-        prefix: "[PLAYER_GAME_STATS]: ",
+        prefix: LogPrefix.PLAYER_STATS,
         gameId,
       });
       return;
@@ -197,10 +198,10 @@ export class PlayerGameStatsService {
     // Save all player statistics with calculated placements
     await this.repository.saveMany(this._calculatePlacements(playerStatsData));
 
-    this.logger.info(
+    this.logger.debug(
       "Player game statistics collected successfully from Redis",
       {
-        prefix: "[PLAYER_GAME_STATS]: ",
+        prefix: LogPrefix.PLAYER_STATS,
         gameId,
         playersCount: playerStatsData.length,
       }

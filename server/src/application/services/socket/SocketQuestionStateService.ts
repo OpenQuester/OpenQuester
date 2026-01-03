@@ -4,6 +4,7 @@ import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 export class SocketQuestionStateService {
   constructor(
@@ -22,6 +23,7 @@ export class SocketQuestionStateService {
     opts?: { saveGame: boolean }
   ): Promise<Game | undefined> {
     this.logger.trace("Updating question state", {
+      prefix: LogPrefix.SOCKET_QUESTION,
       gameId: game.id,
       currentState: game.gameState.questionState,
       newState: questionState,
@@ -50,6 +52,7 @@ export class SocketQuestionStateService {
     answeringPlayerId: number
   ): Promise<GameStateTimer> {
     this.logger.debug("Setting up answering timer", {
+      prefix: LogPrefix.SOCKET_QUESTION,
       gameId: game.id,
       durationMs,
       answeringPlayerId,
@@ -78,6 +81,7 @@ export class SocketQuestionStateService {
     questionState: QuestionState
   ): Promise<GameStateTimer> {
     this.logger.debug("Setting up question timer", {
+      prefix: LogPrefix.SOCKET_QUESTION,
       gameId: game.id,
       durationMs,
       questionState,

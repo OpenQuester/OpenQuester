@@ -94,11 +94,6 @@ export class PackageRestApiController {
       packIdScheme()
     ).validate();
 
-    this.logger.info("Package deletion initiated", {
-      packageId: validatedData.packageId,
-      userId: req.user?.id,
-    });
-
     await this.packageService.deletePackage(validatedData.packageId);
 
     return res.status(HttpStatus.OK).send({

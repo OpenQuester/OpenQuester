@@ -5,6 +5,7 @@ import { IGameProgressionCoordinator } from "domain/interfaces/game/IGameProgres
 import { GameProgressionContext } from "domain/types/game/GameProgressionContext";
 import { GameProgressionResult } from "domain/types/game/GameProgressionResult";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Service responsible for coordinating game progression operations
@@ -54,6 +55,7 @@ export class GameProgressionCoordinator implements IGameProgressionCoordinator {
           this.logger.warn(
             "Game completion had issues but progression continues",
             {
+              prefix: LogPrefix.GAME,
               gameId: game.id,
               error: completionResult.error,
             }
@@ -92,6 +94,7 @@ export class GameProgressionCoordinator implements IGameProgressionCoordinator {
         error instanceof Error ? error.message : String(error);
 
       this.logger.error("Failed to process game progression", {
+        prefix: LogPrefix.GAME,
         gameId: game.id,
         isGameFinished,
         hasNextGameState: !!nextGameState,

@@ -26,6 +26,7 @@ import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { RegisterUser } from "domain/types/user/RegisterUser";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PerformanceLog } from "infrastructure/logger/PinoLogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -79,11 +80,6 @@ export class AuthRestApiController {
       await this.socketUserDataService.findSocketIdByUserId(userId);
 
     if (existingSocketId && existingSocketId !== authDTO.socketId) {
-      this.logger.debug(
-        `User ${userId} has existing socket ${existingSocketId}, disconnecting it before allowing new connection ${authDTO.socketId}`,
-        { prefix: "[SOCKET]: " }
-      );
-
       // Force disconnect the existing socket
       const existingSocket = this.gameNamespace.sockets.get(existingSocketId);
       if (existingSocket) {
@@ -109,14 +105,12 @@ export class AuthRestApiController {
     res.status(HttpStatus.OK).send();
   };
 
+  /**
+   * Handle OAuth login
+   */
   private handleOauthLogin = async (req: Request, res: Response) => {
-    const clientIp = req.ip;
-    const log = this.logger.performance(`OAuth login`);
-
-    this.logger.trace("OAuth login attempt started", {
-      prefix: "[AUTH]: ",
-      clientIp,
-      userAgent: req.get("User-Agent"),
+    const log = this.logger.performance(`OAuth login`, {
+      prefix: LogPrefix.AUTH,
     });
 
     const authDTO = new RequestDataValidator<Oauth2LoginDTO>(
@@ -144,38 +138,30 @@ export class AuthRestApiController {
         });
         break;
       default:
-        this.logger.warn(
-          `Unsupported OAuth provider: ${authDTO.oauthProvider}`,
-          {
-            prefix: "[AUTH]: ",
-            provider: authDTO.oauthProvider,
-            clientIp,
-          }
-        );
+        this.logger.warn(`Unsupported OAuth provider attempted`, {
+          prefix: LogPrefix.AUTH,
+          provider: authDTO.oauthProvider,
+        });
         throw new ClientError(ClientResponse.OAUTH_PROVIDER_NOT_SUPPORTED);
     }
   };
 
+  /**
+   * Handle user logout
+   */
   private logout = async (req: Request, res: Response) => {
-    const log = this.logger.performance(`User logout`);
+    const log = this.logger.performance(`User logout`, {
+      prefix: LogPrefix.AUTH,
+    });
     const sessionId = req.sessionID;
     const userId = req.session.userId;
-    const clientIp = req.ip;
-
-    this.logger.trace("User logout started", {
-      prefix: "[AUTH]: ",
-      userId,
-      sessionId,
-      clientIp,
-    });
 
     req.session.destroy(async (err) => {
       if (err) {
-        this.logger.error(`Session destroy error: ${err}`, {
-          prefix: "[AUTH]: ",
+        this.logger.error(`Session destroy failed`, {
+          prefix: LogPrefix.AUTH,
           userId,
-          sessionId,
-          clientIp,
+          error: String(err),
         });
         log.finish();
         throw new ServerError(
@@ -194,11 +180,8 @@ export class AuthRestApiController {
       log.finish();
 
       this.logger.audit(`User logged out`, {
+        prefix: LogPrefix.AUTH,
         userId,
-        sessionId,
-        clientIp,
-        userAgent: req.get("User-Agent"),
-        logoutTime: new Date(),
       });
 
       res.status(HttpStatus.OK).json({
@@ -301,10 +284,12 @@ export class AuthRestApiController {
 
   private handleGuestLogin = async (req: Request, res: Response) => {
     const clientIp = req.ip;
-    const log = this.logger.performance(`Guest login`);
+    const log = this.logger.performance(`Guest login`, {
+      prefix: LogPrefix.AUTH,
+    });
 
     this.logger.trace("Guest login attempt started", {
-      prefix: "[AUTH]: ",
+      prefix: LogPrefix.AUTH,
       clientIp,
       userAgent: req.get("User-Agent"),
     });
@@ -357,7 +342,7 @@ export class AuthRestApiController {
     req.session.save((err) => {
       if (err) {
         this.logger.error(`Session save error: ${err}`, {
-          prefix: "[AUTH]: ",
+          prefix: LogPrefix.AUTH,
           userId: userData?.id,
           clientIp,
         });
@@ -368,6 +353,7 @@ export class AuthRestApiController {
       options.performanceLog?.finish();
 
       this.logger.audit(options.successMessage, {
+        prefix: LogPrefix.AUTH,
         userId: userData?.id,
         ...options.auditData,
         clientIp,

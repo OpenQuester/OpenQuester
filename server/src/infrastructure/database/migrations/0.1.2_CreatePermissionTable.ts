@@ -6,6 +6,7 @@ import {
   TableUnique,
 } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class CreatePermissionTable_0_1_2_1723128633623
@@ -85,7 +86,7 @@ export class CreatePermissionTable_0_1_2_1723128633623
       `INSERT INTO "permission" (name) VALUES ('admin'), ('user');`
     );
 
-    logger.migration("0.1.2");
+    logger.migration("0.1.2", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

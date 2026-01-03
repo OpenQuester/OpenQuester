@@ -29,6 +29,7 @@ import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameN
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Service handling timer expiration logic
@@ -285,6 +286,7 @@ export class TimerExpirationService {
         await this.gameStatisticsCollectorService.finishCollection(gameId);
       } catch (error) {
         this.logger.warn("Failed to execute statistics persistence", {
+          prefix: LogPrefix.TIMER_EXPIRATION,
           gameId,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -328,7 +330,7 @@ export class TimerExpirationService {
       );
     } catch (error) {
       this.logger.warn("Failed to update player answer statistics on timeout", {
-        prefix: "[TIMER_EXPIRATION_SERVICE]: ",
+        prefix: LogPrefix.TIMER_EXPIRATION,
         gameId: game.id,
         playerId: mutation.answerResult.player,
         error: error instanceof Error ? error.message : String(error),
