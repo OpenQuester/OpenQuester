@@ -16,7 +16,7 @@ export default defineConfig({
     "tests/**/*",
     ".history/**/*",
   ],
-  minify: true,
+  minify: false,
   sourcemap: true,
   target: "node18",
   platform: "node",
