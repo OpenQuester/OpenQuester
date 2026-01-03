@@ -1,0 +1,34 @@
+{
+  "recommendations": [
+    // Flutter & Dart
+    "dart-code.dart-code",
+    "dart-code.flutter",
+    // Backend Development (TypeScript/Node.js)
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "VisualStudioExptTeam.vscodeintellicode",
+    // Database
+    "ckolkman.vscode-postgres",
+    "redis.redis-for-vscode",
+    // API Development
+    "humao.rest-client",
+    "42crunch.vscode-openapi",
+    // Docker
+    "ms-azuretools.vscode-docker",
+    // Git
+    "github.vscode-pull-request-github",
+    "eamodio.gitlens",
+    // General Productivity
+    "streetsidesoftware.code-spell-checker",
+    "upstash.context7-mcp",
+    "wayou.vscode-todo-highlight",
+    "aaron-bond.better-comments",
+    "usernamehw.errorlens",
+    // Testing
+    "orta.vscode-jest",
+    // Markdown
+    "yzhang.markdown-all-in-one",
+    "davidanson.vscode-markdownlint"
+  ],
+  "unwantedRecommendations": []
+}
