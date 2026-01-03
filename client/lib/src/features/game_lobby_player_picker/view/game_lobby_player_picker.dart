@@ -11,7 +11,7 @@ class GameLobbyPlayerPicker extends WatchingWidget {
     final players =
         gameData?.players.where(
           (e) {
-            return e.role == PlayerRole.player &&
+            return e.isPlayer &&
                 (controller.type == QuestionTransferType.any ||
                     e.meta.id != controller.selectingPlayerId);
           },

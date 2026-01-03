@@ -1,7 +1,13 @@
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
+import {
+  SocketBroadcastTarget,
+  SocketEventBroadcast,
+} from "domain/handlers/socket/BaseSocketEventHandler";
+import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
@@ -136,11 +142,24 @@ export class GameJoinLogic {
   }
 
   /**
-   * Builds the result object.
+   * Builds the result object with broadcasts.
    */
   public static buildResult(input: GameJoinResultInput): GameJoinResult {
     const { game, player } = input;
-    return { game, player };
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event: SocketIOGameEvents.JOIN,
+        data: player.toDTO(),
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<PlayerDTO>,
+    ];
+
+    return {
+      data: { game, player },
+      broadcasts,
+    };
   }
 
   /**

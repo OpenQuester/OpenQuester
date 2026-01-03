@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
+import 'package:nb_utils/nb_utils.dart';
 
 class BlurDialogRoute<R> extends CustomRoute<R> {
   BlurDialogRoute({
@@ -87,7 +88,7 @@ class BlurDialogRoute<R> extends CustomRoute<R> {
       settings: page,
       pageBuilder: (_, _, _) => child,
       transitionsBuilder: blurIn,
-      barrierColor: Colors.black.withValues(alpha: .3),
+      barrierColor: context.theme.colorScheme.shadow.withValues(alpha: 0.01),
     );
   }
 }

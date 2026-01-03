@@ -1,8 +1,4 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -12,6 +8,7 @@ import {
   PlayerKickBroadcastData,
   PlayerKickInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 
 /**
  * Stateless action handler for kicking a player.
@@ -33,15 +30,8 @@ export class PlayerKickActionHandler
       playerId: action.payload.playerId,
     };
 
-    // Convert service broadcasts
-    const broadcasts: SocketEventBroadcast<unknown>[] = result.broadcasts.map(
-      (b) => ({
-        event: b.event,
-        data: b.data,
-        target: SocketBroadcastTarget.GAME,
-        gameId: b.room,
-      })
-    );
+    // Service generates type-safe broadcasts with satisfies - just convert format
+    const broadcasts = convertBroadcasts(result.broadcasts);
 
     return { success: true, data: broadcastData, broadcasts };
   }

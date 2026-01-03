@@ -13,6 +13,8 @@ on:
         required: true
       WINDOWS_SIGN_CERT:
         required: true
+      PLAY_STORE_SERVICE_ACCOUNT_JSON:
+        required: false
 
     inputs:
       DEPLOY_PROD:
@@ -124,6 +126,27 @@ jobs:
         with:
           name: android-app
           path: ./client/build/app/outputs/flutter-apk/*.apk
+
+      - name: Build Android Bundle (AAB)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          flutter build appbundle --release --build-number $GITHUB_RUN_NUMBER
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ vars.ANDROID_KEYSTORE_PATH }}
+          ANDROID_KEY_ALIAS_NAME: ${{ vars.ANDROID_KEY_ALIAS_NAME }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload to Play Store (Internal Testing)
+        if: github.ref == 'refs/heads/main'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+          packageName: com.asion.openquester
+          releaseFiles: ./client/build/app/outputs/bundle/release/*.aab
+          track: internal
+          status: draft
+          inAppUpdatePriority: 3
 
   build_windows:
     name: Build client (Windows)

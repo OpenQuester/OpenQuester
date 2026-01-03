@@ -1,19 +1,19 @@
 import 'dart:async';
 
-import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:nb_utils/nb_utils.dart';
 import 'package:oq_shared/oq_shared.dart';
 
 class ImageWidget extends StatefulWidget {
-  const ImageWidget({
+  ImageWidget({
     required this.url,
     this.avatarRadius,
     this.fit = BoxFit.cover,
     this.afterLoad,
     this.forcedLoaderBuilder,
-    super.key,
-  });
+    this.placeholder,
+    Key? key,
+  }) : super(key: key ?? (url.isEmptyOrNull ? null : ValueKey(url!)));
 
   final String? url;
   final double? avatarRadius;
@@ -21,6 +21,7 @@ class ImageWidget extends StatefulWidget {
   final VoidCallback? afterLoad;
   final Widget Function(BuildContext context, Widget child)?
   forcedLoaderBuilder;
+  final Widget? placeholder;
 
   @override
   State<ImageWidget> createState() => _ImageWidgetState();
@@ -57,8 +58,9 @@ class _ImageWidgetState extends State<ImageWidget> {
   @override
   Widget build(BuildContext context) {
     final child = imageProvider == null
-        ? placeholder().fadeOut()
+        ? placeholder()
         : Image(
+            key: ValueKey(imageProvider),
             image: imageProvider!,
             fit: widget.fit,
             errorBuilder: (_, _, _) => placeholder(),
@@ -66,7 +68,10 @@ class _ImageWidgetState extends State<ImageWidget> {
               if (widget.forcedLoaderBuilder != null) {
                 return widget.forcedLoaderBuilder!(context, child);
               }
-              return child;
+              if (wasSynchronouslyLoaded) {
+                return child;
+              }
+              return loaded ? child.fadeIn() : child;
             },
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null && !loaded) {
@@ -76,7 +81,7 @@ class _ImageWidgetState extends State<ImageWidget> {
 
               return child;
             },
-          ).fadeIn();
+          );
 
     final size = widget.avatarRadius != null
         ? (widget.avatarRadius! * 2)
@@ -97,6 +102,10 @@ class _ImageWidgetState extends State<ImageWidget> {
   }
 
   Widget placeholder() {
-    return Container(color: context.theme.primaryColor, padding: 16.all);
+    return Container(
+      color: context.theme.primaryColor,
+      constraints: const BoxConstraints(minHeight: 24, minWidth: 24),
+      child: widget.placeholder.center(),
+    );
   }
 }

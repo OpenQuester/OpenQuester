@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
@@ -77,6 +76,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               scrolledUnderElevation: 0,
               notificationPredicate: (_) => false,
             ),
+            floatingActionButton: const LobbyActionButton(),
+            floatingActionButtonLocation:
+                FloatingActionButtonLocation.centerFloat,
             body: SafeArea(
               bottom: false,
               child: Stack(
@@ -110,49 +112,50 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
 }
 
 class _BodyBuilder extends WatchingWidget {
-  const _BodyBuilder();
+  const _BodyBuilder({super.key});
 
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final isPickingPlayer = watchPropertyValue(
-      (GameLobbyPlayerPickerController e) => e.isPicking,
-    );
-    final lobbyEditorMode = watchValue(
-      (GameLobbyController e) => e.lobbyEditorMode,
-    );
-    final currentQuestion = watchValue(
-      (GameQuestionController e) => e.questionData,
-    );
-    final gameFinished = watchValue((GameLobbyController e) => e.gameFinished);
-
-    Widget body;
-    if (isPickingPlayer) {
-      body = const GameLobbyPlayerPicker();
-    } else if (lobbyEditorMode) {
-      body = const GameLobbyEditor().fadeIn();
-    } else if (gameData?.gameState.currentRound == null) {
-      body = const CircularProgressIndicator().fadeIn().center();
-    } else if (gameFinished) {
-      body = const _GameFinishedScreen().fadeIn();
-    } else if (gameData?.gameState.stakeQuestionData?.biddingPhase ?? false) {
-      body = const GameStakeQuestionBody().fadeIn();
-    } else if (currentQuestion != null) {
-      body = const GameQuestionScreen().fadeIn();
-    } else {
-      body = const GameLobbyThemes().fadeIn();
-    }
 
     return Column(
       children: [
-        if (gameData?.me.role == PlayerRole.spectator)
+        if (gameData?.me.isSpectator ?? false)
           Text(
             LocaleKeys.you_are_spectator.tr(),
             style: context.textTheme.bodySmall?.copyWith(
               color: context.theme.colorScheme.onSurfaceVariant,
             ),
           ).paddingAll(8),
-        body.expand(),
+        GameStateBuilder(
+          builder: (state) {
+            Widget body;
+            switch (state) {
+              case GameLobbyState.editorMode:
+                body = const GameLobbyEditor();
+              case GameLobbyState.reviewingFinalAnswers:
+                body = const GameFinalReviewBody();
+              case GameLobbyState.answeringFinal:
+                body = const GameFinalAnswerBody();
+              case GameLobbyState.bidding:
+              case GameLobbyState.biddingPhaseFromState:
+                body = const GameStakeQuestionBody();
+              case GameLobbyState.pickingTheme:
+                body = const GameFinalRoundBody();
+              case GameLobbyState.pickingPlayer:
+                body = const GameLobbyPlayerPicker();
+              case GameLobbyState.loading:
+                body = const CircularProgressIndicator().center();
+              case GameLobbyState.finished:
+                body = const GameFinishedScreen();
+              case GameLobbyState.questionActive:
+                body = const GameQuestionScreen();
+              case GameLobbyState.showingThemes:
+                body = const GameLobbyThemes();
+            }
+            return body.fadeIn(key: Key(body.runtimeType.toString()));
+          },
+        ).expand(),
       ],
     );
   }
@@ -164,7 +167,7 @@ class _GamePausedScreen extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final imShowman = gameData?.me.role == PlayerRole.showman;
+    final imShowman = gameData?.me.isShowman ?? false;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -191,19 +194,6 @@ class _GamePausedScreen extends WatchingWidget {
   }
 }
 
-class _GameFinishedScreen extends StatelessWidget {
-  const _GameFinishedScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      LocaleKeys.game_is_finished.tr(),
-      style: context.textTheme.displaySmall,
-      textAlign: TextAlign.center,
-    ).paddingAll(16).center();
-  }
-}
-
 class _BodyLayoutBuilder extends WatchingWidget {
   const _BodyLayoutBuilder();
 
@@ -223,7 +213,7 @@ class _BodyLayoutBuilder extends WatchingWidget {
     }
 
     Widget child;
-    final body = const _BodyBuilder().expand();
+    final body = const _BodyBuilder(key: Key('GameBody')).expand();
 
     if (playersOnLeft) {
       child = Row(

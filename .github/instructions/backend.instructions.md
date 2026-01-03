@@ -4,170 +4,64 @@ applyTo: "server/**/*"
 
 # OpenQuester Backend Instructions
 
-## Important Documentation References
+## Key Docs (Read First)
+- **Final Round:** `server/docs/final-round-flow.md` - Theme elimination → bidding → answering → reviewing
+- **Action Queue:** `server/docs/game-action-executor.md` - Race condition prevention via Redis locks
+- **Media Sync:** `server/docs/media-download-sync.md` - Cross-client synchronization
 
-Before working on backend code, familiarize yourself with these key documents:
+## Architecture
+**4 Layers:** `domain/` (pure logic, entities), `application/` (services), `infrastructure/` (DB, Redis, S3), `presentation/` (REST, Socket.IO)
+**DI:** Symbol-based registry in `application/Container.ts`
 
-- **Final Round Flow:** `server/docs/final-round-flow.md` - Comprehensive guide to final round phases (theme elimination → bidding → answering → reviewing)
-- **Game Action Executor:** `server/docs/game-action-executor.md` - Critical understanding of the action queue system that prevents race conditions
-- **Media Sync:** `server/docs/media-download-sync.md` - How media synchronization works across clients
+## Core Patterns
 
-These documents provide essential context for game mechanics and technical architecture decisions.
+### Socket Events
+Extend `BaseSocketEventHandler<TInput, TOutput>`: `validate()` → `execute()` → `broadcast()`
+Auto-registered via `SocketEventHandlerRegistry`
 
-## Architecture Overview
-
-**Clean Architecture (4 layers):**
-
-- `domain/` - Pure business logic, entities, handlers, state machines
-- `application/` - Use cases, services, orchestrators (connects domain ↔ infrastructure)
-- `infrastructure/` - External concerns: database (TypeORM), Redis, S3, logger
-- `presentation/` - Express REST controllers, Socket.IO handlers, validation schemes
-
-**Key Pattern:** Dependency injection via `Container` (symbol-based registry in `application/Container.ts`). All services/repositories registered at startup.
-
-## Core Concepts
-
-### Socket Event Handlers
-
-All Socket.IO game events extend `BaseSocketEventHandler<TInput, TOutput>`:
-
-- Template method pattern: `validate()` → `execute()` → `broadcast()`
-- Auto-registered via `SocketEventHandlerRegistry`
-- Examples: `server/src/domain/handlers/socket/game/StartGameEventHandler.ts`
-
-### Action Queue System (Critical for Game State)
-
-**Problem:** Multiple socket events arriving simultaneously could corrupt game state.
-
-**Solution:** `GameActionExecutor` + `GameActionQueueService` + `GameActionLockService`
-
-- Each game action acquires distributed lock (Redis)
-- If locked → queue action with callback (preserves socket context)
-- After execution → release lock, process queued actions recursively
-- See: `server/src/application/executors/GameActionExecutor.ts`
-
-**Usage in handlers:**
-
+### Action Queue (Critical)
+**Problem:** Concurrent socket events → corrupt state
+**Solution:** `GameActionExecutor` + Redis lock per game
 ```typescript
 protected async executeAction(data: TInput): Promise<GameActionResult> {
-  const action: GameAction = {
-    id: uuidv4(),
-    type: GameActionType.QUESTION_PICK,
-    gameId: this.gameId,
-    // ... action data
-  };
-  return this.actionExecutor.submitAction(action, async (action) => {
-    // Actual execution logic here
-  });
+  const action: GameAction = { id: uuidv4(), type: GameActionType.X, gameId, ...data };
+  return this.actionExecutor.submitAction(action, async (action) => { /* logic */ });
 }
 ```
 
-### Game State Management
-
-- Game state stored in **Redis** (serialized GameStateDTO)
-- Retrieved via `SocketGameContextService.getFullGameContext()`
-- Updated atomically within action queue handlers
-- Round progression uses factory pattern (`RoundHandlerFactory`)
+### Game State
+- Stored in Redis (serialized GameStateDTO)
+- Retrieved: `SocketGameContextService.getFullGameContext()`
+- Round progression: `RoundHandlerFactory`
 
 ### Validation
+REST: Joi + `RequestDataValidator` | Socket: Joi in `validate()` | Rules: `domain/validators/`
 
-- REST: Joi schemas in `presentation/schemes/` + `RequestDataValidator`
-- Socket: Built into handler's `validate()` method, utilizes Joi schemas as well
-- Game rules: Dedicated validators in `domain/validators/` (e.g., `GameStateValidator`)
-
-## Development Workflows
-
-### Running Tests
-
+## Testing
 ```bash
-npm test                    # All tests (sequential, maxWorkers=1)
-npm run test:pipeline       # CI-friendly (suppresses output)
+npm test                # All tests
+npm run test:pipeline   # CI
+npx jest path/to/file   # Specific (set trace logs in tests/utils.ts)
 ```
+**Timer Testing:** Use `TestUtils.expireTimer()` - NEVER `setTimeout` in tests
+**NO test timeout increases** - missing events = broken code
 
-Tests mimic client requests + validate DB/Redis state directly. See `tests/TestApp.ts` for bootstrap pattern.
+## Conventions
+**Naming:** Services end `Service`, Repositories end `Repository`, Socket events `*EventHandler`
+**Enums:** `PascalCase` names, `SCREAMING_SNAKE_CASE` or `"kebab-case"` values
+**DTOs:** `domain/types/dto/`, interfaces only, use mappers
+**Errors:** `ClientError` (translated), `ServerError` (not translated)
+**Redis:** Namespaced keys (e.g. `game:{gameId}`), `keyspace` notifications + handlers
+**TypeORM:** Manual migrations (`infrastructure/database/migrations/`), snake_case via `SnakeNamingStrategy`
 
-For running specific tests (can be useful for investigation with "trace" logs set in `tests/utils.ts`):
+## Type Safety
+- **NEVER** `any` → use `unknown` or `Record<string, T>`
+- Explicit return types
+- Use `satisfies` on un-typed objects
+- **NEVER** re-exports or `index.ts` files
 
-```bash
-npx jest path/to/testfile.ts
-```
-
-### Critical Build Details
-
-- Path aliases configured in `tsconfig.json` + `jest.config.ts`:
-  - `application/*`, `domain/*`, `infrastructure/*`, `presentation/*`
-- Build: `tsup` (bundler) excludes `__tests__` and `*.test.*`
-- TypeScript: **strict mode** enforced
-
-## Project-Specific Conventions
-
-### Naming & Structure
-
-- **Services** end with `Service` (e.g., `GameService`, `UserService`)
-- **Repositories** end with `Repository` (database layer only)
-- **Handlers:** Socket events = `*EventHandler`, Redis expirations = `*ExpirationHandler`
-- **Enums:** `PascalCase` names, values in `SCREAMING_SNAKE_CASE` or `"kebab-case"`
-- **DTOs:** Located in `domain/types/dto/`, always interfaces, using mappers to manipulate data
-
-### Error Handling
-
-- **Client errors:** `ClientError` (domain layer) with `ClientResponse` enum - only errors returned to clients, always translated
-- **Server errors:** `ServerError` with `ServerResponse` enum - server errors, no need to translate
-- `ErrorController.handleAsync()` wraps all async operations
-- Never throw raw strings or generic Errors
-
-### Redis Patterns
-
-- Keys: Namespaced (e.g., `game:{gameId}`, `timer:{timerId}`)
-- Expirations: Handled via `keyspace` notifications + `RedisExpirationHandler`
-- Pub/Sub: `RedisPubSubService` for cross-instance coordination (Socket.IO multi-server)
-
-### TypeORM Details
-
-- **Migrations:** Manually written in `infrastructure/database/migrations/`
-- **Naming:** Snake case via `SnakeNamingStrategy`
-- **Models:** Located in `infrastructure/database/models/`
-- No auto-sync in production (migrations only)
-
-## Critical Files Reference
-
-- DI Container: `application/Container.ts`
-- Socket setup: `presentation/index.ts` (Express + Socket.IO + Redis adapter)
+## Critical Files
+- DI: `application/Container.ts`
+- Socket: `presentation/index.ts`
 - Test bootstrap: `tests/TestApp.ts`
 - Game orchestrator: `domain/orchestrators/GameOrchestrator.ts`
-- Final round logic: `docs/final-round-flow.md` (detailed phase transitions)
-
-## Type Safety Rules
-
-- **Never** use `any` → use `unknown` or `Record<string, T>`
-- Avoid `Object` type
-- Explicit return types on all functions
-- Strict null checks enabled
-- use `satisfies` on un-typed objects, e.g. socket event body.
-- **Never** use re-exports, never create `index.ts` files to re-export modules.
-
-## Testing Philosophy
-
-Tests simulate **client-side requests** (REST + Socket.IO) and validate outcomes via direct DB/Redis access. No mocking of core services—integration testing preferred.
-
-### Timer Testing
-
-**NEVER use `setTimeout`/`sleep` in tests.** Instead, manipulate Redis TTL to fast-forward timers and rely on events.
-
-**Use `TestUtils.expireTimer()` for all timer expiration testing:**
-
-```typescript
-// ✅ Correct: Use centralized utility
-await testUtils.expireTimer(gameId, "bidding", 150);
-
-// ❌ Wrong: Manual Redis manipulation
-const redisClient = RedisConfig.getClient();
-await redisClient.pexpire(`timer:${gameId}:bidding`, 50);
-await new Promise((resolve) => setTimeout(resolve, 150));
-```
-
-### Test Timeouts
-
-NEVER increase test timeouts - if a test times out, the issue is almost always a missing event, indicating broken code in test.
-
----

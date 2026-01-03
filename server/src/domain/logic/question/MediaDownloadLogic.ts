@@ -1,14 +1,25 @@
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import {
+  SocketBroadcastTarget,
+  SocketEventBroadcast,
+} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 
-export interface MediaDownloadResult {
+export interface MediaDownloadData {
   game: Game;
   playerId: number;
   allPlayersReady: boolean;
   timer: GameStateTimerDTO | null;
+}
+
+export interface MediaDownloadResult {
+  data: MediaDownloadData;
+  broadcasts: SocketEventBroadcast[];
 }
 
 export interface MediaDownloadBuildResultInput {
@@ -70,18 +81,32 @@ export class MediaDownloadLogic {
   }
 
   /**
-   * Build the result for media download handling.
+   * Build the result for media download handling with broadcasts.
    */
   public static buildResult(
     input: MediaDownloadBuildResultInput
   ): MediaDownloadResult {
     const { game, playerId, allPlayersReady, timer } = input;
 
-    return {
-      game,
+    const statusData: MediaDownloadStatusBroadcastData = {
       playerId,
+      mediaDownloaded: true,
       allPlayersReady,
       timer,
+    };
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+        data: statusData,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<MediaDownloadStatusBroadcastData>,
+    ];
+
+    return {
+      data: { game, playerId, allPlayersReady, timer },
+      broadcasts,
     };
   }
 }

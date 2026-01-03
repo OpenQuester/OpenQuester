@@ -12,7 +12,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   FinalAnswerSubmitOutputData,
-  FinalAutoLossEventData,
+  SocketIOFinalAutoLossEventPayload,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 
@@ -238,7 +238,7 @@ export class AnsweringPlayerLeaveLogic {
       data: {
         playerId: userId,
         reason: FinalAnswerLossReason.EMPTY_ANSWER,
-      } satisfies FinalAutoLossEventData,
+      } satisfies SocketIOFinalAutoLossEventPayload,
       room: game.id,
     });
 

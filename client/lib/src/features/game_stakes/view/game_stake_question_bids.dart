@@ -7,11 +7,10 @@ class GameStakeQuestionBids extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final stakeData = gameData?.gameState.stakeQuestionData;
+    final stakeController = watchIt<GameLobbyPlayerStakesController>();
 
-    int getPlayerBid(PlayerData player) {
-      return stakeData?.bids[player.meta.id.toString()] ?? -1;
-    }
+    int getPlayerBid(PlayerData player) =>
+        stakeController.getPlayerBid(player.meta.id) ?? -1;
 
     final players = (gameData?.players ?? [])
         .where(
@@ -20,10 +19,6 @@ class GameStakeQuestionBids extends WatchingWidget {
               e.status == PlayerDataStatus.inGame,
         )
         .sorted((a, b) => getPlayerBid(b).compareTo(getPlayerBid(a)));
-
-    final bidderId = stakeData?.biddingOrder.tryByIndex(
-      stakeData.currentBidderIndex,
-    );
 
     return Column(
       spacing: 8,
@@ -36,10 +31,11 @@ class GameStakeQuestionBids extends WatchingWidget {
         for (var index = 0; index < players.length; index++)
           _PlayerStake(
             index: index,
-            bidding: bidderId == players[index].meta.id,
+            bidding: stakeController.bidderId == players[index].meta.id,
             playerData: players[index],
-            stake: stakeData?.bids[players[index].meta.id.toString()],
+            stake: stakeController.getPlayerBid(players[index].meta.id),
           ),
+        if (players.isEmpty) const Text('-'),
       ],
     );
   }
@@ -65,7 +61,10 @@ class _PlayerStake extends StatelessWidget {
         title: Text(
           [(index + 1).toString(), playerData.meta.username].join('. '),
         ),
-        trailing: ScoreText(score: stake),
+        trailing: ScoreText(
+          score: stake,
+          textStyle: context.textTheme.bodyLarge,
+        ),
       ),
     );
   }

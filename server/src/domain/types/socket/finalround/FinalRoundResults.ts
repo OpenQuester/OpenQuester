@@ -1,9 +1,13 @@
 import { Game } from "domain/entities/game/Game";
 import { FinalAnswerType } from "domain/enums/FinalRoundTypes";
+import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
 import { TransitionResult } from "domain/state-machine/types";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
-import { PlayerBidData } from "../events/FinalRoundEventData";
+import {
+  PlayerBidData,
+  ThemeEliminateOutputData,
+} from "../events/FinalRoundEventData";
 import { QuestionAnswerData } from "./QuestionAnswerData";
 
 export interface AnswerReviewData {
@@ -12,10 +16,13 @@ export interface AnswerReviewData {
   answerText: string;
   scoreChange: number;
   answerType: FinalAnswerType;
-  isCorrect?: boolean;
+  /** Whether answer is correct. null for unreviewed valid answers (showman needs to review) */
+  isCorrect: boolean | null;
 }
 
 export interface ThemeEliminateResult {
+  data: ThemeEliminateOutputData;
+  broadcasts: SocketEventBroadcast[];
   game: Game;
   eliminatedBy: number; // Player ID
   themeId: number;

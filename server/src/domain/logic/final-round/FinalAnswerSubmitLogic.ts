@@ -53,7 +53,7 @@ export class FinalAnswerSubmitLogic {
    * @returns Trimmed answer text
    */
   public static normalizeAnswer(answerText: string): string {
-    return answerText?.trim() || "";
+    return answerText.trim() || "";
   }
 
   /**
@@ -69,7 +69,7 @@ export class FinalAnswerSubmitLogic {
     const trimmedAnswer = FinalAnswerSubmitLogic.normalizeAnswer(answerText);
     const isAutoLoss = trimmedAnswer.length === 0;
 
-    FinalRoundStateManager.addAnswer(game, playerId, trimmedAnswer);
+    FinalRoundStateManager.addAnswer(game, playerId, trimmedAnswer, isAutoLoss);
 
     return {
       answerText: trimmedAnswer,

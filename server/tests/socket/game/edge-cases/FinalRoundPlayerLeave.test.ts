@@ -19,7 +19,7 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import {
   FinalAnswerSubmitInputData,
-  FinalAutoLossEventData,
+  SocketIOFinalAutoLossEventPayload,
   FinalBidSubmitInputData,
   FinalBidSubmitOutputData,
   FinalSubmitEndEventData,
@@ -343,10 +343,11 @@ describe("Final Round Player Leave", () => {
           showmanSocket,
           SocketIOGameEvents.FINAL_ANSWER_SUBMIT
         );
-        const autoLossPromise = utils.waitForEvent<FinalAutoLossEventData>(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_AUTO_LOSS
-        );
+        const autoLossPromise =
+          utils.waitForEvent<SocketIOFinalAutoLossEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_AUTO_LOSS
+          );
 
         playerSockets[2].emit(SocketIOGameEvents.LEAVE);
 
