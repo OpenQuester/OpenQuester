@@ -11,6 +11,7 @@ abstract class CreateGameDto with _$CreateGameDto {
     @Default(AgeRestriction.none) AgeRestriction ageRestriction,
     @Default(false) bool private,
     @Default(10) int maxPlayers,
+    String? password,
   }) = _CreateGameDto;
 }
 
@@ -42,6 +43,7 @@ extension CreateGameDtoX on CreateGameDto {
       isPrivate: private,
       ageRestriction: ageRestriction,
       maxPlayers: maxPlayers,
+      password: password,
     );
   }
 }

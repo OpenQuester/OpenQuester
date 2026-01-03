@@ -53,7 +53,7 @@ pre_build: gen_api pre_build_packages pre_run gen_indexes format
 
 # Pre-run tasks: generates files, workers, and localization
 pre_run: START_TIME_RUN := $(shell $(GET_TIME))
-pre_run: gen_files gen_workers gen_locale
+pre_run: gen_locale gen_files gen_workers
 	$(call time_target,pre_run,$(START_TIME_RUN))
 
 # Build pipeline for individual packages (skips API generation)

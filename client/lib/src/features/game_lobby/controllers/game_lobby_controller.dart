@@ -12,6 +12,7 @@ import 'package:socket_io_client/socket_io_client.dart';
 class GameLobbyController {
   Socket? socket;
   String? _gameId;
+  String? _password;
 
   final gameData = ValueNotifier<SocketIoGameJoinEventPayload?>(null);
   final gameListData = ValueNotifier<GameListItem?>(null);
@@ -29,7 +30,7 @@ class GameLobbyController {
 
   JoinCompleter _joinCompleter = JoinCompleter();
 
-  Future<bool> join({required String gameId}) async {
+  Future<bool> join({required String gameId, String? password}) async {
     // Check if already joined
     if (_gameId == gameId) return true;
 
@@ -37,6 +38,7 @@ class GameLobbyController {
 
     try {
       _gameId = gameId;
+      _password = password;
 
       // Get list game data
       gameListData.value = await Api.I.api.games.getV1GamesGameId(
@@ -177,8 +179,9 @@ class GameLobbyController {
     logger.d('GameLobbyController._onReconnect: ${this.gameId}');
 
     final gameId = this.gameId!;
+    final password = _password;
     await clear();
-    await join(gameId: gameId);
+    await join(gameId: gameId, password: password);
   }
 
   Future<void> _onConnect() async {
@@ -193,6 +196,7 @@ class GameLobbyController {
       final ioGameJoinInput = SocketIoGameJoinInput(
         gameId: _gameId!,
         role: _getJoinRole(),
+        password: _password,
       );
 
       socket?.emit(SocketIoGameSendEvents.join.json!, ioGameJoinInput.toJson());
