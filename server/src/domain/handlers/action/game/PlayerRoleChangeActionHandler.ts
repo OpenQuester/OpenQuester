@@ -1,9 +1,4 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -35,20 +30,11 @@ export class PlayerRoleChangeActionHandler
     );
 
     const broadcastData: PlayerRoleChangeBroadcastData = {
-      playerId: result.targetPlayer.meta.id,
+      playerId: result.data.targetPlayer.meta.id,
       newRole: payload.newRole,
-      players: result.players,
+      players: result.data.players,
     };
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.PLAYER_ROLE_CHANGE,
-        data: broadcastData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: result.game.id,
-      },
-    ];
-
-    return { success: true, data: broadcastData, broadcasts };
+    return { success: true, data: broadcastData, broadcasts: result.broadcasts };
   }
 }

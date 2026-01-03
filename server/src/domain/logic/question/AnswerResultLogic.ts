@@ -1,14 +1,23 @@
 import { Game } from "domain/entities/game/Game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import {
+  SocketBroadcastTarget,
+  SocketEventBroadcast,
+} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
+import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
+import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import {
   AnswerResultData,
   AnswerResultType,
 } from "domain/types/socket/game/AnswerResultData";
+import { QuestionAnswerResultLogic } from "./QuestionAnswerResultLogic";
 
 export interface AnswerResultMutation {
   playerAnswerResult: GameStateAnsweredPlayerData;
@@ -19,6 +28,8 @@ export interface AnswerResultMutation {
 }
 
 export interface AnswerResultResult {
+  data: QuestionAnswerResultEventPayload;
+  broadcasts: SocketEventBroadcast[];
   playerAnswerResult: GameStateAnsweredPlayerData;
   game: Game;
   question: PackageQuestionDTO | null;
@@ -131,7 +142,36 @@ export class AnswerResultLogic {
   ): AnswerResultResult {
     const { game, mutation, timer } = input;
 
+    const shouldShowAnswer =
+      mutation.playerAnswerResult.answerType === AnswerResultType.CORRECT ||
+      mutation.allPlayersSkipped;
+
+    const questionData = mutation.allPlayersSkipped
+      ? mutation.skippedQuestion
+      : mutation.question;
+
+    const broadcasts = shouldShowAnswer
+      ? this.buildShowAnswerBroadcasts(
+          game.id,
+          mutation.playerAnswerResult,
+          questionData,
+          timer,
+          game.gameState.currentTurnPlayerId ?? null
+        )
+      : this.buildContinueQuestionBroadcasts(
+          game.id,
+          mutation.playerAnswerResult,
+          timer
+        );
+
+    const responseData = QuestionAnswerResultLogic.buildSocketPayload({
+      answerResult: mutation.playerAnswerResult,
+      timer,
+    });
+
     return {
+      data: responseData,
+      broadcasts,
       playerAnswerResult: mutation.playerAnswerResult,
       game,
       question: mutation.question,
@@ -139,5 +179,73 @@ export class AnswerResultLogic {
       allPlayersSkipped: mutation.allPlayersSkipped,
       skippedQuestion: mutation.skippedQuestion,
     };
+  }
+
+  /**
+   * Build broadcasts for transitioning to SHOWING_ANSWER state.
+   * Sends ANSWER_RESULT → QUESTION_FINISH → ANSWER_SHOW_START.
+   */
+  private static buildShowAnswerBroadcasts(
+    gameId: string,
+    playerAnswerResult: GameStateAnsweredPlayerData,
+    questionData: PackageQuestionDTO | null,
+    timer: GameStateTimerDTO | null,
+    nextTurnPlayerId: number | null
+  ): SocketEventBroadcast[] {
+    const answerResultPayload = QuestionAnswerResultLogic.buildSocketPayload({
+      answerResult: playerAnswerResult,
+      timer,
+    });
+
+    const questionFinishPayload: QuestionFinishWithAnswerEventPayload = {
+      answerFiles: questionData?.answerFiles ?? null,
+      answerText: questionData?.answerText ?? null,
+      nextTurnPlayerId,
+      answerResult: playerAnswerResult,
+    };
+
+    return [
+      {
+        event: SocketIOGameEvents.ANSWER_RESULT,
+        data: answerResultPayload,
+        target: SocketBroadcastTarget.GAME,
+        gameId,
+      } satisfies SocketEventBroadcast<QuestionAnswerResultEventPayload>,
+      {
+        event: SocketIOGameEvents.QUESTION_FINISH,
+        data: questionFinishPayload,
+        target: SocketBroadcastTarget.GAME,
+        gameId,
+      } satisfies SocketEventBroadcast<QuestionFinishWithAnswerEventPayload>,
+      {
+        event: SocketIOGameEvents.ANSWER_SHOW_START,
+        data: {} satisfies AnswerShowStartEventPayload,
+        target: SocketBroadcastTarget.GAME,
+        gameId,
+      } satisfies SocketEventBroadcast<AnswerShowStartEventPayload>,
+    ];
+  }
+
+  /**
+   * Build broadcasts for continuing the question (wrong answer, players remaining).
+   */
+  private static buildContinueQuestionBroadcasts(
+    gameId: string,
+    playerAnswerResult: GameStateAnsweredPlayerData,
+    timer: GameStateTimerDTO | null
+  ): SocketEventBroadcast[] {
+    const resultPayload = QuestionAnswerResultLogic.buildSocketPayload({
+      answerResult: playerAnswerResult,
+      timer,
+    });
+
+    return [
+      {
+        event: SocketIOGameEvents.ANSWER_RESULT,
+        data: resultPayload,
+        target: SocketBroadcastTarget.GAME,
+        gameId,
+      } satisfies SocketEventBroadcast<QuestionAnswerResultEventPayload>,
+    ];
   }
 }

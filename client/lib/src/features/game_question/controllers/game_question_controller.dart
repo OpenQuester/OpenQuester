@@ -48,6 +48,7 @@ class GameQuestionController {
         if (!ignoreWaitingForPlayers) {
           getIt<GameLobbyController>().notifyMediaDownloaded();
         }
+        logger.d('GameQuestionController: No media file for question ');
         return;
       }
 
@@ -84,6 +85,7 @@ class GameQuestionController {
       }
     } catch (e) {
       error.value = getIt<GameLobbyController>().onError(e);
+      logger.e('GameQuestionController: Failed to load media: $e');
     }
     // TODO: Start slideshow timer
   }
@@ -96,26 +98,28 @@ class GameQuestionController {
     Uri uri,
     FileItem file,
   ) async {
-    // Platform-specific media handling for proper preloading
-    if (kIsWeb) {
-      // Web: Browsers do not support file system access,
-      // so we use the network URL.
-      // To improve performance, we preload the media by caching it.
-      await _cacheFile(uri);
-      return VideoPlayerController.networkUrl(uri);
-    } else {
-      try {
+    try {
+      // Platform-specific media handling for proper preloading
+      if (kIsWeb) {
+        // Web: Browsers do not support file system access,
+        // so we use the network URL.
+        // To improve performance, we preload the media by caching it.
+        await _cacheFile(uri);
+        return VideoPlayerController.networkUrl(uri);
+      } else {
         // Mobile/Desktop: Download and use local file for reliable preloading
         final tmpfile = await _setTmpFile(file);
-        await _cacheDio.downloadUri(uri, _tmpFile!.path);
+        await _cacheDio
+            .downloadUri(uri, _tmpFile!.path)
+            .timeout(const Duration(seconds: 5));
         return VideoPlayerController.file(tmpfile);
-      } catch (e) {
-        logger.d(
-          'GameQuestionController._loadController: '
-          'Failed to preload media from $uri: $e',
-        );
-        return VideoPlayerController.networkUrl(uri);
       }
+    } catch (e) {
+      logger.d(
+        'GameQuestionController._loadController: '
+        'Failed to preload media from $uri: $e',
+      );
+      return VideoPlayerController.networkUrl(uri);
     }
   }
 
@@ -176,10 +180,10 @@ class GameQuestionController {
     getIt<GameLobbyController>().notifyMediaDownloaded();
   }
 
-  static const minVol = 0.003;
+  static const minVol = 0.015;
   static const maxVol = 1;
   static final double b = math.log(maxVol / minVol);
 
   double _toLogVolume(double linear) =>
-      minVol * math.exp(b * linear.clamp(minVol, maxVol));
+      minVol * math.exp(b * linear.clamp(0, 1));
 }

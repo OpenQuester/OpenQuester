@@ -13,6 +13,7 @@ import {
   FinalBidSubmitInputData,
   FinalBidSubmitOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
+import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 
 /**
  * Stateless action handler for final round bid submission.
@@ -44,16 +45,9 @@ export class FinalBidSubmitActionHandler
       } satisfies SocketEventBroadcast<FinalBidSubmitOutputData>,
     ];
 
-    // If phase transitioned, add transition broadcasts
+    // If phase transitioned, add transition broadcasts (service uses satisfies)
     if (transitionResult?.success) {
-      for (const broadcast of transitionResult.broadcasts) {
-        broadcasts.push({
-          event: broadcast.event,
-          data: broadcast.data,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        });
-      }
+      broadcasts.push(...convertBroadcasts(transitionResult.broadcasts));
     }
 
     return { success: true, data: outputData, broadcasts };

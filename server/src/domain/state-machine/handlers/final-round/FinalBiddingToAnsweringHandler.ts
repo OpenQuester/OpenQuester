@@ -5,6 +5,7 @@ import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
+import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -159,6 +160,7 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
 
   /**
    * Get the question data for the remaining (non-eliminated) theme.
+   * Returns full question data (excluding answer info) from the package.
    */
   private _getQuestionData(game: Game): FinalRoundQuestionData | undefined {
     const handler = this.roundHandlerFactory.create(
@@ -171,10 +173,28 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
       return undefined;
     }
 
+    const questionId = remainingTheme.questions[0].id;
+
+    // Get full question data from package (with text and files)
+    const questionAndTheme = GameQuestionMapper.getQuestionAndTheme(
+      game.package,
+      game.gameState.currentRound!.id,
+      questionId
+    );
+
+    if (!questionAndTheme) {
+      return undefined;
+    }
+
+    // Convert to SimplePackageQuestionDTO (excludes answer info)
+    const simpleQuestion = GameQuestionMapper.mapToSimpleQuestion(
+      questionAndTheme.question
+    );
+
     return {
       themeId: remainingTheme.id,
       themeName: remainingTheme.name,
-      question: remainingTheme.questions[0],
+      question: simpleQuestion,
     };
   }
 }

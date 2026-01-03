@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:nb_utils/nb_utils.dart';
 import 'package:oq_shared/oq_shared.dart';
@@ -105,8 +104,8 @@ class _ImageWidgetState extends State<ImageWidget> {
   Widget placeholder() {
     return Container(
       color: context.theme.primaryColor,
-      padding: 16.all,
-      child: widget.placeholder ?? const SizedBox.shrink(),
+      constraints: const BoxConstraints(minHeight: 24, minWidth: 24),
+      child: widget.placeholder.center(),
     );
   }
 }

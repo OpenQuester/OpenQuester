@@ -24,7 +24,7 @@ class GameLobbyPlayers extends WatchingWidget {
                     (p.status == inGame || itsMe);
               },
             )
-            .sorted((a, b) => a.role == PlayerRole.showman ? 0 : 1)
+            .sorted((a, b) => a.isShowman ? 0 : 1)
             .toList() ??
         [];
 
@@ -59,21 +59,24 @@ class GameLobbyPlayers extends WatchingWidget {
               picking: currentTurnPlayerId == player.meta.id,
               playerAnswerState: showUserAnsweredCorrect,
             );
+
             final allowEdit =
                 gameData?.me.role == PlayerRole.showman &&
                 player.role == PlayerRole.player;
-
+            final onPlayerTap = allowEdit
+                ? () => PlayerEditBtn.showEditMenu(
+                    context: context,
+                    player: player,
+                    offset: Offset(
+                      constrains.maxWidth,
+                      constrains.maxHeight / 2,
+                    ),
+                  )
+                : null;
+                
             return InkWell(
-              onTap: allowEdit
-                  ? () => PlayerEditBtn.showEditMenu(
-                      context: context,
-                      player: player,
-                      offset: Offset(
-                        constrains.maxWidth,
-                        constrains.maxHeight / 2,
-                      ),
-                    )
-                  : null,
+              onTap: onPlayerTap,
+              onSecondaryTap: onPlayerTap,
               borderRadius: 16.circular,
               child: GameLobbyPlayer(
                 player: player,

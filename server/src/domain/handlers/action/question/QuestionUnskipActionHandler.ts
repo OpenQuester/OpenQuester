@@ -1,9 +1,4 @@
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -27,20 +22,14 @@ export class QuestionUnskipActionHandler
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<QuestionUnskipBroadcastData>> {
-    const { game, playerId } =
-      await this.socketIOQuestionService.handlePlayerUnskip(action.socketId);
+    const result = await this.socketIOQuestionService.handlePlayerUnskip(
+      action.socketId
+    );
 
-    const broadcastData: QuestionUnskipBroadcastData = { playerId };
-
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.QUESTION_UNSKIP,
-        data: broadcastData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      },
-    ];
-
-    return { success: true, data: broadcastData, broadcasts };
+    return {
+      success: true,
+      data: result.data,
+      broadcasts: result.broadcasts,
+    };
   }
 }

@@ -21,7 +21,7 @@ class GameLobbyPlayer extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
-    final extraColors = Theme.of(context).extension<ExtraColors>()!;
+    final extraColors = ExtraColors.of(context);
     final foregroundColor = Colors.black.withValues(alpha: .4);
     final borderColor = switch (settings.playerAnswerState) {
       PlayerAnswerState.wrong => Colors.red,
@@ -59,10 +59,7 @@ class GameLobbyPlayer extends WatchingWidget {
                   ),
                   decoration: BoxDecoration(borderRadius: 8.circular),
                   clipBehavior: Clip.antiAlias,
-                  child: ImageWidget(
-                    key: ValueKey(player.meta.avatar),
-                    url: player.meta.avatar,
-                  ),
+                  child: ImageWidget(url: player.meta.avatar),
                 ),
               ),
               Stack(
@@ -77,18 +74,18 @@ class GameLobbyPlayer extends WatchingWidget {
                         style: playerTextStyle,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (player.role == PlayerRole.player)
+                      if (player.isPlayer)
                         ScoreText(
                           score: player.score,
                           textStyle: playerTextStyle,
                         )
-                      else if (player.role == PlayerRole.showman)
+                      else if (player.isShowman)
                         Text(LocaleKeys.showman.tr()),
                     ],
                   ),
                 ],
               ),
-              if (player.role == PlayerRole.showman)
+              if (player.isShowman)
                 Align(
                   alignment: Alignment.topRight,
                   child: Assets.icons.crown
@@ -191,10 +188,15 @@ class _MediaDownloadIndicator extends WatchingWidget {
     final questionData = watchValue(
       (GameQuestionController e) => e.questionData,
     );
+    final waitingForPlayers = watchValue(
+      (GameQuestionController e) => e.waitingForPlayers,
+    );
 
     final hasMedia = questionData?.file != null;
     final mediaDownloaded = player.mediaDownloaded;
-    if (!hasMedia || mediaDownloaded) return const SizedBox.shrink();
+    if (!hasMedia || mediaDownloaded || !waitingForPlayers) {
+      return const SizedBox.shrink();
+    }
 
     // Show loader if not downloaded yet
     return const CircularProgressIndicator(strokeWidth: 1, color: Colors.white)
