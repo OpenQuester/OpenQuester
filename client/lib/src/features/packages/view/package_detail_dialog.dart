@@ -3,67 +3,66 @@ import 'package:openquester/openquester.dart';
 import 'package:oq_editor/view/widgets/media_preview_widget.dart';
 
 @RoutePage(deferredLoading: false)
-class PackageDetailDialog extends StatefulWidget {
+class PackageDetailDialog extends WatchingWidget {
   const PackageDetailDialog({required this.packageId, super.key});
 
   final int packageId;
 
   @override
-  State<PackageDetailDialog> createState() => _PackageDetailDialogState();
-}
-
-class _PackageDetailDialogState extends State<PackageDetailDialog> {
-  late Future<OqPackage> _packageFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _packageFuture = _loadPackage();
-  }
-
-  Future<OqPackage> _loadPackage() async {
-    return Api.I.api.packages.getV1PackagesId(id: widget.packageId);
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final packageAsync = watchFuture(
+      future: () => Api.I.api.packages.getV1PackagesId(id: packageId),
+      initialValue: null,
+    );
+
     return AdaptiveDialog(
-      builder: (context) => Card(
-        elevation: 0,
-        child: FutureBuilder<OqPackage>(
-          future: _packageFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(),
-              ).paddingAll(48);
-            }
-
-            if (snapshot.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 16,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: context.theme.colorScheme.error,
-                    ),
-                    Text(
-                      LocaleKeys.something_went_wrong.tr(),
-                      style: context.textTheme.titleMedium,
-                    ),
-                  ],
-                ).paddingAll(48),
-              );
-            }
-
-            final package = snapshot.data!;
-            return _buildContent(context, package);
-          },
+      builder: (context) => ConstrainedBox(
+        constraints: const BoxConstraints(
+          minWidth: 400,
+          minHeight: 300,
+        ),
+        child: Card(
+          elevation: 0,
+          child: AnimatedCrossFade(
+            duration: const Duration(milliseconds: 300),
+            crossFadeState: packageAsync.hasData
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: _buildLoadingState(context),
+            secondChild: packageAsync.hasError
+                ? _buildErrorState(context, packageAsync.error!)
+                : packageAsync.hasData
+                    ? _buildContent(context, packageAsync.data!)
+                    : _buildLoadingState(context),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLoadingState(BuildContext context) {
+    return const Center(
+      child: CircularProgressIndicator(),
+    ).paddingAll(48);
+  }
+
+  Widget _buildErrorState(BuildContext context, Object error) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 16,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 48,
+            color: context.theme.colorScheme.error,
+          ),
+          Text(
+            LocaleKeys.something_went_wrong.tr(),
+            style: context.textTheme.titleMedium,
+          ),
+        ],
+      ).paddingAll(48),
     );
   }
 
@@ -72,7 +71,7 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildHeader(context, package),
+        _PackageDetailHeader(package: package),
         Flexible(
           child: SingleChildScrollView(
             padding: 16.all,
@@ -80,8 +79,8 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 20,
               children: [
-                _buildBasicInfo(context, package),
-                _buildRoundsSection(context, package),
+                _PackageBasicInfo(package: package),
+                _PackageRoundsSection(package: package),
               ],
             ),
           ),
@@ -89,8 +88,15 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
       ],
     );
   }
+}
 
-  Widget _buildHeader(BuildContext context, OqPackage package) {
+class _PackageDetailHeader extends StatelessWidget {
+  const _PackageDetailHeader({required this.package});
+
+  final OqPackage package;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: 16.all,
       decoration: BoxDecoration(
@@ -136,23 +142,34 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
               ],
             ),
           ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildBasicInfo(BuildContext context, OqPackage package) {
+class _PackageBasicInfo extends StatelessWidget {
+  const _PackageBasicInfo({required this.package});
+
+  final OqPackage package;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 12,
       children: [
-        if (package.description?.isNotEmpty ?? false)
+        if (!package.description.isEmptyOrNull)
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             spacing: 4,
             children: [
               Text(
-                LocaleKeys.oq_editor_package_description.tr(),
+                LocaleKeys.package_description.tr(),
                 style: context.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -167,32 +184,27 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
           spacing: 16,
           runSpacing: 8,
           children: [
-            _buildInfoChip(
-              context,
-              Icons.calendar_today,
-              DateFormat.yMMMd().format(package.createdAt),
+            _PackageInfoChip(
+              icon: Icons.calendar_today,
+              text: DateFormat.yMMMd().format(package.createdAt),
             ),
             if (package.language != null)
-              _buildInfoChip(
-                context,
-                Icons.language,
-                package.language!,
+              _PackageInfoChip(
+                icon: Icons.language,
+                text: package.language!,
               ),
             if (package.ageRestriction != AgeRestriction.none)
-              _buildInfoChip(
-                context,
-                Icons.shield_outlined,
-                package.ageRestriction.format(context)?.$1 ?? '',
+              _PackageInfoChip(
+                icon: Icons.shield_outlined,
+                text: package.ageRestriction.format(context)?.$1 ?? '',
               ),
-            _buildInfoChip(
-              context,
-              Icons.view_module_outlined,
-              LocaleKeys.rounds.plural(package.rounds.length),
+            _PackageInfoChip(
+              icon: Icons.view_module_outlined,
+              text: '${package.rounds.length} ${LocaleKeys.rounds.plural(package.rounds.length)}',
             ),
-            _buildInfoChip(
-              context,
-              Icons.quiz_outlined,
-              LocaleKeys.questions.plural(_getTotalQuestions(package)),
+            _PackageInfoChip(
+              icon: Icons.quiz_outlined,
+              text: '${_getTotalQuestions(package)} ${LocaleKeys.questions.plural(_getTotalQuestions(package))}',
             ),
           ],
         ),
@@ -202,7 +214,7 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
             spacing: 8,
             children: [
               Text(
-                LocaleKeys.oq_editor_package_tags.tr(),
+                LocaleKeys.package_tags.tr(),
                 style: context.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -213,7 +225,7 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
                 children: package.tags!
                     .map(
                       (tag) => Chip(
-                        label: Text(tag.tag),
+                        label: Text(tag),
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
                     )
@@ -225,7 +237,26 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
     );
   }
 
-  Widget _buildInfoChip(BuildContext context, IconData icon, String text) {
+  int _getTotalQuestions(OqPackage package) {
+    return package.rounds.fold<int>(
+      0,
+      (sum, round) => sum +
+          round.themes.fold<int>(
+            0,
+            (themeSum, theme) => themeSum + theme.questions.length,
+          ),
+    );
+  }
+}
+
+class _PackageInfoChip extends StatelessWidget {
+  const _PackageInfoChip({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -237,16 +268,20 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
         spacing: 6,
         children: [
           Icon(icon, size: 16),
-          Text(
-            text,
-            style: context.textTheme.bodyMedium,
-          ),
+          Text(text, style: context.textTheme.bodyMedium),
         ],
       ),
     );
   }
+}
 
-  Widget _buildRoundsSection(BuildContext context, OqPackage package) {
+class _PackageRoundsSection extends StatelessWidget {
+  const _PackageRoundsSection({required this.package});
+
+  final OqPackage package;
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 12,
@@ -257,18 +292,19 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        ...package.rounds.map(
-          (round) => _buildRoundCard(context, round, package),
-        ),
+        ...package.rounds.map((round) => _PackageRoundCard(round: round)),
       ],
     );
   }
+}
 
-  Widget _buildRoundCard(
-    BuildContext context,
-    PackageRound round,
-    OqPackage package,
-  ) {
+class _PackageRoundCard extends StatelessWidget {
+  const _PackageRoundCard({required this.round});
+
+  final PackageRound round;
+
+  @override
+  Widget build(BuildContext context) {
     final themeCount = round.themes.length;
     final questionCount = round.themes.fold<int>(
       0,
@@ -279,8 +315,6 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
       elevation: 0,
       color: context.theme.colorScheme.surfaceContainer,
       child: ExpansionTile(
-        initiallyExpanded:
-            package.rounds.length == 1 || round.themes.length == 1,
         title: Text(
           round.name,
           style: context.textTheme.titleSmall?.copyWith(
@@ -293,24 +327,30 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
           style: context.textTheme.bodySmall,
         ),
         children: round.themes
-            .map((theme) => _buildThemeItem(context, theme))
+            .map((theme) => _PackageThemeItem(theme: theme))
             .toList(),
       ),
     );
   }
+}
 
-  Widget _buildThemeItem(BuildContext context, PackageTheme theme) {
-    return ExpansionTile(
+class _PackageThemeItem extends StatelessWidget {
+  const _PackageThemeItem({required this.theme});
+
+  final PackageTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
       dense: true,
-      tilePadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-      childrenPadding: const EdgeInsets.only(bottom: 8, right: 8, left: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
       title: Text(
         theme.name,
         style: context.textTheme.bodyMedium?.copyWith(
           fontWeight: FontWeight.w500,
         ),
       ),
-      subtitle: theme.description?.isNotEmpty ?? false
+      subtitle: !theme.description.isEmptyOrNull
           ? Text(
               theme.description!,
               style: context.textTheme.bodySmall,
@@ -318,187 +358,10 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
               overflow: TextOverflow.ellipsis,
             )
           : null,
-      trailing: Chip(
-        label: Text(
-          '${theme.questions.length}',
-          style: context.textTheme.labelSmall,
-        ),
-        visualDensity: VisualDensity.compact,
+      trailing: ScoreText(
+        score: theme.questions.length,
+        textStyle: context.textTheme.labelSmall,
       ),
-      children: theme.questions
-          .map((question) => _buildQuestionItem(context, question))
-          .toList(),
-    );
-  }
-
-  Widget _buildQuestionItem(
-    BuildContext context,
-    PackageQuestionUnion question,
-  ) {
-    final hasQuestionFiles = question.questionFiles?.isNotEmpty ?? false;
-    final hasAnswerFiles = question.answerFiles?.isNotEmpty ?? false;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: 12.all,
-      decoration: BoxDecoration(
-        color: context.theme.colorScheme.surfaceContainerHigh.withValues(
-          alpha: 0.5,
-        ),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: context.theme.colorScheme.outline.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 8,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: context.theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '${question.price}',
-                  style: context.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: context.theme.colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (question.type?.name != QuestionType.simple.name)
-                Chip(
-                  label: Text(
-                    question.type?.name ?? '-',
-                    style: context.textTheme.labelSmall,
-                  ),
-                  visualDensity: VisualDensity.compact,
-                ),
-            ],
-          ),
-          if (!question.text.isEmptyOrNull)
-            Text(
-              question.text!,
-              style: context.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          if (hasQuestionFiles)
-            _buildMediaSection(
-              context,
-              LocaleKeys.oq_editor_question_media.tr(),
-              question.questionFiles!,
-            ),
-          if (!question.answerText.isEmptyOrNull)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                color: context.theme.colorScheme.tertiaryContainer.withValues(
-                  alpha: 0.3,
-                ),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    size: 16,
-                    color: context.theme.colorScheme.tertiary,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      question.answerText!,
-                      style: context.textTheme.bodySmall?.copyWith(
-                        color: context.theme.colorScheme.onTertiaryContainer,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (hasAnswerFiles)
-            _buildMediaSection(
-              context,
-              LocaleKeys.oq_editor_answer_media.tr(),
-              question.answerFiles!,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMediaSection(
-    BuildContext context,
-    String title,
-    List<PackageQuestionFile> files,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 6,
-      children: [
-        Text(
-          title,
-          style: context.textTheme.labelSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: context.theme.colorScheme.onSurface.withValues(alpha: 0.7),
-          ),
-        ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: files
-              .map((file) => _buildMediaPreview(context, file))
-              .toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMediaPreview(BuildContext context, PackageQuestionFile file) {
-    final mediaUrl = file.file.link;
-    if (mediaUrl == null) {
-      return _buildMediaError(context);
-    }
-
-    return MediaPreviewWidget.fromUrl(
-      url: mediaUrl,
-      type: file.file.type,
-    );
-  }
-
-  Widget _buildMediaError(BuildContext context) {
-    return Container(
-      width: 80,
-      height: 80,
-      decoration: BoxDecoration(
-        color: context.theme.colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Center(
-        child: Icon(
-          Icons.broken_image,
-          size: 32,
-          color: context.theme.colorScheme.error,
-        ),
-      ),
-    );
-  }
-
-  int _getTotalQuestions(OqPackage package) {
-    return package.rounds.fold<int>(
-      0,
-      (sum, round) =>
-          sum +
-          round.themes.fold<int>(
-            0,
-            (themeSum, theme) => themeSum + theme.questions.length,
-          ),
     );
   }
 }

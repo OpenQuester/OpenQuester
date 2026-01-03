@@ -25,9 +25,9 @@ abstract class PackageSearchFilters with _$PackageSearchFilters {
 
   /// Checks if any filters are active
   bool get hasActiveFilters =>
-      title != null ||
-      description != null ||
-      language != null ||
+      !title.isEmptyOrNull ||
+      !description.isEmptyOrNull ||
+      !language.isEmptyOrNull ||
       authorId != null ||
       (tags?.isNotEmpty ?? false) ||
       ageRestriction != null ||

@@ -86,3 +86,15 @@ class VideoPlayerUtils {
     final clamped = linear.clamp(0.0, maxVol);
     return minVol * math.exp(_b * (clamped as double));
   }
+
+/// Extension methods for VideoPlayerController
+extension VideoPlayerControllerExtension on VideoPlayerController {
+  /// Toggles between play and pause states
+  Future<void> playPause() async {
+    if (value.isPlaying) {
+      await pause();
+    } else {
+      await play();
+    }
+  }
+}

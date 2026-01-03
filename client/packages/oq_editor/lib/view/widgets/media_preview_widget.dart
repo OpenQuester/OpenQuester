@@ -167,10 +167,10 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
 
     Widget imageWidget;
     if (url != null) {
-      imageWidget = Image.network(
-        url,
+      imageWidget = ImageWidget(
+        url: url,
         fit: widget.fit,
-        errorBuilder: (context, error, stackTrace) => _buildErrorPreview(),
+        placeholder: _buildErrorPreview(),
       );
     } else {
       // Use bytes if available (works on both web and native)
@@ -309,7 +309,7 @@ class _UrlVideoPreviewState extends State<_UrlVideoPreview> {
     try {
       final (controller, tmpFile) = await VideoPlayerUtils.createController(
         url: widget.url,
-        fileExtension: 'webm',
+        fileExtension: MediaFileExtension.webm.extension,
       );
       _controller = controller;
       _tmpFile = tmpFile;
@@ -439,7 +439,7 @@ class _UrlAudioPreviewState extends State<_UrlAudioPreview> {
     try {
       final (controller, tmpFile) = await VideoPlayerUtils.createController(
         url: widget.url,
-        fileExtension: 'webm',
+        fileExtension: MediaFileExtension.webm.extension,
       );
       _controller = controller;
       _tmpFile = tmpFile;
@@ -580,13 +580,7 @@ class _VideoControlsState extends State<_VideoControls> {
                   value.isPlaying ? Icons.pause : Icons.play_arrow,
                   color: Colors.white,
                 ),
-                onPressed: () {
-                  if (value.isPlaying) {
-                    widget.controller.pause().ignore();
-                  } else {
-                    widget.controller.play().ignore();
-                  }
-                },
+                onPressed: () => widget.controller.playPause().ignore(),
               ),
               Text(
                 _formatDuration(value.position),
