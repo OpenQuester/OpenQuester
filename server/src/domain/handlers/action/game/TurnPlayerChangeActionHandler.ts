@@ -1,9 +1,4 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -37,15 +32,6 @@ export class TurnPlayerChangeActionHandler
       newTurnPlayerId: payload.newTurnPlayerId,
     };
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.TURN_PLAYER_CHANGED,
-        data: broadcastData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: result.game.id,
-      },
-    ];
-
-    return { success: true, data: broadcastData, broadcasts };
+    return { success: true, data: broadcastData, broadcasts: result.broadcasts };
   }
 }

@@ -1,24 +1,39 @@
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import {
+  SocketBroadcastTarget,
+  SocketEventBroadcast,
+} from "domain/handlers/socket/BaseSocketEventHandler";
+import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
+import {
+  QuestionSkipBroadcastData,
+  QuestionUnskipBroadcastData,
+} from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
 
 export interface GiveUpMutation {
   penalty: number;
-  playerAnswerResult: { player: number; score: number };
+  playerAnswerResult: GameStateAnsweredPlayerData;
 }
 
 export interface GiveUpResult {
+  data: QuestionSkipBroadcastData;
+  broadcasts: SocketEventBroadcast[];
   game: Game;
   playerId: number;
   gaveUp: true;
-  answerResult: { player: number; score: number };
+  answerResult: GameStateAnsweredPlayerData;
   timer: GameStateTimerDTO;
 }
 
 export interface RegularSkipResult {
+  data: QuestionSkipBroadcastData;
+  broadcasts: SocketEventBroadcast[];
   game: Game;
   playerId: number;
   gaveUp: false;
@@ -37,6 +52,13 @@ export interface RegularSkipBuildResultInput {
 }
 
 export interface UnskipBuildResultInput {
+  game: Game;
+  playerId: number;
+}
+
+export interface UnskipResult {
+  data: QuestionUnskipBroadcastData;
+  broadcasts: SocketEventBroadcast[];
   game: Game;
   playerId: number;
 }
@@ -107,11 +129,28 @@ export class PlayerSkipLogic {
 
   /**
    * Build result for give up scenario.
+   * Includes ANSWER_RESULT broadcast for the penalty.
    */
   public static buildGiveUpResult(input: GiveUpBuildResultInput): GiveUpResult {
     const { game, playerId, mutation, timer } = input;
 
+    const data: QuestionSkipBroadcastData = { playerId };
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event: SocketIOGameEvents.ANSWER_RESULT,
+        data: {
+          answerResult: mutation.playerAnswerResult,
+          timer,
+        },
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<QuestionAnswerResultEventPayload>,
+    ];
+
     return {
+      data,
+      broadcasts,
       game,
       playerId,
       gaveUp: true,
@@ -122,13 +161,27 @@ export class PlayerSkipLogic {
 
   /**
    * Build result for regular skip scenario.
+   * Includes QUESTION_SKIP broadcast.
    */
   public static buildRegularSkipResult(
     input: RegularSkipBuildResultInput
   ): RegularSkipResult {
     const { game, playerId } = input;
 
+    const data: QuestionSkipBroadcastData = { playerId };
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event: SocketIOGameEvents.QUESTION_SKIP,
+        data,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<QuestionSkipBroadcastData>,
+    ];
+
     return {
+      data,
+      broadcasts,
       game,
       playerId,
       gaveUp: false,
@@ -137,14 +190,25 @@ export class PlayerSkipLogic {
 
   /**
    * Build result for unskip scenario.
+   * Includes QUESTION_UNSKIP broadcast.
    */
-  public static buildUnskipResult(input: UnskipBuildResultInput): {
-    game: Game;
-    playerId: number;
-  } {
+  public static buildUnskipResult(input: UnskipBuildResultInput): UnskipResult {
     const { game, playerId } = input;
 
+    const data: QuestionUnskipBroadcastData = { playerId };
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event: SocketIOGameEvents.QUESTION_UNSKIP,
+        data,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<QuestionUnskipBroadcastData>,
+    ];
+
     return {
+      data,
+      broadcasts,
       game,
       playerId,
     };

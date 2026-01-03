@@ -19,18 +19,37 @@ import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { GameJoinLogic } from "domain/logic/game/GameJoinLogic";
-import { GameStartLogic } from "domain/logic/game/GameStartLogic";
+import {
+  GameStartLogic,
+  GameStartResult,
+} from "domain/logic/game/GameStartLogic";
 import { PlayerReadinessLogic } from "domain/logic/game/PlayerReadinessLogic";
-import { PlayerRestrictionLogic } from "domain/logic/game/PlayerRestrictionLogic";
-import { PlayerRoleChangeLogic } from "domain/logic/game/PlayerRoleChangeLogic";
-import { PlayerScoreChangeLogic } from "domain/logic/game/PlayerScoreChangeLogic";
-import { PlayerSlotChangeLogic } from "domain/logic/game/PlayerSlotChangeLogic";
+import {
+  PlayerRestrictionLogic,
+  PlayerRestrictionResult,
+  RestrictionUpdateInput,
+} from "domain/logic/game/PlayerRestrictionLogic";
+import {
+  PlayerRoleChangeLogic,
+  RoleChangeResult,
+} from "domain/logic/game/PlayerRoleChangeLogic";
+import {
+  PlayerScoreChangeLogic,
+  PlayerScoreChangeResult,
+} from "domain/logic/game/PlayerScoreChangeLogic";
+import {
+  PlayerSlotChangeLogic,
+  PlayerSlotChangeResult,
+} from "domain/logic/game/PlayerSlotChangeLogic";
 import { RoundProgressionLogic } from "domain/logic/game/RoundProgressionLogic";
-import { TurnPlayerChangeLogic } from "domain/logic/game/TurnPlayerChangeLogic";
-import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
+import {
+  TurnPlayerChangeLogic,
+  TurnPlayerChangeResult,
+} from "domain/logic/game/TurnPlayerChangeLogic";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { GameLobbyLeaveData } from "domain/types/game/GameRoomLeaveData";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -171,16 +190,30 @@ export class SocketIOGameService {
       });
     }
 
-    return game;
+    return GameStartLogic.buildResult(game);
   }
 
-  public async leaveLobby(socketId: string): Promise<GameLobbyLeaveData> {
+  public async leaveLobby(
+    socketId: string,
+    reason: PlayerLeaveReason = PlayerLeaveReason.LEAVE
+  ): Promise<GameLobbyLeaveData> {
     const result = await this.playerLeaveService.handlePlayerLeave(socketId, {
-      reason: PlayerLeaveReason.LEAVE,
+      reason,
     });
 
     if (!result.shouldEmitLeave) {
       return { emit: false };
+    }
+
+    const activePlayers = result.game.players.filter(
+      (p) => p.gameStatus === PlayerGameStatus.IN_GAME
+    );
+
+    const gameNotStartedOrFinished =
+      result.game.startedAt === null || result.game.finishedAt !== null;
+
+    if (activePlayers.length === 0 && gameNotStartedOrFinished) {
+      await this.deleteGameInternally(result.game.id);
     }
 
     return {
@@ -308,7 +341,9 @@ export class SocketIOGameService {
     });
   }
 
-  public async handleAutoStart(gameId: string) {
+  public async handleAutoStart(
+    gameId: string
+  ): Promise<GameStartResult | null> {
     // Use existing start game logic but fetch game by ID
     const game = await this.gameService.getGameEntity(gameId);
 
@@ -329,10 +364,7 @@ export class SocketIOGameService {
     game.gameState = gameState;
     await this.gameService.updateGame(game);
 
-    return {
-      game,
-      gameState,
-    };
+    return GameStartLogic.buildResult(game);
   }
 
   /**
@@ -342,7 +374,7 @@ export class SocketIOGameService {
     socketId: string,
     newRole: PlayerRole,
     targetPlayerId: number | null
-  ): Promise<{ game: Game; targetPlayer: PlayerDTO; players: PlayerDTO[] }> {
+  ): Promise<RoleChangeResult> {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
@@ -405,14 +437,8 @@ export class SocketIOGameService {
   public async updatePlayerRestrictions(
     socketId: string,
     targetPlayerId: number,
-    restrictions: { muted: boolean; restricted: boolean; banned: boolean }
-  ): Promise<{
-    game: Game;
-    targetPlayer: PlayerDTO;
-    wasRemoved: boolean;
-    newRole?: PlayerRole;
-    gameStateCleanupBroadcasts?: BroadcastEvent[];
-  }> {
+    restrictions: RestrictionUpdateInput
+  ): Promise<PlayerRestrictionResult> {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
@@ -453,6 +479,7 @@ export class SocketIOGameService {
       return PlayerRestrictionLogic.buildBanResult({
         game: leaveResult.game,
         targetPlayer,
+        restrictions,
       });
     }
 
@@ -478,13 +505,18 @@ export class SocketIOGameService {
         game,
         targetPlayer,
         newRole: mutation.newRole!,
+        restrictions,
         gameStateCleanupBroadcasts,
       });
     }
 
     // Simple restriction update (no role change)
     await this.gameService.updateGame(game);
-    return PlayerRestrictionLogic.buildSimpleResult({ game, targetPlayer });
+    return PlayerRestrictionLogic.buildSimpleResult({
+      game,
+      targetPlayer,
+      restrictions,
+    });
   }
 
   /**
@@ -579,7 +611,7 @@ export class SocketIOGameService {
     socketId: string,
     targetPlayerId: number,
     newScore: number
-  ): Promise<{ game: Game; targetPlayerId: number; newScore: number }> {
+  ): Promise<PlayerScoreChangeResult> {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
@@ -622,7 +654,7 @@ export class SocketIOGameService {
   public async changeTurnPlayer(
     socketId: string,
     newTurnPlayerId: number | null
-  ): Promise<{ game: Game; newTurnPlayerId: number | null }> {
+  ): Promise<TurnPlayerChangeResult> {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
@@ -658,12 +690,7 @@ export class SocketIOGameService {
     socketId: string,
     targetSlot: number,
     targetPlayerId?: number
-  ): Promise<{
-    game: Game;
-    playerId: number;
-    newSlot: number;
-    updatedPlayers: PlayerDTO[];
-  }> {
+  ): Promise<PlayerSlotChangeResult> {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
@@ -720,13 +747,6 @@ export class SocketIOGameService {
    */
   public async deleteGameInternally(gameId: string) {
     await this.gameService.deleteInternally(gameId);
-  }
-
-  /**
-   * Helper method to get first free slot index
-   */
-  private _getFirstFreeSlotIndex(game: Game): number {
-    return PlayerRoleChangeLogic.getFirstFreeSlot(game);
   }
 
   public async getGameStateBroadcastMap(

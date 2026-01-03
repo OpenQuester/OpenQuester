@@ -50,6 +50,7 @@ class GameQuestionController {
         if (!ignoreWaitingForPlayers) {
           getIt<GameLobbyController>().notifyMediaDownloaded();
         }
+        logger.d('GameQuestionController: No media file for question ');
         return;
       }
 
@@ -80,8 +81,10 @@ class GameQuestionController {
         controller = videoController;
         _tmpFile = tmpFile;
 
-        await controller.setVolume(VideoPlayerUtils.toLogVolume(volume.value));
-        await controller.initialize();
+        await videoController.setVolume(
+          VideoPlayerUtils.toLogVolume(volume.value),
+        );
+        await videoController.initialize();
 
         final waitMs = questionData.value?.file?.displayTime;
         if (waitMs != null) {
@@ -103,6 +106,7 @@ class GameQuestionController {
       }
     } catch (e) {
       error.value = getIt<GameLobbyController>().onError(e);
+      logger.e('GameQuestionController: Failed to load media: $e');
     }
     // TODO: Start slideshow timer
   }

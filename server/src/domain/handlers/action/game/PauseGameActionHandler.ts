@@ -1,9 +1,4 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -25,21 +20,12 @@ export class PauseGameActionHandler
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<GamePauseBroadcastData>> {
-    const { game, timer } = await this.socketIOGameService.handleGamePause(
+    const result = await this.socketIOGameService.handleGamePause(
       action.socketId
     );
 
-    const pauseData: GamePauseBroadcastData = { timer };
+    const pauseData: GamePauseBroadcastData = { timer: result.data.timer };
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.GAME_PAUSE,
-        data: pauseData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      },
-    ];
-
-    return { success: true, data: pauseData, broadcasts };
+    return { success: true, data: pauseData, broadcasts: result.broadcasts };
   }
 }

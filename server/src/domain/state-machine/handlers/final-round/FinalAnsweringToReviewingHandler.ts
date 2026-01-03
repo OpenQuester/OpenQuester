@@ -88,9 +88,14 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     const allReviews =
       FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
 
+    // Check if all answers are already reviewed (all auto-loss)
+    const allAnswersReviewed =
+      FinalRoundStateManager.areAllAnswersReviewed(game);
+
     return {
       data: {
         allReviews,
+        allAnswersReviewed,
       },
     };
   }
@@ -114,13 +119,16 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     const allReviews = mutationResult.data?.allReviews as
       | AnswerReviewData[]
       | undefined;
+    const allAnswersReviewed = mutationResult.data
+      ?.allAnswersReviewed as boolean;
 
     // Emit phase completion event with all reviews
     broadcasts.push({
       event: SocketIOGameEvents.FINAL_SUBMIT_END,
       data: {
         phase: FinalRoundPhase.ANSWERING,
-        nextPhase: FinalRoundPhase.REVIEWING,
+        // If all answers already reviewed (all auto-loss), game will finish immediately
+        nextPhase: allAnswersReviewed ? undefined : FinalRoundPhase.REVIEWING,
         allReviews,
       } satisfies FinalSubmitEndEventData,
       room: ctx.game.id,

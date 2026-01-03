@@ -1,9 +1,4 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -39,18 +34,9 @@ export class PlayerScoreChangeActionHandler
 
     const broadcastData: PlayerScoreChangeBroadcastData = {
       playerId: payload.playerId,
-      newScore: result.newScore,
+      newScore: result.data.newScore,
     };
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.SCORE_CHANGED,
-        data: broadcastData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: result.game.id,
-      },
-    ];
-
-    return { success: true, data: broadcastData, broadcasts };
+    return { success: true, data: broadcastData, broadcasts: result.broadcasts };
   }
 }

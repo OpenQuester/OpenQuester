@@ -1,7 +1,10 @@
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerType } from "domain/enums/FinalRoundTypes";
-import { AnswerData, AnswerReviewData } from "domain/types/socket/finalround/FinalRoundResults";
+import {
+  AnswerData,
+  AnswerReviewData,
+} from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundStateManager } from "./FinalRoundStateManager";
 
 export interface FinalAnswerSubmitPhaseCheck {
@@ -56,12 +59,12 @@ export class FinalRoundPhaseCompletionHelper {
         return this.createAnswerReviewData(
           answer,
           scoreChange,
-          answer.isCorrect!
+          answer.isCorrect
         );
       }
 
-      // For unreviewed answers, create review data without score change
-      return this.createAnswerReviewData(answer, 0, false);
+      // For unreviewed answers, create review data
+      return this.createAnswerReviewData(answer, 0, null);
     });
   }
 
@@ -71,11 +74,13 @@ export class FinalRoundPhaseCompletionHelper {
   public static createAnswerReviewData(
     answer: AnswerData,
     scoreChange: number,
-    isCorrect: boolean
+    isCorrect: boolean | null
   ): AnswerReviewData {
     let answerType: FinalAnswerType;
     if (answer.autoLoss) {
       answerType = FinalAnswerType.AUTO_LOSS;
+    } else if (isCorrect === null) {
+      answerType = FinalAnswerType.PENDING;
     } else if (isCorrect) {
       answerType = FinalAnswerType.CORRECT;
     } else {
