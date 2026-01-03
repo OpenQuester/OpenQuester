@@ -44,6 +44,29 @@ export class GameIndexManager {
     return pipeline;
   }
 
+  public updateGameIndexesPipeline(
+    pipeline: ChainableCommander,
+    previous: GameIndexesInputDTO,
+    next: GameIndexesInputDTO
+  ): ChainableCommander {
+    // Privacy index
+    pipeline.srem(this._privacyIndexKey(previous.isPrivate), previous.id);
+    pipeline.sadd(this._privacyIndexKey(next.isPrivate), next.id);
+
+    // Title index
+    pipeline.zrem(
+      this._titleIndexKey,
+      `${previous.title.toLowerCase()}:${previous.id}`
+    );
+    pipeline.zadd(
+      this._titleIndexKey,
+      0,
+      `${next.title.toLowerCase()}:${next.id}`
+    );
+
+    return pipeline;
+  }
+
   public async removeGameFromIndexes(
     gameId: string,
     gameData: GameIndexesInputDTO

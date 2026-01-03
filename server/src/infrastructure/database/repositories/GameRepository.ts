@@ -16,6 +16,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { GameMapper } from "domain/mappers/GameMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
+import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
@@ -23,6 +24,7 @@ import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
+import { PasswordUtils } from "domain/utils/PasswordUtils";
 import { GameRedisValidator } from "domain/validators/GameRedisValidator";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
 import { User } from "infrastructure/database/models/User";
@@ -73,6 +75,24 @@ export class GameRepository {
       GameMapper.serializeGameToHash(game),
       GAME_TTL_IN_SECONDS
     );
+  }
+
+  public async updateGameWithIndexes(
+    game: Game,
+    previousIndexData: GameIndexesInputDTO
+  ): Promise<void> {
+    const key = this.getGameKey(game.id);
+    const pipeline = this.redisService.pipeline();
+
+    pipeline.hset(key, GameMapper.serializeGameToHash(game));
+    this.gameIndexManager.updateGameIndexesPipeline(
+      pipeline,
+      previousIndexData,
+      game.toIndexData()
+    );
+    pipeline.expire(key, GAME_TTL_IN_SECONDS);
+
+    await pipeline.exec();
   }
 
   private async _isGameExists(gameId: string) {
@@ -207,6 +227,14 @@ export class GameRepository {
       fetchIds: true,
     });
 
+    const initialGameState = GameStateMapper.initGameState();
+
+    // Handle password for private games
+    if (gameData.isPrivate) {
+      initialGameState.password =
+        gameData.password || PasswordUtils.generateGamePassword();
+    }
+
     const game = new Game(
       {
         id: gameId,
@@ -222,7 +250,7 @@ export class GameRepository {
         roundsCount: counts.roundsCount,
         questionsCount: counts.questionsCount,
         players: [],
-        gameState: GameStateMapper.initGameState(),
+        gameState: initialGameState,
       },
       this.logger
     );

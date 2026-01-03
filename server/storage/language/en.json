@@ -33,6 +33,7 @@
   "oauth_provider_not_supported": "Given Oauth provider is not supported",
   "session_saving_error": "Something went wrong during session save, please try again",
   "game_data_corrupted": "Game data is corrupted",
+  "game_join_password_invalid": "Password is incorrect",
   "socket_user_not_authenticated": "Socket client (user) is not authenticated",
   "user_data_corrupted": "User data is corrupted",
   "already_in_game": "You are already in this game",
@@ -89,6 +90,7 @@
   "final_round_invalid_question_type": "Invalid question type for final round",
   "insufficient_permissions": "Insufficient permissions to perform this action",
   "invalid_input": "Invalid input provided",
+  "cannot_set_max_players_below_current": "Cannot set max players below current number of players",
   "only_players_can_skip": "Only players can skip the question",
   "cannot_skip_while_answering": "You cannot skip while answering",
   "already_answered_question": "You have already answered this question",
@@ -116,5 +118,6 @@
   "cannot_join_final_round_as_player": "You cannot join as a player during final round",
   "package_search_rounds_min_more_max": "In package search, 'minRounds' cannot be greater than 'maxRounds'",
   "package_search_questions_min_more_max": "In package search, 'minQuestions' cannot be greater than 'maxQuestions'",
-  "only_showman_skip_show_answer": "Only showman can skip the show answer phase"
+  "only_showman_skip_show_answer": "Only showman can skip the show answer phase",
+  "game_started_cannot_change_package": "Cannot change game package after the game has started"
 }

@@ -5,12 +5,14 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
+import { GameUpdateDTO } from "domain/types/dto/game/GameUpdateDTO";
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import {
   createGameScheme,
   gameIdScheme,
   gamePaginationScheme,
+  updateGameScheme,
 } from "presentation/schemes/game/gameSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
@@ -26,6 +28,7 @@ export class GameRestApiController {
     router.get(`/`, asyncHandler(this.listGames));
     router.post(`/`, asyncHandler(this.createGame));
     router.get(`/:gameId`, asyncHandler(this.getGame));
+    router.patch(`/:gameId`, asyncHandler(this.updateGame));
     router.delete(`/:gameId`, asyncHandler(this.deleteGame));
   }
 
@@ -72,6 +75,29 @@ export class GameRestApiController {
     }
 
     const result = await this.gameService.create(req, gameCreateDTO);
+    return res.status(HttpStatus.OK).send(result);
+  };
+
+  private updateGame = async (req: Request, res: Response) => {
+    const validatedParams = new RequestDataValidator<{ gameId: string }>(
+      { gameId: req.params.gameId },
+      gameIdScheme()
+    ).validate();
+
+    const updateDTO = new RequestDataValidator<GameUpdateDTO>(
+      req.body,
+      updateGameScheme()
+    ).validate();
+
+    if (Object.keys(updateDTO).length < 1) {
+      throw new ClientError(ClientResponse.NO_GAME_DATA);
+    }
+
+    const result = await this.gameService.update(
+      req,
+      validatedParams.gameId,
+      updateDTO
+    );
     return res.status(HttpStatus.OK).send(result);
   };
 }
