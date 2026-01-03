@@ -9,6 +9,7 @@ import {
 import { LIMIT_MAX, LIMIT_MIN, OFFSET_MIN } from "domain/constants/pagination";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameRedisHashDTO } from "domain/types/dto/game/GameRedisHashDTO";
+import { GameUpdateDTO } from "domain/types/dto/game/GameUpdateDTO";
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 
@@ -29,6 +30,30 @@ export const createGameScheme = () =>
     isPrivate: Joi.boolean().required(),
     ageRestriction: Joi.valid(...Object.values(AgeRestriction)).required(),
     maxPlayers: Joi.number().max(GAME_MAX_PLAYERS).required(),
+    password: Joi.string()
+      .max(16)
+      .pattern(/^[A-Za-z0-9_-]+$/)
+      .optional(),
+  });
+
+export const updateGameScheme = () =>
+  Joi.object<GameUpdateDTO>({
+    title: Joi.string()
+      .min(GAME_TITLE_MIN_CHARS)
+      .max(GAME_TITLE_MAX_CHARS)
+      .optional(),
+    packageId: Joi.number().optional(),
+    isPrivate: Joi.boolean().optional(),
+    ageRestriction: Joi.valid(...Object.values(AgeRestriction)).optional(),
+    maxPlayers: Joi.number().max(GAME_MAX_PLAYERS).optional(),
+    password: Joi.alternatives()
+      .try(
+        Joi.string()
+          .max(16)
+          .pattern(/^[A-Za-z0-9_-]+$/),
+        Joi.valid(null)
+      )
+      .optional(),
   });
 
 export const gamePaginationScheme = () =>

@@ -35,4 +35,6 @@ export interface GameStateDTO {
   secretQuestionData?: SecretQuestionGameData | null;
   /** Stake question specific data - only set when a stake question is picked */
   stakeQuestionData?: StakeQuestionGameData | null;
+  /** Game password - only visible to players who have joined the game */
+  password?: string | null;
 }

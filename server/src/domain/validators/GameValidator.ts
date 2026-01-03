@@ -45,6 +45,10 @@ export class GameValidator {
         .allow(null)
         .optional()
         .default(null),
+      password: Joi.string()
+        .max(16)
+        .pattern(/^[A-Za-z0-9_-]+$/)
+        .optional(),
     });
 
     return this._validate<GameJoinData>(data, schema);
