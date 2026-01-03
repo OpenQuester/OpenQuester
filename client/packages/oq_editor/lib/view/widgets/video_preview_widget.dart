@@ -18,7 +18,7 @@ class VideoPreviewWidget extends StatefulWidget {
   });
 
   final MediaFileReference mediaFile;
-  final double size;
+  final double? size;
 
   @override
   State<VideoPreviewWidget> createState() => _VideoPreviewWidgetState();
@@ -172,7 +172,7 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
                       child: Icon(
                         Icons.play_arrow,
                         color: Colors.white,
-                        size: widget.size * 0.4,
+                        size: (widget.size ?? 80) * 0.4,
                       ),
                     ),
                   ),
@@ -220,8 +220,8 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
   Widget _buildLoadingPreview(BuildContext context) {
     return Center(
       child: SizedBox(
-        width: widget.size * 0.4,
-        height: widget.size * 0.4,
+        width: (widget.size ?? 80) * 0.4,
+        height: (widget.size ?? 80) * 0.4,
         child: CircularProgressIndicator(
           strokeWidth: 2,
           color: Theme.of(context).colorScheme.primary,
@@ -234,7 +234,7 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
     return Center(
       child: Icon(
         Icons.video_library,
-        size: widget.size * 0.5,
+        size: (widget.size ?? 80) * 0.5,
         color: Theme.of(context).colorScheme.error,
       ),
     );

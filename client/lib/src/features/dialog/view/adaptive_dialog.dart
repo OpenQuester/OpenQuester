@@ -6,11 +6,13 @@ class AdaptiveDialog extends StatefulWidget {
     required this.builder,
     this.allowBottomSheet = true,
     this.constraints,
+    this.useScrollView = true,
     super.key,
   });
   final Widget Function(BuildContext) builder;
   final bool allowBottomSheet;
   final BoxConstraints? constraints;
+  final bool useScrollView;
 
   @override
   State<AdaptiveDialog> createState() => _AdaptiveDialogState();
@@ -27,11 +29,13 @@ class _AdaptiveDialogState extends State<AdaptiveDialog>
         GestureDetector(
           // do nothing to swallows the tap
           onTap: () {},
-          child: ListView(
-            controller: scrollController,
-            shrinkWrap: true,
-            children: [widget.builder(context)],
-          ),
+          child: widget.useScrollView
+              ? ListView(
+                  controller: scrollController,
+                  shrinkWrap: true,
+                  children: [widget.builder(context)],
+                )
+              : widget.builder(context),
         );
 
     return Material(

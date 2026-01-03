@@ -4,6 +4,7 @@ library;
 
 export 'data/consts.dart';
 export 'data/user_error.dart';
+export 'enums/media_file_extension.dart';
 export 'interfaces/base_logger.dart';
 export 'ui/blur_dialog_route.dart';
 export 'ui/bottom_inset_padding.dart';
@@ -19,3 +20,4 @@ export 'ui/max_size_container.dart';
 export 'ui/ui_mode_utils.dart';
 export 'utils/extensions.dart';
 export 'utils/media_file_utils.dart';
+export 'utils/video_player_utils.dart';

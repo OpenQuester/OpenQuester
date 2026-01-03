@@ -18,7 +18,7 @@ class AudioPreviewWidget extends StatefulWidget {
   });
 
   final MediaFileReference mediaFile;
-  final double size;
+  final double? size;
 
   @override
   State<AudioPreviewWidget> createState() => _AudioPreviewWidgetState();
@@ -225,7 +225,7 @@ class _AudioPreviewWidgetState extends State<AudioPreviewWidget> {
                 child: Icon(
                   value.isPlaying ? Icons.pause : Icons.play_arrow,
                   color: Theme.of(context).colorScheme.onPrimary,
-                  size: widget.size * 0.35,
+                  size: (widget.size ?? 80) * 0.35,
                 ),
               );
             },
@@ -247,8 +247,8 @@ class _AudioPreviewWidgetState extends State<AudioPreviewWidget> {
 
   Widget _buildLoadingIndicator(BuildContext context) {
     return SizedBox(
-      width: widget.size * 0.4,
-      height: widget.size * 0.4,
+      width: (widget.size ?? 80) * 0.4,
+      height: (widget.size ?? 80) * 0.4,
       child: CircularProgressIndicator(
         strokeWidth: 2,
         color: Theme.of(context).colorScheme.primary,
@@ -259,7 +259,7 @@ class _AudioPreviewWidgetState extends State<AudioPreviewWidget> {
   Widget _buildErrorIcon(BuildContext context) {
     return Icon(
       Icons.music_off,
-      size: widget.size * 0.5,
+      size: (widget.size ?? 80) * 0.5,
       color: Theme.of(context).colorScheme.error,
     );
   }

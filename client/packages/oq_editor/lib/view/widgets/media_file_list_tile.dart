@@ -45,12 +45,9 @@ class MediaFileListTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ListTile(
-                leading: GestureDetector(
-                  onTap: () => MediaPreviewDialog.show(context, mediaFile),
-                  child: MediaPreviewWidget(
-                    mediaFile: mediaFile.reference,
-                    type: mediaFile.type,
-                  ),
+                leading: MediaPreviewWidget(
+                  mediaFile: mediaFile.reference,
+                  type: mediaFile.type,
                 ),
                 title: overflow ? null : title,
                 subtitle: overflow ? null : subtitle,
