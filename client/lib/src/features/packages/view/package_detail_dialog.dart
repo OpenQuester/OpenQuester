@@ -1,5 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
+import 'package:oq_editor/models/media_file_reference.dart';
+import 'package:oq_editor/view/widgets/media_preview_widget.dart';
+
+typedef MediaReferenceProvider = MediaFileReference Function(String url);
 
 @RoutePage(deferredLoading: false)
 class PackageDetailDialog extends StatefulWidget {
@@ -13,6 +19,7 @@ class PackageDetailDialog extends StatefulWidget {
 
 class _PackageDetailDialogState extends State<PackageDetailDialog> {
   late final Future<OqPackage> _packageFuture;
+  final _mediaReferences = <String, MediaFileReference>{};
 
   @override
   void initState() {
@@ -21,30 +28,42 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
   }
 
   @override
+  void dispose() {
+    for (final ref in _mediaReferences.values) {
+      unawaited(ref.disposeController());
+    }
+    super.dispose();
+  }
+
+  MediaFileReference _getMediaReference(String url) {
+    return _mediaReferences.putIfAbsent(
+      url,
+      () => MediaFileReference(
+        platformFile: PlatformFile(name: 'remote', size: 0),
+        url: url,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AdaptiveDialog(
-      builder: (context) => ConstrainedBox(
-        constraints: const BoxConstraints(
-          minWidth: 400,
-          minHeight: 300,
-        ),
-        child: Card(
-          elevation: 0,
-          child: FutureBuilder<OqPackage>(
-            future: _packageFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return _buildLoadingState(context);
-              }
-              if (snapshot.hasError) {
-                return _buildErrorState(context, snapshot.error!);
-              }
-              if (snapshot.hasData) {
-                return _buildContent(context, snapshot.data!);
-              }
+      builder: (context) => Card(
+        elevation: 0,
+        child: FutureBuilder<OqPackage>(
+          future: _packageFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return _buildLoadingState(context);
-            },
-          ),
+            }
+            if (snapshot.hasError) {
+              return _buildErrorState(context, snapshot.error!);
+            }
+            if (snapshot.hasData) {
+              return _buildContent(context, snapshot.data!);
+            }
+            return _buildLoadingState(context);
+          },
         ),
       ),
     );
@@ -90,7 +109,10 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
               spacing: 20,
               children: [
                 _PackageBasicInfo(package: package),
-                _PackageRoundsSection(package: package),
+                _PackageRoundsSection(
+                  package: package,
+                  mediaProvider: _getMediaReference,
+                ),
               ],
             ),
           ),
@@ -152,9 +174,24 @@ class _PackageDetailHeader extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () => Navigator.of(context).pop(),
+          FilledButton.icon(
+            onPressed: () async {
+              await context.maybePop(
+                PackageListItem(
+                  id: package.id,
+                  title: package.title,
+                  description: package.description,
+                  createdAt: package.createdAt,
+                  author: package.author,
+                  ageRestriction: package.ageRestriction,
+                  language: package.language,
+                  logo: package.logo,
+                  tags: package.tags,
+                ),
+              );
+            },
+            icon: const Icon(Icons.add_task_rounded),
+            label: Text(LocaleKeys.select.tr()),
           ),
         ],
       ),
@@ -210,17 +247,11 @@ class _PackageBasicInfo extends StatelessWidget {
               ),
             _PackageInfoChip(
               icon: Icons.view_module_outlined,
-              text: [
-                package.rounds.length,
-                LocaleKeys.rounds.plural(package.rounds.length),
-              ].join(' '),
+              text: LocaleKeys.rounds.plural(package.rounds.length),
             ),
             _PackageInfoChip(
               icon: Icons.quiz_outlined,
-              text: [
-                _getTotalQuestions(package),
-                LocaleKeys.questions.plural(_getTotalQuestions(package)),
-              ].join(' '),
+              text: LocaleKeys.questions.plural(_getTotalQuestions(package)),
             ),
           ],
         ),
@@ -293,9 +324,13 @@ class _PackageInfoChip extends StatelessWidget {
 }
 
 class _PackageRoundsSection extends StatelessWidget {
-  const _PackageRoundsSection({required this.package});
+  const _PackageRoundsSection({
+    required this.package,
+    required this.mediaProvider,
+  });
 
   final OqPackage package;
+  final MediaReferenceProvider mediaProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -309,16 +344,25 @@ class _PackageRoundsSection extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        ...package.rounds.map((round) => _PackageRoundCard(round: round)),
+        ...package.rounds.map(
+          (round) => _PackageRoundCard(
+            round: round,
+            mediaProvider: mediaProvider,
+          ),
+        ),
       ],
     );
   }
 }
 
 class _PackageRoundCard extends StatelessWidget {
-  const _PackageRoundCard({required this.round});
+  const _PackageRoundCard({
+    required this.round,
+    required this.mediaProvider,
+  });
 
   final PackageRound round;
+  final MediaReferenceProvider mediaProvider;
 
   @override
   Widget build(BuildContext context) {
@@ -327,6 +371,7 @@ class _PackageRoundCard extends StatelessWidget {
       0,
       (sum, theme) => sum + theme.questions.length,
     );
+    final isFinalRound = round.type == PackageRoundType.valueFinal;
 
     return Card(
       elevation: 0,
@@ -339,12 +384,20 @@ class _PackageRoundCard extends StatelessWidget {
           ),
         ),
         subtitle: Text(
-          '${LocaleKeys.themes_count.tr(args: [themeCount.toString()])} • '
-          '${LocaleKeys.questions.plural(questionCount)}',
+          isFinalRound
+              ? LocaleKeys.themes_count.tr(args: [themeCount.toString()])
+              : '${LocaleKeys.themes_count.tr(args: [themeCount.toString()])}'
+                    ' • '
+                    '${LocaleKeys.questions.plural(questionCount)}',
           style: context.textTheme.bodySmall,
         ),
         children: round.themes
-            .map((theme) => _PackageThemeItem(theme: theme))
+            .map(
+              (theme) => _PackageThemeItem(
+                theme: theme,
+                mediaProvider: mediaProvider,
+              ),
+            )
             .toList(),
       ),
     );
@@ -352,32 +405,255 @@ class _PackageRoundCard extends StatelessWidget {
 }
 
 class _PackageThemeItem extends StatelessWidget {
-  const _PackageThemeItem({required this.theme});
+  const _PackageThemeItem({
+    required this.theme,
+    required this.mediaProvider,
+  });
 
   final PackageTheme theme;
+  final MediaReferenceProvider mediaProvider;
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-      title: Text(
-        theme.name,
-        style: context.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w500,
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: context.theme.colorScheme.surfaceContainerLow,
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        childrenPadding: const EdgeInsets.only(bottom: 8),
+        title: Text(
+          theme.name,
+          style: context.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        subtitle: !theme.description.isEmptyOrNull
+            ? Text(
+                theme.description!,
+                style: context.textTheme.bodySmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              )
+            : null,
+        trailing: ScoreText(
+          score: theme.questions.length,
+          textStyle: context.textTheme.labelSmall,
+        ),
+        children: theme.questions
+            .map(
+              (question) => _PackageQuestionItem(
+                question: question,
+                mediaProvider: mediaProvider,
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+}
+
+class _PackageQuestionItem extends StatelessWidget {
+  const _PackageQuestionItem({
+    required this.question,
+    required this.mediaProvider,
+  });
+
+  final PackageQuestionUnion question;
+  final MediaReferenceProvider mediaProvider;
+
+  @override
+  Widget build(BuildContext context) {
+    // Extract common question properties using pattern matching
+    final price = question.map(
+      simple: (q) => q.price,
+      stake: (q) => q.price,
+      secret: (q) => q.price,
+      noRisk: (q) => q.price,
+      choice: (q) => q.price,
+      hidden: (q) => q.price,
+    );
+    final order = question.map(
+      simple: (q) => q.order,
+      stake: (q) => q.order,
+      secret: (q) => q.order,
+      noRisk: (q) => q.order,
+      choice: (q) => q.order,
+      hidden: (q) => q.order,
+    );
+    final text = question.map(
+      simple: (q) => q.text,
+      stake: (q) => q.text,
+      secret: (q) => q.text,
+      noRisk: (q) => q.text,
+      choice: (q) => q.text,
+      hidden: (q) => q.text,
+    );
+    final questionFiles = question.map(
+      simple: (q) => q.questionFiles,
+      stake: (q) => q.questionFiles,
+      secret: (q) => q.questionFiles,
+      noRisk: (q) => q.questionFiles,
+      choice: (q) => q.questionFiles,
+      hidden: (q) => q.questionFiles,
+    );
+    final answerText = question.map(
+      simple: (q) => q.answerText,
+      stake: (q) => q.answerText,
+      secret: (q) => q.answerText,
+      noRisk: (q) => q.answerText,
+      choice: (q) => q.answerText,
+      hidden: (q) => q.answerText,
+    );
+    final answerFiles = question.map(
+      simple: (q) => q.answerFiles,
+      stake: (q) => q.answerFiles,
+      secret: (q) => q.answerFiles,
+      noRisk: (q) => q.answerFiles,
+      choice: (q) => q.answerFiles,
+      hidden: (q) => q.answerFiles,
+    );
+    const mediaSize = 200.0;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: 12.all,
+      decoration: BoxDecoration(
+        color: context.theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: context.theme.colorScheme.outline.withValues(alpha: 0.2),
         ),
       ),
-      subtitle: !theme.description.isEmptyOrNull
-          ? Text(
-              theme.description!,
-              style: context.textTheme.bodySmall,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            )
-          : null,
-      trailing: ScoreText(
-        score: theme.questions.length,
-        textStyle: context.textTheme.labelSmall,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 8,
+        children: [
+          // Question header with price
+          Row(
+            children: [
+              if (price != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: context.theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    price.toString(),
+                    style: context.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: context.theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ).paddingRight(8),
+              Expanded(
+                child: Text(
+                  '${LocaleKeys.oq_editor_question_text.tr()} #${order + 1}',
+                  style: context.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // Question text
+          if (!text.isEmptyOrNull)
+            Text(
+              text!,
+              style: context.textTheme.bodyMedium,
+            ),
+          // Question files
+          if (questionFiles?.isNotEmpty ?? false)
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: questionFiles!
+                  .map(
+                    (file) => MediaPreviewWidget(
+                      mediaFile: mediaProvider(file.file.link ?? ''),
+                      type: file.file.type,
+                      size: mediaSize,
+                      enablePlayback: true,
+                    ),
+                  )
+                  .toList(),
+            ),
+          // Answer section (hidden by default to avoid spoilers)
+          if (answerText != null || (answerFiles?.isNotEmpty ?? false))
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: ExpansionTile(
+                tilePadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                backgroundColor: context.theme.colorScheme.secondaryContainer
+                    .withValues(
+                      alpha: 0.3,
+                    ),
+                collapsedBackgroundColor: context
+                    .theme
+                    .colorScheme
+                    .secondaryContainer
+                    .withValues(
+                      alpha: 0.3,
+                    ),
+                title: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.visibility_outlined,
+                      size: 16,
+                      color: context.theme.colorScheme.secondary,
+                    ).paddingRight(4),
+                    Text(
+                      LocaleKeys.oq_editor_answer.tr(),
+                      style: context.textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: context.theme.colorScheme.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+                expandedAlignment: Alignment.centerLeft,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 8,
+                    children: [
+                      if (answerText != null)
+                        Text(
+                          answerText,
+                          style: context.textTheme.bodyMedium,
+                        ),
+                      if (answerFiles?.isNotEmpty ?? false)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: answerFiles!
+                              .map(
+                                (file) => MediaPreviewWidget(
+                                  mediaFile: mediaProvider(
+                                    file.file.link ?? '',
+                                  ),
+                                  type: file.file.type,
+                                  size: mediaSize,
+                                  enablePlayback: true,
+                                ),
+                              )
+                              .toList(),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

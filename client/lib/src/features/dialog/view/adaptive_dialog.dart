@@ -6,6 +6,7 @@ class AdaptiveDialog extends StatefulWidget {
     required this.builder,
     this.allowBottomSheet = true,
     this.constraints,
+    this.maxWidth,
     this.useScrollView = true,
     super.key,
   });
@@ -13,6 +14,7 @@ class AdaptiveDialog extends StatefulWidget {
   final bool allowBottomSheet;
   final BoxConstraints? constraints;
   final bool useScrollView;
+  final double? maxWidth;
 
   @override
   State<AdaptiveDialog> createState() => _AdaptiveDialogState();
@@ -38,6 +40,8 @@ class _AdaptiveDialogState extends State<AdaptiveDialog>
               : widget.builder(context),
         );
 
+    final maxWidth = widget.maxWidth ?? UiModeUtils.maximumDialogWidth(context);
+
     return Material(
       color: Colors.transparent,
       child: GestureDetector(
@@ -49,9 +53,15 @@ class _AdaptiveDialogState extends State<AdaptiveDialog>
                 ? widget.constraints != null
                       ? ConstrainedBox(
                           constraints: widget.constraints!,
-                          child: DialogContainer(child: builder(context, null)),
+                          child: DialogContainer(
+                            maxWidth: maxWidth,
+                            child: builder(context, null),
+                          ),
                         ).center()
-                      : DialogContainer(child: builder(context, null))
+                      : DialogContainer(
+                          maxWidth: maxWidth,
+                          child: builder(context, null),
+                        )
                 : Align(
                     alignment: Alignment.bottomCenter,
                     child: Column(

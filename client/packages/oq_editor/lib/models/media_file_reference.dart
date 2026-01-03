@@ -23,6 +23,9 @@ class MediaFileReference {
   /// This allows preview and dialog to use the same controller
   VideoPlayerController? sharedController;
 
+  /// Temporary file created for remote media playback (needs cleanup)
+  File? tempFile;
+
   /// Cached MD5 hash
   String? _cachedHash;
 
@@ -50,6 +53,9 @@ class MediaFileReference {
       // Read file from path if bytes not available
       final file = await _readAndHash(platformFile.path!);
       _cachedHash = file;
+    } else if (url != null) {
+      // For remote files, use URL hash
+      _cachedHash = md5.convert(url!.codeUnits).toString();
     } else {
       throw Exception('Cannot calculate hash: no bytes or path available');
     }
@@ -61,6 +67,12 @@ class MediaFileReference {
   Future<void> disposeController() async {
     await sharedController?.dispose();
     sharedController = null;
+    try {
+      await tempFile?.delete();
+    } catch (e) {
+      debugPrint('Failed to delete temp file: $e');
+    }
+    tempFile = null;
   }
 
   /// Helper function for compute isolate

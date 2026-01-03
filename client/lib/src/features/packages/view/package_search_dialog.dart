@@ -473,7 +473,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
                 _buildFilterChip(
                   [
                     LocaleKeys.filter_by_age.tr(),
-                    _filters.ageRestriction!.name,
+                    _filters.ageRestriction!.f(),
                   ].join(': '),
                   () {
                     setState(() {

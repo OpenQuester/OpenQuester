@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:openapi/openapi.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/utils/blob_helper.dart';
 import 'package:oq_shared/oq_shared.dart';
@@ -9,12 +10,14 @@ import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
 import 'package:video_player/video_player.dart';
 
-/// Widget to preview video files with playback controls
-class VideoPreviewWidget extends StatefulWidget {
-  const VideoPreviewWidget({
+/// Widget to preview video/audio files with playback controls
+class MediaPlaybackWidget extends StatefulWidget {
+  const MediaPlaybackWidget({
     required this.mediaFile,
-    this.size = 80,
+    required this.type,
+    this.size,
     this.enableControls = true,
+    this.showControls = true,
     this.onControllerInitialized,
     this.autoPlay = false,
     this.onVolumeChanged,
@@ -22,17 +25,19 @@ class VideoPreviewWidget extends StatefulWidget {
   });
 
   final MediaFileReference mediaFile;
+  final PackageFileType type;
   final double? size;
   final bool enableControls;
+  final bool showControls;
   final VoidCallback? onControllerInitialized;
   final bool autoPlay;
   final ValueChanged<double>? onVolumeChanged;
 
   @override
-  State<VideoPreviewWidget> createState() => _VideoPreviewWidgetState();
+  State<MediaPlaybackWidget> createState() => _MediaPlaybackWidgetState();
 }
 
-class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
+class _MediaPlaybackWidgetState extends State<MediaPlaybackWidget> {
   VideoPlayerController? get _controller => widget.mediaFile.sharedController;
   bool _isInitialized = false;
   bool _hasError = false;
@@ -44,11 +49,19 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
     if (_controller != null && _controller!.value.isInitialized) {
       _isInitialized = true;
     } else if (widget.autoPlay) {
-      unawaited(_initializeVideo());
+      unawaited(_initializeMedia(shouldPlay: true));
     }
   }
 
-  Future<void> _initializeVideo() async {
+  @override
+  void didUpdateWidget(MediaPlaybackWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.autoPlay && !oldWidget.autoPlay && !_isInitialized) {
+      unawaited(_initializeMedia(shouldPlay: true));
+    }
+  }
+
+  Future<void> _initializeMedia({bool shouldPlay = false}) async {
     if (_isInitializing) return;
 
     // If controller already exists and is initialized, use it
@@ -57,6 +70,9 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
         setState(() {
           _isInitialized = true;
         });
+        if (shouldPlay) {
+          unawaited(_controller!.play());
+        }
       }
       return;
     }
@@ -68,9 +84,12 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
       final url = widget.mediaFile.url;
 
       if (url != null) {
+        final defaultExt = widget.type == PackageFileType.audio
+            ? 'mp3'
+            : 'webm';
         final (controller, tmpFile) = await VideoPlayerUtils.createController(
           url: url,
-          fileExtension: widget.mediaFile.extension ?? 'webm',
+          fileExtension: widget.mediaFile.extension ?? defaultExt,
           cacheKey: await widget.mediaFile.calculateHash(),
         );
         widget.mediaFile.sharedController = controller;
@@ -101,9 +120,12 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
         } else if (platformFile.bytes != null) {
           // Native: Create temporary file from bytes
           final tempDir = await getTemporaryDirectory();
-          final extension = platformFile.extension ?? 'mp4';
+          final defaultExt = widget.type == PackageFileType.audio
+              ? 'mp3'
+              : 'mp4';
+          final extension = platformFile.extension ?? defaultExt;
           final tempFile = File(
-            '${tempDir.path}/video_${DateTime.now().millisecondsSinceEpoch}.$extension',
+            '${tempDir.path}/media_${DateTime.now().millisecondsSinceEpoch}.$extension',
           );
           final bytes = await platformFile.readBytes();
           await tempFile.writeAsBytes(bytes);
@@ -123,7 +145,7 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
         setState(() {
           _isInitialized = true;
         });
-        if (widget.autoPlay) {
+        if (shouldPlay || widget.autoPlay) {
           unawaited(_controller!.play());
         }
         widget.onControllerInitialized?.call();
@@ -143,6 +165,7 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
   void dispose() {
     // Don't dispose controller here - it's shared
     // It will be disposed when MediaFileReference is removed
+    unawaited(_controller?.pause());
     super.dispose();
   }
 
@@ -161,57 +184,143 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
     }
 
     if (widget.enableControls) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
+      Widget content;
+      if (widget.type == PackageFileType.video) {
+        content = AspectRatio(
+          aspectRatio: _controller!.value.aspectRatio,
+          child: VideoPlayer(_controller!),
+        );
+      } else {
+        content = _buildAudioVisualizer(context);
+      }
+
+      if (!widget.showControls) {
+        return Center(child: content);
+      }
+
+      return SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            content,
+            const SizedBox(height: 16),
+            VideoControls(
+              controller: _controller!,
+              onVolumeChanged: widget.onVolumeChanged,
+            ).constrained(const BoxConstraints(maxWidth: 1000)),
+          ],
+        ),
+      );
+    }
+
+    // Compact preview (no controls)
+    if (widget.type == PackageFileType.video) {
+      return Stack(
+        alignment: Alignment.center,
         children: [
-          Expanded(
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: _controller!.value.aspectRatio,
+          SizedBox(
+            width: widget.size,
+            height: widget.size,
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: _controller!.value.size.width,
+                height: _controller!.value.size.height,
                 child: VideoPlayer(_controller!),
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          VideoControls(
-            controller: _controller!,
-            onVolumeChanged: widget.onVolumeChanged,
+        ],
+      );
+    } else {
+      return Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            constraints: BoxConstraints(
+              maxWidth: widget.size ?? 80,
+              maxHeight: widget.size ?? 80,
+            ),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Theme.of(context).colorScheme.primaryContainer,
+                  Theme.of(context).colorScheme.secondaryContainer,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          Icon(
+            Icons.audiotrack,
+            size: (widget.size ?? 80) * 0.5,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
           ),
         ],
       );
     }
+  }
 
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        // Video frame
-        SizedBox(
-          width: widget.size,
-          height: widget.size,
-          child: FittedBox(
-            fit: BoxFit.cover,
-            child: SizedBox(
-              width: _controller!.value.size.width,
-              height: _controller!.value.size.height,
-              child: VideoPlayer(_controller!),
-            ),
-          ),
+  Widget _buildAudioVisualizer(BuildContext context) {
+    return Container(
+      width: 200,
+      height: 200,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Theme.of(context).colorScheme.primaryContainer,
+            Theme.of(context).colorScheme.secondaryContainer,
+          ],
         ),
-      ],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: ValueListenableBuilder(
+        valueListenable: _controller!,
+        builder: (context, value, child) {
+          return Center(
+            child: Icon(
+              value.isPlaying ? Icons.music_note : Icons.music_note,
+              size: 80,
+              color: Colors.white,
+            ),
+          );
+        },
+      ),
     );
   }
 
   Widget _buildPlaceholder(BuildContext context) {
     return GestureDetector(
-      onTap: () => unawaited(_initializeVideo()),
+      onTap: () => unawaited(_initializeMedia(shouldPlay: true)),
       child: Container(
         width: widget.size,
         height: widget.size,
-        color: Colors.black,
+        decoration: widget.type == PackageFileType.audio
+            ? BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Theme.of(context).colorScheme.primaryContainer,
+                    Theme.of(context).colorScheme.secondaryContainer,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(8),
+              )
+            : BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(8),
+              ),
         child: Center(
           child: Icon(
             Icons.play_circle_outline,
-            color: Colors.white,
+            color: widget.type == PackageFileType.audio
+                ? Theme.of(context).colorScheme.onPrimaryContainer
+                : Colors.white,
             size: (widget.size ?? 80) * 0.5,
           ),
         ),
@@ -235,7 +344,9 @@ class _VideoPreviewWidgetState extends State<VideoPreviewWidget> {
   Widget _buildErrorPreview(BuildContext context) {
     return Center(
       child: Icon(
-        Icons.video_library,
+        widget.type == PackageFileType.audio
+            ? Icons.music_off
+            : Icons.video_library,
         size: (widget.size ?? 80) * 0.5,
         color: Theme.of(context).colorScheme.error,
       ),
