@@ -1,0 +1,34 @@
+name: Deploy Landing Page to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'websites/landing/**'
+      - '.github/workflows/deploy-landing.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    
+    name: Deploy Landing Page
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: openquester-landing
+          directory: websites/landing/static
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          branch: main
+          wranglerVersion: '3'

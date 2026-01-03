@@ -1,0 +1,28 @@
+baseURL = 'https://docs.openquester.app/'
+languageCode = 'en-us'
+title = 'OpenQuester Documentation'
+theme = 'hugo-book'
+
+disablePathToLower = true
+pygmentsCodeFences = true
+pygmentsStyle = 'monokai'
+
+[params]
+  BookTheme = 'auto'
+  BookToC = true
+  BookSection = 'docs'
+  BookRepo = 'https://github.com/OpenQuester/OpenQuester'
+  BookEditPath = 'edit/main/websites/docs/content'
+  BookDateFormat = 'January 2, 2006'
+  BookSearch = true
+  BookComments = false
+  BookPortableLinks = true
+  BookServiceWorker = false
+
+[markup]
+[markup.goldmark.renderer]
+  unsafe = true
+
+[markup.tableOfContents]
+  startLevel = 1
+  endLevel = 4
