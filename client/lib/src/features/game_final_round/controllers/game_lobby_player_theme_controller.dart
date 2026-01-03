@@ -26,6 +26,8 @@ class GameLobbyThemePickerController extends ChangeNotifier {
   }
 
   void confirmSelection() {
+    if (selectedThemeId == null) return;
+
     _onSelected?.call(selectedThemeId!);
     selectedThemeId = null;
     notifyListeners();

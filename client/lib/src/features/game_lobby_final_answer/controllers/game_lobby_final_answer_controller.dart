@@ -26,6 +26,8 @@ class GameLobbyFinalAnswerController extends ChangeNotifier {
   }
 
   void confirm() {
+    if (userAnswer == null) return;
+
     _onSelected?.call(userAnswer!);
     userAnswer = null;
     notifyListeners();
