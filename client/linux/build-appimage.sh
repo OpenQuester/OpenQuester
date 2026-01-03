@@ -53,7 +53,7 @@ ln -sf usr/share/applications/com.asion.openquester.desktop "$APPDIR/com.asion.o
 cp "$SCRIPT_DIR/com.asion.openquester.metainfo.xml" "$APPDIR/usr/share/metainfo/"
 
 # Copy icons
-cp "$SCRIPT_DIR/../assets/icon/icon.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/com.asion.openquester.svg"
+cp "$SCRIPT_DIR/../../assets/icon/icon.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/com.asion.openquester.svg"
 cp "$SCRIPT_DIR/../web/icons/icon-512.png" "$APPDIR/usr/share/icons/hicolor/512x512/apps/com.asion.openquester.png"
 cp "$SCRIPT_DIR/../web/icons/icon-192.png" "$APPDIR/usr/share/icons/hicolor/192x192/apps/com.asion.openquester.png"
 
@@ -73,10 +73,27 @@ chmod +x "$APPDIR/AppRun"
 
 # Download appimagetool if not present
 APPIMAGETOOL="$OUTPUT_DIR/appimagetool-x86_64.AppImage"
+# Using a specific version with known checksum for security
+APPIMAGETOOL_VERSION="13"
+APPIMAGETOOL_URL="https://github.com/AppImage/AppImageKit/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
+APPIMAGETOOL_SHA256="df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
+
 if [ ! -f "$APPIMAGETOOL" ]; then
-    echo "Downloading appimagetool..."
-    wget -O "$APPIMAGETOOL" "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
+    echo "Downloading appimagetool v${APPIMAGETOOL_VERSION}..."
+    wget -O "$APPIMAGETOOL" "$APPIMAGETOOL_URL"
+    
+    # Verify checksum
+    echo "Verifying checksum..."
+    echo "${APPIMAGETOOL_SHA256}  ${APPIMAGETOOL}" | sha256sum -c -
+    
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Checksum verification failed!"
+        rm -f "$APPIMAGETOOL"
+        exit 1
+    fi
+    
     chmod +x "$APPIMAGETOOL"
+    echo "✓ appimagetool downloaded and verified"
 fi
 
 # Build AppImage

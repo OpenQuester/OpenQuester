@@ -75,7 +75,7 @@ modules:
       - type: file
         path: com.asion.openquester.metainfo.xml
       - type: file
-        path: ../assets/icon/icon.svg
+        path: ../../assets/icon/icon.svg
         dest-filename: icon.svg
       - type: file
         path: ../web/icons/icon-512.png
