@@ -35,6 +35,14 @@ export class ChatMessageEventHandler extends BaseSocketEventHandler<
     return SocketIOEvents.CHAT_MESSAGE;
   }
 
+  /**
+   * Chat messages do not affect game state and don't need synchronization,
+   * so they can bypass the action queue for lower latency.
+   */
+  protected override supportsDirectExecution(): boolean {
+    return true;
+  }
+
   protected async validateInput(
     data: ChatMessageInputData
   ): Promise<ChatMessageInputData> {

@@ -12,6 +12,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
+import { ServerError } from "domain/errors/ServerError";
 import { UpdateUserDTO } from "domain/types/dto/user/UpdateUserDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
@@ -244,13 +245,11 @@ export class UserService {
     const processedGameIds = new Set<string>();
     for (const socket of userSockets) {
       if (!this._gameLobbyLeaver) {
-        this.logger.warn("Game lobby leaver not set; skipping forced leave.", {
-          prefix: LogPrefix.USER,
-          userId,
-        });
-        return;
+        throw new ServerError("Game lobby leaver service not initialized");
       }
+
       const leaveResult = await this._gameLobbyLeaver.leaveLobby(socket.id);
+
       if (leaveResult.emit && leaveResult.data) {
         const gameId = leaveResult.data.gameId;
 

@@ -1,16 +1,19 @@
-import { singleton } from "tsyringe";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { USER_CACHE_KEY, USER_CACHE_KEY_TTL } from "domain/constants/cache";
+import { ICache } from "domain/types/cache/ICache";
 import { SelectOptions } from "domain/types/SelectOptions";
-import { RedisCache } from "infrastructure/cache/RedisCache";
 import { User } from "infrastructure/database/models/User";
 
 /**
  * Use case for caching user data.
+ * Uses ICache interface for SOLID DIP compliance - implementation (RedisCache)
+ * is injected via DI token.
  */
 @singleton()
 export class UserCacheUseCase {
-  constructor(private readonly cache: RedisCache) {
+  constructor(@inject(DI_TOKENS.Cache) private readonly cache: ICache) {
     //
   }
 

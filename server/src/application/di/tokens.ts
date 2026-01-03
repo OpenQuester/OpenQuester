@@ -92,6 +92,24 @@ export const DI_TOKENS = {
 
   /** Redis expiration handlers array */
   RedisExpirationHandlers: Symbol.for("RedisExpirationHandlers"),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INTERFACE TOKENS - For SOLID DIP compliance (interface injection)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Cache interface (ICache) - implemented by RedisCache.
+   * Use @inject(DI_TOKENS.Cache) to inject the cache abstraction.
+   */
+  Cache: Symbol.for("ICache"),
+
+  /**
+   * Game lobby leaver interface (IGameLobbyLeaver) - implemented by SocketIOGameService.
+   * Used to break circular dependency: UserService -> IGameLobbyLeaver <- SocketIOGameService.
+   * This allows UserService to force users out of games on ban/delete without depending
+   * directly on SocketIOGameService.
+   */
+  GameLobbyLeaver: Symbol.for("IGameLobbyLeaver"),
 } as const;
 
 /** Type helper for DI token keys */

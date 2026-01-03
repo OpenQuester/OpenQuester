@@ -45,6 +45,7 @@ import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { createPhaseTransitionRouter } from "domain/state-machine/createPhaseTransitionRouter";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { RedisCache } from "infrastructure/cache/RedisCache";
 import { Environment } from "infrastructure/config/Environment";
 import { Database } from "infrastructure/database/Database";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
@@ -145,6 +146,20 @@ export async function bootstrapContainer(
   );
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // STEP 2.5: Register interface implementations for SOLID DIP compliance
+  // ═══════════════════════════════════════════════════════════════════════════
+  // These allow injecting interfaces rather than concrete classes.
+  // Use @inject(DI_TOKENS.X) in constructor for interface injection.
+
+  // ICache -> RedisCache
+  // Note: RedisCache has @singleton() so we use the same instance
+  container.register(DI_TOKENS.Cache, { useToken: RedisCache });
+
+  // IGameLobbyLeaver -> SocketIOGameService (registered later, uses delay pattern)
+  // This registration is deferred - the actual wiring happens in STEP 6
+  // via setter injection: userService.setGameLobbyLeaver(socketIOGameService)
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // STEP 3: Register runtime-created managers
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -230,7 +245,9 @@ export async function bootstrapContainer(
   const broadcastService = container.resolve(GameActionBroadcastService);
   broadcastService.init(gameNamespace, socketIOGameService);
 
-  // Note: UserService setGameLobbyLeaver is handled in the service itself via lazy resolution
+  // Wire UserService.setGameLobbyLeaver to break circular dependency
+  // SocketIOGameService implements IGameLobbyLeaver interface
+  userService.setGameLobbyLeaver(socketIOGameService);
 }
 
 /**
