@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.asion.openquester</id>
+  <name>OpenQuester</name>
+  <summary>Open-Source Multiplayer Quiz Game</summary>
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+  
+  <description>
+    <p>
+      OpenQuester is a free, open-source multiplayer quiz game inspired by SIGame. 
+      Play engaging quiz sessions with friends, create custom question packages, 
+      and enjoy a modern, cross-platform experience.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Multiple game modes: Regular rounds, stake questions, secret questions, and final round</li>
+      <li>Real-time multiplayer gameplay with low latency</li>
+      <li>Support for custom question packages</li>
+      <li>Rich media content with images, audio, and video</li>
+      <li>Dark and light themes</li>
+      <li>Multilingual support</li>
+    </ul>
+  </description>
+  
+  <launchable type="desktop-id">com.asion.openquester.desktop</launchable>
+  
+  <url type="homepage">https://openquester.app</url>
+  <url type="bugtracker">https://github.com/OpenQuester/OpenQuester/issues</url>
+  <url type="help">https://docs.openquester.app</url>
+  
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main menu</caption>
+    </screenshot>
+  </screenshots>
+  
+  <releases>
+    <release version="0.22.0" date="2026-01-03"/>
+  </releases>
+  
+  <content_rating type="oars-1.1">
+    <content_attribute id="social-chat">moderate</content_attribute>
+  </content_rating>
+  
+  <provides>
+    <binary>openquester</binary>
+  </provides>
+</component>

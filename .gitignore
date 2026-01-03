@@ -28,6 +28,15 @@ content.xml
 **/*.g.dart
 **/*.gen.dart
 
+# Linux build artifacts
+*.AppImage
+*.flatpak
+*.tar.gz
+**/build-flatpak/
+**/repo/
+client/linux/.flatpak-builder/
+client/build/linux/appimage/
+
 # IntelliJ
 .idea/
 
