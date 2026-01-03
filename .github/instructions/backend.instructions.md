@@ -57,7 +57,7 @@ npx jest path/to/file   # Specific (set trace logs in tests/utils.ts)
 ## Type Safety
 - **NEVER** `any` → use `unknown` or `Record<string, T>`
 - Explicit return types
-- use `satisfies` on un-typed objects
+- Use `satisfies` on un-typed objects
 - **NEVER** re-exports or `index.ts` files
 
 ## Critical Files

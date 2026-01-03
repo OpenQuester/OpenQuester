@@ -23,7 +23,7 @@
 **Special:** Stake/Bidding, Secret/Transfer, No Risk
 **Final Round:** Theme Elimination → Bidding (45s) → Answering (75s, 255 chars) → Reviewing
 **Packages:** Community content (`.oq` + `.siq`)
-**Key Docs:** `server/docs/final-round-flow.md`, `game-action-executor.md`, `media-download-sync.md`
+**Key Docs:** `server/docs/final-round-flow.md`, `server/docs/game-action-executor.md`, `server/docs/media-download-sync.md`
 
 ## Reviews
 

@@ -14,7 +14,7 @@ Text(LocaleKeys.created_by.tr(namedArgs: {'author': name}))
 Text(LocaleKeys.rounds.plural(count))  // JSON: "rounds": {"one": "{} round", "other": "{} rounds"}
 TextFormField(validator: (v) => v?.isEmpty == true ? LocaleKeys.validation_required.tr() : null)
 await getIt<ToastController>().show(LocaleKeys.error_network.tr());
-if (!getIt<AuthController>().authorized) { await getIt<ToastController>().show(LocaleKeys.login_unauthorized.tr()); return; }
+if (!getIt<AuthController>().authorized) { await getIt<ToastController>().show(LocaleKeys.login_user_unauthorized.tr()); return; }
 ```
 
 **JSON Organization:** `{feature: {title, actions: {}, errors: {}, validation: {}}}`
@@ -41,7 +41,7 @@ class MyScreen extends StatelessWidget {
   const MyScreen({@PathParam() required this.id, super.key});
   final String id;
   @override
-  Widget build(BuildContext context) => Scaffold(body: ElevatedButton(onPressed: () => NextRoute().push(context), child: Text('Go')));
+  Widget build(BuildContext context) => Scaffold(body: ElevatedButton(onPressed: () => const NextRoute().push(context), child: Text('Go')));
 }
 // Usage: MyRoute(param: 'value').push(context) | AppRouter.I.replace(MyRoute(...)) | context.maybePop()
 ```
