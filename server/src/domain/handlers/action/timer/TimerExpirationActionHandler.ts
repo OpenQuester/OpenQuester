@@ -1,10 +1,5 @@
 import { GameService } from "application/services/game/GameService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -12,6 +7,8 @@ import {
 } from "domain/types/action/GameActionHandler";
 import { TimerActionPayload } from "domain/types/action/TimerActionPayload";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { TimerExpirationResult } from "domain/types/service/ServiceResult";
+import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
@@ -45,15 +42,8 @@ export class TimerExpirationActionHandler
       return { success: false, error: "Timer expiration handling failed" };
     }
 
-    // Convert service broadcasts to SocketEventBroadcast format
-    const broadcasts: SocketEventBroadcast<unknown>[] = result.broadcasts.map(
-      (b) => ({
-        event: b.event as SocketIOGameEvents,
-        data: b.data,
-        target: SocketBroadcastTarget.GAME,
-        gameId: b.room,
-      })
-    );
+    // Service generates type-safe broadcasts with satisfies - just convert format
+    const broadcasts = convertBroadcasts(result.broadcasts);
 
     return { success: true, broadcasts };
   }
@@ -61,10 +51,7 @@ export class TimerExpirationActionHandler
   private async handleTimerExpiration(
     gameId: string,
     questionState: QuestionState | null
-  ): Promise<{
-    success: boolean;
-    broadcasts: Array<{ event: string; data: unknown; room: string }>;
-  }> {
+  ): Promise<TimerExpirationResult> {
     switch (questionState) {
       case QuestionState.MEDIA_DOWNLOADING:
         return this.timerExpirationService.handleMediaDownloadExpiration(

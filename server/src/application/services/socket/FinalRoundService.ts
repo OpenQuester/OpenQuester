@@ -188,6 +188,24 @@ export class FinalRoundService {
       triggeredBy: { playerId: player.meta.id, isSystem: false },
     });
 
+    // If all answers are reviewed (all auto-loss), immediately transition to game finish
+    if (
+      transitionResult &&
+      FinalRoundStateManager.areAllAnswersReviewed(game)
+    ) {
+      const finishTransitionResult =
+        await this.phaseTransitionRouter.tryTransition({
+          game,
+          trigger: TransitionTrigger.USER_ACTION,
+          triggeredBy: { playerId: player.meta.id, isSystem: false },
+        });
+
+      // Merge broadcasts from both transitions
+      if (finishTransitionResult) {
+        transitionResult.broadcasts.push(...finishTransitionResult.broadcasts);
+      }
+    }
+
     await this.gameService.updateGame(game);
 
     return FinalAnswerSubmitLogic.buildResult({
@@ -371,6 +389,24 @@ export class FinalRoundService {
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
     });
+
+    // If all answers are reviewed (all auto-loss), immediately transition to game finish
+    if (
+      transitionResult &&
+      FinalRoundStateManager.areAllAnswersReviewed(game)
+    ) {
+      const finishTransitionResult =
+        await this.phaseTransitionRouter.tryTransition({
+          game,
+          trigger: TransitionTrigger.TIMER_EXPIRED,
+          triggeredBy: { isSystem: true },
+        });
+
+      // Merge broadcasts from both transitions
+      if (finishTransitionResult) {
+        transitionResult.broadcasts.push(...finishTransitionResult.broadcasts);
+      }
+    }
 
     await this.gameService.updateGame(game);
 

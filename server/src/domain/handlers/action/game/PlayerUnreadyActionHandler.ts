@@ -1,9 +1,4 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -31,21 +26,12 @@ export class PlayerUnreadyActionHandler
     );
 
     const readyData: PlayerReadinessBroadcastData = {
-      playerId: result.playerId,
-      isReady: result.isReady,
-      readyPlayers: result.readyPlayers,
+      playerId: result.data.playerId,
+      isReady: result.data.isReady,
+      readyPlayers: result.data.readyPlayers,
       autoStartTriggered: false,
     };
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.PLAYER_UNREADY,
-        data: readyData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: result.game.id,
-      },
-    ];
-
-    return { success: true, data: readyData, broadcasts };
+    return { success: true, data: readyData, broadcasts: result.broadcasts };
   }
 }

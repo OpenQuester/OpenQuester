@@ -78,6 +78,7 @@ class SocketController {
     final options = optionsBuilder.build();
     final url = socketUri
         .replace(path: socketUri.path + (path ?? ''))
+        .normalizePath()
         .toString();
     final socket = io(url, options)
       ..id = id ?? path ?? 'general'

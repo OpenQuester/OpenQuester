@@ -3001,6 +3001,9 @@
             "type": ["integer", "null"],
             "examples": [187]
           },
+          "type": {
+            "$ref": "#/components/schemas/QuestionType"
+          },
           "order": {
             "$ref": "#/components/schemas/PackageEntitiesOrder"
           },
@@ -3042,7 +3045,7 @@
             "examples": [7000]
           },
           "showAnswerDuration": {
-            "type": "integer",
+            "type": ["integer", "null"],
             "description": "Duration in milliseconds for showing the answer",
             "examples": [5000]
           },
@@ -3442,7 +3445,7 @@
         "type": "string",
         "enum": ["showman", "player", "spectator"]
       },
-      "RestrictionsEventData": {
+      "PlayerRestrictions": {
         "type": "object",
         "properties": {
           "muted": {
@@ -3492,7 +3495,7 @@
             "$ref": "#/components/schemas/PlayerRole"
           },
           "restrictionData": {
-            "$ref": "#/components/schemas/RestrictionsEventData"
+            "$ref": "#/components/schemas/PlayerRestrictions"
           },
           "score": {
             "type": "integer",
@@ -3685,7 +3688,7 @@
           "currentQuestion": {
             "oneOf": [
               {
-                "$ref": "#/components/schemas/PackageQuestionData"
+                "$ref": "#/components/schemas/PackageQuestion"
               },
               {
                 "type": "null"
@@ -3908,6 +3911,9 @@
         "type": "object",
         "description": "Info about theme of the round",
         "properties": {
+          "id": {
+            "type": "integer"
+          },
           "order": {
             "$ref": "#/components/schemas/PackageEntitiesOrder"
           },
@@ -4394,7 +4400,7 @@
         "description": "Data sent to players when a question is picked, containing question details and timer",
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/PackageQuestionData"
+            "$ref": "#/components/schemas/PackageQuestion"
           },
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
@@ -4417,7 +4423,7 @@
         },
         "required": ["timer", "userId"]
       },
-      "SocketIOAnswerSubmittedEventData": {
+      "SocketIOAnswerSubmittedInput": {
         "type": "object",
         "description": "Data sent to all players when a player submits an answer. Same data should be sent by answering player to the server",
         "properties": {
@@ -4557,168 +4563,7 @@
         },
         "required": ["fromPlayerId", "questionId", "toPlayerId"]
       },
-      "PackageQuestionData": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": ["integer", "null"],
-            "examples": [187]
-          },
-          "type": {
-            "$ref": "#/components/schemas/QuestionType"
-          },
-          "order": {
-            "$ref": "#/components/schemas/PackageEntitiesOrder"
-          },
-          "price": {
-            "type": ["integer", "null"],
-            "description": "Price is null only if price is hidden",
-            "examples": [200, null]
-          },
-          "isHidden": {
-            "type": "boolean",
-            "default": false,
-            "description": "Whether the question is hidden",
-            "examples": [false]
-          },
-          "text": {
-            "type": ["string", "null"],
-            "description": "Question text",
-            "examples": ["Where is Kyiv located?"]
-          },
-          "answerHint": {
-            "type": ["string", "null"],
-            "description": "Hint for the answer",
-            "examples": ["It's in Europe"]
-          },
-          "answerText": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionAnswerText"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "answerDelay": {
-            "type": ["integer", "null"],
-            "description": "Delay in milliseconds before being able to answer, if applicable",
-            "default": 4000,
-            "examples": [7000]
-          },
-          "showAnswerDuration": {
-            "type": "integer",
-            "description": "Duration in milliseconds for showing the answer",
-            "examples": [5000]
-          },
-          "questionComment": {
-            "type": ["string", "null"],
-            "description": "Comment or note about the question",
-            "examples": ["You have to say full country name"]
-          },
-          "questionFiles": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/PackageQuestionFile"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "answerFiles": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/PackageQuestionFile"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "subType": {
-            "$ref": "#/components/schemas/QuestionSubType"
-          },
-          "maxPrice": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionMaxPrice"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "allowedPrices": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionAllowedPrices"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "transferType": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionTransferType"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "priceMultiplier": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionPriceMultiplier"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "showDelay": {
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/QuestionShowDelay"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "answers": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/QuestionChoiceAnswers"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "isHidden",
-          "order",
-          "showAnswerDuration",
-          "subType",
-          "type"
-        ]
-      },
-      "ThemeEliminateInput": {
+      "SocketIOThemeEliminateInput": {
         "type": "object",
         "description": "Data sent to eliminate a theme in final round",
         "properties": {
@@ -4730,7 +4575,7 @@
         },
         "required": ["themeId"]
       },
-      "ThemeEliminateOutput": {
+      "SocketIOThemeEliminatePayload": {
         "type": "object",
         "description": "Data sent to all players when a theme is eliminated in final round",
         "properties": {
@@ -4752,7 +4597,7 @@
         },
         "required": ["eliminatedBy", "themeId"]
       },
-      "FinalAnswerSubmitInput": {
+      "SocketIOFinalAnswerSubmitInput": {
         "type": "object",
         "description": "Data sent by player to submit final answer in final round",
         "properties": {
@@ -4765,7 +4610,7 @@
         },
         "required": ["answerText"]
       },
-      "FinalAnswerSubmitOutput": {
+      "SocketIOFinalAnswerSubmitPayload": {
         "type": "object",
         "description": "Data sent to all players when a final answer is submitted",
         "properties": {
@@ -4775,14 +4620,14 @@
             "examples": [123]
           },
           "answerText": {
-            "type": "string",
+            "type": ["string", "null"],
             "description": "The submitted answer text",
             "examples": ["This is my final answer"]
           }
         },
         "required": ["answerText", "playerId"]
       },
-      "FinalBidSubmitInput": {
+      "SocketIOFinalBidSubmitInput": {
         "type": "object",
         "description": "Data sent by player to submit bid in final round",
         "properties": {
@@ -4794,7 +4639,7 @@
         },
         "required": ["bid"]
       },
-      "FinalBidSubmitOutput": {
+      "SocketIOFinalBidSubmitPayload": {
         "type": "object",
         "description": "Data sent to all players when a bid is submitted",
         "properties": {
@@ -4811,12 +4656,13 @@
           "isAutomatic": {
             "type": "boolean",
             "description": "Whether the bid was automatically submitted (e.g., when player disconnects during bidding phase)",
-            "examples": [true, false]
+            "examples": [true, false],
+            "default": false
           }
         },
         "required": ["bidAmount", "isAutomatic", "playerId"]
       },
-      "FinalAnswerReviewInput": {
+      "SocketIOFinalAnswerReviewInput": {
         "type": "object",
         "description": "Data sent by showman to review a final answer",
         "properties": {
@@ -4833,7 +4679,7 @@
         },
         "required": ["answerId", "isCorrect"]
       },
-      "FinalAnswerReviewOutput": {
+      "SocketIOFinalAnswerReviewPayload": {
         "type": "object",
         "description": "Data sent to all players when an answer is reviewed",
         "properties": {
@@ -4984,7 +4830,7 @@
           "turnOrder"
         ]
       },
-      "FinalPhaseCompleteEventData": {
+      "SocketIOFinalPhaseCompletePayload": {
         "type": "object",
         "description": "Data sent when a final round phase is completed",
         "properties": {
@@ -5000,7 +4846,7 @@
         },
         "required": ["nextPhase", "phase", "timer"]
       },
-      "FinalQuestionEventData": {
+      "SocketIOFinalQuestionEventDataPayload": {
         "type": "object",
         "description": "Data sent when final round question is revealed",
         "properties": {
@@ -5010,7 +4856,7 @@
         },
         "required": ["questionData"]
       },
-      "FinalSubmitEndEventData": {
+      "SocketIOFinalSubmitEndPayload": {
         "type": "object",
         "description": "Data sent when final round answering phase ends",
         "properties": {
@@ -5044,7 +4890,7 @@
         },
         "required": ["phase"]
       },
-      "QuestionFinishEventPayload": {
+      "SocketIOQuestionFinishEventPayload": {
         "type": "object",
         "description": "Data sent to all players when a question is finished (showing answer)",
         "properties": {
@@ -5085,7 +4931,7 @@
         },
         "required": ["answerFiles", "answerText"]
       },
-      "FinalAutoLossEventData": {
+      "SocketIOFinalAutoLossEventPayload": {
         "type": "object",
         "description": "Data sent when a player automatically loses in final round",
         "properties": {
@@ -5108,7 +4954,7 @@
       },
       "FinalRoundQuestionData": {
         "type": "object",
-        "description": "Question data for final round",
+        "description": "Question data for final round with full question details excluding answer information",
         "properties": {
           "themeId": {
             "type": "integer",
@@ -5121,36 +4967,7 @@
             "examples": ["Geography"]
           },
           "question": {
-            "type": "object",
-            "description": "Question state data",
-            "properties": {
-              "id": {
-                "type": "integer",
-                "description": "Question ID",
-                "examples": [187]
-              },
-              "order": {
-                "type": "integer",
-                "description": "Question order",
-                "examples": [1]
-              },
-              "price": {
-                "type": ["integer", "null"],
-                "description": "Question price/points",
-                "examples": [500]
-              },
-              "questionComment": {
-                "type": ["string", "null"],
-                "description": "Question comment",
-                "examples": ["Geography question"]
-              },
-              "isPlayed": {
-                "type": "boolean",
-                "description": "Whether question has been played",
-                "examples": [false]
-              }
-            },
-            "required": ["id", "order", "isPlayed"]
+            "$ref": "#/components/schemas/PackageQuestion"
           }
         },
         "required": ["question", "themeId", "themeName"]
@@ -5183,9 +5000,9 @@
             "$ref": "#/components/schemas/FinalAnswerType"
           },
           "isCorrect": {
-            "type": "boolean",
-            "description": "Whether the answer is correct (optional, present after review)",
-            "examples": [true]
+            "type": ["boolean", "null"],
+            "description": "Whether the answer is correct. null for unreviewed valid answers (showman needs to review), false for auto-loss or manually reviewed as incorrect",
+            "examples": [true, false, null]
           }
         },
         "required": [
@@ -5199,9 +5016,9 @@
       },
       "FinalAnswerType": {
         "type": "string",
-        "enum": ["correct", "wrong", "auto_loss"],
-        "description": "Type of final round answer result",
-        "examples": ["correct"]
+        "enum": ["correct", "wrong", "auto_loss", "pending"],
+        "description": "Type of final round answer result: correct (reviewed as correct), wrong (reviewed as wrong), auto_loss (empty answer, auto-marked wrong), pending (needs showman review)",
+        "examples": ["correct", "pending"]
       },
       "StakeBidType": {
         "type": "string",

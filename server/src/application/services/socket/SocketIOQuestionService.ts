@@ -21,11 +21,13 @@ import {
   AnswerResultLogic,
   AnswerResultMutation,
 } from "domain/logic/question/AnswerResultLogic";
+import { AnswerSubmittedLogic } from "domain/logic/question/AnswerSubmittedLogic";
 import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { PlayerSkipLogic } from "domain/logic/question/PlayerSkipLogic";
 import { QuestionAnswerRequestLogic } from "domain/logic/question/QuestionAnswerRequestLogic";
 import { QuestionForceSkipLogic } from "domain/logic/question/QuestionForceSkipLogic";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
+import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
@@ -103,22 +105,25 @@ export class SocketIOQuestionService {
   }
 
   /**
-   * TODO: Not implemented yet
+   * Handle player submitting their answer text.
+   * TODO: Additional answer processing not implemented yet.
    */
-  public async handleAnswerSubmitted(socketId: string) {
+  public async handleAnswerSubmitted(
+    socketId: string,
+    data: { answerText: string | null }
+  ) {
     const context = await this.socketGameContextService.fetchGameContext(
       socketId
     );
     const game = context.game;
     const currentPlayer = context.currentPlayer;
 
-    GameStateValidator.validateGameInProgress(game);
+    AnswerSubmittedLogic.validate(game, currentPlayer);
 
-    if (game.gameState.answeringPlayer !== currentPlayer?.meta.id) {
-      throw new ClientError(ClientResponse.CANNOT_SUBMIT_ANSWER);
-    }
-
-    return game;
+    return AnswerSubmittedLogic.buildResult({
+      game,
+      answerText: data.answerText,
+    });
   }
 
   /**
@@ -304,6 +309,7 @@ export class SocketIOQuestionService {
 
   /**
    * Skip the show-answer phase.
+   * Returns result with broadcasts for ANSWER_SHOW_END and optional round progression.
    */
   public async skipShowAnswer(socketId: string) {
     const context = await this.socketGameContextService.fetchGameContext(
@@ -328,7 +334,21 @@ export class SocketIOQuestionService {
     // Reset to choosing state
     await this.socketQuestionStateService.resetToChoosingState(game);
 
-    return { game };
+    // Check if round progression is needed
+    let isGameFinished = false;
+    let nextGameState = null;
+
+    if (ShowAnswerLogic.shouldProgressRound(game)) {
+      const progression = await this.handleRoundProgression(game);
+      isGameFinished = progression.isGameFinished;
+      nextGameState = progression.nextGameState;
+    }
+
+    return ShowAnswerLogic.buildSkipShowAnswerResult({
+      gameId: game.id,
+      isGameFinished,
+      nextGameState,
+    });
   }
 
   public async handleRoundProgression(game: Game) {

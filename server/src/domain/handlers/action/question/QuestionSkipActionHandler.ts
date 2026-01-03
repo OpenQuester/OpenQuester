@@ -1,10 +1,6 @@
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -32,26 +28,18 @@ export class QuestionSkipActionHandler
     const result = await this.socketIOQuestionService.handlePlayerSkip(
       action.socketId
     );
-    const { game, playerId } = result;
+    const { game } = result;
 
-    const broadcastData: QuestionSkipBroadcastData = { playerId };
-
-    // If player gave up (treated as wrong answer), broadcast ANSWER_RESULT
+    // If player gave up (treated as wrong answer), use broadcasts from result
     if (result.gaveUp) {
-      const broadcasts: SocketEventBroadcast<unknown>[] = [
-        {
-          event: SocketIOGameEvents.ANSWER_RESULT,
-          data: {
-            answerResult: result.answerResult,
-            timer: result.timer,
-          },
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        },
-      ];
-      return { success: true, data: broadcastData, broadcasts };
+      return {
+        success: true,
+        data: result.data,
+        broadcasts: result.broadcasts,
+      };
     }
 
+    // Check if all players have skipped after this skip
     if (game.haveAllPlayersSkipped()) {
       const { question, game: updatedGame } =
         await this.socketIOQuestionService.handleAutomaticQuestionSkip(game);
@@ -74,29 +62,20 @@ export class QuestionSkipActionHandler
             : null,
         });
 
-      const broadcasts: SocketEventBroadcast<unknown>[] = [
-        {
-          event: SocketIOGameEvents.QUESTION_SKIP,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        },
-        ...(progressionResult.broadcasts as SocketEventBroadcast<unknown>[]),
+      // Combine skip broadcast with progression broadcasts
+      const broadcasts: SocketEventBroadcast[] = [
+        ...result.broadcasts,
+        ...progressionResult.broadcasts,
       ];
 
-      return { success: true, data: broadcastData, broadcasts };
+      return { success: true, data: result.data, broadcasts };
     }
 
-    // Normal skip
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.QUESTION_SKIP,
-        data: broadcastData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      },
-    ];
-
-    return { success: true, data: broadcastData, broadcasts };
+    // Normal skip - just use broadcasts from result
+    return {
+      success: true,
+      data: result.data,
+      broadcasts: result.broadcasts,
+    };
   }
 }

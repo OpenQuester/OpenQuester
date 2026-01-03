@@ -14,7 +14,7 @@ import {
 import {
   FinalAnswerSubmitInputData,
   FinalAnswerSubmitOutputData,
-  FinalAutoLossEventData,
+  SocketIOFinalAutoLossEventPayload,
   FinalSubmitEndEventData,
 } from "domain/types/socket/events/FinalRoundEventData";
 
@@ -55,7 +55,7 @@ export class FinalAnswerSubmitActionHandler
         data: {
           playerId,
           reason: FinalAnswerLossReason.EMPTY_ANSWER,
-        } satisfies FinalAutoLossEventData,
+        } satisfies SocketIOFinalAutoLossEventPayload,
         target: SocketBroadcastTarget.GAME,
         gameId: game.id,
       });

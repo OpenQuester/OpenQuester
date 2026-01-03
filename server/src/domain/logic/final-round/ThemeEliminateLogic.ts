@@ -2,16 +2,23 @@ import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
+import {
+  SocketBroadcastTarget,
+  SocketEventBroadcast,
+} from "domain/handlers/socket/BaseSocketEventHandler";
 import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
 import { TransitionResult } from "domain/state-machine/types";
 import { GameStateThemeDTO } from "domain/types/dto/game/state/GameStateThemeDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { ThemeEliminateOutputData } from "domain/types/socket/events/FinalRoundEventData";
 import {
   ThemeEliminateResult,
   ThemeEliminationTimeoutResult,
 } from "domain/types/socket/finalround/FinalRoundResults";
+import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
@@ -188,6 +195,7 @@ export class ThemeEliminateLogic {
 
   /**
    * Builds the result object from elimination data and transition outcome.
+   * Includes THEME_ELIMINATE broadcast and any transition broadcasts.
    */
   public static buildResult(
     input: ThemeEliminateResultInput
@@ -200,7 +208,31 @@ export class ThemeEliminateLogic {
       timer = transitionResult.data.timer as GameStateTimerDTO;
     }
 
+    const outputData: ThemeEliminateOutputData = {
+      themeId,
+      eliminatedBy,
+      nextPlayerId: transitionResult?.success
+        ? null
+        : mutationResult.nextPlayerId,
+    };
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event: SocketIOGameEvents.THEME_ELIMINATE,
+        data: outputData,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<ThemeEliminateOutputData>,
+    ];
+
+    // Add transition broadcasts if transition occurred (service uses satisfies)
+    if (transitionResult?.success && transitionResult.broadcasts) {
+      broadcasts.push(...convertBroadcasts(transitionResult.broadcasts, game.id));
+    }
+
     return {
+      data: outputData,
+      broadcasts,
       game,
       eliminatedBy,
       themeId,
@@ -210,7 +242,7 @@ export class ThemeEliminateLogic {
       isPhaseComplete: transitionResult?.success ?? false,
       timer,
       transitionResult,
-    } satisfies ThemeEliminateResult;
+    };
   }
 
   /**

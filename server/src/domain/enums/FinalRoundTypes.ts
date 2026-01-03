@@ -11,4 +11,5 @@ export enum FinalAnswerType {
   CORRECT = "correct",
   WRONG = "wrong",
   AUTO_LOSS = "auto_loss",
+  PENDING = "pending",
 }

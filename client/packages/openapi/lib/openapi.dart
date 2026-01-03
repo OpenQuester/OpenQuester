@@ -156,7 +156,6 @@ export 'src/models/socket_io_answer_result_event_payload.dart';
 export 'src/models/socket_io_answer_result_input.dart';
 export 'src/models/socket_io_answer_show_end_event_payload.dart';
 export 'src/models/socket_io_answer_show_start_event_payload.dart';
-export 'src/models/socket_io_answer_submitted_event_data.dart';
 export 'src/models/socket_io_answer_submitted_input.dart';
 export 'src/models/socket_io_chat_message_content.dart';
 export 'src/models/socket_io_chat_message_event_payload.dart';

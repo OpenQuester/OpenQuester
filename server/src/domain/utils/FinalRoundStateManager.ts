@@ -158,7 +158,8 @@ export class FinalRoundStateManager {
   public static addAnswer(
     game: Game,
     playerId: number,
-    answerText: string
+    answerText: string,
+    isAutoLoss: boolean
   ): FinalRoundAnswer {
     const data = this.getFinalRoundData(game);
     if (!data) {
@@ -170,8 +171,9 @@ export class FinalRoundStateManager {
       playerId,
       answer: answerText,
       submittedAt: new Date(),
-      autoLoss: answerText.trim().length === 0,
-      isCorrect: answerText.trim().length === 0 ? false : undefined,
+      autoLoss: isAutoLoss,
+      // Auto-loss answers are automatically marked as incorrect (no showman review needed)
+      isCorrect: isAutoLoss ? false : undefined,
     };
 
     data.answers.push(answer);
