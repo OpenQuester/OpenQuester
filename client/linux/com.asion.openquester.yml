@@ -18,6 +18,19 @@ finish-args:
   - --filesystem=xdg-videos
 
 modules:
+  # libvpx for video encoding (required by FFmpeg)
+  - name: libvpx
+    config-opts:
+      - --enable-shared
+      - --disable-static
+      - --enable-pic
+      - --disable-examples
+      - --disable-unit-tests
+    sources:
+      - type: archive
+        url: https://github.com/webmproject/libvpx/archive/v1.14.0.tar.gz
+        sha256: 5f21d2db27071c8a46f1725928a10227ae45c5cd1cad3727e4aafbe476e321fa
+
   # FFmpeg for media encoding/decoding
   - name: ffmpeg
     config-opts:
@@ -37,18 +50,6 @@ modules:
         sha256: 8684f4b00f94b85461884c3719382f1261f0d9eb3d59640a1f4ac0873616f968
     cleanup:
       - /share/ffmpeg/examples
-
-  - name: libvpx
-    config-opts:
-      - --enable-shared
-      - --disable-static
-      - --enable-pic
-      - --disable-examples
-      - --disable-unit-tests
-    sources:
-      - type: archive
-        url: https://github.com/webmproject/libvpx/archive/v1.14.0.tar.gz
-        sha256: 5f21d2db27071c8a46f1725928a10227ae45c5cd1cad3727e4aafbe476e321fa
 
   - name: openquester
     buildsystem: simple
