@@ -1,0 +1,84 @@
+app-id: com.asion.openquester
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+command: openquester
+separate-locales: false
+
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=dri
+  - --filesystem=xdg-documents
+  - --filesystem=xdg-download
+  - --filesystem=xdg-music
+  - --filesystem=xdg-videos
+
+modules:
+  # FFmpeg for media encoding/decoding
+  - name: ffmpeg
+    config-opts:
+      - --enable-shared
+      - --disable-static
+      - --enable-gnutls
+      - --disable-doc
+      - --disable-programs
+      - --disable-encoders
+      - --disable-muxers
+      - --enable-encoder=png
+      - --enable-libvpx
+      - --enable-libopus
+    sources:
+      - type: archive
+        url: https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz
+        sha256: 8684f4b00f94b85461884c3719382f1261f0d9eb3d59640a1f4ac0873616f968
+    cleanup:
+      - /share/ffmpeg/examples
+
+  - name: libvpx
+    config-opts:
+      - --enable-shared
+      - --disable-static
+      - --enable-pic
+      - --disable-examples
+      - --disable-unit-tests
+    sources:
+      - type: archive
+        url: https://github.com/webmproject/libvpx/archive/v1.14.0.tar.gz
+        sha256: 5f21d2db27071c8a46f1725928a10227ae45c5cd1cad3727e4aafbe476e321fa
+
+  - name: openquester
+    buildsystem: simple
+    only-arches:
+      - x86_64
+      - aarch64
+    build-commands:
+      - cp -r bundle /app/openquester
+      - chmod +x /app/openquester/openquester
+      - mkdir -p /app/bin
+      - ln -s /app/openquester/openquester /app/bin/openquester
+      - install -Dm644 com.asion.openquester.desktop /app/share/applications/com.asion.openquester.desktop
+      - install -Dm644 com.asion.openquester.metainfo.xml /app/share/metainfo/com.asion.openquester.metainfo.xml
+      - install -Dm644 icon.svg /app/share/icons/hicolor/scalable/apps/com.asion.openquester.svg
+      - install -Dm644 icon-512.png /app/share/icons/hicolor/512x512/apps/com.asion.openquester.png
+      - install -Dm644 icon-192.png /app/share/icons/hicolor/192x192/apps/com.asion.openquester.png
+    sources:
+      - type: dir
+        path: ../build/linux/x64/release/bundle
+        dest: bundle
+      - type: file
+        path: com.asion.openquester.desktop
+      - type: file
+        path: com.asion.openquester.metainfo.xml
+      - type: file
+        path: ../assets/icon/icon.svg
+        dest-filename: icon.svg
+      - type: file
+        path: ../web/icons/icon-512.png
+        dest-filename: icon-512.png
+      - type: file
+        path: ../web/icons/icon-192.png
+        dest-filename: icon-192.png

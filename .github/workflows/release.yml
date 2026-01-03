@@ -87,6 +87,7 @@ jobs:
           files: |
             android/**/*.apk
             windows/**
+            linux/**
 
       # ––––– Deploy web to Cloudflare Pages –––––
       - name: Publish to Cloudflare Pages (Production)
