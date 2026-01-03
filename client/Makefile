@@ -12,7 +12,15 @@ endif
 
 # Auto-detect whether this is a Flutter or Dart project
 # Checks if pubspec.yaml contains "sdk: flutter"
-DART_CMD := $(shell if grep -q "sdk: flutter" pubspec.yaml 2>/dev/null; then echo "flutter"; else echo "dart"; fi)
+IS_FLUTTER_PACKAGE := $(shell if grep -q "sdk: flutter" pubspec.yaml 2>/dev/null; then echo "true"; else echo "false"; fi)
+
+ifeq ($(IS_FLUTTER_PACKAGE),true)
+DART_CMD = flutter
+PUB_CMD = pub
+else
+DART_CMD = dart
+PUB_CMD =
+endif
 
 # =============================================================================
 # TIMING UTILITIES
@@ -87,12 +95,13 @@ else
 
 # Generate localization keys from JSON files
 gen_locale:
-	$(PURO_CMD) flutter pub run easy_localization:generate -f keys -o locale_keys.g.dart -S assets/localization/
+	$(PURO_CMD) $(DART_CMD) $(PUB_CMD) run easy_localization:generate -f keys -o locale_keys.g.dart -S assets/localization/
 
 # Build all packages in the packages/ directory
 # Supports TARGET_PACKAGES env var to build specific packages only
 pre_build_packages:
 	@if [ -n "$(TARGET_PACKAGES)" ]; then \
+		set -e; \
 		for pkg_name in $(TARGET_PACKAGES); do \
 			pkg="packages/$$pkg_name"; \
 			if [ -d "$$pkg" ]; then \
@@ -107,6 +116,7 @@ pre_build_packages:
 			fi; \
 		done; \
 	else \
+		set -e; \
 		for pkg in packages/* ; do \
 			if [ -d "$$pkg" ]; then \
 				echo ""; \
@@ -121,7 +131,8 @@ pre_build_packages:
 
 # Run code generation for all packages
 gen_files_packages:
-	@for pkg in packages/* ; do \
+	@set -e; \
+	for pkg in packages/* ; do \
 		echo "Running gen_files in $$pkg" ; \
 		$(MAKE) -C $$pkg -f ../../Makefile gen_files DART_PACKAGE=true || true ; \
 	done
@@ -135,12 +146,12 @@ endif
 # Run build_runner to generate code (freezed, json_serializable, etc.)
 gen_files: START_TIME_FILES := $(shell $(GET_TIME))
 gen_files:
-	$(PURO_CMD) $(DART_CMD) run build_runner build -d
+	$(PURO_CMD) $(DART_CMD) $(PUB_CMD) run build_runner build -d
 	$(call time_target,gen_files,$(START_TIME_FILES))
 
 # Generate index files (barrel exports) for easier imports
 gen_indexes: install_index_gen
-	$(PURO_CMD) flutter pub global run index_generator
+	$(PURO_CMD) $(DART_CMD) pub global run index_generator
 
 # =============================================================================
 # CODE QUALITY TARGETS
@@ -163,12 +174,12 @@ verify:
 
 # Clean build_runner cache and generated files
 clean_build_runner:
-	$(PURO_CMD) $(DART_CMD) run build_runner clean
+	$(PURO_CMD) $(DART_CMD) $(PUB_CMD) run build_runner clean
 
 # Full clean: cleans build_runner, Flutter build artifacts, and fetches dependencies
 clean: clean_build_runner
 	$(PURO_CMD) $(DART_CMD) clean
-	$(PURO_CMD) $(DART_CMD) pub get
+	$(PURO_CMD) $(DART_CMD) $(PUB_CMD) get
 
 # =============================================================================
 # INSTALLATION & SETUP TARGETS
@@ -176,7 +187,7 @@ clean: clean_build_runner
 
 # Install the index_generator tool globally
 install_index_gen:
-	$(PURO_CMD) dart pub global activate index_generator
+	$(PURO_CMD) $(DART_CMD) pub global activate index_generator
 
 # =============================================================================
 # PLATFORM-SPECIFIC TARGETS
@@ -240,20 +251,22 @@ endif
 
 # Upgrade dependencies for a single package (auto-detects Flutter vs Dart)
 upgrade_package:
-	$(PURO_CMD) $(DART_CMD) pub upgrade $(UPGRADE_FLAGS)
+	$(PURO_CMD) $(DART_CMD) $(PUB_CMD) upgrade $(UPGRADE_FLAGS)
 
 # Upgrade dependencies for main project and all packages
 # Usage: make upgrade UPGRADE_FLAGS="--major-versions"
 upgrade:
-	@if [ -f "pubspec.yaml" ]; then \
+	@set -e; \
+	if [ -f "pubspec.yaml" ]; then \
 		echo ""; \
 		echo "========================================"; \
 		echo "  Upgrading current package"; \
-		echo "========================================"; \
+			echo "========================================"; \
 		echo ""; \
 		$(MAKE) upgrade_package UPGRADE_FLAGS="$(UPGRADE_FLAGS)"; \
 	fi
-	@for pkg in packages/* ; do \
+	@set -e; \
+	for pkg in packages/* ; do \
 		if [ -d "$$pkg" ] && [ -f "$$pkg/pubspec.yaml" ]; then \
 			echo ""; \
 			echo "========================================"; \
