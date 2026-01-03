@@ -16,6 +16,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { GameMapper } from "domain/mappers/GameMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
+import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
@@ -74,6 +75,24 @@ export class GameRepository {
       GameMapper.serializeGameToHash(game),
       GAME_TTL_IN_SECONDS
     );
+  }
+
+  public async updateGameWithIndexes(
+    game: Game,
+    previousIndexData: GameIndexesInputDTO
+  ): Promise<void> {
+    const key = this.getGameKey(game.id);
+    const pipeline = this.redisService.pipeline();
+
+    pipeline.hset(key, GameMapper.serializeGameToHash(game));
+    this.gameIndexManager.updateGameIndexesPipeline(
+      pipeline,
+      previousIndexData,
+      game.toIndexData()
+    );
+    pipeline.expire(key, GAME_TTL_IN_SECONDS);
+
+    await pipeline.exec();
   }
 
   private async _isGameExists(gameId: string) {
@@ -209,7 +228,7 @@ export class GameRepository {
     });
 
     const initialGameState = GameStateMapper.initGameState();
-    
+
     // Handle password for private games
     if (gameData.isPrivate) {
       initialGameState.password =
