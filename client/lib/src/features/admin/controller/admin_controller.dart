@@ -231,7 +231,7 @@ class AdminController extends ChangeNotifier {
     try {
       await Api.I.api.admin.postV1AdminApiUsersIdMute(
         id: userId,
-        body: {'mutedUntil': mutedUntil.toIso8601String()},
+        body: UserMuteInput(mutedUntil: mutedUntil),
       );
       await getIt<ToastController>().show(
         LocaleKeys.admin_user_muted_success.tr(),

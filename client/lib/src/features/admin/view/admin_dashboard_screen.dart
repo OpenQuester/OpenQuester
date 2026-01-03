@@ -461,8 +461,8 @@ class _UserListItem extends WatchingWidget {
         );
 
     // Check if user is currently muted
-    final isMuted = user.mutedUntil != null &&
-        user.mutedUntil!.isAfter(DateTime.now());
+    final isMuted =
+        user.mutedUntil != null && user.mutedUntil!.isAfter(DateTime.now());
 
     return Card(
       child: ListTile(
@@ -708,8 +708,8 @@ class _MoreUserButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = getIt<AdminController>();
     // Check if user is currently muted
-    final isMuted = user.mutedUntil != null &&
-        user.mutedUntil!.isAfter(DateTime.now());
+    final isMuted =
+        user.mutedUntil != null && user.mutedUntil!.isAfter(DateTime.now());
 
     return PopupMenuButton<AdminActionType>(
       icon: const Icon(Icons.more_vert),
@@ -739,7 +739,7 @@ class _MoreUserButton extends StatelessWidget {
             }
           case AdminActionType.mute:
             final mutedUntil = await _showMuteDurationDialog(context);
-            if (mutedUntil != null) {
+            if (mutedUntil != null && context.mounted) {
               final confirmed = await _showConfirmDialog(
                 context,
                 LocaleKeys.admin_confirm_mute.tr(
@@ -857,11 +857,13 @@ class _MoreUserButton extends StatelessWidget {
   }
 
   Future<DateTime?> _showMuteDurationDialog(BuildContext context) async {
-    // Use a special marker for custom option to differentiate from preset durations
+    // Use a special marker for custom option to differentiate from
+    // preset durations
     // This marker (Unix epoch) will never conflict with real mute times since
-    // all mute times must be in the future (validated in _showCustomDateTimePicker)
+    // all mute times must be in the future
+    // (validated in _showCustomDateTimePicker)
     final customMarker = DateTime(1970);
-    
+
     final result = await showDialog<DateTime>(
       context: context,
       builder: (context) => AlertDialog(
@@ -904,37 +906,37 @@ class _MoreUserButton extends StatelessWidget {
         ],
       ),
     );
-    
+
     // If custom was selected, show the date/time picker
-    if (result != null && result == customMarker) {
+    if (result != null && result == customMarker && context.mounted) {
       return _showCustomDateTimePicker(context);
     }
-    
+
     return result;
   }
 
   Future<DateTime?> _showCustomDateTimePicker(BuildContext context) async {
     final now = DateTime.now();
     final initialDate = now.add(const Duration(hours: 1));
-    
+
     final selectedDate = await showDatePicker(
       context: context,
       initialDate: initialDate,
       firstDate: now,
       lastDate: now.add(const Duration(days: 365)),
     );
-    
+
     if (selectedDate == null) return null;
-    
+
     if (!context.mounted) return null;
-    
+
     final selectedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(initialDate),
     );
-    
+
     if (selectedTime == null) return null;
-    
+
     final combinedDateTime = DateTime(
       selectedDate.year,
       selectedDate.month,
@@ -942,7 +944,7 @@ class _MoreUserButton extends StatelessWidget {
       selectedTime.hour,
       selectedTime.minute,
     );
-    
+
     // Validate that the selected date/time is in the future
     final nowAfterPick = DateTime.now();
     if (!combinedDateTime.isAfter(nowAfterPick)) {
@@ -953,7 +955,7 @@ class _MoreUserButton extends StatelessWidget {
       }
       return null;
     }
-    
+
     return combinedDateTime;
   }
 }
