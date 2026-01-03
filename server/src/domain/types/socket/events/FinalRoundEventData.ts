@@ -87,7 +87,7 @@ export interface BiddingPhaseInitializationResult {
 /**
  * Data for final round auto loss events (empty answers, timeouts)
  */
-export interface FinalAutoLossEventData {
+export interface SocketIOFinalAutoLossEventPayload {
   playerId: number;
   reason: FinalAnswerLossReason;
 }

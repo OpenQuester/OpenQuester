@@ -22,7 +22,7 @@ import {
 } from "domain/types/service/ServiceResult";
 import {
   FinalAnswerSubmitOutputData,
-  FinalAutoLossEventData,
+  SocketIOFinalAutoLossEventPayload,
   ThemeEliminateOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
@@ -385,7 +385,7 @@ export class TimerExpirationService {
         data: {
           playerId: autoLossReview.playerId,
           reason: FinalAnswerLossReason.TIMEOUT,
-        } satisfies FinalAutoLossEventData,
+        } satisfies SocketIOFinalAutoLossEventPayload,
         room: game.id,
       });
     }

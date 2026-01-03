@@ -1,9 +1,5 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -11,7 +7,6 @@ import {
 } from "domain/types/action/GameActionHandler";
 import {
   EmptyInputData,
-  GameStartBroadcastData,
   PlayerReadinessBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 
@@ -31,41 +26,25 @@ export class PlayerReadyActionHandler
       true
     );
 
-    const readyData: PlayerReadinessBroadcastData = {
-      playerId: result.playerId,
-      isReady: result.isReady,
-      readyPlayers: result.readyPlayers,
-      autoStartTriggered: result.shouldAutoStart,
-    };
+    const broadcasts: SocketEventBroadcast[] = [...result.broadcasts];
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.PLAYER_READY,
-        data: readyData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: result.game.id,
-      },
-    ];
-
-    // If auto-start should trigger, handle it
-    if (result.shouldAutoStart) {
+    // If auto-start should trigger, handle it and add start broadcasts
+    if (result.data.shouldAutoStart) {
       const autoStartResult = await this.socketIOGameService.handleAutoStart(
-        result.game.id
+        result.data.game.id
       );
 
       if (autoStartResult) {
-        const startEventPayload: GameStartBroadcastData = {
-          currentRound: autoStartResult.gameState.currentRound!,
-        };
-
-        broadcasts.push({
-          event: SocketIOGameEvents.START,
-          data: startEventPayload,
-          target: SocketBroadcastTarget.GAME,
-          gameId: result.game.id,
-        });
+        broadcasts.push(...autoStartResult.broadcasts);
       }
     }
+
+    const readyData: PlayerReadinessBroadcastData = {
+      playerId: result.data.playerId,
+      isReady: result.data.isReady,
+      readyPlayers: result.data.readyPlayers,
+      autoStartTriggered: result.data.shouldAutoStart,
+    };
 
     return { success: true, data: readyData, broadcasts };
   }

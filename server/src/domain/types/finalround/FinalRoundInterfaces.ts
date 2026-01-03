@@ -1,14 +1,15 @@
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
-import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
+import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 
 /**
  * Interface for final round question data
  * Sent during answering phase transition and stored in game state
+ * Contains full question data excluding answer information (text/files/hint)
  */
 export interface FinalRoundQuestionData {
   themeId: number;
   themeName: string;
-  question: GameStateQuestionDTO;
+  question: SimplePackageQuestionDTO;
 }
 
 /**

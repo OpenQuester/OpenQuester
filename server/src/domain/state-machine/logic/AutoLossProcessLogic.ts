@@ -72,7 +72,7 @@ export class AutoLossProcessLogic {
       return null;
     }
 
-    const answer = FinalRoundStateManager.addAnswer(game, playerId, "");
+    const answer = FinalRoundStateManager.addAnswer(game, playerId, "", true);
 
     const answerData: AnswerData = {
       id: answer.id,
@@ -135,7 +135,8 @@ export class AutoLossProcessLogic {
         const answer = FinalRoundStateManager.addAnswer(
           game,
           player.meta.id,
-          ""
+          "",
+          true
         );
 
         // Create answer data (answer.autoLoss is true for empty answers)
