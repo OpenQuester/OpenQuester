@@ -6,4 +6,5 @@ export interface GameCreateDTO {
   isPrivate: boolean;
   ageRestriction: AgeRestriction;
   maxPlayers: number;
+  password?: string;
 }

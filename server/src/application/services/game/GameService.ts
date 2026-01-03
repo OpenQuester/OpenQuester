@@ -1,25 +1,33 @@
 import { type Request } from "express";
 import { type Server as IOServer } from "socket.io";
 
+import { PackageService } from "application/services/package/PackageService";
 import { UserService } from "application/services/user/UserService";
+import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
+import { GameUpdateLogic } from "domain/logic/game/GameUpdateLogic";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { GameEvent, GameEventDTO } from "domain/types/dto/game/GameEventDTO";
 import { GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
+import { GameUpdateDTO } from "domain/types/dto/game/GameUpdateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
+import { GameUpdateValidator } from "domain/validators/GameUpdateValidator";
 import { GameRepository } from "infrastructure/database/repositories/GameRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 
 export class GameService {
   constructor(
     private readonly io: IOServer,
     private readonly gameRepository: GameRepository,
     private readonly userService: UserService,
+    private readonly packageService: PackageService,
+    private readonly storage: S3StorageService,
     private readonly logger: ILogger
   ) {
     //
@@ -115,6 +123,62 @@ export class GameService {
     this._emitSocketGameCreated(gameDataOutput);
 
     return gameDataOutput;
+  }
+
+  public async update(
+    req: Request,
+    gameId: string,
+    updateData: GameUpdateDTO
+  ): Promise<GameListItemDTO> {
+    const user = await this.userService.getUserByRequest(req, {
+      select: ["id"],
+      relations: [],
+    });
+
+    if (!user) {
+      throw new ClientError(
+        ClientResponse.USER_NOT_FOUND,
+        HttpStatus.NOT_FOUND
+      );
+    }
+
+    const game = await this.gameRepository.getGameEntity(gameId);
+    const previousIndexData = game.toIndexData();
+
+    // Run all validations
+    GameUpdateValidator.validateUpdatePermission(game, user.id);
+    GameUpdateValidator.validatePasswordUpdate(updateData, game.isPrivate);
+    GameUpdateValidator.validatePackageUpdate(updateData, game);
+    GameUpdateValidator.validateMaxPlayersUpdate(updateData, game);
+
+    // Apply updates
+    GameUpdateLogic.applyBasicUpdates(game, updateData);
+    GameUpdateLogic.applyPasswordUpdate(game, updateData);
+    await GameUpdateLogic.applyPackageUpdate(
+      game,
+      updateData,
+      this.packageService,
+      this.storage
+    );
+
+    await this.gameRepository.updateGameWithIndexes(game, previousIndexData);
+
+    const gameDTO = await this.gameRepository.gameToListItemDTO(game);
+
+    const eventDataDTO: GameEventDTO = {
+      event: GameEvent.CHANGED,
+      data: gameDTO,
+    };
+
+    // Update global lobby list
+    this.io.emit(SocketIOEvents.GAMES, eventDataDTO);
+    // Update all players currently inside the game room (game namespace)
+    this.io
+      .of(SOCKET_GAME_NAMESPACE)
+      .to(gameId)
+      .emit(SocketIOEvents.GAMES, eventDataDTO);
+
+    return gameDTO;
   }
 
   public async cleanupAllGames() {
