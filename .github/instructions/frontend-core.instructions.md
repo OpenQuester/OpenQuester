@@ -34,7 +34,7 @@ class MyWatchingWidget extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final value = watchValue((MyController m) => m.someValue);
-    return Text(\"$value\");
+    return Text("$value");
   }
 }
 ```
@@ -80,4 +80,4 @@ MaxSizeContainer(maxWidth: UiModeUtils.maximumDialogWidth, child: isWide ? _Wide
 Container(padding: 16.all, margin: 8.vertical, child: Column(spacing: 12, children: widgets))
 ```
 
-See: `frontend-patterns.instructions.md` for localization, animations, navigation, forms, testing
+See: `.github/instructions/frontend-patterns.instructions.md` for localization, animations, navigation, forms, testing
