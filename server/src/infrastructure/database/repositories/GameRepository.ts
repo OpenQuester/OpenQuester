@@ -236,25 +236,22 @@ export class GameRepository {
         gameData.password || PasswordUtils.generateGamePassword();
     }
 
-    const game = new Game(
-      {
-        id: gameId,
-        title: gameData.title,
-        createdBy: createdBy.id,
-        createdAt: new Date(),
-        isPrivate: gameData.isPrivate,
-        ageRestriction: gameData.ageRestriction,
-        maxPlayers: gameData.maxPlayers,
-        startedAt: null,
-        finishedAt: null,
-        package: packageDTO,
-        roundsCount: counts.roundsCount,
-        questionsCount: counts.questionsCount,
-        players: [],
-        gameState: initialGameState,
-      },
-      this.logger
-    );
+    const game = new Game({
+      id: gameId,
+      title: gameData.title,
+      createdBy: createdBy.id,
+      createdAt: new Date(),
+      isPrivate: gameData.isPrivate,
+      ageRestriction: gameData.ageRestriction,
+      maxPlayers: gameData.maxPlayers,
+      startedAt: null,
+      finishedAt: null,
+      package: packageDTO,
+      roundsCount: counts.roundsCount,
+      questionsCount: counts.questionsCount,
+      players: [],
+      gameState: initialGameState,
+    });
 
     const pipeline = this.redisService.pipeline();
     pipeline.hset(key, GameMapper.serializeGameToHash(game));
