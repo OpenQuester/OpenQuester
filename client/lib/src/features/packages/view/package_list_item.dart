@@ -5,9 +5,9 @@ import 'package:openquester/openquester.dart';
 
 class PackageListItemWidget extends StatelessWidget {
   const PackageListItemWidget({required this.item, super.key});
-  
+
   static const int _maxVisibleTags = 5;
-  
+
   final PackageListItem item;
 
   @override

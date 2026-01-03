@@ -14,8 +14,7 @@ class PackageSearchDialog extends StatefulWidget {
 
 class _PackageSearchDialogState extends State<PackageSearchDialog> {
   static const double _filtersPanelExpandedHeight = 540;
-  static const int _maxVisibleTags = 5;
-  
+
   final PackagesListController _controller = getIt<PackagesListController>();
   final _searchController = TextEditingController();
   final _minRoundsController = TextEditingController();
@@ -40,9 +39,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
 
   void _onSearchChanged() {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      _applyFilters();
-    });
+    _debounce = Timer(const Duration(milliseconds: 300), _applyFilters);
   }
 
   void _applyFilters() {

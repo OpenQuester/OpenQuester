@@ -84,8 +84,9 @@ class VideoPlayerUtils {
     }
 
     final clamped = linear.clamp(0.0, maxVol);
-    return minVol * math.exp(_b * (clamped as double));
+    return minVol * math.exp(_b * clamped);
   }
+}
 
 /// Extension methods for VideoPlayerController
 extension VideoPlayerControllerExtension on VideoPlayerController {

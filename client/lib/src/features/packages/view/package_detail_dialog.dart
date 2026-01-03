@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
-import 'package:oq_editor/view/widgets/media_preview_widget.dart';
 
 @RoutePage(deferredLoading: false)
-class PackageDetailDialog extends WatchingWidget {
+class PackageDetailDialog extends StatefulWidget {
   const PackageDetailDialog({required this.packageId, super.key});
 
   final int packageId;
 
   @override
-  Widget build(BuildContext context) {
-    final packageAsync = watchFuture(
-      future: () => Api.I.api.packages.getV1PackagesId(id: packageId),
-      initialValue: null,
-    );
+  State<PackageDetailDialog> createState() => _PackageDetailDialogState();
+}
 
+class _PackageDetailDialogState extends State<PackageDetailDialog> {
+  late final Future<OqPackage> _packageFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _packageFuture = Api.I.api.packages.getV1PackagesId(id: widget.packageId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return AdaptiveDialog(
       builder: (context) => ConstrainedBox(
         constraints: const BoxConstraints(
@@ -23,17 +30,20 @@ class PackageDetailDialog extends WatchingWidget {
         ),
         child: Card(
           elevation: 0,
-          child: AnimatedCrossFade(
-            duration: const Duration(milliseconds: 300),
-            crossFadeState: packageAsync.hasData
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            firstChild: _buildLoadingState(context),
-            secondChild: packageAsync.hasError
-                ? _buildErrorState(context, packageAsync.error!)
-                : packageAsync.hasData
-                    ? _buildContent(context, packageAsync.data!)
-                    : _buildLoadingState(context),
+          child: FutureBuilder<OqPackage>(
+            future: _packageFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return _buildLoadingState(context);
+              }
+              if (snapshot.hasError) {
+                return _buildErrorState(context, snapshot.error!);
+              }
+              if (snapshot.hasData) {
+                return _buildContent(context, snapshot.data!);
+              }
+              return _buildLoadingState(context);
+            },
           ),
         ),
       ),
@@ -169,7 +179,7 @@ class _PackageBasicInfo extends StatelessWidget {
             spacing: 4,
             children: [
               Text(
-                LocaleKeys.package_description.tr(),
+                LocaleKeys.oq_editor_package_description.tr(),
                 style: context.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -200,11 +210,17 @@ class _PackageBasicInfo extends StatelessWidget {
               ),
             _PackageInfoChip(
               icon: Icons.view_module_outlined,
-              text: '${package.rounds.length} ${LocaleKeys.rounds.plural(package.rounds.length)}',
+              text: [
+                package.rounds.length,
+                LocaleKeys.rounds.plural(package.rounds.length),
+              ].join(' '),
             ),
             _PackageInfoChip(
               icon: Icons.quiz_outlined,
-              text: '${_getTotalQuestions(package)} ${LocaleKeys.questions.plural(_getTotalQuestions(package))}',
+              text: [
+                _getTotalQuestions(package),
+                LocaleKeys.questions.plural(_getTotalQuestions(package)),
+              ].join(' '),
             ),
           ],
         ),
@@ -214,7 +230,7 @@ class _PackageBasicInfo extends StatelessWidget {
             spacing: 8,
             children: [
               Text(
-                LocaleKeys.package_tags.tr(),
+                LocaleKeys.oq_editor_package_tags.tr(),
                 style: context.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -225,7 +241,7 @@ class _PackageBasicInfo extends StatelessWidget {
                 children: package.tags!
                     .map(
                       (tag) => Chip(
-                        label: Text(tag),
+                        label: Text(tag.tag),
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
                     )
@@ -240,7 +256,8 @@ class _PackageBasicInfo extends StatelessWidget {
   int _getTotalQuestions(OqPackage package) {
     return package.rounds.fold<int>(
       0,
-      (sum, round) => sum +
+      (sum, round) =>
+          sum +
           round.themes.fold<int>(
             0,
             (themeSum, theme) => themeSum + theme.questions.length,
