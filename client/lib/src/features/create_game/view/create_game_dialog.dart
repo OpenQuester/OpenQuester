@@ -580,6 +580,8 @@ class _GameConfigSection extends StatelessWidget {
                 ),
               ],
             ),
+            if (state.private)
+              _PasswordField(state: state, controller: controller),
             _MaxPlayersSelect(state: state, controller: controller),
           ],
         ),
@@ -760,4 +762,62 @@ class _AnimatedButtonState extends State<_AnimatedButton>
       ),
     );
   }
+}
+
+class _PasswordField extends StatefulWidget {
+  const _PasswordField({required this.state, required this.controller});
+
+  final CreateGameDto state;
+  final CreateGameController controller;
+
+  @override
+  State<_PasswordField> createState() => _PasswordFieldState();
+}
+
+class _PasswordFieldState extends State<_PasswordField> {
+  bool _obscurePassword = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      child: TextFormField(
+        initialValue: widget.state.password,
+        onChanged: (value) => widget.controller.state.value =
+            widget.state.copyWith(password: value.isEmpty ? null : value),
+        obscureText: _obscurePassword,
+        decoration: InputDecoration(
+          labelText: LocaleKeys.password_optional.tr(),
+          hintText: LocaleKeys.password_hint.tr(),
+          prefixIcon: const Icon(Icons.lock_outline_rounded),
+          suffixIcon: IconButton(
+            icon: Icon(
+              _obscurePassword
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+            ),
+            onPressed: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+            tooltip: _obscurePassword
+                ? LocaleKeys.show_password.tr()
+                : LocaleKeys.hide_password.tr(),
+          ),
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) return null;
+          if (value.length > GameValidationConst.maxPasswordLength) {
+            return LocaleKeys.min_length_error.tr(
+              args: [GameValidationConst.maxPasswordLength.toString()],
+            );
+          }
+          if (!GameValidationConst.passwordRegExp.hasMatch(value)) {
+            return LocaleKeys.password_validation.tr();
+          }
+          return null;
+        },
+        maxLength: GameValidationConst.maxPasswordLength,
+      ),
+    );
+  }
+}
 }
