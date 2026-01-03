@@ -33,6 +33,18 @@ export class GameUpdateValidator {
     updateData: GameUpdateDTO,
     currentIsPrivate: boolean
   ): void {
+    const targetIsPrivate = ValueUtils.isBoolean(updateData.isPrivate)
+      ? updateData.isPrivate
+      : currentIsPrivate;
+
+    // Rule 2: Private games cannot remove password
+    if (targetIsPrivate && updateData.password === null) {
+      throw new ClientError(
+        ClientResponse.GAME_PASSWORD_CANNOT_BE_REMOVED_FOR_PRIVATE_GAME,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
     const passwordProvided =
       !ValueUtils.isBad(updateData.password) &&
       ValueUtils.isString(updateData.password) &&
@@ -42,22 +54,10 @@ export class GameUpdateValidator {
       return;
     }
 
-    const targetIsPrivate = ValueUtils.isBoolean(updateData.isPrivate)
-      ? updateData.isPrivate
-      : currentIsPrivate;
-
     // Rule 1: Public games cannot have password
     if (!targetIsPrivate) {
       throw new ClientError(
         ClientResponse.GAME_PASSWORD_NOT_ALLOWED_FOR_PUBLIC_GAME,
-        HttpStatus.BAD_REQUEST
-      );
-    }
-
-    // Rule 2: Private games cannot remove password
-    if (targetIsPrivate && updateData.password === null) {
-      throw new ClientError(
-        ClientResponse.GAME_PASSWORD_CANNOT_BE_REMOVED_FOR_PRIVATE_GAME,
         HttpStatus.BAD_REQUEST
       );
     }
