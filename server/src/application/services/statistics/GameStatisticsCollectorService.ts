@@ -49,11 +49,6 @@ export class GameStatisticsCollectorService {
    * This method is idempotent - calling it multiple times is safe.
    */
   public async finishCollection(gameId: string): Promise<void> {
-    this.logger.debug(`Collect statistics for game`, {
-      prefix: LogPrefix.STATS,
-      gameId,
-    });
-
     const gameStats = await this.statisticsService.get(gameId);
     if (!gameStats) {
       this.logger.warn(
@@ -84,7 +79,7 @@ export class GameStatisticsCollectorService {
       duration,
     });
 
-    this.logger.info(`Statistics collection finished for game`, {
+    this.logger.debug(`Statistics collection finished for game`, {
       prefix: LogPrefix.STATS,
       gameId,
       duration: `${duration}ms`,

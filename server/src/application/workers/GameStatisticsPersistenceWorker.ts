@@ -46,25 +46,12 @@ export class GameStatisticsPersistenceWorker {
         gameStats
       );
 
-      this.logger.info(`Game statistics saved to DB`, {
-        prefix: LogPrefix.STATS_WORKER,
-        gameId: gameStats.gameId,
-        statisticsId: savedStats.id,
-        gameDuration: `${(gameStats.duration ?? 0) / (1000 * 60)} minutes`,
-      });
-
-      // Collect and persist player statistics before cleaning up Redis
-      this.logger.debug(`Collecting player statistics for persistence`, {
-        prefix: LogPrefix.STATS_WORKER,
-        gameId: gameStats.gameId,
-      });
-
       await this.playerGameStatsService.collectGamePlayerStats(
         gameStats.gameId,
         savedStats.id
       );
 
-      this.logger.info(`Player statistics collected and saved to DB`, {
+      this.logger.debug(`Player statistics collected and saved to DB`, {
         prefix: LogPrefix.STATS_WORKER,
         gameId: gameStats.gameId,
       });

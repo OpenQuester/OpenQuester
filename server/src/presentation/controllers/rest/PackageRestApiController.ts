@@ -9,7 +9,6 @@ import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { PackageInputDTO } from "domain/types/dto/package/PackageInputDTO";
 import { PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { checkPackDeletePermissionMiddleware } from "presentation/middleware/permission/PackagePermissionMiddleware";
 import {
@@ -94,12 +93,6 @@ export class PackageRestApiController {
       { packageId: Number(req.params.id) },
       packIdScheme()
     ).validate();
-
-    this.logger.info("Package deletion initiated", {
-      prefix: LogPrefix.ADMIN,
-      packageId: validatedData.packageId,
-      userId: req.user?.id,
-    });
 
     await this.packageService.deletePackage(validatedData.packageId);
 

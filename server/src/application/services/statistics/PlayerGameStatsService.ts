@@ -198,7 +198,7 @@ export class PlayerGameStatsService {
     // Save all player statistics with calculated placements
     await this.repository.saveMany(this._calculatePlacements(playerStatsData));
 
-    this.logger.info(
+    this.logger.debug(
       "Player game statistics collected successfully from Redis",
       {
         prefix: LogPrefix.PLAYER_STATS,

@@ -27,7 +27,7 @@ export class GameLifecycleService implements IGameLifecycleService {
       // Trigger statistics collection and persistence
       await this.gameStatisticsCollectorService.finishCollection(gameId);
 
-      this.logger.info("Game completion handled successfully", {
+      this.logger.debug("Game completion handled successfully", {
         prefix: LogPrefix.STATS,
         gameId,
       });

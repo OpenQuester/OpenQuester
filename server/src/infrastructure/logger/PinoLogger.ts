@@ -197,7 +197,10 @@ export class PinoLogger implements ILogger {
   }
 
   private initTerminalLogger(config: LoggerConfig): void {
-    const logLevel = config.logLevel || "trace";
+    // Stdout should stay quiet and predictable:
+    // - always emit only info+ to terminal, regardless of LOG_LEVEL
+    // - keep LOG_LEVEL behavior for file/unified sinks
+    const logLevel: CustomLevel = "info";
 
     const pinoOptions = {
       level: logLevel,
@@ -426,14 +429,22 @@ export class PinoLogger implements ILogger {
     const envLevel =
       (process.env.LOG_LEVEL as LogLevel) || this.logLevel || "info";
 
+    // Terminal always shows only info+ (but still includes warn/error/audit/etc).
+    const terminalLevel: LogLevel = "info";
+
     // Performance logs:
     // - never emit to terminal/stdout
-    // - always write to performance log file regardless of LOG_LEVEL
-    const shouldEmitToTerminal = type !== LogType.PERFORMANCE;
-    const shouldBypassLevelGateForFile = type === LogType.PERFORMANCE;
+    // - always write to performance log file and unified log regardless of LOG_LEVEL
+    const isPerformance = type === LogType.PERFORMANCE;
+    const shouldEmitToTerminal = !isPerformance;
 
-    const hasAccessByLevel = this.checkAccess(envLevel, messageLevel);
-    if (!hasAccessByLevel && !shouldBypassLevelGateForFile) {
+    const canWriteToFiles =
+      this.checkAccess(envLevel, messageLevel) || isPerformance;
+    const canWriteToTerminal =
+      shouldEmitToTerminal && this.checkAccess(terminalLevel, messageLevel);
+
+    // If this log doesn't go anywhere, skip all work.
+    if (!canWriteToFiles && !canWriteToTerminal) {
       return;
     }
 
@@ -464,7 +475,7 @@ export class PinoLogger implements ILogger {
     const msgWithPrefix = prefix ? `${prefix}${sanitizedMsg}` : sanitizedMsg;
 
     // Log to terminal - pass meta (without prefix) as first arg if present, then message
-    if (this.terminalLogger && shouldEmitToTerminal && hasAccessByLevel) {
+    if (this.terminalLogger && canWriteToTerminal) {
       if (sanitizedMeta) {
         this.terminalLogger[method](sanitizedMeta, msgWithPrefix);
       } else {
@@ -472,24 +483,26 @@ export class PinoLogger implements ILogger {
       }
     }
 
-    // Log to file for this type (with meta if present)
-    const fileLogger = this.loggers.get(type);
-    if (fileLogger) {
-      if (sanitizedMeta) {
-        fileLogger[method](sanitizedMeta, msgWithPrefix);
-      } else {
-        fileLogger[method](msgWithPrefix);
+    if (canWriteToFiles) {
+      // Log to file for this type (with meta if present)
+      const fileLogger = this.loggers.get(type);
+      if (fileLogger) {
+        if (sanitizedMeta) {
+          fileLogger[method](sanitizedMeta, msgWithPrefix);
+        } else {
+          fileLogger[method](msgWithPrefix);
+        }
       }
-    }
 
-    // Write to unified log file for REST API retrieval (multi-instance support)
-    // Always write to unified log regardless of level (filtering done at read time)
-    if (this.unifiedLogger) {
-      const unifiedMeta = {
-        ...sanitizedMeta,
-        timestamp: new Date().toISOString(),
-      };
-      this.unifiedLogger[method](unifiedMeta, msgWithPrefix);
+      // Write to unified log file for REST API retrieval (multi-instance support)
+      // NOTE: Unified logs are still gated by LOG_LEVEL (except performance which is always written).
+      if (this.unifiedLogger) {
+        const unifiedMeta = {
+          ...sanitizedMeta,
+          timestamp: new Date().toISOString(),
+        };
+        this.unifiedLogger[method](unifiedMeta, msgWithPrefix);
+      }
     }
   }
 

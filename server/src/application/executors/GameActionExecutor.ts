@@ -59,7 +59,7 @@ export class GameActionExecutor {
       return { success: false, error };
     }
 
-    this.logger.info(`Action submitted`, {
+    this.logger.debug(`Action submitted`, {
       prefix: LogPrefix.ACTION,
       actionId: action.id,
       actionType: action.type,
@@ -70,12 +70,14 @@ export class GameActionExecutor {
 
     if (!lockAcquired) {
       await this.queueService.pushAction(action);
-      this.logger.info(`Action queued (lock contention)`, {
+
+      this.logger.debug(`Action queued (lock contention)`, {
         prefix: LogPrefix.ACTION,
         actionId: action.id,
         actionType: action.type,
         gameId: action.gameId,
       });
+
       return { success: true };
     }
 
@@ -105,7 +107,8 @@ export class GameActionExecutor {
       }
 
       const durationMs = Date.now() - startTime;
-      this.logger.info(`Action executed`, {
+
+      this.logger.debug(`Action executed`, {
         prefix: LogPrefix.ACTION,
         actionId: action.id,
         actionType: action.type,
@@ -150,7 +153,7 @@ export class GameActionExecutor {
       return;
     }
 
-    this.logger.info(`Processing queued actions`, {
+    this.logger.debug(`Processing queued actions`, {
       prefix: LogPrefix.ACTION,
       gameId,
       queueLength,

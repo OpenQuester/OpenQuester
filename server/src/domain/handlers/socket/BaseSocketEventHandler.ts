@@ -102,7 +102,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
       const startTime = Date.now();
 
       // Log socket event received (info level for production tracing)
-      this.logger.info(`Socket event received: ${this.getEventName()}`, {
+      this.logger.debug(`Socket event received: ${this.getEventName()}`, {
         prefix: LogPrefix.SOCKET,
         userId: this.socket.userId,
         socketId: this.socket.id,

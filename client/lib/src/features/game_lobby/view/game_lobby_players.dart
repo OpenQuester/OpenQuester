@@ -73,7 +73,7 @@ class GameLobbyPlayers extends WatchingWidget {
                     ),
                   )
                 : null;
-                
+
             return InkWell(
               onTap: onPlayerTap,
               onSecondaryTap: onPlayerTap,
