@@ -36,12 +36,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
 
       // If game is private and no password provided, prompt for it
       if (gameInfo.isPrivate && password == null && mounted) {
-        password = await PasswordPromptDialog.show(
-          context,
-          gameTitle: gameInfo.title,
-        );
-
-        // User cancelled password prompt
+        password = await _promptForPassword(gameInfo.title);
         if (password == null) {
           if (mounted) Navigator.of(context).pop();
           return;
@@ -49,15 +44,48 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       }
 
       // Join the game with password (if any)
-      await getIt<GameLobbyController>().join(
+      final joinSuccess = await getIt<GameLobbyController>().join(
         gameId: widget.gameId,
         password: password,
       );
+
+      // If join failed due to incorrect password, allow retry
+      if (!joinSuccess && gameInfo.isPrivate && mounted) {
+        // Show incorrect password message
+        await getIt<ToastController>().show(
+          LocaleKeys.incorrect_password.tr(),
+        );
+
+        // Prompt for password again
+        password = await _promptForPassword(gameInfo.title);
+        if (password == null) {
+          if (mounted) Navigator.of(context).pop();
+          return;
+        }
+
+        // Retry joining with new password
+        final retrySuccess = await getIt<GameLobbyController>().join(
+          gameId: widget.gameId,
+          password: password,
+        );
+
+        if (!retrySuccess && mounted) {
+          Navigator.of(context).pop();
+        }
+      }
     } catch (e) {
       // Error will be handled by GameLobbyController
       logger.e('Error joining game', error: e);
       if (mounted) Navigator.of(context).pop();
     }
+  }
+
+  Future<String?> _promptForPassword(String gameTitle) async {
+    if (!mounted) return null;
+    return PasswordPromptDialog.show(
+      context,
+      gameTitle: gameTitle,
+    );
   }
 
   @override
