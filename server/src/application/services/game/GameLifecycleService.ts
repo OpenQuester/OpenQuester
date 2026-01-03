@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { IGameLifecycleService } from "domain/interfaces/game/IGameLifecycleService";
 import { GameCompletionResult } from "domain/types/game/GameCompletionResult";
@@ -5,13 +8,14 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
- * Service responsible for handling game lifecycle operations
- * Centralizes game completion logic and statistics collection
+ * Service responsible for handling game lifecycle operations.
+ * Centralizes game completion logic and statistics collection.
  */
+@singleton()
 export class GameLifecycleService implements IGameLifecycleService {
   constructor(
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

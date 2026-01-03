@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { GameActionType } from "domain/enums/GameActionType";
 import { GameActionHandler } from "domain/types/action/GameActionHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -12,10 +15,11 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
  * This enables distributed execution: any server instance can pick up
  * a queued action from Redis and execute it using the registered handler.
  */
+@singleton()
 export class GameActionHandlerRegistry {
   private readonly handlers = new Map<GameActionType, GameActionHandler>();
 
-  constructor(private readonly logger: ILogger) {}
+  constructor(@inject(DI_TOKENS.Logger) private readonly logger: ILogger) {}
 
   /**
    * Register a handler for a specific action type.

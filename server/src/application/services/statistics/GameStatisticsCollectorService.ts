@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { GameStatisticsService } from "application/services/statistics/GameStatisticsService";
 import { Game } from "domain/entities/game/Game";
@@ -7,14 +10,15 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
- * Service responsible for collecting game statistics during gameplay
- * Stores data temporarily in Redis during game progression
+ * Service responsible for collecting game statistics during gameplay.
+ * Stores data temporarily in Redis during game progression.
  */
+@singleton()
 export class GameStatisticsCollectorService {
   constructor(
     private readonly statisticsService: GameStatisticsService,
     private readonly statisticsWorkerFactory: StatisticsWorkerFactory,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

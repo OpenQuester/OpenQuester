@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
@@ -32,9 +35,10 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
- * Service handling timer expiration logic
- * Extracts business logic from TimerExpirationHandler
+ * Service handling timer expiration logic.
+ * Extracts business logic from TimerExpirationHandler.
  */
+@singleton()
 export class TimerExpirationService {
   constructor(
     private readonly gameService: GameService,
@@ -44,7 +48,7 @@ export class TimerExpirationService {
     private readonly finalRoundService: FinalRoundService,
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly playerGameStatsService: PlayerGameStatsService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

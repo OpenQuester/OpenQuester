@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import { GameService } from "application/services/game/GameService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
@@ -31,7 +33,6 @@ import { SecretQuestionTransferInputData } from "domain/types/socket/game/Secret
 import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
 import { SecretQuestionValidator } from "domain/validators/SecretQuestionValidator";
 import { StakeQuestionValidator } from "domain/validators/StakeQuestionValidator";
-import { ILogger } from "infrastructure/logger/ILogger";
 
 /**
  * Result from secret question transfer
@@ -56,14 +57,14 @@ export interface StakeQuestionSetupResult {
 }
 
 /**
- * Service handling special question types: stake and secret questions
+ * Service handling special question types: stake and secret questions.
  */
+@singleton()
 export class SpecialQuestionService {
   constructor(
     private readonly gameService: GameService,
     private readonly socketGameContextService: SocketGameContextService,
-    private readonly socketQuestionStateService: SocketQuestionStateService,
-    private readonly logger: ILogger
+    private readonly socketQuestionStateService: SocketQuestionStateService
   ) {
     //
   }

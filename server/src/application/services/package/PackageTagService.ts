@@ -1,8 +1,13 @@
+import { singleton } from "tsyringe";
 import { EntityManager } from "typeorm";
 
 import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { PackageTagRepository } from "infrastructure/database/repositories/PackageTagRepository";
 
+/**
+ * Service for package tag operations.
+ */
+@singleton()
 export class PackageTagService {
   constructor(private readonly packageTagRepository: PackageTagRepository) {
     //

@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { GameService } from "application/services/game/GameService";
 import { GAME_FINAL_ANSWER_TIME } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
@@ -6,10 +9,14 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
+/**
+ * Service for managing question state transitions.
+ */
+@singleton()
 export class SocketQuestionStateService {
   constructor(
     private readonly gameService: GameService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

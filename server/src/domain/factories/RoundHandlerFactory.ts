@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import { Game } from "domain/entities/game/Game";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
@@ -6,6 +8,10 @@ import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandle
 import { SimpleRoundHandler } from "domain/handlers/socket/round/SimpleRoundHandler";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 
+/**
+ * Factory for creating round handlers based on round type.
+ */
+@singleton()
 export class RoundHandlerFactory {
   /**
    * Creates a round handler for the specified round type

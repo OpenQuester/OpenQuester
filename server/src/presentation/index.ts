@@ -1,11 +1,14 @@
+// reflect-metadata must be imported at the very top for tsyringe decorators
+import "reflect-metadata";
+
 import { instrument } from "@socket.io/admin-ui";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { hashSync } from "bcryptjs";
 import express from "express";
 import { createServer, type Server } from "http";
 import { Server as IOServer } from "socket.io";
+import { container } from "tsyringe";
 
-import { Container, CONTAINER_TYPES } from "application/Container";
 import { ApiContext } from "application/context/ApiContext";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { ErrorController } from "domain/errors/ErrorController";
@@ -161,9 +164,7 @@ async function gracefulShutdown(
 
   // Stop cron jobs
   try {
-    const cronScheduler = Container.get<CronSchedulerService>(
-      CONTAINER_TYPES.CronSchedulerService
-    );
+    const cronScheduler = container.resolve(CronSchedulerService);
     logger.info("Stopping cron scheduler...", {
       prefix: LogPrefix.CRON_SCHEDULER,
     });

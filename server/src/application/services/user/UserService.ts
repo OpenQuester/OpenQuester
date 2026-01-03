@@ -1,7 +1,9 @@
 import { type Request } from "express";
 import { Namespace } from "socket.io";
+import { inject, singleton } from "tsyringe";
 import { FindOptionsWhere } from "typeorm";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { IGameLobbyLeaver } from "application/services/socket/IGameLobbyLeaver";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
@@ -23,13 +25,17 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Service for user management operations.
+ */
+@singleton()
 export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly fileUsageService: FileUsageService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
-    private readonly gameNamespace: Namespace,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }
@@ -230,7 +236,7 @@ export class UserService {
   }
 
   private async forceLeaveAllGames(userId: number): Promise<void> {
-    const userSockets = Array.from(this.gameNamespace.sockets.values()).filter(
+    const userSockets = Array.from(this.gamesNsp.sockets.values()).filter(
       (s) => s.userId === userId
     );
     if (userSockets.length === 0) return;
@@ -249,7 +255,7 @@ export class UserService {
         const gameId = leaveResult.data.gameId;
 
         if (gameId && !processedGameIds.has(gameId)) {
-          this.gameNamespace
+          this.gamesNsp
             .to(gameId)
             .emit(SocketIOGameEvents.LEAVE, { user: userId });
           processedGameIds.add(gameId);

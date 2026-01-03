@@ -1,5 +1,7 @@
 import { type Namespace } from "socket.io";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { GameService } from "application/services/game/GameService";
 import {
   PlayerLeaveReason,
@@ -61,6 +63,10 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Service for game lobby operations and player management.
+ */
+@singleton()
 export class SocketIOGameService {
   constructor(
     private readonly socketUserDataService: SocketUserDataService,
@@ -73,8 +79,8 @@ export class SocketIOGameService {
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly playerLeaveService: PlayerLeaveService,
-    private readonly logger: ILogger,
-    private readonly gameNamespace: Namespace
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
+    @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace
   ) {
     //
   }
@@ -541,7 +547,7 @@ export class SocketIOGameService {
       }
 
       // Get the specific socket and disconnect it
-      const socket = this.gameNamespace.sockets.get(socketId);
+      const socket = this.gamesNsp.sockets.get(socketId);
       if (socket) {
         this.logger.debug(
           `Force disconnecting socket ${socketId} for banned user ${userId}`,
