@@ -5,6 +5,7 @@ import {
   TableForeignKey,
 } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddPlayerGameStatsTable_0_17_0_3_1754379351456
@@ -129,7 +130,7 @@ export class AddPlayerGameStatsTable_0_17_0_3_1754379351456
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.17.0-3");
+    logger.migration("0.17.0-3", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

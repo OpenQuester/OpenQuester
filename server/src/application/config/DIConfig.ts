@@ -71,6 +71,7 @@ import { UserRepository } from "infrastructure/database/repositories/UserReposit
 import { ILogger } from "infrastructure/logger/ILogger";
 import { DependencyService } from "infrastructure/services/dependency/DependencyService";
 import { GameActionLockService } from "infrastructure/services/lock/GameActionLockService";
+import { LogReaderService } from "infrastructure/services/log/LogReaderService";
 import { GameActionQueueService } from "infrastructure/services/queue/GameActionQueueService";
 import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { RedisService } from "infrastructure/services/redis/RedisService";
@@ -98,6 +99,12 @@ export class DIConfig {
     Container.register(CONTAINER_TYPES.IO, this.io, "infrastructure");
 
     const db = Container.get<Database>(CONTAINER_TYPES.Database);
+
+    Container.register(
+      CONTAINER_TYPES.LogReaderService,
+      new LogReaderService(),
+      "service"
+    );
 
     Container.register(
       CONTAINER_TYPES.GameEventBroadcastService,
@@ -146,8 +153,7 @@ export class DIConfig {
     Container.register(
       CONTAINER_TYPES.GameActionQueueService,
       new GameActionQueueService(
-        Container.get<RedisService>(CONTAINER_TYPES.RedisService),
-        this.logger
+        Container.get<RedisService>(CONTAINER_TYPES.RedisService)
       ),
       "service"
     );
@@ -539,8 +545,7 @@ export class DIConfig {
         Container.get<SocketUserDataService>(
           CONTAINER_TYPES.SocketUserDataService
         ),
-        Container.get<GameService>(CONTAINER_TYPES.GameService),
-        this.logger
+        Container.get<GameService>(CONTAINER_TYPES.GameService)
       ),
       "service"
     );

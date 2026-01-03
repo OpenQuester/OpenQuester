@@ -2,6 +2,7 @@ import { REDIS_KEY_EXPIRE_EVENT } from "domain/constants/redis";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { Environment } from "infrastructure/config/Environment";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -29,7 +30,7 @@ export class RedisPubSubService {
       if (!ValueUtils.isString(message)) return;
 
       this.logger.debug(`Key expired: ${message}`, {
-        prefix: "[RedisPubSubService]: ",
+        prefix: LogPrefix.REDIS,
       });
 
       for (const handler of this.handlers) {
@@ -43,7 +44,7 @@ export class RedisPubSubService {
     this.redisService.on("message", this._messageHandler);
 
     this.logger.info("Redis subscribed for keys expiration", {
-      prefix: "[RedisPubSubService]: ",
+      prefix: LogPrefix.REDIS,
     });
   }
 
@@ -63,7 +64,7 @@ export class RedisPubSubService {
     }
 
     this.logger.info("Redis unsubscribed from keys expiration", {
-      prefix: "[RedisPubSubService]: ",
+      prefix: LogPrefix.REDIS,
     });
   }
 }

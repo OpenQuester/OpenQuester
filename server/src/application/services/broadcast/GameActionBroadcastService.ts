@@ -11,6 +11,7 @@ import {
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { Namespace, Server } from "socket.io";
 
 type IOEvent = SocketIOEvents | SocketIOGameEvents | SocketIOUserEvents;
@@ -58,7 +59,7 @@ export class GameActionBroadcastService {
       // Socket might have disconnected, log but don't throw
       this.logger.debug(
         `Failed to emit error to socket ${socketId}: ${error}`,
-        { prefix: "[ACTION_BROADCAST]: " }
+        { prefix: LogPrefix.ACTION_BROADCAST }
       );
     }
   }
@@ -137,7 +138,7 @@ export class GameActionBroadcastService {
       // Fallback to regular emit if game service not available
       this.logger.warn(
         "Role-based filtering not available - game service not initialized",
-        { prefix: "[BROADCAST]: " }
+        { prefix: LogPrefix.BROADCAST }
       );
       this.io.to(gameId).emit(event, data);
       return;
@@ -163,7 +164,7 @@ export class GameActionBroadcastService {
     } catch (error: unknown) {
       this.logger.error(
         `Error in role-based filtering emit: ${JSON.stringify(error)}`,
-        { prefix: "[BROADCAST]: " }
+        { prefix: LogPrefix.BROADCAST }
       );
       // Fallback to regular room emit if role-based filtering fails
       this.io.to(gameId).emit(event, data);

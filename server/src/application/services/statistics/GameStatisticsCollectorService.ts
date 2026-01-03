@@ -4,6 +4,7 @@ import { Game } from "domain/entities/game/Game";
 import { GameMode } from "domain/enums/GameMode";
 import { GameStatisticsData } from "domain/types/statistics/GameStatisticsData";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Service responsible for collecting game statistics during gameplay
@@ -48,17 +49,12 @@ export class GameStatisticsCollectorService {
    * This method is idempotent - calling it multiple times is safe.
    */
   public async finishCollection(gameId: string): Promise<void> {
-    this.logger.debug(`Collect statistics for game`, {
-      prefix: "[GAME_STATISTICS_COLLECTOR]: ",
-      gameId,
-    });
-
     const gameStats = await this.statisticsService.get(gameId);
     if (!gameStats) {
       this.logger.warn(
         `No statistics found for game ${gameId}, cannot finish collection`,
         {
-          prefix: "[GAME_STATISTICS_COLLECTOR]: ",
+          prefix: LogPrefix.STATS,
         }
       );
       return;
@@ -69,7 +65,7 @@ export class GameStatisticsCollectorService {
       this.logger.debug(
         `Statistics for game ${gameId} already finished, skipping duplicate call`,
         {
-          prefix: "[GAME_STATISTICS_COLLECTOR]: ",
+          prefix: LogPrefix.STATS,
         }
       );
       return;
@@ -83,8 +79,8 @@ export class GameStatisticsCollectorService {
       duration,
     });
 
-    this.logger.info(`Statistics collection finished for game`, {
-      prefix: "[GAME_STATISTICS_COLLECTOR]: ",
+    this.logger.debug(`Statistics collection finished for game`, {
+      prefix: LogPrefix.STATS,
       gameId,
       duration: `${duration}ms`,
     });

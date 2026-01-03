@@ -19,6 +19,7 @@ import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationO
 import { GameUpdateValidator } from "domain/validators/GameUpdateValidator";
 import { GameRepository } from "infrastructure/database/repositories/GameRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 
 export class GameService {
@@ -38,6 +39,7 @@ export class GameService {
     updatedTtl?: number
   ): Promise<GameListItemDTO> {
     const log = this.logger.performance(`Game retrieval`, {
+      prefix: LogPrefix.GAME,
       gameId,
       updatedTtl,
     });

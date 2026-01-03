@@ -23,7 +23,6 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerMeta } from "domain/types/socket/game/PlayerMeta";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundTurnManager } from "domain/utils/FinalRoundTurnManager";
-import { type ILogger } from "infrastructure/logger/ILogger";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class Game {
@@ -41,9 +40,8 @@ export class Game {
   private _questionsCount: number;
   private _players: Player[];
   private _gameState: GameStateDTO;
-  private readonly _logger: ILogger;
 
-  constructor(data: GameImportDTO, logger: ILogger) {
+  constructor(data: GameImportDTO) {
     this._id = data.id;
     this._title = data.title;
     this._createdBy = data.createdBy;
@@ -58,7 +56,6 @@ export class Game {
     this._questionsCount = data.questionsCount;
     this._players = data.players;
     this._gameState = data.gameState;
-    this._logger = logger;
   }
 
   // Getters
@@ -527,10 +524,6 @@ export class Game {
 
     if (!this.gameState.skippedPlayers.includes(playerId)) {
       this.gameState.skippedPlayers.push(playerId);
-      this._logger.trace("Player skipped question", {
-        prefix: "[GAME]: ",
-        playerId,
-      });
     }
   }
 
@@ -542,11 +535,6 @@ export class Game {
     this.gameState.skippedPlayers = this.gameState.skippedPlayers.filter(
       (id) => id !== playerId
     );
-
-    this._logger.trace("Player unskipped question", {
-      prefix: "[GAME]: ",
-      playerId,
-    });
 
     if (this.gameState.skippedPlayers.length === 0) {
       this.gameState.skippedPlayers = null;
@@ -668,15 +656,8 @@ export class Game {
       }
     }
 
-    // Inform developers in case if collision happened
-    this._logger.error("Game join collision happened !!", {
-      prefix: "[GAME]: ",
-    });
-    this._logger.warn(
-      `Slots: ${occupiedSlots}, \ngame: ${JSON.stringify(this.id)}`,
-      { prefix: "[GAME]: " }
-    );
-    return -1;
+    // No free slot found
+    throw new ClientError(ClientResponse.GAME_IS_FULL);
   }
 
   public toIndexData(): GameIndexesInputDTO {

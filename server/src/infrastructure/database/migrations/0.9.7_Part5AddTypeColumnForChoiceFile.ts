@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddTypeColumnForChoiceFile_1743660505666
@@ -19,7 +20,7 @@ export class AddTypeColumnForChoiceFile_1743660505666
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.9.7-5");
+    logger.migration("0.9.7-5", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

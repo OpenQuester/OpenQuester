@@ -16,6 +16,7 @@ import {
 } from "domain/types/socket/events/FinalAnswerReviewData";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
  * Stateless action handler for final round answer review.
@@ -81,6 +82,7 @@ export class FinalAnswerReviewActionHandler
         await this.gameStatisticsCollectorService.finishCollection(game.id);
       } catch (error) {
         this.logger.warn("Failed to execute statistics persistence", {
+          prefix: LogPrefix.STATS,
           gameId: game.id,
           error: error instanceof Error ? error.message : String(error),
         });

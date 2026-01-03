@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class ExtendGameStatisticsTable_0_17_0_2_1754379301456
@@ -52,7 +53,7 @@ export class ExtendGameStatisticsTable_0_17_0_2_1754379301456
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.17.0-2");
+    logger.migration("0.17.0-2", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

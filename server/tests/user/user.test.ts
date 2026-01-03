@@ -10,6 +10,7 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
+import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 
 async function preparePermission(
   permRepo: Repository<Permission>,
@@ -59,8 +60,8 @@ describe("UserRestApiController", () => {
   });
 
   afterEach(async () => {
-    await userRepo.delete({});
-    await permRepo.delete({});
+    await deleteAll(userRepo);
+    await deleteAll(permRepo);
 
     // Clear Redis cache to avoid cache coherency issues
     const redisClient = RedisConfig.getClient();
@@ -80,7 +81,7 @@ describe("UserRestApiController", () => {
   });
 
   beforeEach(async () => {
-    await userRepo.delete({});
+    await deleteAll(userRepo);
   });
 
   it("should create and list users", async () => {

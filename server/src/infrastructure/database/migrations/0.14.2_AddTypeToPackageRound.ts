@@ -1,3 +1,4 @@
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
@@ -17,7 +18,7 @@ export class AddTypeToPackageRound_1747924851733 implements MigrationInterface {
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.14.2");
+    logger.migration("0.14.2", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

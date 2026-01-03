@@ -1,3 +1,4 @@
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { MigrationInterface, QueryRunner } from "typeorm";
 
@@ -13,7 +14,9 @@ export class AddIsGuestAndNameField_1755120048973
     await queryRunner.query(`ALTER TABLE "user" ADD "name" varchar`);
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.19.0 - Added is_guest and name fields to user table");
+    logger.migration("0.19.0 - Added is_guest and name fields to user table", {
+      prefix: LogPrefix.MIGRATION,
+    });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

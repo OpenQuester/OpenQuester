@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class UpdateUserAndFileAndAddDiscordId_0_8_2_1738571232826
@@ -63,7 +64,7 @@ export class UpdateUserAndFileAndAddDiscordId_0_8_2_1738571232826
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.8.2");
+    logger.migration("0.8.2", { prefix: LogPrefix.MIGRATION });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

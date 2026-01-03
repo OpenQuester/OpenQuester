@@ -1,5 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddPackageManagementPermissions_0_20_1_1756640611182
@@ -17,7 +18,9 @@ export class AddPackageManagementPermissions_0_20_1_1756640611182
     );
 
     const logger = await PinoLogger.init({ pretty: true });
-    logger.migration("0.20.1 - Added package management permissions");
+    logger.migration("0.20.1 - Added package management permissions", {
+      prefix: LogPrefix.MIGRATION,
+    });
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

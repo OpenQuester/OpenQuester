@@ -29,6 +29,7 @@ import { GameRedisValidator } from "domain/validators/GameRedisValidator";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
+import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
@@ -65,7 +66,7 @@ export class GameRepository {
     }
 
     const validatedData = GameRedisValidator.validateRedisData(data);
-    return GameMapper.deserializeGameHash(validatedData, this.logger);
+    return GameMapper.deserializeGameHash(validatedData);
   }
 
   public async updateGame(game: Game): Promise<void> {
@@ -212,7 +213,7 @@ export class GameRepository {
       this.logger.warn(
         `Game id collisions while game creation: ${collisionsCounter}`,
         {
-          prefix: "[GameRepository]: ",
+          prefix: LogPrefix.GAME,
         }
       );
     }
@@ -235,25 +236,22 @@ export class GameRepository {
         gameData.password || PasswordUtils.generateGamePassword();
     }
 
-    const game = new Game(
-      {
-        id: gameId,
-        title: gameData.title,
-        createdBy: createdBy.id,
-        createdAt: new Date(),
-        isPrivate: gameData.isPrivate,
-        ageRestriction: gameData.ageRestriction,
-        maxPlayers: gameData.maxPlayers,
-        startedAt: null,
-        finishedAt: null,
-        package: packageDTO,
-        roundsCount: counts.roundsCount,
-        questionsCount: counts.questionsCount,
-        players: [],
-        gameState: initialGameState,
-      },
-      this.logger
-    );
+    const game = new Game({
+      id: gameId,
+      title: gameData.title,
+      createdBy: createdBy.id,
+      createdAt: new Date(),
+      isPrivate: gameData.isPrivate,
+      ageRestriction: gameData.ageRestriction,
+      maxPlayers: gameData.maxPlayers,
+      startedAt: null,
+      finishedAt: null,
+      package: packageDTO,
+      roundsCount: counts.roundsCount,
+      questionsCount: counts.questionsCount,
+      players: [],
+      gameState: initialGameState,
+    });
 
     const pipeline = this.redisService.pipeline();
     pipeline.hset(key, GameMapper.serializeGameToHash(game));
@@ -273,7 +271,7 @@ export class GameRepository {
    */
   public async deleteInternally(gameId: string): Promise<void> {
     this.logger.debug("Delete game internally", {
-      prefix: "[GameRepository]: ",
+      prefix: LogPrefix.GAME,
       gameId,
     });
 
@@ -288,7 +286,7 @@ export class GameRepository {
 
   public async deleteGame(user: number, gameId: string) {
     this.logger.debug("Delete game", {
-      prefix: "[GameRepository]: ",
+      prefix: LogPrefix.GAME,
       gameId,
     });
     const key = this.getGameKey(gameId);
@@ -415,7 +413,7 @@ export class GameRepository {
       `Games updated: ${gamesCounter}, timers recovered: ${timerRecoveryCounter}, in ${
         Date.now() - startTime
       } ms`,
-      { prefix: "[GameRepository]: " }
+      { prefix: LogPrefix.GAME }
     );
   }
 
@@ -452,7 +450,7 @@ export class GameRepository {
 
     this.logger.debug(
       `Timer recovered for game ${game.id}: state=${questionState}, elapsed=${timer.elapsedMs}ms/${timer.durationMs}ms`,
-      { prefix: "[GameRepository]: " }
+      { prefix: LogPrefix.GAME }
     );
   }
 
@@ -584,18 +582,12 @@ export class GameRepository {
           const validatedData = GameRedisValidator.validateRedisData(
             data as Record<string, string>
           );
-          return GameMapper.deserializeGameHash(validatedData, this.logger);
+          return GameMapper.deserializeGameHash(validatedData);
         } catch (error) {
-          // Log short data without package to avoid large logs
-          const shortData = { ...(data as Record<string, string>) };
-          shortData.package = "";
-
-          // Log validation error and ignore invalid games
           this.logger.warn("Skipping invalid game Redis data", {
-            prefix: "[GAME_REPOSITORY]: ",
+            prefix: LogPrefix.GAME,
             error: error instanceof Error ? error.message : String(error),
-            gameIds,
-            shortData,
+            gameIdsCount: gameIds.length,
           });
         }
       })
