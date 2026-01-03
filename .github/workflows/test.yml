@@ -93,7 +93,5 @@ jobs:
       - run: echo "${{ vars.ENV_FILE_CONTENT }}" > .env
       - run: flutter pub get
       - run: make pre_build
-      - run: dart analyze --fatal-infos lib/
-      - run: dart run scripts/run_format_exception.dart
-      - run: dart format lib --set-exit-if-changed
-      - run: dart test
+      - run: make verify
+      - run: 

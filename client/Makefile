@@ -10,6 +10,10 @@ else
 PURO_CMD = puro
 endif
 
+# Auto-detect whether this is a Flutter or Dart project
+# Checks if pubspec.yaml contains "sdk: flutter"
+DART_CMD := $(shell if grep -q "sdk: flutter" pubspec.yaml 2>/dev/null; then echo "flutter"; else echo "dart"; fi)
+
 # =============================================================================
 # TIMING UTILITIES
 # =============================================================================
@@ -131,11 +135,7 @@ endif
 # Run build_runner to generate code (freezed, json_serializable, etc.)
 gen_files: START_TIME_FILES := $(shell $(GET_TIME))
 gen_files:
-	@if grep -q "sdk: flutter" pubspec.yaml 2>/dev/null; then \
-		$(PURO_CMD) flutter pub run build_runner build -d; \
-	else \
-		$(PURO_CMD) dart run build_runner build -d; \
-	fi
+	$(PURO_CMD) $(DART_CMD) run build_runner build -d
 	$(call time_target,gen_files,$(START_TIME_FILES))
 
 # Generate index files (barrel exports) for easier imports
@@ -154,13 +154,21 @@ format:
 fix:
 	$(PURO_CMD) dart fix --apply
 
+# Run all code quality checks (analyze, format check)
+verify:
+	$(PURO_CMD) dart analyze --fatal-infos lib/
+	$(PURO_CMD) dart run scripts/run_format_exception.dart
+	$(PURO_CMD) dart format lib --set-exit-if-changed
+	$(PURO_CMD) $(DART_CMD) test
+
 # Clean build_runner cache and generated files
 clean_build_runner:
-	@if grep -q "sdk: flutter" pubspec.yaml 2>/dev/null; then \
-		$(PURO_CMD) flutter pub run build_runner clean; \
-	else \
-		$(PURO_CMD) dart run build_runner clean; \
-	fi
+	$(PURO_CMD) $(DART_CMD) run build_runner clean
+
+# Full clean: cleans build_runner, Flutter build artifacts, and fetches dependencies
+clean: clean_build_runner
+	$(PURO_CMD) $(DART_CMD) clean
+	$(PURO_CMD) $(DART_CMD) pub get
 
 # =============================================================================
 # INSTALLATION & SETUP TARGETS
@@ -232,11 +240,7 @@ endif
 
 # Upgrade dependencies for a single package (auto-detects Flutter vs Dart)
 upgrade_package:
-	@if grep -q "sdk: flutter" pubspec.yaml 2>/dev/null; then \
-		$(PURO_CMD) flutter pub upgrade $(UPGRADE_FLAGS); \
-	else \
-		$(PURO_CMD) dart pub upgrade $(UPGRADE_FLAGS); \
-	fi
+	$(PURO_CMD) $(DART_CMD) pub upgrade $(UPGRADE_FLAGS)
 
 # Upgrade dependencies for main project and all packages
 # Usage: make upgrade UPGRADE_FLAGS="--major-versions"
