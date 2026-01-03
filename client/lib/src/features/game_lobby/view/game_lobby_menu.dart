@@ -28,8 +28,7 @@ class GameLobbyMenu extends WatchingWidget {
             final password = gameData?.gameState.password;
             final link = Env.clientAppUrl.replace(
               path: '/games/$gameId',
-              queryParameters:
-                  password != null ? {'password': password} : null,
+              queryParameters: password != null ? {'password': password} : null,
             );
             await Clipboard.setData(ClipboardData(text: link.toString()));
           },
@@ -57,7 +56,7 @@ class GameLobbyMenu extends WatchingWidget {
               ],
             ),
             onTap: () async {
-              final password = gameData?.gameState.password;
+              final password = gameData.gameState.password;
               if (password == null) return;
               await Clipboard.setData(ClipboardData(text: password));
               if (context.mounted) {

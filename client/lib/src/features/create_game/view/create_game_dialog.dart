@@ -783,8 +783,8 @@ class _PasswordFieldState extends State<_PasswordField> {
       duration: const Duration(milliseconds: 200),
       child: TextFormField(
         initialValue: widget.state.password,
-        onChanged: (value) => widget.controller.state.value =
-            widget.state.copyWith(password: value.isEmpty ? null : value),
+        onChanged: (value) => widget.controller.state.value = widget.state
+            .copyWith(password: value.isEmpty ? null : value),
         obscureText: _obscurePassword,
         decoration: InputDecoration(
           labelText: LocaleKeys.password_optional.tr(),
@@ -819,5 +819,4 @@ class _PasswordFieldState extends State<_PasswordField> {
       ),
     );
   }
-}
 }

@@ -32,7 +32,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         gameId: widget.gameId,
       );
 
-      String? password = widget.password;
+      var password = widget.password;
 
       // If game is private and no password provided, prompt for it
       if (gameInfo.isPrivate && password == null && mounted) {
