@@ -94,4 +94,3 @@ jobs:
       - run: flutter pub get
       - run: make pre_build
       - run: make verify
-      - run: 
