@@ -7,14 +7,15 @@ class GameStakeQuestionBody extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final stakeData = gameData?.gameState.stakeQuestionData;
-    final currentBidderIndex = stakeData?.currentBidderIndex;
-    final playerMakesABid =
-        getIt<GameLobbyController>().myId ==
-        stakeData?.biddingOrder.tryByIndex(currentBidderIndex);
+    final stakeController = watchIt<GameLobbyPlayerStakesController>();
+    final playerMakesABid = gameData?.me.meta.id == stakeController.bidderId;
     final questionMediaOnLeft = GameLobbyStyles.questionMediaOnLeft(context);
-
     final direction = questionMediaOnLeft ? Axis.horizontal : Axis.vertical;
+
+    final showControls =
+        !(gameData?.imSpectator ?? true) &&
+        !(stakeController.isFinalRound && (gameData?.imShowman ?? false));
+
     final body = Column(
       spacing: 16,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -32,17 +33,22 @@ class GameStakeQuestionBody extends WatchingWidget {
                 child: GameStakeQuestionBids(),
               ),
             ).center().expand(),
-            AppAnimatedSwitcher(
-              sizeTransitionAxis: direction,
-              visible:
-                  playerMakesABid || gameData?.me.role == PlayerRole.showman,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: questionMediaOnLeft ? 250 : double.infinity,
+            if (showControls)
+              AppAnimatedSwitcher(
+                sizeTransitionAxis: direction,
+                visible:
+                    stakeController.allPlayersBid ||
+                    playerMakesABid ||
+                    (gameData?.imShowman ?? false),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: questionMediaOnLeft ? 250 : double.infinity,
+                  ),
+                  child: PlayerBidControls(
+                    showPassButton: !stakeController.isFinalRound,
+                  ).center(),
                 ),
-                child: const PlayerBidControls().center(),
               ),
-            ),
           ],
         ).expand(),
       ],

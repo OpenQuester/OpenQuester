@@ -15,9 +15,14 @@ import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuesti
 import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
+import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { SecretQuestionPickedBroadcastData } from "domain/types/socket/events/game/SecretQuestionPickedEventPayload";
-import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
+import {
+  StakeBidSubmitOutputData,
+  StakeBidType,
+} from "domain/types/socket/events/game/StakeQuestionEventData";
 import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
+import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
 import { QuestionPickInputData } from "domain/types/socket/events/SocketEventInterfaces";
 
 export enum QuestionPickType {
@@ -90,7 +95,7 @@ export class QuestionPickActionHandler
           data: broadcastData,
           target: SocketBroadcastTarget.GAME,
           gameId: game.id,
-        },
+        } satisfies SocketEventBroadcast<SecretQuestionPickedBroadcastData>,
       ];
 
       return {
@@ -126,7 +131,7 @@ export class QuestionPickActionHandler
           data: broadcastData,
           target: SocketBroadcastTarget.GAME,
           gameId: game.id,
-        },
+        } satisfies SocketEventBroadcast<StakeQuestionPickedBroadcastData>,
       ];
 
       // If automatic nominal bid happened (only one eligible player)
@@ -145,10 +150,10 @@ export class QuestionPickActionHandler
               ? null
               : stakeData.biddingOrder[stakeData.currentBidderIndex] || null,
             timer: timer.value()!,
-          },
+          } satisfies StakeBidSubmitOutputData,
           target: SocketBroadcastTarget.GAME,
           gameId: game.id,
-        });
+        } satisfies SocketEventBroadcast<StakeBidSubmitOutputData>);
 
         // Emit winner event if bidding is complete
         if (isPhaseComplete && stakeData.winnerPlayerId) {
@@ -157,10 +162,10 @@ export class QuestionPickActionHandler
             data: {
               winnerPlayerId: stakeData.winnerPlayerId,
               finalBid: stakeData.highestBid,
-            },
+            } satisfies StakeQuestionWinnerEventData,
             target: SocketBroadcastTarget.GAME,
             gameId: game.id,
-          });
+          } satisfies SocketEventBroadcast<StakeQuestionWinnerEventData>);
 
           // Question data for automatic bid completion can be broadcast to all
           // since stake question answer is revealed to everyone after winner determined
@@ -169,10 +174,10 @@ export class QuestionPickActionHandler
             data: {
               data: question,
               timer: timer.value()!,
-            },
+            } satisfies GameQuestionDataEventPayload,
             target: SocketBroadcastTarget.GAME,
             gameId: game.id,
-          });
+          } satisfies SocketEventBroadcast<GameQuestionDataEventPayload>);
         }
       }
 

@@ -1,9 +1,4 @@
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -31,21 +26,12 @@ export class MediaDownloadedActionHandler
     );
 
     const statusData: MediaDownloadStatusBroadcastData = {
-      playerId: result.playerId,
+      playerId: result.data.playerId,
       mediaDownloaded: true,
-      allPlayersReady: result.allPlayersReady,
-      timer: result.timer,
+      allPlayersReady: result.data.allPlayersReady,
+      timer: result.data.timer,
     };
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-        data: statusData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: result.game.id,
-      },
-    ];
-
-    return { success: true, data: statusData, broadcasts };
+    return { success: true, data: statusData, broadcasts: result.broadcasts };
   }
 }

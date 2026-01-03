@@ -27,10 +27,10 @@ extension DurationX on Duration {
 
 extension IPackageItemAgeRestrictionX on AgeRestriction {
   (String, Color)? format(BuildContext context) {
-    final colors = Theme.of(context).extension<ExtraColors>()!;
+    final colors = ExtraColors.of(context);
     return {
-      AgeRestriction.a12: ('12+', colors.success!),
-      AgeRestriction.a16: ('16+', colors.warning!),
+      AgeRestriction.a12: ('12+', colors.success),
+      AgeRestriction.a16: ('16+', colors.warning),
       AgeRestriction.a18: ('18+', context.theme.colorScheme.error),
     }[this];
   }
@@ -104,6 +104,8 @@ extension SocketIoGameStateRoundDataX on SocketIoGameStateRoundData {
 
 extension SocketIoGameJoinEventPayloadX on SocketIoGameJoinEventPayload {
   PlayerData get me => players.getById(ProfileController.getUser()!.id)!;
+  bool get imShowman => me.isShowman;
+  bool get imSpectator => me.isSpectator;
 
   SocketIoGameJoinEventPayload changePlayer({
     required int? id,
@@ -187,4 +189,11 @@ extension DateTimeX on DateTime {
       return LocaleKeys.days_ago.tr(args: [difference.inDays.toString()]);
     }
   }
+}
+
+extension PlayerDataX on PlayerData? {
+  bool get isActive => this?.status == PlayerDataStatus.inGame;
+  bool get isShowman => this?.role == PlayerRole.showman;
+  bool get isPlayer => this?.role == PlayerRole.player;
+  bool get isSpectator => this?.role == PlayerRole.spectator;
 }

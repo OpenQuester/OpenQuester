@@ -35,7 +35,7 @@ export class SocketGameTimerService {
     game.setTimer(null);
     await this.gameService.updateGame(game);
 
-    return GamePauseLogic.buildResult({ game, timer });
+    return GamePauseLogic.buildResult({ game, timer, isPause: true });
   }
 
   public async unpauseGameTimer(game: Game): Promise<GamePauseResult> {
@@ -57,7 +57,7 @@ export class SocketGameTimerService {
     game.setTimer(timer);
     await this.gameService.updateGame(game);
 
-    return GamePauseLogic.buildResult({ game, timer });
+    return GamePauseLogic.buildResult({ game, timer, isPause: false });
   }
 
   /**

@@ -97,7 +97,7 @@ class _AppBarLeading extends StatelessWidget {
         IconButton(
           onPressed: () => const SettingsRoute().push<void>(context),
           tooltip: LocaleKeys.settings_title.tr(),
-          icon: const Icon(Icons.settings_outlined, size: 28),
+          icon: const Icon(Icons.settings_outlined),
         ),
         const _AdminDashboardIconButton(),
       ],
@@ -118,7 +118,7 @@ class _AdminDashboardIconButton extends WatchingWidget {
     return IconButton(
       onPressed: () => const AdminDashboardRoute().push<void>(context),
       tooltip: LocaleKeys.admin_dashboard.tr(),
-      icon: const Icon(Icons.admin_panel_settings_outlined, size: 28),
+      icon: const Icon(Icons.admin_panel_settings_outlined),
     );
   }
 }

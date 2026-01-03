@@ -1,11 +1,22 @@
 import { Game } from "domain/entities/game/Game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import {
+  SocketBroadcastTarget,
+  SocketEventBroadcast,
+} from "domain/handlers/socket/BaseSocketEventHandler";
+import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 
-export interface PlayerReadinessResult {
+export interface PlayerReadinessData {
   game: Game;
   playerId: number;
   isReady: boolean;
   readyPlayers: number[];
   shouldAutoStart: boolean;
+}
+
+export interface PlayerReadinessResult {
+  data: PlayerReadinessData;
+  broadcasts: SocketEventBroadcast[];
 }
 
 interface PlayerReadinessResultInput {
@@ -54,19 +65,36 @@ export class PlayerReadinessLogic {
   }
 
   /**
-   * Build result for player readiness operation.
+   * Build result for player readiness operation with broadcasts.
    */
   public static buildResult(
     input: PlayerReadinessResultInput
   ): PlayerReadinessResult {
     const { game, playerId, isReady, readyPlayers, shouldAutoStart } = input;
 
-    return {
-      game,
+    const readyData: PlayerReadinessBroadcastData = {
       playerId,
       isReady,
       readyPlayers,
-      shouldAutoStart,
+      autoStartTriggered: shouldAutoStart,
+    };
+
+    const event = isReady
+      ? SocketIOGameEvents.PLAYER_READY
+      : SocketIOGameEvents.PLAYER_UNREADY;
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event,
+        data: readyData,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<PlayerReadinessBroadcastData>,
+    ];
+
+    return {
+      data: { game, playerId, isReady, readyPlayers, shouldAutoStart },
+      broadcasts,
     };
   }
 }

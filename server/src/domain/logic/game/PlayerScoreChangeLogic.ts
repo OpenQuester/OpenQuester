@@ -1,14 +1,28 @@
 import { SCORE_ABS_LIMIT } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import {
+  SocketBroadcastTarget,
+  SocketEventBroadcast,
+} from "domain/handlers/socket/BaseSocketEventHandler";
+import { PlayerScoreChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 /**
- * Result of player score change
+ * Data from player score change
  */
-export interface PlayerScoreChangeResult {
+export interface PlayerScoreChangeData {
   game: Game;
   targetPlayerId: number;
   newScore: number;
+}
+
+/**
+ * Result of player score change with broadcasts
+ */
+export interface PlayerScoreChangeResult {
+  data: PlayerScoreChangeData;
+  broadcasts: SocketEventBroadcast[];
 }
 
 interface PlayerScoreChangeResultInput {
@@ -49,17 +63,30 @@ export class PlayerScoreChangeLogic {
   }
 
   /**
-   * Builds the result object.
+   * Builds the result object with broadcasts.
    */
   public static buildResult(
     input: PlayerScoreChangeResultInput
   ): PlayerScoreChangeResult {
     const { game, targetPlayerId, newScore } = input;
 
-    return {
-      game,
-      targetPlayerId,
+    const broadcastData: PlayerScoreChangeBroadcastData = {
+      playerId: targetPlayerId,
       newScore,
+    };
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event: SocketIOGameEvents.SCORE_CHANGED,
+        data: broadcastData,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<PlayerScoreChangeBroadcastData>,
+    ];
+
+    return {
+      data: { game, targetPlayerId, newScore },
+      broadcasts,
     };
   }
 }

@@ -1,9 +1,4 @@
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -28,23 +23,15 @@ export class AnswerSubmittedActionHandler
   public async execute(
     action: GameAction<AnswerSubmittedInputData>
   ): Promise<GameActionHandlerResult<AnswerSubmittedBroadcastData>> {
-    const game = await this.socketIOQuestionService.handleAnswerSubmitted(
-      action.socketId
+    const result = await this.socketIOQuestionService.handleAnswerSubmitted(
+      action.socketId,
+      { answerText: action.payload.answerText }
     );
 
-    const broadcastData: AnswerSubmittedBroadcastData = {
-      answerText: action.payload.answerText,
+    return {
+      success: true,
+      data: result.data,
+      broadcasts: result.broadcasts,
     };
-
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.ANSWER_SUBMITTED,
-        data: broadcastData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      },
-    ];
-
-    return { success: true, data: broadcastData, broadcasts };
   }
 }

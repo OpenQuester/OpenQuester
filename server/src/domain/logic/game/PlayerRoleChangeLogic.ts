@@ -1,9 +1,15 @@
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
+import {
+  SocketBroadcastTarget,
+  SocketEventBroadcast,
+} from "domain/handlers/socket/BaseSocketEventHandler";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { PlayerRoleChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 
 export interface RoleChangeMutation {
   originalRole: PlayerRole;
@@ -11,10 +17,15 @@ export interface RoleChangeMutation {
   wasPlayer: boolean;
 }
 
-export interface RoleChangeResult {
+export interface RoleChangeData {
   game: Game;
   targetPlayer: PlayerDTO;
   players: PlayerDTO[];
+}
+
+export interface RoleChangeResult {
+  data: RoleChangeData;
+  broadcasts: SocketEventBroadcast[];
 }
 
 interface PlayerRoleChangeResultInput {
@@ -82,17 +93,34 @@ export class PlayerRoleChangeLogic {
   }
 
   /**
-   * Build result for role change operation.
+   * Build result for role change operation with broadcasts.
    */
   public static buildResult(
     input: PlayerRoleChangeResultInput
   ): RoleChangeResult {
     const { game, targetPlayer } = input;
 
+    const targetPlayerDTO = targetPlayer.toDTO();
+    const players = game.players.map((p) => p.toDTO());
+
+    const broadcastData: PlayerRoleChangeBroadcastData = {
+      playerId: targetPlayerDTO.meta.id,
+      newRole: targetPlayer.role,
+      players,
+    };
+
+    const broadcasts: SocketEventBroadcast[] = [
+      {
+        event: SocketIOGameEvents.PLAYER_ROLE_CHANGE,
+        data: broadcastData,
+        target: SocketBroadcastTarget.GAME,
+        gameId: game.id,
+      } satisfies SocketEventBroadcast<PlayerRoleChangeBroadcastData>,
+    ];
+
     return {
-      game,
-      targetPlayer: targetPlayer.toDTO(),
-      players: game.players.map((p) => p.toDTO()),
+      data: { game, targetPlayer: targetPlayerDTO, players },
+      broadcasts,
     };
   }
 }

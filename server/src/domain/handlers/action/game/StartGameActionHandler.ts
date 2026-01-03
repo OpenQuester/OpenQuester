@@ -1,9 +1,4 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -25,21 +20,12 @@ export class StartGameActionHandler
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<GameStartBroadcastData>> {
-    const gameDTO = await this.socketIOGameService.startGame(action.socketId);
+    const result = await this.socketIOGameService.startGame(action.socketId);
 
-    const startEventPayload: GameStartBroadcastData = {
-      currentRound: gameDTO.gameState.currentRound!,
+    return {
+      success: true,
+      data: { currentRound: result.data.currentRound! },
+      broadcasts: result.broadcasts,
     };
-
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.START,
-        data: startEventPayload,
-        target: SocketBroadcastTarget.GAME,
-        gameId: gameDTO.id,
-      },
-    ];
-
-    return { success: true, data: startEventPayload, broadcasts };
   }
 }

@@ -91,6 +91,8 @@
   "delete_lobby_confirmation": "Do you want to delete the lobby?",
   "volume": "Volume",
   "game_is_finished": "Game is finished. Thanks for playing :)",
+  "final_scores": "Final Scores",
+  "no_players": "No players participated",
   "game_is_paused": "Game is paused",
   "pause": "Pause",
   "resume_game": "Resume game",
@@ -146,7 +148,12 @@
     "waiting_for_answer": "Lets hear the answer",
     "no_risk_question": "No-risk question",
     "select_question": "Select question",
-    "stake_question": "Stake question"
+    "stake_question": "Stake question",
+    "waiting_for_players": "Waiting for players",
+    "answer_final_question": "Answer the final question",
+    "waiting_for_review": "Waiting for review",
+    "reviewing_answers": "Reviewing answers",
+    "picking_theme": "Picking theme"
   },
   "confirm": "Confirm",
   "game_secret_question": {
@@ -175,7 +182,6 @@
   },
   "system": "System",
   "pass": "Pass",
-  "custom": "Custom",
   "multiple_showman_warning": "There can be only one showman! You have been changed to a player.",
   "save": "Save",
   "package_editor": "Package Editor",
@@ -350,6 +356,20 @@
     "upload_now_button": "Upload Now",
     "export_and_upload_button": "Export & Upload Later",
     "export_recommended": "Exporting is recommended for large packages."
+  },
+  "custom": "Custom",
+  "game_final_round": {
+    "pick_theme_to_eliminate": "Pick theme to eliminate",
+    "write_your_answer": "Write your answer here",
+    "showman_reviewing_answers": "Showman is reviewing answers",
+    "review_answers_title": "Review Answers",
+    "player_answer": "Answer",
+    "player_bid": "Bid: {points} points",
+    "mark_correct": "Correct",
+    "mark_wrong": "Wrong",
+    "answer_empty": "No answer",
+    "answer_timeout": "Time expired",
+    "waiting_for_review": "Waiting for review..."
   },
   "admin": {
     "admin": "Admin",
