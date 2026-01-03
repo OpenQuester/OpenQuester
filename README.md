@@ -111,12 +111,12 @@ Download the latest version for your platform from the [**Releases Page**](https
 
 #### Available Platforms
 
+- **Web**: [Browser version](https://web.openquester.app)
 - **Windows**: `.exe` installer
 - **Linux**: `.AppImage`, `.deb`, or `.tar.gz`
 - **macOS**: macOS support _(Work in Progress)_
 - **Android**: `.apk` or Google Play Store _(Coming Soon)_
 - **iOS**: iOS support _(Coming Soon)_
-- **Web**: [Browser version](https://web.openquester.app)
 
 ### Development Builds
 
@@ -148,8 +148,7 @@ For the latest features and updates, check our [GitHub Actions](https://github.c
 
 - **[Docker](https://www.docker.com/)** - Containerization
 - **[GitHub Actions](https://github.com/features/actions)** - CI/CD pipelines
-- **[Cloudflare Pages](https://pages.cloudflare.com/)** - Static site hosting
-- **[AWS S3](https://aws.amazon.com/s3/)** / **[MinIO](https://min.io/)** - Object storage
+- **[MinIO](https://min.io/)** - Object storage (S3)
 - **[Jest](https://jestjs.io/)** - Backend testing framework
 - **[ESLint](https://eslint.org/)** - Code linting
 
@@ -198,7 +197,6 @@ flutter run
 
 For detailed setup instructions, see:
 
-- [Backend Setup Guide](server/README.md)
 - [Frontend Setup Guide](client/README.md)
 
 ---
@@ -250,7 +248,8 @@ We welcome contributions from developers, designers, translators, and quiz enthu
 
 - **[GitHub Discussions](https://github.com/OpenQuester/OpenQuester/discussions)** - Ask questions, share ideas
 - **[GitHub Issues](https://github.com/OpenQuester/OpenQuester/issues)** - Report bugs, request features
-- **Discord Server** - Chat with the community _(Coming Soon)_
+- **Discord DM** - `sukui_` or `asion.desu`
+- **Discord Server** - Chat with the community and developers _(Coming Soon)_
 
 ---
 
@@ -295,15 +294,6 @@ This means you can freely use, modify, and distribute this software, even for co
 - **Flutter Team** - Amazing cross-platform framework
 - **Open Source Community** - For all the incredible tools and libraries
 - **Contributors** - Everyone who has helped build OpenQuester
-
----
-
-## 📫 Contact
-
-- **GitHub**: [@OpenQuester](https://github.com/OpenQuester)
-- **Email**: <support@asion.dev>
-- **Website**: [web.openquester.app](https://web.openquester.app)
-- **Documentation**: [docs.openquester.app](https://docs.openquester.app)
 
 ---
 
