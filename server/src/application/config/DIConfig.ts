@@ -502,6 +502,8 @@ export class DIConfig {
         Container.get<IOServer>(CONTAINER_TYPES.IO),
         Container.get<GameRepository>(CONTAINER_TYPES.GameRepository),
         Container.get<UserService>(CONTAINER_TYPES.UserService),
+        Container.get<PackageService>(CONTAINER_TYPES.PackageService),
+        Container.get<S3StorageService>(CONTAINER_TYPES.S3StorageService),
         this.logger
       ),
       "service"

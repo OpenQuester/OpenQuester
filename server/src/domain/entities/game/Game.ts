@@ -67,6 +67,10 @@ export class Game {
     return this._title;
   }
 
+  public set title(title: string) {
+    this._title = title;
+  }
+
   public get createdBy() {
     return this._createdBy;
   }
@@ -79,12 +83,24 @@ export class Game {
     return this._isPrivate;
   }
 
+  public set isPrivate(isPrivate: boolean) {
+    this._isPrivate = isPrivate;
+  }
+
   public get ageRestriction() {
     return this._ageRestriction;
   }
 
+  public set ageRestriction(ageRestriction: AgeRestriction) {
+    this._ageRestriction = ageRestriction;
+  }
+
   public get maxPlayers() {
     return this._maxPlayers;
+  }
+
+  public set maxPlayers(maxPlayers: number) {
+    this._maxPlayers = maxPlayers;
   }
 
   public get startedAt() {
@@ -101,6 +117,22 @@ export class Game {
 
   public get package() {
     return this._package;
+  }
+
+  public set package(packageDTO: PackageDTO) {
+    this._package = packageDTO;
+  }
+
+  public set roundsCount(roundsCount: number) {
+    this._roundsCount = roundsCount;
+  }
+
+  public set questionsCount(questionsCount: number) {
+    this._questionsCount = questionsCount;
+  }
+
+  public set password(password: string | null) {
+    this._gameState.password = password;
   }
 
   public get roundsCount() {
@@ -291,7 +323,9 @@ export class Game {
       this.finish();
       isGameFinished = true;
     } else {
+      const currentPassword = this.gameState.password;
       nextGameState = GameStateMapper.getClearGameState(nextRound);
+      nextGameState.password = currentPassword;
       this.gameState = nextGameState;
 
       if (nextRound.type === PackageRoundType.FINAL) {

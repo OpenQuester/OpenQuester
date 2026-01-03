@@ -116,6 +116,7 @@ export class SocketIOGameService {
       role: data.role,
       existingPlayer,
       targetSlot: data.targetSlot,
+      password: data.password,
     });
 
     // Add player to game

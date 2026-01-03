@@ -1153,6 +1153,73 @@
             }
           }
         }
+      },
+      "patch": {
+        "summary": "Update game settings",
+        "description": "Update game settings. Only the showman or host can update the game. Package can only be changed before the game starts. All other fields can be changed at any time.",
+        "tags": ["Games"],
+        "parameters": [
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameUpdateData"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Game updated successfully. Emits GameEventDTO to both lobby and game room.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameListItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid input or business rule violation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameUpdateErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission denied - only showman or host can update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PermissionDeniedResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Game or package not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GameNotFoundResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/admin/api/dashboard": {
@@ -2144,6 +2211,68 @@
           "packageId",
           "title"
         ]
+      },
+      "GameUpdateData": {
+        "type": "object",
+        "description": "Data for updating game settings. All fields are optional. Package can only be changed before game starts.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "examples": ["Updated Game Title"]
+          },
+          "packageId": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Can only be changed before game starts",
+            "examples": [2]
+          },
+          "isPrivate": {
+            "type": "boolean",
+            "examples": [true]
+          },
+          "ageRestriction": {
+            "$ref": "#/components/schemas/AgeRestriction"
+          },
+          "maxPlayers": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 15,
+            "description": "Cannot be reduced below current player count",
+            "examples": [12]
+          },
+          "password": {
+            "type": ["string", "null"],
+            "maxLength": 16,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Password for private games. Cannot be set if game is public. Cannot be removed (set to null) if game is private. If changing to private without providing password, one will be auto-generated.",
+            "examples": ["NewPass-456", null]
+          }
+        }
+      },
+      "GameUpdateErrorCode": {
+        "type": "string",
+        "enum": [
+          "game_started_cannot_change_package",
+          "game_password_not_allowed_for_public_game",
+          "game_password_cannot_be_removed_for_private_game",
+          "invalid_input"
+        ],
+        "description": "Error codes specific to game update operations"
+      },
+      "GameUpdateErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/GameUpdateErrorCode"
+          },
+          "data": {
+            "type": "object",
+            "description": "Additional error context (optional, included for errors like invalid_input)",
+            "additionalProperties": true,
+            "examples": [{ "maxPlayers": 5, "playersCount": 8 }]
+          }
+        },
+        "required": ["error"]
       },
       "ShortUserInfo": {
         "type": "object",
@@ -3781,6 +3910,11 @@
               }
             ],
             "description": "Stake question specific data - only set when a stake question is picked"
+          },
+          "password": {
+            "type": ["string", "null"],
+            "description": "Password required to join the game, if any",
+            "examples": ["Secret-123", null]
           }
         },
         "required": ["isPaused"]
