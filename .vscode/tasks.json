@@ -1,0 +1,221 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    // Flutter Tasks
+    {
+      "label": "Flutter: Get Dependencies",
+      "type": "shell",
+      "command": "flutter pub get",
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "Flutter: Build Runner",
+      "type": "shell",
+      "command": "dart run build_runner build --delete-conflicting-outputs",
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "Flutter: Build Runner (Watch)",
+      "type": "shell",
+      "command": "dart run build_runner watch --delete-conflicting-outputs",
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "problemMatcher": [],
+      "isBackground": true,
+      "group": "build"
+    },
+    {
+      "label": "Flutter: Clean",
+      "type": "shell",
+      "command": "flutter clean",
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "Flutter: Analyze",
+      "type": "shell",
+      "command": "flutter analyze",
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "problemMatcher": [
+        "$dart-analyze"
+      ],
+      "group": "test"
+    },
+    {
+      "label": "Flutter: Test",
+      "type": "shell",
+      "command": "flutter test",
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "problemMatcher": [
+        "$dart-test"
+      ],
+      "group": "test"
+    },
+    {
+      "label": "Flutter: Format",
+      "type": "shell",
+      "command": "dart format .",
+      "options": {
+        "cwd": "${workspaceFolder}/client"
+      },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    // Server Tasks
+    {
+      "label": "Server: Install Dependencies",
+      "type": "shell",
+      "command": "npm install",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "Server: Start Dev",
+      "type": "shell",
+      "command": "npm run start:dev",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": [
+        "$tsc-watch"
+      ],
+      "isBackground": true,
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Server: Build",
+      "type": "shell",
+      "command": "npm run build",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": [
+        "$tsc"
+      ],
+      "group": "build"
+    },
+    {
+      "label": "Server: Lint",
+      "type": "shell",
+      "command": "npm run lint",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": [
+        "$eslint-stylish"
+      ],
+      "group": "test"
+    },
+    {
+      "label": "Server: Test",
+      "type": "shell",
+      "command": "npm test",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "Server: Validate OpenAPI Schema",
+      "type": "shell",
+      "command": "npm run validate:schema",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "Server: Clean",
+      "type": "shell",
+      "command": "npm run clean",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": [],
+      "group": "build"
+    },
+    // Docker Tasks
+    {
+      "label": "Docker: Compose Up",
+      "type": "shell",
+      "command": "docker compose up -d",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "Docker: Compose Down",
+      "type": "shell",
+      "command": "docker compose down",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    {
+      "label": "Docker: Compose Restart",
+      "type": "shell",
+      "command": "docker compose restart",
+      "options": {
+        "cwd": "${workspaceFolder}/server"
+      },
+      "problemMatcher": [],
+      "group": "none"
+    },
+    // Combined Tasks
+    {
+      "label": "Setup: All Dependencies",
+      "dependsOn": [
+        "Flutter: Get Dependencies",
+        "Server: Install Dependencies"
+      ],
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "Test: All",
+      "dependsOn": [
+        "Flutter: Test",
+        "Server: Test"
+      ],
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "Lint: All",
+      "dependsOn": [
+        "Flutter: Analyze",
+        "Server: Lint"
+      ],
+      "problemMatcher": [],
+      "group": "test"
+    }
+  ]
+}

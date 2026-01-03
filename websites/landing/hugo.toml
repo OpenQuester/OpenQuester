@@ -1,0 +1,8 @@
+baseURL = 'https://web.openquester.app/'
+languageCode = 'en-us'
+title = 'OpenQuester - Open-Source Multiplayer Quiz Game'
+theme = 'hugo-smol'
+
+[params]
+  description = "Free, open-source multiplayer quiz game inspired by SIGame. Play engaging quiz sessions with friends across Windows, Linux, Android, and more."
+  author = "OpenQuester Team"
