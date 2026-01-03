@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import {
   GameAction,
   SerializedGameAction,
@@ -19,6 +21,7 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
  * - After releasing lock, GameActionExecutor drains queue recursively
  * - Queue cleared when game deleted/finished
  */
+@singleton()
 export class GameActionQueueService {
   private readonly QUEUE_KEY_PREFIX = "game:action:queue";
 

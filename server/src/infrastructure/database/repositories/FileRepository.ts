@@ -1,11 +1,20 @@
+import { inject, singleton } from "tsyringe";
 import { In, type Repository } from "typeorm";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { FileSource } from "domain/enums/file/FileSource";
 import { FileDTO } from "domain/types/dto/file/FileDTO";
 import { File } from "infrastructure/database/models/File";
 
+/**
+ * Repository for File entity operations.
+ */
+@singleton()
 export class FileRepository {
-  constructor(private readonly repository: Repository<File>) {
+  constructor(
+    @inject(DI_TOKENS.TypeORMFileRepository)
+    private readonly repository: Repository<File>
+  ) {
     //
   }
 

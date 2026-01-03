@@ -1,12 +1,21 @@
+import { inject, singleton } from "tsyringe";
 import { In, type Repository } from "typeorm";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { type File } from "infrastructure/database/models/File";
 import { FileUsage } from "infrastructure/database/models/FileUsage";
 import { type Package } from "infrastructure/database/models/package/Package";
 import { type User } from "infrastructure/database/models/User";
 
+/**
+ * Repository for FileUsage entity operations.
+ */
+@singleton()
 export class FileUsageRepository {
-  constructor(private readonly repository: Repository<FileUsage>) {
+  constructor(
+    @inject(DI_TOKENS.TypeORMFileUsageRepository)
+    private readonly repository: Repository<FileUsage>
+  ) {
     //
   }
 

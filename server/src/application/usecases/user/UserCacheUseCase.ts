@@ -1,10 +1,16 @@
+import { singleton } from "tsyringe";
+
 import { USER_CACHE_KEY, USER_CACHE_KEY_TTL } from "domain/constants/cache";
-import { ICache } from "domain/types/cache/ICache";
 import { SelectOptions } from "domain/types/SelectOptions";
+import { RedisCache } from "infrastructure/cache/RedisCache";
 import { User } from "infrastructure/database/models/User";
 
+/**
+ * Use case for caching user data.
+ */
+@singleton()
 export class UserCacheUseCase {
-  constructor(private readonly cache: ICache) {
+  constructor(private readonly cache: RedisCache) {
     //
   }
 

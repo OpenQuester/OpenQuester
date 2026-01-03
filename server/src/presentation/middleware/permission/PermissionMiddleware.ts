@@ -1,6 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
+import { container } from "tsyringe";
 
-import { Container, CONTAINER_TYPES } from "application/Container";
 import { TranslateService as ts } from "application/services/text/TranslateService";
 import { UserService } from "application/services/user/UserService";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -18,9 +18,7 @@ export function checkPermissionMiddleware(
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = await Container.get<UserService>(
-        CONTAINER_TYPES.UserService
-      ).getUserByRequest(req, {
+      const user = await container.resolve(UserService).getUserByRequest(req, {
         select: ["id"],
         relations: ["permissions"],
         relationSelects: { permissions: ["id", "name"] },
@@ -64,13 +62,13 @@ export function checkPermissionWithId(
       try {
         const id = ValueUtils.validateId(req.params.id);
 
-        const requestUser = await Container.get<UserService>(
-          CONTAINER_TYPES.UserService
-        ).getUserByRequest(req, {
-          select: ["id"],
-          relations: ["permissions"],
-          relationSelects: { permissions: ["id", "name"] },
-        });
+        const requestUser = await container
+          .resolve(UserService)
+          .getUserByRequest(req, {
+            select: ["id"],
+            relations: ["permissions"],
+            relationSelects: { permissions: ["id", "name"] },
+          });
 
         if (!requestUser) {
           throw new ClientError(ClientResponse.ACCESS_DENIED);

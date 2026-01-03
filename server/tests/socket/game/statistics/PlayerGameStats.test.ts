@@ -7,9 +7,9 @@ import {
   it,
 } from "@jest/globals";
 import { type Express } from "express";
+import { container } from "tsyringe";
 import { Repository } from "typeorm";
 
-import { Container, CONTAINER_TYPES } from "application/Container";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -46,9 +46,7 @@ describe("Player Game Statistics Tests", () => {
     serverUrl = `http://localhost:${process.env.PORT || 3000}`;
     utils = new SocketGameTestUtils(serverUrl);
 
-    playerGameStatsRepository = Container.get<PlayerGameStatsRepository>(
-      CONTAINER_TYPES.PlayerGameStatsRepository
-    );
+    playerGameStatsRepository = container.resolve(PlayerGameStatsRepository);
   });
 
   afterAll(async () => {

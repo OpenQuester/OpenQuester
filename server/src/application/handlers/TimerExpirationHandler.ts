@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameService } from "application/services/game/GameService";
 import {
@@ -25,11 +28,12 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
  * This architecture enables distributed execution - any server instance can
  * pick up and process a queued timer action.
  */
+@singleton()
 export class TimerExpirationHandler implements RedisExpirationHandler {
   constructor(
     private readonly gameService: GameService,
     private readonly actionExecutor: GameActionExecutor,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

@@ -1,5 +1,6 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -15,7 +16,6 @@ import {
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class ChatMessageEventHandler extends BaseSocketEventHandler<
   ChatMessageInputData,

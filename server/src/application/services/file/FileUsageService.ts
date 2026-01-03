@@ -1,8 +1,14 @@
+import { singleton } from "tsyringe";
+
 import { type File } from "infrastructure/database/models/File";
 import { type Package } from "infrastructure/database/models/package/Package";
 import { type User } from "infrastructure/database/models/User";
 import { FileUsageRepository } from "infrastructure/database/repositories/FileUsageRepository";
 
+/**
+ * Service for tracking file usage across users and packages.
+ */
+@singleton()
 export class FileUsageService {
   constructor(private readonly fileUsageRepository: FileUsageRepository) {
     //

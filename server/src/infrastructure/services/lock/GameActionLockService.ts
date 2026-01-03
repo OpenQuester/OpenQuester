@@ -1,4 +1,5 @@
-import { ILogger } from "infrastructure/logger/ILogger";
+import { singleton } from "tsyringe";
+
 import { RedisService } from "infrastructure/services/redis/RedisService";
 
 /**
@@ -16,14 +17,12 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
  * 2. If success → process action, releaseLock() when done
  * 3. If failure → action queued in GameActionQueueService
  */
+@singleton()
 export class GameActionLockService {
   private readonly LOCK_KEY_PREFIX = "game:action:lock";
   private readonly DEFAULT_LOCK_TTL = 10;
 
-  constructor(
-    private readonly redisService: RedisService,
-    private readonly logger: ILogger
-  ) {
+  constructor(private readonly redisService: RedisService) {
     //
   }
 

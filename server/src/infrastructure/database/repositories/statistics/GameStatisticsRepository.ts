@@ -1,5 +1,7 @@
+import { inject, singleton } from "tsyringe";
 import { Repository } from "typeorm";
 
+import { DI_TOKENS } from "application/di/tokens";
 import {
   GAME_STATISTICS_REDIS_NSP,
   GAME_STATISTICS_TTL,
@@ -9,8 +11,13 @@ import { GameStatisticsData } from "domain/types/statistics/GameStatisticsData";
 import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 
+/**
+ * Repository for game statistics (Redis + PostgreSQL).
+ */
+@singleton()
 export class GameStatisticsRepository {
   constructor(
+    @inject(DI_TOKENS.TypeORMGameStatisticsRepository)
     private readonly repository: Repository<GameStatistics>,
     private readonly redisService: RedisService
   ) {

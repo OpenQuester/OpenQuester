@@ -7,9 +7,9 @@ import {
   it,
 } from "@jest/globals";
 import { type Express } from "express";
+import { container } from "tsyringe";
 import { Repository } from "typeorm";
 
-import { Container, CONTAINER_TYPES } from "application/Container";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameJoinOutputData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -38,9 +38,7 @@ describe("User Data Update on Game Join", () => {
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
-    userRepository = Container.get<UserRepository>(
-      CONTAINER_TYPES.UserRepository
-    );
+    userRepository = container.resolve(UserRepository);
     cleanup = boot.cleanup;
     serverUrl = `http://localhost:${process.env.PORT || 3000}`;
     utils = new SocketGameTestUtils(serverUrl);

@@ -1,8 +1,15 @@
+import { singleton } from "tsyringe";
+
 import { REDIS_CACHE_DEFAULT_KEY_EXPIRE } from "domain/constants/cache";
 import { ICache } from "domain/types/cache/ICache";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Cache implementation using Redis.
+ * Provides get/set/delete with TTL support.
+ */
+@singleton()
 export class RedisCache implements ICache {
   constructor(private readonly redisService: RedisService) {
     //

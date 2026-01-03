@@ -1,7 +1,13 @@
 import { Callback, RedisKey, RedisValue } from "ioredis";
+import { singleton } from "tsyringe";
 
 import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 
+/**
+ * Service layer for Redis operations.
+ * Wraps RedisRepository with business-friendly methods.
+ */
+@singleton()
 export class RedisService {
   constructor(private readonly redisRepository: RedisRepository) {
     //

@@ -13,6 +13,7 @@ export default defineConfig({
     "node_modules/**/*",
     "minio/**/*",
     "test/**/*",
+    "tests/**/*",
     ".history/**/*",
   ],
   minify: false,

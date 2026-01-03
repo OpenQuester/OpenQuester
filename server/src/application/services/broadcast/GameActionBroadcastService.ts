@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import {
   SocketIOEvents,
@@ -24,11 +27,14 @@ type IOEvent = SocketIOEvents | SocketIOGameEvents | SocketIOUserEvents;
  * to the original socket that submitted an action, regardless of which
  * server instance processes the action.
  */
+@singleton()
 export class GameActionBroadcastService {
   private _io?: Namespace | Server;
   private _gameService?: SocketIOGameService;
 
-  constructor(private readonly logger: ILogger) {}
+  constructor(@inject(DI_TOKENS.Logger) private readonly logger: ILogger) {
+    //
+  }
 
   /**
    * Initialize with Socket.IO server/namespace and game service.

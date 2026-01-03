@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { PackageService } from "application/services/package/PackageService";
 import { UserService } from "application/services/user/UserService";
 import {
@@ -34,14 +37,19 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Repository for Game entity operations (stored in Redis).
+ */
+@singleton()
 export class GameRepository {
   constructor(
     private readonly redisService: RedisService,
+    @inject(DI_TOKENS.GameIndexManager)
     private readonly gameIndexManager: GameIndexManager,
     private readonly userService: UserService,
     private readonly packageService: PackageService,
     private readonly storage: S3StorageService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

@@ -1,5 +1,6 @@
 import { statSync } from "fs";
 import { access, constants, open } from "fs/promises";
+import { singleton } from "tsyringe";
 
 import { LogTag } from "infrastructure/logger/LogTag";
 import { getUnifiedLogPath } from "infrastructure/logger/PinoLogger";
@@ -88,6 +89,7 @@ export interface LogScanResult {
  * 3. External storage: For enterprise scale, integrate with Elasticsearch/Loki.
  * 4. Streaming: Add WebSocket endpoint for real-time log tailing.
  */
+@singleton()
 export class LogReaderService {
   private readonly logPath: string;
 

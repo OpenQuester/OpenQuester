@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   SocketBroadcastTarget,
@@ -10,9 +12,10 @@ import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameN
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 
 /**
- * Service responsible for creating standardized game event broadcasts
- * Centralizes event broadcasting logic to ensure consistency
+ * Service responsible for creating standardized game event broadcasts.
+ * Centralizes event broadcasting logic to ensure consistency.
  */
+@singleton()
 export class GameEventBroadcastService implements IGameEventBroadcastService {
   constructor() {
     //

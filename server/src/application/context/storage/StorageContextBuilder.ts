@@ -1,6 +1,6 @@
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
-import { S3Context } from "domain/types/file/S3Context";
+import type { S3Context } from "domain/types/file/S3Context";
 import { Environment } from "infrastructure/config/Environment";
 import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";

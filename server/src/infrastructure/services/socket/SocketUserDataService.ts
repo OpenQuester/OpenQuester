@@ -1,7 +1,13 @@
+import { singleton } from "tsyringe";
+
 import { SocketRedisUserUpdateDTO } from "domain/types/dto/user/SocketRedisUserUpdateDTO";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { SocketUserDataRepository } from "infrastructure/database/repositories/socket/SocketUserDataRepository";
 
+/**
+ * Service for managing socket user session data.
+ */
+@singleton()
 export class SocketUserDataService {
   constructor(
     private readonly socketUserDataRepository: SocketUserDataRepository

@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerGameStatsData } from "domain/types/statistics/PlayerGameStatsData";
 import { PlayerGameStatsRedisUpdate } from "domain/types/statistics/PlayerGameStatsRedisData";
@@ -6,12 +9,13 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
- * Service for managing player game statistics
+ * Service for managing player game statistics.
  */
+@singleton()
 export class PlayerGameStatsService {
   constructor(
     private readonly repository: PlayerGameStatsRepository,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

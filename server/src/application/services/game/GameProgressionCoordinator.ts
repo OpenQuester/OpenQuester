@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { GameEventBroadcastService } from "application/services/game/GameEventBroadcastService";
 import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
@@ -8,14 +11,15 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
 /**
- * Service responsible for coordinating game progression operations
- * Orchestrates the complete flow of game progression, broadcasting, and lifecycle events
+ * Service responsible for coordinating game progression operations.
+ * Orchestrates the complete flow of game progression, broadcasting, and lifecycle events.
  */
+@singleton()
 export class GameProgressionCoordinator implements IGameProgressionCoordinator {
   constructor(
     private readonly gameLifecycleService: GameLifecycleService,
     private readonly gameEventBroadcastService: GameEventBroadcastService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

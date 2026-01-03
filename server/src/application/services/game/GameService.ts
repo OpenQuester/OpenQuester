@@ -1,6 +1,8 @@
 import { type Request } from "express";
 import { type Server as IOServer } from "socket.io";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { PackageService } from "application/services/package/PackageService";
 import { UserService } from "application/services/user/UserService";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
@@ -22,14 +24,18 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 
+/**
+ * Service for game management operations.
+ */
+@singleton()
 export class GameService {
   constructor(
-    private readonly io: IOServer,
+    @inject(DI_TOKENS.IO) private readonly io: IOServer,
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
     private readonly gameRepository: GameRepository,
     private readonly userService: UserService,
     private readonly packageService: PackageService,
-    private readonly storage: S3StorageService,
-    private readonly logger: ILogger
+    private readonly storage: S3StorageService
   ) {
     //
   }

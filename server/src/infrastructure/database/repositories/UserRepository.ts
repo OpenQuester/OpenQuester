@@ -1,5 +1,7 @@
+import { inject, singleton } from "tsyringe";
 import { FindOptionsWhere, In, type Repository } from "typeorm";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -16,12 +18,17 @@ import { QueryBuilder } from "infrastructure/database/QueryBuilder";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
+/**
+ * Repository for User entity operations.
+ */
+@singleton()
 export class UserRepository {
   constructor(
+    @inject(DI_TOKENS.TypeORMUserRepository)
     private readonly repository: Repository<User>,
     private readonly fileUsageService: FileUsageService,
     private readonly cache: UserCacheUseCase,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

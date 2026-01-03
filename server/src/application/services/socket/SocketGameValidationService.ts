@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -11,6 +13,10 @@ import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Validation service for socket game operations.
+ */
+@singleton()
 export class SocketGameValidationService {
   /**
    * Validates that the player has showman role and throws error based on action

@@ -9,7 +9,6 @@ import {
 import { type Express } from "express";
 import request from "supertest";
 
-import { Container, CONTAINER_TYPES } from "application/Container";
 import {
   SocketIOEvents,
   SocketIOGameEvents,
@@ -27,6 +26,7 @@ import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
+import { container } from "tsyringe";
 
 describe("PlayerRestrictions", () => {
   let testEnv: TestEnvironment;
@@ -47,9 +47,7 @@ describe("PlayerRestrictions", () => {
     serverUrl = `http://localhost:${process.env.PORT || 3000}`;
     utils = new SocketGameTestUtils(serverUrl);
 
-    playerGameStatsRepository = Container.get<PlayerGameStatsRepository>(
-      CONTAINER_TYPES.PlayerGameStatsRepository
-    );
+    playerGameStatsRepository = container.resolve(PlayerGameStatsRepository);
   });
 
   afterAll(async () => {

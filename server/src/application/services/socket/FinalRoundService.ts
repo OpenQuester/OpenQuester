@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import { GameService } from "application/services/game/GameService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
@@ -33,9 +35,10 @@ import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 /**
- * Service for handling final round specific operations
- * Separate from general SocketIOGameService to handle different final round types
+ * Service for handling final round specific operations.
+ * Handles theme elimination, bidding, answering, and reviewing phases.
  */
+@singleton()
 export class FinalRoundService {
   constructor(
     private readonly gameService: GameService,

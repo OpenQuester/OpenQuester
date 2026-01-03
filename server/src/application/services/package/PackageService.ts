@@ -1,5 +1,7 @@
 import { type Request } from "express";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { PackageTagService } from "application/services/package/PackageTagService";
 import {
   PACKAGE_DETAILED_RELATIONS,
@@ -26,6 +28,10 @@ import { S3StorageService } from "infrastructure/services/storage/S3StorageServi
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { UserService } from "../user/UserService";
 
+/**
+ * Service for package management operations.
+ */
+@singleton()
 export class PackageService {
   constructor(
     private readonly packageRepository: PackageRepository,
@@ -33,7 +39,7 @@ export class PackageService {
     private readonly storage: S3StorageService,
     private readonly packageTagService: PackageTagService,
     private readonly dependencyService: DependencyService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

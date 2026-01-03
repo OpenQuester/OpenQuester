@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
@@ -64,9 +67,10 @@ export interface PlayerLeaveResult extends ServiceResult {
 }
 
 /**
- * Service consolidating all player leave logic
- * Handles: disconnect, voluntary leave, kick, and ban
+ * Service consolidating all player leave logic.
+ * Handles: disconnect, voluntary leave, kick, and ban.
  */
+@singleton()
 export class PlayerLeaveService {
   constructor(
     private readonly gameService: GameService,
@@ -76,7 +80,7 @@ export class PlayerLeaveService {
     private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly finalRoundService: FinalRoundService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }
