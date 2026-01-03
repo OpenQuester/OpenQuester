@@ -193,6 +193,8 @@ jobs:
     if: ${{ needs.pre_job.outputs.should_run == 'true' }}
     environment: ${{ inputs.DEPLOY_PROD && 'openquester (Production)' || 'openquester (Preview)' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: ./client
