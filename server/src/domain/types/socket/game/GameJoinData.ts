@@ -9,4 +9,9 @@ export interface GameJoinData {
    * Only applicable when role is PLAYER.
    */
   targetSlot: number | null;
+  /**
+   * Password for joining private games.
+   * Required when joining a private game.
+   */
+  password?: string;
 }
