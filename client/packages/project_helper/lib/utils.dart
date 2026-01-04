@@ -17,29 +17,35 @@ Future<ProcessResult> runCommand(
   Logger? logger,
 }) async {
   final executable = arguments.first;
-  arguments.removeAt(0);
-  final commandStr = '$executable ${arguments.join(' ')}';
+  final args = arguments.sublist(1); // Don't mutate the input list
+  final commandStr = '$executable ${args.join(' ')}';
   logger?.detail('Running: $commandStr');
 
   final process = await Process.start(
     executable,
-    arguments,
+    args,
     workingDirectory: workingDirectory,
     mode: verbose ? ProcessStartMode.inheritStdio : ProcessStartMode.normal,
   );
 
-  final exitCode = await process.exitCode;
-
   if (verbose) {
+    final exitCode = await process.exitCode;
     return ProcessResult(process.pid, exitCode, '', '');
   } else {
-    final stdout = await process.stdout
-        .transform(const SystemEncoding().decoder)
-        .join();
-    final stderr = await process.stderr
-        .transform(const SystemEncoding().decoder)
-        .join();
-    return ProcessResult(process.pid, exitCode, stdout, stderr);
+    // Read stdout and stderr concurrently with waiting for exit code
+    // to avoid blocking when buffers fill up
+    final results = await Future.wait([
+      process.stdout.transform(const SystemEncoding().decoder).join(),
+      process.stderr.transform(const SystemEncoding().decoder).join(),
+      process.exitCode,
+    ]);
+    
+    return ProcessResult(
+      process.pid,
+      results[2] as int,
+      results[0] as String,
+      results[1] as String,
+    );
   }
 }
 
