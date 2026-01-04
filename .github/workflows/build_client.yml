@@ -78,7 +78,7 @@ jobs:
         run: |
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-          bash ../scripts/init_project.sh
+          bash ./scripts/init_project.sh
           ./oqhelper pre_build
 
       - name: Build Web
