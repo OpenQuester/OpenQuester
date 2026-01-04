@@ -1,9 +1,10 @@
 import 'dart:io';
+
 import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:project_helper/build_task.dart';
-import 'package:project_helper/package_handler.dart';
 import 'package:project_helper/handlers/openapi_handler.dart';
+import 'package:project_helper/package_handler.dart';
 import 'package:project_helper/tasks/pre_build_task.dart';
 import 'package:project_helper/utils.dart';
 

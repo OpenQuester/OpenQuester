@@ -80,14 +80,10 @@ bool shouldUsePuro() {
 }
 
 /// Get the flutter command with optional puro prefix
-List<String> getFlutterCommand() {
-  return shouldUsePuro() ? ['puro', 'flutter'] : ['flutter'];
-}
+List<String> getFlutterCommand() => [if (shouldUsePuro()) 'puro', 'flutter'];
 
 /// Get the dart command with optional puro prefix
-List<String> getDartCommand() {
-  return shouldUsePuro() ? ['puro', 'dart'] : ['dart'];
-}
+List<String> getDartCommand() => [if (shouldUsePuro()) 'puro', 'dart'];
 
 /// Discover packages in a packages directory
 /// Returns a list of package names that have a pubspec.yaml file

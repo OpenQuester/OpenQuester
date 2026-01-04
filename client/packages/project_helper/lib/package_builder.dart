@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:project_helper/package_handler.dart';
 import 'package:project_helper/package_priority.dart';
 import 'package:project_helper/tasks/gen_files_task.dart';
+import 'package:project_helper/utils.dart';
 import 'package:yaml/yaml.dart';
 
 /// Builds packages with support for custom handlers and priorities
@@ -101,29 +102,11 @@ class PackageBuilder {
     return true;
   }
 
-  /// Discover packages in a directory
-  Future<List<String>> discoverPackages(String basePath) async {
-    final packagesDir = Directory(p.join(basePath, 'packages'));
-    if (!await packagesDir.exists()) {
-      return [];
-    }
-
-    final packages = <String>[];
-    await for (final entity in packagesDir.list()) {
-      if (entity is Directory) {
-        final packageName = p.basename(entity.path);
-        if (await isDartPackage(entity.path)) {
-          packages.add(packageName);
-        }
-      }
-    }
-
-    return packages;
-  }
-
   /// Build packages with priority ordering
   Future<bool> buildPackages(String basePath) async {
-    final packages = await discoverPackages(basePath);
+    final packages = await discoverPackages(
+      Directory(p.join(basePath, 'packages')),
+    );
 
     if (packages.isEmpty) {
       logger.warn('No packages found');
