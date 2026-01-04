@@ -32,9 +32,8 @@ class GenerateLocaleTask implements BuildTask {
 
     final command = getFlutterCommand();
     final result = await runCommand(
-      command.first,
       [
-        ...command.sublist(1),
+        ...command,
         'pub',
         'run',
         'easy_localization:generate',

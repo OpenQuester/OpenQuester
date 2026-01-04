@@ -11,7 +11,8 @@ class FormatExceptionTask implements BuildTask {
   String get name => 'format_exception';
 
   @override
-  String get description => 'Format code with exception paths from format_exceptions.json';
+  String get description =>
+      'Format code with exception paths from format_exceptions.json';
 
   @override
   Future<bool> execute(
@@ -23,7 +24,9 @@ class FormatExceptionTask implements BuildTask {
     progress?.update('Loading format exceptions...');
 
     // Check if format_exceptions.json exists
-    final exceptionsFile = File(p.join(workingDirectory, 'format_exceptions.json'));
+    final exceptionsFile = File(
+      p.join(workingDirectory, 'format_exceptions.json'),
+    );
     if (!await exceptionsFile.exists()) {
       logger.warn('⚠ No format_exceptions.json found, skipping...');
       return true;
@@ -51,8 +54,7 @@ class FormatExceptionTask implements BuildTask {
       // Run dart format on the exception paths
       final command = getDartCommand();
       final result = await runCommand(
-        command.first,
-        [...command.sublist(1), 'format', ...paths],
+        [...command, 'format', ...paths],
         workingDirectory: workingDirectory,
         verbose: verbose,
         logger: logger,
@@ -71,4 +73,3 @@ class FormatExceptionTask implements BuildTask {
     }
   }
 }
-

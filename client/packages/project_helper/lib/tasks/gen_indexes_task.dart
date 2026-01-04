@@ -36,8 +36,7 @@ class GenerateIndexesTask implements BuildTask {
     // Install index_generator if needed
     progress?.update('Ensuring index_generator is available...');
     await runCommand(
-      command.first,
-      [...command.sublist(1), 'pub', 'global', 'activate', 'index_generator'],
+      [...command, 'pub', 'global', 'activate', 'index_generator'],
       workingDirectory: workingDirectory,
       verbose: verbose,
       logger: logger,
@@ -46,8 +45,7 @@ class GenerateIndexesTask implements BuildTask {
     // Run index_generator
     progress?.update('Running index_generator...');
     final result = await runCommand(
-      command.first,
-      [...command.sublist(1), 'pub', 'global', 'run', 'index_generator'],
+      [...command, 'pub', 'global', 'run', 'index_generator'],
       workingDirectory: workingDirectory,
       verbose: verbose,
       logger: logger,

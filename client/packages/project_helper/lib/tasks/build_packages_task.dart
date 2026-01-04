@@ -36,9 +36,7 @@ class BuildPackagesTask implements BuildTask {
     };
 
     // Package priorities
-    final packagePriorities = <String, int>{
-      'openapi': -1,
-    };
+    final packagePriorities = <String, int>{'openapi': -1};
 
     // Discover packages
     final packages = await _discoverPackages(packagesDir);

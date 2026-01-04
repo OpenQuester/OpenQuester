@@ -23,8 +23,7 @@ class FormatTask implements BuildTask {
 
     final command = getDartCommand();
     final result = await runCommand(
-      command.first,
-      [...command.sublist(1), 'format', 'lib', 'packages'],
+      [...command, 'format', 'lib', 'packages'],
       workingDirectory: workingDirectory,
       verbose: verbose,
       logger: logger,

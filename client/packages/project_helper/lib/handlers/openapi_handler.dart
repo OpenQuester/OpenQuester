@@ -37,11 +37,9 @@ class OpenApiPackageHandler implements PackageHandler {
     // Run swagger_parser
     progress?.update('OpenAPI: Running swagger_parser...');
     final cmd = getDartCommand();
-    final executable = cmd.first;
-    final args = [...cmd.sublist(1), 'run', 'swagger_parser'];
+    final args = [...cmd, 'run', 'swagger_parser'];
 
     final result = await runCommand(
-      executable,
       args,
       workingDirectory: packagePath,
       verbose: verbose,

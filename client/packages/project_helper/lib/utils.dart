@@ -11,12 +11,13 @@ void setDisablePuroFromCommand(bool disable) {
 
 /// Run a command and return the process result
 Future<ProcessResult> runCommand(
-  String executable,
   List<String> arguments, {
   String? workingDirectory,
   bool verbose = false,
   Logger? logger,
 }) async {
+  final executable = arguments.first;
+  arguments.removeAt(0);
   final commandStr = '$executable ${arguments.join(' ')}';
   logger?.detail('Running: $commandStr');
 
@@ -32,8 +33,12 @@ Future<ProcessResult> runCommand(
   if (verbose) {
     return ProcessResult(process.pid, exitCode, '', '');
   } else {
-    final stdout = await process.stdout.transform(SystemEncoding().decoder).join();
-    final stderr = await process.stderr.transform(SystemEncoding().decoder).join();
+    final stdout = await process.stdout
+        .transform(SystemEncoding().decoder)
+        .join();
+    final stderr = await process.stderr
+        .transform(SystemEncoding().decoder)
+        .join();
     return ProcessResult(process.pid, exitCode, stdout, stderr);
   }
 }

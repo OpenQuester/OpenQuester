@@ -33,8 +33,7 @@ class GenerateFilesTask implements BuildTask {
     ];
 
     final result = await runCommand(
-      command.first,
-      [...command.sublist(1), ...buildArgs],
+      [...command, ...buildArgs],
       workingDirectory: workingDirectory,
       verbose: verbose,
       logger: logger,
