@@ -1,11 +1,11 @@
 import 'dart:io';
+
 import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
-import 'package:yaml/yaml.dart';
 import 'package:project_helper/package_handler.dart';
 import 'package:project_helper/package_priority.dart';
-import 'package:project_helper/utils.dart';
 import 'package:project_helper/tasks/gen_files_task.dart';
+import 'package:yaml/yaml.dart';
 
 /// Builds packages with support for custom handlers and priorities
 class PackageBuilder {
