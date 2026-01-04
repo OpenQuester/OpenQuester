@@ -4,10 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:project_helper/build_task.dart';
 import 'package:project_helper/package_handler.dart';
 import 'package:project_helper/handlers/openapi_handler.dart';
-import 'package:project_helper/tasks/gen_files_task.dart';
-import 'package:project_helper/tasks/gen_locale_task.dart';
-import 'package:project_helper/tasks/gen_indexes_task.dart';
-import 'package:project_helper/tasks/format_task.dart';
+import 'package:project_helper/tasks/pre_build_task.dart';
 
 /// Task to build packages by running pre_build on each
 class BuildPackagesTask implements BuildTask {
@@ -132,52 +129,17 @@ class BuildPackagesTask implements BuildTask {
       }
     }
 
-    // Run pre_build tasks for the package
-    // 1. Generate files (build_runner)
-    final genFilesTask = GenerateFilesTask();
-    if (!await genFilesTask.execute(
+    // Run pre_build tasks for the package using PreBuildTask
+    final preBuildTask = PreBuildTask();
+    final success = await preBuildTask.execute(
       packagePath,
       logger: logger,
       progress: progress,
       verbose: verbose,
-    )) {
-      logger.err('✗ gen_files failed for $packageName');
-      return false;
-    }
+    );
 
-    // 2. Generate locale (if applicable)
-    final genLocaleTask = GenerateLocaleTask();
-    if (!await genLocaleTask.execute(
-      packagePath,
-      logger: logger,
-      progress: progress,
-      verbose: verbose,
-    )) {
-      logger.err('✗ gen_locale failed for $packageName');
-      return false;
-    }
-
-    // 3. Generate indexes (if applicable)
-    final genIndexesTask = GenerateIndexesTask();
-    if (!await genIndexesTask.execute(
-      packagePath,
-      logger: logger,
-      progress: progress,
-      verbose: verbose,
-    )) {
-      logger.err('✗ gen_indexes failed for $packageName');
-      return false;
-    }
-
-    // 4. Format code
-    final formatTask = FormatTask();
-    if (!await formatTask.execute(
-      packagePath,
-      logger: logger,
-      progress: progress,
-      verbose: verbose,
-    )) {
-      logger.err('✗ format failed for $packageName');
+    if (!success) {
+      logger.err('✗ pre_build failed for $packageName');
       return false;
     }
 
@@ -185,3 +147,4 @@ class BuildPackagesTask implements BuildTask {
     return true;
   }
 }
+
