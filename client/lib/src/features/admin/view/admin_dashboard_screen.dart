@@ -449,13 +449,20 @@ class _UserListItem extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final me = watchValue((ProfileController m) => m.user);
-    const permissionsNeeded = {PermissionName.deleteAnotherUser};
+    const permissionsNeeded = {
+      PermissionName.deleteAnotherUser,
+      PermissionName.mutePlayer,
+    };
     final haveAnyNeededPermission =
         me == null ||
         !me.permissions.containsAnyOf(
           permissionsNeeded,
           by: (item, target) => item.name == target,
         );
+
+    // Check if user is currently muted
+    final isMuted =
+        user.mutedUntil != null && user.mutedUntil!.isAfter(DateTime.now());
 
     return Card(
       child: ListTile(
@@ -477,6 +484,19 @@ class _UserListItem extends WatchingWidget {
                     label: Text(LocaleKeys.admin_deleted.tr()),
                     backgroundColor: Colors.orange.withBrightness(-0.8),
                     labelStyle: const TextStyle(color: Colors.orange),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                if (isMuted)
+                  Chip(
+                    label: Text(
+                      LocaleKeys.admin_muted_until.tr(
+                        args: [
+                          user.mutedUntil!.toRelativeString(),
+                        ],
+                      ),
+                    ),
+                    backgroundColor: Colors.red.withBrightness(-0.8),
+                    labelStyle: const TextStyle(color: Colors.red),
                     visualDensity: VisualDensity.compact,
                   ),
               ],
@@ -687,6 +707,10 @@ class _MoreUserButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = getIt<AdminController>();
+    // Check if user is currently muted
+    final isMuted =
+        user.mutedUntil != null && user.mutedUntil!.isAfter(DateTime.now());
+
     return PopupMenuButton<AdminActionType>(
       icon: const Icon(Icons.more_vert),
       onSelected: (value) async {
@@ -712,6 +736,29 @@ class _MoreUserButton extends StatelessWidget {
             );
             if (confirmed) {
               success = await controller.restoreUser(user.id);
+            }
+          case AdminActionType.mute:
+            final mutedUntil = await _showMuteDurationDialog(context);
+            if (mutedUntil != null && context.mounted) {
+              final confirmed = await _showConfirmDialog(
+                context,
+                LocaleKeys.admin_confirm_mute.tr(
+                  args: [user.username],
+                ),
+              );
+              if (confirmed) {
+                success = await controller.muteUser(user.id, mutedUntil);
+              }
+            }
+          case AdminActionType.unmute:
+            final confirmed = await _showConfirmDialog(
+              context,
+              LocaleKeys.admin_confirm_unmute.tr(
+                args: [user.username],
+              ),
+            );
+            if (confirmed) {
+              success = await controller.unmuteUser(user.id);
             }
         }
 
@@ -752,6 +799,37 @@ class _MoreUserButton extends StatelessWidget {
                 ),
               ),
           ],
+          if (me.havePermission(PermissionName.mutePlayer)) ...[
+            if (!isMuted)
+              PopupMenuItem(
+                value: AdminActionType.mute,
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    const Icon(
+                      Icons.volume_off,
+                      size: 20,
+                      color: Colors.red,
+                    ),
+                    Text(
+                      LocaleKeys.admin_mute_user.tr(),
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ],
+                ),
+              )
+            else
+              PopupMenuItem(
+                value: AdminActionType.unmute,
+                child: Row(
+                  spacing: 8,
+                  children: [
+                    const Icon(Icons.volume_up, size: 20),
+                    Text(LocaleKeys.admin_unmute_user.tr()),
+                  ],
+                ),
+              ),
+          ],
         ];
       },
     );
@@ -776,5 +854,108 @@ class _MoreUserButton extends StatelessWidget {
       ),
     );
     return result ?? false;
+  }
+
+  Future<DateTime?> _showMuteDurationDialog(BuildContext context) async {
+    // Use a special marker for custom option to differentiate from
+    // preset durations
+    // This marker (Unix epoch) will never conflict with real mute times since
+    // all mute times must be in the future
+    // (validated in _showCustomDateTimePicker)
+    final customMarker = DateTime(1970);
+
+    final result = await showDialog<DateTime>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(LocaleKeys.admin_mute_duration.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 8,
+          children: [
+            Text(LocaleKeys.admin_select_mute_duration.tr()),
+            const SizedBox(height: 16),
+            ListTile(
+              title: Text(LocaleKeys.admin_mute_for_15_minutes.tr()),
+              onTap: () => Navigator.of(context).pop(
+                DateTime.now().add(const Duration(minutes: 15)),
+              ),
+            ),
+            ListTile(
+              title: Text(LocaleKeys.admin_mute_for_1_hour.tr()),
+              onTap: () => Navigator.of(context).pop(
+                DateTime.now().add(const Duration(hours: 1)),
+              ),
+            ),
+            ListTile(
+              title: Text(LocaleKeys.admin_mute_for_24_hours.tr()),
+              onTap: () => Navigator.of(context).pop(
+                DateTime.now().add(const Duration(hours: 24)),
+              ),
+            ),
+            ListTile(
+              title: Text(LocaleKeys.admin_mute_custom.tr()),
+              onTap: () => Navigator.of(context).pop(customMarker),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(LocaleKeys.cancel.tr()),
+          ),
+        ],
+      ),
+    );
+
+    // If custom was selected, show the date/time picker
+    if (result != null && result == customMarker && context.mounted) {
+      return _showCustomDateTimePicker(context);
+    }
+
+    return result;
+  }
+
+  Future<DateTime?> _showCustomDateTimePicker(BuildContext context) async {
+    final now = DateTime.now();
+    final initialDate = now.add(const Duration(hours: 1));
+
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+
+    if (selectedDate == null) return null;
+
+    if (!context.mounted) return null;
+
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+    );
+
+    if (selectedTime == null) return null;
+
+    final combinedDateTime = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
+
+    // Validate that the selected date/time is in the future
+    final nowAfterPick = DateTime.now();
+    if (!combinedDateTime.isAfter(nowAfterPick)) {
+      if (context.mounted) {
+        await getIt<ToastController>().show(
+          LocaleKeys.admin_mute_time_must_be_future.tr(),
+        );
+      }
+      return null;
+    }
+
+    return combinedDateTime;
   }
 }
