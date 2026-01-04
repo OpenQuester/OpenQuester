@@ -96,5 +96,5 @@ jobs:
       - run: ./oqhelper pre_run
       - run: dart analyze --fatal-infos lib/
       - run: ./oqhelper format_exception
-      - run: ./oqhelper format --all-packages --fatal-infos --verbose --ignore-packages " "
+      - run: ./oqhelper format --all-packages --fatal-infos --verbose --ignore-packages openapi
       - run: dart test

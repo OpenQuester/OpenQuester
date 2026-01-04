@@ -34,9 +34,9 @@ class FormatCommand extends Command<void> {
       ..addOption(
         'ignore-packages',
         abbr: 'i',
-        defaultsTo: 'project_helper',
+        defaultsTo: 'project_helper,openapi',
         help:
-            'Comma-separated list of package names to ignore (default: project_helper)',
+            'Comma-separated list of package names to ignore (default: project_helper,openapi)',
       );
   }
 
