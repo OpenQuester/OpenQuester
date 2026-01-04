@@ -76,7 +76,7 @@ APPIMAGETOOL="$OUTPUT_DIR/appimagetool-x86_64.AppImage"
 # Using a specific version with known checksum for security
 APPIMAGETOOL_VERSION="13"
 APPIMAGETOOL_URL="https://github.com/AppImage/AppImageKit/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
-APPIMAGETOOL_SHA256="df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
+APPIMAGETOOL_SHA256="ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
 
 if [ ! -f "$APPIMAGETOOL" ]; then
     echo "Downloading appimagetool v${APPIMAGETOOL_VERSION}..."
