@@ -43,6 +43,7 @@ Future<ProcessResult> runCommand(
     args,
     workingDirectory: workingDirectory,
     mode: verbose ? ProcessStartMode.inheritStdio : ProcessStartMode.normal,
+    runInShell: Platform.isWindows,
   );
 
   if (verbose) {
