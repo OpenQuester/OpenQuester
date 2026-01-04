@@ -5,6 +5,7 @@ import 'package:project_helper/build_task.dart';
 import 'package:project_helper/tasks/build_packages_task.dart';
 import 'package:project_helper/tasks/pre_build_task.dart';
 import 'package:project_helper/utils.dart';
+import 'package:meta/meta.dart';
 
 /// Command to run the full pre-build process
 class PreBuildCommand extends Command<void> {
@@ -57,10 +58,20 @@ class PreBuildCommand extends Command<void> {
       setDisablePuroFromCommand(true);
     }
 
-    final overallStopwatch = Stopwatch()..start();
-
     logger.info('🚀 OpenQuester Pre-Build');
     logger.info('');
+
+    await runPrebuild(skipPackages, currentDir, verbose, skipFormat);
+  }
+
+  @protected
+  Future<void> runPrebuild(
+    bool skipPackages,
+    String currentDir,
+    bool verbose,
+    bool skipFormat,
+  ) async {
+    final overallStopwatch = Stopwatch()..start();
 
     try {
       // Build packages first (if not skipped)

@@ -7,6 +7,7 @@ import 'package:project_helper/commands/gen_files_command.dart';
 import 'package:project_helper/commands/gen_indexes_command.dart';
 import 'package:project_helper/commands/gen_locale_command.dart';
 import 'package:project_helper/commands/pre_build_command.dart';
+import 'package:project_helper/commands/pre_run_command.dart';
 
 /// Main command runner for oqhelper
 class OqHelperCommandRunner extends CompletionCommandRunner<void> {
@@ -17,6 +18,7 @@ class OqHelperCommandRunner extends CompletionCommandRunner<void> {
         'OpenQuester project helper - replaces Makefiles for Dart/Flutter projects',
       ) {
     addCommand(PreBuildCommand(_logger));
+    addCommand(PreRunCommand(_logger));
     addCommand(GenFilesCommand(_logger));
     addCommand(GenLocaleCommand(_logger));
     addCommand(GenIndexesCommand(_logger));
