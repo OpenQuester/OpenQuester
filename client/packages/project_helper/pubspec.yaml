@@ -1,0 +1,18 @@
+name: project_helper
+version: 1.0.0
+description: OpenQuester project build helper - replaces Makefiles
+homepage: https://github.com/OpenQuester/OpenQuester
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  args: ^2.6.0
+  path: ^1.9.0
+  yaml: ^3.1.2
+
+dev_dependencies:
+  lints: ^5.1.1
+
+executables:
+  oqhelper:

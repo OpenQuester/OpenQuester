@@ -1,0 +1,9 @@
+# Dart
+.dart_tool/
+.packages
+pubspec.lock
+build/
+
+# Compiled executables
+bin/oqhelper
+bin/oqhelper.exe
