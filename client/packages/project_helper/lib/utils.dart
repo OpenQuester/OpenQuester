@@ -9,6 +9,22 @@ void setDisablePuroFromCommand(bool disable) {
   _disablePuroFromCommand = disable;
 }
 
+/// Format a duration into a human-readable string
+/// Returns format like "1m 23s 456ms", "45s 123ms", or "789ms"
+String formatDuration(Duration duration) {
+  final minutes = duration.inMinutes;
+  final seconds = duration.inSeconds % 60;
+  final milliseconds = duration.inMilliseconds % 1000;
+
+  if (minutes > 0) {
+    return '${minutes}m ${seconds}s ${milliseconds}ms';
+  } else if (seconds > 0) {
+    return '${seconds}s ${milliseconds}ms';
+  } else {
+    return '${milliseconds}ms';
+  }
+}
+
 /// Run a command and return the process result
 Future<ProcessResult> runCommand(
   List<String> arguments, {

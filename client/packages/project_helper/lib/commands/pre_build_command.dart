@@ -76,12 +76,12 @@ class PreBuildCommand extends Command<void> {
       overallStopwatch.stop();
       logger.info('');
       logger.success(
-        '✓ Pre-Build Complete! Total time: ${_formatDuration(overallStopwatch.elapsed)}',
+        '✓ Pre-Build Complete! Total time: ${formatDuration(overallStopwatch.elapsed)}',
       );
     } catch (e) {
       overallStopwatch.stop();
       logger.err(
-        '✗ Pre-Build Failed after ${_formatDuration(overallStopwatch.elapsed)}',
+        '✗ Pre-Build Failed after ${formatDuration(overallStopwatch.elapsed)}',
       );
       rethrow;
     }
@@ -107,34 +107,20 @@ class PreBuildCommand extends Command<void> {
 
       if (success) {
         progress.complete(
-          '✓ ${task.description} (${_formatDuration(stopwatch.elapsed)})',
+          '✓ ${task.description} (${formatDuration(stopwatch.elapsed)})',
         );
       } else {
         progress.fail(
-          '✗ ${task.description} failed (${_formatDuration(stopwatch.elapsed)})',
+          '✗ ${task.description} failed (${formatDuration(stopwatch.elapsed)})',
         );
         throw Exception('${task.name} failed');
       }
     } catch (e) {
       stopwatch.stop();
       progress.fail(
-        '✗ ${task.description} failed (${_formatDuration(stopwatch.elapsed)})',
+        '✗ ${task.description} failed (${formatDuration(stopwatch.elapsed)})',
       );
       rethrow;
-    }
-  }
-
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes;
-    final seconds = duration.inSeconds % 60;
-    final milliseconds = duration.inMilliseconds % 1000;
-
-    if (minutes > 0) {
-      return '${minutes}m ${seconds}s ${milliseconds}ms';
-    } else if (seconds > 0) {
-      return '${seconds}s ${milliseconds}ms';
-    } else {
-      return '${milliseconds}ms';
     }
   }
 }

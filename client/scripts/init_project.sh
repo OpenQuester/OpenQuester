@@ -6,8 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR"
-CLIENT_DIR="$PROJECT_ROOT"
+CLIENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_HELPER_DIR="$CLIENT_DIR/packages/project_helper"
 
 echo "========================================"

@@ -57,34 +57,20 @@ abstract class TaskCommand extends Command<void> {
 
       if (success) {
         progress.complete(
-          '✓ ${task.description} completed in ${_formatDuration(stopwatch.elapsed)}',
+          '✓ ${task.description} completed in ${formatDuration(stopwatch.elapsed)}',
         );
       } else {
         progress.fail(
-          '✗ ${task.description} failed after ${_formatDuration(stopwatch.elapsed)}',
+          '✗ ${task.description} failed after ${formatDuration(stopwatch.elapsed)}',
         );
         throw Exception('Task failed');
       }
     } catch (e) {
       stopwatch.stop();
       progress.fail(
-        '✗ ${task.description} failed after ${_formatDuration(stopwatch.elapsed)}',
+        '✗ ${task.description} failed after ${formatDuration(stopwatch.elapsed)}',
       );
       rethrow;
-    }
-  }
-
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes;
-    final seconds = duration.inSeconds % 60;
-    final milliseconds = duration.inMilliseconds % 1000;
-
-    if (minutes > 0) {
-      return '${minutes}m ${seconds}s ${milliseconds}ms';
-    } else if (seconds > 0) {
-      return '${seconds}s ${milliseconds}ms';
-    } else {
-      return '${milliseconds}ms';
     }
   }
 }
