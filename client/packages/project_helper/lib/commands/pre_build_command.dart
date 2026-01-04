@@ -3,10 +3,7 @@ import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:project_helper/build_task.dart';
 import 'package:project_helper/tasks/build_packages_task.dart';
-import 'package:project_helper/tasks/gen_files_task.dart';
-import 'package:project_helper/tasks/gen_locale_task.dart';
-import 'package:project_helper/tasks/gen_indexes_task.dart';
-import 'package:project_helper/tasks/format_task.dart';
+import 'package:project_helper/tasks/pre_build_task.dart';
 import 'package:project_helper/utils.dart';
 
 /// Command to run the full pre-build process
@@ -72,23 +69,9 @@ class PreBuildCommand extends Command<void> {
         await _executeTask(buildPackagesTask, currentDir, verbose);
       }
 
-      // Generate locale
-      final genLocaleTask = GenerateLocaleTask();
-      await _executeTask(genLocaleTask, currentDir, verbose);
-
-      // Generate files
-      final genFilesTask = GenerateFilesTask();
-      await _executeTask(genFilesTask, currentDir, verbose);
-
-      // Generate indexes
-      final genIndexesTask = GenerateIndexesTask();
-      await _executeTask(genIndexesTask, currentDir, verbose);
-
-      // Format code
-      if (!skipFormat) {
-        final formatTask = FormatTask();
-        await _executeTask(formatTask, currentDir, verbose);
-      }
+      // Run pre_build tasks for the current directory
+      final preBuildTask = PreBuildTask(skipFormat: skipFormat);
+      await _executeTask(preBuildTask, currentDir, verbose);
 
       overallStopwatch.stop();
       logger.info('');
