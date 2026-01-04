@@ -14,6 +14,7 @@ Future<void> main(List<String> arguments) async {
 
   try {
     await runner.run(arguments);
+    exit(0); // Exit successfully after command completes
   } catch (e) {
     logger.err('$e');
     exit(1);
