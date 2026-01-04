@@ -25,7 +25,9 @@ class GenerateIndexesTask implements BuildTask {
       path.join(workingDirectory, 'index_generator.yaml'),
     );
     if (indexGeneratorConfig.existsSync() == false) {
-      logger.warn('⚠ No index_generator.yaml found, skipping...');
+      if (verbose) {
+        logger.warn('⚠ No index_generator.yaml found, skipping...');
+      }
       return true;
     }
 

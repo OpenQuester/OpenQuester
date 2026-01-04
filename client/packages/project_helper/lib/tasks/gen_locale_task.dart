@@ -24,7 +24,9 @@ class GenerateLocaleTask implements BuildTask {
       p.join(workingDirectory, 'assets', 'localization'),
     );
     if (!await localeDir.exists()) {
-      logger.warn('⚠ No localization directory found, skipping...');
+      if (verbose) {
+        logger.warn('⚠ No localization directory found, skipping...');
+      }
       return true;
     }
 

@@ -55,7 +55,7 @@ Future<ProcessResult> runCommand(
       process.stderr.transform(const SystemEncoding().decoder).join(),
       process.exitCode,
     ]);
-    
+
     return ProcessResult(
       process.pid,
       results[2] as int,

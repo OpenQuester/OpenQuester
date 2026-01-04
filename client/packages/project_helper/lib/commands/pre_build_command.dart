@@ -10,6 +10,19 @@ import 'package:meta/meta.dart';
 /// Command to run the full pre-build process
 class PreBuildCommand extends Command<void> {
   PreBuildCommand(this.logger) {
+    setFlags();
+  }
+
+  final Logger logger;
+
+  @override
+  String get name => 'pre_build';
+
+  @override
+  String get description => 'Run the full pre-build process';
+
+  @protected
+  void setFlags() {
     argParser
       ..addFlag(
         'skip-packages',
@@ -36,14 +49,6 @@ class PreBuildCommand extends Command<void> {
         help: 'Show verbose output',
       );
   }
-
-  final Logger logger;
-
-  @override
-  String get name => 'pre_build';
-
-  @override
-  String get description => 'Run the full pre-build process';
 
   @override
   Future<void> run() async {
@@ -76,7 +81,7 @@ class PreBuildCommand extends Command<void> {
     try {
       // Build packages first (if not skipped)
       if (!skipPackages) {
-        final buildPackagesTask = BuildPackagesTask();
+        final buildPackagesTask = BuildPackagesTask(skipFormat: skipFormat);
         await _executeTask(buildPackagesTask, currentDir, verbose);
       }
 
