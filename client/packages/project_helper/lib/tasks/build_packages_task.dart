@@ -5,6 +5,7 @@ import 'package:project_helper/build_task.dart';
 import 'package:project_helper/package_handler.dart';
 import 'package:project_helper/handlers/openapi_handler.dart';
 import 'package:project_helper/tasks/pre_build_task.dart';
+import 'package:project_helper/utils.dart';
 
 /// Task to build packages by running pre_build on each
 class BuildPackagesTask implements BuildTask {
@@ -44,7 +45,7 @@ class BuildPackagesTask implements BuildTask {
     final packagePriorities = <String, int>{'openapi': -1};
 
     // Discover packages
-    final packages = await _discoverPackages(packagesDir);
+    final packages = await discoverPackages(packagesDir);
     if (packages.isEmpty) {
       logger.info('No packages found');
       return true;
@@ -106,20 +107,6 @@ class BuildPackagesTask implements BuildTask {
 
     logger.success('✓ All packages built successfully');
     return true;
-  }
-
-  Future<List<String>> _discoverPackages(Directory packagesDir) async {
-    final packages = <String>[];
-    await for (final entity in packagesDir.list()) {
-      if (entity is Directory) {
-        final packageName = p.basename(entity.path);
-        final pubspecFile = File(p.join(entity.path, 'pubspec.yaml'));
-        if (await pubspecFile.exists()) {
-          packages.add(packageName);
-        }
-      }
-    }
-    return packages;
   }
 
   Future<bool> _buildPackage(

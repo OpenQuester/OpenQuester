@@ -46,6 +46,17 @@ From any Dart project directory with `oqhelper`:
 # Can also use short flags
 ./oqhelper pre_build -p -f  # skip packages and formatting
 ./oqhelper pre_build -i package1,package2  # ignore packages
+
+# Individual commands
+./oqhelper gen_files          # Run build_runner
+./oqhelper gen_locale         # Generate localization
+./oqhelper gen_indexes        # Generate barrel exports
+./oqhelper format             # Format code in current directory
+./oqhelper format --all-packages  # Format code in all packages
+./oqhelper format --fatal-infos   # Treat info level issues as fatal
+./oqhelper format -a -i pkg1,pkg2 # Format all packages except pkg1,pkg2
+./oqhelper build_packages     # Build all packages
+./oqhelper format_exception   # Format exception paths from JSON
 ```
 
 ## Architecture

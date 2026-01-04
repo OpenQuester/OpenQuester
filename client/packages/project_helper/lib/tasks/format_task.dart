@@ -1,9 +1,21 @@
+import 'dart:io';
 import 'package:mason_logger/mason_logger.dart';
+import 'package:path/path.dart' as p;
 import 'package:project_helper/build_task.dart';
 import 'package:project_helper/utils.dart';
 
 /// Task to format code
 class FormatTask implements BuildTask {
+  FormatTask({
+    this.allPackages = false,
+    this.fatalInfos = false,
+    this.ignorePackages = const [],
+  });
+
+  final bool allPackages;
+  final bool fatalInfos;
+  final List<String> ignorePackages;
+
   @override
   String get name => 'format';
 
@@ -17,13 +29,44 @@ class FormatTask implements BuildTask {
     Progress? progress,
     bool verbose = false,
   }) async {
+    if (allPackages) {
+      return await _formatAllPackages(
+        workingDirectory,
+        logger: logger,
+        progress: progress,
+        verbose: verbose,
+      );
+    } else {
+      return await _formatSingleDirectory(
+        workingDirectory,
+        logger: logger,
+        progress: progress,
+        verbose: verbose,
+      );
+    }
+  }
+
+  Future<bool> _formatSingleDirectory(
+    String workingDirectory, {
+    required Logger logger,
+    Progress? progress,
+    bool verbose = false,
+  }) async {
     if (verbose) logger.info('Formatting Code');
 
     progress?.update('Formatting code...');
 
     final command = getDartCommand();
+    final args = [...command, 'format'];
+    
+    if (fatalInfos) {
+      args.add('--set-exit-if-changed');
+    }
+    
+    args.addAll(['lib', 'packages']);
+
     final result = await runCommand(
-      [...command, 'format', 'lib', 'packages'],
+      args,
       workingDirectory: workingDirectory,
       verbose: verbose,
       logger: logger,
@@ -36,6 +79,76 @@ class FormatTask implements BuildTask {
     }
 
     if (verbose) logger.success('✓ Code formatted');
+    return true;
+  }
+
+  Future<bool> _formatAllPackages(
+    String workingDirectory, {
+    required Logger logger,
+    Progress? progress,
+    bool verbose = false,
+  }) async {
+    if (verbose) logger.info('Formatting Code in all packages');
+
+    // Format current directory first
+    progress?.update('Formatting main directory...');
+    final mainSuccess = await _formatSingleDirectory(
+      workingDirectory,
+      logger: logger,
+      progress: null,
+      verbose: verbose,
+    );
+
+    if (!mainSuccess) {
+      return false;
+    }
+
+    // Discover and format packages
+    final packagesDir = Directory(p.join(workingDirectory, 'packages'));
+    if (!await packagesDir.exists()) {
+      if (verbose) logger.info('No packages directory found');
+      return true;
+    }
+
+    final packages = await discoverPackages(packagesDir);
+    final filteredPackages = packages
+        .where((pkg) => !ignorePackages.contains(pkg))
+        .toList();
+
+    if (ignorePackages.isNotEmpty && verbose) {
+      logger.info('Ignoring packages: ${ignorePackages.join(', ')}');
+    }
+
+    if (filteredPackages.isEmpty) {
+      if (verbose) logger.info('No packages to format');
+      return true;
+    }
+
+    if (verbose) {
+      logger.info('Formatting ${filteredPackages.length} packages...');
+    }
+
+    // Format each package
+    for (final packageName in filteredPackages) {
+      final packagePath = p.join(packagesDir.path, packageName);
+      progress?.update('Formatting $packageName...');
+
+      if (verbose) logger.info('Formatting package: $packageName');
+
+      final success = await _formatSingleDirectory(
+        packagePath,
+        logger: logger,
+        progress: null,
+        verbose: verbose,
+      );
+
+      if (!success) {
+        logger.err('✗ Failed to format package: $packageName');
+        return false;
+      }
+    }
+
+    if (verbose) logger.success('✓ All packages formatted');
     return true;
   }
 }

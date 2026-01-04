@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:mason_logger/mason_logger.dart';
+import 'package:path/path.dart' as p;
 
 /// Global flag to disable puro (can be set from command arguments)
 bool _disablePuroFromCommand = false;
@@ -86,4 +87,20 @@ List<String> getFlutterCommand() {
 /// Get the dart command with optional puro prefix
 List<String> getDartCommand() {
   return shouldUsePuro() ? ['puro', 'dart'] : ['dart'];
+}
+
+/// Discover packages in a packages directory
+/// Returns a list of package names that have a pubspec.yaml file
+Future<List<String>> discoverPackages(Directory packagesDir) async {
+  final packages = <String>[];
+  await for (final entity in packagesDir.list()) {
+    if (entity is Directory) {
+      final packageName = p.basename(entity.path);
+      final pubspecFile = File(p.join(entity.path, 'pubspec.yaml'));
+      if (await pubspecFile.exists()) {
+        packages.add(packageName);
+      }
+    }
+  }
+  return packages;
 }
