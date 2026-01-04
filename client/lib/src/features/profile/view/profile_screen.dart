@@ -277,6 +277,7 @@ class _ProfileContent extends WatchingWidget {
         Column(
           spacing: 12,
           children: [
+            const UpdateBtn(),
             if (user.isGuest)
               _DiscordLoginBtn(
                 onBeforeLogin: () => onClose?.call(),

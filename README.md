@@ -113,10 +113,75 @@ Download the latest version for your platform from the [**Releases Page**](https
 
 - **Web**: [Browser version](https://web.openquester.app)
 - **Windows**: `.exe` installer
-- **Linux**: `.AppImage`, `.deb`, or `.tar.gz`
+- **Linux**: `.AppImage`, `.flatpak`, or `.tar.gz`
 - **macOS**: macOS support _(Work in Progress)_
 - **Android**: `.apk` or Google Play Store _(Coming Soon)_
 - **iOS**: iOS support _(Coming Soon)_
+
+### Installation Instructions
+
+#### Windows
+
+1. Download the `.exe` installer from the [Releases Page](https://github.com/OpenQuester/OpenQuester/releases/latest)
+2. Double-click the installer and follow the installation wizard
+3. Launch OpenQuester from the Start Menu or Desktop shortcut
+4. **(Optional)** For package encoding features, install [FFmpeg](https://ffmpeg.org/download.html) and add it to your system PATH
+
+#### Linux
+
+**Option 1: AppImage (Recommended)**
+```bash
+# Download the AppImage
+wget https://github.com/OpenQuester/OpenQuester/releases/latest/download/OpenQuester-x86_64.AppImage
+
+# Make it executable
+chmod +x OpenQuester-x86_64.AppImage
+
+# Run the application
+./OpenQuester-x86_64.AppImage
+
+# (Optional) Install FFmpeg for package encoding
+sudo apt install ffmpeg  # Debian/Ubuntu
+sudo dnf install ffmpeg  # Fedora
+sudo pacman -S ffmpeg    # Arch Linux
+```
+
+**Option 2: Flatpak**
+```bash
+# Install from local flatpak bundle
+flatpak install openquester.flatpak
+
+# Run the application
+flatpak run com.asion.openquester
+
+# Note: FFmpeg is included in the Flatpak bundle
+```
+
+**Option 3: Extract tar.gz**
+```bash
+# Download and extract
+wget https://github.com/OpenQuester/OpenQuester/releases/latest/download/openquester-linux-x64.tar.gz
+tar -xzf openquester-linux-x64.tar.gz
+
+# Run the application
+cd bundle
+./openquester
+
+# (Optional) Install FFmpeg for package encoding
+sudo apt install ffmpeg  # Debian/Ubuntu
+sudo dnf install ffmpeg  # Fedora
+sudo pacman -S ffmpeg    # Arch Linux
+```
+
+### Running OpenQuester
+
+After installation, you can:
+
+1. **Create a Game**: Click "Host Game" to create a new game room
+2. **Join a Game**: Enter a game code to join an existing game
+3. **Select Role**: Choose to be a Showman (host), Player, or Spectator
+4. **Upload Packages**: Import custom `.oq` or `.siq` question packages (requires FFmpeg for media encoding)
+5. **Start Playing**: Follow the on-screen instructions to play!
 
 ### Development Builds
 
@@ -158,10 +223,13 @@ For the latest features and updates, check our [GitHub Actions](https://github.c
 
 ### For Players
 
-1. **Download** the application for your platform
-2. **Install** and launch OpenQuester
-3. **Join or Create** a game room
-4. **Select a Package** or use default questions
+See the [Installation Instructions](#installation-instructions) above for detailed steps on how to download, install, and run OpenQuester on your platform.
+
+Quick steps:
+1. **Download** the application from the [Releases Page](https://github.com/OpenQuester/OpenQuester/releases/latest)
+2. **Install** following the platform-specific instructions
+3. **Launch** OpenQuester
+4. **Join or Create** a game room
 5. **Play** and enjoy!
 
 ### For Developers
@@ -173,6 +241,10 @@ For the latest features and updates, check our [GitHub Actions](https://github.c
 - **Docker** and Docker Compose (for backend development)
 - **PostgreSQL** 14+ (or use Docker)
 - **Redis** 7+ (or use Docker)
+- **FFmpeg** (for package encoding support)
+  - Windows: Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
+  - Linux: `sudo apt install ffmpeg` (Debian/Ubuntu), `sudo dnf install ffmpeg` (Fedora)
+  - macOS: `brew install ffmpeg`
 
 #### Quick Setup
 
