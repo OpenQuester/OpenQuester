@@ -8,11 +8,15 @@ import 'package:project_helper/tasks/pre_build_task.dart';
 
 /// Task to build packages by running pre_build on each
 class BuildPackagesTask implements BuildTask {
+  BuildPackagesTask({this.skipFormat = false});
+
   @override
   String get name => 'build_packages';
 
   @override
   String get description => 'Build all packages in packages/ directory';
+
+  final bool skipFormat;
 
   @override
   Future<bool> execute(
@@ -128,7 +132,7 @@ class BuildPackagesTask implements BuildTask {
     }
 
     // Run pre_build tasks for the package using PreBuildTask
-    final preBuildTask = PreBuildTask();
+    final preBuildTask = PreBuildTask(skipFormat: skipFormat);
     final success = await preBuildTask.execute(
       packagePath,
       logger: logger,

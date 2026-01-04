@@ -79,7 +79,7 @@ jobs:
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
           bash ./scripts/init_project.sh
-          ./oqhelper pre_build
+          ./oqhelper pre_run
 
       - name: Build Web
         run: flutter build web --no-web-resources-cdn --build-number $GITHUB_RUN_NUMBER --wasm
@@ -175,7 +175,7 @@ jobs:
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
           bash ../scripts/init_project.sh
-          ./oqhelper pre_build
+          ./oqhelper pre_run
 
       - name: Build and create bundle
         run: |
