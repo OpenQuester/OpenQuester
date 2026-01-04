@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:project_helper/package_handler.dart';
 import 'package:project_helper/utils.dart';
@@ -10,38 +11,50 @@ class OpenApiPackageHandler implements PackageHandler {
   String get packageName => 'openapi';
 
   @override
-  Future<bool> execute(String packagePath) async {
-    printSection('OpenAPI Package Handler');
+  Future<bool> execute(
+    String packagePath, {
+    required Logger logger,
+    Progress? progress,
+    bool verbose = false,
+  }) async {
+    progress?.update('OpenAPI: Preparing...');
 
     // Remove lib/src folder if it exists
     final libSrcPath = p.join(packagePath, 'lib', 'src');
     final libSrcDir = Directory(libSrcPath);
 
     if (await libSrcDir.exists()) {
-      print('Removing lib/src folder...');
+      progress?.update('OpenAPI: Removing lib/src folder...');
       try {
         await libSrcDir.delete(recursive: true);
-        print('✓ lib/src folder removed');
+        if (verbose) logger.detail('✓ lib/src folder removed');
       } catch (e) {
-        print('✗ Failed to remove lib/src folder: $e');
+        logger.err('✗ Failed to remove lib/src folder: $e');
         return false;
       }
     }
 
     // Run swagger_parser
-    print('Running swagger_parser...');
+    progress?.update('OpenAPI: Running swagger_parser...');
+    final cmd = getDartCommand();
+    final executable = cmd.first;
+    final args = [...cmd.sublist(1), 'run', 'swagger_parser'];
+
     final result = await runCommand(
-      'dart',
-      ['run', 'swagger_parser'],
+      executable,
+      args,
       workingDirectory: packagePath,
+      verbose: verbose,
+      logger: logger,
     );
 
     if (result.exitCode != 0) {
-      print('✗ swagger_parser failed');
+      logger.err('✗ swagger_parser failed');
+      if (!verbose) logger.err(result.stderr.toString());
       return false;
     }
 
-    print('✓ swagger_parser completed successfully');
+    if (verbose) logger.success('✓ swagger_parser completed successfully');
     return true;
   }
 }

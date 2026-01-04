@@ -1,19 +1,27 @@
 import 'dart:io';
+import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 import 'package:project_helper/package_handler.dart';
 import 'package:project_helper/package_priority.dart';
 import 'package:project_helper/utils.dart';
+import 'package:project_helper/tasks/gen_files_task.dart';
 
 /// Builds packages with support for custom handlers and priorities
 class PackageBuilder {
   PackageBuilder({
     required this.customHandlers,
     required this.packagePriorities,
+    required this.logger,
+    this.progress,
+    this.verbose = false,
   });
 
   final List<PackageHandler> customHandlers;
   final List<PackagePriority> packagePriorities;
+  final Logger logger;
+  final Progress? progress;
+  final bool verbose;
 
   /// Get priority for a package
   int getPriority(String packageName) {
@@ -55,42 +63,41 @@ class PackageBuilder {
 
   /// Build a single package
   Future<bool> buildPackage(String packagePath, String packageName) async {
-    printSection('Building package: $packageName');
+    progress?.update('Building package: $packageName');
+    if (verbose) logger.info('Building package: $packageName');
 
     // Check for custom handler
     final handler = getHandler(packageName);
     if (handler != null) {
-      print('Using custom handler for $packageName');
-      final result = await handler.execute(packagePath);
+      if (verbose) logger.info('Using custom handler for $packageName');
+      final result = await handler.execute(
+        packagePath,
+        logger: logger,
+        progress: progress,
+        verbose: verbose,
+      );
       if (!result) {
         return false;
       }
     }
 
     // Run build_runner
-    print('Running build_runner...');
-    final isFlutter = await isFlutterPackage(packagePath);
-    final dartCmd = getDartCommand();
+    progress?.update('Running build_runner for $packageName...');
 
-    List<String> buildArgs;
-    if (isFlutter) {
-      buildArgs = ['flutter', 'pub', 'run', 'build_runner', 'build', '-d'];
-    } else {
-      buildArgs = ['dart', 'run', 'build_runner', 'build', '-d'];
-    }
-
-    final result = await runCommand(
-      dartCmd,
-      buildArgs,
-      workingDirectory: packagePath,
+    final genFilesTask = GenerateFilesTask();
+    final result = await genFilesTask.execute(
+      packagePath,
+      logger: logger,
+      progress: progress,
+      verbose: verbose,
     );
 
-    if (result.exitCode != 0) {
-      print('✗ build_runner failed for $packageName');
+    if (!result) {
+      logger.err('✗ build_runner failed for $packageName');
       return false;
     }
 
-    print('✓ $packageName built successfully');
+    logger.success('✓ $packageName built successfully');
     return true;
   }
 
@@ -119,7 +126,7 @@ class PackageBuilder {
     final packages = await discoverPackages(basePath);
 
     if (packages.isEmpty) {
-      print('No packages found');
+      logger.warn('No packages found');
       return true;
     }
 
@@ -137,8 +144,11 @@ class PackageBuilder {
     for (final priority in sortedPriorities) {
       final packagesAtPriority = packagesByPriority[priority]!;
 
-      print('');
-      print('Building packages with priority $priority: ${packagesAtPriority.join(', ')}');
+      if (verbose) {
+        logger.info(
+          'Building packages with priority $priority: ${packagesAtPriority.join(', ')}',
+        );
+      }
 
       // Build packages at the same priority concurrently
       final futures = packagesAtPriority.map((packageName) {
@@ -150,13 +160,12 @@ class PackageBuilder {
 
       // Check if all succeeded
       if (results.any((r) => !r)) {
-        print('✗ Some packages failed to build');
+        logger.err('✗ Some packages failed to build');
         return false;
       }
     }
 
-    print('');
-    print('✓ All packages built successfully');
+    if (verbose) logger.success('✓ All packages built successfully');
     return true;
   }
 }

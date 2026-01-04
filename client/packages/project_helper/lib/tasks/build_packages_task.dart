@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:project_helper/build_task.dart';
 import 'package:project_helper/package_builder.dart';
@@ -14,21 +15,25 @@ class BuildPackagesTask implements BuildTask {
   String get description => 'Build all packages in packages/ directory';
 
   @override
-  Future<bool> execute(String workingDirectory) async {
+  Future<bool> execute(
+    String workingDirectory, {
+    required Logger logger,
+    Progress? progress,
+    bool verbose = false,
+  }) async {
     final packagesDir = Directory(p.join(workingDirectory, 'packages'));
     if (!await packagesDir.exists()) {
-      print('⚠ No packages directory found, skipping...');
+      logger.warn('⚠ No packages directory found, skipping...');
       return true;
     }
 
     // Configure package builder
     final packageBuilder = PackageBuilder(
-      customHandlers: [
-        OpenApiPackageHandler(),
-      ],
-      packagePriorities: [
-        const PackagePriority('openapi', -1),
-      ],
+      customHandlers: [OpenApiPackageHandler()],
+      packagePriorities: [const PackagePriority('openapi', -1)],
+      logger: logger,
+      progress: progress,
+      verbose: verbose,
     );
 
     final success = await packageBuilder.buildPackages(workingDirectory);

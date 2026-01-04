@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:args/command_runner.dart';
 import 'package:mason_logger/mason_logger.dart';
+import 'package:project_helper/build_task.dart';
 import 'package:project_helper/tasks/build_packages_task.dart';
 import 'package:project_helper/tasks/gen_files_task.dart';
 import 'package:project_helper/tasks/gen_locale_task.dart';
@@ -14,13 +15,13 @@ class PreBuildCommand extends Command<void> {
     argParser
       ..addFlag(
         'skip-packages',
-        abbr: 'sp',
+        abbr: 'p',
         negatable: false,
         help: 'Skip building packages',
       )
       ..addFlag(
         'skip-format',
-        abbr: 'sf',
+        abbr: 'f',
         negatable: false,
         help: 'Skip code formatting',
       )
@@ -29,6 +30,12 @@ class PreBuildCommand extends Command<void> {
         abbr: 'n',
         negatable: false,
         help: 'Disable puro (use system Flutter/Dart)',
+      )
+      ..addFlag(
+        'verbose',
+        abbr: 'v',
+        negatable: false,
+        help: 'Show verbose output',
       );
   }
 
@@ -46,6 +53,7 @@ class PreBuildCommand extends Command<void> {
     final skipPackages = argResults?['skip-packages'] as bool? ?? false;
     final skipFormat = argResults?['skip-format'] as bool? ?? false;
     final noPuro = argResults?['no-puro'] as bool? ?? false;
+    final verbose = argResults?['verbose'] as bool? ?? false;
 
     // Handle puro flag
     if (noPuro) {
@@ -55,51 +63,63 @@ class PreBuildCommand extends Command<void> {
     final overallStopwatch = Stopwatch()..start();
 
     logger.info('🚀 OpenQuester Pre-Build');
-    print('');
+    logger.info('');
 
     try {
       // Build packages first (if not skipped)
       if (!skipPackages) {
         final buildPackagesTask = BuildPackagesTask();
-        await _executeTask(buildPackagesTask, currentDir);
+        await _executeTask(buildPackagesTask, currentDir, verbose);
       }
-
-      // Generate files
-      final genFilesTask = GenerateFilesTask();
-      await _executeTask(genFilesTask, currentDir);
 
       // Generate locale
       final genLocaleTask = GenerateLocaleTask();
-      await _executeTask(genLocaleTask, currentDir);
+      await _executeTask(genLocaleTask, currentDir, verbose);
+
+      // Generate files
+      final genFilesTask = GenerateFilesTask();
+      await _executeTask(genFilesTask, currentDir, verbose);
 
       // Generate indexes
       final genIndexesTask = GenerateIndexesTask();
-      await _executeTask(genIndexesTask, currentDir);
+      await _executeTask(genIndexesTask, currentDir, verbose);
 
       // Format code
       if (!skipFormat) {
         final formatTask = FormatTask();
-        await _executeTask(formatTask, currentDir);
+        await _executeTask(formatTask, currentDir, verbose);
       }
 
       overallStopwatch.stop();
-      print('');
+      logger.info('');
       logger.success(
         '✓ Pre-Build Complete! Total time: ${_formatDuration(overallStopwatch.elapsed)}',
       );
     } catch (e) {
       overallStopwatch.stop();
-      logger.err('✗ Pre-Build Failed after ${_formatDuration(overallStopwatch.elapsed)}');
+      logger.err(
+        '✗ Pre-Build Failed after ${_formatDuration(overallStopwatch.elapsed)}',
+      );
       rethrow;
     }
   }
 
-  Future<void> _executeTask(dynamic task, String workingDirectory) async {
-    final progress = logger.progress('${task.name}');
+  Future<void> _executeTask(
+    BuildTask task,
+    String workingDirectory,
+    bool verbose,
+  ) async {
+    final progress = logger.progress(task.name);
+
     final stopwatch = Stopwatch()..start();
 
     try {
-      final success = await task.execute(workingDirectory);
+      final success = await task.execute(
+        workingDirectory,
+        logger: logger,
+        progress: progress,
+        verbose: verbose,
+      );
       stopwatch.stop();
 
       if (success) {

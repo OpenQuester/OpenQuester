@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:mason_logger/mason_logger.dart';
 import 'package:project_helper/build_task.dart';
 import 'package:project_helper/utils.dart';
 
@@ -11,33 +11,43 @@ class GenerateIndexesTask implements BuildTask {
   String get description => 'Generate index files (barrel exports)';
 
   @override
-  Future<bool> execute(String workingDirectory) async {
-    printSection('Generating Index Files');
+  Future<bool> execute(
+    String workingDirectory, {
+    required Logger logger,
+    Progress? progress,
+    bool verbose = false,
+  }) async {
+    if (verbose) logger.info('Generating Index Files');
 
     final command = getFlutterCommand();
 
     // Install index_generator if needed
-    print('Ensuring index_generator is available...');
+    progress?.update('Ensuring index_generator is available...');
     await runCommand(
-      command.split(' ').first,
-      [...command.split(' ').skip(1), 'pub', 'global', 'activate', 'index_generator'],
+      command.first,
+      [...command.sublist(1), 'pub', 'global', 'activate', 'index_generator'],
       workingDirectory: workingDirectory,
+      verbose: verbose,
+      logger: logger,
     );
 
     // Run index_generator
-    print('Running index_generator...');
+    progress?.update('Running index_generator...');
     final result = await runCommand(
-      command.split(' ').first,
-      [...command.split(' ').skip(1), 'pub', 'global', 'run', 'index_generator'],
+      command.first,
+      [...command.sublist(1), 'pub', 'global', 'run', 'index_generator'],
       workingDirectory: workingDirectory,
+      verbose: verbose,
+      logger: logger,
     );
 
     if (result.exitCode != 0) {
-      print('✗ Index generation failed');
+      logger.err('✗ Index generation failed');
+      if (!verbose) logger.err(result.stderr.toString());
       return false;
     }
 
-    print('✓ Index files generated');
+    if (verbose) logger.success('✓ Index files generated');
     return true;
   }
 }

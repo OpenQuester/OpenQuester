@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:mason_logger/mason_logger.dart';
 import 'package:project_helper/build_task.dart';
 import 'package:project_helper/utils.dart';
 
@@ -11,22 +11,32 @@ class FormatTask implements BuildTask {
   String get description => 'Format Dart code';
 
   @override
-  Future<bool> execute(String workingDirectory) async {
-    printSection('Formatting Code');
+  Future<bool> execute(
+    String workingDirectory, {
+    required Logger logger,
+    Progress? progress,
+    bool verbose = false,
+  }) async {
+    if (verbose) logger.info('Formatting Code');
+
+    progress?.update('Formatting code...');
 
     final command = getDartCommand();
     final result = await runCommand(
-      command.split(' ').first,
-      [...command.split(' ').skip(1), 'format', 'lib', 'packages/*/lib'],
+      command.first,
+      [...command.sublist(1), 'format', 'lib', 'packages'],
       workingDirectory: workingDirectory,
+      verbose: verbose,
+      logger: logger,
     );
 
     if (result.exitCode != 0) {
-      print('✗ Code formatting failed');
+      logger.err('✗ Code formatting failed');
+      if (!verbose) logger.err(result.stderr.toString());
       return false;
     }
 
-    print('✓ Code formatted');
+    if (verbose) logger.success('✓ Code formatted');
     return true;
   }
 }

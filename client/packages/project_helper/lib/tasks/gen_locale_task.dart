@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:project_helper/build_task.dart';
 import 'package:project_helper/utils.dart';
@@ -12,21 +13,28 @@ class GenerateLocaleTask implements BuildTask {
   String get description => 'Generate localization keys';
 
   @override
-  Future<bool> execute(String workingDirectory) async {
+  Future<bool> execute(
+    String workingDirectory, {
+    required Logger logger,
+    Progress? progress,
+    bool verbose = false,
+  }) async {
     // Check if localization directory exists
-    final localeDir = Directory(p.join(workingDirectory, 'assets', 'localization'));
+    final localeDir = Directory(
+      p.join(workingDirectory, 'assets', 'localization'),
+    );
     if (!await localeDir.exists()) {
-      print('⚠ No localization directory found, skipping...');
+      logger.warn('⚠ No localization directory found, skipping...');
       return true;
     }
 
-    print('Generating localization keys...');
+    progress?.update('Generating localization keys...');
 
     final command = getFlutterCommand();
     final result = await runCommand(
-      command.split(' ').first,
+      command.first,
       [
-        ...command.split(' ').skip(1),
+        ...command.sublist(1),
         'pub',
         'run',
         'easy_localization:generate',
@@ -38,14 +46,17 @@ class GenerateLocaleTask implements BuildTask {
         'assets/localization/',
       ],
       workingDirectory: workingDirectory,
+      verbose: verbose,
+      logger: logger,
     );
 
     if (result.exitCode != 0) {
-      print('✗ Locale generation failed');
+      logger.err('✗ Locale generation failed');
+      if (!verbose) logger.err(result.stderr.toString());
       return false;
     }
 
-    print('✓ Localization keys generated');
+    if (verbose) logger.success('✓ Localization keys generated');
     return true;
   }
 }
