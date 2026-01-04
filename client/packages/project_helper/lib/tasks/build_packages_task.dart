@@ -8,7 +8,10 @@ import 'package:project_helper/tasks/pre_build_task.dart';
 
 /// Task to build packages by running pre_build on each
 class BuildPackagesTask implements BuildTask {
-  BuildPackagesTask({this.skipFormat = false});
+  BuildPackagesTask({
+    this.skipFormat = false,
+    this.ignorePackages = const [],
+  });
 
   @override
   String get name => 'build_packages';
@@ -17,6 +20,7 @@ class BuildPackagesTask implements BuildTask {
   String get description => 'Build all packages in packages/ directory';
 
   final bool skipFormat;
+  final List<String> ignorePackages;
 
   @override
   Future<bool> execute(
@@ -46,9 +50,21 @@ class BuildPackagesTask implements BuildTask {
       return true;
     }
 
+    // Filter out ignored packages
+    final filteredPackages = packages.where((pkg) => !ignorePackages.contains(pkg)).toList();
+    
+    if (ignorePackages.isNotEmpty && verbose) {
+      logger.info('Ignoring packages: ${ignorePackages.join(', ')}');
+    }
+    
+    if (filteredPackages.isEmpty) {
+      logger.info('All packages are ignored, skipping...');
+      return true;
+    }
+
     // Group packages by priority
     final packagesByPriority = <int, List<String>>{};
-    for (final packageName in packages) {
+    for (final packageName in filteredPackages) {
       final priority = packagePriorities[packageName] ?? 999;
       packagesByPriority.putIfAbsent(priority, () => []).add(packageName);
     }

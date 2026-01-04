@@ -39,6 +39,13 @@ From any Dart project directory with `oqhelper`:
 
 # Skip code formatting
 ./oqhelper pre_build --skip-format
+
+# Ignore specific packages (default: project_helper)
+./oqhelper pre_build --ignore-packages=package1,package2
+
+# Can also use short flags
+./oqhelper pre_build -p -f  # skip packages and formatting
+./oqhelper pre_build -i package1,package2  # ignore packages
 ```
 
 ## Architecture

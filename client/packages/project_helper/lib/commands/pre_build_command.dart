@@ -47,6 +47,12 @@ class PreBuildCommand extends Command<void> {
         abbr: 'v',
         negatable: false,
         help: 'Show verbose output',
+      )
+      ..addOption(
+        'ignore-packages',
+        abbr: 'i',
+        defaultsTo: 'project_helper',
+        help: 'Comma-separated list of package names to ignore (default: project_helper)',
       );
   }
 
@@ -57,6 +63,8 @@ class PreBuildCommand extends Command<void> {
     final skipFormat = argResults?['skip-format'] as bool? ?? false;
     final noPuro = argResults?['no-puro'] as bool? ?? false;
     final verbose = argResults?['verbose'] as bool? ?? false;
+    final ignorePackagesStr = argResults?['ignore-packages'] as String? ?? 'project_helper';
+    final ignorePackages = ignorePackagesStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
 
     // Handle puro flag
     if (noPuro) {
@@ -66,7 +74,7 @@ class PreBuildCommand extends Command<void> {
     logger.info('🚀 OpenQuester Pre-Build');
     logger.info('');
 
-    await runPrebuild(skipPackages, currentDir, verbose, skipFormat);
+    await runPrebuild(skipPackages, currentDir, verbose, skipFormat, ignorePackages);
   }
 
   @protected
@@ -75,13 +83,17 @@ class PreBuildCommand extends Command<void> {
     String currentDir,
     bool verbose,
     bool skipFormat,
+    List<String> ignorePackages,
   ) async {
     final overallStopwatch = Stopwatch()..start();
 
     try {
       // Build packages first (if not skipped)
       if (!skipPackages) {
-        final buildPackagesTask = BuildPackagesTask(skipFormat: skipFormat);
+        final buildPackagesTask = BuildPackagesTask(
+          skipFormat: skipFormat,
+          ignorePackages: ignorePackages,
+        );
         await _executeTask(buildPackagesTask, currentDir, verbose);
       }
 
