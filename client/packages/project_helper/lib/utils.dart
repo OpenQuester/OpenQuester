@@ -20,21 +20,21 @@ Future<ProcessResult> runCommand(
   final commandStr = '$executable ${arguments.join(' ')}';
   logger?.detail('Running: $commandStr');
 
+  final process = await Process.start(
+    executable,
+    arguments,
+    workingDirectory: workingDirectory,
+    mode: verbose ? ProcessStartMode.inheritStdio : ProcessStartMode.normal,
+  );
+
+  final exitCode = await process.exitCode;
+
   if (verbose) {
-    final process = await Process.start(
-      executable,
-      arguments,
-      workingDirectory: workingDirectory,
-      mode: ProcessStartMode.inheritStdio,
-    );
-    final exitCode = await process.exitCode;
     return ProcessResult(process.pid, exitCode, '', '');
   } else {
-    return await Process.run(
-      executable,
-      arguments,
-      workingDirectory: workingDirectory,
-    );
+    final stdout = await process.stdout.transform(SystemEncoding().decoder).join();
+    final stderr = await process.stderr.transform(SystemEncoding().decoder).join();
+    return ProcessResult(process.pid, exitCode, stdout, stderr);
   }
 }
 
