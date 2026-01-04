@@ -145,4 +145,3 @@ class BuildPackagesTask implements BuildTask {
     return true;
   }
 }
-
