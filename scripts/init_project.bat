@@ -5,8 +5,8 @@ REM init_project.bat - Initialize OpenQuester project
 REM This script builds the project_helper tool and creates symlinks
 
 set "SCRIPT_DIR=%~dp0"
-set "PROJECT_ROOT=%SCRIPT_DIR%"
-set "CLIENT_DIR=%PROJECT_ROOT%client"
+set "PROJECT_ROOT=%SCRIPT_DIR%.."
+set "CLIENT_DIR=%PROJECT_ROOT%\client"
 set "PROJECT_HELPER_DIR=%CLIENT_DIR%\packages\project_helper"
 
 echo ========================================
@@ -47,18 +47,30 @@ echo.
 echo Creating symlinks...
 
 REM Function to create symlink
-REM Note: On Windows, we'll copy the executable instead of creating symlinks
-REM as symlinks require admin privileges
+REM On Windows, we'll create hard links to the executable
+REM Note: Requires NTFS filesystem
 
-REM Copy to client directory (main Flutter app)
-copy /Y "%PROJECT_HELPER_DIR%\bin\oqhelper.exe" "%CLIENT_DIR%\oqhelper.exe" >nul
-echo   √ Copied: %CLIENT_DIR%\oqhelper.exe
+REM Link to client directory (main Flutter app)
+set "TARGET=%PROJECT_HELPER_DIR%\bin\oqhelper.exe"
+set "LINK=%CLIENT_DIR%\oqhelper.exe"
+if exist "%LINK%" del "%LINK%"
+mklink /H "%LINK%" "%TARGET%" >nul 2>&1
+if errorlevel 1 (
+    echo   ! Failed to create hard link, copying instead...
+    copy /Y "%TARGET%" "%LINK%" >nul
+)
+echo   √ Linked: %CLIENT_DIR%\oqhelper.exe
 
-REM Copy to all packages
+REM Link to all packages
 for /d %%p in ("%CLIENT_DIR%\packages\*") do (
     if exist "%%p\pubspec.yaml" (
-        copy /Y "%PROJECT_HELPER_DIR%\bin\oqhelper.exe" "%%p\oqhelper.exe" >nul
-        echo   √ Copied: %%p\oqhelper.exe
+        set "LINK=%%p\oqhelper.exe"
+        if exist "!LINK!" del "!LINK!"
+        mklink /H "!LINK!" "%TARGET%" >nul 2>&1
+        if errorlevel 1 (
+            copy /Y "%TARGET%" "!LINK!" >nul
+        )
+        echo   √ Linked: %%p\oqhelper.exe
     )
 )
 
