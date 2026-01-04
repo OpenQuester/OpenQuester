@@ -74,41 +74,43 @@ lib/
    flutter pub get
    ```
 
-3. **Install local package dependencies**
+3. **Initialize project (build helper tool)**
 
    ```bash
-   make pre_build_packages
+   # From project root
+   ./scripts/init_project.sh  # On Linux/Mac
+   # or
+   scripts\init_project.bat   # On Windows
    ```
 
 4. **Generate required files**
    ```bash
-   make pre_build
+   ./oqhelper pre_build
    ```
 
 ### Development Setup
 
-#### Using Makefile (Recommended)
+#### Using oqhelper (Recommended)
 
 ```bash
 # Full setup - generates API, locale keys, indexes, and formats code
-make pre_build
+./oqhelper pre_build
 
-# Individual commands
-make gen_api           # Generate API client from OpenAPI spec
-make gen_locale        # Generate localization keys
-make gen_indexes       # Generate barrel files
-make format           # Format code
-make fix              # Apply dart fixes
+# Individual commands (coming soon)
+# ./oqhelper gen_api           # Generate API client from OpenAPI spec
+# ./oqhelper gen_locale        # Generate localization keys
+# ./oqhelper gen_indexes       # Generate barrel files
+# ./oqhelper format            # Format code
 ```
 
 #### Manual Setup
 
 ```bash
 # Generate API client
-cd ../openapi/dart_sdk && make build
+cd packages/openapi && dart run swagger_parser
 
 # Generate locale keys
-dart run easy_localization:generate -f keys -o locale_keys.g.dart -S assets/localization/
+flutter pub run easy_localization:generate -f keys -o locale_keys.g.dart -S assets/localization/
 
 # Generate dependency injection
 dart run build_runner build
@@ -211,6 +213,8 @@ test/
 
 The project includes several local packages:
 
+- **project_helper**: Build automation tool (replaces Makefiles)
+- **openapi**: Auto-generated API client from OpenAPI spec
 - **oq_shared**: Common utilities, extensions, and base components
 - **oq_editor**: Complete package editor with media support
 - **oq_compress**: Package compression and decompression
@@ -220,7 +224,7 @@ The project includes several local packages:
 
 1. **Add to pubspec.yaml**: Include version constraints
 2. **Run pub get**: `flutter pub get`
-3. **Update build**: `make pre_build` if needed
+3. **Update build**: `./oqhelper pre_build` if needed
 4. **Import**: Use in your Dart files
 
 ## 🤝 Contributing
@@ -240,9 +244,10 @@ The project includes several local packages:
 2. **Implement changes**: Follow coding standards
 3. **Add tests**: Ensure good test coverage
 4. **Update documentation**: README, comments, etc.
-5. **Submit PR**: Include description and testing notes
-6. **Address feedback**: Respond to review comments
-7. **Merge**: Squash and merge when approved
+5. **Run pre-build**: `./oqhelper pre_build` to format and validate
+6. **Submit PR**: Include description and testing notes
+7. **Address feedback**: Respond to review comments
+8. **Merge**: Squash and merge when approved
 
 ### Commit Conventions
 
@@ -265,15 +270,15 @@ git commit -m "test(chat): add message rendering tests"
 **Build failures after git pull**
 
 ```bash
-make pre_build  # Regenerate all files
-flutter clean   # Clean build cache
-flutter pub get # Reinstall dependencies
+./oqhelper pre_build  # Regenerate all files
+flutter clean        # Clean build cache
+flutter pub get      # Reinstall dependencies
 ```
 
 **Localization keys not found**
 
 ```bash
-make gen_locale  # Regenerate locale keys
+./oqhelper pre_build  # Regenerate locale keys (or run init_project script if oqhelper not found)
 ```
 
 **Dependency injection errors**
