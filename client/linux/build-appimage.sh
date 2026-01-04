@@ -73,10 +73,10 @@ chmod +x "$APPDIR/AppRun"
 
 # Download appimagetool if not present
 APPIMAGETOOL="$OUTPUT_DIR/appimagetool-x86_64.AppImage"
-# Using a specific version with known checksum for security
-APPIMAGETOOL_VERSION="13"
-APPIMAGETOOL_URL="https://github.com/AppImage/AppImageKit/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
-APPIMAGETOOL_SHA256="df3baf5ca5facbecfc2f3fa6713c29ab9cefa8fd8c1eac5d283b79cab33e4acb"
+# Using version 1.9.1 from appimagetool project
+APPIMAGETOOL_VERSION="1.9.1"
+APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
+APPIMAGETOOL_SHA256="0e39f5b0928a7ea86c444c1b806ea70821184e2718a0dc1c5fe8e25b2ac1c1f2"
 
 if [ ! -f "$APPIMAGETOOL" ]; then
     echo "Downloading appimagetool v${APPIMAGETOOL_VERSION}..."
