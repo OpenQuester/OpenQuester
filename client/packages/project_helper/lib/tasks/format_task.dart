@@ -57,13 +57,16 @@ class FormatTask implements BuildTask {
     progress?.update('Formatting code...');
 
     final command = getDartCommand();
-    final args = [...command, 'format'];
-    
+
+    final testDir = Directory(p.join(workingDirectory, 'test'));
+    final formatTestDir =
+        await testDir.exists() && (await testDir.list().toList()).isNotEmpty;
+
+    final args = [...command, 'format', 'lib', if (formatTestDir) 'test'];
+
     if (fatalInfos) {
       args.add('--set-exit-if-changed');
     }
-    
-    args.addAll(['lib', 'packages']);
 
     final result = await runCommand(
       args,
@@ -128,24 +131,27 @@ class FormatTask implements BuildTask {
       logger.info('Formatting ${filteredPackages.length} packages...');
     }
 
+    List<Future<bool>> formatFutures = [];
+
     // Format each package
     for (final packageName in filteredPackages) {
       final packagePath = p.join(packagesDir.path, packageName);
       progress?.update('Formatting $packageName...');
 
-      if (verbose) logger.info('Formatting package: $packageName');
-
-      final success = await _formatSingleDirectory(
-        packagePath,
-        logger: logger,
-        progress: null,
-        verbose: verbose,
+      formatFutures.add(
+        _formatSingleDirectory(
+          packagePath,
+          logger: logger,
+          progress: null,
+          verbose: verbose,
+        ),
       );
+    }
 
-      if (!success) {
-        logger.err('✗ Failed to format package: $packageName');
-        return false;
-      }
+    final formatResults = await Future.wait(formatFutures);
+    if (formatResults.any((success) => !success)) {
+      logger.err('✗ Code formatting failed in one or more packages');
+      return false;
     }
 
     if (verbose) logger.success('✓ All packages formatted');

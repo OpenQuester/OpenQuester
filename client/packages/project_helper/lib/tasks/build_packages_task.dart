@@ -10,10 +10,7 @@ import 'package:project_helper/utils.dart';
 
 /// Task to build packages by running pre_build on each
 class BuildPackagesTask implements BuildTask {
-  BuildPackagesTask({
-    this.skipFormat = false,
-    this.ignorePackages = const [],
-  });
+  BuildPackagesTask({this.skipFormat = false, this.ignorePackages = const []});
 
   @override
   String get name => 'build_packages';
@@ -53,12 +50,14 @@ class BuildPackagesTask implements BuildTask {
     }
 
     // Filter out ignored packages
-    final filteredPackages = packages.where((pkg) => !ignorePackages.contains(pkg)).toList();
-    
+    final filteredPackages = packages
+        .where((pkg) => !ignorePackages.contains(pkg))
+        .toList();
+
     if (ignorePackages.isNotEmpty && verbose) {
       logger.info('Ignoring packages: ${ignorePackages.join(', ')}');
     }
-    
+
     if (filteredPackages.isEmpty) {
       logger.info('All packages are ignored, skipping...');
       return true;

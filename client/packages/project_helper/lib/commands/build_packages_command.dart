@@ -30,7 +30,8 @@ class BuildPackagesCommand extends Command<void> {
         'ignore-packages',
         abbr: 'i',
         defaultsTo: 'project_helper',
-        help: 'Comma-separated list of package names to ignore (default: project_helper)',
+        help:
+            'Comma-separated list of package names to ignore (default: project_helper)',
       );
   }
 
@@ -48,8 +49,13 @@ class BuildPackagesCommand extends Command<void> {
     final skipFormat = argResults?['skip-format'] as bool? ?? false;
     final noPuro = argResults?['no-puro'] as bool? ?? false;
     final verbose = argResults?['verbose'] as bool? ?? false;
-    final ignorePackagesStr = argResults?['ignore-packages'] as String? ?? 'project_helper';
-    final ignorePackages = ignorePackagesStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    final ignorePackagesStr =
+        argResults?['ignore-packages'] as String? ?? 'project_helper';
+    final ignorePackages = ignorePackagesStr
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
 
     // Handle puro flag
     if (noPuro) {
