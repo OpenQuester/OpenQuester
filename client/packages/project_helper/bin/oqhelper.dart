@@ -13,7 +13,7 @@ Future<void> main(List<String> arguments) async {
   });
 
   try {
-    await runner.run(arguments).timeout(const Duration(minutes: 5));
+    await runner.run(arguments).timeout(const Duration(minutes: 10));
     exit(0); // Exit successfully after command completes
   } catch (e) {
     logger.err('$e');
