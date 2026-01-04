@@ -78,7 +78,8 @@ jobs:
         run: |
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-          make pre_build
+          bash ../scripts/init_project.sh
+          ./oqhelper pre_build
 
       - name: Build Web
         run: flutter build web --no-web-resources-cdn --build-number $GITHUB_RUN_NUMBER --wasm
@@ -172,9 +173,9 @@ jobs:
       - name: Install dependencies
         run: |
           flutter pub get
-          choco install make -y
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-          make pre_build
+          bash ../scripts/init_project.sh
+          ./oqhelper pre_build
 
       - name: Build and create bundle
         run: |

@@ -143,7 +143,7 @@ The project uses several code generation tools:
 ### Localization Workflow
 
 1. **Add translations**: Update `assets/localization/en-US.json`
-2. **Generate keys**: Run `make gen_locale`
+2. **Generate keys**: Run `./oqhelper pre_build` (or manually: `flutter pub run easy_localization:generate -f keys -o locale_keys.g.dart -S assets/localization/`)
 3. **Use in code**: `Text(LocaleKeys.my_key.tr())`
 4. **Test**: Verify all strings are localized
 
