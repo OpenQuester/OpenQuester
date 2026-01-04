@@ -225,6 +225,7 @@ jobs:
             clang cmake ninja-build pkg-config libgtk-3-dev \
             liblzma-dev libstdc++-12-dev \
             ffmpeg libavcodec-dev libavformat-dev libavutil-dev \
+            libwebkit2gtk-4.1-dev \
             desktop-file-utils appstream
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
