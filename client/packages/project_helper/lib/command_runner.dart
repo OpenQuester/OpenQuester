@@ -2,6 +2,7 @@ import 'package:cli_completion/cli_completion.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:project_helper/commands/build_packages_command.dart';
 import 'package:project_helper/commands/format_command.dart';
+import 'package:project_helper/commands/format_exception_command.dart';
 import 'package:project_helper/commands/gen_files_command.dart';
 import 'package:project_helper/commands/gen_indexes_command.dart';
 import 'package:project_helper/commands/gen_locale_command.dart';
@@ -21,6 +22,7 @@ class OqHelperCommandRunner extends CompletionCommandRunner<void> {
     addCommand(GenIndexesCommand(_logger));
     addCommand(FormatCommand(_logger));
     addCommand(BuildPackagesCommand(_logger));
+    addCommand(FormatExceptionCommand(_logger));
   }
 
   final Logger _logger;
