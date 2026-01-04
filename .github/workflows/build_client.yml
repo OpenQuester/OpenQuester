@@ -174,7 +174,7 @@ jobs:
         run: |
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-          bash ../scripts/init_project.bat
+          call ../scripts/init_project.bat
           ./oqhelper.exe pre_run
 
       - name: Build and create bundle
