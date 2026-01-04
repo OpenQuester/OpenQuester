@@ -72,7 +72,8 @@ EOF
 chmod +x "$APPDIR/AppRun"
 
 # Download appimagetool if not present
-APPIMAGETOOL="$OUTPUT_DIR/appimagetool-x86_64.AppImage"
+APPIMAGETOOL_FILENAME="appimagetool-x86_64.AppImage"
+APPIMAGETOOL="$OUTPUT_DIR/$APPIMAGETOOL_FILENAME"
 # Using version 1.9.1 from appimagetool project
 APPIMAGETOOL_VERSION="1.9.1"
 APPIMAGETOOL_URL="https://github.com/AppImage/appimagetool/releases/download/${APPIMAGETOOL_VERSION}/appimagetool-x86_64.AppImage"
@@ -98,6 +99,6 @@ fi
 
 # Build AppImage
 cd "$OUTPUT_DIR"
-ARCH=x86_64 "$APPIMAGETOOL" AppDir "OpenQuester-x86_64.AppImage"
+ARCH=x86_64 "./$APPIMAGETOOL_FILENAME" AppDir "OpenQuester-x86_64.AppImage"
 
 echo "AppImage created successfully: $OUTPUT_DIR/OpenQuester-x86_64.AppImage"
