@@ -15,7 +15,7 @@ dependencies:
 
 dev_dependencies:
   lints: ^5.1.1
-  build_runner: ^2.4.8
+  build_runner: ^2.10.4
 
 executables:
   oqhelper:
