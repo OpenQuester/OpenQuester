@@ -76,7 +76,7 @@ class FormatTask implements BuildTask {
     );
 
     if (result.exitCode != 0) {
-      logger.err('✗ Code formatting failed');
+      logger.err('✗ Code formatting failed on directory: $workingDirectory');
       if (!verbose) logger.err(result.stderr.toString());
       return false;
     }
