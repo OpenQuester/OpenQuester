@@ -52,7 +52,8 @@ class PreBuildCommand extends Command<void> {
         'ignore-packages',
         abbr: 'i',
         defaultsTo: 'project_helper',
-        help: 'Comma-separated list of package names to ignore (default: project_helper)',
+        help:
+            'Comma-separated list of package names to ignore (default: project_helper)',
       );
   }
 
@@ -63,8 +64,7 @@ class PreBuildCommand extends Command<void> {
     final skipFormat = argResults?['skip-format'] as bool? ?? false;
     final noPuro = argResults?['no-puro'] as bool? ?? false;
     final verbose = argResults?['verbose'] as bool? ?? false;
-    final ignorePackagesStr = argResults?['ignore-packages'] as String? ?? 'project_helper';
-    final ignorePackages = ignorePackagesStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    final ignorePackages = getIgnoredPackages();
 
     // Handle puro flag
     if (noPuro) {
@@ -74,7 +74,25 @@ class PreBuildCommand extends Command<void> {
     logger.info('🚀 OpenQuester Pre-Build');
     logger.info('');
 
-    await runPrebuild(skipPackages, currentDir, verbose, skipFormat, ignorePackages);
+    await runPrebuild(
+      skipPackages,
+      currentDir,
+      verbose,
+      skipFormat,
+      ignorePackages,
+    );
+  }
+
+  @protected
+  List<String> getIgnoredPackages() {
+    final ignorePackagesStr =
+        argResults?['ignore-packages'] as String? ?? 'project_helper';
+    final ignorePackages = ignorePackagesStr
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    return ignorePackages;
   }
 
   @protected
