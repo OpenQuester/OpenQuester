@@ -34,10 +34,10 @@ Future<ProcessResult> runCommand(
     return ProcessResult(process.pid, exitCode, '', '');
   } else {
     final stdout = await process.stdout
-        .transform(SystemEncoding().decoder)
+        .transform(const SystemEncoding().decoder)
         .join();
     final stderr = await process.stderr
-        .transform(SystemEncoding().decoder)
+        .transform(const SystemEncoding().decoder)
         .join();
     return ProcessResult(process.pid, exitCode, stdout, stderr);
   }
