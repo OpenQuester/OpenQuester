@@ -235,7 +235,7 @@ The project includes several local packages:
 2. **Use dependency injection**: Register services with get_it
 3. **Write tests**: Unit tests for controllers, widget tests for UI
 4. **Localize strings**: Use LocaleKeys for all user-facing text
-5. **Follow style guide**: Run `make format` before commits
+5. **Follow style guide**: Run `./oqhelper format` before commits
 6. **Update documentation**: Keep README and code comments current
 
 ### Code Review Process

@@ -125,7 +125,7 @@ Legend:
 - `client/lib/src/features/game_lobby/view/game_lobby_player.dart` - Visual indicators
   - `_MediaDownloadIndicator` widget shows download status icons
 - `openapi/dart_sdk/lib/src/models/media_download_status_event_payload.dart` - Event payload model (temporary manual implementation)
-  - This file should be replaced when running `make build` to regenerate the full SDK from OpenAPI schema
+  - This file should be replaced when running `./oqhelper gen_files` (from client directory) to regenerate the full SDK from OpenAPI schema
 
 ## API Usage Examples
 
