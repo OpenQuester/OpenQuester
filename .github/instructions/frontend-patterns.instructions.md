@@ -6,7 +6,7 @@ applyTo: "client/**/*"
 
 ## Localization (easy_localization)
 
-**Build:** `make gen_locale` | **JSON:** `assets/localization/*.json` → `locale_keys.g.dart`
+**Build:** `./oqhelper gen_locale` | **JSON:** `assets/localization/*.json` → `locale_keys.g.dart`
 
 ```dart
 Text(LocaleKeys.home_tabs_games.tr())
@@ -18,7 +18,7 @@ if (!getIt<AuthController>().authorized) { await getIt<ToastController>().show(L
 ```
 
 **JSON Organization:** `{feature: {title, actions: {}, errors: {}, validation: {}}}`
-**Workflow:** Edit JSON → `make gen_locale` → Use `LocaleKeys.*`
+**Workflow:** Edit JSON → `./oqhelper gen_locale` → Use `LocaleKeys.*`
 
 ## Animation
 

@@ -59,3 +59,7 @@ app.*.map.json
 **/*.gen.dart
 lib/src/core/router.gr.dart
 lib/src/core/get_it.config.dart
+
+# Build helper executables
+oqhelper
+oqhelper.exe

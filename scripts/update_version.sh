@@ -68,7 +68,7 @@ fi
 
 echo "Generating api client..."
 cd client 
-make gen_api
+./oqhelper gen_files
 
 # Commit and tag if version passed
 if [ -n "$1" ]; then
