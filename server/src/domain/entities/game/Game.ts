@@ -25,6 +25,11 @@ import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundTurnManager } from "domain/utils/FinalRoundTurnManager";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+type PlayerAndIndex = {
+  player: Player | null;
+  index: number;
+};
+
 export class Game {
   private _id: string;
   private _title: string;
@@ -221,6 +226,27 @@ export class Game {
     });
 
     return player ?? null;
+  }
+
+  public getPlayerAndIndex(
+    userId: number,
+    opts: GetPlayerOptions
+  ): PlayerAndIndex {
+    const playerIndex = this._players.findIndex((p) => {
+      if (p.meta.id !== userId) {
+        return false;
+      }
+
+      if (opts.fetchDisconnected) {
+        return true;
+      }
+      return p.gameStatus === PlayerGameStatus.IN_GAME;
+    });
+
+    return {
+      player: playerIndex !== -1 ? this._players[playerIndex] : null,
+      index: playerIndex,
+    };
   }
 
   /** Get all players in game excluding showman */
@@ -426,12 +452,15 @@ export class Game {
     scoreResult: number,
     answerType: AnswerResultType,
     nextState: QuestionState
-  ) {
+  ): GameStateAnsweredPlayerData {
     // Use fetchDisconnected: true to handle case where answering player
     // disconnects before timer expires or showman sends result
-    const player = this.getPlayer(this.gameState.answeringPlayer!, {
-      fetchDisconnected: true,
-    });
+    const { player, index } = this.getPlayerAndIndex(
+      this.gameState.answeringPlayer!,
+      {
+        fetchDisconnected: true,
+      }
+    );
 
     if (!player) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
@@ -440,26 +469,21 @@ export class Game {
     // Check if current question is NoRisk type and prevent score loss
     // Clamp incoming score result to configured per-answer limit
     let modifiedScoreResult = ValueUtils.clampAbs(scoreResult, MAX_SCORE_DELTA);
-    if (this.gameState.currentQuestion && scoreResult < 0) {
-      const questionData = GameQuestionMapper.getQuestionAndTheme(
-        this._package,
-        this.gameState.currentRound!.id,
-        this.gameState.currentQuestion.id!
-      );
 
-      if (questionData?.question?.type === PackageQuestionType.NO_RISK) {
-        // For NoRisk questions, prevent score loss by setting negative results to 0
-        modifiedScoreResult = 0;
-      }
+    // For NoRisk questions, prevent score loss by setting negative results to 0
+    if (
+      scoreResult < 0 &&
+      this.gameState.currentQuestion?.type === PackageQuestionType.NO_RISK
+    ) {
+      modifiedScoreResult = 0;
     }
 
     const preClampedScore = player.score + modifiedScoreResult;
     const score = ValueUtils.clampAbs(preClampedScore, SCORE_ABS_LIMIT);
 
     // Update the player's score in the _players array
-    const idx = this._players.findIndex((p) => p.meta.id === player.meta.id);
-    if (idx !== -1) {
-      this._players[idx].score = score;
+    if (index !== -1) {
+      this._players[index].score = score;
     }
 
     const isCorrect = answerType === AnswerResultType.CORRECT;

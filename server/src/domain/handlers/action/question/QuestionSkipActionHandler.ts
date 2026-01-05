@@ -6,6 +6,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import {
   EmptyInputData,
   QuestionSkipBroadcastData,
@@ -26,7 +27,7 @@ export class QuestionSkipActionHandler
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<QuestionSkipBroadcastData>> {
     const result = await this.socketIOQuestionService.handlePlayerSkip(
-      action.socketId
+      createActionContextFromAction(action)
     );
     const { game } = result;
 

@@ -1,6 +1,5 @@
 import { Game } from "domain/entities/game/Game";
 import { TransitionResult } from "domain/state-machine/types";
-import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -85,15 +84,12 @@ export class BiddingInitializationLogic {
       | FinalRoundQuestionData
       | undefined;
 
-    const timer =
-      (transitionResult?.data?.timer as GameStateTimerDTO | undefined) ??
-      game.gameState.timer ??
-      undefined;
+    const timer = transitionResult?.timer ?? game.gameState.timer ?? undefined;
 
     return {
       automaticBids: mutationResult.automaticBids,
       questionData,
       timer,
-    } satisfies BiddingPhaseInitializationResult;
+    };
   }
 }

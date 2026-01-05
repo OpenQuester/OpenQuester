@@ -4,7 +4,6 @@ import { DI_TOKENS } from "application/di/tokens";
 import { GameEventBroadcastService } from "application/services/game/GameEventBroadcastService";
 import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
-import { IGameProgressionCoordinator } from "domain/interfaces/game/IGameProgressionCoordinator";
 import { GameProgressionContext } from "domain/types/game/GameProgressionContext";
 import { GameProgressionResult } from "domain/types/game/GameProgressionResult";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -15,7 +14,7 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
  * Orchestrates the complete flow of game progression, broadcasting, and lifecycle events.
  */
 @singleton()
-export class GameProgressionCoordinator implements IGameProgressionCoordinator {
+export class GameProgressionCoordinator {
   constructor(
     private readonly gameLifecycleService: GameLifecycleService,
     private readonly gameEventBroadcastService: GameEventBroadcastService,

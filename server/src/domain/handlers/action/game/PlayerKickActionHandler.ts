@@ -9,6 +9,7 @@ import {
   PlayerKickInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { convertBroadcasts } from "domain/utils/BroadcastConverter";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for kicking a player.
@@ -22,7 +23,7 @@ export class PlayerKickActionHandler
     action: GameAction<PlayerKickInputData>
   ): Promise<GameActionHandlerResult<PlayerKickBroadcastData>> {
     const result = await this.socketIOGameService.kickPlayer(
-      action.socketId,
+      createActionContextFromAction(action),
       action.payload.playerId
     );
 

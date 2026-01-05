@@ -102,7 +102,7 @@ export class QuestionActionValidator {
   }
 
   /**
-   * Validates answer result action requirements
+   * Validates basic requirements and ability to perform answer result action
    */
   public static validateAnswerResultAction(
     context: QuestionActionContext
@@ -127,30 +127,30 @@ export class QuestionActionValidator {
 
     switch (action) {
       case QuestionAction.PLAYER_SKIP:
-        if (currentPlayer!.role !== PlayerRole.PLAYER) {
+        if (currentPlayer?.role !== PlayerRole.PLAYER) {
           throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_SKIP);
         }
         break;
       case QuestionAction.ANSWER:
         if (
-          currentPlayer!.role === PlayerRole.SHOWMAN ||
-          currentPlayer!.role === PlayerRole.SPECTATOR
+          currentPlayer?.role === PlayerRole.SHOWMAN ||
+          currentPlayer?.role === PlayerRole.SPECTATOR
         ) {
           throw new ClientError(ClientResponse.YOU_CANNOT_ANSWER_QUESTION);
         }
         break;
       case QuestionAction.SUBMIT_ANSWER:
-        if (currentPlayer!.role !== PlayerRole.PLAYER) {
+        if (currentPlayer?.role !== PlayerRole.PLAYER) {
           throw new ClientError(ClientResponse.INSUFFICIENT_PERMISSIONS);
         }
         break;
-      case QuestionAction.RESULT:
-        if (currentPlayer!.role !== PlayerRole.SHOWMAN) {
+      case QuestionAction.ANSWER_RESULT:
+        if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
           throw new ClientError(ClientResponse.ONLY_SHOWMAN_SEND_ANSWER_RESULT);
         }
         break;
-      case QuestionAction.SKIP:
-        if (currentPlayer!.role !== PlayerRole.SHOWMAN) {
+      case QuestionAction.FORCE_SKIP:
+        if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
           throw new ClientError(
             ClientResponse.ONLY_SHOWMAN_SKIP_QUESTION_FORCE
           );
@@ -158,15 +158,15 @@ export class QuestionActionValidator {
         break;
       case QuestionAction.PICK:
         if (
-          currentPlayer!.role !== PlayerRole.PLAYER &&
-          currentPlayer!.role !== PlayerRole.SHOWMAN
+          currentPlayer?.role !== PlayerRole.PLAYER &&
+          currentPlayer?.role !== PlayerRole.SHOWMAN
         ) {
           throw new ClientError(ClientResponse.YOU_CANNOT_PICK_QUESTION);
         }
         if (
           game.gameState.currentRound?.type === PackageRoundType.SIMPLE &&
-          game.gameState.currentTurnPlayerId !== currentPlayer!.meta.id &&
-          currentPlayer!.role !== PlayerRole.SHOWMAN
+          game.gameState.currentTurnPlayerId !== currentPlayer?.meta.id &&
+          currentPlayer?.role !== PlayerRole.SHOWMAN
         ) {
           throw new ClientError(ClientResponse.NOT_YOUR_TURN);
         }

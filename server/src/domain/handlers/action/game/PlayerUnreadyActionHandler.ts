@@ -8,6 +8,7 @@ import {
   EmptyInputData,
   PlayerReadinessBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for player unready state.
@@ -21,7 +22,7 @@ export class PlayerUnreadyActionHandler
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<PlayerReadinessBroadcastData>> {
     const result = await this.socketIOGameService.setPlayerReadiness(
-      action.socketId,
+      createActionContextFromAction(action),
       false
     );
 

@@ -10,6 +10,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
 import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
@@ -73,7 +74,7 @@ export class QuestionPickActionHandler
     action: GameAction<QuestionPickInputData>
   ): Promise<GameActionHandlerResult<QuestionPickResult>> {
     const result = await this.socketIOQuestionService.handleQuestionPick(
-      action.socketId,
+      createActionContextFromAction(action),
       action.payload.questionId
     );
 

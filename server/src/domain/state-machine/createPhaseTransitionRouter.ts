@@ -5,6 +5,15 @@ import { FinalAnsweringToReviewingHandler } from "domain/state-machine/handlers/
 import { FinalBiddingToAnsweringHandler } from "domain/state-machine/handlers/final-round/FinalBiddingToAnsweringHandler";
 import { FinalReviewingToResultsHandler } from "domain/state-machine/handlers/final-round/FinalReviewingToResultsHandler";
 import { ThemeEliminationToBiddingHandler } from "domain/state-machine/handlers/final-round/ThemeEliminationToBiddingHandler";
+import { ChoosingToMediaDownloadingHandler } from "domain/state-machine/handlers/regular-round/ChoosingToMediaDownloadingHandler";
+import { AnsweringToShowingAnswerHandler } from "domain/state-machine/handlers/regular-round/AnsweringToShowingAnswerHandler";
+import { AnsweringToShowingHandler } from "domain/state-machine/handlers/regular-round/AnsweringToShowingHandler";
+import { MediaDownloadingToShowingHandler } from "domain/state-machine/handlers/regular-round/MediaDownloadingToShowingHandler";
+import { ShowingAnswerToChoosingHandler } from "domain/state-machine/handlers/regular-round/ShowingAnswerToChoosingHandler";
+import { ShowingToChoosingHandler } from "domain/state-machine/handlers/regular-round/ShowingToChoosingHandler";
+import { ShowingToAnsweringHandler } from "domain/state-machine/handlers/regular-round/ShowingToAnsweringHandler";
+import { SecretTransferToAnsweringHandler } from "domain/state-machine/handlers/special-question/SecretTransferToAnsweringHandler";
+import { StakeBiddingToAnsweringHandler } from "domain/state-machine/handlers/special-question/StakeBiddingToAnsweringHandler";
 import { TransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -22,7 +31,9 @@ export function createPhaseTransitionRouter(
   logger: ILogger
 ): PhaseTransitionRouter {
   const handlers: TransitionHandler[] = [
-    // Final round transitions
+    // =========================================================================
+    // Final Round Transitions
+    // =========================================================================
     new ThemeEliminationToBiddingHandler(
       gameService,
       timerService,
@@ -40,10 +51,49 @@ export function createPhaseTransitionRouter(
       roundHandlerFactory
     ),
 
-    // TODO: Add more handlers as they are implemented:
-    // - Regular round handlers
-    // - Special question handlers
+    // =========================================================================
+    // Regular Round Transitions
+    // =========================================================================
+
+    // Question picked (normal): CHOOSING → MEDIA_DOWNLOADING
+    new ChoosingToMediaDownloadingHandler(gameService, timerService),
+
+    // Player buzzes to answer: SHOWING → ANSWERING
+    new ShowingToAnsweringHandler(gameService, timerService),
+
+    // Wrong answer (players remaining): ANSWERING → SHOWING
+    new AnsweringToShowingHandler(gameService, timerService),
+
+    // Correct answer or all players exhausted: ANSWERING → SHOWING_ANSWER
+    new AnsweringToShowingAnswerHandler(gameService, timerService),
+
+    // Answer display complete: SHOWING_ANSWER → CHOOSING (with round progression check)
+    new ShowingAnswerToChoosingHandler(
+      gameService,
+      timerService,
+      roundHandlerFactory
+    ),
+
+    // Media download complete/timeout: MEDIA_DOWNLOADING → SHOWING
+    new MediaDownloadingToShowingHandler(gameService, timerService),
+
+    // Showing timeout: SHOWING → CHOOSING
+    new ShowingToChoosingHandler(
+      gameService,
+      timerService,
+      roundHandlerFactory
+    ),
+
+    // =========================================================================
+    // Special Question Transitions
+    // =========================================================================
+
+    // Stake question bidding complete: STAKE_BIDDING → ANSWERING
+    new StakeBiddingToAnsweringHandler(gameService, timerService),
+
+    // Secret question transferred: SECRET_QUESTION_TRANSFER → ANSWERING
+    new SecretTransferToAnsweringHandler(gameService, timerService),
   ];
 
-  return new PhaseTransitionRouter(gameService, logger, handlers);
+  return new PhaseTransitionRouter(logger, handlers);
 }

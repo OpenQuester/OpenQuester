@@ -6,6 +6,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import {
   EmptyInputData,
   EmptyOutputData,
@@ -20,14 +21,16 @@ export class SkipQuestionForceActionHandler
   constructor(
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly gameProgressionCoordinator: GameProgressionCoordinator
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<EmptyOutputData>> {
     const { game, question } =
       await this.socketIOQuestionService.handleQuestionForceSkip(
-        action.socketId
+        createActionContextFromAction(action)
       );
 
     const { isGameFinished, nextGameState } =

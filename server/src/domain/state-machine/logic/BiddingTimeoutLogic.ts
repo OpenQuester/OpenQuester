@@ -1,6 +1,5 @@
 import { Game } from "domain/entities/game/Game";
 import { TransitionResult } from "domain/state-machine/types";
-import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -78,14 +77,12 @@ export class BiddingTimeoutLogic {
 
     const questionData = transitionResult.data
       ?.questionData as FinalRoundQuestionData;
-    const timer = transitionResult.data?.timer as GameStateTimerDTO;
 
     return {
       game,
       timeoutBids: mutationResult.timeoutBids,
       questionData,
-      timer,
       transitionResult,
-    } satisfies BiddingTimeoutResult;
+    };
   }
 }

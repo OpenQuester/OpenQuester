@@ -19,6 +19,7 @@ import { FinalAnswerReviewLogic } from "domain/state-machine/logic/FinalAnswerRe
 import { TransitionTrigger } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { QuestionAction } from "domain/types/game/QuestionAction";
+import { ActionContext } from "domain/types/action/ActionContext";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
 import { BiddingPhaseInitializationResult } from "domain/types/socket/events/FinalRoundEventData";
@@ -61,11 +62,11 @@ export class FinalRoundService {
    * 5. Persist and return result
    */
   public async handleThemeEliminate(
-    socketId: string,
+    ctx: ActionContext,
     themeId: number
   ): Promise<ThemeEliminateResult> {
     const { game, currentPlayer } =
-      await this.socketGameContextService.fetchGameContext(socketId);
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     const finalRoundHandler = this._getFinalRoundHandler(game);
 
@@ -113,11 +114,11 @@ export class FinalRoundService {
    * 5. Persist and return result
    */
   public async handleFinalBidSubmit(
-    socketId: string,
+    ctx: ActionContext,
     bid: number
   ): Promise<FinalBidSubmitResult> {
     const { game, currentPlayer } =
-      await this.socketGameContextService.fetchGameContext(socketId);
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     FinalBidSubmitLogic.validate(game, currentPlayer);
     const normalizedBid = FinalBidSubmitLogic.addBid(
@@ -153,11 +154,11 @@ export class FinalRoundService {
    * 5. Persist and return result
    */
   public async handleFinalAnswerSubmit(
-    socketId: string,
+    ctx: ActionContext,
     answerText: string
   ): Promise<FinalAnswerSubmitResult> {
     const { game, currentPlayer } =
-      await this.socketGameContextService.fetchGameContext(socketId);
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     // Validation
     GameStateValidator.validateGameInProgress(game);
@@ -227,21 +228,18 @@ export class FinalRoundService {
    * then attempts phase transition via PhaseTransitionRouter.
    */
   public async handleFinalAnswerReview(
-    socketId: string,
+    ctx: ActionContext,
     answerData: FinalAnswerReviewInputData
   ): Promise<FinalAnswerReviewResult> {
     // Context & Validation
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const game = context.game;
-    const currentPlayer = context.currentPlayer;
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     GameStateValidator.validateGameInProgress(game);
     this.socketGameValidationService.validateQuestionAction(
       currentPlayer,
       game,
-      QuestionAction.RESULT
+      QuestionAction.ANSWER_RESULT
     );
     FinalAnswerReviewLogic.validate(game);
 

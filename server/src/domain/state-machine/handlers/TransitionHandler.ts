@@ -81,10 +81,8 @@ export abstract class BaseTransitionHandler implements TransitionHandler {
       toPhase: this.toPhase,
       game: ctx.game,
       broadcasts,
-      data: {
-        ...mutationResult.data,
-        timer: timerResult.timer,
-      },
+      timer: timerResult.timer ?? null,
+      data: mutationResult.data,
     };
   }
 

@@ -1,4 +1,5 @@
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -18,13 +19,15 @@ export class SkipShowAnswerActionHandler
 {
   constructor(
     private readonly socketIOQuestionService: SocketIOQuestionService
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<EmptyOutputData>> {
     const result = await this.socketIOQuestionService.skipShowAnswer(
-      action.socketId
+      createActionContextFromAction(action)
     );
 
     return {

@@ -4,6 +4,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import {
   EmptyInputData,
   QuestionUnskipBroadcastData,
@@ -17,13 +18,15 @@ export class QuestionUnskipActionHandler
 {
   constructor(
     private readonly socketIOQuestionService: SocketIOQuestionService
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<QuestionUnskipBroadcastData>> {
     const result = await this.socketIOQuestionService.handlePlayerUnskip(
-      action.socketId
+      createActionContextFromAction(action)
     );
 
     return {

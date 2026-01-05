@@ -4,6 +4,7 @@ import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
+import { SocketIOAnswerResult } from "application/services/socket/SocketIOAnswerResult";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
@@ -53,6 +54,7 @@ export interface ActionHandlerConfigDeps {
   socketIOGameService: SocketIOGameService;
   socketIOChatService: SocketIOChatService;
   socketIOQuestionService: SocketIOQuestionService;
+  socketIOAnswerResult: SocketIOAnswerResult;
   socketGameContextService: SocketGameContextService;
   userService: UserService;
   gameProgressionCoordinator: GameProgressionCoordinator;
@@ -75,6 +77,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     socketIOGameService,
     socketIOChatService,
     socketIOQuestionService,
+    socketIOAnswerResult,
     socketGameContextService,
     userService,
     gameProgressionCoordinator,
@@ -185,7 +188,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.ANSWER_RESULT,
-    new AnswerResultActionHandler(socketIOQuestionService)
+    new AnswerResultActionHandler(socketIOAnswerResult)
   );
 
   registry.register(

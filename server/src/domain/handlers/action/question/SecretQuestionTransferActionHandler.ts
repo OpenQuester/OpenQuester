@@ -5,6 +5,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import {
@@ -54,7 +55,7 @@ export class SecretQuestionTransferActionHandler
   ): Promise<GameActionHandlerResult<SecretQuestionTransferResult>> {
     const result =
       await this.socketIOQuestionService.handleSecretQuestionTransfer(
-        action.socketId,
+        createActionContextFromAction(action),
         action.payload
       );
 

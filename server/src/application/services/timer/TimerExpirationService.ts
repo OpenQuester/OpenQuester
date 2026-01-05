@@ -15,8 +15,9 @@ import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
 import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
-import { QuestionShowingExpirationLogic } from "domain/logic/timer/QuestionShowingExpirationLogic";
 import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { TransitionTrigger } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import {
@@ -48,7 +49,9 @@ export class TimerExpirationService {
     private readonly finalRoundService: FinalRoundService,
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly playerGameStatsService: PlayerGameStatsService,
-    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
+    private readonly phaseTransitionRouter: PhaseTransitionRouter,
+    @inject(DI_TOKENS.Logger)
+    private readonly logger: ILogger
   ) {
     //
   }
@@ -59,20 +62,25 @@ export class TimerExpirationService {
   public async handleMediaDownloadExpiration(
     gameId: string
   ): Promise<TimerExpirationResult> {
-    const result = await this.socketIOQuestionService.forceAllPlayersReady(
-      gameId
+    const game = await this.gameService.getGameEntity(
+      gameId,
+      GAME_TTL_IN_SECONDS
     );
-
-    if (!result) {
-      return {
-        success: false,
-        broadcasts: [],
-      };
+    if (!game) {
+      return { success: false, broadcasts: [] };
     }
-
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.TIMER_EXPIRED,
+      triggeredBy: { isSystem: true },
+    });
+    if (!transitionResult) {
+      return { success: false, broadcasts: [] };
+    }
+    const timer = transitionResult.timer ?? null;
     return {
       success: true,
-      game: result.game,
+      game,
       broadcasts: [
         {
           event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
@@ -80,7 +88,7 @@ export class TimerExpirationService {
             playerId: SYSTEM_PLAYER_ID,
             mediaDownloaded: true,
             allPlayersReady: true,
-            timer: result.timer,
+            timer,
           } satisfies MediaDownloadStatusBroadcastData,
           room: gameId,
         },
@@ -98,39 +106,21 @@ export class TimerExpirationService {
       gameId,
       GAME_TTL_IN_SECONDS
     );
-    const question = await this.socketIOQuestionService.getCurrentQuestion(
-      game
-    );
-
-    await this.socketQuestionStateService.resetToChoosingState(game);
-
-    const broadcasts: BroadcastEvent[] = [
-      QuestionShowingExpirationLogic.buildQuestionFinishBroadcast(
-        game,
-        question,
-        gameId
-      ),
-    ];
-
-    if (!QuestionShowingExpirationLogic.shouldProgressRound(game)) {
-      return {
-        success: true,
-        game,
-        broadcasts,
-      };
+    if (!game) {
+      return { success: false, broadcasts: [] };
     }
-
-    // Handle round progression
-    const progressionBroadcasts = await this.handleRoundProgression(
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
-      gameId
-    );
-    broadcasts.push(...progressionBroadcasts);
-
+      trigger: TransitionTrigger.TIMER_EXPIRED,
+      triggeredBy: { isSystem: true },
+    });
+    if (!transitionResult) {
+      return { success: false, broadcasts: [] };
+    }
     return {
       success: true,
       game,
-      broadcasts,
+      broadcasts: transitionResult.broadcasts,
     };
   }
 

@@ -140,7 +140,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOQuestionService,
         this.socketGameContextService
       ),
       new PlayerKickEventHandler(
@@ -188,7 +187,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOGameService,
         this.socketGameContextService
       ),
     ];
