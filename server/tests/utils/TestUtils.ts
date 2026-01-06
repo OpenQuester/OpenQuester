@@ -1,4 +1,5 @@
-import { Container, CONTAINER_TYPES } from "application/Container";
+import { container } from "tsyringe";
+
 import { GameService } from "application/services/game/GameService";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -39,7 +40,7 @@ export class TestUtils {
     this.app = app;
     this.userRepo = userRepo;
     this.socketGameTestUtils = new SocketGameTestUtils(serverUrl);
-    this.gameService = Container.get<GameService>(CONTAINER_TYPES.GameService);
+    this.gameService = container.resolve(GameService);
   }
 
   /**

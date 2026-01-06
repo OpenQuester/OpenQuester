@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import { GameService } from "application/services/game/GameService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -9,6 +11,7 @@ import { SocketUserDataService } from "infrastructure/services/socket/SocketUser
 /**
  * Service responsible for fetching and validating socket game context.
  */
+@singleton()
 export class SocketGameContextService {
   constructor(
     private readonly socketUserDataService: SocketUserDataService,

@@ -19,10 +19,10 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import {
   FinalAnswerSubmitInputData,
-  SocketIOFinalAutoLossEventPayload,
   FinalBidSubmitInputData,
   FinalBidSubmitOutputData,
   FinalSubmitEndEventData,
+  SocketIOFinalAutoLossEventPayload,
 } from "domain/types/socket/events/FinalRoundEventData";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";

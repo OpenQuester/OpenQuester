@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { GameService } from "application/services/game/GameService";
 import { SpecialQuestionService } from "application/services/question/SpecialQuestionService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
@@ -55,6 +58,10 @@ import { QuestionActionValidator } from "domain/validators/QuestionActionValidat
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
+/**
+ * Service handling question-related socket events.
+ */
+@singleton()
 export class SocketIOQuestionService {
   constructor(
     private readonly gameService: GameService,
@@ -65,7 +72,7 @@ export class SocketIOQuestionService {
     private readonly roundHandlerFactory: RoundHandlerFactory,
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly specialQuestionService: SpecialQuestionService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

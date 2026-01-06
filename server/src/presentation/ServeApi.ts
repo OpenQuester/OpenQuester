@@ -3,9 +3,8 @@ import { type Server as HTTPServer } from "http";
 import Redis from "ioredis";
 import { type Server as IOServer } from "socket.io";
 
-import { DIConfig } from "application/config/DIConfig";
-import { Container, CONTAINER_TYPES } from "application/Container";
 import { type ApiContext } from "application/context/ApiContext";
+import { bootstrapContainer, container } from "application/di/bootstrap";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { AdminService } from "application/services/admin/AdminService";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
@@ -100,14 +99,14 @@ export class ServeApi {
       });
       this._io.listen(this._server);
 
-      // Initialize Dependency injection Container
-      await new DIConfig(
-        this._db,
-        this._redis,
-        this._io,
-        this._context.env,
-        this._context.logger
-      ).initialize();
+      // Initialize Dependency Injection Container (tsyringe)
+      await bootstrapContainer({
+        db: this._db,
+        redisClient: this._redis,
+        io: this._io,
+        env: this._context.env,
+        logger: this._context.logger,
+      });
 
       await this._processPrepareJobs();
 
@@ -148,47 +147,28 @@ export class ServeApi {
    * to which this controller related (you can see it in their names)
    */
   private _attachControllers() {
+    // Resolve all dependencies from tsyringe container
     const deps = {
       app: this._app,
-      userService: Container.get<UserService>(CONTAINER_TYPES.UserService),
-      packageService: Container.get<PackageService>(
-        CONTAINER_TYPES.PackageService
+      userService: container.resolve(UserService),
+      packageService: container.resolve(PackageService),
+      socketIOGameService: container.resolve(SocketIOGameService),
+      socketUserDataService: container.resolve(SocketUserDataService),
+      socketIOChatService: container.resolve(SocketIOChatService),
+      socketIOQuestionService: container.resolve(SocketIOQuestionService),
+      storage: container.resolve(S3StorageService),
+      game: container.resolve(GameService),
+      io: this._io, // Use directly instead of from container
+      redisService: container.resolve(RedisService),
+      fileService: container.resolve(FileService),
+      userNotificationRoomService: container.resolve(
+        UserNotificationRoomService
       ),
-      socketIOGameService: Container.get<SocketIOGameService>(
-        CONTAINER_TYPES.SocketIOGameService
-      ),
-      socketUserDataService: Container.get<SocketUserDataService>(
-        CONTAINER_TYPES.SocketUserDataService
-      ),
-      socketIOChatService: Container.get<SocketIOChatService>(
-        CONTAINER_TYPES.SocketIOChatService
-      ),
-      socketIOQuestionService: Container.get<SocketIOQuestionService>(
-        CONTAINER_TYPES.SocketIOQuestionService
-      ),
-      storage: Container.get<S3StorageService>(
-        CONTAINER_TYPES.S3StorageService
-      ),
-      game: Container.get<GameService>(CONTAINER_TYPES.GameService),
-      io: Container.get<IOServer>(CONTAINER_TYPES.IO),
-      redisService: Container.get<RedisService>(CONTAINER_TYPES.RedisService),
-      fileService: Container.get<FileService>(CONTAINER_TYPES.FileService),
-      userNotificationRoomService: Container.get<UserNotificationRoomService>(
-        CONTAINER_TYPES.UserNotificationRoomService
-      ),
-      adminService: Container.get<AdminService>(CONTAINER_TYPES.AdminService),
-      socketGameContextService: Container.get<SocketGameContextService>(
-        CONTAINER_TYPES.SocketGameContextService
-      ),
-      gameProgressionCoordinator: Container.get<GameProgressionCoordinator>(
-        CONTAINER_TYPES.GameProgressionCoordinator
-      ),
-      gameActionExecutor: Container.get<GameActionExecutor>(
-        CONTAINER_TYPES.GameActionExecutor
-      ),
-      logReaderService: Container.get<LogReaderService>(
-        CONTAINER_TYPES.LogReaderService
-      ),
+      adminService: container.resolve(AdminService),
+      socketGameContextService: container.resolve(SocketGameContextService),
+      gameProgressionCoordinator: container.resolve(GameProgressionCoordinator),
+      gameActionExecutor: container.resolve(GameActionExecutor),
+      logReaderService: container.resolve(LogReaderService),
     };
 
     // REST
@@ -253,13 +233,9 @@ export class ServeApi {
   }
 
   private async _processPrepareJobs() {
-    const pubSub = Container.get<RedisPubSubService>(
-      CONTAINER_TYPES.RedisPubSubService
-    );
-    const gameService = Container.get<GameService>(CONTAINER_TYPES.GameService);
-    const socketUserDataService = Container.get<SocketUserDataService>(
-      CONTAINER_TYPES.SocketUserDataService
-    );
+    const pubSub = container.resolve(RedisPubSubService);
+    const gameService = container.resolve(GameService);
+    const socketUserDataService = container.resolve(SocketUserDataService);
 
     // Clean up all games (set all players as disconnected and pause game)
     await gameService.cleanupAllGames();
@@ -274,9 +250,7 @@ export class ServeApi {
     await pubSub.initKeyExpirationHandling();
 
     // Initialize cron scheduler
-    const cronScheduler = Container.get<CronSchedulerService>(
-      CONTAINER_TYPES.CronSchedulerService
-    );
+    const cronScheduler = container.resolve(CronSchedulerService);
     await cronScheduler.initialize();
   }
 }

@@ -1,9 +1,18 @@
+import { inject, singleton } from "tsyringe";
 import { In, Repository } from "typeorm";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 
+/**
+ * Repository for PackageTag entity operations.
+ */
+@singleton()
 export class PackageTagRepository {
-  constructor(private readonly repository: Repository<PackageTag>) {
+  constructor(
+    @inject(DI_TOKENS.TypeORMPackageTagRepository)
+    private readonly repository: Repository<PackageTag>
+  ) {
     //
   }
 

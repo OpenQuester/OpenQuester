@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import { GAME_CHAT_NSP, GAME_CHAT_TTL } from "domain/constants/game";
 import { ChatMapper } from "domain/mappers/ChatMapper";
 import { ChatMessageDTO } from "domain/types/dto/game/chat/ChatMessageDTO";
@@ -5,6 +7,10 @@ import { ChatSaveInputData } from "domain/types/socket/chat/ChatSaveInputData";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Repository for game chat messages (stored in Redis).
+ */
+@singleton()
 export class SocketChatRepository {
   constructor(private readonly redisService: RedisService) {
     //
