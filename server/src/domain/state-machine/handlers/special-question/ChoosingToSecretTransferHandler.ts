@@ -1,9 +1,8 @@
 import { GameService } from "application/services/game/GameService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
-import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -15,15 +14,19 @@ import {
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
+import {
+  ChoosingToSecretTransferCtx,
+  ChoosingToSecretTransferMutationData,
+} from "domain/types/socket/transition/choosing";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
-import { ChoosingToMediaDownloadingCtx } from "domain/types/socket/transition/choosing";
 
 /**
- * Handles transition from CHOOSING to MEDIA_DOWNLOADING.
+ * Handles transition from CHOOSING to SECRET_QUESTION_TRANSFER when a secret
+ * question is picked and there are eligible players to transfer to.
  */
-export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
+export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.CHOOSING;
-  public readonly toPhase = GamePhase.MEDIA_DOWNLOADING;
+  public readonly toPhase = GamePhase.SECRET_QUESTION_TRANSFER;
 
   constructor(
     gameService: GameService,
@@ -32,16 +35,10 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
     super(gameService, timerService);
   }
 
-  /**
-   * Eligible when:
-   * - Current phase is CHOOSING in a simple round
-   * - Triggered by user action with a valid normal question id
-   */
-  public canTransition(ctx: ChoosingToMediaDownloadingCtx): boolean {
+  public canTransition(ctx: ChoosingToSecretTransferCtx): boolean {
     const { game, trigger, payload } = ctx;
 
     if (!payload) return false;
-
     if (getGamePhase(game) !== this.fromPhase) return false;
 
     if (
@@ -62,69 +59,76 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
         payload.questionId
       );
 
-      return (
-        question.type !== PackageQuestionType.SECRET &&
-        question.type !== PackageQuestionType.STAKE
-      );
+      if (question.type !== PackageQuestionType.SECRET) return false;
+
+      return TransitionGuards.hasEligiblePlayers(game);
     } catch {
       return false;
     }
   }
 
-  protected override validate(ctx: ChoosingToMediaDownloadingCtx): void {
+  protected override validate(ctx: ChoosingToSecretTransferCtx): void {
     GameStateValidator.validateGameInProgress(ctx.game);
   }
 
-  /** Transition to media downloading for non-secret/stake questions */
   protected async mutate(
-    ctx: ChoosingToMediaDownloadingCtx
+    ctx: ChoosingToSecretTransferCtx
   ): Promise<MutationResult> {
-    const { game, payload } = ctx;
-    const questionId = payload!.questionId;
+    const { game, payload, triggeredBy } = ctx;
+    const pickerPlayerId = triggeredBy.playerId!;
 
     const { question, theme } = QuestionPickLogic.validateQuestionPick(
       game,
-      questionId
+      payload!.questionId
     );
 
-    // Set current question and mark as played
-    QuestionPickLogic.processNormalQuestionPick(game, question, theme.id!);
+    const secretData = {
+      pickerPlayerId,
+      transferType: question.transferType!,
+      questionId: question.id!,
+      transferDecisionPhase: true,
+    } satisfies ChoosingToSecretTransferMutationData;
+
+    game.gameState.questionState = QuestionState.SECRET_TRANSFER;
+    game.gameState.secretQuestionData = secretData;
+
+    // Mark question as played and reset media status for all players
+    QuestionPickLogic.markQuestionPlayed(game, question.id!, theme.id!);
     QuestionPickLogic.resetMediaDownloadStatus(game);
 
-    return {
-      data: {
-        // TODO: No generated broadcasts?
-        question: GameQuestionMapper.mapToSimpleQuestion(question),
-      },
-    };
+    return { data: secretData };
   }
 
   protected async handleTimer(
-    ctx: ChoosingToMediaDownloadingCtx,
+    ctx: ChoosingToSecretTransferCtx,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    const { game } = ctx;
-
-    await this.gameService.clearTimer(game.id);
-
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      MEDIA_DOWNLOAD_TIMEOUT,
-      QuestionState.MEDIA_DOWNLOADING
-    );
-
-    return { timer: timerEntity.value() ?? undefined };
+    await this.gameService.clearTimer(ctx.game.id);
+    // TODO: Should have timer for transfer?
+    return { timer: undefined };
   }
 
-  /**
-   * No broadcasts here: per-socket question data is handled by action handler
-   * (showman gets full question, players get filtered data).
-   */
   protected collectBroadcasts(
-    _ctx: ChoosingToMediaDownloadingCtx,
-    _mutationResult: MutationResult,
+    ctx: ChoosingToSecretTransferCtx,
+    mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
-    return [];
+    const data = mutationResult.data as
+      | ChoosingToSecretTransferMutationData
+      | undefined;
+
+    if (!data) return [];
+
+    return [
+      {
+        event: SocketIOGameEvents.SECRET_QUESTION_PICKED,
+        data: {
+          pickerPlayerId: data.pickerPlayerId,
+          transferType: data.transferType,
+          questionId: data.questionId,
+        },
+        room: ctx.game.id,
+      },
+    ];
   }
 }

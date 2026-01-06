@@ -19,7 +19,6 @@ import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { AnswerSubmittedLogic } from "domain/logic/question/AnswerSubmittedLogic";
@@ -27,29 +26,24 @@ import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { PlayerSkipLogic } from "domain/logic/question/PlayerSkipLogic";
 import { QuestionAnswerRequestLogic } from "domain/logic/question/QuestionAnswerRequestLogic";
 import { QuestionForceSkipLogic } from "domain/logic/question/QuestionForceSkipLogic";
-import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
-import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
 import { StakeBidSubmitInputData } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
 import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
-import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
+import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { QuestionPickPayload } from "src/domain/types/socket/transition/choosing";
 
 /**
  * Service handling question-related socket events.
@@ -216,7 +210,7 @@ export class SocketIOQuestionService {
     });
 
     // Check if this skip should be treated as a "give up" with penalty
-    if (SpecialQuestionUtils.isGiveUpScenario(game)) {
+    if (SpecialRegularQuestionUtils.isGiveUpScenario(game)) {
       return await this._handleGiveUp(game, currentPlayer!);
     }
 
@@ -243,110 +237,6 @@ export class SocketIOQuestionService {
     return PlayerSkipLogic.buildUnskipResult({
       game,
       playerId: currentPlayer!.meta.id,
-    });
-  }
-
-  public async handleQuestionPick(ctx: ActionContext, questionId: number) {
-    const { game, currentPlayer } =
-      await this.socketGameContextService.loadGameAndPlayer(ctx);
-
-    QuestionActionValidator.validatePickAction({
-      game,
-      currentPlayer,
-      action: QuestionAction.PICK,
-    });
-
-    // Validate question via Logic class
-    const questionData = QuestionPickLogic.validateQuestionPick(
-      game,
-      questionId
-    );
-    const { question, theme } = questionData;
-
-    // Execution
-    let timer: GameStateTimer | null = null;
-    let specialQuestionData:
-      | SecretQuestionGameData
-      | StakeQuestionGameData
-      | null = null;
-    let automaticNominalBid: PlayerBidData | null = null;
-
-    if (question.type === PackageQuestionType.SECRET) {
-      specialQuestionData = this.specialQuestionService.setupSecretQuestion(
-        game,
-        question,
-        currentPlayer!
-      );
-      // If no special question data (no active players), proceed as normal question
-      if (!specialQuestionData) {
-        QuestionPickLogic.handleSpecialQuestionFallback(
-          game,
-          PackageQuestionType.SECRET,
-          questionData
-        );
-        timer = await this.socketQuestionStateService.setupQuestionTimer(
-          game,
-          GAME_QUESTION_ANSWER_TIME,
-          QuestionState.SHOWING
-        );
-      }
-    } else if (question.type === PackageQuestionType.STAKE) {
-      const stakeSetupResult =
-        await this.specialQuestionService.setupStakeQuestion(
-          game,
-          question,
-          currentPlayer!
-        );
-      // If no stake setup result (no active players), proceed as normal question
-      if (stakeSetupResult) {
-        specialQuestionData = stakeSetupResult.stakeQuestionData;
-        timer = stakeSetupResult.timer;
-        automaticNominalBid = stakeSetupResult.automaticNominalBid;
-      } else {
-        QuestionPickLogic.handleSpecialQuestionFallback(
-          game,
-          PackageQuestionType.STAKE,
-          questionData
-        );
-        timer = await this.socketQuestionStateService.setupQuestionTimer(
-          game,
-          GAME_QUESTION_ANSWER_TIME,
-          QuestionState.SHOWING
-        );
-      }
-    } else {
-      // Normal question flow handled via transition handler
-      const transitionResult =
-        await this.phaseTransitionRouter.tryTransition<QuestionPickPayload>({
-          game,
-          trigger: TransitionTrigger.USER_ACTION,
-          triggeredBy: { playerId: currentPlayer!.meta.id, isSystem: false },
-          payload: { questionId },
-        });
-
-      if (!transitionResult) {
-        throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
-      }
-
-      const timerDto = transitionResult.timer;
-      timer = timerDto ? GameStateTimer.fromDTO(timerDto) : null;
-    }
-
-    // Mark question as played for all types
-    QuestionPickLogic.markQuestionPlayed(game, question.id!, theme.id!);
-
-    // Reset media download status for all players
-    QuestionPickLogic.resetMediaDownloadStatus(game);
-
-    // Save
-    await this.gameService.updateGame(game);
-
-    return QuestionPickLogic.buildResult({
-      game,
-      question,
-      timer,
-      specialQuestionData,
-      automaticNominalBid,
     });
   }
 

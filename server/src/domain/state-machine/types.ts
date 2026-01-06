@@ -154,7 +154,7 @@ export function getGamePhase(game: Game): GamePhase {
   }
 
   if (
-    secretQuestionData?.transferPhase &&
+    secretQuestionData?.transferDecisionPhase &&
     questionState === QuestionState.SECRET_TRANSFER
   ) {
     return GamePhase.SECRET_QUESTION_TRANSFER;

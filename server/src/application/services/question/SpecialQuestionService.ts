@@ -232,7 +232,7 @@ export class SpecialQuestionService {
       pickerPlayerId: currentPlayer.meta.id,
       transferType: question.transferType!,
       questionId: question.id!,
-      transferPhase: true,
+      transferDecisionPhase: true,
     };
 
     game.gameState.questionState = QuestionState.SECRET_TRANSFER;

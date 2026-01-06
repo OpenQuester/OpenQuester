@@ -109,7 +109,7 @@ export class TransitionGuards {
    */
   public static isSecretTransferPhase(game: Game): boolean {
     return (
-      game.gameState?.secretQuestionData?.transferPhase === true &&
+      game.gameState?.secretQuestionData?.transferDecisionPhase === true &&
       TransitionGuards.isQuestionState(game, QuestionState.SECRET_TRANSFER)
     );
   }

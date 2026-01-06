@@ -1,4 +1,4 @@
-import { SocketIOAnswerResult } from "application/services/socket/SocketIOAnswerResult";
+import { SocketIOAnswerResultService } from "application/services/socket/SocketIOAnswerResult";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -15,14 +15,16 @@ export class AnswerResultActionHandler
   implements
     GameActionHandler<AnswerResultData, QuestionAnswerResultEventPayload>
 {
-  constructor(private readonly socketIOAnswerResult: SocketIOAnswerResult) {
+  constructor(
+    private readonly socketIOAnswerResultService: SocketIOAnswerResultService
+  ) {
     //
   }
 
   public async execute(
     action: GameAction<AnswerResultData>
   ): Promise<GameActionHandlerResult<QuestionAnswerResultEventPayload>> {
-    const result = await this.socketIOAnswerResult.handleAnswerResult(
+    const result = await this.socketIOAnswerResultService.handleAnswerResult(
       createActionContextFromAction(action),
       action.payload
     );

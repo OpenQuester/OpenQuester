@@ -6,7 +6,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
+import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -44,7 +44,8 @@ export class QuestionActionValidator {
     const { game, currentPlayer } = context;
 
     // Check if current question is a special question type (noRisk, secret, stake)
-    const isSpecialQuestion = SpecialQuestionUtils.isSpecialQuestion(game);
+    const isSpecialQuestion =
+      SpecialRegularQuestionUtils.isSingleAnswererQuestion(game);
 
     if (isSpecialQuestion) {
       // Special questions: different rules based on phase

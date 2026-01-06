@@ -33,7 +33,7 @@ import { GameProgressionCoordinator } from "application/services/game/GameProgre
 import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
-import { SocketIOAnswerResult } from "application/services/socket/SocketIOAnswerResult";
+import { SocketIOAnswerResultService } from "application/services/socket/SocketIOAnswerResult";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
@@ -60,6 +60,7 @@ import { PlayerGameStats } from "infrastructure/database/models/statistics/Playe
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
+import { SocketIOQuestionPickService } from "../services/socket/SocketIOQuestionPickService";
 
 /**
  * Context required for DI container initialization.
@@ -222,7 +223,8 @@ export async function bootstrapContainer(
     socketIOGameService,
     socketIOChatService: container.resolve(SocketIOChatService),
     socketIOQuestionService: container.resolve(SocketIOQuestionService),
-    socketIOAnswerResult: container.resolve(SocketIOAnswerResult),
+    socketIOQuestionPickService: container.resolve(SocketIOQuestionPickService),
+    socketIOAnswerResultService: container.resolve(SocketIOAnswerResultService),
     socketGameContextService: container.resolve(SocketGameContextService),
     userService,
     gameProgressionCoordinator: container.resolve(GameProgressionCoordinator),

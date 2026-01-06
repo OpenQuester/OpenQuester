@@ -4,7 +4,7 @@ import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
-import { SocketIOAnswerResult } from "application/services/socket/SocketIOAnswerResult";
+import { SocketIOAnswerResultService } from "application/services/socket/SocketIOAnswerResult";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
@@ -44,6 +44,7 @@ import { DisconnectActionHandler } from "domain/handlers/action/system/Disconnec
 import { TimerExpirationActionHandler } from "domain/handlers/action/timer/TimerExpirationActionHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { SocketIOQuestionPickService } from "../services/socket/SocketIOQuestionPickService";
 
 /**
  * Dependencies required for configuring action handlers.
@@ -54,7 +55,8 @@ export interface ActionHandlerConfigDeps {
   socketIOGameService: SocketIOGameService;
   socketIOChatService: SocketIOChatService;
   socketIOQuestionService: SocketIOQuestionService;
-  socketIOAnswerResult: SocketIOAnswerResult;
+  socketIOQuestionPickService: SocketIOQuestionPickService;
+  socketIOAnswerResultService: SocketIOAnswerResultService;
   socketGameContextService: SocketGameContextService;
   userService: UserService;
   gameProgressionCoordinator: GameProgressionCoordinator;
@@ -77,7 +79,8 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     socketIOGameService,
     socketIOChatService,
     socketIOQuestionService,
-    socketIOAnswerResult,
+    socketIOQuestionPickService,
+    socketIOAnswerResultService: socketIOAnswerResult,
     socketGameContextService,
     userService,
     gameProgressionCoordinator,
@@ -173,7 +176,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   registry.register(
     GameActionType.QUESTION_PICK,
-    new QuestionPickActionHandler(socketIOQuestionService)
+    new QuestionPickActionHandler(socketIOQuestionPickService)
   );
 
   registry.register(

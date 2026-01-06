@@ -14,7 +14,7 @@ import {
   QuestionUnskipBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
+import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 
 export interface GiveUpMutation {
   penalty: number;
@@ -73,7 +73,7 @@ export class PlayerSkipLogic {
    * Delegates to SpecialQuestionUtils for the actual calculation.
    */
   public static calculateGiveUpPenalty(game: Game): number {
-    return SpecialQuestionUtils.calculateGiveUpPenalty(game);
+    return SpecialRegularQuestionUtils.calculateGiveUpPenalty(game);
   }
 
   /**

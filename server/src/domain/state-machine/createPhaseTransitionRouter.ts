@@ -12,6 +12,9 @@ import { MediaDownloadingToShowingHandler } from "domain/state-machine/handlers/
 import { ShowingAnswerToChoosingHandler } from "domain/state-machine/handlers/regular-round/ShowingAnswerToChoosingHandler";
 import { ShowingToChoosingHandler } from "domain/state-machine/handlers/regular-round/ShowingToChoosingHandler";
 import { ShowingToAnsweringHandler } from "domain/state-machine/handlers/regular-round/ShowingToAnsweringHandler";
+import { ChoosingToSecretTransferHandler } from "domain/state-machine/handlers/special-question/ChoosingToSecretTransferHandler";
+import { ChoosingToStakeBiddingHandler } from "domain/state-machine/handlers/special-question/ChoosingToStakeBiddingHandler";
+import { ChoosingToShowingFallbackHandler } from "domain/state-machine/handlers/special-question/ChoosingToShowingFallbackHandler";
 import { SecretTransferToAnsweringHandler } from "domain/state-machine/handlers/special-question/SecretTransferToAnsweringHandler";
 import { StakeBiddingToAnsweringHandler } from "domain/state-machine/handlers/special-question/StakeBiddingToAnsweringHandler";
 import { TransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
@@ -54,6 +57,13 @@ export function createPhaseTransitionRouter(
     // =========================================================================
     // Regular Round Transitions
     // =========================================================================
+
+    // Question picked (special): CHOOSING → SECRET_TRANSFER / STAKE_BIDDING
+    new ChoosingToSecretTransferHandler(gameService, timerService),
+    new ChoosingToStakeBiddingHandler(gameService, timerService),
+
+    // Fallback when no eligible players for special questions: CHOOSING → SHOWING
+    new ChoosingToShowingFallbackHandler(gameService, timerService),
 
     // Question picked (normal): CHOOSING → MEDIA_DOWNLOADING
     new ChoosingToMediaDownloadingHandler(gameService, timerService),

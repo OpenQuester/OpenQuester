@@ -28,7 +28,7 @@ import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameSta
  * Extracted from SocketIOQuestionService to keep question service smaller.
  */
 @singleton()
-export class SocketIOAnswerResult {
+export class SocketIOAnswerResultService {
   constructor(
     private readonly gameService: GameService,
     private readonly socketGameContextService: SocketGameContextService,

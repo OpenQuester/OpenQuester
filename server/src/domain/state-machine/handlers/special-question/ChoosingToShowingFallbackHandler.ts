@@ -1,9 +1,8 @@
 import { GameService } from "application/services/game/GameService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
-import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
+import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -15,15 +14,21 @@ import {
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
+import {
+  ChoosingToShowingFallbackCtx,
+  ChoosingToShowingFallbackMutationData,
+} from "domain/types/socket/transition/choosing";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
-import { ChoosingToMediaDownloadingCtx } from "domain/types/socket/transition/choosing";
+import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 
 /**
- * Handles transition from CHOOSING to MEDIA_DOWNLOADING.
+ * Fallback handler when a special question (secret/stake) is picked but
+ * no eligible players exist. Skips special flow and shows the question
+ * immediately to everyone.
  */
-export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
+export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.CHOOSING;
-  public readonly toPhase = GamePhase.MEDIA_DOWNLOADING;
+  public readonly toPhase = GamePhase.SHOWING;
 
   constructor(
     gameService: GameService,
@@ -32,16 +37,10 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
     super(gameService, timerService);
   }
 
-  /**
-   * Eligible when:
-   * - Current phase is CHOOSING in a simple round
-   * - Triggered by user action with a valid normal question id
-   */
-  public canTransition(ctx: ChoosingToMediaDownloadingCtx): boolean {
+  public canTransition(ctx: ChoosingToShowingFallbackCtx): boolean {
     const { game, trigger, payload } = ctx;
 
     if (!payload) return false;
-
     if (getGamePhase(game) !== this.fromPhase) return false;
 
     if (
@@ -55,76 +54,77 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
 
     if (trigger !== TransitionTrigger.USER_ACTION) return false;
 
-    // Validate question existence and type; silence on failure
     try {
       const { question } = QuestionPickLogic.validateQuestionPick(
         game,
         payload.questionId
       );
 
-      return (
-        question.type !== PackageQuestionType.SECRET &&
-        question.type !== PackageQuestionType.STAKE
-      );
+      const isSpecial =
+        question.type === PackageQuestionType.SECRET ||
+        question.type === PackageQuestionType.STAKE;
+
+      if (!isSpecial) return false;
+
+      return !TransitionGuards.hasEligiblePlayers(game);
     } catch {
       return false;
     }
   }
 
-  protected override validate(ctx: ChoosingToMediaDownloadingCtx): void {
+  protected override validate(ctx: ChoosingToShowingFallbackCtx): void {
     GameStateValidator.validateGameInProgress(ctx.game);
   }
 
-  /** Transition to media downloading for non-secret/stake questions */
   protected async mutate(
-    ctx: ChoosingToMediaDownloadingCtx
+    ctx: ChoosingToShowingFallbackCtx
   ): Promise<MutationResult> {
     const { game, payload } = ctx;
-    const questionId = payload!.questionId;
-
     const { question, theme } = QuestionPickLogic.validateQuestionPick(
       game,
-      questionId
+      payload!.questionId
     );
 
-    // Set current question and mark as played
-    QuestionPickLogic.processNormalQuestionPick(game, question, theme.id!);
+    // Clear any stale special-question data and proceed as a normal question
+    game.gameState.secretQuestionData = null;
+    game.gameState.stakeQuestionData = null;
+    game.gameState.questionState = QuestionState.SHOWING;
+    game.gameState.currentQuestion =
+      GameQuestionMapper.mapToSimpleQuestion(question);
+
+    QuestionPickLogic.markQuestionPlayed(game, question.id!, theme.id!);
     QuestionPickLogic.resetMediaDownloadStatus(game);
 
     return {
       data: {
-        // TODO: No generated broadcasts?
-        question: GameQuestionMapper.mapToSimpleQuestion(question),
-      },
+        question: game.gameState.currentQuestion!,
+        originalQuestionType: question.type,
+      } satisfies ChoosingToShowingFallbackMutationData,
     };
   }
 
   protected async handleTimer(
-    ctx: ChoosingToMediaDownloadingCtx,
+    ctx: ChoosingToShowingFallbackCtx,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    const { game } = ctx;
-
-    await this.gameService.clearTimer(game.id);
+    await this.gameService.clearTimer(ctx.game.id);
 
     const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      MEDIA_DOWNLOAD_TIMEOUT,
-      QuestionState.MEDIA_DOWNLOADING
+      ctx.game,
+      GAME_QUESTION_ANSWER_TIME,
+      QuestionState.SHOWING
     );
 
     return { timer: timerEntity.value() ?? undefined };
   }
 
-  /**
-   * No broadcasts here: per-socket question data is handled by action handler
-   * (showman gets full question, players get filtered data).
-   */
   protected collectBroadcasts(
-    _ctx: ChoosingToMediaDownloadingCtx,
+    _ctx: ChoosingToShowingFallbackCtx,
     _mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
+    // Personalized question data emission is handled by the socket handler
+    // (similar to normal question flow), so no broadcasts here.
     return [];
   }
 }
