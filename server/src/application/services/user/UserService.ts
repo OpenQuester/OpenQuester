@@ -1,7 +1,9 @@
 import { type Request } from "express";
 import { Namespace } from "socket.io";
+import { inject, singleton } from "tsyringe";
 import { FindOptionsWhere } from "typeorm";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { IGameLobbyLeaver } from "application/services/socket/IGameLobbyLeaver";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
@@ -10,6 +12,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
+import { ServerError } from "domain/errors/ServerError";
 import { UpdateUserDTO } from "domain/types/dto/user/UpdateUserDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
@@ -23,13 +26,17 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Service for user management operations.
+ */
+@singleton()
 export class UserService {
   constructor(
     private readonly userRepository: UserRepository,
     private readonly fileUsageService: FileUsageService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
-    private readonly gameNamespace: Namespace,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }
@@ -230,7 +237,7 @@ export class UserService {
   }
 
   private async forceLeaveAllGames(userId: number): Promise<void> {
-    const userSockets = Array.from(this.gameNamespace.sockets.values()).filter(
+    const userSockets = Array.from(this.gamesNsp.sockets.values()).filter(
       (s) => s.userId === userId
     );
     if (userSockets.length === 0) return;
@@ -238,18 +245,16 @@ export class UserService {
     const processedGameIds = new Set<string>();
     for (const socket of userSockets) {
       if (!this._gameLobbyLeaver) {
-        this.logger.warn("Game lobby leaver not set; skipping forced leave.", {
-          prefix: LogPrefix.USER,
-          userId,
-        });
-        return;
+        throw new ServerError("Game lobby leaver service not initialized");
       }
+
       const leaveResult = await this._gameLobbyLeaver.leaveLobby(socket.id);
+
       if (leaveResult.emit && leaveResult.data) {
         const gameId = leaveResult.data.gameId;
 
         if (gameId && !processedGameIds.has(gameId)) {
-          this.gameNamespace
+          this.gamesNsp
             .to(gameId)
             .emit(SocketIOGameEvents.LEAVE, { user: userId });
           processedGameIds.add(gameId);

@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { S3FilesCleanupJob } from "application/jobs/S3FilesCleanupJob";
 import { FileService } from "application/services/file/FileService";
 import { CRON_EXP_2_AM_DAILY } from "domain/constants/cron";
@@ -7,14 +10,15 @@ import { ILogger } from "infrastructure/logger/ILogger";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 
 /**
- * Factory for creating cron job instances
+ * Factory for creating cron job instances.
  */
+@singleton()
 export class CronJobFactory {
   constructor(
-    private readonly logger: ILogger,
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
     private readonly s3Service: S3StorageService,
     private readonly fileService: FileService,
-    private readonly env: Environment
+    @inject(DI_TOKENS.Environment) private readonly env: Environment
   ) {
     //
   }

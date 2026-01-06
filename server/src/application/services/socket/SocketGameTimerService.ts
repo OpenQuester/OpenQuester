@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import { GameService } from "application/services/game/GameService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { SECOND_MS } from "domain/constants/time";
@@ -8,6 +10,10 @@ import {
 } from "domain/logic/timer/GamePauseLogic";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 
+/**
+ * Service for managing game timer pause/resume operations.
+ */
+@singleton()
 export class SocketGameTimerService {
   constructor(private readonly gameService: GameService) {
     //

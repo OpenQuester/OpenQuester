@@ -1,5 +1,7 @@
+import { inject, singleton } from "tsyringe";
 import { Repository } from "typeorm";
 
+import { DI_TOKENS } from "application/di/tokens";
 import {
   PLAYER_STATISTICS_REDIS_NSP,
   PLAYER_STATISTICS_TTL,
@@ -17,13 +19,15 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 
 /**
- * Repository for player game statistics persistence operations
+ * Repository for player game statistics (Redis + PostgreSQL).
  */
+@singleton()
 export class PlayerGameStatsRepository {
   constructor(
+    @inject(DI_TOKENS.TypeORMPlayerGameStatsRepository)
     private readonly repository: Repository<PlayerGameStats>,
     private readonly redisService: RedisService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

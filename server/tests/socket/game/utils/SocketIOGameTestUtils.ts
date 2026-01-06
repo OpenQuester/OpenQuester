@@ -1,9 +1,9 @@
 import { type Express } from "express";
 import { io as Client, Socket as ClientSocket } from "socket.io-client";
 import request from "supertest";
+import { container } from "tsyringe";
 import { Repository } from "typeorm";
 
-import { Container, CONTAINER_TYPES } from "application/Container";
 import { GameService } from "application/services/game/GameService";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { Game } from "domain/entities/game/Game";
@@ -52,16 +52,10 @@ export interface GameTestSetup {
 export class SocketGameTestUtils {
   private serverUrl: string;
   private packageUtils: PackageUtils;
-  private gameService = Container.get<GameService>(CONTAINER_TYPES.GameService);
-  private socketUserDataService = Container.get<SocketUserDataService>(
-    CONTAINER_TYPES.SocketUserDataService
-  );
-  private lockService = Container.get<GameActionLockService>(
-    CONTAINER_TYPES.GameActionLockService
-  );
-  private queueService = Container.get<GameActionQueueService>(
-    CONTAINER_TYPES.GameActionQueueService
-  );
+  private gameService = container.resolve(GameService);
+  private socketUserDataService = container.resolve(SocketUserDataService);
+  private lockService = container.resolve(GameActionLockService);
+  private queueService = container.resolve(GameActionQueueService);
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl + SOCKET_GAME_NAMESPACE;

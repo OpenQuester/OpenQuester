@@ -1,4 +1,5 @@
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { ClientResponse } from "domain/enums/ClientResponse";
 import { GameActionType } from "domain/enums/GameActionType";
 import {
   SocketIOEvents,
@@ -84,154 +85,234 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   }
 
   /**
-   * Main entry point for handling socket events
-   * Implements the template method pattern with hooks for subclasses
-   * Wraps execution in LogContext for correlation ID tracking
+   * Main entry point for handling socket events.
+   * Implements the template method pattern with hooks for subclasses.
    */
   public async handle(data: TInput): Promise<void> {
-    // Create log context for this socket event
-    const logContext = LogContextService.createContext({
-      userId: this.socket.userId,
-      socketId: this.socket.id,
-      tags: new Set([LogTag.SOCKET]),
-    });
-
-    // Run entire handler within log context - all logs will include correlationId
-    await LogContextService.runAsync(logContext, async () => {
+    await this.withLogContext(async () => {
       const context = this.createContext();
-      const startTime = Date.now();
-
-      // Log socket event received (info level for production tracing)
-      this.logger.debug(`Socket event received: ${this.getEventName()}`, {
-        prefix: LogPrefix.SOCKET,
-        userId: this.socket.userId,
-        socketId: this.socket.id,
-      });
+      this.logEventReceived();
 
       try {
-        // Pre-execution hooks
-        await this.beforeHandle(data, context);
-
-        // Input validation
-        const validatedData = await this.validateInput(data);
-
-        // Authorization check
-        await this.authorize(validatedData, context);
-
-        // Check if this action should use the action queue system
-        const gameId = await this.getGameIdForAction(validatedData, context);
-        const hasRegisteredHandler = gameId && this.hasRegisteredHandler();
-
-        // Set game context for logs if available
-        if (gameId) {
-          LogContextService.setGameId(gameId);
-          LogContextService.addTag(LogTag.GAME);
-        }
-
-        if (hasRegisteredHandler) {
-          // Use action executor with locking and queuing
-          await this.handleWithActionQueue(
-            validatedData,
-            context,
-            gameId,
-            startTime
-          );
-        } else if (this.canExecuteDirectly()) {
-          // Only handlers that explicitly implement execute() can bypass the queue
-          await this.executeDirectly(validatedData, context, startTime);
-        } else if (!gameId && this.allowsNullGameId()) {
-          // Handler explicitly allows null gameId - silently succeed (no-op)
-          this.logSuccess(context, Date.now() - startTime);
-        } else {
-          // No registered action handler and no direct execute - this is a configuration error
-          throw new Error(
-            `No registered action handler for ${this.constructor.name}. ` +
-              `All game actions must have a registered handler in ActionHandlerConfig.`
-          );
-        }
+        const validatedData = await this.prepareExecution(data, context);
+        const gameId = await this.resolveGameContext(validatedData, context);
+        await this.routeAndExecute(validatedData, context, gameId);
       } catch (error) {
-        // Error handling
-        await this.handleError(error, context, Date.now() - startTime);
+        await this.handleError(error, context);
       }
     });
   }
 
   /**
+   * Wraps execution in log context for correlation ID tracking.
+   */
+  private async withLogContext(fn: () => Promise<void>): Promise<void> {
+    const logContext = LogContextService.createContext({
+      userId: this.socket.userId,
+      socketId: this.socket.id,
+      tags: new Set([LogTag.SOCKET]),
+    });
+    await LogContextService.runAsync(logContext, fn);
+  }
+
+  /**
+   * Runs pre-execution hooks, validation, and authorization.
+   */
+  private async prepareExecution(
+    data: TInput,
+    context: SocketEventContext
+  ): Promise<TInput> {
+    await this.beforeHandle(data, context);
+    const validatedData = await this.validateInput(data);
+    await this.authorize(validatedData, context);
+    return validatedData;
+  }
+
+  /**
+   * Resolves game context and updates log tags if in a game.
+   */
+  private async resolveGameContext(
+    data: TInput,
+    context: SocketEventContext
+  ): Promise<string | null> {
+    const gameId = await this.getGameIdForAction(data, context);
+    if (gameId) {
+      LogContextService.setGameId(gameId);
+      LogContextService.addTag(LogTag.GAME);
+    }
+    return gameId;
+  }
+
+  /**
+   * Routes to the appropriate execution path based on handler configuration.
+   */
+  private async routeAndExecute(
+    data: TInput,
+    context: SocketEventContext,
+    gameId: string | null
+  ): Promise<void> {
+    if (this.shouldUseActionQueue(gameId)) {
+      return this.handleWithActionQueue(data, context, gameId!);
+    }
+
+    if (this.supportsDirectExecution()) {
+      return this.executeDirectly(data, context);
+    }
+
+    if (!gameId && this.allowsNullGameId()) {
+      return this.completeAsNoOp(context);
+    }
+
+    if (!gameId) {
+      throw new ClientError(ClientResponse.GAME_NOT_FOUND);
+    }
+
+    if (this.isLifecycleRaceCondition()) {
+      return this.handleLifecycleRaceCondition(gameId, context);
+    }
+
+    throw this.createMissingHandlerError();
+  }
+
+  private shouldUseActionQueue(gameId: string | null): gameId is string {
+    return gameId !== null && this.hasRegisteredHandler();
+  }
+
+  private isLifecycleRaceCondition(): boolean {
+    return this.hasActionType() && !this.hasRegisteredHandler();
+  }
+
+  private handleLifecycleRaceCondition(
+    gameId: string,
+    context: SocketEventContext
+  ): void {
+    this.logger.warn(
+      `Action handler not registered for ${this.constructor.name} ` +
+        `(type: ${this.getActionType()}). Possible server lifecycle race condition.`,
+      {
+        prefix: LogPrefix.SOCKET,
+        event: this.getEventName(),
+        gameId,
+      }
+    );
+    this.logSuccess(context);
+  }
+
+  private createMissingHandlerError(): Error {
+    return new Error(
+      `No registered action handler for ${this.constructor.name}. ` +
+        `All game actions must have a registered handler in ActionHandlerConfig.`
+    );
+  }
+
+  // Completes successfully without doing anything (used when null gameId is allowed).
+  private completeAsNoOp(context: SocketEventContext): void {
+    this.logSuccess(context);
+  }
+
+  private logEventReceived(): void {
+    this.logger.debug(`Socket event received: ${this.getEventName()}`, {
+      prefix: LogPrefix.SOCKET,
+      userId: this.socket.userId,
+      socketId: this.socket.id,
+    });
+  }
+
+  /**
    * Handle game action with locking and queuing.
-   * Action must have a registered handler in GameActionHandlerRegistry.
    */
   private async handleWithActionQueue(
     data: TInput,
     context: SocketEventContext,
-    gameId: string,
-    startTime: number
+    gameId: string
   ): Promise<void> {
-    const action: GameAction = {
+    const action = this.buildGameAction(data, gameId);
+    const result = await this.actionExecutor.submitAction(action);
+
+    if (result.data !== undefined) {
+      await this.processActionResult(result, context, gameId);
+    }
+
+    this.logSuccess(context);
+  }
+
+  private buildGameAction(data: TInput, gameId: string): GameAction {
+    return {
       id: ValueUtils.generateUUID(),
       type: this.getActionType(),
-      gameId: gameId,
+      gameId,
       playerId: this.socket.userId ?? 0,
       socketId: this.socket.id,
       timestamp: new Date(),
       payload: data,
     };
+  }
 
-    const result = await this.actionExecutor.submitAction(action);
-
-    // If action was executed (not just queued), call afterHandle with result
-    if (result.data !== undefined) {
-      const socketResult: SocketEventResult<TOutput> = {
-        success: result.success,
-        data: result.data as TOutput,
-        error: result.error,
-        context: {
-          ...context,
-          gameId,
-        },
-      };
-      await this.afterHandle(socketResult, context);
-      await this.afterBroadcast(socketResult, context);
-    }
-
-    this.logSuccess(context, Date.now() - startTime);
+  private async processActionResult(
+    result: { success: boolean; data?: unknown; error?: string },
+    context: SocketEventContext,
+    gameId: string
+  ): Promise<void> {
+    const socketResult: SocketEventResult<TOutput> = {
+      success: result.success,
+      data: result.data as TOutput,
+      error: result.error,
+      context: { ...context, gameId },
+    };
+    await this.afterHandle(socketResult, context);
+    await this.afterBroadcast(socketResult, context);
   }
 
   /**
-   * Execute action directly without locking.
-   * ONLY for non-game actions like chat messages that don't need synchronization.
-   * Game actions MUST use the action queue system.
+   * Execute action directly without action queue (for non-game actions like chat).
    */
   private async executeDirectly(
     data: TInput,
-    context: SocketEventContext,
-    startTime: number
+    context: SocketEventContext
   ): Promise<void> {
     const result = await this.execute(data, context);
 
     await this.afterHandle(result, context);
-
-    if (result.broadcast) {
-      await this.handleBroadcasts(result.broadcast);
-    }
-
+    await this.broadcastIfNeeded(result.broadcast);
     await this.afterBroadcast(result, context);
 
-    const duration = Date.now() - startTime;
+    this.logExecutionResult(result.success, context);
+  }
 
-    if (result.success) {
-      this.logSuccess(context, duration);
+  private async broadcastIfNeeded(
+    broadcasts: SocketEventBroadcast[] | undefined
+  ): Promise<void> {
+    if (broadcasts?.length) {
+      await this.handleBroadcasts(broadcasts);
+    }
+  }
+
+  private logExecutionResult(
+    success: boolean,
+    context: SocketEventContext
+  ): void {
+    if (success) {
+      this.logSuccess(context);
     } else {
-      this.logUnsuccessful(context, duration);
+      this.logUnsuccessful(context);
     }
   }
 
   /**
-   * Check if this handler can execute directly (bypassing action queue).
-   * Returns true only if the handler has overridden the execute() method.
+   * Indicates whether this handler can execute directly, bypassing the action queue.
+   *
+   * Override and return `true` ONLY for handlers that:
+   * - Do NOT affect game state (e.g., chat messages)
+   * - Do NOT need synchronization with other game actions
+   * - Do NOT require Redis locking
+   *
+   * ⚠️ WARNING: Returning true incorrectly can cause race conditions!
+   * When in doubt, use the action queue system by registering a handler.
+   *
+   * @returns false by default - override in subclasses that need direct execution
    */
-  private canExecuteDirectly(): boolean {
-    // Check if execute is overridden (not the base class implementation)
-    return this.execute !== BaseSocketEventHandler.prototype.execute;
+  protected supportsDirectExecution(): boolean {
+    return false;
   }
 
   /**
@@ -274,6 +355,19 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
     try {
       const actionType = this.getActionType();
       return this.actionExecutor.hasHandler(actionType);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if this handler defines an action type (for diagnostics).
+   * Different from hasRegisteredHandler() - this only checks if getActionType() is overridden.
+   */
+  private hasActionType(): boolean {
+    try {
+      this.getActionType();
+      return true;
     } catch {
       return false;
     }
@@ -410,13 +504,14 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   }
 
   /**
-   * Handle errors in a consistent way
+   * Handle errors in a consistent way.
    */
   private async handleError(
     error: unknown,
-    context: SocketEventContext,
-    duration: number
+    context: SocketEventContext
   ): Promise<void> {
+    const duration = this.calculateDuration(context);
+
     try {
       const { message } = await ErrorController.resolveError(
         error,
@@ -431,22 +526,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
         }
       );
 
-      // Emit error to the socket that originated this action
-      try {
-        this.eventEmitter.emitToSocket<ErrorEventPayload>(
-          SocketIOEvents.ERROR,
-          { message: message },
-          context.socketId
-        );
-      } catch {
-        // Socket might have disconnected - this is expected, no log needed
-      }
-
-      // Only log if this adds context beyond what ErrorController already logged
-      if (error instanceof ClientError) {
-        // Client errors are expected - no logging needed
-        return;
-      }
+      this.emitErrorToClient(message, context.socketId);
     } catch (handlingError) {
       this.logger.error(`Error while handling socket event error`, {
         prefix: LogPrefix.SOCKET,
@@ -456,27 +536,37 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
     }
   }
 
-  /**
-   * Log successful execution
-   */
-  private logSuccess(context: SocketEventContext, duration: number): void {
+  private emitErrorToClient(message: string, socketId: string): void {
+    try {
+      this.eventEmitter.emitToSocket<ErrorEventPayload>(
+        SocketIOEvents.ERROR,
+        { message },
+        socketId
+      );
+    } catch {
+      // Socket might have disconnected - expected, no log needed
+    }
+  }
+
+  private calculateDuration(context: SocketEventContext): number {
+    return Date.now() - context.startTime;
+  }
+
+  private logSuccess(context: SocketEventContext): void {
     this.logger.trace(`Socket event completed`, {
       prefix: LogPrefix.SOCKET,
       event: this.getEventName(),
       gameId: context.gameId,
-      durationMs: duration,
+      durationMs: this.calculateDuration(context),
     });
   }
 
-  /**
-   * Log unsuccessful execution
-   */
-  private logUnsuccessful(context: SocketEventContext, duration: number): void {
+  private logUnsuccessful(context: SocketEventContext): void {
     this.logger.debug(`Socket event unsuccessful`, {
       prefix: LogPrefix.SOCKET,
       event: this.getEventName(),
       gameId: context.gameId,
-      durationMs: duration,
+      durationMs: this.calculateDuration(context),
     });
   }
 }

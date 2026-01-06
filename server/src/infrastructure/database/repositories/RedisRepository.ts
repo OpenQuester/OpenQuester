@@ -1,5 +1,7 @@
 import Redis, { Callback, RedisKey, RedisValue } from "ioredis";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { REDIS_LOCK_KEY_EXPIRE_DEFAULT } from "domain/constants/redis";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -10,11 +12,16 @@ import {
 } from "infrastructure/utils/RedisLogSanitizer";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Repository for Redis operations.
+ * Handles low-level Redis commands and pub/sub.
+ */
+@singleton()
 export class RedisRepository {
   private _client: Redis;
   private _subClient: Redis;
 
-  constructor(private readonly logger: ILogger) {
+  constructor(@inject(DI_TOKENS.Logger) private readonly logger: ILogger) {
     this._client = RedisConfig.getClient();
     this._subClient = RedisConfig.getSubClient();
   }

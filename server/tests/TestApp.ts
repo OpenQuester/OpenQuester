@@ -3,9 +3,9 @@ import express from "express";
 import session from "express-session";
 import { createServer } from "http";
 import { Server as IOServer } from "socket.io";
+import { container } from "tsyringe";
 import { DataSource } from "typeorm";
 
-import { Container, CONTAINER_TYPES } from "application/Container";
 import { ApiContext } from "application/context/ApiContext";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { Environment } from "infrastructure/config/Environment";
@@ -85,17 +85,13 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   // Note: Redis is NOT disconnected here as it's shared across test suites
   async function cleanup() {
     // Stop cron scheduler to allow tests to exit cleanly
-    const cronScheduler = Container.get<CronSchedulerService>(
-      CONTAINER_TYPES.CronSchedulerService
-    );
+    const cronScheduler = container.resolve(CronSchedulerService);
     logger.info("Stopping cron scheduler...", { prefix });
     await cronScheduler.stopAll();
 
     // Unsubscribe from Redis keyspace notifications to prevent duplicate
     // timer expirations across test suites
-    const pubSub = Container.get<RedisPubSubService>(
-      CONTAINER_TYPES.RedisPubSubService
-    );
+    const pubSub = container.resolve(RedisPubSubService);
     logger.info("Unsubscribing from Redis keyspace notifications...", {
       prefix,
     });

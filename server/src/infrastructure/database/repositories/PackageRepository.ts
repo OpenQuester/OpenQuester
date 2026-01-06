@@ -1,5 +1,7 @@
+import { inject, singleton } from "tsyringe";
 import { EntityManager, In, Repository } from "typeorm";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { FileService } from "application/services/file/FileService";
 import { PackageTagService } from "application/services/package/PackageTagService";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -36,9 +38,14 @@ type OrderMapEntry =
   | "answerFiles"
   | "answers";
 
+/**
+ * Repository for Package entity operations.
+ */
+@singleton()
 export class PackageRepository {
   constructor(
-    private readonly db: Database,
+    @inject(DI_TOKENS.Database) private readonly db: Database,
+    @inject(DI_TOKENS.TypeORMPackageRepository)
     private readonly repository: Repository<Package>,
     private readonly packageTagService: PackageTagService,
     private readonly fileService: FileService
