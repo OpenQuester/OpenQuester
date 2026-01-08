@@ -34,8 +34,8 @@ import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/gam
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { StakeQuestionService } from "../question/StakeQuestionService";
-import { AnsweringExpirationLogic } from "src/domain/logic/timer/AnsweringExpirationLogic";
+import { StakeQuestionService } from "application/services/question/StakeQuestionService";
+import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
 
 /**
  * Service handling timer expiration logic.

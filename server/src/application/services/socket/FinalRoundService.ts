@@ -249,7 +249,7 @@ export class FinalRoundService {
       answerData
     );
 
-    // Try phase transition if all answers reviewed
+    // Transition to game finish
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.USER_ACTION,

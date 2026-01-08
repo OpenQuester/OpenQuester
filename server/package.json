@@ -10,7 +10,7 @@
     "validate:schema": "node ./scripts/schema/validateSchema.mjs",
     "clean": "rm -rf dist/*",
     "build:dev": "tsup --watch",
-    "build": "tsc && tsup",
+    "build": "npm run clean && tsc --noEmit && tsup",
     "test": "jest --detectOpenHandles --forceExit",
     "test:pipeline": "jest --detectOpenHandles --forceExit > /dev/null",
     "lint": "eslint ./"
