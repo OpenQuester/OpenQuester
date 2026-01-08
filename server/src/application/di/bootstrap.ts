@@ -61,6 +61,8 @@ import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketIOQuestionPickService } from "../services/socket/SocketIOQuestionPickService";
+import { SecretQuestionService } from "../services/question/SecretQuestionService";
+import { StakeQuestionService } from "../services/question/StakeQuestionService";
 
 /**
  * Context required for DI container initialization.
@@ -226,6 +228,8 @@ export async function bootstrapContainer(
     socketIOQuestionPickService: container.resolve(SocketIOQuestionPickService),
     socketIOAnswerResultService: container.resolve(SocketIOAnswerResultService),
     socketGameContextService: container.resolve(SocketGameContextService),
+    secretQuestionService: container.resolve(SecretQuestionService),
+    stakeQuestionService: container.resolve(StakeQuestionService),
     userService,
     gameProgressionCoordinator: container.resolve(GameProgressionCoordinator),
     gameStatisticsCollectorService: container.resolve(
@@ -233,6 +237,7 @@ export async function bootstrapContainer(
     ),
     gameService,
     timerExpirationService: container.resolve(TimerExpirationService),
+    phaseTransitionRouter,
     logger,
   };
   configureActionHandlers(actionHandlerDeps);

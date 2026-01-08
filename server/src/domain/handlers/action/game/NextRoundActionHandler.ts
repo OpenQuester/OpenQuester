@@ -19,7 +19,9 @@ export class NextRoundActionHandler
   constructor(
     private readonly socketIOGameService: SocketIOGameService,
     private readonly gameProgressionCoordinator: GameProgressionCoordinator
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<EmptyInputData>

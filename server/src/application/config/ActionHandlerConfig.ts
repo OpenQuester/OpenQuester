@@ -44,7 +44,10 @@ import { DisconnectActionHandler } from "domain/handlers/action/system/Disconnec
 import { TimerExpirationActionHandler } from "domain/handlers/action/timer/TimerExpirationActionHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { SocketIOQuestionPickService } from "../services/socket/SocketIOQuestionPickService";
+import { SocketIOQuestionPickService } from "application/services/socket/SocketIOQuestionPickService";
+import { SecretQuestionService } from "application/services/question/SecretQuestionService";
+import { StakeQuestionService } from "application/services/question/StakeQuestionService";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 
 /**
  * Dependencies required for configuring action handlers.
@@ -58,11 +61,14 @@ export interface ActionHandlerConfigDeps {
   socketIOQuestionPickService: SocketIOQuestionPickService;
   socketIOAnswerResultService: SocketIOAnswerResultService;
   socketGameContextService: SocketGameContextService;
+  secretQuestionService: SecretQuestionService;
+  stakeQuestionService: StakeQuestionService;
   userService: UserService;
   gameProgressionCoordinator: GameProgressionCoordinator;
   gameStatisticsCollectorService: GameStatisticsCollectorService;
   gameService: GameService;
   timerExpirationService: TimerExpirationService;
+  phaseTransitionRouter: PhaseTransitionRouter;
   logger: ILogger;
 }
 
@@ -82,11 +88,14 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     socketIOQuestionPickService,
     socketIOAnswerResultService: socketIOAnswerResult,
     socketGameContextService,
+    secretQuestionService,
+    stakeQuestionService,
     userService,
     gameProgressionCoordinator,
     gameStatisticsCollectorService,
     gameService,
     timerExpirationService,
+    phaseTransitionRouter,
     logger,
   } = deps;
 
@@ -198,7 +207,8 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     GameActionType.QUESTION_SKIP,
     new QuestionSkipActionHandler(
       socketIOQuestionService,
-      gameProgressionCoordinator
+      gameService,
+      phaseTransitionRouter
     )
   );
 
@@ -210,8 +220,9 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   registry.register(
     GameActionType.SKIP_QUESTION_FORCE,
     new SkipQuestionForceActionHandler(
-      socketIOQuestionService,
-      gameProgressionCoordinator
+      socketGameContextService,
+      gameService,
+      phaseTransitionRouter
     )
   );
 
@@ -222,12 +233,12 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.SECRET_QUESTION_TRANSFER,
-    new SecretQuestionTransferActionHandler(socketIOQuestionService)
+    new SecretQuestionTransferActionHandler(secretQuestionService)
   );
 
   registry.register(
     GameActionType.STAKE_BID_SUBMIT,
-    new StakeBidSubmitActionHandler(socketIOQuestionService)
+    new StakeBidSubmitActionHandler(stakeQuestionService)
   );
 
   // =====================================

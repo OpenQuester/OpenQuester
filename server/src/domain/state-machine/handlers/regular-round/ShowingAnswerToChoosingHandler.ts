@@ -17,7 +17,9 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { AnswerShowEndEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { ShowingAnswerToChoosingMutationData } from "domain/types/socket/transition/showing";
 
 /**
  * Handles transition from SHOWING_ANSWER to CHOOSING phase in regular rounds.
@@ -76,6 +78,16 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
       return false;
     }
 
+    const isRoundFinished = game.isAllQuestionsPlayed() ?? false;
+    if (isRoundFinished) {
+      const nextRound = game.getNextRound();
+
+      // If no next round or next round is final, other handlers should process
+      if (nextRound === null || nextRound.type === PackageRoundType.FINAL) {
+        return false;
+      }
+    }
+
     return true;
   }
 
@@ -86,30 +98,30 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
   protected async mutate(ctx: TransitionContext): Promise<MutationResult> {
     const { game } = ctx;
 
-    // Check if all questions in round are played → need round progression
+    // Check if all questions in round are played -> need round progression
     const isRoundFinished = game.isAllQuestionsPlayed() ?? false;
     let nextGameState: GameStateDTO | null = null;
-    let isGameFinished = false;
 
     if (isRoundFinished) {
       const roundHandler = this.roundHandlerFactory.createFromGame(game);
       const progressionResult = await roundHandler.handleRoundProgression(game);
 
-      isGameFinished = progressionResult.isGameFinished;
       nextGameState = progressionResult.nextGameState;
     }
 
-    // Reset to choosing state
-    game.gameState.questionState = QuestionState.CHOOSING;
-    game.gameState.answeringPlayer = null;
-    game.gameState.answeredPlayers = [];
+    // Reset to choosing state only when continuing in the same round
+    if (!isRoundFinished) {
+      game.gameState.questionState = QuestionState.CHOOSING;
+      game.gameState.answeringPlayer = null;
+      game.gameState.answeredPlayers = [];
+    }
 
     return {
       data: {
         isRoundFinished,
-        isGameFinished,
+        isGameFinished: false,
         nextGameState,
-      },
+      } satisfies ShowingAnswerToChoosingMutationData,
     };
   }
 
@@ -129,9 +141,9 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
   ): BroadcastEvent[] {
     const { game } = ctx;
     const broadcasts: BroadcastEvent[] = [];
-    const isGameFinished = mutationResult.data?.isGameFinished as boolean;
-    const nextGameState = mutationResult.data
-      ?.nextGameState as GameStateDTO | null;
+    const mutationData =
+      mutationResult.data as ShowingAnswerToChoosingMutationData;
+    const nextGameState = mutationData.nextGameState;
 
     // 1. ANSWER_SHOW_END - signals end of answer display
     broadcasts.push({
@@ -140,17 +152,7 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
       room: game.id,
     });
 
-    // 2. GAME_FINISHED if game is over
-    if (isGameFinished) {
-      broadcasts.push({
-        event: SocketIOGameEvents.GAME_FINISHED,
-        data: true,
-        room: game.id,
-      });
-      return broadcasts;
-    }
-
-    // 3. NEXT_ROUND if round progression occurred
+    // 2. NEXT_ROUND if round progression occurred
     if (nextGameState) {
       broadcasts.push({
         event: SocketIOGameEvents.NEXT_ROUND,

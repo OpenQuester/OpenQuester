@@ -99,8 +99,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOGameService,
-        this.gameProgressionCoordinator,
         this.socketGameContextService
       ),
       new PauseGameEventHandler(

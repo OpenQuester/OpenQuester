@@ -3,20 +3,22 @@ import { SocketQuestionStateService } from "application/services/socket/SocketQu
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { FinalAnsweringToReviewingHandler } from "domain/state-machine/handlers/final-round/FinalAnsweringToReviewingHandler";
 import { FinalBiddingToAnsweringHandler } from "domain/state-machine/handlers/final-round/FinalBiddingToAnsweringHandler";
-import { FinalReviewingToResultsHandler } from "domain/state-machine/handlers/final-round/FinalReviewingToResultsHandler";
+import { FinalReviewingToGameFinishHandler } from "domain/state-machine/handlers/final-round/FinalReviewingToGameFinishHandler";
 import { ThemeEliminationToBiddingHandler } from "domain/state-machine/handlers/final-round/ThemeEliminationToBiddingHandler";
 import { ChoosingToMediaDownloadingHandler } from "domain/state-machine/handlers/regular-round/ChoosingToMediaDownloadingHandler";
 import { AnsweringToShowingAnswerHandler } from "domain/state-machine/handlers/regular-round/AnsweringToShowingAnswerHandler";
 import { AnsweringToShowingHandler } from "domain/state-machine/handlers/regular-round/AnsweringToShowingHandler";
 import { MediaDownloadingToShowingHandler } from "domain/state-machine/handlers/regular-round/MediaDownloadingToShowingHandler";
+import { ShowingAnswerToGameFinishHandler } from "domain/state-machine/handlers/regular-round/ShowingAnswerToGameFinishHandler";
 import { ShowingAnswerToChoosingHandler } from "domain/state-machine/handlers/regular-round/ShowingAnswerToChoosingHandler";
-import { ShowingToChoosingHandler } from "domain/state-machine/handlers/regular-round/ShowingToChoosingHandler";
+import { ShowingAnswerToThemeEliminationHandler } from "domain/state-machine/handlers/regular-round/ShowingAnswerToThemeEliminationHandler";
+import { ShowingToShowingAnswerHandler } from "domain/state-machine/handlers/regular-round/ShowingToShowingAnswerHandler";
 import { ShowingToAnsweringHandler } from "domain/state-machine/handlers/regular-round/ShowingToAnsweringHandler";
 import { ChoosingToSecretTransferHandler } from "domain/state-machine/handlers/special-question/ChoosingToSecretTransferHandler";
 import { ChoosingToStakeBiddingHandler } from "domain/state-machine/handlers/special-question/ChoosingToStakeBiddingHandler";
 import { ChoosingToShowingFallbackHandler } from "domain/state-machine/handlers/special-question/ChoosingToShowingFallbackHandler";
 import { SecretTransferToAnsweringHandler } from "domain/state-machine/handlers/special-question/SecretTransferToAnsweringHandler";
-import { StakeBiddingToAnsweringHandler } from "domain/state-machine/handlers/special-question/StakeBiddingToAnsweringHandler";
+import { StakeBiddingToShowingHandler } from "domain/state-machine/handlers/special-question/StakeBiddingToShowingHandler";
 import { TransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -48,7 +50,7 @@ export function createPhaseTransitionRouter(
       roundHandlerFactory
     ),
     new FinalAnsweringToReviewingHandler(gameService, timerService),
-    new FinalReviewingToResultsHandler(
+    new FinalReviewingToGameFinishHandler(
       gameService,
       timerService,
       roundHandlerFactory
@@ -71,13 +73,26 @@ export function createPhaseTransitionRouter(
     // Player buzzes to answer: SHOWING → ANSWERING
     new ShowingToAnsweringHandler(gameService, timerService),
 
+    // Question ends without answer: SHOWING → SHOWING_ANSWER
+    new ShowingToShowingAnswerHandler(gameService, timerService),
+
     // Wrong answer (players remaining): ANSWERING → SHOWING
     new AnsweringToShowingHandler(gameService, timerService),
 
     // Correct answer or all players exhausted: ANSWERING → SHOWING_ANSWER
     new AnsweringToShowingAnswerHandler(gameService, timerService),
 
-    // Answer display complete: SHOWING_ANSWER → CHOOSING (with round progression check)
+    // Answer display complete: SHOWING_ANSWER → GAME_FINISHED (last question, no final round)
+    new ShowingAnswerToGameFinishHandler(gameService, timerService),
+
+    // Answer display complete: SHOWING_ANSWER → FINAL_THEME_ELIMINATION (next round is final)
+    new ShowingAnswerToThemeEliminationHandler(
+      gameService,
+      timerService,
+      roundHandlerFactory
+    ),
+
+    // Answer display complete: SHOWING_ANSWER → CHOOSING (continue regular rounds)
     new ShowingAnswerToChoosingHandler(
       gameService,
       timerService,
@@ -87,19 +102,12 @@ export function createPhaseTransitionRouter(
     // Media download complete/timeout: MEDIA_DOWNLOADING → SHOWING
     new MediaDownloadingToShowingHandler(gameService, timerService),
 
-    // Showing timeout: SHOWING → CHOOSING
-    new ShowingToChoosingHandler(
-      gameService,
-      timerService,
-      roundHandlerFactory
-    ),
-
     // =========================================================================
     // Special Question Transitions
     // =========================================================================
 
     // Stake question bidding complete: STAKE_BIDDING → ANSWERING
-    new StakeBiddingToAnsweringHandler(gameService, timerService),
+    new StakeBiddingToShowingHandler(gameService, timerService),
 
     // Secret question transferred: SECRET_QUESTION_TRANSFER → ANSWERING
     new SecretTransferToAnsweringHandler(gameService, timerService),

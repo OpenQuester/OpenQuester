@@ -325,15 +325,17 @@ export class FinalRoundService {
    * Uses BiddingTimeoutLogic for auto-bid processing,
    * then attempts phase transition via PhaseTransitionRouter.
    */
-  public async handleBiddingTimeout(
+  public async handleFinalBiddingTimeout(
     gameId: string
   ): Promise<BiddingTimeoutResult> {
     const game = await this.gameService.getGameEntity(gameId);
+
     if (!game || game.gameState.questionState !== QuestionState.BIDDING) {
       throw new ClientError(ClientResponse.GAME_NOT_STARTED);
     }
 
     const finalRoundData = FinalRoundStateManager.getFinalRoundData(game);
+
     if (!finalRoundData) {
       throw new ClientError(ClientResponse.GAME_NOT_STARTED);
     }
@@ -373,16 +375,19 @@ export class FinalRoundService {
   ): Promise<AutoLossProcessResult> {
     const game = await this.gameService.getGameEntity(gameId);
     if (!game || game.gameState.questionState !== QuestionState.ANSWERING) {
-      throw new ClientError(ClientResponse.GAME_NOT_STARTED);
+      throw new ClientError(ClientResponse.GAME_DATA_IS_CORRUPTED);
     }
 
     const finalRoundData = FinalRoundStateManager.getFinalRoundData(game);
     if (!finalRoundData) {
-      throw new ClientError(ClientResponse.GAME_NOT_STARTED);
+      throw new ClientError(ClientResponse.FINAL_ROUND_NOT_INITIALIZED);
     }
 
     // Use Logic class for pure mutation
-    const mutationResult = AutoLossProcessLogic.processAutoLoss(game);
+    const mutationResult = AutoLossProcessLogic.processAutoLoss(
+      game,
+      finalRoundData
+    );
 
     // Try phase transition (ANSWERING -> REVIEWING) if now complete
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
@@ -399,7 +404,7 @@ export class FinalRoundService {
       const finishTransitionResult =
         await this.phaseTransitionRouter.tryTransition({
           game,
-          trigger: TransitionTrigger.TIMER_EXPIRED,
+          trigger: TransitionTrigger.CONDITION_MET,
           triggeredBy: { isSystem: true },
         });
 

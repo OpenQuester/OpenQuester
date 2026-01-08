@@ -21,6 +21,7 @@ import { FinalPhaseCompleteEventData } from "domain/types/socket/events/FinalRou
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { ServerError } from "domain/errors/ServerError";
 
 /**
  * Handles transition from FINAL_THEME_ELIMINATION to FINAL_BIDDING phase.
@@ -140,7 +141,7 @@ export class ThemeEliminationToBiddingHandler extends BaseTransitionHandler {
   private _getFinalRoundHandler(game: Game): FinalRoundHandler {
     const handler = this.roundHandlerFactory.createFromGame(game);
     if (!(handler instanceof FinalRoundHandler)) {
-      throw new Error("Expected FinalRoundHandler for final round");
+      throw new ServerError("Expected FinalRoundHandler for final round");
     }
     return handler;
   }

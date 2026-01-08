@@ -80,6 +80,7 @@ export class BiddingInitializationLogic {
   }): BiddingPhaseInitializationResult {
     const { game, mutationResult, transitionResult } = input;
 
+    // TODO: Fix this issue - try to compile - fix other issues - fix tests compiling and other files
     const questionData = transitionResult?.data?.questionData as
       | FinalRoundQuestionData
       | undefined;

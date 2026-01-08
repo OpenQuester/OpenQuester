@@ -12,14 +12,14 @@ import { Game } from "domain/entities/game/Game";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
-import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
-import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
-import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
+import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeoutLogic";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
-import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import {
+  AnsweringToShowingAnswerMutationData,
+  AnsweringToShowingMutationData,
+} from "domain/types/socket/transition/answering";
 import {
   BroadcastEvent,
   TimerExpirationResult,
@@ -34,6 +34,8 @@ import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/gam
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { StakeQuestionService } from "../question/StakeQuestionService";
+import { AnsweringExpirationLogic } from "src/domain/logic/timer/AnsweringExpirationLogic";
 
 /**
  * Service handling timer expiration logic.
@@ -47,6 +49,7 @@ export class TimerExpirationService {
     private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly roundHandlerFactory: RoundHandlerFactory,
     private readonly finalRoundService: FinalRoundService,
+    private readonly stakeQuestionService: StakeQuestionService,
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
@@ -136,33 +139,26 @@ export class TimerExpirationService {
       GAME_TTL_IN_SECONDS
     );
 
-    // Reset to choosing state
-    await this.socketQuestionStateService.resetToChoosingState(game);
-
-    const broadcasts: BroadcastEvent[] = [
-      ShowAnswerLogic.buildAnswerShowEndBroadcast(gameId),
-    ];
-
-    // Check if round progression is needed
-    if (!ShowAnswerLogic.shouldProgressRound(game)) {
-      return {
-        success: true,
-        game,
-        broadcasts,
-      };
+    if (!game) {
+      return { success: false, broadcasts: [] };
     }
 
-    // Handle round progression
-    const progressionBroadcasts = await this.handleRoundProgression(
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
-      gameId
-    );
-    broadcasts.push(...progressionBroadcasts);
+      trigger: TransitionTrigger.TIMER_EXPIRED,
+      triggeredBy: { isSystem: true },
+    });
+
+    if (!transitionResult) {
+      return { success: false, broadcasts: [] };
+    }
+
+    await this.gameService.updateGame(game);
 
     return {
       success: true,
       game,
-      broadcasts,
+      broadcasts: transitionResult.broadcasts,
     };
   }
 
@@ -196,7 +192,8 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts: [
-        AnsweringExpirationLogic.buildBroadcast(gameId, answerResult, timer),
+        // TODO: add proper null-check with error throw
+        AnsweringExpirationLogic.buildBroadcast(gameId, answerResult!, timer),
       ],
     };
   }
@@ -248,11 +245,43 @@ export class TimerExpirationService {
       gameId,
       GAME_TTL_IN_SECONDS
     );
-    const result = await this.finalRoundService.handleBiddingTimeout(gameId);
+
+    if (!game) {
+      return { success: false, broadcasts: [] };
+    }
+
+    // Route to stake question bidding timeout when applicable
+    if (StakeBiddingTimeoutLogic.isStakeBiddingExpiration(game)) {
+      return this._handleStakeBiddingExpiration(game);
+    }
+
+    // Final round bidding timeout (existing flow)
+    const result = await this.finalRoundService.handleFinalBiddingTimeout(
+      gameId
+    );
 
     const broadcasts: BroadcastEvent[] = [
       ...result.transitionResult.broadcasts,
     ];
+
+    return {
+      success: true,
+      game,
+      broadcasts,
+    };
+  }
+
+  /**
+   * Handle stake question bidding timeout (regular rounds).
+   */
+  private async _handleStakeBiddingExpiration(
+    game: Game
+  ): Promise<TimerExpirationResult> {
+    const result = await this.stakeQuestionService.handleStakeBiddingTimeout(
+      game.id
+    );
+
+    const broadcasts: BroadcastEvent[] = [...result.broadcasts];
 
     return {
       success: true,
@@ -307,52 +336,57 @@ export class TimerExpirationService {
 
   private async handleRegularAnsweringExpiration(
     game: Game,
-    question: PackageQuestionDTO
+    _question: PackageQuestionDTO
   ) {
-    // Process wrong answer via Logic class
-    const mutation = AnsweringExpirationLogic.processWrongAnswer(
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
-      question
-    );
+      trigger: TransitionTrigger.TIMER_EXPIRED,
+      triggeredBy: { isSystem: true },
+    });
 
-    try {
-      await this.playerGameStatsService.updatePlayerAnswerStats(
-        game.id,
-        mutation.answerResult.player,
-        AnswerResultType.WRONG,
-        mutation.answerResult.score
+    if (!transitionResult) {
+      this.logger.error(
+        "Failed to transition from ANSWERING on timer expiration",
+        {
+          prefix: LogPrefix.TIMER_EXPIRATION,
+          gameId: game.id,
+        }
       );
-    } catch (error) {
-      this.logger.warn("Failed to update player answer statistics on timeout", {
-        prefix: LogPrefix.TIMER_EXPIRATION,
-        gameId: game.id,
-        playerId: mutation.answerResult.player,
-        error: error instanceof Error ? error.message : String(error),
-      });
+
+      return { answerResult: null, timer: null };
     }
 
-    const timer = await this.gameService.getTimer(
-      game.id,
-      QuestionState.SHOWING
-    );
+    const resultData = transitionResult.data as
+      | AnsweringToShowingMutationData
+      | AnsweringToShowingAnswerMutationData
+      | undefined;
 
-    if (timer) {
-      // Update resumedAt since timer is being restored from saved state
-      GamePauseLogic.updateTimerForResume(timer);
+    const playerAnswerResult = resultData?.playerAnswerResult ?? null;
+
+    if (playerAnswerResult) {
+      try {
+        await this.playerGameStatsService.updatePlayerAnswerStats(
+          game.id,
+          playerAnswerResult.player,
+          AnswerResultType.WRONG,
+          playerAnswerResult.score
+        );
+      } catch (error) {
+        this.logger.warn(
+          "Failed to update player answer statistics on timeout",
+          {
+            prefix: LogPrefix.TIMER_EXPIRATION,
+            gameId: game.id,
+            playerId: playerAnswerResult.player,
+            error: error instanceof Error ? error.message : String(error),
+          }
+        );
+      }
     }
 
-    game.setTimer(timer);
     await this.gameService.updateGame(game);
 
-    if (timer) {
-      await this.gameService.saveTimer(
-        timer,
-        game.id,
-        TimerPersistenceLogic.getSafeTtlMs(timer)
-      );
-    }
-
-    return { answerResult: mutation.answerResult, timer };
+    return { answerResult: playerAnswerResult, timer: transitionResult.timer };
   }
 
   /**

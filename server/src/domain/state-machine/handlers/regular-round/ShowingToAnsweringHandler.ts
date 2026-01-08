@@ -17,6 +17,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { QuestionAnswerEventPayload } from "domain/types/socket/events/game/QuestionAnswerEventPayload";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { ShowingToAnsweringMutationData } from "domain/types/socket/transition/showing";
 
 /**
  * Handles transition from SHOWING to ANSWERING phase in regular rounds.
@@ -66,6 +67,7 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
     }
 
     // 4. Player must be eligible to answer
+    // Check of player already answered is done in service layer
     return TransitionGuards.isPlayerEligible(game, triggeredBy.playerId);
   }
 
@@ -84,7 +86,7 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
     return {
       data: {
         playerId,
-      },
+      } satisfies ShowingToAnsweringMutationData,
     };
   }
 
@@ -114,7 +116,8 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
     mutationResult: MutationResult,
     timerResult: TimerResult
   ): BroadcastEvent[] {
-    const playerId = mutationResult.data?.playerId as number;
+    const mutationData = mutationResult.data as ShowingToAnsweringMutationData;
+    const playerId = mutationData.playerId;
 
     return [
       {

@@ -2,7 +2,6 @@ import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "application/di/tokens";
 import { GameService } from "application/services/game/GameService";
-import { SpecialQuestionService } from "application/services/question/SpecialQuestionService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
@@ -35,10 +34,7 @@ import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackage
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { StakeBidSubmitInputData } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
-import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
 import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
@@ -60,7 +56,6 @@ export class SocketIOQuestionService {
     private readonly socketGameTimerService: SocketGameTimerService,
     private readonly roundHandlerFactory: RoundHandlerFactory,
     private readonly playerGameStatsService: PlayerGameStatsService,
-    private readonly specialQuestionService: SpecialQuestionService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
@@ -415,26 +410,6 @@ export class SocketIOQuestionService {
     await this.socketQuestionStateService.resetToChoosingState(game);
 
     return { game, question: questionData.question };
-  }
-
-  public async handleSecretQuestionTransfer(
-    ctx: ActionContext,
-    data: SecretQuestionTransferInputData
-  ) {
-    return this.specialQuestionService.handleSecretQuestionTransfer(
-      ctx.socketId,
-      data
-    );
-  }
-
-  public async handleStakeBidSubmit(
-    ctx: ActionContext,
-    inputData: StakeBidSubmitInputData
-  ): Promise<StakeBidSubmitResult> {
-    return this.specialQuestionService.handleStakeBidSubmit(
-      ctx.socketId,
-      inputData
-    );
   }
 
   /**

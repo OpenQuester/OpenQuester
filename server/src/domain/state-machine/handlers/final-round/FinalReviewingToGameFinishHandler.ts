@@ -18,6 +18,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
+import { FinalReviewingToGameFinishMutationData } from "domain/types/socket/transition/final";
 
 /**
  * Result containing question answer data for game completion.
@@ -38,7 +39,7 @@ export interface QuestionAnswerData {
  * - Emit GAME_FINISHED event
  * - Include final question/answer data
  */
-export class FinalReviewingToResultsHandler extends BaseTransitionHandler {
+export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.FINAL_REVIEWING;
   public readonly toPhase = GamePhase.GAME_FINISHED;
 
@@ -99,8 +100,8 @@ export class FinalReviewingToResultsHandler extends BaseTransitionHandler {
     return {
       data: {
         isGameFinished: result.isGameFinished,
-        questionAnswerData,
-      },
+        questionAnswerData: questionAnswerData ?? null,
+      } satisfies FinalReviewingToGameFinishMutationData,
     };
   }
 

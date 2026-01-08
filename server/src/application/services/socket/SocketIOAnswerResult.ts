@@ -19,7 +19,7 @@ import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRoute
 import {
   AnsweringToShowingAnswerMutationData,
   AnswerResultTransitionPayload,
-} from "src/domain/types/socket/transition/answering";
+} from "domain/types/socket/transition/answering";
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 
 /**

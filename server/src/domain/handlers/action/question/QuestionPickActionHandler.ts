@@ -20,7 +20,7 @@ import {
 } from "domain/types/socket/transition/choosing";
 import { SecretQuestionPickedBroadcastData } from "domain/types/socket/events/game/SecretQuestionPickedEventPayload";
 import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
-import { SocketIOQuestionPickService } from "src/application/services/socket/SocketIOQuestionPickService";
+import { SocketIOQuestionPickService } from "application/services/socket/SocketIOQuestionPickService";
 
 export enum QuestionPickType {
   NORMAL = "normal",

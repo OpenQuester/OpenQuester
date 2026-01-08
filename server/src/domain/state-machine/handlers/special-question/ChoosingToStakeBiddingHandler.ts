@@ -26,7 +26,7 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { Player } from "domain/entities/game/Player";
-import { StakeQuestionPickedBroadcastData } from "src/domain/types/socket/events/game/StakeQuestionPickedEventPayload";
+import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
 
 /**
  * Handles transition from CHOOSING to STAKE_BIDDING when a stake question is picked.

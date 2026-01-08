@@ -1,8 +1,8 @@
 import { GameService } from "application/services/game/GameService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
-import { SHOW_ANSWER_DURATION_TEXT } from "domain/constants/game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionAnswerResultLogic } from "domain/logic/question/QuestionAnswerResultLogic";
+import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
@@ -24,7 +24,7 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 import {
   AnsweringToShowingAnswerCtx,
   AnsweringToShowingAnswerMutationData,
-} from "src/domain/types/socket/transition/answering";
+} from "domain/types/socket/transition/answering";
 
 /**
  * Handles transition from ANSWERING to SHOWING_ANSWER phase in regular rounds.
@@ -179,8 +179,8 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     // Clear the answering timer
     await this.gameService.clearTimer(game.id);
 
-    // Use question's show answer duration or fallback to default
-    const duration = question?.showAnswerDuration ?? SHOW_ANSWER_DURATION_TEXT;
+    // Calculate duration based on answer files (media stacking) or fallback default
+    const duration = ShowAnswerLogic.calculateShowAnswerDuration(question);
 
     // Setup show answer timer
     const timerEntity = await this.timerService.setupQuestionTimer(

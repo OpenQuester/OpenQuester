@@ -18,7 +18,7 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 import {
   AnsweringToShowingCtx,
   AnsweringToShowingMutationData,
-} from "src/domain/types/socket/transition/answering";
+} from "domain/types/socket/transition/answering";
 
 /**
  * Handles transition from ANSWERING to SHOWING phase in regular rounds.

@@ -1,7 +1,7 @@
-import { TransitionContext } from "src/domain/state-machine/types";
-import { AnswerResultType } from "src/domain/types/socket/game/AnswerResultData";
-import { GameStateAnsweredPlayerData } from "src/domain/types/dto/game/state/GameStateDTO";
-import { PackageQuestionDTO } from "src/domain/types/dto/package/PackageQuestionDTO";
+import { TransitionContext } from "domain/state-machine/types";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
+import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 
 export type AnsweringToShowingCtx =
   TransitionContext<AnswerResultTransitionPayload>;

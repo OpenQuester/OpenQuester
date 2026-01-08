@@ -1,14 +1,13 @@
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import {
   StakeBidSubmitInputData,
   StakeBidSubmitOutputData,
 } from "domain/types/socket/events/game/StakeQuestionEventData";
+import { StakeQuestionService } from "application/services/question/StakeQuestionService";
 
 /**
  * Stateless action handler for stake bid submission.
@@ -17,17 +16,15 @@ export class StakeBidSubmitActionHandler
   implements
     GameActionHandler<StakeBidSubmitInputData, StakeBidSubmitOutputData>
 {
-  constructor(
-    private readonly socketIOQuestionService: SocketIOQuestionService
-  ) {
+  constructor(private readonly stakeQuestionService: StakeQuestionService) {
     //
   }
 
   public async execute(
     action: GameAction<StakeBidSubmitInputData>
   ): Promise<GameActionHandlerResult<StakeBidSubmitOutputData>> {
-    const result = await this.socketIOQuestionService.handleStakeBidSubmit(
-      createActionContextFromAction(action),
+    const result = await this.stakeQuestionService.handleStakeBidSubmit(
+      action.socketId,
       action.payload
     );
 

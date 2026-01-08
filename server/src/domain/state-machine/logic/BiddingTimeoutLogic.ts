@@ -1,11 +1,11 @@
 import { Game } from "domain/entities/game/Game";
 import { TransitionResult } from "domain/state-machine/types";
-import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
 import { BiddingTimeoutResult } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
+import { FinalBiddingToAnsweringMutationData } from "domain/types/socket/transition/final";
 
 /** Default bid amount for timeout auto-bids */
 const TIMEOUT_BID_AMOUNT = 1;
@@ -74,9 +74,10 @@ export class BiddingTimeoutLogic {
     transitionResult: TransitionResult;
   }): BiddingTimeoutResult {
     const { game, mutationResult, transitionResult } = input;
+    const mutationData =
+      transitionResult.data as FinalBiddingToAnsweringMutationData;
 
-    const questionData = transitionResult.data
-      ?.questionData as FinalRoundQuestionData;
+    const questionData = mutationData.questionData;
 
     return {
       game,

@@ -10,7 +10,6 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionContext,
   TransitionTrigger,
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -19,6 +18,10 @@ import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import {
+  StakeBiddingToAnsweringCtx,
+  StakeBiddingToAnsweringMutationData,
+} from "domain/types/socket/transition/special-question";
 
 /**
  * Handles transition from STAKE_BIDDING to ANSWERING phase.
@@ -26,16 +29,16 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
  * This transition occurs when:
  * - All eligible players have bid/passed
  * - Only one player remains (others all passed)
- * - Stake bidding timer expires
+ * - Stake bidding timer expires and all passed (one player left)
  *
  * Entry points:
- * - Player submits final bid (SpecialQuestionService.handleStakeBidSubmit)
+ * - Player submits last bid (SpecialQuestionService.handleStakeBidSubmit)
  * - Stake bidding timer expires (TimerExpirationService)
  * - Player leaves during bidding
  */
-export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
+export class StakeBiddingToShowingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.STAKE_BIDDING;
-  public readonly toPhase = GamePhase.ANSWERING;
+  public readonly toPhase = GamePhase.SHOWING;
 
   constructor(
     gameService: GameService,
@@ -51,8 +54,12 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
    * 1. Current phase must be STAKE_BIDDING
    * 2. Bidding phase must be complete (determined by payload or timer)
    */
-  public canTransition(ctx: TransitionContext): boolean {
+  public canTransition(ctx: StakeBiddingToAnsweringCtx): boolean {
     const { game, trigger, payload } = ctx;
+
+    if (!payload) {
+      return false;
+    }
 
     // 1. Verify we're in the expected phase
     if (getGamePhase(game) !== this.fromPhase) {
@@ -67,28 +74,31 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     // 3. Check if bidding is complete
     if (trigger === TransitionTrigger.USER_ACTION) {
       // Check if payload indicates phase completion
-      return payload?.isPhaseComplete === true;
+      return payload.isPhaseComplete === true;
     }
 
     if (trigger === TransitionTrigger.TIMER_EXPIRED) {
-      // Timer expiration forces completion
-      return true;
+      // Timer expiration completes only when payload marks phase complete
+      return (
+        payload.isPhaseComplete === true && payload.winnerPlayerId !== null
+      );
     }
 
     return false;
   }
 
-  protected override validate(ctx: TransitionContext): void {
+  protected override validate(ctx: StakeBiddingToAnsweringCtx): void {
     GameStateValidator.validateGameInProgress(ctx.game);
   }
 
-  protected async mutate(ctx: TransitionContext): Promise<MutationResult> {
+  protected async mutate(
+    ctx: StakeBiddingToAnsweringCtx
+  ): Promise<MutationResult> {
     const { game, payload } = ctx;
     const stakeData = game.gameState.stakeQuestionData!;
 
     // Get winner (from payload or stake data)
-    const winnerPlayerId =
-      (payload?.winnerPlayerId as number) ?? stakeData.winnerPlayerId!;
+    const winnerPlayerId = payload?.winnerPlayerId ?? stakeData.winnerPlayerId!;
 
     // Get question data
     let questionData: SimplePackageQuestionDTO | null = null;
@@ -105,8 +115,8 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
       game.gameState.currentQuestion = questionData;
     }
 
-    // Transition to answering state
-    game.gameState.questionState = QuestionState.ANSWERING;
+    // Transition to showing state; winner is pre-selected as answering player
+    game.gameState.questionState = QuestionState.SHOWING;
     game.gameState.answeringPlayer = winnerPlayerId;
     game.gameState.stakeQuestionData = {
       ...stakeData,
@@ -119,12 +129,12 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
         winnerPlayerId,
         finalBid: stakeData.highestBid,
         questionData,
-      },
+      } satisfies StakeBiddingToAnsweringMutationData,
     };
   }
 
   protected async handleTimer(
-    ctx: TransitionContext,
+    ctx: StakeBiddingToAnsweringCtx,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
     const { game } = ctx;
@@ -132,11 +142,11 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     // Clear bidding timer
     await this.gameService.clearTimer(game.id);
 
-    // Setup answering timer
+    // Setup showing timer so winner can request to answer
     const timerEntity = await this.timerService.setupQuestionTimer(
       game,
       GAME_QUESTION_ANSWER_TIME,
-      QuestionState.ANSWERING
+      QuestionState.SHOWING
     );
 
     return {
@@ -145,33 +155,34 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
   }
 
   protected collectBroadcasts(
-    ctx: TransitionContext,
+    ctx: StakeBiddingToAnsweringCtx,
     mutationResult: MutationResult,
     timerResult: TimerResult
   ): BroadcastEvent[] {
     const { game } = ctx;
     const broadcasts: BroadcastEvent[] = [];
-    const winnerPlayerId = mutationResult.data?.winnerPlayerId as number;
-    const finalBid = mutationResult.data?.finalBid as number | null;
-    const questionData = mutationResult.data
-      ?.questionData as SimplePackageQuestionDTO | null;
+    const data = mutationResult.data as
+      | StakeBiddingToAnsweringMutationData
+      | undefined;
+
+    if (!data) return broadcasts;
 
     // 1. STAKE_QUESTION_WINNER - announces winner
     broadcasts.push({
       event: SocketIOGameEvents.STAKE_QUESTION_WINNER,
       data: {
-        winnerPlayerId,
-        finalBid,
+        winnerPlayerId: data.winnerPlayerId,
+        finalBid: data.finalBid,
       } satisfies StakeQuestionWinnerEventData,
       room: game.id,
     });
 
     // 2. QUESTION_DATA - sends question to all players
-    if (questionData && timerResult.timer) {
+    if (data.questionData && timerResult.timer) {
       broadcasts.push({
         event: SocketIOGameEvents.QUESTION_DATA,
         data: {
-          data: questionData,
+          data: data.questionData,
           timer: timerResult.timer,
         } satisfies GameQuestionDataEventPayload,
         room: game.id,

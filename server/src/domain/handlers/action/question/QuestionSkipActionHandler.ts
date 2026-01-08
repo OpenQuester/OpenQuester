@@ -1,6 +1,8 @@
-import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
+import { GameService } from "application/services/game/GameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { TransitionTrigger } from "domain/state-machine/types";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
@@ -20,8 +22,11 @@ export class QuestionSkipActionHandler
 {
   constructor(
     private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly gameProgressionCoordinator: GameProgressionCoordinator
-  ) {}
+    private readonly gameService: GameService,
+    private readonly phaseTransitionRouter: PhaseTransitionRouter
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<EmptyInputData>
@@ -42,31 +47,21 @@ export class QuestionSkipActionHandler
 
     // Check if all players have skipped after this skip
     if (game.haveAllPlayersSkipped()) {
-      const { question, game: updatedGame } =
-        await this.socketIOQuestionService.handleAutomaticQuestionSkip(game);
+      const transitionResult = await this.phaseTransitionRouter.tryTransition({
+        game,
+        trigger: TransitionTrigger.CONDITION_MET,
+        triggeredBy: { isSystem: true },
+      });
 
-      const { isGameFinished, nextGameState } =
-        await this.socketIOQuestionService.handleRoundProgression(updatedGame);
+      if (!transitionResult) {
+        throw new Error("All players skipped but transition was not allowed");
+      }
 
-      const progressionResult =
-        await this.gameProgressionCoordinator.processGameProgression({
-          game: updatedGame,
-          isGameFinished,
-          nextGameState,
-          questionFinishData: question
-            ? {
-                answerFiles: question.answerFiles ?? null,
-                answerText: question.answerText ?? null,
-                nextTurnPlayerId:
-                  updatedGame.gameState.currentTurnPlayerId ?? null,
-              }
-            : null,
-        });
+      await this.gameService.updateGame(game);
 
-      // Combine skip broadcast with progression broadcasts
       const broadcasts: SocketEventBroadcast[] = [
         ...result.broadcasts,
-        ...progressionResult.broadcasts,
+        ...transitionResult.broadcasts,
       ];
 
       return { success: true, data: result.data, broadcasts };

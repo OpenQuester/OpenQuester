@@ -69,7 +69,7 @@ export enum ClientResponse {
   YOU_ARE_MUTED = "you_are_muted",
   ONLY_SHOWMAN_CAN_START = "only_showman_can_start",
   GAME_ALREADY_STARTED = "game_already_started",
-  GAME_STATED_CANNOT_CHANGE_PACKAGE = "game_started_cannot_change_package",
+  GAME_STARTED_CANNOT_CHANGE_PACKAGE = "game_started_cannot_change_package",
   GAME_PASSWORD_NOT_ALLOWED_FOR_PUBLIC_GAME = "game_password_not_allowed_for_public_game",
   GAME_PASSWORD_CANNOT_BE_REMOVED_FOR_PRIVATE_GAME = "game_password_cannot_be_removed_for_private_game",
   CANNOT_SET_MAX_PLAYERS_BELOW_CURRENT = "cannot_set_max_players_below_current",
