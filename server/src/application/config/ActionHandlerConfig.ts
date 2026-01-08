@@ -7,7 +7,7 @@ import { SocketIOChatService } from "application/services/socket/SocketIOChatSer
 import { SocketIOAnswerResultService } from "application/services/socket/SocketIOAnswerResult";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
+import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { UserService } from "application/services/user/UserService";
 import { GameActionType } from "domain/enums/GameActionType";
@@ -65,7 +65,7 @@ export interface ActionHandlerConfigDeps {
   stakeQuestionService: StakeQuestionService;
   userService: UserService;
   gameProgressionCoordinator: GameProgressionCoordinator;
-  gameStatisticsCollectorService: GameStatisticsCollectorService;
+  gameLifecycleService: GameLifecycleService;
   gameService: GameService;
   timerExpirationService: TimerExpirationService;
   phaseTransitionRouter: PhaseTransitionRouter;
@@ -92,7 +92,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     stakeQuestionService,
     userService,
     gameProgressionCoordinator,
-    gameStatisticsCollectorService,
+    gameLifecycleService,
     gameService,
     timerExpirationService,
     phaseTransitionRouter,
@@ -220,9 +220,8 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   registry.register(
     GameActionType.SKIP_QUESTION_FORCE,
     new SkipQuestionForceActionHandler(
-      socketGameContextService,
-      gameService,
-      phaseTransitionRouter
+      socketIOQuestionService,
+      gameProgressionCoordinator
     )
   );
 
@@ -263,7 +262,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     GameActionType.FINAL_ANSWER_REVIEW,
     new FinalAnswerReviewActionHandler(
       finalRoundService,
-      gameStatisticsCollectorService,
+      gameLifecycleService,
       logger
     )
   );

@@ -77,6 +77,11 @@ export class TimerExpirationActionHandler
       case QuestionState.BIDDING:
         return this.timerExpirationService.handleBiddingExpiration(gameId);
 
+      case QuestionState.SECRET_TRANSFER:
+        return this.timerExpirationService.handleSecretTransferExpiration(
+          gameId
+        );
+
       default:
         this.logger.warn(`Unhandled question state: ${questionState}`, {
           prefix: LogPrefix.TIMER,

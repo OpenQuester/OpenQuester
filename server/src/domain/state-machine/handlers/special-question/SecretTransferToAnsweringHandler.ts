@@ -64,8 +64,11 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
       return false;
     }
 
-    // 3. Must be user action with target player (Maybe a timer later if implemented)
-    if (trigger !== TransitionTrigger.USER_ACTION) {
+    // 3. Must be user action or system timeout with target player
+    if (
+      trigger !== TransitionTrigger.USER_ACTION &&
+      trigger !== TransitionTrigger.TIMER_EXPIRED
+    ) {
       return false;
     }
 

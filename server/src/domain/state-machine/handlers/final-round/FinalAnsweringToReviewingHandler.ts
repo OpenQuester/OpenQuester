@@ -102,6 +102,9 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     // Clear the answering timer (no timer for reviewing phase)
     await this.gameService.clearTimer(ctx.game.id);
 
+    // Explicitly set timer to null in game state
+    ctx.game.gameState.timer = null;
+
     return {};
   }
 

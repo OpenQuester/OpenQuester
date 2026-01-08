@@ -14,12 +14,10 @@ import {
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
-import {
-  ChoosingToShowingFallbackCtx,
-  ChoosingToShowingFallbackMutationData,
-} from "domain/types/socket/transition/choosing";
+import { ChoosingToShowingFallbackCtx } from "domain/types/socket/transition/choosing";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 
 /**
  * Fallback handler when a special question (secret/stake) is picked but
@@ -66,7 +64,8 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
 
       if (!isSpecial) return false;
 
-      return !TransitionGuards.hasEligiblePlayers(game);
+      // Fallback when fewer than two eligible players remain
+      return !TransitionGuards.hasMultipleEligiblePlayers(game);
     } catch {
       return false;
     }
@@ -85,10 +84,23 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
       payload!.questionId
     );
 
+    const eligiblePlayers = game
+      .getInGamePlayers()
+      .filter((player) => player.role === PlayerRole.PLAYER);
+
+    // Default to showing state when no players remain
+    let questionState = QuestionState.SHOWING;
+
+    if (eligiblePlayers.length === 1) {
+      // Single player: auto-assign answering player and skip transfer flow
+      questionState = QuestionState.ANSWERING;
+      game.gameState.answeringPlayer = eligiblePlayers[0].meta.id;
+    }
+
     // Clear any stale special-question data and proceed as a normal question
     game.gameState.secretQuestionData = null;
     game.gameState.stakeQuestionData = null;
-    game.gameState.questionState = QuestionState.SHOWING;
+    game.gameState.questionState = questionState;
     game.gameState.currentQuestion =
       GameQuestionMapper.mapToSimpleQuestion(question);
 
@@ -96,10 +108,7 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     QuestionPickLogic.resetMediaDownloadStatus(game);
 
     return {
-      data: {
-        question: game.gameState.currentQuestion!,
-        originalQuestionType: question.type,
-      } satisfies ChoosingToShowingFallbackMutationData,
+      data: {},
     };
   }
 
@@ -109,10 +118,13 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     await this.gameService.clearTimer(ctx.game.id);
 
+    // Choose timer target based on resulting question state
+    const targetState = ctx.game.gameState.questionState;
+
     const timerEntity = await this.timerService.setupQuestionTimer(
       ctx.game,
       GAME_QUESTION_ANSWER_TIME,
-      QuestionState.SHOWING
+      targetState!
     );
 
     return { timer: timerEntity.value() ?? undefined };

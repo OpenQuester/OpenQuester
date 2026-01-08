@@ -1,7 +1,6 @@
 import { TransitionContext } from "domain/state-machine/types";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
 
@@ -42,8 +41,3 @@ export interface ChoosingToStakeBiddingMutationData {
 // Fallback when no eligible players for special questions
 export type ChoosingToShowingFallbackCtx =
   TransitionContext<QuestionPickPayload>;
-
-export interface ChoosingToShowingFallbackMutationData {
-  question: SimplePackageQuestionDTO;
-  originalQuestionType: PackageQuestionType;
-}

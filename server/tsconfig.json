@@ -33,7 +33,6 @@
     // "rootDir": "./",                                  /* Specify the root folder within your source files. */
     "moduleResolution": "node" /* Specify how TypeScript looks up a file from a given module specifier. */,
     "paths": {
-      "*": ["./*"],
       "application/*": ["./src/application/*"],
       "domain/*": ["./src/domain/*"],
       "infrastructure/*": ["./src/infrastructure/*"],

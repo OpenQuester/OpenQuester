@@ -308,24 +308,6 @@ export class Game {
     return all.length > 0 && played.length === all.length;
   }
 
-  /**
-   * **Important**: This method overrides some game properties and game should be
-   * updated if isGameFinished is true or nextGameState is not null.
-   *
-   * This is method that handles game round progression on each question finish.
-   * It checks if all questions are played and if so, it sets the next round
-   * and returns the next game state.
-   * @returns Current state. If all question played - returns next game state
-   * (with next round). If all question played and no next round - game finished
-   */
-  public handleRoundProgression() {
-    if (!this.isAllQuestionsPlayed()) {
-      return { isGameFinished: false, nextGameState: null };
-    }
-
-    return this.getProgressionState();
-  }
-
   public getNextRound() {
     if (!ValueUtils.isNumber(this.gameState.currentRound?.order)) {
       return null;
@@ -348,49 +330,60 @@ export class Game {
     if (!nextRound) {
       this.finish();
       isGameFinished = true;
-    } else {
-      const currentPassword = this.gameState.password;
-      nextGameState = GameStateMapper.getClearGameState(nextRound);
-      nextGameState.password = currentPassword;
-      this.gameState = nextGameState;
+      return { isGameFinished, nextGameState };
+    }
 
-      if (nextRound.type === PackageRoundType.FINAL) {
-        // Initialize final round data
-        const finalRoundData =
-          FinalRoundStateManager.initializeFinalRoundData(this);
-        finalRoundData.turnOrder =
-          FinalRoundTurnManager.initializeTurnOrder(this);
-        const currentTurnPlayer = FinalRoundTurnManager.getCurrentTurnPlayer(
-          this,
-          finalRoundData.turnOrder
-        );
-        nextGameState.currentTurnPlayerId = currentTurnPlayer ?? undefined;
-        FinalRoundStateManager.updateFinalRoundData(this, finalRoundData);
-        nextGameState.finalRoundData = finalRoundData;
-      } else if (nextRound.type === PackageRoundType.SIMPLE) {
-        // Set current turn player to the player with the lowest score
-        const inGamePlayers = this.getInGamePlayers();
-        if (inGamePlayers.length > 0) {
-          let minScore = inGamePlayers[0].score;
-          let minPlayers = [inGamePlayers[0]];
-          for (let i = 1; i < inGamePlayers.length; i++) {
-            const player = inGamePlayers[i];
-            if (player.score < minScore) {
-              minScore = player.score;
-              minPlayers = [player];
-            } else if (player.score === minScore) {
-              minPlayers.push(player);
-            }
+    // Keep password between game state changes
+    const currentPassword = this.gameState.password;
+    nextGameState = GameStateMapper.getClearGameState(nextRound);
+    nextGameState.password = currentPassword;
+    this.gameState = nextGameState;
+
+    if (nextRound.type === PackageRoundType.FINAL) {
+      // Initialize final round data
+      const finalRoundData =
+        FinalRoundStateManager.initializeFinalRoundData(this);
+
+      finalRoundData.turnOrder =
+        FinalRoundTurnManager.initializeTurnOrder(this);
+
+      const currentTurnPlayer = FinalRoundTurnManager.getCurrentTurnPlayer(
+        this,
+        finalRoundData.turnOrder
+      );
+
+      nextGameState.currentTurnPlayerId = currentTurnPlayer ?? undefined;
+      FinalRoundStateManager.updateFinalRoundData(this, finalRoundData);
+
+      nextGameState.finalRoundData = finalRoundData;
+    } else if (nextRound.type === PackageRoundType.SIMPLE) {
+      // Set current turn player to the player with the lowest score
+      const inGamePlayers = this.getInGamePlayers();
+
+      if (inGamePlayers.length > 0) {
+        let minScore = inGamePlayers[0].score;
+        let minPlayers = [inGamePlayers[0]];
+
+        for (let i = 1; i < inGamePlayers.length; i++) {
+          const player = inGamePlayers[i];
+
+          if (player.score < minScore) {
+            minScore = player.score;
+            minPlayers = [player];
+          } else if (player.score === minScore) {
+            minPlayers.push(player);
           }
-          // If multiple players have the same lowest score, pick randomly among them
-          const chosen =
-            minPlayers.length === 1
-              ? minPlayers[0]
-              : minPlayers[Math.floor(Math.random() * minPlayers.length)];
-          nextGameState.currentTurnPlayerId = chosen.meta.id;
-        } else {
-          nextGameState.currentTurnPlayerId = null;
         }
+
+        // If multiple players have the same lowest score, pick randomly among them
+        const chosen =
+          minPlayers.length === 1
+            ? minPlayers[0]
+            : minPlayers[Math.floor(Math.random() * minPlayers.length)];
+
+        nextGameState.currentTurnPlayerId = chosen.meta.id;
+      } else {
+        nextGameState.currentTurnPlayerId = null;
       }
     }
 

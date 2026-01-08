@@ -131,6 +131,10 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     // Clear the show answer timer
     await this.gameService.clearTimer(ctx.game.id);
+
+    // Explicitly set timer to null in game state
+    ctx.game.gameState.timer = null;
+
     return { timer: undefined };
   }
 

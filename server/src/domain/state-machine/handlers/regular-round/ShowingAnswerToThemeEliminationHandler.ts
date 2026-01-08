@@ -1,5 +1,6 @@
 import { GameService } from "application/services/game/GameService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { FINAL_ROUND_THEME_ELIMINATION_TIME } from "domain/constants/game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -99,8 +100,21 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
     ctx: TransitionContext,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    await this.gameService.clearTimer(ctx.game.id);
-    return { timer: undefined };
+    const { game } = ctx;
+
+    // Clear any existing timer from the previous phase
+    await this.gameService.clearTimer(game.id);
+
+    // Setup timer for theme elimination (per-player turn timer)
+    const timerEntity = await this.timerService.setupQuestionTimer(
+      game,
+      FINAL_ROUND_THEME_ELIMINATION_TIME,
+      QuestionState.THEME_ELIMINATION
+    );
+
+    return {
+      timer: timerEntity.value() ?? undefined,
+    };
   }
 
   protected collectBroadcasts(

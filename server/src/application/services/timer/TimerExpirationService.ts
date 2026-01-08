@@ -5,16 +5,19 @@ import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID } from "domain/constants/game";
+import {
+  GAME_QUESTION_ANSWER_TIME,
+  GAME_TTL_IN_SECONDS,
+  SYSTEM_PLAYER_ID,
+} from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeoutLogic";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import {
   AnsweringToShowingAnswerMutationData,
@@ -29,13 +32,17 @@ import {
   SocketIOFinalAutoLossEventPayload,
   ThemeEliminateOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
-import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { StakeQuestionService } from "application/services/question/StakeQuestionService";
 import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
+import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
+import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
+import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 
 /**
  * Service handling timer expiration logic.
@@ -47,10 +54,8 @@ export class TimerExpirationService {
     private readonly gameService: GameService,
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly socketQuestionStateService: SocketQuestionStateService,
-    private readonly roundHandlerFactory: RoundHandlerFactory,
     private readonly finalRoundService: FinalRoundService,
     private readonly stakeQuestionService: StakeQuestionService,
-    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
     @inject(DI_TOKENS.Logger)
@@ -272,6 +277,114 @@ export class TimerExpirationService {
   }
 
   /**
+   * Handle secret question transfer timeout.
+   * Resolves transfer automatically based on remaining eligible players.
+   */
+  public async handleSecretTransferExpiration(
+    gameId: string
+  ): Promise<TimerExpirationResult> {
+    const game = await this.gameService.getGameEntity(
+      gameId,
+      GAME_TTL_IN_SECONDS
+    );
+
+    if (
+      !game ||
+      game.gameState.questionState !== QuestionState.SECRET_TRANSFER ||
+      !game.gameState.secretQuestionData
+    ) {
+      return { success: false, broadcasts: [] };
+    }
+
+    const secretData = game.gameState.secretQuestionData;
+    const eligiblePlayers = game
+      .getInGamePlayers()
+      .filter(
+        (player) =>
+          player.role === PlayerRole.PLAYER &&
+          player.gameStatus === PlayerGameStatus.IN_GAME
+      );
+
+    // No players: fall back to showing the question as a simple one
+    if (eligiblePlayers.length === 0) {
+      const questionData = GameQuestionMapper.getQuestionAndTheme(
+        game.package,
+        game.gameState.currentRound!.id,
+        secretData.questionId
+      );
+
+      if (!questionData) {
+        return { success: false, broadcasts: [] };
+      }
+
+      game.gameState.secretQuestionData = null;
+      game.gameState.questionState = QuestionState.SHOWING;
+      game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
+        questionData.question
+      );
+
+      QuestionPickLogic.resetMediaDownloadStatus(game);
+
+      await this.socketQuestionStateService.setupQuestionTimer(
+        game,
+        GAME_QUESTION_ANSWER_TIME,
+        QuestionState.SHOWING
+      );
+
+      await this.gameService.updateGame(game);
+
+      return {
+        success: true,
+        game,
+        broadcasts: [],
+      };
+    }
+
+    let targetPlayerId: number;
+
+    // One player: auto-assign as answerer
+    if (eligiblePlayers.length === 1) {
+      targetPlayerId = eligiblePlayers[0].meta.id;
+    } else {
+      const candidates = eligiblePlayers.filter(
+        (player) => player.meta.id !== secretData.pickerPlayerId
+      );
+
+      const pool = candidates.length > 0 ? candidates : eligiblePlayers;
+      const choiceIndex = Math.floor(Math.random() * pool.length);
+      targetPlayerId = pool[choiceIndex].meta.id;
+    }
+
+    const transitionResult =
+      await this.phaseTransitionRouter.tryTransition<SecretTransferToAnsweringPayload>(
+        {
+          game,
+          trigger: TransitionTrigger.TIMER_EXPIRED,
+          triggeredBy: { isSystem: true },
+          payload: { targetPlayerId },
+        }
+      );
+
+    if (!transitionResult) {
+      this.logger.error("Secret transfer timeout transition failed", {
+        prefix: LogPrefix.TIMER_EXPIRATION,
+        gameId,
+        eligiblePlayers,
+        targetPlayerId,
+      });
+      return { success: false, broadcasts: [] };
+    }
+
+    await this.gameService.updateGame(game);
+
+    return {
+      success: true,
+      game,
+      broadcasts: transitionResult.broadcasts,
+    };
+  }
+
+  /**
    * Handle stake question bidding timeout (regular rounds).
    */
   private async _handleStakeBiddingExpiration(
@@ -288,50 +401,6 @@ export class TimerExpirationService {
       game,
       broadcasts,
     };
-  }
-
-  private async handleRoundProgression(
-    game: Game,
-    gameId: string
-  ): Promise<BroadcastEvent[]> {
-    const roundHandler = this.roundHandlerFactory.createFromGame(game);
-    const { isGameFinished, nextGameState } =
-      await roundHandler.handleRoundProgression(game, { forced: false });
-
-    const broadcasts: BroadcastEvent[] = [];
-
-    if (isGameFinished || nextGameState) {
-      await this.gameService.updateGame(game);
-    }
-
-    if (isGameFinished) {
-      try {
-        await this.gameStatisticsCollectorService.finishCollection(gameId);
-      } catch (error) {
-        this.logger.warn("Failed to execute statistics persistence", {
-          prefix: LogPrefix.TIMER_EXPIRATION,
-          gameId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-
-      broadcasts.push({
-        event: SocketIOGameEvents.GAME_FINISHED,
-        data: true,
-        room: gameId,
-      });
-      return broadcasts;
-    }
-
-    if (nextGameState) {
-      broadcasts.push({
-        event: SocketIOGameEvents.NEXT_ROUND,
-        data: { gameState: nextGameState } satisfies GameNextRoundEventPayload,
-        room: gameId,
-      });
-    }
-
-    return broadcasts;
   }
 
   private async handleRegularAnsweringExpiration(

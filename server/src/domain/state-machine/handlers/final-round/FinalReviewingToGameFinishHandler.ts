@@ -109,10 +109,15 @@ export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
    * No timer setup needed - game is finished.
    */
   protected async handleTimer(
-    _ctx: TransitionContext,
+    ctx: TransitionContext,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    // No timer needed for finished game
+    // Clear any existing timer on game finish
+    await this.gameService.clearTimer(ctx.game.id);
+
+    // Explicitly set timer to null in game state
+    ctx.game.gameState.timer = null;
+
     return { timer: undefined };
   }
 

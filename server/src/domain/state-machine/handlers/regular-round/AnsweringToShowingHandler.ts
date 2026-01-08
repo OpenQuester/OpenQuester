@@ -1,6 +1,7 @@
 import { GameService } from "application/services/game/GameService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { QuestionAnswerResultLogic } from "domain/logic/question/QuestionAnswerResultLogic";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
@@ -121,16 +122,27 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
     // Clear the answering timer
     await this.gameService.clearTimer(game.id);
 
-    // Setup showing timer to restore from saved state
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      0, // Duration will be restored from saved state
+    // Restore the saved showing timer (saved when player requested to answer)
+    const savedTimer = await this.gameService.getTimer(
+      game.id,
       QuestionState.SHOWING
     );
 
-    return {
-      timer: timerEntity.value() ?? undefined,
-    };
+    if (savedTimer) {
+      // Update timer with resumedAt timestamp to indicate it was restored
+      GamePauseLogic.updateTimerForResume(savedTimer);
+
+      // Set the restored timer on game state
+      game.gameState.timer = savedTimer;
+
+      return {
+        timer: savedTimer,
+      };
+    }
+
+    // Fallback: if no saved timer, set timer to null
+    game.gameState.timer = null;
+    return { timer: undefined };
   }
 
   protected collectBroadcasts(

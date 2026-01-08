@@ -19,6 +19,7 @@ import {
   ChoosingToSecretTransferMutationData,
 } from "domain/types/socket/transition/choosing";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { SECRET_QUESTION_TRANSFER_TIME } from "domain/constants/game";
 
 /**
  * Handles transition from CHOOSING to SECRET_QUESTION_TRANSFER when a secret
@@ -61,7 +62,8 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
 
       if (question.type !== PackageQuestionType.SECRET) return false;
 
-      return TransitionGuards.hasEligiblePlayers(game);
+      // Require at least two eligible players to enter transfer phase
+      return TransitionGuards.hasMultipleEligiblePlayers(game);
     } catch {
       return false;
     }
@@ -104,8 +106,14 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
     await this.gameService.clearTimer(ctx.game.id);
-    // TODO: Should have timer for transfer?
-    return { timer: undefined };
+
+    const timerEntity = await this.timerService.setupQuestionTimer(
+      ctx.game,
+      SECRET_QUESTION_TRANSFER_TIME,
+      QuestionState.SECRET_TRANSFER
+    );
+
+    return { timer: timerEntity.value() ?? undefined };
   }
 
   protected collectBroadcasts(

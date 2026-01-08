@@ -19,14 +19,7 @@ import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
-import {
-  ShowingToShowingAnswerMutationData,
-  ShowingToShowingAnswerPayload,
-} from "domain/types/socket/transition/showing";
-
-// Transition context specialization for clarity
-export type ShowingToShowingAnswerCtx =
-  TransitionContext<ShowingToShowingAnswerPayload>;
+import { ShowingToShowingAnswerMutationData } from "domain/types/socket/transition/showing";
 
 /**
  * Handles transition from SHOWING to SHOWING_ANSWER when no one answers.
@@ -51,8 +44,8 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
    * Only allow transition in regular round showing state when one of the
    * supported triggers occurs.
    */
-  public canTransition(ctx: ShowingToShowingAnswerCtx): boolean {
-    const { game, trigger, payload } = ctx;
+  public canTransition(ctx: TransitionContext): boolean {
+    const { game, trigger } = ctx;
 
     if (getGamePhase(game) !== this.fromPhase) {
       return false;
@@ -67,8 +60,6 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
     switch (trigger) {
       case TransitionTrigger.TIMER_EXPIRED:
         return true;
-      case TransitionTrigger.USER_ACTION:
-        return payload?.forceSkip === true;
       case TransitionTrigger.CONDITION_MET:
         return game.haveAllPlayersSkipped();
       default:
@@ -76,13 +67,11 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
     }
   }
 
-  protected override validate(ctx: ShowingToShowingAnswerCtx): void {
+  protected override validate(ctx: TransitionContext): void {
     GameStateValidator.validateGameInProgress(ctx.game);
   }
 
-  protected async mutate(
-    ctx: ShowingToShowingAnswerCtx
-  ): Promise<MutationResult> {
+  protected async mutate(ctx: TransitionContext): Promise<MutationResult> {
     const { game } = ctx;
 
     let question: PackageQuestionDTO | null = null;
@@ -120,7 +109,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
   }
 
   protected async handleTimer(
-    ctx: ShowingToShowingAnswerCtx,
+    ctx: TransitionContext,
     mutationResult: MutationResult
   ): Promise<TimerResult> {
     const { game } = ctx;
@@ -145,7 +134,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
   }
 
   protected collectBroadcasts(
-    ctx: ShowingToShowingAnswerCtx,
+    ctx: TransitionContext,
     mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {

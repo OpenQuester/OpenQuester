@@ -5,10 +5,6 @@ export type ShowingToAnsweringMutationData = {
   playerId: number;
 };
 
-export type ShowingToShowingAnswerPayload = {
-  forceSkip?: boolean;
-};
-
 export type ShowingToShowingAnswerMutationData = {
   question: PackageQuestionDTO | null;
 };
