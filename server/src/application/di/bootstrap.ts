@@ -38,7 +38,6 @@ import { SocketIOChatService } from "application/services/socket/SocketIOChatSer
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { TranslateService } from "application/services/text/TranslateService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { UserService } from "application/services/user/UserService";
@@ -60,9 +59,10 @@ import { PlayerGameStats } from "infrastructure/database/models/statistics/Playe
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
-import { SocketIOQuestionPickService } from "../services/socket/SocketIOQuestionPickService";
-import { SecretQuestionService } from "../services/question/SecretQuestionService";
-import { StakeQuestionService } from "../services/question/StakeQuestionService";
+import { SocketIOQuestionPickService } from "application/services/socket/SocketIOQuestionPickService";
+import { SecretQuestionService } from "application/services/question/SecretQuestionService";
+import { StakeQuestionService } from "application/services/question/StakeQuestionService";
+import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 
 /**
  * Context required for DI container initialization.
@@ -230,6 +230,7 @@ export async function bootstrapContainer(
     socketGameContextService: container.resolve(SocketGameContextService),
     secretQuestionService: container.resolve(SecretQuestionService),
     stakeQuestionService: container.resolve(StakeQuestionService),
+    gameLifecycleService: container.resolve(GameLifecycleService),
     userService,
     gameProgressionCoordinator: container.resolve(GameProgressionCoordinator),
     gameService,
