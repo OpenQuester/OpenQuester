@@ -232,9 +232,6 @@ export async function bootstrapContainer(
     stakeQuestionService: container.resolve(StakeQuestionService),
     userService,
     gameProgressionCoordinator: container.resolve(GameProgressionCoordinator),
-    gameStatisticsCollectorService: container.resolve(
-      GameStatisticsCollectorService
-    ),
     gameService,
     timerExpirationService: container.resolve(TimerExpirationService),
     phaseTransitionRouter,

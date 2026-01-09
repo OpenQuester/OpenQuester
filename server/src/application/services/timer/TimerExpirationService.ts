@@ -58,8 +58,7 @@ export class TimerExpirationService {
     private readonly stakeQuestionService: StakeQuestionService,
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
-    @inject(DI_TOKENS.Logger)
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }
