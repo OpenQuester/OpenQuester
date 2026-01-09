@@ -10,6 +10,8 @@ import {
 } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
+import { FinalRoundGameData } from "domain/types/finalround/FinalRoundInterfaces";
+import { FinalAnsweringToReviewingMutationData } from "domain/types/socket/transition/final";
 
 /**
  * Data for a single auto-loss entry
@@ -102,12 +104,11 @@ export class AutoLossProcessLogic {
    * 3. Immediately reviews as incorrect (applies score penalty)
    * 4. Returns entries and phase completion status
    */
-  public static processAutoLoss(game: Game): AutoLossProcessMutationResult {
-    const finalRoundData = FinalRoundStateManager.getFinalRoundData(game);
-    if (
-      !finalRoundData ||
-      game.gameState.questionState !== QuestionState.ANSWERING
-    ) {
+  public static processAutoLoss(
+    game: Game,
+    finalRoundData: FinalRoundGameData
+  ): AutoLossProcessMutationResult {
+    if (game.gameState.questionState !== QuestionState.ANSWERING) {
       return {
         autoLossEntries: [],
         isPhaseComplete: false,
@@ -181,6 +182,9 @@ export class AutoLossProcessLogic {
     transitionResult: TransitionResult | null;
   }): AutoLossProcessResult {
     const { game, mutationResult, transitionResult } = input;
+    const transitionData = transitionResult?.data as
+      | FinalAnsweringToReviewingMutationData
+      | undefined;
 
     const autoLossReviews: AnswerReviewData[] =
       mutationResult.autoLossEntries.map((entry) =>
@@ -194,9 +198,7 @@ export class AutoLossProcessLogic {
     const isReadyForReview = mutationResult.isPhaseComplete;
 
     const allReviews = isReadyForReview
-      ? (transitionResult?.data?.allReviews as
-          | AnswerReviewData[]
-          | undefined) ??
+      ? transitionData?.allReviews ??
         FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game)
       : undefined;
 

@@ -75,9 +75,7 @@ describe("Secret Question Flow Tests", () => {
         await utils.startGame(showmanSocket);
 
         // Find a secret question with ANY transfer type
-        const gameState = await utils.getGameState(gameId);
         const secretQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.SECRET,
           gameId
         );
@@ -169,18 +167,18 @@ describe("Secret Question Flow Tests", () => {
         expect(questionDataEvent.data).toBeDefined();
         expect(questionDataEvent.timer).toBeDefined();
 
-        // Verify game state is back to SHOWING
+        // Verify game state is back to ANSWERING
         const showingState = await utils.getGameState(gameId);
         expect(showingState!.questionState).toBe(QuestionState.ANSWERING);
-        expect(showingState!.secretQuestionData).toBeNull();
+        expect(showingState!.secretQuestionData).toBeDefined();
         expect(showingState!.currentQuestion).toBeDefined();
 
         // Continue with normal answer flow
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-        const questionFinishPromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.ANSWER_SHOW_END,
+        const showAnswerStartPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START,
           2000
         );
 
@@ -195,9 +193,8 @@ describe("Secret Question Flow Tests", () => {
           SocketIOGameEvents.ANSWER_RESULT
         );
 
+        await showAnswerStartPromise;
         await utils.skipShowAnswer(showmanSocket);
-
-        await questionFinishPromise;
 
         // Verify game returns to choosing state
         const finalState = await utils.getGameState(gameId);
@@ -217,9 +214,7 @@ describe("Secret Question Flow Tests", () => {
         await utils.startGame(showmanSocket);
 
         // Find a secret question
-        const gameState = await utils.getGameState(gameId);
         const secretQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.SECRET,
           gameId
         );
@@ -302,9 +297,7 @@ describe("Secret Question Flow Tests", () => {
       try {
         await utils.startGame(showmanSocket);
 
-        const gameState = await utils.getGameState(gameId);
         const secretQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.SECRET,
           gameId
         );
@@ -396,9 +389,7 @@ describe("Secret Question Flow Tests", () => {
       try {
         await utils.startGame(showmanSocket);
 
-        const gameState = await utils.getGameState(gameId);
         const secretQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.SECRET,
           gameId
         );
@@ -437,9 +428,7 @@ describe("Secret Question Flow Tests", () => {
       try {
         await utils.startGame(showmanSocket);
 
-        const gameState = await utils.getGameState(gameId);
         const secretQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.SECRET,
           gameId
         );

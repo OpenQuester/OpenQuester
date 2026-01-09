@@ -9,5 +9,5 @@ export interface SecretQuestionGameData {
   /** Question ID being transferred */
   questionId: number;
   /** Whether currently in transfer phase (waiting for transfer decision) */
-  transferPhase: boolean;
+  transferDecisionPhase: boolean;
 }

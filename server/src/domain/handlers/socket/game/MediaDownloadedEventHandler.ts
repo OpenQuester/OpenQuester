@@ -2,7 +2,6 @@ import { Socket } from "socket.io";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -26,7 +25,6 @@ export class MediaDownloadedEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
@@ -40,14 +38,7 @@ export class MediaDownloadedEventHandler extends BaseSocketEventHandler<
     _data: EmptyInputData,
     context: SocketEventContext
   ): Promise<string | null> {
-    try {
-      const gameContext = await this.socketGameContextService.fetchGameContext(
-        context.socketId
-      );
-      return gameContext.game?.id ?? null;
-    } catch {
-      return null;
-    }
+    return this.socketGameContextService.getGameIdForSocket(context.socketId);
   }
 
   protected override getActionType(): GameActionType {

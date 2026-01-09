@@ -77,7 +77,7 @@ export class GameUpdateValidator {
     const gameStarted = ValueUtils.isValidDate(game.startedAt);
     if (gameStarted) {
       throw new ClientError(
-        ClientResponse.GAME_STATED_CANNOT_CHANGE_PACKAGE,
+        ClientResponse.GAME_STARTED_CANNOT_CHANGE_PACKAGE,
         HttpStatus.BAD_REQUEST
       );
     }

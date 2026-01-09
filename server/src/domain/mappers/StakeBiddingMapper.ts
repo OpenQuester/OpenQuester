@@ -105,10 +105,7 @@ export class StakeBiddingMapper {
         updatedStakeData.biddingOrder.indexOf(nextBidder.nextBidderId);
     }
 
-    // Update biddingPhase flag if phase is complete
     if (nextBidder.isPhaseComplete) {
-      updatedStakeData.biddingPhase = false;
-
       // Set the winner to the player with the highest bid
       if (updatedStakeData.highestBid !== null) {
         // Find the player who made the highest bid

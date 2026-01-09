@@ -14,11 +14,11 @@ import {
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { FinalSubmitEndEventData } from "domain/types/socket/events/FinalRoundEventData";
-import { AnswerReviewData } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { FinalAnsweringToReviewingMutationData } from "domain/types/socket/transition/final";
 
 /**
  * Handles transition from FINAL_ANSWERING to FINAL_REVIEWING phase.
@@ -69,7 +69,7 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
       return false;
     }
 
-    // 3. All eligible players must have submitted answers
+    // 3. All eligible players must have submitted answers (including auto-loss)
     return FinalRoundStateManager.areAllAnswersSubmitted(game);
   }
 
@@ -88,15 +88,10 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     const allReviews =
       FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
 
-    // Check if all answers are already reviewed (all auto-loss)
-    const allAnswersReviewed =
-      FinalRoundStateManager.areAllAnswersReviewed(game);
-
     return {
       data: {
         allReviews,
-        allAnswersReviewed,
-      },
+      } satisfies FinalAnsweringToReviewingMutationData,
     };
   }
 
@@ -107,6 +102,9 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     // Clear the answering timer (no timer for reviewing phase)
     await this.gameService.clearTimer(ctx.game.id);
 
+    // Explicitly set timer to null in game state
+    ctx.game.gameState.timer = null;
+
     return {};
   }
 
@@ -116,19 +114,18 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     _timerResult: TimerResult
   ): BroadcastEvent[] {
     const broadcasts: BroadcastEvent[] = [];
-    const allReviews = mutationResult.data?.allReviews as
-      | AnswerReviewData[]
-      | undefined;
-    const allAnswersReviewed = mutationResult.data
-      ?.allAnswersReviewed as boolean;
+    const mutationData =
+      mutationResult.data as FinalAnsweringToReviewingMutationData;
+
+    const allReviews = mutationData.allReviews;
 
     // Emit phase completion event with all reviews
     broadcasts.push({
       event: SocketIOGameEvents.FINAL_SUBMIT_END,
       data: {
         phase: FinalRoundPhase.ANSWERING,
-        // If all answers already reviewed (all auto-loss), game will finish immediately
-        nextPhase: allAnswersReviewed ? undefined : FinalRoundPhase.REVIEWING,
+        // If all answers already reviewed (all auto-loss), transition to finish will happen in service layer
+        nextPhase: FinalRoundPhase.REVIEWING,
         allReviews,
       } satisfies FinalSubmitEndEventData,
       room: ctx.game.id,

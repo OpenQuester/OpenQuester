@@ -5,10 +5,10 @@ import {
   AnswerReviewData,
   FinalAnswerReviewResult,
 } from "domain/types/socket/finalround/FinalRoundResults";
-import { QuestionAnswerData } from "domain/types/socket/finalround/QuestionAnswerData";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
+import { FinalReviewingToGameFinishMutationData } from "domain/types/socket/transition/final";
 
 /**
  * Result of answer review validation and mutation.
@@ -88,18 +88,19 @@ export class FinalAnswerReviewLogic {
     transitionResult: TransitionResult | null;
   }): FinalAnswerReviewResult {
     const { game, mutationResult, transitionResult } = input;
+    const data = transitionResult?.data as
+      | FinalReviewingToGameFinishMutationData
+      | undefined;
 
-    const isGameFinished = Boolean(transitionResult?.data?.isGameFinished);
-    const questionAnswerData = isGameFinished
-      ? (transitionResult!.data!.questionAnswerData as QuestionAnswerData)
-      : undefined;
+    const isGameFinished = data?.isGameFinished ?? false;
+    const questionAnswerData = data?.questionAnswerData;
 
     return {
       game,
       isGameFinished,
       reviewResult: mutationResult.reviewResult,
       allReviews: mutationResult.allReviews,
-      questionAnswerData,
+      questionAnswerData: questionAnswerData ?? undefined,
     } satisfies FinalAnswerReviewResult;
   }
 }

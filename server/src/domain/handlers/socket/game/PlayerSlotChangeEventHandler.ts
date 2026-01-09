@@ -2,7 +2,6 @@ import { Socket } from "socket.io";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
-import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -29,7 +28,6 @@ export class PlayerSlotChangeEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOGameService: SocketIOGameService,
     private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
@@ -43,14 +41,7 @@ export class PlayerSlotChangeEventHandler extends BaseSocketEventHandler<
     _data: PlayerSlotChangeInputData,
     context: SocketEventContext
   ): Promise<string | null> {
-    try {
-      const gameContext = await this.socketGameContextService.fetchGameContext(
-        context.socketId
-      );
-      return gameContext.game?.id ?? null;
-    } catch {
-      return null;
-    }
+    return this.socketGameContextService.getGameIdForSocket(context.socketId);
   }
 
   protected override getActionType(): GameActionType {

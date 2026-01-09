@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { GameAction } from "domain/types/action/GameAction";
 import {
@@ -20,10 +19,11 @@ export class TimerExpirationActionHandler
   implements GameActionHandler<TimerActionPayload, void>
 {
   constructor(
-    private readonly gameService: GameService,
     private readonly timerExpirationService: TimerExpirationService,
     private readonly logger: ILogger
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<TimerActionPayload>
@@ -76,6 +76,11 @@ export class TimerExpirationActionHandler
 
       case QuestionState.BIDDING:
         return this.timerExpirationService.handleBiddingExpiration(gameId);
+
+      case QuestionState.SECRET_TRANSFER:
+        return this.timerExpirationService.handleSecretTransferExpiration(
+          gameId
+        );
 
       default:
         this.logger.warn(`Unhandled question state: ${questionState}`, {

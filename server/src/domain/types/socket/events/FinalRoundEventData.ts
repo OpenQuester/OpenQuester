@@ -63,7 +63,7 @@ export interface FinalQuestionEventData {
  */
 export interface FinalSubmitEndEventData {
   phase: FinalRoundPhase;
-  nextPhase?: FinalRoundPhase;
+  nextPhase: FinalRoundPhase | null;
   allReviews?: AnswerReviewData[]; // All answers revealed when transitioning to reviewing phase
 }
 

@@ -8,6 +8,7 @@ import {
   TurnPlayerChangeBroadcastData,
   TurnPlayerChangeInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for turn player change.
@@ -21,10 +22,10 @@ export class TurnPlayerChangeActionHandler
   public async execute(
     action: GameAction<TurnPlayerChangeInputData>
   ): Promise<GameActionHandlerResult<TurnPlayerChangeBroadcastData>> {
-    const { payload, socketId } = action;
+    const { payload } = action;
 
     const result = await this.socketIOGameService.changeTurnPlayer(
-      socketId,
+      createActionContextFromAction(action),
       payload.newTurnPlayerId
     );
 
@@ -32,6 +33,10 @@ export class TurnPlayerChangeActionHandler
       newTurnPlayerId: payload.newTurnPlayerId,
     };
 
-    return { success: true, data: broadcastData, broadcasts: result.broadcasts };
+    return {
+      success: true,
+      data: broadcastData,
+      broadcasts: result.broadcasts,
+    };
   }
 }

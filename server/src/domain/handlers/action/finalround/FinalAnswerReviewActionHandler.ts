@@ -1,5 +1,5 @@
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
+import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   SocketBroadcastTarget,
@@ -10,6 +10,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import {
   FinalAnswerReviewInputData,
   FinalAnswerReviewOutputData,
@@ -28,16 +29,18 @@ export class FinalAnswerReviewActionHandler
 {
   constructor(
     private readonly finalRoundService: FinalRoundService,
-    private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
+    private readonly gameLifecycleService: GameLifecycleService,
     private readonly logger: ILogger
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<FinalAnswerReviewInputData>
   ): Promise<GameActionHandlerResult<FinalAnswerReviewOutputData>> {
     const { game, isGameFinished, reviewResult, questionAnswerData } =
       await this.finalRoundService.handleFinalAnswerReview(
-        action.socketId,
+        createActionContextFromAction(action),
         action.payload
       );
 
@@ -77,14 +80,15 @@ export class FinalAnswerReviewActionHandler
         gameId: game.id,
       } satisfies SocketEventBroadcast<boolean>);
 
-      // Trigger statistics persistence
-      try {
-        await this.gameStatisticsCollectorService.finishCollection(game.id);
-      } catch (error) {
-        this.logger.warn("Failed to execute statistics persistence", {
+      // Trigger centralized game completion (statistics persistence)
+      const completionResult =
+        await this.gameLifecycleService.handleGameCompletion(game.id);
+
+      if (!completionResult.success) {
+        this.logger.error("Failed to execute statistics persistence", {
           prefix: LogPrefix.STATS,
           gameId: game.id,
-          error: error instanceof Error ? error.message : String(error),
+          error: completionResult.error,
         });
       }
     }

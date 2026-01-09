@@ -1,11 +1,11 @@
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import {
   EmptyInputData,
   EmptyOutputData,
@@ -20,36 +20,40 @@ export class SkipQuestionForceActionHandler
   constructor(
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly gameProgressionCoordinator: GameProgressionCoordinator
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<EmptyOutputData>> {
-    const { game, question } =
-      await this.socketIOQuestionService.handleQuestionForceSkip(
-        action.socketId
-      );
+    const actionCtx = createActionContextFromAction(action);
 
+    // Core force-skip logic in service layer (validates + updates state)
+    const { game, question } =
+      await this.socketIOQuestionService.handleQuestionForceSkip(actionCtx);
+
+    // Progress round/game after question skipped
     const { isGameFinished, nextGameState } =
       await this.socketIOQuestionService.handleRoundProgression(game);
 
-    const result = await this.gameProgressionCoordinator.processGameProgression(
-      {
+    // Build broadcasts (question finish + next round / game finished)
+    const progressionResult =
+      await this.gameProgressionCoordinator.processGameProgression({
         game,
         isGameFinished,
         nextGameState,
         questionFinishData: {
-          answerFiles: question.answerFiles ?? null,
-          answerText: question.answerText ?? null,
+          answerFiles: question?.answerFiles ?? null,
+          answerText: question?.answerText ?? null,
           nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
         },
-      }
-    );
+      });
 
     return {
-      success: true,
+      success: progressionResult.success,
       data: {},
-      broadcasts: result.broadcasts as SocketEventBroadcast<unknown>[],
+      broadcasts: progressionResult.broadcasts,
     };
   }
 }

@@ -8,6 +8,7 @@ import {
   PlayerRoleChangeBroadcastData,
   PlayerRoleChangeInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for player role change.
@@ -21,10 +22,10 @@ export class PlayerRoleChangeActionHandler
   public async execute(
     action: GameAction<PlayerRoleChangeInputData>
   ): Promise<GameActionHandlerResult<PlayerRoleChangeBroadcastData>> {
-    const { payload, socketId } = action;
+    const { payload } = action;
 
     const result = await this.socketIOGameService.changePlayerRole(
-      socketId,
+      createActionContextFromAction(action),
       payload.newRole,
       payload.playerId
     );
@@ -35,6 +36,10 @@ export class PlayerRoleChangeActionHandler
       players: result.data.players,
     };
 
-    return { success: true, data: broadcastData, broadcasts: result.broadcasts };
+    return {
+      success: true,
+      data: broadcastData,
+      broadcasts: result.broadcasts,
+    };
   }
 }

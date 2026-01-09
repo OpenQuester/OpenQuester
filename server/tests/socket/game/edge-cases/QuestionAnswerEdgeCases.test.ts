@@ -164,7 +164,8 @@ describe("Question Answer Edge Cases", () => {
             SocketIOGameEvents.ANSWER_RESULT,
             3000
           );
-        const questionFinishPromise = utils.waitForEvent(
+
+        const answerShowEndPromise = utils.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.ANSWER_SHOW_END,
           3000
@@ -189,7 +190,7 @@ describe("Question Answer Edge Cases", () => {
         // Skip the show answer phase
         await utils.skipShowAnswer(showmanSocket);
 
-        const questionFinish = await questionFinishPromise;
+        const questionFinish = await answerShowEndPromise;
         expect(questionFinish).toBeDefined();
 
         // Verify game went directly to CHOOSING state (skipped SHOWING)

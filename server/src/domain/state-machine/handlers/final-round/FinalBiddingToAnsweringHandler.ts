@@ -26,6 +26,9 @@ import {
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { FinalBiddingToAnsweringMutationData } from "domain/types/socket/transition/final";
+import { ClientError } from "domain/errors/ClientError";
+import { ClientResponse } from "domain/enums/ClientResponse";
 
 /**
  * Handles transition from FINAL_BIDDING to FINAL_ANSWERING phase.
@@ -97,15 +100,17 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     // Get question data for the remaining theme
     const questionData = this._getQuestionData(game);
 
-    // Store question data in game state so joining players can access it
-    if (questionData) {
-      FinalRoundStateManager.setQuestionData(game, questionData);
+    if (!questionData) {
+      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
     }
+
+    // Store question data in game state so joining players can access it
+    FinalRoundStateManager.setQuestionData(game, questionData);
 
     return {
       data: {
         questionData,
-      },
+      } satisfies FinalBiddingToAnsweringMutationData,
     };
   }
 
@@ -130,19 +135,19 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     timerResult: TimerResult
   ): BroadcastEvent[] {
     const broadcasts: BroadcastEvent[] = [];
-    const questionData = mutationResult.data
-      ?.questionData as FinalRoundQuestionData;
+    const mutationData =
+      mutationResult.data as FinalBiddingToAnsweringMutationData;
+
+    const questionData = mutationData.questionData;
 
     // 1. Emit question data so players can see the question
-    if (questionData) {
-      broadcasts.push({
-        event: SocketIOGameEvents.FINAL_QUESTION_DATA,
-        data: {
-          questionData,
-        } satisfies FinalQuestionEventData,
-        room: ctx.game.id,
-      });
-    }
+    broadcasts.push({
+      event: SocketIOGameEvents.FINAL_QUESTION_DATA,
+      data: {
+        questionData,
+      } satisfies FinalQuestionEventData,
+      room: ctx.game.id,
+    });
 
     // 2. Emit phase complete event
     broadcasts.push({

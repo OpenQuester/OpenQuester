@@ -309,6 +309,14 @@ export class RedisRepository {
     return this._client.pipeline();
   }
 
+  /**
+   * Create a Redis transaction (MULTI/EXEC).
+   * Provides atomicity while keeping a single network round trip similar to pipeline.
+   */
+  public multi() {
+    return this._client.multi();
+  }
+
   public async del(key: string): Promise<number> {
     return this.executeWithLogging("Redis DEL", { key }, async () => {
       return this._client.del(key);

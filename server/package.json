@@ -10,7 +10,7 @@
     "validate:schema": "node ./scripts/schema/validateSchema.mjs",
     "clean": "rm -rf dist/*",
     "build:dev": "tsup --watch",
-    "build": "tsc && tsup",
+    "build": "npm run clean && tsc --noEmit && tsup",
     "test": "jest --detectOpenHandles --forceExit",
     "test:pipeline": "jest --detectOpenHandles --forceExit > /dev/null",
     "lint": "eslint ./"
@@ -51,7 +51,6 @@
     "tsyringe": "^4.10.0",
     "typeorm": "^0.3.20",
     "typeorm-naming-strategies": "^4.1.0",
-    "typescript": "^5.6.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -70,6 +69,7 @@
     "@types/swagger-ui-express": "^4.1.6",
     "@typescript-eslint/eslint-plugin": "^8.31.1",
     "@typescript-eslint/parser": "^8.31.1",
+    "@typescript/native-preview": "^7.0.0-dev.20260104.1",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "eslint": "^9.25.1",
@@ -84,6 +84,7 @@
     "ts-prune": "^0.10.3",
     "tsup": "^8.0.2",
     "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
     "typescript-eslint": "^8.31.1",
     "wait-on": "^7.2.0"
   },

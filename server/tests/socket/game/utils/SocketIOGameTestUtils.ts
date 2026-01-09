@@ -724,8 +724,7 @@ export class SocketGameTestUtils {
   public async pickQuestion(
     showmanSocket: GameClientSocket,
     questionId?: number,
-    playerSockets?: GameClientSocket[],
-    options?: { skipMediaDownload?: boolean }
+    playerSockets?: GameClientSocket[]
   ): Promise<void> {
     let actualQuestionId = questionId;
 
@@ -735,8 +734,9 @@ export class SocketGameTestUtils {
       if (!socketUserData?.gameId) {
         throw new Error("Cannot determine game ID from socket");
       }
-      actualQuestionId = await this.getFirstAvailableQuestionId(
-        socketUserData.gameId
+      actualQuestionId = await this.getQuestionIdByType(
+        socketUserData.gameId,
+        PackageQuestionType.SIMPLE
       );
     }
 
@@ -753,14 +753,14 @@ export class SocketGameTestUtils {
     await questionDataPromise;
 
     // Automatically handle media download phase unless explicitly skipped
-    if (!options?.skipMediaDownload && playerSockets) {
+    if (playerSockets?.length ?? 0 > 0) {
       const socketUserData = await this.getSocketUserData(showmanSocket);
       if (socketUserData?.gameId) {
         const gameState = await this.getGameState(socketUserData.gameId);
 
         // Only wait for media download if we're in MEDIA_DOWNLOADING state
         if (gameState?.questionState === QuestionState.MEDIA_DOWNLOADING) {
-          await this.waitForMediaDownload(showmanSocket, playerSockets);
+          await this.waitForMediaDownload(showmanSocket, playerSockets!);
         }
       }
     }
@@ -901,6 +901,11 @@ export class SocketGameTestUtils {
       await questionDataPromise;
 
       // Answer correctly
+      const showAnswerStartPromise = this.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.ANSWER_SHOW_START
+      );
+
       await this.answerQuestion(playerSockets[0], showmanSocket);
       showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
         scoreResult: scoreResult,
@@ -910,12 +915,15 @@ export class SocketGameTestUtils {
       // Wait for appropriate event based on answer type
       if (answerType === AnswerResultType.CORRECT) {
         // Skip show answer phase immediately for faster tests
+        await showAnswerStartPromise;
         await this.skipShowAnswer(showmanSocket);
       } else {
         await this.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.ANSWER_RESULT
         );
+        await showAnswerStartPromise;
+        await this.skipShowAnswer(showmanSocket);
       }
     } else if (questionType === PackageQuestionType.STAKE) {
       // We need fresh game entity here for player count and stake data
@@ -930,7 +938,7 @@ export class SocketGameTestUtils {
       ).length;
       if (playerSockets.length < totalPlayerCount) {
         // Perform a minimal pick & skip so the question is marked played, then recurse.
-        await this.pickQuestion(showmanSocket, actualQuestionId);
+        await this.pickQuestion(showmanSocket, actualQuestionId, playerSockets);
         await this.skipQuestion(showmanSocket);
         await this.pickAndCompleteQuestion(
           showmanSocket,
@@ -1029,12 +1037,20 @@ export class SocketGameTestUtils {
         answerType: answerType,
       });
 
+      const showAnswerStartPromise = this.waitForEvent(
+        winnerSocket,
+        SocketIOGameEvents.ANSWER_SHOW_START
+      );
+
       // Wait for appropriate event based on answer type
       if (answerType === AnswerResultType.CORRECT) {
         // Skip show answer phase immediately for faster tests
+        await showAnswerStartPromise;
         await this.skipShowAnswer(showmanSocket);
       } else {
         await this.waitForEvent(winnerSocket, SocketIOGameEvents.ANSWER_RESULT);
+        await showAnswerStartPromise;
+        await this.skipShowAnswer(showmanSocket);
       }
     } else {
       // Handle regular question flow (SIMPLE, NO_RISK, HIDDEN, CHOICE)
@@ -1042,13 +1058,18 @@ export class SocketGameTestUtils {
       // - NO_RISK: same flow, but backend prevents negative scoring
       // - HIDDEN: same flow, price revealed during play
       // - CHOICE: same flow, multiple answer options available
-      await this.pickQuestion(showmanSocket, actualQuestionId);
+      await this.pickQuestion(showmanSocket, actualQuestionId, playerSockets);
 
       if (!shouldAnswer) {
         // Skip the question
         await this.skipQuestion(showmanSocket);
         return;
       }
+
+      const showAnswerStartPromise = this.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.ANSWER_SHOW_START
+      );
 
       // Answer correctly
       // For regular questions, any player can answer
@@ -1061,12 +1082,15 @@ export class SocketGameTestUtils {
       // Wait for appropriate event based on answer type
       if (answerType === AnswerResultType.CORRECT) {
         // Skip show answer phase immediately for faster tests
+        await showAnswerStartPromise;
         await this.skipShowAnswer(showmanSocket);
       } else {
         await this.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.ANSWER_RESULT
         );
+        await showAnswerStartPromise;
+        await this.skipShowAnswer(showmanSocket);
       }
     }
   }
@@ -1133,7 +1157,7 @@ export class SocketGameTestUtils {
       return playerSockets[0];
     } else {
       // Handle regular question flow
-      await this.pickQuestion(showmanSocket, actualQuestionId);
+      await this.pickQuestion(showmanSocket, actualQuestionId, playerSockets);
 
       // Return the showman socket (though really any socket can answer for regular questions)
       return showmanSocket;
@@ -1401,23 +1425,23 @@ export class SocketGameTestUtils {
    * Optimized version that prefetches all question data for better performance
    */
   public async findQuestionByType(
-    gameState: GameStateDTO,
     questionType: PackageQuestionType,
     gameId: string
   ): Promise<GameStateQuestionDTO | null> {
-    if (!gameState.currentRound?.themes) {
-      return null;
-    }
-
     // Get the full game to access package data
     const game = await this.gameService.getGameEntity(gameId);
     if (!game) {
       throw new Error("Game not found");
     }
+    const gameState = game?.gameState;
+
+    if ((gameState.currentRound?.themes ?? []).length < 1) {
+      return null;
+    }
 
     // For Hidden questions, we can use a fast path since they're identifiable by price
     if (questionType === PackageQuestionType.HIDDEN) {
-      for (const theme of gameState.currentRound.themes) {
+      for (const theme of gameState.currentRound!.themes) {
         if (theme.questions) {
           for (const question of theme.questions) {
             if (!question.isPlayed && question.price === null) {
@@ -1436,7 +1460,7 @@ export class SocketGameTestUtils {
       themeId: number;
     }> = [];
 
-    for (const theme of gameState.currentRound.themes) {
+    for (const theme of gameState.currentRound!.themes) {
       if (theme.questions) {
         for (const question of theme.questions) {
           if (!question.isPlayed) {
@@ -1450,7 +1474,7 @@ export class SocketGameTestUtils {
     for (const { question } of questionsToCheck) {
       const questionData = GameQuestionMapper.getQuestionAndTheme(
         game.package,
-        gameState.currentRound.id,
+        gameState.currentRound!.id,
         question.id
       );
 

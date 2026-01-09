@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { TransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
   GamePhase,
@@ -26,11 +25,7 @@ export class PhaseTransitionRouter {
   private readonly handlersByPhase: Map<GamePhase, TransitionHandler[]> =
     new Map();
 
-  constructor(
-    private readonly gameService: GameService,
-    private readonly logger: ILogger,
-    handlers: TransitionHandler[]
-  ) {
+  constructor(private readonly logger: ILogger, handlers: TransitionHandler[]) {
     this.registerHandlers(handlers);
   }
 
@@ -41,8 +36,8 @@ export class PhaseTransitionRouter {
    * @param ctx The transition context containing game state and trigger info
    * @returns TransitionResult if a transition occurred, null otherwise
    */
-  public async tryTransition(
-    ctx: TransitionContext
+  public async tryTransition<TPayload extends Record<string, unknown>>(
+    ctx: TransitionContext<TPayload>
   ): Promise<TransitionResult | null> {
     const currentPhase = getGamePhase(ctx.game);
     const handlers = this.handlersByPhase.get(currentPhase) || [];
@@ -112,7 +107,9 @@ export class PhaseTransitionRouter {
    * Check if any transition is possible from current phase without executing it.
    * Useful for pre-checking before performing actions.
    */
-  public canTransition(ctx: TransitionContext): boolean {
+  public canTransition<
+    TPayload extends Record<string, unknown> = Record<string, unknown>
+  >(ctx: TransitionContext<TPayload>): boolean {
     const currentPhase = getGamePhase(ctx.game);
     const handlers = this.handlersByPhase.get(currentPhase) || [];
 

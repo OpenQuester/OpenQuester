@@ -8,6 +8,7 @@ import {
   PlayerSlotChangeBroadcastData,
   PlayerSlotChangeInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for player slot change.
@@ -21,10 +22,10 @@ export class PlayerSlotChangeActionHandler
   public async execute(
     action: GameAction<PlayerSlotChangeInputData>
   ): Promise<GameActionHandlerResult<PlayerSlotChangeBroadcastData>> {
-    const { payload, socketId } = action;
+    const { payload } = action;
 
     const result = await this.socketIOGameService.changePlayerSlot(
-      socketId,
+      createActionContextFromAction(action),
       payload.targetSlot,
       payload.playerId
     );
@@ -35,6 +36,10 @@ export class PlayerSlotChangeActionHandler
       players: result.data.updatedPlayers,
     };
 
-    return { success: true, data: broadcastData, broadcasts: result.broadcasts };
+    return {
+      success: true,
+      data: broadcastData,
+      broadcasts: result.broadcasts,
+    };
   }
 }

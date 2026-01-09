@@ -114,12 +114,12 @@ export class SocketGameValidationService {
           throw new ClientError(ClientResponse.INSUFFICIENT_PERMISSIONS);
         }
         break;
-      case QuestionAction.RESULT:
+      case QuestionAction.ANSWER_RESULT:
         if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
           throw new ClientError(ClientResponse.ONLY_SHOWMAN_SEND_ANSWER_RESULT);
         }
         break;
-      case QuestionAction.SKIP:
+      case QuestionAction.FORCE_SKIP:
         if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
           throw new ClientError(
             ClientResponse.ONLY_SHOWMAN_SKIP_QUESTION_FORCE

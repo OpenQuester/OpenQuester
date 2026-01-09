@@ -25,6 +25,8 @@ export const GAME_QUESTION_ANSWER_SUBMIT_TIME = MINUTE_MS * 1;
 export const MEDIA_DOWNLOAD_TIMEOUT = SECOND_MS * 10;
 /** 75 seconds */
 export const GAME_FINAL_ANSWER_TIME = SECOND_MS * 75;
+/** 30 seconds - timeout for deciding secret question transfer target */
+export const SECRET_QUESTION_TRANSFER_TIME = SECOND_MS * 30;
 
 // Show Answer Duration Constants
 /** 5 seconds - default duration for showing answer (text-only or image) */
@@ -38,6 +40,8 @@ export const SHOW_ANSWER_DURATION_VIDEO = SECOND_MS * 15;
 /** 45 seconds */
 export const FINAL_ROUND_BID_TIME = SECOND_MS * 45;
 export const FINAL_ROUND_MIN_BID = 1;
+/** 30 seconds per turn for theme elimination */
+export const FINAL_ROUND_THEME_ELIMINATION_TIME = SECOND_MS * 30;
 
 // Stake Question Constants
 /** 30 seconds per bid for stake questions */

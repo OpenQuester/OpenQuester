@@ -109,7 +109,7 @@ export class TransitionGuards {
    */
   public static isSecretTransferPhase(game: Game): boolean {
     return (
-      game.gameState?.secretQuestionData?.transferPhase === true &&
+      game.gameState.secretQuestionData?.transferDecisionPhase === true &&
       TransitionGuards.isQuestionState(game, QuestionState.SECRET_TRANSFER)
     );
   }
@@ -127,6 +127,28 @@ export class TransitionGuards {
         p.role === PlayerRole.PLAYER &&
         p.gameStatus === PlayerGameStatus.IN_GAME
     );
+  }
+
+  /**
+   * Checks if there are at least two eligible players (transfer requires >1).
+   */
+  public static hasMultipleEligiblePlayers(game: Game): boolean {
+    let eligibleCount = 0;
+
+    for (const player of game.players) {
+      if (
+        player.role === PlayerRole.PLAYER &&
+        player.gameStatus === PlayerGameStatus.IN_GAME
+      ) {
+        eligibleCount += 1;
+
+        if (eligibleCount >= 2) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /**

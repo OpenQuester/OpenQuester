@@ -6,6 +6,7 @@ import {
 } from "domain/types/action/GameActionHandler";
 import { QuestionAnswerEventPayload } from "domain/types/socket/events/game/QuestionAnswerEventPayload";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for player answering a question (buzzer press).
@@ -15,13 +16,15 @@ export class QuestionAnswerActionHandler
 {
   constructor(
     private readonly socketIOQuestionService: SocketIOQuestionService
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<QuestionAnswerEventPayload>> {
     const result = await this.socketIOQuestionService.handleQuestionAnswer(
-      action.socketId
+      createActionContextFromAction(action)
     );
 
     const responseData: QuestionAnswerEventPayload = {

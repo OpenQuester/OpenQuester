@@ -10,6 +10,18 @@ export class GameStateTimer {
   }
 
   /**
+   * Creates a GameStateTimer from an existing DTO.
+   * Useful when reconstructing timer state from persistence.
+   */
+  public static fromDTO(dto: GameStateTimerDTO): GameStateTimer {
+    const timer = new GameStateTimer(dto.durationMs);
+    timer._timer = { ...dto };
+    timer._started = true;
+    timer._paused = false;
+    return timer;
+  }
+
+  /**
    * Starts the timer. If already started, returns the current timer value.
    * @returns The timer DTO object
    */

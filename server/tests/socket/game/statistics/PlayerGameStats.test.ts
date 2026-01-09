@@ -512,7 +512,7 @@ describe("Player Game Statistics Tests", () => {
         await utils.startGame(showmanSocket);
 
         // Pick and display a question
-        await utils.pickQuestion(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Get initial stats before answering
         const initialStats = await playerGameStatsRepository.getStats(
@@ -527,6 +527,9 @@ describe("Player Game Statistics Tests", () => {
         );
         const initialWrongAnswers = parseInt(initialStats!.wrongAnswers || "0");
 
+        playerSockets[0].on("error", (err) => {
+          console.error("Player socket error:", err);
+        });
         // Player answers the question
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
@@ -535,11 +538,20 @@ describe("Player Game Statistics Tests", () => {
           playerSockets[0],
           SocketIOGameEvents.ANSWER_RESULT
         );
+
+        const answerShowStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
+
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 100,
           answerType: AnswerResultType.CORRECT,
         });
+
         await answerResultPromise;
+        await answerShowStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Verify statistics were updated correctly
         const updatedStats = await playerGameStatsRepository.getStats(
@@ -570,7 +582,7 @@ describe("Player Game Statistics Tests", () => {
         await utils.startGame(showmanSocket);
 
         // Pick and display a question
-        await utils.pickQuestion(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Get initial stats before answering
         const initialStats = await playerGameStatsRepository.getStats(
@@ -594,11 +606,20 @@ describe("Player Game Statistics Tests", () => {
           playerSockets[0],
           SocketIOGameEvents.ANSWER_RESULT
         );
+
+        const answerShowStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
+
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: -100,
           answerType: AnswerResultType.WRONG,
         });
+
         await answerResultPromise;
+        await answerShowStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Verify statistics were updated correctly
         const updatedStats = await playerGameStatsRepository.getStats(
@@ -811,10 +832,19 @@ describe("Player Game Statistics Tests", () => {
         );
 
         // Pick and display a question
-        await utils.pickQuestion(showmanSocket, simpleQuestionId);
+        await utils.pickQuestion(
+          showmanSocket,
+          simpleQuestionId,
+          playerSockets
+        );
 
         // Player answers the question
         await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const showAnswerStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
 
         // Showman marks answer as skip (0x)
         const answerResultPromise = utils.waitForEvent(
@@ -826,6 +856,8 @@ describe("Player Game Statistics Tests", () => {
           answerType: AnswerResultType.SKIP,
         });
         await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Verify statistics: questions answered increased, but wrong answers did not
         const updatedStats = await playerGameStatsRepository.getStats(

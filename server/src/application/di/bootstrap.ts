@@ -33,11 +33,11 @@ import { GameProgressionCoordinator } from "application/services/game/GameProgre
 import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
+import { SocketIOAnswerResultService } from "application/services/socket/SocketIOAnswerResult";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { TranslateService } from "application/services/text/TranslateService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { UserService } from "application/services/user/UserService";
@@ -59,6 +59,10 @@ import { PlayerGameStats } from "infrastructure/database/models/statistics/Playe
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { RedisService } from "infrastructure/services/redis/RedisService";
+import { SocketIOQuestionPickService } from "application/services/socket/SocketIOQuestionPickService";
+import { SecretQuestionService } from "application/services/question/SecretQuestionService";
+import { StakeQuestionService } from "application/services/question/StakeQuestionService";
+import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 
 /**
  * Context required for DI container initialization.
@@ -221,14 +225,17 @@ export async function bootstrapContainer(
     socketIOGameService,
     socketIOChatService: container.resolve(SocketIOChatService),
     socketIOQuestionService: container.resolve(SocketIOQuestionService),
+    socketIOQuestionPickService: container.resolve(SocketIOQuestionPickService),
+    socketIOAnswerResultService: container.resolve(SocketIOAnswerResultService),
     socketGameContextService: container.resolve(SocketGameContextService),
+    secretQuestionService: container.resolve(SecretQuestionService),
+    stakeQuestionService: container.resolve(StakeQuestionService),
+    gameLifecycleService: container.resolve(GameLifecycleService),
     userService,
     gameProgressionCoordinator: container.resolve(GameProgressionCoordinator),
-    gameStatisticsCollectorService: container.resolve(
-      GameStatisticsCollectorService
-    ),
     gameService,
     timerExpirationService: container.resolve(TimerExpirationService),
+    phaseTransitionRouter,
     logger,
   };
   configureActionHandlers(actionHandlerDeps);

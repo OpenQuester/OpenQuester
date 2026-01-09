@@ -11,6 +11,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import {
   FinalAnswerSubmitInputData,
   FinalAnswerSubmitOutputData,
@@ -33,7 +34,7 @@ export class FinalAnswerSubmitActionHandler
   ): Promise<GameActionHandlerResult<FinalAnswerSubmitOutputData>> {
     const { game, playerId, isPhaseComplete, isAutoLoss, allReviews } =
       await this.finalRoundService.handleFinalAnswerSubmit(
-        action.socketId,
+        createActionContextFromAction(action),
         action.payload.answerText
       );
 

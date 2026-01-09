@@ -8,6 +8,7 @@ import {
   EmptyInputData,
   GameStartBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for starting a game.
@@ -20,7 +21,9 @@ export class StartGameActionHandler
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<GameStartBroadcastData>> {
-    const result = await this.socketIOGameService.startGame(action.socketId);
+    const result = await this.socketIOGameService.startGame(
+      createActionContextFromAction(action)
+    );
 
     return {
       success: true,

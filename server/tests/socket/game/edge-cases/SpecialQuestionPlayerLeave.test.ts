@@ -63,9 +63,7 @@ describe("Special Question Type Player Leave Edge Cases", () => {
         await utils.startGame(showmanSocket);
 
         // Find and pick a secret question
-        const gameState = await utils.getGameState(gameId);
         const secretQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.SECRET,
           gameId
         );
@@ -98,11 +96,7 @@ describe("Special Question Type Player Leave Edge Cases", () => {
           SocketIOGameEvents.QUESTION_DATA
         );
 
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER);
         await questionDataPromise;
-
-        // Player 0 starts answering
-        await utils.answerQuestion(playerSockets[0], showmanSocket);
 
         const answeringState = await utils.getGameState(gameId);
         expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
@@ -155,9 +149,7 @@ describe("Special Question Type Player Leave Edge Cases", () => {
         );
 
         // Find and pick a stake question
-        const gameState = await utils.getGameState(gameId);
         const stakeQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.STAKE,
           gameId
         );
@@ -260,9 +252,7 @@ describe("Special Question Type Player Leave Edge Cases", () => {
         await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
         // Find and pick a stake question
-        const gameState = await utils.getGameState(gameId);
         const stakeQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.STAKE,
           gameId
         );

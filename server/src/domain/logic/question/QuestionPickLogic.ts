@@ -67,16 +67,6 @@ export class QuestionPickLogic {
   }
 
   /**
-   * Determine if this is a special question type.
-   */
-  public static isSpecialQuestion(question: PackageQuestionDTO): boolean {
-    return (
-      question.type === PackageQuestionType.SECRET ||
-      question.type === PackageQuestionType.STAKE
-    );
-  }
-
-  /**
    * Process marking question as played and updating current question.
    */
   public static processNormalQuestionPick(
