@@ -74,18 +74,25 @@ export class TimerExpirationService {
       gameId,
       GAME_TTL_IN_SECONDS
     );
+
     if (!game) {
       return { success: false, broadcasts: [] };
     }
+
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
     });
+
     if (!transitionResult) {
       return { success: false, broadcasts: [] };
     }
+
+    await this.gameService.updateGame(game);
+
     const timer = transitionResult.timer ?? null;
+
     return {
       success: true,
       game,
@@ -114,17 +121,23 @@ export class TimerExpirationService {
       gameId,
       GAME_TTL_IN_SECONDS
     );
+
     if (!game) {
       return { success: false, broadcasts: [] };
     }
+
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
     });
+
     if (!transitionResult) {
       return { success: false, broadcasts: [] };
     }
+
+    await this.gameService.updateGame(game);
+
     return {
       success: true,
       game,

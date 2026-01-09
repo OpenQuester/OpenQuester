@@ -3,7 +3,6 @@ import { SocketQuestionStateService } from "application/services/socket/SocketQu
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
-import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
   GamePhase,
@@ -36,9 +35,9 @@ import {
  * - Stake bidding timer expires (TimerExpirationService)
  * - Player leaves during bidding
  */
-export class StakeBiddingToShowingHandler extends BaseTransitionHandler {
+export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.STAKE_BIDDING;
-  public readonly toPhase = GamePhase.SHOWING;
+  public readonly toPhase = GamePhase.ANSWERING;
 
   constructor(
     gameService: GameService,
@@ -52,7 +51,8 @@ export class StakeBiddingToShowingHandler extends BaseTransitionHandler {
    *
    * Validates:
    * 1. Current phase must be STAKE_BIDDING
-   * 2. Bidding phase must be complete (determined by payload or timer)
+   * 2. Bidding phase must be complete (determined by payload)
+   * 3. Must have a winner
    */
   public canTransition(ctx: StakeBiddingToAnsweringCtx): boolean {
     const { game, trigger, payload } = ctx;
@@ -66,19 +66,28 @@ export class StakeBiddingToShowingHandler extends BaseTransitionHandler {
       return false;
     }
 
-    // 2. Must have stake bidding data
-    if (!TransitionGuards.isStakeBiddingPhase(game)) {
+    // 2. Must have stake question data
+    if (!game.gameState?.stakeQuestionData) {
       return false;
     }
 
-    // 3. Check if bidding is complete
+    // 3. Check if bidding is complete based on payload
     if (trigger === TransitionTrigger.USER_ACTION) {
-      // Check if payload indicates phase completion
-      return payload.isPhaseComplete === true;
+      // Check if payload indicates phase completion with a winner
+      return (
+        payload.isPhaseComplete === true && payload.winnerPlayerId !== null
+      );
     }
 
     if (trigger === TransitionTrigger.TIMER_EXPIRED) {
       // Timer expiration completes only when payload marks phase complete
+      return (
+        payload.isPhaseComplete === true && payload.winnerPlayerId !== null
+      );
+    }
+
+    if (trigger === TransitionTrigger.CONDITION_MET) {
+      // System automatic transition (e.g. no eligible bidders left)
       return (
         payload.isPhaseComplete === true && payload.winnerPlayerId !== null
       );
@@ -115,9 +124,9 @@ export class StakeBiddingToShowingHandler extends BaseTransitionHandler {
       game.gameState.currentQuestion = questionData;
     }
 
-    // Transition to showing state; winner is pre-selected as answering player
-    game.gameState.questionState = QuestionState.SHOWING;
-    game.gameState.answeringPlayer = winnerPlayerId;
+    // Transition to showing state; winner is pre-selected as answering player but set only in answering phase
+    // ANSWERING PLAYER is set in SHOWING -> ANSWERING handler
+    game.gameState.questionState = QuestionState.ANSWERING;
     game.gameState.stakeQuestionData = {
       ...stakeData,
       biddingPhase: false,

@@ -50,7 +50,7 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
    * 1. Current phase must be ANSWERING
    * 2. Game in progress with simple round
    * 3. Must have answer result payload with WRONG answer type
-   * 4. Not all players exhausted (otherwise go to SHOWING_ANSWER)
+   * 4. Not all players will be exhausted after this answer (otherwise go to SHOWING_ANSWER)
    */
   public canTransition(ctx: AnsweringToShowingCtx): boolean {
     const { game, trigger, payload } = ctx;
@@ -75,12 +75,12 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
       const answerType = payload?.answerType;
       return (
         answerType !== AnswerResultType.CORRECT && // skip or wrong
-        !game.areAllPlayersExhausted() // someone still can answer
+        !game.willAllPlayersBeExhausted() // someone still can answer after this
       );
     }
 
-    // 4. Not all players exhausted - if they are, we go to SHOWING_ANSWER instead
-    if (game.areAllPlayersExhausted()) {
+    // 4. Not all players will be exhausted - if they will be, we go to SHOWING_ANSWER instead
+    if (game.willAllPlayersBeExhausted()) {
       return false;
     }
 
@@ -97,7 +97,9 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
     const answeringPlayer = game.gameState.answeringPlayer;
 
     // Get score result from payload or default to current question price (negative)
-    const scoreResult = payload?.scoreResult ?? 0;
+    // When timer expires with no payload, use negative question price as penalty
+    const currentQuestionPrice = game.gameState.currentQuestion?.price ?? 0;
+    const scoreResult = payload?.scoreResult ?? -currentQuestionPrice;
 
     const playerAnswerResult = game.handleQuestionAnswer(
       scoreResult,

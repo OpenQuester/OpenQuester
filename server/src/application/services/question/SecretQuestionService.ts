@@ -67,6 +67,7 @@ export class SecretQuestionService {
       targetPlayerId: data.targetPlayerId,
     });
 
+    // Transition to ANSWERING phase
     const transitionResult =
       await this.phaseTransitionRouter.tryTransition<SecretTransferToAnsweringPayload>(
         {

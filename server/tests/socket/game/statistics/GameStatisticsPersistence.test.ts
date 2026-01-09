@@ -144,7 +144,7 @@ describe("Game Statistics Persistence Tests", () => {
             );
 
             // Pick a question in final round to get valid questionId
-            await utils.pickQuestion(showmanSocket);
+            await utils.pickQuestion(showmanSocket, undefined, playerSockets);
           }
         });
 
@@ -201,7 +201,7 @@ describe("Game Statistics Persistence Tests", () => {
         const skipAllQuestions = async () => {
           try {
             // Pick question then immediately skip it
-            await utils.pickQuestion(showmanSocket);
+            await utils.pickQuestion(showmanSocket, undefined, playerSockets);
             showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
 
             // Continue skipping questions until all are done

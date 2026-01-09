@@ -65,13 +65,8 @@ describe("Hidden Question Flow Tests", () => {
         // Start game
         await utils.startGame(showmanSocket);
 
-        // Get initial game state and verify hidden question has null price
-        const initialGameState = await utils.getGameState(gameId);
-        expect(initialGameState).toBeDefined();
-
         // Find a hidden question in the themes
         const hiddenQuestion = await utils.findQuestionByType(
-          initialGameState!,
           PackageQuestionType.HIDDEN,
           gameId
         );

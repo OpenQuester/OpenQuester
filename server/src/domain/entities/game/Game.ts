@@ -535,12 +535,12 @@ export class Game {
   }
 
   public addSkippedPlayer(playerId: number): void {
-    if (!this.gameState.skippedPlayers) {
+    if ((this.gameState.skippedPlayers?.length ?? 0) < 1) {
       this.gameState.skippedPlayers = [];
     }
 
-    if (!this.gameState.skippedPlayers.includes(playerId)) {
-      this.gameState.skippedPlayers.push(playerId);
+    if (!this.gameState.skippedPlayers!.includes(playerId)) {
+      this.gameState.skippedPlayers!.push(playerId);
     }
   }
 
@@ -600,6 +600,37 @@ export class Game {
       (player) =>
         skippedPlayers.includes(player.meta.id) ||
         answeredPlayerIds.includes(player.meta.id)
+    );
+  }
+
+  /**
+   * Checks if all players WILL BE exhausted after the current answering player
+   * is added to the exhausted list. This is used in transition handlers to determine
+   * if a wrong answer should transition to SHOWING_ANSWER (all exhausted) or
+   * back to SHOWING (others can still answer).
+   *
+   * @returns true if all players will be exhausted after the current answer is processed
+   */
+  public willAllPlayersBeExhausted(): boolean {
+    const activePlayers = this.getInGamePlayers();
+    if (activePlayers.length === 0) {
+      return true;
+    }
+
+    const skippedPlayers = this.gameState.skippedPlayers ?? [];
+    const answeredPlayerIds =
+      this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
+
+    // Include the current answering player as if they were already exhausted
+    const currentAnsweringPlayer = this.gameState.answeringPlayer;
+    const willBeExhaustedIds = currentAnsweringPlayer
+      ? [...answeredPlayerIds, currentAnsweringPlayer]
+      : answeredPlayerIds;
+
+    return activePlayers.every(
+      (player) =>
+        skippedPlayers.includes(player.meta.id) ||
+        willBeExhaustedIds.includes(player.meta.id)
     );
   }
 

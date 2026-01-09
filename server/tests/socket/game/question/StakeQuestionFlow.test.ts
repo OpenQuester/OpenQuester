@@ -460,7 +460,7 @@ describe("Stake Question Flow Tests", () => {
       it("should reject bid exceeding player score", async () => {
         // Setup with specific scores to test this scenario
         const { setup, cleanup } = await _prepare({
-          playerScores: [500, 350, 250], // Higher score for picker to avoid automatic bid
+          playerScores: [500, 350, 280], // Higher score for picker to avoid automatic bid
           shouldPickQuestion: true,
           pickerIndex: 0,
         });
@@ -486,7 +486,6 @@ describe("Stake Question Flow Tests", () => {
             showmanSocket,
             SocketIOGameEvents.STAKE_BID_SUBMIT
           );
-
           // Listen for error on Player 2's socket (the one making the invalid bid)
           const errorPromise = utils.waitForEvent(
             playerSockets[2],
@@ -496,7 +495,7 @@ describe("Stake Question Flow Tests", () => {
           // Player 2 (score: 250) tries to bid more than they have
           playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
             bidType: StakeBidType.NORMAL,
-            bidAmount: 300, // Exceeds their score of 250
+            bidAmount: 300, // Exceeds their score of 280
           });
 
           const error = await errorPromise;
@@ -506,7 +505,7 @@ describe("Stake Question Flow Tests", () => {
         }
       });
 
-      it("should reject ALL_IN bid when lower than current highest bid", async () => {
+      it("should reject bid when player score is lower than current highest bid", async () => {
         // Setup with specific scores for this validation test
         const { setup, cleanup } = await _prepare({
           playerScores: [400, 450, 350], // Player 2 has lowest score (350)
@@ -557,9 +556,8 @@ describe("Stake Question Flow Tests", () => {
           });
 
           const errorResult = await errorPromise;
-          expect(errorResult.message).toContain(
-            "All-in bid (350) must be higher than current highest bid (360)"
-          );
+          // Player is auto-skipped because they cannot beat the high bid, so it's not their turn
+          expect(errorResult.message).toContain("It's not your turn");
         } finally {
           await cleanup();
         }

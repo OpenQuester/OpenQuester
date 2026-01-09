@@ -54,7 +54,7 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
    * Validates:
    * 1. Current phase must be ANSWERING
    * 2. Game in progress with simple round
-   * 3. Answer is CORRECT OR all players are exhausted after wrong answer
+   * 3. Answer is CORRECT OR all players will be exhausted after wrong answer
    */
   public canTransition(ctx: AnsweringToShowingAnswerCtx): boolean {
     const { game, trigger, payload } = ctx;
@@ -74,7 +74,7 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
       return false;
     }
 
-    // 3. Either CORRECT answer OR all players exhausted
+    // 3. Either CORRECT answer OR all players will be exhausted after this answer
     if (trigger === TransitionTrigger.USER_ACTION) {
       const answerType = payload?.answerType;
 
@@ -83,19 +83,20 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
         return true;
       }
 
-      // Wrong answer goes to SHOWING_ANSWER only if all players exhausted
+      // Wrong answer goes to SHOWING_ANSWER only if all players WILL BE exhausted
+      // (including the current answering player who will be added to exhausted list)
       if (
         answerType === AnswerResultType.WRONG &&
-        game.areAllPlayersExhausted()
+        game.willAllPlayersBeExhausted()
       ) {
         return true;
       }
     }
 
-    // Timer expiration (wrong answer) + all exhausted
+    // Timer expiration (wrong answer) + all will be exhausted
     if (
       trigger === TransitionTrigger.TIMER_EXPIRED &&
-      game.areAllPlayersExhausted()
+      game.willAllPlayersBeExhausted()
     ) {
       return true;
     }
@@ -115,8 +116,11 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     const answerType = payload?.answerType ?? AnswerResultType.WRONG;
     const isCorrect = answerType === AnswerResultType.CORRECT;
 
-    // Get score result from payload or default (if payload exists - scoreResult must be present)
-    const scoreResult = payload?.scoreResult ?? 0;
+    // Get score result from payload or default
+    // When timer expires with no payload, use negative question price as penalty
+    const currentQuestionPrice = game.gameState.currentQuestion?.price ?? 0;
+    const scoreResult =
+      payload?.scoreResult ?? (isCorrect ? 0 : -currentQuestionPrice);
 
     const playerAnswerResult = game.handleQuestionAnswer(
       scoreResult,

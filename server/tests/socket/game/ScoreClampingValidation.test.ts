@@ -10,7 +10,6 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { MAX_SCORE_DELTA, SCORE_ABS_LIMIT } from "domain/constants/game";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
@@ -101,13 +100,13 @@ describe("Score Clamping Validation Tests", () => {
         const initialScore = initialPlayer?.score || 0;
 
         // Pick a simple question and have player answer it
-        const simpleQuestionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.SIMPLE
-        );
-
-        await utils.pickQuestion(showmanSocket, simpleQuestionId);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const showAnswerStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
 
         // Set up event listener for answer result
         const answerResultPromise = utils.waitForEvent(
@@ -125,6 +124,8 @@ describe("Score Clamping Validation Tests", () => {
 
         // Wait for answer result to be processed
         await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Get final player score and verify clamping
         const finalGame = await utils.getGameFromGameService(gameId);
@@ -156,13 +157,12 @@ describe("Score Clamping Validation Tests", () => {
         });
         const initialScore = initialPlayer?.score || 0;
 
-        // Pick a simple question and have player answer it
-        const simpleQuestionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.SIMPLE
+        const showAnswerStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
         );
 
-        await utils.pickQuestion(showmanSocket, simpleQuestionId);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
         // Set up event listener for answer result
@@ -181,6 +181,8 @@ describe("Score Clamping Validation Tests", () => {
 
         // Wait for answer result to be processed
         await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Get final player score and verify clamping
         const finalGame = await utils.getGameFromGameService(gameId);
@@ -212,14 +214,13 @@ describe("Score Clamping Validation Tests", () => {
         });
         const initialScore = initialPlayer?.score || 0;
 
-        // Pick a simple question and have player answer it
-        const simpleQuestionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.SIMPLE
-        );
-
-        await utils.pickQuestion(showmanSocket, simpleQuestionId);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const showAnswerStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
 
         // Set up event listener for answer result
         const answerResultPromise = utils.waitForEvent(
@@ -237,6 +238,8 @@ describe("Score Clamping Validation Tests", () => {
 
         // Wait for answer result to be processed
         await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Get final player score and verify it's applied normally
         const finalGame = await utils.getGameFromGameService(gameId);
@@ -465,13 +468,13 @@ describe("Score Clamping Validation Tests", () => {
         await scoreChangePromise;
 
         // Then, try to increase score through answer review beyond the limit
-        const simpleQuestionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.SIMPLE
-        );
-
-        await utils.pickQuestion(showmanSocket, simpleQuestionId);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const showAnswerStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
 
         const answerResultPromise = utils.waitForEvent(
           playerSockets[0],
@@ -487,6 +490,8 @@ describe("Score Clamping Validation Tests", () => {
         });
 
         await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Verify final score is clamped to SCORE_ABS_LIMIT
         const finalGame = await utils.getGameFromGameService(gameId);

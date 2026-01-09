@@ -287,7 +287,6 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // Timer Handlers - single handler for all timer types
   // =====================================
   const timerHandler = new TimerExpirationActionHandler(
-    gameService,
     timerExpirationService,
     logger
   );

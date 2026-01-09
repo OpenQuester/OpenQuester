@@ -508,7 +508,9 @@ export class SocketIOQuestionService {
     MediaDownloadLogic.markPlayerReady(currentPlayer);
 
     const allPlayersReady = MediaDownloadLogic.areAllPlayersReady(game);
-    let transitionTimer = game.timer;
+
+    // Set it to null while not all ready
+    let transitionTimer = null;
 
     if (
       allPlayersReady &&
@@ -521,6 +523,7 @@ export class SocketIOQuestionService {
       });
 
       if (transitionResult) {
+        // Set timer for question showing when all ready and state transitioned
         transitionTimer = transitionResult.timer ?? null;
       }
     }

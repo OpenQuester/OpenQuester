@@ -18,7 +18,7 @@ import { ChoosingToSecretTransferHandler } from "domain/state-machine/handlers/s
 import { ChoosingToStakeBiddingHandler } from "domain/state-machine/handlers/special-question/ChoosingToStakeBiddingHandler";
 import { ChoosingToShowingFallbackHandler } from "domain/state-machine/handlers/special-question/ChoosingToShowingFallbackHandler";
 import { SecretTransferToAnsweringHandler } from "domain/state-machine/handlers/special-question/SecretTransferToAnsweringHandler";
-import { StakeBiddingToShowingHandler } from "domain/state-machine/handlers/special-question/StakeBiddingToShowingHandler";
+import { StakeBiddingToAnsweringHandler } from "domain/state-machine/handlers/special-question/StakeBiddingToAnsweringHandler";
 import { TransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -73,7 +73,7 @@ export function createPhaseTransitionRouter(
     // Player buzzes to answer: SHOWING → ANSWERING
     new ShowingToAnsweringHandler(gameService, timerService),
 
-    // Question ends without answer: SHOWING → SHOWING_ANSWER
+    // Timer expired, force skip, or all players skipped: SHOWING → SHOWING_ANSWER
     new ShowingToShowingAnswerHandler(gameService, timerService),
 
     // Wrong answer (players remaining): ANSWERING → SHOWING
@@ -107,7 +107,7 @@ export function createPhaseTransitionRouter(
     // =========================================================================
 
     // Stake question bidding complete: STAKE_BIDDING → ANSWERING
-    new StakeBiddingToShowingHandler(gameService, timerService),
+    new StakeBiddingToAnsweringHandler(gameService, timerService),
 
     // Secret question transferred: SECRET_QUESTION_TRANSFER → ANSWERING
     new SecretTransferToAnsweringHandler(gameService, timerService),

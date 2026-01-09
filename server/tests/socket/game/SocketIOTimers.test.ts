@@ -170,10 +170,19 @@ describe("SocketIOTimers", () => {
           socketUtils.waitForEvent<GameNextRoundEventPayload>(
             playerSockets[0],
             SocketIOGameEvents.NEXT_ROUND,
-            1000
+            2000
           );
 
-        // Expire showing timer - this should trigger round progression since all questions are played
+        // Expire showing timer - this should trigger transition to SHOWING_ANSWER
+        await testUtils.expireTimer(gameId);
+
+        // Wait for transition to SHOWING_ANSWER
+        await socketUtils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
+
+        // Expire SHOWING_ANSWER timer - this should trigger round progression
         await testUtils.expireTimer(gameId);
 
         // Wait for round progression
@@ -220,9 +229,9 @@ describe("SocketIOTimers", () => {
         // Verify question finish event was received
         await questionFinishPromise;
 
-        // Verify game returned to choosing state
+        // Verify game returned to SHOWING_ANSWER state
         const finalState = await socketUtils.getGameState(gameId);
-        expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
+        expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
         expect(finalState!.currentQuestion).toBeNull();
       } finally {
         await socketUtils.cleanupGameClients(setup);

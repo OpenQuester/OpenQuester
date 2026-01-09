@@ -159,6 +159,23 @@ export class QuestionPickActionHandler
         };
       }
 
+      case GamePhase.ANSWERING: {
+        const questionPickType = game.gameState.stakeQuestionData
+          ? QuestionPickType.STAKE
+          : game.gameState.secretQuestionData
+          ? QuestionPickType.SECRET
+          : QuestionPickType.NORMAL;
+
+        return {
+          success: true,
+          data: {
+            type: questionPickType,
+            gameId: game.id,
+          },
+          broadcasts,
+        };
+      }
+
       default:
         return {
           success: false,

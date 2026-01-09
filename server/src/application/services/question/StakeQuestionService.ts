@@ -143,7 +143,7 @@ export class StakeQuestionService {
       isPhaseComplete,
       nextBidderId,
       winnerPlayerId: updatedStakeData.winnerPlayerId,
-      questionData: questionData ? { question: questionData } : null,
+      questionData: questionData ?? null,
       timer,
     });
   }

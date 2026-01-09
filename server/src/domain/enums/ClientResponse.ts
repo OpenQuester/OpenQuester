@@ -120,7 +120,6 @@ export enum ClientResponse {
 
   // Final Round
   INVALID_ROUND_TYPE = "invalid_round_type",
-  INVALID_THEME_ID = "invalid_theme_id",
   INVALID_QUESTION_STATE = "invalid_question_state",
   FINAL_ROUND_INVALID_THEME_STRUCTURE = "final_round_invalid_theme_structure",
   FINAL_ROUND_INVALID_QUESTION_TYPE = "final_round_invalid_question_type",

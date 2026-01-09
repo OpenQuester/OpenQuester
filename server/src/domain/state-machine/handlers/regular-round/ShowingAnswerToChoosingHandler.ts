@@ -111,9 +111,7 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
 
     // Reset to choosing state only when continuing in the same round
     if (!isRoundFinished) {
-      game.gameState.questionState = QuestionState.CHOOSING;
-      game.gameState.answeringPlayer = null;
-      game.gameState.answeredPlayers = [];
+      game.resetToChoosingState();
     }
 
     return {

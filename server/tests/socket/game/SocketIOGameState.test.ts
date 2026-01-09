@@ -153,7 +153,7 @@ describe("Socket Game State Tests", () => {
           const playQuestion = async () => {
             try {
               // Pick question
-              await utils.pickQuestion(showmanSocket);
+              await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
               // Player answers
               await utils.answerQuestion(playerSockets[0], showmanSocket);
@@ -222,7 +222,7 @@ describe("Socket Game State Tests", () => {
           const skipQuestion = async () => {
             try {
               // Pick question
-              await utils.pickQuestion(showmanSocket);
+              await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
               // Skip the question immediately
               showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});

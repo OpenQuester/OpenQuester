@@ -85,7 +85,6 @@ export class StakeBiddingTimeoutLogic {
     const nextBidderData = turn.determineNext({ stakeData, allPlayers });
 
     if (nextBidderData.isPhaseComplete) {
-      stakeData.biddingPhase = false;
       const winnerPlayerId =
         nextBidderData.winnerPlayerId ?? this.findHighestBidder(stakeData);
 
