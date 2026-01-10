@@ -30,7 +30,10 @@ class GameLobbyController {
 
   JoinCompleter _joinCompleter = JoinCompleter();
 
-  Future<bool> join({required String gameId, String? password}) async {
+  Future<bool> join({
+    required String gameId,
+    String? password,
+  }) async {
     // Check if already joined
     if (_gameId == gameId) return true;
 

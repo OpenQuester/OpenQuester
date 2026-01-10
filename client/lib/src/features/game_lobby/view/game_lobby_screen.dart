@@ -27,7 +27,9 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
 
   Future<void> _joinGame() async {
     try {
-      // First, try to get game info to check if it's private
+      final controller = getIt<GameLobbyController>();
+      
+      // Get game info first to check if private
       final gameInfo = await Api.I.api.games.getV1GamesGameId(
         gameId: widget.gameId,
       );
@@ -36,35 +38,44 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
 
       // If game is private and no password provided, prompt for it
       if (gameInfo.isPrivate && password == null && mounted) {
-        password = await _promptForPassword(gameInfo.title);
+        password = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => PasswordPromptDialog(gameTitle: gameInfo.title),
+        );
+
         if (password == null) {
           if (mounted) Navigator.of(context).pop();
           return;
         }
       }
 
-      // Join the game with password (if any)
-      final joinSuccess = await getIt<GameLobbyController>().join(
+      // First attempt to join
+      final success = await controller.join(
         gameId: widget.gameId,
         password: password,
       );
 
-      // If join failed due to incorrect password, allow retry
-      if (!joinSuccess && gameInfo.isPrivate && mounted) {
-        // Show incorrect password message
+      // If failed and game is private, allow retry
+      if (!success && gameInfo.isPrivate && mounted) {
         await getIt<ToastController>().show(
           LocaleKeys.incorrect_password.tr(),
         );
 
-        // Prompt for password again
-        password = await _promptForPassword(gameInfo.title);
+        // Prompt for new password
+        password = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => PasswordPromptDialog(gameTitle: gameInfo.title),
+        );
+
         if (password == null) {
           if (mounted) Navigator.of(context).pop();
           return;
         }
 
-        // Retry joining with new password
-        final retrySuccess = await getIt<GameLobbyController>().join(
+        // Retry with new password
+        final retrySuccess = await controller.join(
           gameId: widget.gameId,
           password: password,
         );
@@ -72,20 +83,13 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         if (!retrySuccess && mounted) {
           Navigator.of(context).pop();
         }
+      } else if (!success && mounted) {
+        Navigator.of(context).pop();
       }
     } catch (e) {
-      // Error will be handled by GameLobbyController
       logger.e('Error joining game', error: e);
       if (mounted) Navigator.of(context).pop();
     }
-  }
-
-  Future<String?> _promptForPassword(String gameTitle) async {
-    if (!mounted) return null;
-    return PasswordPromptDialog.show(
-      context,
-      gameTitle: gameTitle,
-    );
   }
 
   @override

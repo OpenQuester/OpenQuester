@@ -117,6 +117,7 @@ export 'src/features/profile/view/profile_btn.dart';
 export 'src/features/profile/view/profile_screen.dart';
 export 'src/features/settings/view/settings_dialog.dart';
 export 'src/ui/components/conditional_scroll_builder.dart';
+export 'src/ui/components/password_input_field.dart';
 export 'src/ui/components/score_text.dart';
 export 'src/ui/dialogs/password_prompt_dialog.dart';
 export 'src/utils/error_handler.dart';

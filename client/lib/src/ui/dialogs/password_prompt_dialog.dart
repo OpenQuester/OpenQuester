@@ -12,25 +12,11 @@ class PasswordPromptDialog extends StatefulWidget {
 
   @override
   State<PasswordPromptDialog> createState() => _PasswordPromptDialogState();
-
-  /// Shows the password prompt dialog and returns the entered password
-  /// Returns null if user cancels
-  static Future<String?> show(
-    BuildContext context, {
-    required String gameTitle,
-  }) async {
-    return showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => PasswordPromptDialog(gameTitle: gameTitle),
-    );
-  }
 }
 
 class _PasswordPromptDialogState extends State<PasswordPromptDialog> {
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -105,26 +91,10 @@ class _PasswordPromptDialogState extends State<PasswordPromptDialog> {
                 ],
               ),
             ).paddingBottom(16),
-            TextFormField(
+            PasswordInputField(
               controller: _passwordController,
-              obscureText: _obscurePassword,
               autofocus: true,
-              decoration: InputDecoration(
-                labelText: LocaleKeys.password.tr(),
-                prefixIcon: const Icon(Icons.lock_outline_rounded),
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscurePassword
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                  ),
-                  onPressed: () =>
-                      setState(() => _obscurePassword = !_obscurePassword),
-                  tooltip: _obscurePassword
-                      ? LocaleKeys.show_password.tr()
-                      : LocaleKeys.hide_password.tr(),
-                ),
-              ),
+              labelText: LocaleKeys.password.tr(),
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return LocaleKeys.password_required.tr();

@@ -57,45 +57,19 @@ class GameListItemWidget extends WatchingWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: 16.circular,
-          child: Stack(
-            children: [
-              Card(
-                color: context.theme.colorScheme.surfaceContainer,
-                elevation: 4,
-                child: Column(
-                  mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
-                  children: [
-                    Row(
-                      spacing: 4,
-                      children: children,
-                    ).paddingSymmetric(horizontal: 2).withHeight(120),
-                    if (bottom != null) bottom!.flexible(),
-                  ],
-                ),
-              ),
-              if (item.isPrivate)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: 6.all,
-                    decoration: BoxDecoration(
-                      color: context.theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: context.theme.colorScheme.outline.withValues(
-                          alpha: 0.2,
-                        ),
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.lock_rounded,
-                      size: 16,
-                      color: context.theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ).withTooltip(msg: LocaleKeys.private.tr()),
-                ),
-            ],
+          child: Card(
+            color: context.theme.colorScheme.surfaceContainer,
+            elevation: 4,
+            child: Column(
+              mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                Row(
+                  spacing: 4,
+                  children: children,
+                ).paddingSymmetric(horizontal: 2).withHeight(120),
+                if (bottom != null) bottom!.flexible(),
+              ],
+            ),
           ),
         ),
       ).paddingSymmetric(horizontal: 6),
