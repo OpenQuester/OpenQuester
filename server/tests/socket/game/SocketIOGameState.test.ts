@@ -140,18 +140,30 @@ describe("Socket Game State Tests", () => {
         showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
 
         await new Promise<void>((resolve, reject) => {
+          let gameFinished = false;
+          let playQuestionTimeout: NodeJS.Timeout | null = null;
           const timeout = setTimeout(() => {
             reject(new Error("Test timeout"));
           }, 2000);
 
           // Listen for game finish event
           playerSockets[0].on(SocketIOGameEvents.GAME_FINISHED, (data: any) => {
+            gameFinished = true;
             clearTimeout(timeout);
+            if (playQuestionTimeout) {
+              clearTimeout(playQuestionTimeout);
+              playQuestionTimeout = null;
+            }
             expect(data).toBe(true);
             resolve();
           });
 
           const playQuestion = async () => {
+            // Stop recursion if game has finished
+            if (gameFinished) {
+              return;
+            }
+
             try {
               // Pick question
               await utils.pickQuestion(showmanSocket, undefined, playerSockets);
@@ -182,15 +194,17 @@ describe("Socket Game State Tests", () => {
                 });
               });
 
-              // Continue to next question after show answer phase
-              setTimeout(playQuestion, 100);
+              // Continue to next question after show answer phase (only if game not finished)
+              if (!gameFinished) {
+                playQuestionTimeout = setTimeout(playQuestion, 100);
+              }
             } catch {
               // If we can't pick more questions, the game should finish soon
             }
           };
 
           // Start playing questions after a short delay
-          setTimeout(playQuestion, 250);
+          playQuestionTimeout = setTimeout(playQuestion, 250);
         });
       } finally {
         await utils.cleanupGameClients(setup);

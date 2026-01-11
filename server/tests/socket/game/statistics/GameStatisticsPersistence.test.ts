@@ -198,11 +198,24 @@ describe("Game Statistics Persistence Tests", () => {
 
       // Wait for game to finish via skipping all questions in final round
       const gameFinishedPromise = new Promise((resolve) => {
+        let gameFinished = false;
+        let pendingTimeout: NodeJS.Timeout | null = null;
+
         playerSockets[0].on(SocketIOGameEvents.GAME_FINISHED, (data) => {
+          gameFinished = true;
+          if (pendingTimeout) {
+            clearTimeout(pendingTimeout);
+            pendingTimeout = null;
+          }
           resolve(data);
         });
 
         const skipAllQuestions = async () => {
+          // Stop recursion if game has finished
+          if (gameFinished) {
+            return;
+          }
+
           try {
             const answerShowStart = utils.waitForEvent(
               showmanSocket,
@@ -216,15 +229,17 @@ describe("Game Statistics Persistence Tests", () => {
             await answerShowStart;
             await utils.skipShowAnswer(showmanSocket);
 
-            // Continue skipping questions until all are done
-            setTimeout(skipAllQuestions, 100);
+            // Continue skipping questions until all are done (only if game not finished)
+            if (!gameFinished) {
+              pendingTimeout = setTimeout(skipAllQuestions, 100);
+            }
           } catch {
             // If we can't pick more questions, the game should finish soon
           }
         };
 
         // Start skipping questions after a short delay
-        setTimeout(skipAllQuestions, 100);
+        pendingTimeout = setTimeout(skipAllQuestions, 100);
       });
 
       // Wait for game finish event
