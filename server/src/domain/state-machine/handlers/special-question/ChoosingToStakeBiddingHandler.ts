@@ -131,7 +131,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
       );
     }
 
-    game.gameState.questionState = QuestionState.BIDDING;
+    game.setQuestionState(QuestionState.BIDDING);
     game.gameState.stakeQuestionData = stakeData;
 
     // Mark question played and reset media download statuses
@@ -159,8 +159,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
 
     const timerEntity = await this.timerService.setupQuestionTimer(
       ctx.game,
-      STAKE_QUESTION_BID_TIME,
-      QuestionState.BIDDING
+      STAKE_QUESTION_BID_TIME
     );
 
     return { timer: timerEntity.value() ?? undefined };

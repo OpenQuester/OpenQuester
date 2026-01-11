@@ -33,7 +33,7 @@ export interface GameStateDTO {
   skippedPlayers: number[] | null;
   /** Secret question specific data - only set when a secret question is picked */
   secretQuestionData?: SecretQuestionGameData | null;
-  /** Stake question specific data - only set when a stake question is picked */
+  /** Stake question specific data - only set when a stake question is picked and bidding ended */
   stakeQuestionData?: StakeQuestionGameData | null;
   /** Game password - only visible to players who have joined the game */
   password?: string | null;

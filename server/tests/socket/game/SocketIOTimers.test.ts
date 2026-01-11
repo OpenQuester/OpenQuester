@@ -108,7 +108,7 @@ describe("SocketIOTimers", () => {
         const stateTransitioned = await testUtils.waitForCondition(
           async () => {
             const state = await socketUtils.getGameState(gameId);
-            return state!.questionState === QuestionState.SHOWING;
+            return state!.questionState === QuestionState.SHOWING_ANSWER;
           },
           2000,
           50

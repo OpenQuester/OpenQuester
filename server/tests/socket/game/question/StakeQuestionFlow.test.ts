@@ -842,7 +842,7 @@ describe("Stake Question Flow Tests", () => {
 
         // Verify game state updated
         const gameState = await utils.getGameState(setup.gameId);
-        expect(gameState?.questionState).toBe(QuestionState.SHOWING);
+        expect(gameState?.questionState).toBe(QuestionState.ANSWERING);
       });
 
       it("should reject first bidder attempt to pass", async () => {

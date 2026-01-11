@@ -20,6 +20,7 @@ import {
   AnsweringToShowingCtx,
   AnsweringToShowingMutationData,
 } from "domain/types/socket/transition/answering";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 
 /**
  * Handles transition from ANSWERING to SHOWING phase in regular rounds.
@@ -71,11 +72,15 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
     }
 
     // 3. Must have answer result or timer expiration
-    if (trigger === TransitionTrigger.USER_ACTION) {
+    if (
+      trigger === TransitionTrigger.USER_ACTION ||
+      trigger === TransitionTrigger.PLAYER_LEFT
+    ) {
       const answerType = payload?.answerType;
       return (
         answerType !== AnswerResultType.CORRECT && // skip or wrong
-        !game.willAllPlayersBeExhausted() // someone still can answer after this
+        !game.willAllPlayersBeExhausted() && // someone still can answer after this
+        payload?.questionType === PackageQuestionType.SIMPLE // Secret and stake always go to SHOWING_ANSWER
       );
     }
 
@@ -100,10 +105,11 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
     // When timer expires with no payload, use negative question price as penalty
     const currentQuestionPrice = game.gameState.currentQuestion?.price ?? 0;
     const scoreResult = payload?.scoreResult ?? -currentQuestionPrice;
+    const answerType = payload?.answerType ?? AnswerResultType.WRONG;
 
     const playerAnswerResult = game.handleQuestionAnswer(
       scoreResult,
-      AnswerResultType.WRONG,
+      answerType,
       QuestionState.SHOWING
     );
 

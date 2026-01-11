@@ -86,7 +86,7 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
 
     // handleRoundProgression sets game.gameState; ensure state is final theme elimination
     if (game.gameState.questionState !== QuestionState.THEME_ELIMINATION) {
-      game.gameState.questionState = QuestionState.THEME_ELIMINATION;
+      game.setQuestionState(QuestionState.THEME_ELIMINATION);
     }
 
     return {
@@ -108,8 +108,7 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
     // Setup timer for theme elimination (per-player turn timer)
     const timerEntity = await this.timerService.setupQuestionTimer(
       game,
-      FINAL_ROUND_THEME_ELIMINATION_TIME,
-      QuestionState.THEME_ELIMINATION
+      FINAL_ROUND_THEME_ELIMINATION_TIME
     );
 
     return {

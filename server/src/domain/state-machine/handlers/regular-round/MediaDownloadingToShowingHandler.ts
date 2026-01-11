@@ -56,7 +56,10 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
       return true;
     }
 
-    if (trigger === TransitionTrigger.USER_ACTION) {
+    if (
+      trigger === TransitionTrigger.USER_ACTION ||
+      trigger === TransitionTrigger.PLAYER_LEFT
+    ) {
       return MediaDownloadLogic.areAllPlayersReady(game);
     }
 
@@ -73,6 +76,8 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
     if (trigger === TransitionTrigger.TIMER_EXPIRED) {
       MediaDownloadLogic.forceAllPlayersReady(game);
     }
+
+    game.setQuestionState(QuestionState.SHOWING);
 
     return {
       data: {
@@ -91,8 +96,7 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
 
     const timerEntity = await this.timerService.setupQuestionTimer(
       game,
-      GAME_QUESTION_ANSWER_TIME,
-      QuestionState.SHOWING
+      GAME_QUESTION_ANSWER_TIME
     );
 
     return { timer: timerEntity.value() ?? undefined };

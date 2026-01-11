@@ -499,7 +499,7 @@ export class Game {
 
     // Always reset answering player
     this.gameState.answeringPlayer = null;
-    this.updateQuestionState(nextState);
+    this.setQuestionState(nextState);
 
     return playerAnswerResult;
   }
@@ -515,10 +515,10 @@ export class Game {
     this.gameState.skippedPlayers = null;
     this.gameState.secretQuestionData = null;
     this.gameState.stakeQuestionData = null;
-    this.updateQuestionState(QuestionState.CHOOSING);
+    this.setQuestionState(QuestionState.CHOOSING);
   }
 
-  public updateQuestionState(questionState: QuestionState) {
+  public setQuestionState(questionState: QuestionState) {
     if (this.gameState.questionState === questionState) {
       return;
     }

@@ -111,7 +111,7 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     }
 
     // Transition to answering state
-    game.gameState.questionState = QuestionState.ANSWERING;
+    game.setQuestionState(QuestionState.ANSWERING);
     game.gameState.answeringPlayer = targetPlayerId;
     game.gameState.secretQuestionData = null;
 
@@ -137,8 +137,7 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     // Setup answering timer
     const timerEntity = await this.timerService.setupQuestionTimer(
       game,
-      GAME_QUESTION_ANSWER_TIME,
-      QuestionState.ANSWERING
+      GAME_QUESTION_ANSWER_TIME
     );
 
     return {

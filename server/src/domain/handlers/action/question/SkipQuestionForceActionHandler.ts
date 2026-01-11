@@ -10,6 +10,8 @@ import {
   EmptyInputData,
   EmptyOutputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 
 /**
  * Stateless action handler for force skipping a question (showman).
@@ -30,30 +32,32 @@ export class SkipQuestionForceActionHandler
     const actionCtx = createActionContextFromAction(action);
 
     // Core force-skip logic in service layer (validates + updates state)
-    const { game, question } =
+    // Now returns broadcasts (e.g. GAME_FINISHED) if round completion logic triggered
+    const { game, question, broadcasts } =
       await this.socketIOQuestionService.handleQuestionForceSkip(actionCtx);
 
-    // Progress round/game after question skipped
-    const { isGameFinished, nextGameState } =
-      await this.socketIOQuestionService.handleRoundProgression(game);
+    // We must manually broadcast QUESTION_FINISH because this action bypasses
+    // the regular state machine transition handlers (ShowingToShowingAnswer)
+    const questionFinishPayload: QuestionFinishWithAnswerEventPayload = {
+      answerFiles: question?.answerFiles ?? null,
+      answerText: question?.answerText ?? null,
+      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+      answerResult: null, // No actual answer was given
+    };
 
-    // Build broadcasts (question finish + next round / game finished)
-    const progressionResult =
-      await this.gameProgressionCoordinator.processGameProgression({
-        game,
-        isGameFinished,
-        nextGameState,
-        questionFinishData: {
-          answerFiles: question?.answerFiles ?? null,
-          answerText: question?.answerText ?? null,
-          nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-        },
-      });
+    const finalBroadcasts = [
+      {
+        event: SocketIOGameEvents.QUESTION_FINISH,
+        data: questionFinishPayload,
+        room: game.id,
+      },
+      ...(broadcasts ?? []),
+    ];
 
     return {
-      success: progressionResult.success,
+      success: true,
       data: {},
-      broadcasts: progressionResult.broadcasts,
+      broadcasts: finalBroadcasts,
     };
   }
 }

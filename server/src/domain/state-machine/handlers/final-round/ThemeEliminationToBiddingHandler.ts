@@ -105,8 +105,7 @@ export class ThemeEliminationToBiddingHandler extends BaseTransitionHandler {
     // Setup the bidding timer
     const timerEntity = await this.timerService.setupQuestionTimer(
       game,
-      FINAL_ROUND_BID_TIME,
-      QuestionState.BIDDING
+      FINAL_ROUND_BID_TIME
     );
 
     return {

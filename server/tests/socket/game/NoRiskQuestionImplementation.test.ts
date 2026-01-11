@@ -207,8 +207,8 @@ describe("NoRisk Question Implementation", () => {
 
         // Set initial score
         const playerId = setup.playerUsers[0].id;
-        await utils.setPlayerScore(gameId, playerId, 0);
         const initialScore = 0;
+        await utils.setPlayerScore(gameId, playerId, initialScore);
 
         // Pick the NoRisk question and have player answer it
         await utils.pickQuestion(

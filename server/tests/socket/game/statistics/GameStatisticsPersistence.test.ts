@@ -180,7 +180,13 @@ describe("Game Statistics Persistence Tests", () => {
 
   it("should record statistics to database when game ends via skip question force", async () => {
     // Setup game with 1 player
-    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0);
+    const setup = await utils.setupGameTestEnvironment(
+      userRepo,
+      _app,
+      1,
+      0,
+      false
+    );
     const { showmanSocket, playerSockets } = setup;
 
     try {
@@ -196,13 +202,19 @@ describe("Game Statistics Persistence Tests", () => {
           resolve(data);
         });
 
-        // TODO: This will break when we add server-side timer for question results showing
-        // * We wont't be able to pick question while previous one is showing answer
         const skipAllQuestions = async () => {
           try {
+            const answerShowStart = utils.waitForEvent(
+              showmanSocket,
+              SocketIOGameEvents.ANSWER_SHOW_START,
+              2000
+            );
             // Pick question then immediately skip it
             await utils.pickQuestion(showmanSocket, undefined, playerSockets);
             showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
+
+            await answerShowStart;
+            await utils.skipShowAnswer(showmanSocket);
 
             // Continue skipping questions until all are done
             setTimeout(skipAllQuestions, 100);

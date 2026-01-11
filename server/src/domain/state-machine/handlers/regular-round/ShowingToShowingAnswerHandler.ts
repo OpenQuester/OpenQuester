@@ -59,6 +59,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
 
     switch (trigger) {
       case TransitionTrigger.TIMER_EXPIRED:
+      case TransitionTrigger.USER_ACTION:
         return true;
       case TransitionTrigger.CONDITION_MET:
         return game.haveAllPlayersSkipped();
@@ -95,7 +96,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
       }
     }
 
-    game.gameState.questionState = QuestionState.SHOWING_ANSWER;
+    game.setQuestionState(QuestionState.SHOWING_ANSWER);
     game.gameState.currentQuestion = null;
     game.gameState.answeredPlayers = null;
     game.gameState.skippedPlayers = null;
@@ -124,8 +125,7 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
 
     const timerEntity = await this.timerService.setupQuestionTimer(
       game,
-      duration,
-      QuestionState.SHOWING_ANSWER
+      duration
     );
 
     return {

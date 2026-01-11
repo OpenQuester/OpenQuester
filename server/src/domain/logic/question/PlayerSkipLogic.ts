@@ -28,7 +28,7 @@ export interface GiveUpResult {
   playerId: number;
   gaveUp: true;
   answerResult: GameStateAnsweredPlayerData;
-  timer: GameStateTimerDTO;
+  timer: GameStateTimerDTO | null;
 }
 
 export interface RegularSkipResult {
@@ -43,7 +43,7 @@ export interface GiveUpBuildResultInput {
   game: Game;
   playerId: number;
   mutation: GiveUpMutation;
-  timer: GameStateTimerDTO;
+  timer: GameStateTimerDTO | null;
 }
 
 export interface RegularSkipBuildResultInput {
@@ -92,7 +92,7 @@ export class PlayerSkipLogic {
     const playerAnswerResult = game.handleQuestionAnswer(
       penalty,
       AnswerResultType.WRONG,
-      QuestionState.SHOWING
+      QuestionState.SHOWING_ANSWER
     );
 
     return {

@@ -330,7 +330,7 @@ export class TimerExpirationService {
       }
 
       game.gameState.secretQuestionData = null;
-      game.gameState.questionState = QuestionState.SHOWING;
+      game.setQuestionState(QuestionState.SHOWING);
       game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
         questionData.question
       );
@@ -339,8 +339,7 @@ export class TimerExpirationService {
 
       await this.socketQuestionStateService.setupQuestionTimer(
         game,
-        GAME_QUESTION_ANSWER_TIME,
-        QuestionState.SHOWING
+        GAME_QUESTION_ANSWER_TIME
       );
 
       await this.gameService.updateGame(game);

@@ -51,6 +51,7 @@ export class SocketIOQuestionPickService {
     );
 
     // Route transition based on question type/state
+    // Possible transitions to: media downloading, stake bidding, secret transfer, answering
     let transitionResult =
       await this.phaseTransitionRouter.tryTransition<QuestionPickPayload>({
         game,
@@ -66,7 +67,7 @@ export class SocketIOQuestionPickService {
     // Auto-advance if stake bidding is immediately resolved (e.g. picker auto-bid wins)
     if (
       transitionResult.toPhase === GamePhase.STAKE_BIDDING &&
-      game.gameState.stakeQuestionData
+      game.gameState.stakeQuestionData // Set only when bidding ended
     ) {
       transitionResult = await this._autoAdvanceStakeBiddingIfResolved(
         game,
@@ -129,7 +130,7 @@ export class SocketIOQuestionPickService {
       return transitionResult;
     }
 
-    // Transition to SHOWING immediately
+    // Transition to ANSWERING immediately
     const autoFinishTransition =
       await this.phaseTransitionRouter.tryTransition<StakeBiddingToAnsweringPayload>(
         {

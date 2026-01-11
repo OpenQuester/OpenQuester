@@ -22,7 +22,9 @@ import {
 } from "domain/types/dto/package/PackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import {
   StakeBidSubmitOutputData,
   StakeBidType,
@@ -31,7 +33,6 @@ import {
   AnswerSubmittedBroadcastData,
   AnswerSubmittedInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -236,7 +237,7 @@ describe("Stake Question Zero Price Answer Tests", () => {
     const gameState = await utils.getGameState(setup.gameId);
 
     if (biddingResult.hasWinner) {
-      expect(gameState?.questionState).toBe(QuestionState.SHOWING);
+      expect(gameState?.questionState).toBe(QuestionState.ANSWERING);
       expect(gameState?.stakeQuestionData?.biddingPhase).toBe(false);
       expect(gameState?.stakeQuestionData?.winnerPlayerId).toBe(
         biddingResult.winnerPlayerId
@@ -346,20 +347,6 @@ describe("Stake Question Zero Price Answer Tests", () => {
       try {
         await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
-        const answerShowEndPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.ANSWER_SHOW_END
-        );
-
-        const questionAnswerPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.QUESTION_ANSWER
-        );
-
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER);
-
-        await questionAnswerPromise;
-
         playerSockets[0].emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
           answerText: "Test answer",
         } as AnswerSubmittedInputData);
@@ -374,6 +361,11 @@ describe("Stake Question Zero Price Answer Tests", () => {
           SocketIOGameEvents.ANSWER_RESULT
         );
 
+        const showAnswerPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
+
         const questionFinishPromise =
           utils.waitForEvent<QuestionFinishEventPayload>(
             showmanSocket,
@@ -386,13 +378,11 @@ describe("Stake Question Zero Price Answer Tests", () => {
         });
 
         await answerResultPromise;
+        await showAnswerPromise;
         const questionData = await questionFinishPromise;
 
         await utils.skipShowAnswer(showmanSocket);
 
-        const answerShowEndEvent = await answerShowEndPromise;
-
-        expect(answerShowEndEvent).toBeDefined();
         expect(questionData).toBeDefined();
         expect(questionData.answerText).toBeDefined();
         expect(questionData.nextTurnPlayerId).toBeDefined();
@@ -416,15 +406,6 @@ describe("Stake Question Zero Price Answer Tests", () => {
       try {
         await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
-        const questionAnswerPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.QUESTION_ANSWER
-        );
-
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER);
-
-        await questionAnswerPromise;
-
         playerSockets[0].emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
           answerText: "Wrong answer",
         } as AnswerSubmittedInputData);
@@ -432,6 +413,11 @@ describe("Stake Question Zero Price Answer Tests", () => {
         await utils.waitForEvent<AnswerSubmittedBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.ANSWER_SUBMITTED
+        );
+
+        const answerShowStartPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START
         );
 
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
@@ -443,40 +429,48 @@ describe("Stake Question Zero Price Answer Tests", () => {
           showmanSocket,
           SocketIOGameEvents.ANSWER_RESULT
         );
+        await answerShowStartPromise;
 
         const gameState = await utils.getGameState(setup.gameId);
-        expect(gameState?.questionState).toBe(QuestionState.SHOWING);
-        expect(gameState?.currentQuestion).not.toBeNull();
+        expect(gameState?.questionState).toBe(QuestionState.SHOWING_ANSWER);
+        expect(gameState?.currentQuestion).toBeNull();
         expect(gameState?.answeringPlayer).toBeNull();
       } finally {
         await testCleanup();
       }
     });
 
-    it("should reject skip attempt during showing phase", async () => {
+    it("should treat skip as give up (wrong answer) during stake question answering phase", async () => {
       const {
         setup,
         stakeQuestionId,
         cleanup: testCleanup,
       } = await setupZeroPriceStakeTest();
-      const { playerSockets } = setup;
+      const { playerSockets, showmanSocket } = setup;
 
       try {
         await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
-        // Listen for error when trying to skip during showing phase
-        const errorPromise = utils.waitForEvent(playerSockets[0], "error");
+        // Listen for answer result
+        const answerResultPromise =
+          utils.waitForEvent<QuestionAnswerResultEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.ANSWER_RESULT
+          );
 
+        // Emit skip (give up)
         playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
-        const error = await errorPromise;
-        expect(error.message).toContain("cannot skip while not answering");
+        const answerResult = await answerResultPromise;
 
-        // Verify game state remains unchanged
+        // Skip on stake question is treated as wrong answer (give up)
+        expect(answerResult.answerResult.answerType).toBe(
+          AnswerResultType.WRONG
+        );
+
+        // Game should transition to SHOWING_ANSWER
         const gameState = await utils.getGameState(setup.gameId);
-        expect(gameState?.questionState).toBe(QuestionState.SHOWING);
-        expect(gameState?.currentQuestion).not.toBeNull();
-        expect(gameState?.answeringPlayer).toBeNull();
+        expect(gameState?.questionState).toBe(QuestionState.SHOWING_ANSWER);
       } finally {
         await testCleanup();
       }

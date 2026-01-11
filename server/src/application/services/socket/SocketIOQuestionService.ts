@@ -13,6 +13,7 @@ import {
   GAME_QUESTION_ANSWER_SUBMIT_TIME,
   GAME_QUESTION_ANSWER_TIME,
 } from "domain/constants/game";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ActionContext } from "domain/types/action/ActionContext";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -34,6 +35,8 @@ import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackage
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { BroadcastEvent } from "domain/types/service/ServiceResult";
+import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
@@ -191,7 +194,32 @@ export class SocketIOQuestionService {
 
     await this.socketQuestionStateService.resetToChoosingState(game);
 
-    return QuestionForceSkipLogic.buildResult({ game, question });
+    // EXPLAIN: Check if the skipped question was the last one in the round/game.
+    // If so, handle round progression (next round or game finish).
+    // Also construct broadcasts because this action bypasses the state machine logic.
+    const { isGameFinished, nextGameState } = await this.handleRoundProgression(
+      game
+    );
+
+    const broadcasts: BroadcastEvent[] = [];
+
+    if (isGameFinished) {
+      broadcasts.push({
+        event: SocketIOGameEvents.GAME_FINISHED,
+        data: true,
+        room: game.id,
+      });
+    } else if (nextGameState) {
+      broadcasts.push({
+        event: SocketIOGameEvents.NEXT_ROUND,
+        data: {
+          gameState: nextGameState,
+        } satisfies GameNextRoundEventPayload,
+        room: game.id,
+      });
+    }
+
+    return QuestionForceSkipLogic.buildResult({ game, question, broadcasts });
   }
 
   public async handlePlayerSkip(ctx: ActionContext) {
@@ -422,18 +450,20 @@ export class SocketIOQuestionService {
     // Update statistics
     await this._updatePlayerStatsForGiveUp(game, mutation.playerAnswerResult);
 
-    // Set up timer for SHOWING state
-    const timer = await this._setupShowingTimer(game);
+    // Set up state for SHOWING_ANSWER
+    game.setQuestionState(QuestionState.SHOWING_ANSWER);
+
+    // Clear timer
+    await this.gameService.clearTimer(game.id);
 
     // Save game state
     await this.gameService.updateGame(game);
-    await this.gameService.saveTimer(timer, game.id);
 
     return PlayerSkipLogic.buildGiveUpResult({
       game,
       playerId: currentPlayer.meta.id,
       mutation,
-      timer,
+      timer: null,
     });
   }
 
@@ -483,8 +513,7 @@ export class SocketIOQuestionService {
     const timerEntity =
       await this.socketQuestionStateService.setupQuestionTimer(
         game,
-        GAME_QUESTION_ANSWER_TIME,
-        QuestionState.SHOWING
+        GAME_QUESTION_ANSWER_TIME
       );
 
     const timer = timerEntity.start();

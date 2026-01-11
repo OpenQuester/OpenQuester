@@ -22,6 +22,7 @@ import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 
 describe("Socket Game State Tests", () => {
   let testEnv: TestEnvironment;
@@ -197,46 +198,111 @@ describe("Socket Game State Tests", () => {
     });
 
     it("should handle game finish via all questions played (last question skipped)", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets } = setup;
+      // Setup game WITHOUT final round so completion of regular questions finishes the game
+      const setup = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        1,
+        0,
+        false
+      );
+      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       try {
         // Start game
         await utils.startGame(showmanSocket);
+        await utils.setPlayerScore(gameId, playerUsers[0].id, 10000);
+        await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
-        // Skip first round
-        showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
+        // Get all questions ordered
+        const questions = await utils.getAllAvailableQuestionIds(gameId);
+        expect(questions.length).toBeGreaterThan(0);
 
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Test timeout"));
-          }, 2000);
-
-          // Listen for game finish event
-          playerSockets[0].on(SocketIOGameEvents.GAME_FINISHED, (data: any) => {
-            clearTimeout(timeout);
-            expect(data).toBe(true);
-            resolve();
-          });
-
-          const skipQuestion = async () => {
-            try {
-              // Pick question
-              await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-
-              // Skip the question immediately
-              showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
-
-              // Continue to next question immediately
-              setTimeout(skipQuestion, 100);
-            } catch {
-              // If we can't pick more questions, the game should finish soon
-            }
-          };
-
-          // Start skipping questions after a short delay
-          setTimeout(skipQuestion, 250);
+        showmanSocket.on(SocketIOEvents.ERROR, (error: any) => {
+          console.error("Showman socket error:", error);
         });
+        playerSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
+          console.error("Player socket error:", error);
+        });
+        playerSockets[1]?.on(SocketIOEvents.ERROR, (error: any) => {
+          console.error("Player2 socket error:", error);
+        });
+        playerSockets[2]?.on(SocketIOEvents.ERROR, (error: any) => {
+          console.error("Player3 socket error:", error);
+        });
+        // EXPLAIN: PackageUtils creates 2 rounds when includeFinalRound=false.
+        // We must play through Round 1 entirely, then play Round 2 until the last question.
+
+        // --- ROUND 1 ---
+        // Play all questions except the last one in Round 1
+        for (let i = 0; i < questions.length - 1; i++) {
+          await utils.pickAndCompleteQuestion(
+            showmanSocket,
+            playerSockets,
+            questions[i],
+            true,
+            AnswerResultType.CORRECT,
+            100,
+            0
+          );
+        }
+
+        // Setup listener for next round BEFORE playing the last question
+        const nextRoundPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.NEXT_ROUND
+        );
+
+        // Play the last question of Round 1
+        await utils.pickAndCompleteQuestion(
+          showmanSocket,
+          playerSockets,
+          questions[questions.length - 1],
+          true,
+          AnswerResultType.CORRECT,
+          100,
+          0
+        );
+
+        // Wait for next round transition
+        await nextRoundPromise; // --- ROUND 2 ---
+        // Get questions for Round 2
+        const round2Questions = await utils.getAllAvailableQuestionIds(gameId);
+        expect(round2Questions.length).toBeGreaterThan(0);
+
+        // Play all questions except the last one in Round 2
+        for (let i = 0; i < round2Questions.length - 1; i++) {
+          await utils.pickAndCompleteQuestion(
+            showmanSocket,
+            playerSockets,
+            round2Questions[i],
+            true,
+            AnswerResultType.CORRECT,
+            100,
+            0
+          );
+        }
+
+        // For the last question of Round 2, pick it then skip it
+        const lastQuestionId = round2Questions[round2Questions.length - 1];
+
+        // Setup listener for game finish
+        const gameFinishedPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.GAME_FINISHED
+        );
+
+        await utils.pickQuestion(showmanSocket, lastQuestionId, playerSockets);
+
+        // Skip the last question
+        await utils.skipQuestion(showmanSocket);
+        // EXPLAIN: skipQuestion (force skip) skips the show answer phase too,
+        // so we don't need to call skipShowAnswer here.
+
+        // Verify game finished
+        await gameFinishedPromise;
+        const game = await utils.getGameFromGameService(gameId);
+        expect(game?.finishedAt).toBeTruthy();
       } finally {
         await utils.cleanupGameClients(setup);
       }

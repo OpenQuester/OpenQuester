@@ -188,6 +188,8 @@ export class StakeQuestionService {
           }
         );
     } else if (!mutationResult.isPhaseComplete) {
+      // Update state just in case
+      game.setQuestionState(QuestionState.BIDDING);
       timer = await this._setupStakeBiddingTimer(game);
     }
 
@@ -253,8 +255,7 @@ export class StakeQuestionService {
     const timerEntity =
       await this.socketQuestionStateService.setupQuestionTimer(
         game,
-        STAKE_QUESTION_BID_TIME,
-        QuestionState.BIDDING
+        STAKE_QUESTION_BID_TIME
       );
 
     return timerEntity.start();

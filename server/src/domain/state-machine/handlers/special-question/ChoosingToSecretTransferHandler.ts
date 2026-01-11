@@ -91,7 +91,7 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
       transferDecisionPhase: true,
     } satisfies ChoosingToSecretTransferMutationData;
 
-    game.gameState.questionState = QuestionState.SECRET_TRANSFER;
+    game.setQuestionState(QuestionState.SECRET_TRANSFER);
     game.gameState.secretQuestionData = secretData;
 
     // Mark question as played and reset media status for all players
@@ -109,8 +109,7 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
 
     const timerEntity = await this.timerService.setupQuestionTimer(
       ctx.game,
-      SECRET_QUESTION_TRANSFER_TIME,
-      QuestionState.SECRET_TRANSFER
+      SECRET_QUESTION_TRANSFER_TIME
     );
 
     return { timer: timerEntity.value() ?? undefined };

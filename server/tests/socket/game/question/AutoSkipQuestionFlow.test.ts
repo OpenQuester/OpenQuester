@@ -141,6 +141,7 @@ describe("Auto-Skip Question Flow Tests", () => {
         expect(questionData.data.type).toBe(PackageQuestionType.STAKE);
 
         // Verify the game state shows SHOWING (not BIDDING)
+        // Logic: No players - show as simple question in SHOWING state
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.SHOWING);
       } finally {

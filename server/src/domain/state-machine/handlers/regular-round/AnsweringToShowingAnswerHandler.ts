@@ -15,7 +15,6 @@ import {
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
-import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
 import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
@@ -25,6 +24,7 @@ import {
   AnsweringToShowingAnswerCtx,
   AnsweringToShowingAnswerMutationData,
 } from "domain/types/socket/transition/answering";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 
 /**
  * Handles transition from ANSWERING to SHOWING_ANSWER phase in regular rounds.
@@ -75,7 +75,10 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     }
 
     // 3. Either CORRECT answer OR all players will be exhausted after this answer
-    if (trigger === TransitionTrigger.USER_ACTION) {
+    if (
+      trigger === TransitionTrigger.USER_ACTION ||
+      trigger === TransitionTrigger.PLAYER_LEFT
+    ) {
       const answerType = payload?.answerType;
 
       // Correct answer always goes to SHOWING_ANSWER
@@ -85,10 +88,17 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
 
       // Wrong answer goes to SHOWING_ANSWER only if all players WILL BE exhausted
       // (including the current answering player who will be added to exhausted list)
-      if (
+      const allExhausted =
         answerType === AnswerResultType.WRONG &&
-        game.willAllPlayersBeExhausted()
-      ) {
+        game.willAllPlayersBeExhausted();
+
+      // Stake and secret always go to SHOWING_ANSWER on wrong answers
+      const singleAnswererQuestion =
+        payload?.questionType === PackageQuestionType.STAKE ||
+        payload?.questionType === PackageQuestionType.SECRET ||
+        payload?.questionType === PackageQuestionType.NO_RISK;
+
+      if (allExhausted || singleAnswererQuestion) {
         return true;
       }
     }
@@ -151,16 +161,15 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
       }
     }
 
-    // Update turn player for correct answers in simple rounds
-    if (
-      isCorrect &&
-      game.gameState.currentRound?.type === PackageRoundType.SIMPLE
-    ) {
+    // Update turn player for correct answers in all rounds
+    if (isCorrect) {
       game.gameState.currentTurnPlayerId = playerAnswerResult.player;
     }
 
     // Clear current question after processing
     game.gameState.currentQuestion = null;
+    game.gameState.stakeQuestionData = null;
+    game.gameState.secretQuestionData = null;
 
     return {
       data: {
@@ -189,8 +198,7 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     // Setup show answer timer
     const timerEntity = await this.timerService.setupQuestionTimer(
       game,
-      duration,
-      QuestionState.SHOWING_ANSWER
+      duration
     );
 
     return {

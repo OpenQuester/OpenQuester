@@ -80,7 +80,7 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
 
     // Set answering player and transition state
     game.gameState.answeringPlayer = playerId;
-    game.gameState.questionState = QuestionState.ANSWERING;
+    game.setQuestionState(QuestionState.ANSWERING);
 
     return {
       data: {
@@ -100,8 +100,7 @@ export class ShowingToAnsweringHandler extends BaseTransitionHandler {
 
     const timerEntity = await this.timerService.setupQuestionTimer(
       game,
-      GAME_QUESTION_ANSWER_SUBMIT_TIME,
-      QuestionState.ANSWERING
+      GAME_QUESTION_ANSWER_SUBMIT_TIME
     );
 
     return {

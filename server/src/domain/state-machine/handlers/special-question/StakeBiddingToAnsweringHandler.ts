@@ -72,22 +72,13 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     }
 
     // 3. Check if bidding is complete based on payload
-    if (trigger === TransitionTrigger.USER_ACTION) {
+    if (
+      trigger === TransitionTrigger.USER_ACTION ||
+      trigger === TransitionTrigger.TIMER_EXPIRED ||
+      trigger === TransitionTrigger.CONDITION_MET ||
+      trigger === TransitionTrigger.PLAYER_LEFT
+    ) {
       // Check if payload indicates phase completion with a winner
-      return (
-        payload.isPhaseComplete === true && payload.winnerPlayerId !== null
-      );
-    }
-
-    if (trigger === TransitionTrigger.TIMER_EXPIRED) {
-      // Timer expiration completes only when payload marks phase complete
-      return (
-        payload.isPhaseComplete === true && payload.winnerPlayerId !== null
-      );
-    }
-
-    if (trigger === TransitionTrigger.CONDITION_MET) {
-      // System automatic transition (e.g. no eligible bidders left)
       return (
         payload.isPhaseComplete === true && payload.winnerPlayerId !== null
       );
@@ -124,9 +115,8 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
       game.gameState.currentQuestion = questionData;
     }
 
-    // Transition to showing state; winner is pre-selected as answering player but set only in answering phase
-    // ANSWERING PLAYER is set in SHOWING -> ANSWERING handler
-    game.gameState.questionState = QuestionState.ANSWERING;
+    game.setQuestionState(QuestionState.ANSWERING);
+    game.gameState.answeringPlayer = winnerPlayerId;
     game.gameState.stakeQuestionData = {
       ...stakeData,
       biddingPhase: false,
@@ -151,11 +141,10 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     // Clear bidding timer
     await this.gameService.clearTimer(game.id);
 
-    // Setup showing timer so winner can request to answer
+    // Setup answering timer so winner can request to answer
     const timerEntity = await this.timerService.setupQuestionTimer(
       game,
-      GAME_QUESTION_ANSWER_TIME,
-      QuestionState.SHOWING
+      GAME_QUESTION_ANSWER_TIME
     );
 
     return {

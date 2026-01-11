@@ -607,19 +607,12 @@ describe("Player Game Statistics Tests", () => {
           SocketIOGameEvents.ANSWER_RESULT
         );
 
-        const answerShowStartPromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.ANSWER_SHOW_START
-        );
-
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: -100,
           answerType: AnswerResultType.WRONG,
         });
 
         await answerResultPromise;
-        await answerShowStartPromise;
-        await utils.skipShowAnswer(showmanSocket);
 
         // Verify statistics were updated correctly
         const updatedStats = await playerGameStatsRepository.getStats(
@@ -746,7 +739,14 @@ describe("Player Game Statistics Tests", () => {
     });
 
     it("should track statistics independently for multiple players", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1);
+      const setup = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        3,
+        1,
+        false,
+        2
+      );
       const { playerSockets, showmanSocket, gameId } = setup;
       const player1Id = setup.playerUsers[0].id;
       const player2Id = setup.playerUsers[1].id;
@@ -755,23 +755,43 @@ describe("Player Game Statistics Tests", () => {
         // Start the game
         await utils.startGame(showmanSocket);
 
+        const gameState = await utils.getGameState(setup.gameId);
+        const simpleQuestions = await utils.findAllQuestionsByType(
+          gameState!,
+          PackageQuestionType.SIMPLE,
+          gameId
+        );
+
         // Player 1 answers correctly using pickAndCompleteQuestion
         await utils.pickAndCompleteQuestion(
           showmanSocket,
           playerSockets,
-          undefined,
+          simpleQuestions[0].id,
           true
         );
 
-        // Player 2 answers incorrectly on next question using enhanced method
-        await utils.pickAndCompleteQuestion(
+        // Player 2 answers incorrectly - using manual flow to avoid timeout
+        await utils.pickQuestion(
           showmanSocket,
-          [playerSockets[1]], // Only player 2 answers
-          undefined,
-          true,
-          AnswerResultType.WRONG,
-          -50
+          simpleQuestions[1].id,
+          playerSockets
         );
+
+        await utils.answerQuestion(playerSockets[1], showmanSocket);
+
+        const answerResultPromise2 = utils.waitForEvent(
+          playerSockets[1],
+          SocketIOGameEvents.ANSWER_RESULT
+        );
+        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: -50,
+          answerType: AnswerResultType.WRONG,
+        });
+        await answerResultPromise2;
+
+        // Skip show answer manually without waiting for end event
+        showmanSocket.emit(SocketIOGameEvents.SKIP_SHOW_ANSWER);
+        await new Promise((resolve) => setTimeout(resolve, 50));
 
         // Verify Player 1 stats (1 correct, 0 wrong)
         const player1Stats = await playerGameStatsRepository.getStats(

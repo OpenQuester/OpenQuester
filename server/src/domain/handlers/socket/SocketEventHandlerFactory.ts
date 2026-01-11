@@ -297,7 +297,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOQuestionService,
         this.socketGameContextService
       ),
       new SkipShowAnswerEventHandler(

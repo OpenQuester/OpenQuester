@@ -21,6 +21,7 @@ import {
   AnswerResultTransitionPayload,
 } from "domain/types/socket/transition/answering";
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 
 /**
  * Service handling showman reviewing player's answer (correct/wrong).
@@ -59,6 +60,9 @@ export class SocketIOAnswerResultService {
           payload: {
             answerType: data.answerType,
             scoreResult: data.scoreResult,
+            questionType:
+              game.gameState.currentQuestion?.type ??
+              PackageQuestionType.SIMPLE,
           },
         }
       );

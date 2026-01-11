@@ -41,7 +41,7 @@ export class SocketQuestionStateService {
       return;
     }
 
-    game.gameState.questionState = questionState;
+    game.setQuestionState(questionState);
 
     if (opts?.saveGame) {
       await this.gameService.updateGame(game);
@@ -81,24 +81,20 @@ export class SocketQuestionStateService {
 
   /**
    * General timer setup strategy, using given duration and question state
+   *
+   * Caller should update game state
    */
   public async setupQuestionTimer(
     game: Game,
-    durationMs: number,
-    questionState: QuestionState
+    durationMs: number
   ): Promise<GameStateTimer> {
     this.logger.debug("Setting up question timer", {
       prefix: LogPrefix.SOCKET_QUESTION,
       gameId: game.id,
       durationMs,
-      questionState,
     });
 
     const timer = new GameStateTimer(durationMs);
-
-    await this.updateQuestionState(game, questionState, {
-      saveGame: false,
-    });
 
     game.gameState.timer = timer.start();
 

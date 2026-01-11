@@ -100,7 +100,7 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     // Clear any stale special-question data and proceed as a normal question
     game.gameState.secretQuestionData = null;
     game.gameState.stakeQuestionData = null;
-    game.gameState.questionState = questionState;
+    game.setQuestionState(questionState);
     game.gameState.currentQuestion =
       GameQuestionMapper.mapToSimpleQuestion(question);
 
@@ -119,12 +119,9 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     await this.gameService.clearTimer(ctx.game.id);
 
     // Choose timer target based on resulting question state
-    const targetState = ctx.game.gameState.questionState;
-
     const timerEntity = await this.timerService.setupQuestionTimer(
       ctx.game,
-      GAME_QUESTION_ANSWER_TIME,
-      targetState!
+      GAME_QUESTION_ANSWER_TIME
     );
 
     return { timer: timerEntity.value() ?? undefined };

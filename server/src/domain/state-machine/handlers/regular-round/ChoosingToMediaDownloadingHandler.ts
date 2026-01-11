@@ -91,9 +91,10 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
     QuestionPickLogic.processNormalQuestionPick(game, question, theme.id!);
     QuestionPickLogic.resetMediaDownloadStatus(game);
 
+    game.setQuestionState(QuestionState.MEDIA_DOWNLOADING);
+
     return {
       data: {
-        // TODO: No generated broadcasts?
         question: GameQuestionMapper.mapToSimpleQuestion(question),
       },
     };
@@ -109,8 +110,7 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
 
     const timerEntity = await this.timerService.setupQuestionTimer(
       game,
-      MEDIA_DOWNLOAD_TIMEOUT,
-      QuestionState.MEDIA_DOWNLOADING
+      MEDIA_DOWNLOAD_TIMEOUT
     );
 
     return { timer: timerEntity.value() ?? undefined };

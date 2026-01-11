@@ -128,7 +128,7 @@ export class SecretQuestionService {
       transferDecisionPhase: true,
     };
 
-    game.gameState.questionState = QuestionState.SECRET_TRANSFER;
+    game.setQuestionState(QuestionState.SECRET_TRANSFER);
     game.gameState.secretQuestionData = secretQuestionData;
 
     return secretQuestionData;
