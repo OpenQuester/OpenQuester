@@ -230,8 +230,6 @@ describe("Socket Game State Tests", () => {
         playerSockets[2]?.on(SocketIOEvents.ERROR, (error: any) => {
           console.error("Player3 socket error:", error);
         });
-        // EXPLAIN: PackageUtils creates 2 rounds when includeFinalRound=false.
-        // We must play through Round 1 entirely, then play Round 2 until the last question.
 
         // --- ROUND 1 ---
         // Play all questions except the last one in Round 1
@@ -294,10 +292,15 @@ describe("Socket Game State Tests", () => {
 
         await utils.pickQuestion(showmanSocket, lastQuestionId, playerSockets);
 
+        const showAnswerStart = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
+
         // Skip the last question
         await utils.skipQuestion(showmanSocket);
-        // EXPLAIN: skipQuestion (force skip) skips the show answer phase too,
-        // so we don't need to call skipShowAnswer here.
+        await showAnswerStart;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Verify game finished
         await gameFinishedPromise;

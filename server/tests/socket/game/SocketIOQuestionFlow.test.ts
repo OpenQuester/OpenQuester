@@ -288,6 +288,10 @@ describe("Socket Question Flow Tests", () => {
           playerSockets[0],
           SocketIOGameEvents.QUESTION_FINISH
         );
+        const showAnswerStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
         showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
 
         const questionFinishData =
@@ -296,6 +300,10 @@ describe("Socket Question Flow Tests", () => {
         // Verify appropriate conflict resolution
         expect(questionFinishData.answerFiles).toBeDefined();
         expect(questionFinishData.answerText).toBeDefined();
+
+        // Wait for SHOWING_ANSWER phase and skip it
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Verify game transitions properly and no scoring issues
         const finalState = await utils.getGameState(setup.gameId);
@@ -937,8 +945,14 @@ describe("Socket Question Flow Tests", () => {
         playerSockets[0],
         SocketIOGameEvents.QUESTION_FINISH
       );
+      const showAnswerStartPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.ANSWER_SHOW_START
+      );
       showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
       await forceSkipPromise;
+      await showAnswerStartPromise;
+      await utils.skipShowAnswer(showmanSocket);
 
       // Check that skipped players list is cleared
       gameState = await utils.getGameState(setup.gameId);

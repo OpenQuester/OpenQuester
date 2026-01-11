@@ -86,13 +86,14 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
         return true;
       }
 
-      // Wrong answer goes to SHOWING_ANSWER only if all players WILL BE exhausted
+      // Wrong/Skip answer goes to SHOWING_ANSWER only if all players WILL BE exhausted
       // (including the current answering player who will be added to exhausted list)
       const allExhausted =
-        answerType === AnswerResultType.WRONG &&
+        (answerType === AnswerResultType.WRONG ||
+          answerType === AnswerResultType.SKIP) &&
         game.willAllPlayersBeExhausted();
 
-      // Stake and secret always go to SHOWING_ANSWER on wrong answers
+      // Stake and secret always go to SHOWING_ANSWER on wrong/skip answers
       const singleAnswererQuestion =
         payload?.questionType === PackageQuestionType.STAKE ||
         payload?.questionType === PackageQuestionType.SECRET ||

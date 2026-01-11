@@ -35,14 +35,15 @@ import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackage
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { BroadcastEvent } from "domain/types/service/ServiceResult";
-import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
+import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
+import { BroadcastEvent } from "domain/types/service/ServiceResult";
 
 /**
  * Service handling question-related socket events.
@@ -160,6 +161,7 @@ export class SocketIOQuestionService {
     return {
       data: {},
       broadcasts: transitionResult.broadcasts,
+      game,
     };
   }
 
@@ -192,32 +194,32 @@ export class SocketIOQuestionService {
     // Process force skip via Logic class
     QuestionForceSkipLogic.processForceSkip(game, question, themeId);
 
-    await this.socketQuestionStateService.resetToChoosingState(game);
+    game.setQuestionState(QuestionState.SHOWING_ANSWER);
+    game.gameState.currentQuestion = null;
+    game.gameState.answeredPlayers = null;
+    game.gameState.skippedPlayers = null;
+    game.gameState.answeringPlayer = null;
 
-    // EXPLAIN: Check if the skipped question was the last one in the round/game.
-    // If so, handle round progression (next round or game finish).
-    // Also construct broadcasts because this action bypasses the state machine logic.
-    const { isGameFinished, nextGameState } = await this.handleRoundProgression(
-      game
-    );
+    await this.gameService.updateGame(game);
 
-    const broadcasts: BroadcastEvent[] = [];
+    const questionFinishPayload: QuestionFinishEventPayload = {
+      answerFiles: question?.answerFiles ?? null,
+      answerText: question?.answerText ?? null,
+      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+    };
 
-    if (isGameFinished) {
-      broadcasts.push({
-        event: SocketIOGameEvents.GAME_FINISHED,
-        data: true,
+    const broadcasts: BroadcastEvent[] = [
+      {
+        event: SocketIOGameEvents.QUESTION_FINISH,
+        data: questionFinishPayload,
         room: game.id,
-      });
-    } else if (nextGameState) {
-      broadcasts.push({
-        event: SocketIOGameEvents.NEXT_ROUND,
-        data: {
-          gameState: nextGameState,
-        } satisfies GameNextRoundEventPayload,
+      } satisfies BroadcastEvent<QuestionFinishEventPayload>,
+      {
+        event: SocketIOGameEvents.ANSWER_SHOW_START,
+        data: {},
         room: game.id,
-      });
-    }
+      } satisfies BroadcastEvent<AnswerShowStartEventPayload>,
+    ];
 
     return QuestionForceSkipLogic.buildResult({ game, question, broadcasts });
   }

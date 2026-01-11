@@ -13,6 +13,7 @@ import {
   EmptyInputData,
   QuestionSkipBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 
 /**
  * Stateless action handler for player skipping question.
@@ -61,7 +62,7 @@ export class QuestionSkipActionHandler
 
       const broadcasts: SocketEventBroadcast[] = [
         ...result.broadcasts,
-        ...transitionResult.broadcasts,
+        ...convertBroadcasts(transitionResult.broadcasts, game.id),
       ];
 
       return { success: true, data: result.data, broadcasts };

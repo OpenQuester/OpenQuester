@@ -14,13 +14,16 @@ import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
 import { Player } from "domain/entities/game/Player";
+import { Game } from "domain/entities/game/Game";
 
 export class SocketGameTestFlowUtils {
   constructor(
     private stateUtils: SocketGameTestStateUtils,
     private eventUtils: SocketGameTestEventUtils,
     private userUtils: SocketGameTestUserUtils
-  ) {}
+  ) {
+    //
+  }
 
   // ============================================================================
   // MEDIA DOWNLOAD HELPERS
@@ -28,15 +31,27 @@ export class SocketGameTestFlowUtils {
 
   /**
    * Wait for media download phase to complete.
-   * EXPLAIN: Sends MEDIA_DOWNLOADED events sequentially for each player,
-   * waiting for showman to receive MEDIA_DOWNLOAD_STATUS after each emission.
-   * Resolves when allPlayersReady=true is received.
    */
   public async waitForMediaDownload(
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[]
   ): Promise<void> {
     let playerIndex = 0;
+
+    if (playerSockets.length === 0) {
+      return;
+    }
+
+    const gameState = await this.stateUtils.getGameState(showmanSocket.gameId!);
+
+    if (
+      !gameState ||
+      gameState.questionState !== QuestionState.MEDIA_DOWNLOADING
+    ) {
+      // State is not MEDIA_DOWNLOADING - possible in secret and stake questions
+      // since those questions has custom phase before MEDIA_DOWNLOADING
+      return;
+    }
 
     return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -73,76 +88,19 @@ export class SocketGameTestFlowUtils {
     });
   }
 
-  /**
-   * EXPLAIN: Helper to check if media download is needed and handle it.
-   * This was previously inlined in pickQuestion but extracted for reuse.
-   * Uses polling with retries to reliably detect correct state for interaction.
-   */
-  private async handleMediaDownloadIfNeeded(
-    showmanSocket: GameClientSocket,
-    playerSockets: GameClientSocket[]
-  ): Promise<void> {
-    if (playerSockets.length === 0) {
-      return;
-    }
-
-    // EXPLAIN: Poll up to 20 times with 100ms intervals (2s total).
-    // Use a longer timeout to ensure we catch the state transition from CHOOSING.
-    // We cannot proceed if the state is still CHOOSING because Skip/Answer actions would be ignored.
-    const maxAttempts = 20;
-    const pollInterval = 100;
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const gameState = await this.stateUtils.getGameState(
-        showmanSocket.gameId!
-      );
-
-      // EXPLAIN: If state is still CHOOSING, we must wait.
-      // The server is still processing the pick transition.
-      if (!gameState || gameState.questionState === QuestionState.CHOOSING) {
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
-        continue;
-      }
-
-      if (gameState.questionState === QuestionState.MEDIA_DOWNLOADING) {
-        await this.waitForMediaDownload(showmanSocket, playerSockets);
-        return;
-      }
-
-      // EXPLAIN: If in SHOWING or ANSWERING, we are ready to proceed.
-      if (
-        gameState.questionState === QuestionState.SHOWING ||
-        gameState.questionState === QuestionState.ANSWERING
-      ) {
-        return;
-      }
-
-      // Other states (e.g. SHOWING_ANSWER) might imply we missed the window or logic is flawed,
-      // but we shouldn't block indefinitely.
-      return;
-    }
-
-    console.warn(
-      "[TEST] handleMediaDownloadIfNeeded: Timed out waiting for state change from CHOOSING"
-    );
-  }
-
   // ============================================================================
   // QUESTION PICKING
   // ============================================================================
 
   /**
    * Pick a question and optionally handle media download phase.
-   * EXPLAIN: Restored playerSockets parameter (Option A) so that media download
-   * is handled internally. This fixes tests that call pickQuestion expecting
-   * the full flow including media download wait.
    */
   public async pickQuestion(
     showmanSocket: GameClientSocket,
     questionId?: number,
     playerSockets?: GameClientSocket[]
   ): Promise<void> {
-    const actualQuestionId = await this.resolveQuestionId(
+    const actualQuestionId = await this._resolveQuestionId(
       showmanSocket,
       questionId
     );
@@ -152,7 +110,7 @@ export class SocketGameTestFlowUtils {
       return;
     }
 
-    const questionPickEvent = this.determineQuestionPickEvent(
+    const questionPickEvent = this._determineQuestionPickEvent(
       game,
       actualQuestionId
     );
@@ -168,17 +126,15 @@ export class SocketGameTestFlowUtils {
 
     await questionDataPromise;
 
-    // EXPLAIN: Handle media download phase after picking if playerSockets provided.
-    // This restores the original behavior that tests depend on.
     if (playerSockets && playerSockets.length > 0) {
-      await this.handleMediaDownloadIfNeeded(showmanSocket, playerSockets);
+      await this.waitForMediaDownload(showmanSocket, playerSockets);
     }
   }
 
   /**
-   * EXPLAIN: Extracted question ID resolution logic for readability.
+   * Try to get simple question first, then any available question.
    */
-  private async resolveQuestionId(
+  private async _resolveQuestionId(
     showmanSocket: GameClientSocket,
     questionId?: number
   ): Promise<number> {
@@ -198,23 +154,20 @@ export class SocketGameTestFlowUtils {
       PackageQuestionType.SIMPLE
     );
 
-    if (simpleQuestionId > 0) {
+    if (simpleQuestionId !== -1) {
       return simpleQuestionId;
     }
 
     return this.stateUtils.getFirstAvailableQuestionId(showmanSocket.gameId!);
   }
 
-  /**
-   * EXPLAIN: Extracted event type determination for different question types.
-   */
-  private determineQuestionPickEvent(
-    game: any,
+  private _determineQuestionPickEvent(
+    game: Game,
     questionId: number
   ): SocketIOGameEvents {
     const { question } = GameQuestionMapper.getQuestionAndTheme(
       game.package,
-      game.gameState.currentRound.id,
+      game.gameState!.currentRound!.id,
       questionId
     ) ?? { question: null };
 
@@ -222,23 +175,30 @@ export class SocketGameTestFlowUtils {
       throw new Error("Question not found in package");
     }
 
-    if (question.type === PackageQuestionType.STAKE) {
-      return SocketIOGameEvents.STAKE_QUESTION_PICKED;
-    }
+    let event: SocketIOGameEvents = SocketIOGameEvents.QUESTION_DATA;
 
-    if (question.type === PackageQuestionType.SECRET) {
-      const eligiblePlayers = game.players.filter(
-        (p: any) =>
-          p.role === PlayerRole.PLAYER &&
-          p.gameStatus === PlayerGameStatus.IN_GAME
-      ).length;
+    switch (question.type) {
+      case PackageQuestionType.STAKE:
+        event = SocketIOGameEvents.STAKE_QUESTION_PICKED;
+        break;
+      case PackageQuestionType.SECRET: {
+        const eligiblePlayers = game.players.filter(
+          (p) =>
+            p.role === PlayerRole.PLAYER &&
+            p.gameStatus === PlayerGameStatus.IN_GAME
+        ).length;
 
-      if (eligiblePlayers >= 2) {
-        return SocketIOGameEvents.SECRET_QUESTION_PICKED;
+        if (eligiblePlayers >= 2) {
+          event = SocketIOGameEvents.SECRET_QUESTION_PICKED;
+        }
+        break;
       }
+      default:
+        event = SocketIOGameEvents.QUESTION_DATA;
+        break;
     }
 
-    return SocketIOGameEvents.QUESTION_DATA;
+    return event;
   }
 
   // ============================================================================
@@ -293,13 +253,36 @@ export class SocketGameTestFlowUtils {
   // SKIPPING
   // ============================================================================
 
-  public async skipQuestion(showmanSocket: GameClientSocket): Promise<void> {
+  public async skipQuestionForce(
+    showmanSocket: GameClientSocket
+  ): Promise<void> {
     const finishPromise = this.eventUtils.waitForEvent(
       showmanSocket,
       SocketIOGameEvents.QUESTION_FINISH
     );
     showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE);
     await finishPromise;
+  }
+
+  /**
+   * Force skip question AND complete the show answer phase.
+   * Use this when you want to fully complete the skip flow.
+   */
+  public async skipQuestionForceComplete(
+    showmanSocket: GameClientSocket
+  ): Promise<void> {
+    const finishPromise = this.eventUtils.waitForEvent(
+      showmanSocket,
+      SocketIOGameEvents.QUESTION_FINISH
+    );
+    const showAnswerStartPromise = this.eventUtils.waitForEvent(
+      showmanSocket,
+      SocketIOGameEvents.ANSWER_SHOW_START
+    );
+    showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE);
+    await finishPromise;
+    await showAnswerStartPromise;
+    await this.skipShowAnswer(showmanSocket);
   }
 
   public async skipShowAnswer(showmanSocket: GameClientSocket): Promise<void> {
@@ -398,97 +381,11 @@ export class SocketGameTestFlowUtils {
   }
 
   // ============================================================================
-  // PICK QUESTION FOR ANSWERING (SECRET QUESTION HANDLING)
-  // ============================================================================
-
-  /**
-   * Picks a question and prepares it for answering (handles secret questions properly).
-   * Returns the socket that should answer the question.
-   */
-  public async pickQuestionForAnswering(
-    showmanSocket: GameClientSocket,
-    playerSockets: GameClientSocket[],
-    questionId?: number
-  ): Promise<GameClientSocket> {
-    const socketUserData = await this.userUtils.getSocketUserData(
-      showmanSocket
-    );
-    if (!socketUserData?.gameId) {
-      throw new Error("Cannot determine game ID from socket");
-    }
-
-    const actualQuestionId =
-      questionId ??
-      (await this.stateUtils.getFirstAvailableQuestionId(
-        socketUserData.gameId
-      ));
-
-    const game = await this.stateUtils.getGame(socketUserData.gameId);
-    if (!game) {
-      throw new Error("Game not found");
-    }
-
-    const questionType = this.stateUtils.getQuestionTypeFromPackage(
-      game,
-      actualQuestionId
-    );
-
-    if (questionType === PackageQuestionType.SECRET) {
-      return this.handleSecretQuestionPick(
-        showmanSocket,
-        playerSockets,
-        actualQuestionId
-      );
-    }
-
-    // EXPLAIN: Pass playerSockets to handle media download
-    await this.pickQuestion(showmanSocket, actualQuestionId, playerSockets);
-    return showmanSocket;
-  }
-
-  /**
-   * EXPLAIN: Extracted secret question pick logic for readability.
-   */
-  private async handleSecretQuestionPick(
-    showmanSocket: GameClientSocket,
-    playerSockets: GameClientSocket[],
-    questionId: number
-  ): Promise<GameClientSocket> {
-    const secretPickedPromise = this.eventUtils.waitForEvent(
-      playerSockets[0],
-      SocketIOGameEvents.SECRET_QUESTION_PICKED
-    );
-
-    showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-      questionId,
-    });
-
-    await secretPickedPromise;
-
-    const questionDataPromise = this.eventUtils.waitForEvent(
-      playerSockets[0],
-      SocketIOGameEvents.QUESTION_DATA
-    );
-
-    showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
-      targetPlayerId: await this.userUtils.getPlayerUserIdFromSocket(
-        playerSockets[0]
-      ),
-    });
-
-    await questionDataPromise;
-
-    return playerSockets[0];
-  }
-
-  // ============================================================================
   // PICK AND COMPLETE QUESTION (FULL FLOW)
   // ============================================================================
 
   /**
    * Picks and completes any type of question (regular, secret, stake, etc.).
-   * EXPLAIN: This is the main orchestration method. Decomposed into smaller
-   * helper methods for each question type to improve readability.
    */
   public async pickAndCompleteQuestion(
     showmanSocket: GameClientSocket,
@@ -516,9 +413,8 @@ export class SocketGameTestFlowUtils {
       actualQuestionId
     );
 
-    // EXPLAIN: Route to appropriate handler based on question type
     if (questionType === PackageQuestionType.SECRET) {
-      await this.handleSecretQuestionComplete(
+      await this._handleSecretQuestionComplete(
         showmanSocket,
         playerSockets,
         actualQuestionId,
@@ -528,7 +424,7 @@ export class SocketGameTestFlowUtils {
         answeringPlayerIdx
       );
     } else if (questionType === PackageQuestionType.STAKE) {
-      await this.handleStakeQuestionComplete(
+      await this._handleStakeQuestionComplete(
         showmanSocket,
         playerSockets,
         socketUserData.gameId,
@@ -539,7 +435,7 @@ export class SocketGameTestFlowUtils {
         answeringPlayerIdx
       );
     } else {
-      await this.handleRegularQuestionComplete(
+      await this._handleRegularQuestionComplete(
         showmanSocket,
         playerSockets,
         actualQuestionId,
@@ -595,7 +491,7 @@ export class SocketGameTestFlowUtils {
       }
     }
 
-    // EXPLAIN: Secret question fallback to simple with < 2 players
+    // Secret question fallback to simple with < 2 players
     if (questionType === PackageQuestionType.SECRET) {
       const freshGame = await this.stateUtils.getGame(gameId);
       const eligiblePlayers = freshGame.players.filter(
@@ -616,7 +512,7 @@ export class SocketGameTestFlowUtils {
   // SECRET QUESTION COMPLETE FLOW
   // ============================================================================
 
-  private async handleSecretQuestionComplete(
+  private async _handleSecretQuestionComplete(
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[],
     questionId: number,
@@ -637,7 +533,7 @@ export class SocketGameTestFlowUtils {
     await secretPickedPromise;
 
     if (!shouldAnswer) {
-      await this.skipQuestionWithShowAnswer(showmanSocket);
+      await this.skipQuestionForceComplete(showmanSocket);
       return;
     }
 
@@ -646,7 +542,7 @@ export class SocketGameTestFlowUtils {
       playerSockets[answeringPlayerIdx]
     );
 
-    await this.submitAnswerResult(
+    await this._submitAnswerResultWithQuestionComplete(
       showmanSocket,
       playerSockets[answeringPlayerIdx],
       answerType,
@@ -676,7 +572,7 @@ export class SocketGameTestFlowUtils {
   // STAKE QUESTION COMPLETE FLOW
   // ============================================================================
 
-  private async handleStakeQuestionComplete(
+  private async _handleStakeQuestionComplete(
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[],
     gameId: string,
@@ -688,14 +584,13 @@ export class SocketGameTestFlowUtils {
   ): Promise<void> {
     const freshGame = await this.stateUtils.getGame(gameId);
     const totalPlayerCount = freshGame.players.filter(
-      (p: any) => p.role === PlayerRole.PLAYER
+      (p) => p.role === PlayerRole.PLAYER
     ).length;
 
-    // EXPLAIN: If not all player sockets provided, skip stake and recurse
+    // If not all player sockets provided, skip stake and recurse
     if (playerSockets.length < totalPlayerCount) {
-      // EXPLAIN: Pass playerSockets to handle media download
       await this.pickQuestion(showmanSocket, questionId, playerSockets);
-      await this.skipQuestion(showmanSocket);
+      await this.skipQuestionForceComplete(showmanSocket);
       await this.pickAndCompleteQuestion(
         showmanSocket,
         playerSockets,
@@ -719,7 +614,7 @@ export class SocketGameTestFlowUtils {
     await stakePickedPromise;
 
     if (!shouldAnswer) {
-      await this.skipQuestionWithShowAnswer(showmanSocket);
+      await this.skipQuestionForceComplete(showmanSocket);
       return;
     }
 
@@ -731,7 +626,7 @@ export class SocketGameTestFlowUtils {
       answeringPlayerIdx
     );
 
-    await this.submitAnswerResult(
+    await this._submitAnswerResultWithQuestionComplete(
       showmanSocket,
       winnerSocket,
       answerType,
@@ -825,7 +720,7 @@ export class SocketGameTestFlowUtils {
   // REGULAR QUESTION COMPLETE FLOW
   // ============================================================================
 
-  private async handleRegularQuestionComplete(
+  private async _handleRegularQuestionComplete(
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[],
     questionId: number,
@@ -834,31 +729,24 @@ export class SocketGameTestFlowUtils {
     scoreResult: number,
     answeringPlayerIdx: number
   ): Promise<void> {
-    // EXPLAIN: Pass playerSockets to handle media download - this is the key fix!
     await this.pickQuestion(showmanSocket, questionId, playerSockets);
 
     if (!shouldAnswer) {
-      // EXPLAIN: Must skip BOTH question AND answer show phase, otherwise
-      // tests hang waiting for next-round which requires show answer to complete
-      await this.skipQuestionWithShowAnswer(showmanSocket);
+      await this.skipQuestionForceComplete(showmanSocket);
       return;
     }
 
-    // EXPLAIN: Check current game state - in single-player mode, the server
-    // automatically sets answering player and skips buzz-in. We need to detect
-    // this case and skip answerQuestion to avoid timeout waiting for an event
-    // that will never come.
     const gameState = await this.stateUtils.getGameState(showmanSocket.gameId!);
-    const needsBuzzIn = gameState?.questionState !== QuestionState.ANSWERING;
+    const needsAnswer = gameState?.questionState !== QuestionState.ANSWERING;
 
-    if (needsBuzzIn) {
+    if (needsAnswer) {
       await this.answerQuestion(
         playerSockets[answeringPlayerIdx],
         showmanSocket
       );
     }
 
-    await this.submitAnswerResult(
+    await this._submitAnswerResultWithQuestionComplete(
       showmanSocket,
       playerSockets[answeringPlayerIdx],
       answerType,
@@ -868,67 +756,46 @@ export class SocketGameTestFlowUtils {
   // ============================================================================
 
   /**
-   * EXPLAIN: Extracted skip + show answer logic used by multiple question types
+   * Handles answer result and completes question forcefully if needed
+   *
+   * For example
    */
-  private async skipQuestionWithShowAnswer(
-    showmanSocket: GameClientSocket
-  ): Promise<void> {
-    // EXPLAIN: Showman force-skip (SKIP_QUESTION_FORCE) transitions the game
-    // directly to CHOOSING (or end of round/game), skipping the SHOWING_ANSWER phase entirely.
-    // Therefore we do NOT need to call skipShowAnswer, and doing so causes specific timeouts
-    // because the game is no longer in a valid state to skip answer showing.
-    await this.skipQuestion(showmanSocket);
-  }
-
-  /**
-   * EXPLAIN: Extracted answer result submission used by all question types.
-   * Handles both CORRECT (skip show answer) and WRONG (wait for result) cases.
-   */
-  private async submitAnswerResult(
+  private async _submitAnswerResultWithQuestionComplete(
     showmanSocket: GameClientSocket,
     answeringPlayerSocket: GameClientSocket,
     answerType: AnswerResultType,
     scoreResult: number
   ): Promise<void> {
-    const showAnswerStartPromise = this.eventUtils.waitForEvent(
+    // Set up event listeners before emitting - both events are in the same broadcast batch
+    const answerResultPromise = this.eventUtils.waitForEvent(
       answeringPlayerSocket,
-      SocketIOGameEvents.ANSWER_SHOW_START
+      SocketIOGameEvents.ANSWER_RESULT
     );
+
+    // Set up ANSWER_SHOW_START listener before emitting to catch it in the same batch
+    // This may resolve immediately if SHOWING_ANSWER transition doesn't happen
+    const answerShowStartPromise = this.eventUtils
+      .waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_SHOW_START, 1000)
+      .catch(() => null); // Ignore timeout - not all answers trigger SHOWING_ANSWER (therefore this will not be awaited)
 
     showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
       scoreResult,
       answerType,
     });
 
-    if (answerType === AnswerResultType.CORRECT) {
-      await showAnswerStartPromise;
-      await this.skipShowAnswer(showmanSocket);
-    } else if (answerType === AnswerResultType.SKIP) {
-      // EXPLAIN: For skip answers, we do not expect ANSWER_SHOW_START if the server
-      // skips straight to next state. We wait for result then check state.
-      await this.eventUtils.waitForEvent(
-        answeringPlayerSocket,
-        SocketIOGameEvents.ANSWER_RESULT
-      );
+    await answerResultPromise;
 
-      // Wait briefly for transition
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    // Game state is saved before broadcasts, so state should be updated
+    const gameState = await this.stateUtils.getGameState(showmanSocket.gameId!);
 
-      const gameState = await this.stateUtils.getGameState(
-        showmanSocket.gameId!
-      );
-      if (gameState?.questionState === QuestionState.SHOWING_ANSWER) {
-        await this.skipShowAnswer(showmanSocket);
-      }
-    } else {
-      // EXPLAIN: For wrong answers, wait for result then skip show answer
-      // to prevent test hangs waiting for show answer timer
-      await this.eventUtils.waitForEvent(
-        answeringPlayerSocket,
-        SocketIOGameEvents.ANSWER_RESULT
-      );
-      await showAnswerStartPromise;
+    // Handle case when no eligible players remain and show answer phase is started
+    if (gameState?.questionState === QuestionState.SHOWING_ANSWER) {
+      await answerShowStartPromise;
       await this.skipShowAnswer(showmanSocket);
+    } else if (gameState?.questionState === QuestionState.SHOWING) {
+      // Question is still in progress (other players can answer)
+      // Force-skip to complete the question for test purposes
+      await this.skipQuestionForceComplete(showmanSocket);
     }
   }
 }

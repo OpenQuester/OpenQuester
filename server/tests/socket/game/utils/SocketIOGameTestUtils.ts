@@ -23,6 +23,7 @@ import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
 import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
 import { SocketGameTestLobbyUtils } from "./SocketGameTestLobbyUtils";
 import { SocketGameTestFlowUtils } from "./SocketGameTestFlowUtils";
+import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
 
 export interface GameClientSocket extends ClientSocket {
   gameId?: string;
@@ -255,8 +256,6 @@ export class SocketGameTestUtils {
     questionId?: number,
     playerSockets?: GameClientSocket[]
   ): Promise<void> {
-    // EXPLAIN: FlowUtils.pickQuestion now handles media download internally (Option A),
-    // so we just delegate directly without additional logic here
     await this.flowUtils.pickQuestion(showmanSocket, questionId, playerSockets);
   }
 
@@ -274,7 +273,7 @@ export class SocketGameTestUtils {
   }
 
   public async skipQuestion(showmanSocket: GameClientSocket): Promise<void> {
-    return this.flowUtils.skipQuestion(showmanSocket);
+    return this.flowUtils.skipQuestionForce(showmanSocket);
   }
 
   public async skipShowAnswer(showmanSocket: GameClientSocket): Promise<void> {
@@ -298,18 +297,6 @@ export class SocketGameTestUtils {
       answerType,
       scoreResult,
       answeringPlayerIdx
-    );
-  }
-
-  public async pickQuestionForAnswering(
-    showmanSocket: GameClientSocket,
-    playerSockets: GameClientSocket[],
-    questionId?: number
-  ): Promise<GameClientSocket> {
-    return this.flowUtils.pickQuestionForAnswering(
-      showmanSocket,
-      playerSockets,
-      questionId
     );
   }
 

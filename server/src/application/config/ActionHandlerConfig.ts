@@ -219,15 +219,15 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.SKIP_QUESTION_FORCE,
-    new SkipQuestionForceActionHandler(
-      socketIOQuestionService,
-      gameProgressionCoordinator
-    )
+    new SkipQuestionForceActionHandler(socketIOQuestionService)
   );
 
   registry.register(
     GameActionType.SKIP_SHOW_ANSWER,
-    new SkipShowAnswerActionHandler(socketIOQuestionService)
+    new SkipShowAnswerActionHandler(
+      socketIOQuestionService,
+      gameLifecycleService
+    )
   );
 
   registry.register(
@@ -288,6 +288,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   const timerHandler = new TimerExpirationActionHandler(
     timerExpirationService,
+    gameLifecycleService,
     logger
   );
 

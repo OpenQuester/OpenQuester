@@ -265,16 +265,28 @@ describe("Hidden Question Flow Tests", () => {
 
         // Complete the first question
         await utils.answerQuestion(playerSocket, showmanSocket);
+
+        // Set up listeners before emitting
+        const answerResultPromise = utils.waitForEvent(
+          playerSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
+        const answerShowStartPromise = utils.waitForEvent(
+          playerSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
+
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 100,
           answerType: AnswerResultType.CORRECT,
         });
-        // Skip show answer phase for faster test
+
+        // Wait for answer result and show answer start before skipping
+        await answerResultPromise;
+        await answerShowStartPromise;
+
+        // Skip show answer phase
         await utils.skipShowAnswer(showmanSocket);
-        await utils.waitForEvent(
-          playerSocket,
-          SocketIOGameEvents.ANSWER_SHOW_END
-        );
 
         // Verify we're back to choosing state
         const afterFirstState = await utils.getGameState(gameId);

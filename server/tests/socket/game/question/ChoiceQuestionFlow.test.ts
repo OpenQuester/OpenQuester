@@ -159,7 +159,7 @@ describe("Choice Question Flow Tests", () => {
         // Start game
         await utils.startGame(showmanSocket);
 
-        // Find and pick a choice question using the test data pattern
+        // Find a choice question using the test data pattern
         let choiceQuestionId: number | null = null;
         const initialGameState = await utils.getGameState(gameId);
 
@@ -181,43 +181,31 @@ describe("Choice Question Flow Tests", () => {
 
         expect(choiceQuestionId).not.toBeNull();
 
-        // Pick the choice question
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Test timeout waiting for QUESTION_DATA"));
-          }, 2000);
+        // Pick the choice question using utils (handles media download phase)
+        await utils.pickQuestion(
+          showmanSocket,
+          choiceQuestionId!,
+          playerSockets
+        );
 
-          playerSocket.once(
-            SocketIOGameEvents.QUESTION_DATA,
-            (data: GameQuestionDataEventPayload) => {
-              clearTimeout(timeout);
-              // Verify choice question structure
-              expect(data.data.type).toBe(PackageQuestionType.CHOICE);
-              expect(data.data.answers).toBeDefined();
-              expect(data.data.showDelay).toBeDefined();
-              resolve();
-            }
-          );
+        // Verify we're in the showing state after picking
+        const showingGameState = await utils.getGameState(gameId);
+        expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);
+        expect(showingGameState!.currentQuestion).toBeDefined();
 
-          showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-            questionId: choiceQuestionId,
-          });
-        });
-
-        // For now, continue with standard answer flow
-        // Future implementation will add choice-specific selection logic
+        // Player answers the question
         await utils.answerQuestion(playerSocket, showmanSocket);
 
-        // Set up event listener for answer result before emitting
+        // Set up event listeners before emitting answer result
         const answerResultPromise = utils.waitForEvent(
           playerSocket,
           SocketIOGameEvents.ANSWER_RESULT,
           2000
         );
 
-        const answerShowEndPromise = utils.waitForEvent(
+        const answerShowStartPromise = utils.waitForEvent(
           playerSocket,
-          SocketIOGameEvents.ANSWER_SHOW_END,
+          SocketIOGameEvents.ANSWER_SHOW_START,
           2000
         );
 
@@ -227,13 +215,12 @@ describe("Choice Question Flow Tests", () => {
           answerType: AnswerResultType.CORRECT,
         });
 
-        // Wait for answer result
+        // Wait for answer result and show answer start
         await answerResultPromise;
+        await answerShowStartPromise;
 
         // Skip show answer phase
         await utils.skipShowAnswer(showmanSocket);
-
-        await answerShowEndPromise;
 
         const finalGameState = await utils.getGameState(gameId);
         expect(finalGameState!.questionState).toBe(QuestionState.CHOOSING);

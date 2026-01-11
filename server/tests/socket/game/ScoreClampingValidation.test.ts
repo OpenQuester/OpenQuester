@@ -157,11 +157,6 @@ describe("Score Clamping Validation Tests", () => {
         });
         const initialScore = initialPlayer?.score || 0;
 
-        const showAnswerStartPromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.ANSWER_SHOW_START
-        );
-
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
@@ -181,20 +176,34 @@ describe("Score Clamping Validation Tests", () => {
 
         // Wait for answer result to be processed
         await answerResultPromise;
-        await showAnswerStartPromise;
+
+        // Verify score immediately after answer (before question finishes)
+        const afterAnswerGame = await utils.getGameFromGameService(gameId);
+        const afterAnswerPlayer = afterAnswerGame.getPlayer(playerId, {
+          fetchDisconnected: true,
+        });
+        const afterAnswerScore = afterAnswerPlayer?.score || 0;
+
+        // Score change should be clamped to -MAX_SCORE_DELTA, not the excessive negative amount
+        const expectedScore = initialScore - MAX_SCORE_DELTA;
+        expect(afterAnswerScore).toBe(expectedScore);
+        expect(afterAnswerScore).not.toBe(
+          initialScore + excessiveNegativeScore
+        );
+
+        // Complete the question flow (with 2 players, another player can still answer)
+        // Force skip to finish the question
+        await utils.skipQuestion(showmanSocket);
         await utils.skipShowAnswer(showmanSocket);
 
-        // Get final player score and verify clamping
+        // Get final player score and verify clamping persisted
         const finalGame = await utils.getGameFromGameService(gameId);
         const finalPlayer = finalGame.getPlayer(playerId, {
           fetchDisconnected: true,
         });
         const finalScore = finalPlayer?.score || 0;
 
-        // Score change should be clamped to -MAX_SCORE_DELTA, not the excessive negative amount
-        const expectedScore = initialScore - MAX_SCORE_DELTA;
         expect(finalScore).toBe(expectedScore);
-        expect(finalScore).not.toBe(initialScore + excessiveNegativeScore);
       } finally {
         await cleanup();
       }

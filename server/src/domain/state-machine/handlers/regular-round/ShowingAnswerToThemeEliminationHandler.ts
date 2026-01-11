@@ -139,6 +139,7 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
           gameState: mutationData.nextGameState,
         } satisfies GameNextRoundEventPayload,
         room: ctx.game.id,
+        roleFilter: true, // Filter questions for players in final round
       });
     }
 

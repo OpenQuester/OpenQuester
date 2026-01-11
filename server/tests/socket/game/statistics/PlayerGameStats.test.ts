@@ -714,8 +714,7 @@ describe("Player Game Statistics Tests", () => {
         questionsAnswered++;
         wrongAnswers++;
 
-        // Skip the current wrong answer display and answer third question correctly
-        await utils.skipQuestion(showmanSocket);
+        // Answer third question correctly
         await utils.pickAndCompleteQuestion(
           showmanSocket,
           playerSockets,
@@ -818,10 +817,11 @@ describe("Player Game Statistics Tests", () => {
 
   describe("Skip Answer Handling", () => {
     it("should not count skipped questions as wrong answers", async () => {
+      // Use 1 player so SKIP immediately transitions to SHOWING_ANSWER
       const setup = await utils.setupGameTestEnvironment(
         userRepo,
         app,
-        2,
+        1, // 1 player - SKIP will go to SHOWING_ANSWER immediately
         1,
         false,
         2

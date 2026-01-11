@@ -1,3 +1,4 @@
+import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { GameAction } from "domain/types/action/GameAction";
 import {
@@ -20,6 +21,7 @@ export class TimerExpirationActionHandler
 {
   constructor(
     private readonly timerExpirationService: TimerExpirationService,
+    private readonly gameLifecycleService: GameLifecycleService,
     private readonly logger: ILogger
   ) {
     //
@@ -44,6 +46,11 @@ export class TimerExpirationActionHandler
 
     // Service generates type-safe broadcasts with satisfies - just convert format
     const broadcasts = convertBroadcasts(result.broadcasts);
+
+    // Check if game finished and trigger statistics persistence
+    if (result.game?.finishedAt) {
+      await this.gameLifecycleService.handleGameCompletion(gameId);
+    }
 
     return { success: true, broadcasts };
   }

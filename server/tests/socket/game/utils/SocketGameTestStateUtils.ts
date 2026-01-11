@@ -66,6 +66,7 @@ export class SocketGameTestStateUtils {
       id: number;
       order: number;
     }> = [];
+
     for (const theme of currentRound.themes) {
       if (!theme.questions) continue;
       for (const question of theme.questions) {
