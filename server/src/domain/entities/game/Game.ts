@@ -515,6 +515,7 @@ export class Game {
     this.gameState.skippedPlayers = null;
     this.gameState.secretQuestionData = null;
     this.gameState.stakeQuestionData = null;
+    this.gameState.questionEligiblePlayers = null;
     this.setQuestionState(QuestionState.CHOOSING);
   }
 
@@ -636,6 +637,54 @@ export class Game {
 
   public getSkippedPlayers(): number[] {
     return this.gameState.skippedPlayers ?? [];
+  }
+
+  // =========================================================================
+  // Question Eligible Players Management
+  // =========================================================================
+
+  /**
+   * Captures the current in-game players as eligible to answer the question.
+   * Should be called when a question is picked (transition from CHOOSING).
+   * This prevents players who join mid-question from answering.
+   */
+  public captureQuestionEligiblePlayers(): void {
+    const inGamePlayers = this.getInGamePlayers();
+    this.gameState.questionEligiblePlayers = inGamePlayers.map(
+      (p) => p.meta.id
+    );
+  }
+
+  /**
+   * Clears the question eligible players list.
+   * Should be called when returning to CHOOSING state.
+   */
+  public clearQuestionEligiblePlayers(): void {
+    this.gameState.questionEligiblePlayers = null;
+  }
+
+  /**
+   * Checks if a player is eligible to answer the current question.
+   * A player is eligible if they were present when the question started.
+   *
+   * @param playerId The player ID to check
+   * @returns true if the player is eligible to answer, false otherwise
+   */
+  public isPlayerEligibleToAnswer(playerId: number): boolean {
+    // If no eligible players list is set, allow everyone (backwards compatibility / edge cases)
+    if (!this.gameState.questionEligiblePlayers) {
+      return true;
+    }
+
+    return this.gameState.questionEligiblePlayers.includes(playerId);
+  }
+
+  /**
+   * Gets the list of players eligible to answer the current question.
+   * Returns null if no question is active or no eligibility check is in place.
+   */
+  public getQuestionEligiblePlayers(): number[] | null {
+    return this.gameState.questionEligiblePlayers ?? null;
   }
 
   private _resolveJoinSlot(

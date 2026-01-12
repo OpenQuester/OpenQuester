@@ -82,6 +82,8 @@ export enum ClientResponse {
   ONLY_HOST_CAN_DELETE = "only_host_can_delete",
   YOU_CANNOT_PICK_QUESTION = "you_cannot_pick_question",
   YOU_CANNOT_ANSWER_QUESTION = "you_cannot_answer_question",
+  /** Player joined mid-question and is not eligible to answer */
+  YOU_CANNOT_ANSWER_RIGHT_AFTER_BECOMING_PLAYER = "you_cannot_answer_right_after_becoming_player",
   QUESTION_NOT_FOUND = "question_not_found",
   QUESTION_ALREADY_PICKED = "question_already_picked",
   QUESTION_ALREADY_PLAYED = "question_already_played",
