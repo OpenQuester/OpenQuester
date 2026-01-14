@@ -4,6 +4,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 
@@ -16,13 +17,15 @@ export class MediaDownloadedActionHandler
 {
   constructor(
     private readonly socketIOQuestionService: SocketIOQuestionService
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<MediaDownloadStatusBroadcastData>> {
     const result = await this.socketIOQuestionService.handleMediaDownloaded(
-      action.socketId
+      createActionContextFromAction(action)
     );
 
     const statusData: MediaDownloadStatusBroadcastData = {

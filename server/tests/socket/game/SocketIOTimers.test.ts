@@ -108,7 +108,7 @@ describe("SocketIOTimers", () => {
         const stateTransitioned = await testUtils.waitForCondition(
           async () => {
             const state = await socketUtils.getGameState(gameId);
-            return state!.questionState === QuestionState.SHOWING;
+            return state!.questionState === QuestionState.SHOWING_ANSWER;
           },
           2000,
           50
@@ -165,15 +165,44 @@ describe("SocketIOTimers", () => {
         const currentQuestion = updatedState!.currentQuestion;
         expect(currentQuestion).not.toBeNull();
 
-        // Set up event listener for next round (should happen after showing timer expires)
+        // Set up event listener BEFORE expiring timer to avoid race condition
+        const answerShowStartPromise = socketUtils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START,
+          2000
+        );
+
+        // Expire showing timer - this should trigger transition to SHOWING_ANSWER
+        await testUtils.expireTimer(gameId);
+
+        // Wait for transition to SHOWING_ANSWER
+        await answerShowStartPromise;
+
+        // Verify game state after first timer expiration
+        const showingAnswerState = await socketUtils.getGameState(gameId);
+        expect(showingAnswerState!.questionState).toBe(
+          QuestionState.SHOWING_ANSWER
+        );
+
+        // Verify all questions are now marked as played (including the current one)
+        const allPlayed = showingAnswerState!.currentRound!.themes.every(
+          (theme) => theme.questions.every((q) => q.isPlayed)
+        );
+        expect(allPlayed).toBe(true);
+
+        // Verify timer is set for SHOWING_ANSWER
+        expect(showingAnswerState!.timer).toBeDefined();
+        expect(showingAnswerState!.timer!.durationMs).toBeGreaterThan(0);
+
+        // Set up event listener for next round BEFORE expiring timer
         const nextRoundPromise =
           socketUtils.waitForEvent<GameNextRoundEventPayload>(
             playerSockets[0],
             SocketIOGameEvents.NEXT_ROUND,
-            1000
+            2000
           );
 
-        // Expire showing timer - this should trigger round progression since all questions are played
+        // Expire SHOWING_ANSWER timer - this should trigger round progression
         await testUtils.expireTimer(gameId);
 
         // Wait for round progression
@@ -220,9 +249,9 @@ describe("SocketIOTimers", () => {
         // Verify question finish event was received
         await questionFinishPromise;
 
-        // Verify game returned to choosing state
+        // Verify game returned to SHOWING_ANSWER state
         const finalState = await socketUtils.getGameState(gameId);
-        expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
+        expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
         expect(finalState!.currentQuestion).toBeNull();
       } finally {
         await socketUtils.cleanupGameClients(setup);

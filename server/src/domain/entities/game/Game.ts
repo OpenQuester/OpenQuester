@@ -25,6 +25,11 @@ import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundTurnManager } from "domain/utils/FinalRoundTurnManager";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+type PlayerAndIndex = {
+  player: Player | null;
+  index: number;
+};
+
 export class Game {
   private _id: string;
   private _title: string;
@@ -223,6 +228,27 @@ export class Game {
     return player ?? null;
   }
 
+  public getPlayerAndIndex(
+    userId: number,
+    opts: GetPlayerOptions
+  ): PlayerAndIndex {
+    const playerIndex = this._players.findIndex((p) => {
+      if (p.meta.id !== userId) {
+        return false;
+      }
+
+      if (opts.fetchDisconnected) {
+        return true;
+      }
+      return p.gameStatus === PlayerGameStatus.IN_GAME;
+    });
+
+    return {
+      player: playerIndex !== -1 ? this._players[playerIndex] : null,
+      index: playerIndex,
+    };
+  }
+
   /** Get all players in game excluding showman */
   public getInGamePlayers(): Player[] {
     return this.players.filter(
@@ -282,24 +308,6 @@ export class Game {
     return all.length > 0 && played.length === all.length;
   }
 
-  /**
-   * **Important**: This method overrides some game properties and game should be
-   * updated if isGameFinished is true or nextGameState is not null.
-   *
-   * This is method that handles game round progression on each question finish.
-   * It checks if all questions are played and if so, it sets the next round
-   * and returns the next game state.
-   * @returns Current state. If all question played - returns next game state
-   * (with next round). If all question played and no next round - game finished
-   */
-  public handleRoundProgression() {
-    if (!this.isAllQuestionsPlayed()) {
-      return { isGameFinished: false, nextGameState: null };
-    }
-
-    return this.getProgressionState();
-  }
-
   public getNextRound() {
     if (!ValueUtils.isNumber(this.gameState.currentRound?.order)) {
       return null;
@@ -322,49 +330,60 @@ export class Game {
     if (!nextRound) {
       this.finish();
       isGameFinished = true;
-    } else {
-      const currentPassword = this.gameState.password;
-      nextGameState = GameStateMapper.getClearGameState(nextRound);
-      nextGameState.password = currentPassword;
-      this.gameState = nextGameState;
+      return { isGameFinished, nextGameState };
+    }
 
-      if (nextRound.type === PackageRoundType.FINAL) {
-        // Initialize final round data
-        const finalRoundData =
-          FinalRoundStateManager.initializeFinalRoundData(this);
-        finalRoundData.turnOrder =
-          FinalRoundTurnManager.initializeTurnOrder(this);
-        const currentTurnPlayer = FinalRoundTurnManager.getCurrentTurnPlayer(
-          this,
-          finalRoundData.turnOrder
-        );
-        nextGameState.currentTurnPlayerId = currentTurnPlayer ?? undefined;
-        FinalRoundStateManager.updateFinalRoundData(this, finalRoundData);
-        nextGameState.finalRoundData = finalRoundData;
-      } else if (nextRound.type === PackageRoundType.SIMPLE) {
-        // Set current turn player to the player with the lowest score
-        const inGamePlayers = this.getInGamePlayers();
-        if (inGamePlayers.length > 0) {
-          let minScore = inGamePlayers[0].score;
-          let minPlayers = [inGamePlayers[0]];
-          for (let i = 1; i < inGamePlayers.length; i++) {
-            const player = inGamePlayers[i];
-            if (player.score < minScore) {
-              minScore = player.score;
-              minPlayers = [player];
-            } else if (player.score === minScore) {
-              minPlayers.push(player);
-            }
+    // Keep password between game state changes
+    const currentPassword = this.gameState.password;
+    nextGameState = GameStateMapper.getClearGameState(nextRound);
+    nextGameState.password = currentPassword;
+    this.gameState = nextGameState;
+
+    if (nextRound.type === PackageRoundType.FINAL) {
+      // Initialize final round data
+      const finalRoundData =
+        FinalRoundStateManager.initializeFinalRoundData(this);
+
+      finalRoundData.turnOrder =
+        FinalRoundTurnManager.initializeTurnOrder(this);
+
+      const currentTurnPlayer = FinalRoundTurnManager.getCurrentTurnPlayer(
+        this,
+        finalRoundData.turnOrder
+      );
+
+      nextGameState.currentTurnPlayerId = currentTurnPlayer ?? undefined;
+      FinalRoundStateManager.updateFinalRoundData(this, finalRoundData);
+
+      nextGameState.finalRoundData = finalRoundData;
+    } else if (nextRound.type === PackageRoundType.SIMPLE) {
+      // Set current turn player to the player with the lowest score
+      const inGamePlayers = this.getInGamePlayers();
+
+      if (inGamePlayers.length > 0) {
+        let minScore = inGamePlayers[0].score;
+        let minPlayers = [inGamePlayers[0]];
+
+        for (let i = 1; i < inGamePlayers.length; i++) {
+          const player = inGamePlayers[i];
+
+          if (player.score < minScore) {
+            minScore = player.score;
+            minPlayers = [player];
+          } else if (player.score === minScore) {
+            minPlayers.push(player);
           }
-          // If multiple players have the same lowest score, pick randomly among them
-          const chosen =
-            minPlayers.length === 1
-              ? minPlayers[0]
-              : minPlayers[Math.floor(Math.random() * minPlayers.length)];
-          nextGameState.currentTurnPlayerId = chosen.meta.id;
-        } else {
-          nextGameState.currentTurnPlayerId = null;
         }
+
+        // If multiple players have the same lowest score, pick randomly among them
+        const chosen =
+          minPlayers.length === 1
+            ? minPlayers[0]
+            : minPlayers[Math.floor(Math.random() * minPlayers.length)];
+
+        nextGameState.currentTurnPlayerId = chosen.meta.id;
+      } else {
+        nextGameState.currentTurnPlayerId = null;
       }
     }
 
@@ -426,12 +445,15 @@ export class Game {
     scoreResult: number,
     answerType: AnswerResultType,
     nextState: QuestionState
-  ) {
+  ): GameStateAnsweredPlayerData {
     // Use fetchDisconnected: true to handle case where answering player
     // disconnects before timer expires or showman sends result
-    const player = this.getPlayer(this.gameState.answeringPlayer!, {
-      fetchDisconnected: true,
-    });
+    const { player, index } = this.getPlayerAndIndex(
+      this.gameState.answeringPlayer!,
+      {
+        fetchDisconnected: true,
+      }
+    );
 
     if (!player) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
@@ -440,26 +462,21 @@ export class Game {
     // Check if current question is NoRisk type and prevent score loss
     // Clamp incoming score result to configured per-answer limit
     let modifiedScoreResult = ValueUtils.clampAbs(scoreResult, MAX_SCORE_DELTA);
-    if (this.gameState.currentQuestion && scoreResult < 0) {
-      const questionData = GameQuestionMapper.getQuestionAndTheme(
-        this._package,
-        this.gameState.currentRound!.id,
-        this.gameState.currentQuestion.id!
-      );
 
-      if (questionData?.question?.type === PackageQuestionType.NO_RISK) {
-        // For NoRisk questions, prevent score loss by setting negative results to 0
-        modifiedScoreResult = 0;
-      }
+    // For NoRisk questions, prevent score loss by setting negative results to 0
+    if (
+      scoreResult < 0 &&
+      this.gameState.currentQuestion?.type === PackageQuestionType.NO_RISK
+    ) {
+      modifiedScoreResult = 0;
     }
 
     const preClampedScore = player.score + modifiedScoreResult;
     const score = ValueUtils.clampAbs(preClampedScore, SCORE_ABS_LIMIT);
 
     // Update the player's score in the _players array
-    const idx = this._players.findIndex((p) => p.meta.id === player.meta.id);
-    if (idx !== -1) {
-      this._players[idx].score = score;
+    if (index !== -1) {
+      this._players[index].score = score;
     }
 
     const isCorrect = answerType === AnswerResultType.CORRECT;
@@ -482,7 +499,7 @@ export class Game {
 
     // Always reset answering player
     this.gameState.answeringPlayer = null;
-    this.updateQuestionState(nextState);
+    this.setQuestionState(nextState);
 
     return playerAnswerResult;
   }
@@ -498,10 +515,11 @@ export class Game {
     this.gameState.skippedPlayers = null;
     this.gameState.secretQuestionData = null;
     this.gameState.stakeQuestionData = null;
-    this.updateQuestionState(QuestionState.CHOOSING);
+    this.gameState.questionEligiblePlayers = null;
+    this.setQuestionState(QuestionState.CHOOSING);
   }
 
-  public updateQuestionState(questionState: QuestionState) {
+  public setQuestionState(questionState: QuestionState) {
     if (this.gameState.questionState === questionState) {
       return;
     }
@@ -518,12 +536,12 @@ export class Game {
   }
 
   public addSkippedPlayer(playerId: number): void {
-    if (!this.gameState.skippedPlayers) {
+    if ((this.gameState.skippedPlayers?.length ?? 0) < 1) {
       this.gameState.skippedPlayers = [];
     }
 
-    if (!this.gameState.skippedPlayers.includes(playerId)) {
-      this.gameState.skippedPlayers.push(playerId);
+    if (!this.gameState.skippedPlayers!.includes(playerId)) {
+      this.gameState.skippedPlayers!.push(playerId);
     }
   }
 
@@ -586,8 +604,87 @@ export class Game {
     );
   }
 
+  /**
+   * Checks if all players WILL BE exhausted after the current answering player
+   * is added to the exhausted list. This is used in transition handlers to determine
+   * if a wrong answer should transition to SHOWING_ANSWER (all exhausted) or
+   * back to SHOWING (others can still answer).
+   *
+   * @returns true if all players will be exhausted after the current answer is processed
+   */
+  public willAllPlayersBeExhausted(): boolean {
+    const activePlayers = this.getInGamePlayers();
+    if (activePlayers.length === 0) {
+      return true;
+    }
+
+    const skippedPlayers = this.gameState.skippedPlayers ?? [];
+    const answeredPlayerIds =
+      this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
+
+    // Include the current answering player as if they were already exhausted
+    const currentAnsweringPlayer = this.gameState.answeringPlayer;
+    const willBeExhaustedIds = currentAnsweringPlayer
+      ? [...answeredPlayerIds, currentAnsweringPlayer]
+      : answeredPlayerIds;
+
+    return activePlayers.every(
+      (player) =>
+        skippedPlayers.includes(player.meta.id) ||
+        willBeExhaustedIds.includes(player.meta.id)
+    );
+  }
+
   public getSkippedPlayers(): number[] {
     return this.gameState.skippedPlayers ?? [];
+  }
+
+  // =========================================================================
+  // Question Eligible Players Management
+  // =========================================================================
+
+  /**
+   * Captures the current in-game players as eligible to answer the question.
+   * Should be called when a question is picked (transition from CHOOSING).
+   * This prevents players who join mid-question from answering.
+   */
+  public captureQuestionEligiblePlayers(): void {
+    const inGamePlayers = this.getInGamePlayers();
+    this.gameState.questionEligiblePlayers = inGamePlayers.map(
+      (p) => p.meta.id
+    );
+  }
+
+  /**
+   * Clears the question eligible players list.
+   * Should be called when returning to CHOOSING state.
+   */
+  public clearQuestionEligiblePlayers(): void {
+    this.gameState.questionEligiblePlayers = null;
+  }
+
+  /**
+   * Checks if a player is eligible to answer the current question.
+   * A player is eligible if they were present when the question started.
+   *
+   * @param playerId The player ID to check
+   * @returns true if the player is eligible to answer, false otherwise
+   */
+  public isPlayerEligibleToAnswer(playerId: number): boolean {
+    // If no eligible players list is set, allow everyone (backwards compatibility / edge cases)
+    if (!this.gameState.questionEligiblePlayers) {
+      return true;
+    }
+
+    return this.gameState.questionEligiblePlayers.includes(playerId);
+  }
+
+  /**
+   * Gets the list of players eligible to answer the current question.
+   * Returns null if no question is active or no eligibility check is in place.
+   */
+  public getQuestionEligiblePlayers(): number[] | null {
+    return this.gameState.questionEligiblePlayers ?? null;
   }
 
   private _resolveJoinSlot(

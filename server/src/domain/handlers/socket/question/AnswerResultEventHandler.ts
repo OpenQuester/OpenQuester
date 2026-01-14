@@ -15,7 +15,6 @@ import {
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
-import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
@@ -133,34 +132,6 @@ export class AnswerResultEventHandler extends BaseSocketEventHandler<
       success: true,
       data: answerResultPayload,
       broadcast: broadcasts,
-    };
-  }
-
-  /**
-   * Builds result when question continues (wrong/skip with players remaining).
-   * Only emits ANSWER_RESULT, question stays in SHOWING state.
-   */
-  private buildContinueQuestionResult(
-    game: Game,
-    playerAnswerResult: GameStateAnsweredPlayerData,
-    timer: GameStateTimerDTO | null
-  ): SocketEventResult<QuestionAnswerResultEventPayload> {
-    const resultPayload: QuestionAnswerResultEventPayload = {
-      answerResult: playerAnswerResult,
-      timer,
-    };
-
-    return {
-      success: true,
-      data: resultPayload,
-      broadcast: [
-        {
-          event: SocketIOGameEvents.ANSWER_RESULT,
-          data: resultPayload,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        },
-      ],
     };
   }
 }

@@ -10,6 +10,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import {
   FinalBidSubmitOutputData,
   FinalPhaseCompleteEventData,
@@ -32,7 +33,7 @@ export class ThemeEliminateActionHandler
     action: GameAction<ThemeEliminateInputData>
   ): Promise<GameActionHandlerResult<ThemeEliminateOutputData>> {
     const result = await this.finalRoundService.handleThemeEliminate(
-      action.socketId,
+      createActionContextFromAction(action),
       action.payload.themeId
     );
 

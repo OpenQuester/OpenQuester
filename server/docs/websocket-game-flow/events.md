@@ -199,7 +199,7 @@ Server broadcasts (depends on question type):
 - Stake question:
   - emits `stake-question-picked`
   - may emit an automatic `stake-bid-submit`
-  - if bidding completes automatically, emits `stake-question-winner` and `question-data`
+  - if bidding completes automatically, emits `stake-question-winner` and `question-data` (note: in some cases the server **auto-advances** the flow and immediately transitions to the answering phase; clients should be prepared to receive combined broadcasts (e.g. `stake-question-winner` + `question-data` + a `timer`))
 
 Edge cases (server-handled):
 
@@ -246,6 +246,10 @@ Important:
 - C→S payload: `AnswerResultData` = `{ answerType: "correct" | "wrong" | "skip", scoreResult: number }`
 - S→C payload: `QuestionAnswerResultEventPayload` = `{ answerResult: GameStateAnsweredPlayerData, timer: GameStateTimerDTO | null }`
 
+Notes:
+
+- The server uses the central phase transition router to map answer results into state transitions (e.g., move to `SHOWING_ANSWER`), and it may return the show timer in the result. Player statistics are updated asynchronously by the server and should not be assumed to be immediately persisted at the time of the broadcast.
+
 Edge cases (server-handled):
 
 - See scenarios:
@@ -259,6 +263,10 @@ Edge cases (server-handled):
 - Payload:
   - `QuestionFinishEventPayload` = `{ answerFiles, answerText, nextTurnPlayerId }`
   - When finishing due to a decisive answer, server may use `QuestionFinishWithAnswerEventPayload` (same fields + `answerResult`).
+
+Notes:
+
+- The show / reveal flow is now explicit: the server may enter a **show-answer** phase (`SHOWING_ANSWER`) and emit `answer-show-start` before `question-finish`/`answer-show-end` depending on the transition. Clients should handle `answer-show-start`/`answer-show-end` consistently and not assume immediate return to `CHOOSING` on a `question-finish`.
 
 Edge cases (server-handled):
 
@@ -330,7 +338,7 @@ Notes:
 
 Server behavior:
 
-- After broadcasting transfer, server emits `question-data` to each socket (role-based question payload) with the timer.
+- The server validates the transfer and, on success, broadcasts the transfer. After broadcasting, it emits `question-data` to each socket (role-based question payload) and provides a timer where applicable. The transfer may also trigger an immediate phase transition (e.g., into `ANSWERING`) via the central transition router; clients should be prepared to receive `question-data` and timing information as part of the same update.
 
 ---
 
