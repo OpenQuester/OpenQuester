@@ -25,10 +25,47 @@ class GameLobbyMenu extends WatchingWidget {
           onTap: () async {
             final gameId = getIt<GameLobbyController>().gameId;
             if (gameId == null) return;
-            final link = Env.clientAppUrl.replace(path: '/games/$gameId');
+            final password = gameData?.gameState.password;
+            final link = Env.clientAppUrl.replace(
+              path: '/games/$gameId',
+              queryParameters: password != null ? {'password': password} : null,
+            );
             await Clipboard.setData(ClipboardData(text: link.toString()));
           },
         ),
+        if (gameData?.gameState.password != null)
+          PopupMenuItem<void>(
+            child: Row(
+              children: [
+                Text(LocaleKeys.copy_password.tr()).expand(),
+                Container(
+                  padding: 4.horizontal + 2.vertical,
+                  decoration: BoxDecoration(
+                    color: context.theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    gameData!.gameState.password!,
+                    style: context.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: context.theme.colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            onTap: () async {
+              final password = gameData.gameState.password;
+              if (password == null) return;
+              await Clipboard.setData(ClipboardData(text: password));
+              if (context.mounted) {
+                await getIt<ToastController>().show(
+                  LocaleKeys.password_copied.tr(),
+                  type: ToastType.success,
+                );
+              }
+            },
+          ),
         if (!lobbyEditorMode)
           PopupMenuItem<void>(
             child: Text(

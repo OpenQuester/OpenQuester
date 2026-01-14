@@ -12,6 +12,8 @@ import 'package:socket_io_client/socket_io_client.dart';
 class GameLobbyController {
   Socket? socket;
   String? _gameId;
+  String? _password;
+  String? _lastError;
 
   final gameData = ValueNotifier<SocketIoGameJoinEventPayload?>(null);
   final gameListData = ValueNotifier<GameListItem?>(null);
@@ -23,13 +25,17 @@ class GameLobbyController {
   double? themeScrollPosition;
 
   String? get gameId => _gameId;
+  String? get lastError => _lastError;
 
   int get myId => ProfileController.getUser()!.id;
   bool get gameStarted => gameData.value?.gameStarted ?? false;
 
   JoinCompleter _joinCompleter = JoinCompleter();
 
-  Future<bool> join({required String gameId}) async {
+  Future<bool> join({
+    required String gameId,
+    String? password,
+  }) async {
     // Check if already joined
     if (_gameId == gameId) return true;
 
@@ -37,6 +43,7 @@ class GameLobbyController {
 
     try {
       _gameId = gameId;
+      _password = password;
 
       // Get list game data
       gameListData.value = await Api.I.api.games.getV1GamesGameId(
@@ -177,8 +184,9 @@ class GameLobbyController {
     logger.d('GameLobbyController._onReconnect: ${this.gameId}');
 
     final gameId = this.gameId!;
+    final password = _password;
     await clear();
-    await join(gameId: gameId);
+    await join(gameId: gameId, password: password);
   }
 
   Future<void> _onConnect() async {
@@ -193,6 +201,7 @@ class GameLobbyController {
       final ioGameJoinInput = SocketIoGameJoinInput(
         gameId: _gameId!,
         role: _getJoinRole(),
+        password: _password,
       );
 
       socket?.emit(SocketIoGameSendEvents.join.json!, ioGameJoinInput.toJson());
@@ -394,6 +403,7 @@ class GameLobbyController {
       errorText = data['message']?.toString() ?? errorText;
     }
 
+    _lastError = errorText;
     unawaited(getIt<ToastController>().show(errorText));
 
     // Complete the join completer with false if not already completed

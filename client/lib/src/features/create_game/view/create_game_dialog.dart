@@ -580,6 +580,10 @@ class _GameConfigSection extends StatelessWidget {
                 ),
               ],
             ),
+            AppAnimatedSwitcher(
+              visible: state.private,
+              child: _PasswordField(state: state, controller: controller),
+            ),
             _MaxPlayersSelect(state: state, controller: controller),
           ],
         ),
@@ -758,6 +762,37 @@ class _AnimatedButtonState extends State<_AnimatedButton>
           );
         },
       ),
+    );
+  }
+}
+
+class _PasswordField extends StatelessWidget {
+  const _PasswordField({required this.state, required this.controller});
+
+  final CreateGameDto state;
+  final CreateGameController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return PasswordInputField(
+      initialValue: state.password,
+      onChanged: (value) => controller.state.value =
+          state.copyWith(password: value.isEmpty ? null : value),
+      labelText: [LocaleKeys.password.tr(), LocaleKeys.optional.tr()].join(' '),
+      hintText: LocaleKeys.password_hint.tr(),
+      validator: (value) {
+        if (value == null || value.isEmpty) return null;
+        if (value.length > GameValidationConst.maxPasswordLength) {
+          return LocaleKeys.min_length_error.tr(
+            args: [GameValidationConst.maxPasswordLength.toString()],
+          );
+        }
+        if (!GameValidationConst.passwordRegExp.hasMatch(value)) {
+          return LocaleKeys.password_validation.tr();
+        }
+        return null;
+      },
+      maxLength: GameValidationConst.maxPasswordLength,
     );
   }
 }
