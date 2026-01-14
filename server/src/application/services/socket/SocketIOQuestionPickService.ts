@@ -50,6 +50,10 @@ export class SocketIOQuestionPickService {
       questionId
     );
 
+    // Capture eligible players BEFORE any transitions
+    // This prevents players who join mid-question from answering
+    game.captureQuestionEligiblePlayers();
+
     // Route transition based on question type/state
     // Possible transitions to: media downloading, stake bidding, secret transfer, answering
     let transitionResult =

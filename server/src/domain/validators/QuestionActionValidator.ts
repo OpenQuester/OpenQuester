@@ -183,6 +183,14 @@ export class QuestionActionValidator {
       throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
     }
 
+    // Check if player is eligible to answer (was present when question started)
+    // This prevents players who joined mid-question from answering
+    if (!game.isPlayerEligibleToAnswer(currentPlayerId)) {
+      throw new ClientError(
+        ClientResponse.YOU_CANNOT_ANSWER_RIGHT_AFTER_BECOMING_PLAYER
+      );
+    }
+
     // For secret questions where a specific player is designated to answer,
     // allow that player to answer even if answeringPlayer is set
     if (
@@ -235,38 +243,12 @@ export class QuestionActionValidator {
     }
   }
 
-  private static _validatePlayerCanSkip(
-    game: Game,
-    currentPlayer: Player
-  ): void {
-    if (game.gameState.answeringPlayer === currentPlayer.meta.id) {
-      throw new ClientError(ClientResponse.CANNOT_SKIP_WHILE_ANSWERING);
-    }
-
-    const hasAnswered = game.gameState.answeredPlayers?.some(
-      (answeredPlayer) => answeredPlayer.player === currentPlayer.meta.id
-    );
-
-    if (hasAnswered) {
-      throw new ClientError(ClientResponse.ALREADY_ANSWERED_QUESTION);
-    }
-  }
-
   private static _validatePlayerHasSkipped(
     game: Game,
     currentPlayer: Player
   ): void {
     if (!game.hasPlayerSkipped(currentPlayer.meta.id)) {
       throw new ClientError(ClientResponse.PLAYER_NOT_SKIPPED);
-    }
-  }
-
-  private static _validatePlayerIsAnswering(
-    game: Game,
-    currentPlayer: Player
-  ): void {
-    if (game.gameState.answeringPlayer !== currentPlayer.meta.id) {
-      throw new ClientError(ClientResponse.CANNOT_SUBMIT_ANSWER);
     }
   }
 }
