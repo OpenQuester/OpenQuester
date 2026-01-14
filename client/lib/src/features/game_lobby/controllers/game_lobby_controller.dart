@@ -13,6 +13,7 @@ class GameLobbyController {
   Socket? socket;
   String? _gameId;
   String? _password;
+  String? _lastError;
 
   final gameData = ValueNotifier<SocketIoGameJoinEventPayload?>(null);
   final gameListData = ValueNotifier<GameListItem?>(null);
@@ -24,6 +25,7 @@ class GameLobbyController {
   double? themeScrollPosition;
 
   String? get gameId => _gameId;
+  String? get lastError => _lastError;
 
   int get myId => ProfileController.getUser()!.id;
   bool get gameStarted => gameData.value?.gameStarted ?? false;
@@ -401,6 +403,7 @@ class GameLobbyController {
       errorText = data['message']?.toString() ?? errorText;
     }
 
+    _lastError = errorText;
     unawaited(getIt<ToastController>().show(errorText));
 
     // Complete the join completer with false if not already completed

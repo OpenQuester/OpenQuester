@@ -56,32 +56,42 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
         password: password,
       );
 
-      // If failed and game is private, allow retry
+      // If failed and game is private, check if it's a password error
       if (!success && gameInfo.isPrivate && mounted) {
-        await getIt<ToastController>().show(
-          LocaleKeys.incorrect_password.tr(),
-        );
+        final lastError = controller.lastError?.toLowerCase() ?? '';
+        final isPasswordError = lastError.contains('password') || 
+                                lastError.contains('incorrect');
 
-        // Prompt for new password
-        password = await showDialog<String>(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => PasswordPromptDialog(gameTitle: gameInfo.title),
-        );
+        // Only retry if error is password-related
+        if (isPasswordError) {
+          await getIt<ToastController>().show(
+            LocaleKeys.incorrect_password.tr(),
+          );
 
-        if (password == null) {
+          // Prompt for new password
+          password = await showDialog<String>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => PasswordPromptDialog(gameTitle: gameInfo.title),
+          );
+
+          if (password == null) {
+            if (mounted) Navigator.of(context).pop();
+            return;
+          }
+
+          // Retry with new password
+          final retrySuccess = await controller.join(
+            gameId: widget.gameId,
+            password: password,
+          );
+
+          if (!retrySuccess && mounted) {
+            Navigator.of(context).pop();
+          }
+        } else {
+          // For non-password errors, just exit
           if (mounted) Navigator.of(context).pop();
-          return;
-        }
-
-        // Retry with new password
-        final retrySuccess = await controller.join(
-          gameId: widget.gameId,
-          password: password,
-        );
-
-        if (!retrySuccess && mounted) {
-          Navigator.of(context).pop();
         }
       } else if (!success && mounted) {
         Navigator.of(context).pop();
