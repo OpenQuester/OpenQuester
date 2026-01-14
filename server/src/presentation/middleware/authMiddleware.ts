@@ -1,7 +1,7 @@
 import { type NextFunction, type Request, type Response } from "express";
 import Joi from "joi";
+import { container } from "tsyringe";
 
-import { Container, CONTAINER_TYPES } from "application/Container";
 import { TranslateService as ts } from "application/services/text/TranslateService";
 import { UserService } from "application/services/user/UserService";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
@@ -67,9 +67,7 @@ export const verifySession =
       return unauthorizedError(req, res);
     }
 
-    const user = await Container.get<UserService>(
-      CONTAINER_TYPES.UserService
-    ).getUserByRequest(req, {
+    const user = await container.resolve(UserService).getUserByRequest(req, {
       select: USER_SELECT_FIELDS,
       relations: USER_RELATIONS,
       relationSelects: {

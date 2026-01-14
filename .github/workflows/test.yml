@@ -92,8 +92,9 @@ jobs:
           cache: true
       - run: echo "${{ vars.ENV_FILE_CONTENT }}" > .env
       - run: flutter pub get
-      - run: make pre_build
+      - run: bash ./scripts/init_project.sh
+      - run: ./oqhelper pre_run
       - run: dart analyze --fatal-infos lib/
-      - run: dart run scripts/run_format_exception.dart
-      - run: dart format lib --set-exit-if-changed
+      - run: ./oqhelper format_exception
+      - run: ./oqhelper format --all-packages --fatal-infos --verbose --ignore-packages openapi
       - run: dart test

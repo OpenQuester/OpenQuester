@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import { REDIS_LOCK_SESSIONS_CLEANUP } from "domain/constants/redis";
 import {
   SOCKET_GAME_AUTH_TTL,
@@ -8,6 +10,10 @@ import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Repository for socket user session data (stored in Redis).
+ */
+@singleton()
 export class SocketUserDataRepository {
   constructor(private readonly redisService: RedisService) {
     //

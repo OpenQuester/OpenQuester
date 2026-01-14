@@ -1,5 +1,7 @@
 import { freemem } from "os";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { UserService } from "application/services/user/UserService";
 import {
   ADMIN_AVERAGE_REDIS_KEY_SIZE_KB,
@@ -26,11 +28,12 @@ interface RedisSnapshot {
 /**
  * Encapsulates admin-specific aggregation and system health logic.
  */
+@singleton()
 export class AdminService {
   constructor(
     private readonly userService: UserService,
     private readonly redisService: RedisService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

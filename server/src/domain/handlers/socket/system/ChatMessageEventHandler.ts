@@ -1,5 +1,6 @@
 import { Socket } from "socket.io";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -15,7 +16,6 @@ import {
 import { GameValidator } from "domain/validators/GameValidator";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 
 export class ChatMessageEventHandler extends BaseSocketEventHandler<
   ChatMessageInputData,
@@ -33,6 +33,14 @@ export class ChatMessageEventHandler extends BaseSocketEventHandler<
 
   public getEventName(): SocketIOEvents {
     return SocketIOEvents.CHAT_MESSAGE;
+  }
+
+  /**
+   * Chat messages do not affect game state and don't need synchronization,
+   * so they can bypass the action queue for lower latency.
+   */
+  protected override supportsDirectExecution(): boolean {
+    return true;
   }
 
   protected async validateInput(

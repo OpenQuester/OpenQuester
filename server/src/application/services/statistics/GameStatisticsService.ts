@@ -1,10 +1,13 @@
+import { singleton } from "tsyringe";
+
 import { GameStatisticsData } from "domain/types/statistics/GameStatisticsData";
 import { GameStatisticsRepository } from "infrastructure/database/repositories/statistics/GameStatisticsRepository";
 
 /**
- * Provides abstraction over live statistics operations in Redis
- * * Currently works only as adapter for repository, but can be extended in future
+ * Provides abstraction over live statistics operations in Redis.
+ * Currently works as adapter for repository, but can be extended in future.
  */
+@singleton()
 export class GameStatisticsService {
   constructor(private readonly repository: GameStatisticsRepository) {
     //

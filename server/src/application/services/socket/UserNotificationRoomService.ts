@@ -1,5 +1,7 @@
 import { Namespace } from "socket.io";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { SocketIOUserEvents } from "domain/enums/SocketIOEvents";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { UserChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -10,10 +12,11 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
  * Service for managing user notification rooms.
  * Handles subscription and unsubscription to user change events.
  */
+@singleton()
 export class UserNotificationRoomService {
   constructor(
-    private readonly socketIO: Namespace,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }
@@ -33,7 +36,7 @@ export class UserNotificationRoomService {
     userId: number
   ): Promise<void> {
     const roomName = this.getUserNotificationRoom(userId);
-    const socket = this.socketIO.sockets.get(socketId);
+    const socket = this.gamesNsp.sockets.get(socketId);
 
     if (!socket) {
       this.logger.error(
@@ -58,7 +61,7 @@ export class UserNotificationRoomService {
     userId: number
   ): Promise<void> {
     const roomName = this.getUserNotificationRoom(userId);
-    const socket = this.socketIO.sockets.get(socketId);
+    const socket = this.gamesNsp.sockets.get(socketId);
 
     if (!socket) {
       this.logger.error(
@@ -85,7 +88,7 @@ export class UserNotificationRoomService {
     const userRoom = this.getUserNotificationRoom(userId);
 
     // Get all sockets in the game room and make them join the user notification room
-    const gameRoom = this.socketIO.adapter.rooms.get(gameId);
+    const gameRoom = this.gamesNsp.adapter.rooms.get(gameId);
     if (!gameRoom || gameRoom.size === 0) {
       this.logger.error(
         `Game room ${gameId} not found or empty when subscribing to user ${userId} notifications`,
@@ -95,7 +98,7 @@ export class UserNotificationRoomService {
     }
 
     // Use socketsJoin to add all sockets in the game room to the user notification room
-    this.socketIO.to(gameId).socketsJoin(userRoom);
+    this.gamesNsp.to(gameId).socketsJoin(userRoom);
 
     this.logger.trace(
       `All players in game ${gameId} (${gameRoom.size} sockets) subscribed to user ${userId} notifications (room: ${userRoom})`,
@@ -113,7 +116,7 @@ export class UserNotificationRoomService {
     const userRoom = this.getUserNotificationRoom(userId);
 
     // Get all sockets in the game room and make them leave the user notification room
-    const gameRoom = this.socketIO.adapter.rooms.get(gameId);
+    const gameRoom = this.gamesNsp.adapter.rooms.get(gameId);
     if (!gameRoom) {
       this.logger.error(
         `Game room ${gameId} not found when unsubscribing from user ${userId} notifications`,
@@ -123,7 +126,7 @@ export class UserNotificationRoomService {
     }
 
     // Use socketsLeave to remove all sockets in the game room from the user notification room
-    this.socketIO.to(gameId).socketsLeave(userRoom);
+    this.gamesNsp.to(gameId).socketsLeave(userRoom);
 
     this.logger.trace(
       `All players in game ${gameId} unsubscribed from user ${userId} notifications (room: ${userRoom})`,
@@ -161,12 +164,12 @@ export class UserNotificationRoomService {
   public emitUserChange(userData: UserDTO): void {
     const roomName = this.getUserNotificationRoom(userData.id);
 
-    this.socketIO.to(roomName).emit(SocketIOUserEvents.USER_CHANGE, {
+    this.gamesNsp.to(roomName).emit(SocketIOUserEvents.USER_CHANGE, {
       userData,
     } satisfies UserChangeBroadcastData);
 
     // Debug: Check if there are any sockets in the room
-    const room = this.socketIO.adapter.rooms.get(roomName);
+    const room = this.gamesNsp.adapter.rooms.get(roomName);
     const socketsInRoom = room ? room.size : 0;
 
     this.logger.debug(

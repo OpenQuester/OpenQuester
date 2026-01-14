@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { GameActionHandlerRegistry } from "application/registries/GameActionHandlerRegistry";
 import { GameActionBroadcastService } from "application/services/broadcast/GameActionBroadcastService";
 import { GameActionType } from "domain/enums/GameActionType";
@@ -23,13 +26,14 @@ import { GameActionQueueService } from "infrastructure/services/queue/GameAction
  * 3. If unlocked → execute immediately
  * 4. After execution → emit broadcasts, release lock, process queued actions
  */
+@singleton()
 export class GameActionExecutor {
   constructor(
     private readonly handlerRegistry: GameActionHandlerRegistry,
     private readonly broadcastService: GameActionBroadcastService,
     private readonly queueService: GameActionQueueService,
     private readonly lockService: GameActionLockService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }
