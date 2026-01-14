@@ -5,18 +5,20 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 /**
  * Utilities for special-question related logic shared across validators and services
  */
-export class SpecialQuestionUtils {
-  public static readonly specialQuestionTypes: ReadonlySet<PackageQuestionType> =
+export class SpecialRegularQuestionUtils {
+  public static readonly singleAnswererQuestionTypes: ReadonlySet<PackageQuestionType> =
     new Set([
       PackageQuestionType.NO_RISK,
       PackageQuestionType.SECRET,
       PackageQuestionType.STAKE,
     ]);
 
-  public static isSpecialQuestion(game: Game): boolean {
+  public static isSingleAnswererQuestion(game: Game): boolean {
     const currentType = game.gameState.currentQuestion?.type;
     if (currentType == null) return false;
-    return SpecialQuestionUtils.specialQuestionTypes.has(currentType);
+    return SpecialRegularQuestionUtils.singleAnswererQuestionTypes.has(
+      currentType
+    );
   }
 
   /**
@@ -28,7 +30,9 @@ export class SpecialQuestionUtils {
     const isAnswering =
       game.gameState.questionState === QuestionState.ANSWERING;
 
-    return isAnswering && SpecialQuestionUtils.isSpecialQuestion(game);
+    return (
+      isAnswering && SpecialRegularQuestionUtils.isSingleAnswererQuestion(game)
+    );
   }
 
   public static calculateGiveUpPenalty(game: Game): number {

@@ -3,7 +3,6 @@ import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { TransitionResult } from "domain/state-machine/types";
-import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { FinalBidSubmitResult } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
@@ -67,12 +66,7 @@ export class FinalBidSubmitLogic {
    * Extracts timer from transition data if phase completed.
    */
   public static buildResult(input: FinalBidSubmitInput): FinalBidSubmitResult {
-    let timer: GameStateTimerDTO | undefined;
     const { game, playerId, bidAmount, transitionResult } = input;
-
-    if (transitionResult?.success && transitionResult.data?.timer) {
-      timer = transitionResult.data.timer as GameStateTimerDTO;
-    }
 
     return {
       game,
@@ -80,7 +74,6 @@ export class FinalBidSubmitLogic {
       bidAmount,
       isPhaseComplete: transitionResult?.success ?? false,
       transitionResult,
-      timer,
     };
   }
 }

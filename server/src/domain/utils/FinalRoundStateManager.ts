@@ -75,16 +75,16 @@ export class FinalRoundStateManager {
     // Update question state to match phase
     switch (phase) {
       case FinalRoundPhase.THEME_ELIMINATION:
-        game.gameState.questionState = QuestionState.THEME_ELIMINATION;
+        game.setQuestionState(QuestionState.THEME_ELIMINATION);
         break;
       case FinalRoundPhase.BIDDING:
-        game.gameState.questionState = QuestionState.BIDDING;
+        game.setQuestionState(QuestionState.BIDDING);
         break;
       case FinalRoundPhase.ANSWERING:
-        game.gameState.questionState = QuestionState.ANSWERING;
+        game.setQuestionState(QuestionState.ANSWERING);
         break;
       case FinalRoundPhase.REVIEWING:
-        game.gameState.questionState = QuestionState.REVIEWING;
+        game.setQuestionState(QuestionState.REVIEWING);
         break;
     }
 

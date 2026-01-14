@@ -1,4 +1,3 @@
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
 import { GameAction } from "domain/types/action/GameAction";
 import {
@@ -11,6 +10,7 @@ import {
   SecretQuestionTransferBroadcastData,
   SecretQuestionTransferInputData,
 } from "domain/types/socket/game/SecretQuestionTransferData";
+import { SecretQuestionService } from "application/services/question/SecretQuestionService";
 
 /**
  * Result of secret question transfer action.
@@ -43,9 +43,7 @@ export class SecretQuestionTransferActionHandler
       SecretQuestionTransferResult
     >
 {
-  constructor(
-    private readonly socketIOQuestionService: SocketIOQuestionService
-  ) {
+  constructor(private readonly secretQuestionService: SecretQuestionService) {
     //
   }
 
@@ -53,7 +51,7 @@ export class SecretQuestionTransferActionHandler
     action: GameAction<SecretQuestionTransferInputData>
   ): Promise<GameActionHandlerResult<SecretQuestionTransferResult>> {
     const result =
-      await this.socketIOQuestionService.handleSecretQuestionTransfer(
+      await this.secretQuestionService.handleSecretQuestionTransfer(
         action.socketId,
         action.payload
       );

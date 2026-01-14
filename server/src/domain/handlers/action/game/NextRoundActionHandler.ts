@@ -6,6 +6,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
 
@@ -18,13 +19,17 @@ export class NextRoundActionHandler
   constructor(
     private readonly socketIOGameService: SocketIOGameService,
     private readonly gameProgressionCoordinator: GameProgressionCoordinator
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<GameNextRoundEventPayload>> {
     const { game, isGameFinished, nextGameState, questionData } =
-      await this.socketIOGameService.handleNextRound(action.socketId);
+      await this.socketIOGameService.handleNextRound(
+        createActionContextFromAction(action)
+      );
 
     const progressionResult =
       await this.gameProgressionCoordinator.processGameProgression({

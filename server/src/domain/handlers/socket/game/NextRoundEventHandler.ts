@@ -1,9 +1,7 @@
 import { Socket } from "socket.io";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
-import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
-import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -24,8 +22,6 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOGameService: SocketIOGameService,
-    private readonly gameProgressionCoordinator: GameProgressionCoordinator,
     private readonly socketGameContextService: SocketGameContextService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);
@@ -39,14 +35,7 @@ export class NextRoundEventHandler extends BaseSocketEventHandler<
     _data: EmptyInputData,
     context: SocketEventContext
   ): Promise<string | null> {
-    try {
-      const gameContext = await this.socketGameContextService.fetchGameContext(
-        context.socketId
-      );
-      return gameContext.game?.id ?? null;
-    } catch {
-      return null;
-    }
+    return this.socketGameContextService.getGameIdForSocket(context.socketId);
   }
 
   protected override getActionType(): GameActionType {

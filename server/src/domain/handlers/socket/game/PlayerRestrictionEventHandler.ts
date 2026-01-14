@@ -43,14 +43,7 @@ export class PlayerRestrictionEventHandler extends BaseSocketEventHandler<
     _data: PlayerRestrictionInputData,
     context: SocketEventContext
   ): Promise<string | null> {
-    try {
-      const gameContext = await this.socketGameContextService.fetchGameContext(
-        context.socketId
-      );
-      return gameContext.game?.id ?? null;
-    } catch {
-      return null;
-    }
+    return this.socketGameContextService.getGameIdForSocket(context.socketId);
   }
 
   protected override getActionType(): GameActionType {

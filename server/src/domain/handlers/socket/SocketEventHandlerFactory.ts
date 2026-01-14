@@ -99,8 +99,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOGameService,
-        this.gameProgressionCoordinator,
         this.socketGameContextService
       ),
       new PauseGameEventHandler(
@@ -140,7 +138,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOQuestionService,
         this.socketGameContextService
       ),
       new PlayerKickEventHandler(
@@ -188,7 +185,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOGameService,
         this.socketGameContextService
       ),
     ];
@@ -301,7 +297,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOQuestionService,
         this.socketGameContextService
       ),
       new SkipShowAnswerEventHandler(

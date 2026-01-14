@@ -69,7 +69,7 @@ export enum ClientResponse {
   YOU_ARE_MUTED = "you_are_muted",
   ONLY_SHOWMAN_CAN_START = "only_showman_can_start",
   GAME_ALREADY_STARTED = "game_already_started",
-  GAME_STATED_CANNOT_CHANGE_PACKAGE = "game_started_cannot_change_package",
+  GAME_STARTED_CANNOT_CHANGE_PACKAGE = "game_started_cannot_change_package",
   GAME_PASSWORD_NOT_ALLOWED_FOR_PUBLIC_GAME = "game_password_not_allowed_for_public_game",
   GAME_PASSWORD_CANNOT_BE_REMOVED_FOR_PRIVATE_GAME = "game_password_cannot_be_removed_for_private_game",
   CANNOT_SET_MAX_PLAYERS_BELOW_CURRENT = "cannot_set_max_players_below_current",
@@ -82,6 +82,8 @@ export enum ClientResponse {
   ONLY_HOST_CAN_DELETE = "only_host_can_delete",
   YOU_CANNOT_PICK_QUESTION = "you_cannot_pick_question",
   YOU_CANNOT_ANSWER_QUESTION = "you_cannot_answer_question",
+  /** Player joined mid-question and is not eligible to answer */
+  YOU_CANNOT_ANSWER_RIGHT_AFTER_BECOMING_PLAYER = "you_cannot_answer_right_after_becoming_player",
   QUESTION_NOT_FOUND = "question_not_found",
   QUESTION_ALREADY_PICKED = "question_already_picked",
   QUESTION_ALREADY_PLAYED = "question_already_played",
@@ -120,7 +122,6 @@ export enum ClientResponse {
 
   // Final Round
   INVALID_ROUND_TYPE = "invalid_round_type",
-  INVALID_THEME_ID = "invalid_theme_id",
   INVALID_QUESTION_STATE = "invalid_question_state",
   FINAL_ROUND_INVALID_THEME_STRUCTURE = "final_round_invalid_theme_structure",
   FINAL_ROUND_INVALID_QUESTION_TYPE = "final_round_invalid_question_type",

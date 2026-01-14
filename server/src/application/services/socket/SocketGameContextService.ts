@@ -4,6 +4,7 @@ import { GameService } from "application/services/game/GameService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
+import { ActionContext } from "domain/types/action/ActionContext";
 import { GameContext } from "domain/types/socket/game/GameContext";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -20,7 +21,33 @@ export class SocketGameContextService {
     //
   }
 
-  async fetchGameContext(socketId: string): Promise<GameContext> {
+  /**
+   * Lightweight getter for gameId without loading the full game entity.
+   * Reduces duplicated Redis calls when only the queue routing is needed.
+   */
+  public async getGameIdForSocket(socketId: string): Promise<string | null> {
+    const userData = await this.socketUserDataService.getSocketData(socketId);
+    return userData?.gameId ?? null;
+  }
+
+  public async loadGameAndPlayer(ctx: ActionContext) {
+    const game = await this.gameService.getGameEntity(
+      ctx.gameId,
+      GAME_TTL_IN_SECONDS
+    );
+
+    if (!game) {
+      throw new ClientError(ClientResponse.GAME_NOT_FOUND);
+    }
+
+    const currentPlayer = game.getPlayer(ctx.playerId, {
+      fetchDisconnected: false,
+    });
+
+    return { game, currentPlayer };
+  }
+
+  public async fetchGameContext(socketId: string): Promise<GameContext> {
     const userSession = await this.fetchUserSocketData(socketId);
 
     if (!userSession.gameId) {
@@ -42,7 +69,9 @@ export class SocketGameContextService {
   /**
    * Throws an error if the user is not authenticated or does not have socket data.
    */
-  async fetchUserSocketData(socketId: string): Promise<SocketRedisUserData> {
+  public async fetchUserSocketData(
+    socketId: string
+  ): Promise<SocketRedisUserData> {
     const userData = await this.socketUserDataService.getSocketData(socketId);
 
     if (!userData) {

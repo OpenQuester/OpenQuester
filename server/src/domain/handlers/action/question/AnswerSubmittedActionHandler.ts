@@ -4,6 +4,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import {
   AnswerSubmittedBroadcastData,
   AnswerSubmittedInputData,
@@ -18,13 +19,15 @@ export class AnswerSubmittedActionHandler
 {
   constructor(
     private readonly socketIOQuestionService: SocketIOQuestionService
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<AnswerSubmittedInputData>
   ): Promise<GameActionHandlerResult<AnswerSubmittedBroadcastData>> {
     const result = await this.socketIOQuestionService.handleAnswerSubmitted(
-      action.socketId,
+      createActionContextFromAction(action),
       { answerText: action.payload.answerText }
     );
 

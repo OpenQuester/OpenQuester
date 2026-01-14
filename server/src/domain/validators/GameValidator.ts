@@ -22,6 +22,7 @@ import {
   PlayerRoleChangeInputData,
   PlayerScoreChangeInputData,
   PlayerSlotChangeInputData,
+  QuestionPickInputData,
   TurnPlayerChangeInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import {
@@ -30,7 +31,6 @@ import {
 } from "domain/types/socket/game/AnswerResultData";
 import { AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
 import { GameJoinData } from "domain/types/socket/game/GameJoinData";
-import { GameQuestionPickData } from "domain/types/socket/game/question/GameQuestionPickData";
 import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
@@ -62,12 +62,12 @@ export class GameValidator {
     return this._validate<ChatMessageInputData>(data, schema);
   }
 
-  public static validatePickQuestion(data: GameQuestionPickData) {
-    const schema = Joi.object<GameQuestionPickData>({
+  public static validatePickQuestion(data: QuestionPickInputData) {
+    const schema = Joi.object<QuestionPickInputData>({
       questionId: Joi.number().min(0).required(),
     });
 
-    return this._validate<GameQuestionPickData>(data, schema);
+    return this._validate<QuestionPickInputData>(data, schema);
   }
 
   public static validateSecretQuestionTransfer(

@@ -4,14 +4,18 @@ import { ClientError } from "domain/errors/ClientError";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 
+import { BroadcastEvent } from "domain/types/service/ServiceResult";
+
 export interface ForceSkipResult {
   game: Game;
   question: PackageQuestionDTO;
+  broadcasts?: BroadcastEvent[];
 }
 
 export interface ForceSkipBuildResultInput {
   game: Game;
   question: PackageQuestionDTO;
+  broadcasts?: BroadcastEvent[];
 }
 
 /**
@@ -78,11 +82,12 @@ export class QuestionForceSkipLogic {
    * Build the result for force skip operation.
    */
   public static buildResult(input: ForceSkipBuildResultInput): ForceSkipResult {
-    const { game, question } = input;
+    const { game, question, broadcasts } = input;
 
     return {
       game,
       question,
+      broadcasts,
     };
   }
 }

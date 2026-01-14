@@ -5291,16 +5291,16 @@
             "description": "Question ID being transferred",
             "examples": [456]
           },
-          "transferPhase": {
+          "transferDecisionPhase": {
             "type": "boolean",
-            "description": "Whether currently in transfer phase (waiting for transfer decision)",
+            "description": "Whether currently in the transfer decision phase (waiting for transfer decision)",
             "examples": [true]
           }
         },
         "required": [
           "pickerPlayerId",
           "questionId",
-          "transferPhase",
+          "transferDecisionPhase",
           "transferType"
         ]
       },
@@ -5410,7 +5410,11 @@
             "type": ["integer", "null"]
           },
           "timer": {
-            "$ref": "#/components/schemas/GameStateTimer"
+            "oneOf": [
+              { "$ref": "#/components/schemas/GameStateTimer" },
+              { "type": "null" }
+            ],
+            "description": "Timer for the next bid or remaining time (30 seconds per bid) or null if there is no further timer"
           }
         },
         "required": [
@@ -5418,8 +5422,7 @@
           "bidType",
           "isPhaseComplete",
           "nextBidderId",
-          "playerId",
-          "timer"
+          "playerId"
         ]
       },
       "SocketIOStakeQuestionPickedEventPayload": {
@@ -5470,9 +5473,9 @@
             "examples": [123]
           },
           "finalBid": {
-            "type": "integer",
-            "description": "The final winning bid amount",
-            "examples": [2000]
+            "type": ["integer", "null"],
+            "description": "The final winning bid amount (may be null if not applicable)",
+            "examples": [2000, null]
           }
         },
         "required": ["finalBid", "winnerPlayerId"]

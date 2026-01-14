@@ -22,6 +22,7 @@ export class RedisConfig {
     if (!this._client) {
       this._client = new Redis(this._getRedisLink(), {
         maxRetriesPerRequest: 10,
+        enableAutoPipelining: true,
       });
     }
     return this._client;

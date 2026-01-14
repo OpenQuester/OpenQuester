@@ -8,6 +8,7 @@ import {
   PlayerScoreChangeBroadcastData,
   PlayerScoreChangeInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for player score change.
@@ -24,10 +25,10 @@ export class PlayerScoreChangeActionHandler
   public async execute(
     action: GameAction<PlayerScoreChangeInputData>
   ): Promise<GameActionHandlerResult<PlayerScoreChangeBroadcastData>> {
-    const { payload, socketId } = action;
+    const { payload } = action;
 
     const result = await this.socketIOGameService.changePlayerScore(
-      socketId,
+      createActionContextFromAction(action),
       payload.playerId,
       payload.newScore
     );
@@ -37,6 +38,10 @@ export class PlayerScoreChangeActionHandler
       newScore: result.data.newScore,
     };
 
-    return { success: true, data: broadcastData, broadcasts: result.broadcasts };
+    return {
+      success: true,
+      data: broadcastData,
+      broadcasts: result.broadcasts,
+    };
   }
 }

@@ -14,7 +14,7 @@ import {
   QuestionUnskipBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
+import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 
 export interface GiveUpMutation {
   penalty: number;
@@ -28,7 +28,7 @@ export interface GiveUpResult {
   playerId: number;
   gaveUp: true;
   answerResult: GameStateAnsweredPlayerData;
-  timer: GameStateTimerDTO;
+  timer: GameStateTimerDTO | null;
 }
 
 export interface RegularSkipResult {
@@ -43,7 +43,7 @@ export interface GiveUpBuildResultInput {
   game: Game;
   playerId: number;
   mutation: GiveUpMutation;
-  timer: GameStateTimerDTO;
+  timer: GameStateTimerDTO | null;
 }
 
 export interface RegularSkipBuildResultInput {
@@ -73,7 +73,7 @@ export class PlayerSkipLogic {
    * Delegates to SpecialQuestionUtils for the actual calculation.
    */
   public static calculateGiveUpPenalty(game: Game): number {
-    return SpecialQuestionUtils.calculateGiveUpPenalty(game);
+    return SpecialRegularQuestionUtils.calculateGiveUpPenalty(game);
   }
 
   /**
@@ -92,7 +92,7 @@ export class PlayerSkipLogic {
     const playerAnswerResult = game.handleQuestionAnswer(
       penalty,
       AnswerResultType.WRONG,
-      QuestionState.SHOWING
+      QuestionState.SHOWING_ANSWER
     );
 
     return {

@@ -40,7 +40,6 @@ export interface FinalBidSubmitResult {
   isPhaseComplete: boolean;
   /** Transition result for direct broadcast pass-through */
   transitionResult: TransitionResult | null;
-  timer?: GameStateTimerDTO;
 }
 
 export interface FinalAnswerSubmitResult {
@@ -66,7 +65,6 @@ export interface ThemeEliminationTimeoutResult {
   themeId: number;
   nextPlayerId: number | null;
   isPhaseComplete: boolean;
-  timer?: GameStateTimerDTO;
   /** Transition result for direct broadcast pass-through */
   transitionResult?: TransitionResult | null;
 }
@@ -75,7 +73,6 @@ export interface BiddingTimeoutResult {
   game: Game;
   timeoutBids: Array<PlayerBidData>;
   questionData: FinalRoundQuestionData;
-  timer: GameStateTimerDTO;
   /** Transition result for direct broadcast pass-through */
   transitionResult: TransitionResult;
 }

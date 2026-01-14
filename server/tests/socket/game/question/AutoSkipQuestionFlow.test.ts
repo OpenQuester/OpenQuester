@@ -65,9 +65,7 @@ describe("Auto-Skip Question Flow Tests", () => {
         await utils.startGame(showmanSocket);
 
         // Find a secret question
-        const gameState = await utils.getGameState(gameId);
         const secretQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.SECRET,
           gameId
         );
@@ -115,9 +113,7 @@ describe("Auto-Skip Question Flow Tests", () => {
         await utils.startGame(showmanSocket);
 
         // Find a stake question
-        const gameState = await utils.getGameState(gameId);
         const stakeQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.STAKE,
           gameId
         );
@@ -145,6 +141,7 @@ describe("Auto-Skip Question Flow Tests", () => {
         expect(questionData.data.type).toBe(PackageQuestionType.STAKE);
 
         // Verify the game state shows SHOWING (not BIDDING)
+        // Logic: No players - show as simple question in SHOWING state
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.SHOWING);
       } finally {

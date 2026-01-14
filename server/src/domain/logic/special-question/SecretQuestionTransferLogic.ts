@@ -40,7 +40,7 @@ export class SecretQuestionTransferLogic {
       questionData.question
     );
     game.gameState.secretQuestionData = null;
-    game.gameState.questionState = QuestionState.ANSWERING;
+    game.setQuestionState(QuestionState.ANSWERING);
     game.gameState.answeringPlayer = targetPlayerId;
   }
 
