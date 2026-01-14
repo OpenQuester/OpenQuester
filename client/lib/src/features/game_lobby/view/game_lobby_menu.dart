@@ -25,8 +25,10 @@ class GameLobbyMenu extends WatchingWidget {
           onTap: () async {
             final gameId = getIt<GameLobbyController>().gameId;
             if (gameId == null) return;
+            final password = gameData?.gameState.password;
             final link = Env.clientAppUrl.replace(
               path: '/games/$gameId',
+              queryParameters: password != null ? {'password': password} : null,
             );
             await Clipboard.setData(ClipboardData(text: link.toString()));
           },
@@ -46,7 +48,6 @@ class GameLobbyMenu extends WatchingWidget {
                     gameData!.gameState.password!,
                     style: context.textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.w600,
-                      fontFamily: 'monospace',
                       color: context.theme.colorScheme.onPrimaryContainer,
                     ),
                   ),
