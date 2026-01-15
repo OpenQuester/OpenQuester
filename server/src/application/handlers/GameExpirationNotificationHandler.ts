@@ -53,7 +53,7 @@ export class GameExpirationNotificationHandler implements RedisExpirationHandler
         return;
       }
     } catch (error) {
-      this.logger.debug("Skipping expiration warning for missing game", {
+      this.logger.warn("Skipping expiration warning for missing game", {
         prefix: LogPrefix.NOTIFICATION,
         gameId,
         error: error instanceof Error ? error.message : String(error),

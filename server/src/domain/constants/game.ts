@@ -13,8 +13,8 @@ export const SYSTEM_PLAYER_ID = -1;
 export const SYSTEM_SOCKET_ID = "SYSTEM";
 /** 2 hours (updates with almost every action) */
 export const GAME_TTL_IN_SECONDS = 60 * 60 * 2;
-/** 5 minutes */
-export const GAME_EXPIRATION_WARNING_SECONDS = 60 * 5;
+/** 15 minutes */
+export const GAME_EXPIRATION_WARNING_SECONDS = 60 * 15;
 export const GAME_EXPIRATION_WARNING_NAMESPACE = "game-expiration-warning";
 export const GAME_CHAT_NSP = `${CHAT_NSP}:game`;
 /** 3 weeks */
