@@ -9,6 +9,7 @@ import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
+import { NotificationType } from "domain/enums/NotificationType";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameJoinMeta } from "domain/types/socket/events/game/GameJoinMeta";
 
@@ -140,6 +141,16 @@ export interface ChatMessageBroadcastData {
  */
 export interface UserChangeBroadcastData {
   userData: UserDTO;
+}
+
+export interface GameExpirationWarningNotificationData {
+  gameId: string;
+  expiresAt: Date;
+}
+
+export interface NotificationBroadcastData {
+  type: NotificationType;
+  data: GameExpirationWarningNotificationData;
 }
 
 /**

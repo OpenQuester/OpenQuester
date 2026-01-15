@@ -25,6 +25,7 @@ import { StorageContextBuilder } from "application/context/storage/StorageContex
 import { DI_TOKENS } from "application/di/tokens";
 import { CronJobFactory } from "application/factories/CronJobFactory";
 import { GameExpirationHandler } from "application/handlers/GameExpirationHandler";
+import { GameExpirationNotificationHandler } from "application/handlers/GameExpirationNotificationHandler";
 import { TimerExpirationHandler } from "application/handlers/TimerExpirationHandler";
 import { GameActionHandlerRegistry } from "application/registries/GameActionHandlerRegistry";
 import { GameActionBroadcastService } from "application/services/broadcast/GameActionBroadcastService";
@@ -205,8 +206,12 @@ export async function bootstrapContainer(
   // Note: These handlers are auto-resolved (proper DI) rather than manually instantiated
   const timerExpirationHandler = container.resolve(TimerExpirationHandler);
   const gameExpirationHandler = container.resolve(GameExpirationHandler);
+  const gameExpirationNotificationHandler = container.resolve(
+    GameExpirationNotificationHandler
+  );
   container.registerInstance(DI_TOKENS.RedisExpirationHandlers, [
     timerExpirationHandler,
+    gameExpirationNotificationHandler,
     gameExpirationHandler,
   ]);
 
