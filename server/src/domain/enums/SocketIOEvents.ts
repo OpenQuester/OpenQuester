@@ -4,6 +4,7 @@ export enum SocketIOEvents {
   CONNECTION = "connection",
   GAMES = "games",
   CHAT_MESSAGE = "chat-message",
+  NOTIFICATIONS = "notifications",
 }
 
 export enum SocketIOUserEvents {
