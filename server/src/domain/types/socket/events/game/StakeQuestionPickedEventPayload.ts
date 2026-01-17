@@ -14,4 +14,6 @@ export interface StakeQuestionPickedBroadcastData {
   biddingOrder: number[];
   /** Timer for the bidding phase (30 seconds per bid) */
   timer: GameStateTimerDTO;
+  /** Players eligible to participate in the current question */
+  questionEligiblePlayers?: number[] | null;
 }

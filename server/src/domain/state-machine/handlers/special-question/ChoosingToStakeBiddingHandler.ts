@@ -192,6 +192,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
           startedAt: new Date(),
           resumedAt: null,
         },
+        questionEligiblePlayers: ctx.game.getQuestionEligiblePlayers(),
       } satisfies StakeQuestionPickedBroadcastData,
       room: ctx.game.id,
     });

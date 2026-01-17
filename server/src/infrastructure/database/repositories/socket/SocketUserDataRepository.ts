@@ -53,6 +53,62 @@ export class SocketUserDataRepository {
   }
 
   /**
+   * Batch get socket session data by socketIds using a pipeline.
+   */
+  public async getSocketDataBatch(
+    socketIds: string[]
+  ): Promise<Map<string, SocketRedisUserData | null>> {
+    if (socketIds.length === 0) {
+      return new Map();
+    }
+
+    const pipeline = this.redisService.pipeline();
+    const keys = socketIds.map((socketId) => this.getSessionKey(socketId));
+
+    for (const key of keys) {
+      pipeline.hgetall(key);
+    }
+
+    const results = await pipeline.exec();
+    const resultMap = new Map<string, SocketRedisUserData | null>();
+
+    if (!results) {
+      return resultMap;
+    }
+
+    for (let i = 0; i < results.length; i += 1) {
+      const entry = results[i];
+      const socketId = socketIds[i];
+
+      if (!entry || !socketId) {
+        continue;
+      }
+
+      const [err, data] = entry;
+
+      if (err || !data || typeof data !== "object") {
+        resultMap.set(socketId, null);
+        continue;
+      }
+
+      const record = data as Record<string, string>;
+
+      if (ValueUtils.isEmpty(record)) {
+        resultMap.set(socketId, null);
+        continue;
+      }
+
+      resultMap.set(socketId, {
+        id: parseInt(record.id, 10),
+        gameId:
+          record.gameId === "null" || !record.gameId ? null : record.gameId,
+      });
+    }
+
+    return resultMap;
+  }
+
+  /**
    * Create socket session and reverse lookup atomically (MULTI/EXEC).
    */
   public async set(

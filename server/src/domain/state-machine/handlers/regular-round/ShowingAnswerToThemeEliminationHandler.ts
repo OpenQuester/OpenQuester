@@ -89,6 +89,9 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
       game.setQuestionState(QuestionState.THEME_ELIMINATION);
     }
 
+    // Capture eligible players at the start of the final round
+    game.captureQuestionEligiblePlayers();
+
     return {
       data: {
         nextGameState,

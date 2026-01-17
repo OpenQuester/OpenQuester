@@ -44,6 +44,15 @@ export class SecretQuestionValidator {
       throw new ClientError(ClientResponse.CANNOT_TRANSFER_SECRET_QUESTION);
     }
 
+    if (
+      !isShowmanOverride &&
+      !game.isPlayerEligibleToAnswer(currentPlayer.meta.id)
+    ) {
+      throw new ClientError(
+        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
+      );
+    }
+
     if (targetPlayerId !== undefined) {
       this._validateTransferTarget(game, secretData, targetPlayerId);
     }
@@ -60,6 +69,12 @@ export class SecretQuestionValidator {
 
     if (!targetPlayer || targetPlayer.role !== PlayerRole.PLAYER) {
       throw new ClientError(ClientResponse.INVALID_TRANSFER_TARGET);
+    }
+
+    if (!game.isPlayerEligibleToAnswer(targetPlayerId)) {
+      throw new ClientError(
+        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
+      );
     }
 
     if (

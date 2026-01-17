@@ -220,6 +220,12 @@ export class SocketGameValidationService {
       throw new ClientError(ClientResponse.INSUFFICIENT_PERMISSIONS);
     }
 
+    if (!game.isPlayerEligibleToAnswer(currentPlayer.meta.id)) {
+      throw new ClientError(
+        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
+      );
+    }
+
     this.validateCurrentRound(game);
 
     // Check if it's a final round
@@ -282,6 +288,16 @@ export class SocketGameValidationService {
     // Common validation - cannot change to same role
     if (targetPlayer.role === newRole) {
       throw new ClientError(ClientResponse.INVALID_ROLE_CHANGE);
+    }
+
+    // Prevent changing to PLAYER role during final round
+    // Players who weren't in the game at the start of the final round
+    // cannot participate in bidding or answering
+    if (
+      newRole === PlayerRole.PLAYER &&
+      game.gameState.currentRound?.type === PackageRoundType.FINAL
+    ) {
+      throw new ClientError(ClientResponse.CANNOT_CHANGE_ROLE_DURING_FINAL);
     }
   }
 

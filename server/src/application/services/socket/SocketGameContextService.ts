@@ -80,4 +80,29 @@ export class SocketGameContextService {
 
     return userData;
   }
+
+  /**
+   * Batch fetch socket user data. Throws if any socket is not authenticated.
+   */
+  public async fetchUserSocketDataBatch(
+    socketIds: string[]
+  ): Promise<Map<string, SocketRedisUserData>> {
+    const userDataMap = await this.socketUserDataService.getSocketDataBatch(
+      socketIds
+    );
+
+    const result = new Map<string, SocketRedisUserData>();
+
+    for (const socketId of socketIds) {
+      const userData = userDataMap.get(socketId);
+
+      if (!userData) {
+        throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
+      }
+
+      result.set(socketId, userData);
+    }
+
+    return result;
+  }
 }

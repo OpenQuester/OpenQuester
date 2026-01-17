@@ -43,6 +43,8 @@ import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
 import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { ClientError } from "domain/errors/ClientError";
+import { ClientResponse } from "domain/enums/ClientResponse";
 
 /**
  * Service handling timer expiration logic.
@@ -209,8 +211,7 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts: [
-        // TODO: add proper null-check with error throw
-        AnsweringExpirationLogic.buildBroadcast(gameId, answerResult!, timer),
+        AnsweringExpirationLogic.buildBroadcast(gameId, answerResult, timer),
       ],
     };
   }
@@ -433,7 +434,7 @@ export class TimerExpirationService {
         }
       );
 
-      return { answerResult: null, timer: null };
+      throw new ClientError(ClientResponse.FAILED_TO_TRANSITION);
     }
 
     const resultData = transitionResult.data as

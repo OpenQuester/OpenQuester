@@ -142,6 +142,7 @@ export class StakeBidSubmitLogic {
         data: {
           data: mappedQuestionData,
           timer,
+          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
         } satisfies GameQuestionDataEventPayload,
         target: SocketBroadcastTarget.GAME,
         gameId: game.id,
