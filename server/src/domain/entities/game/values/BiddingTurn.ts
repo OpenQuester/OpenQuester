@@ -111,7 +111,11 @@ export class BiddingTurn {
   }
 
   /**
-   * Calculates which players are eligible to bid and how many can still act meaningfully
+   * Calculates which players are eligible to bid and how many can still act meaningfully.
+   *
+   * A player is eligible for next bid ONLY if they can actually outbid the current highest.
+   * If a player can only PASS (cannot afford to outbid), they are not added to eligibleForNextBid.
+   * This ensures bidding completes immediately when no one can outbid the current leader.
    */
   private _calculatePlayersEligibility(context: BiddingContext): {
     playersWhoCanStillAct: number;
@@ -143,18 +147,27 @@ export class BiddingTurn {
         continue;
       }
 
+      // TODO: Refactor, move to logic class
       if (hasAllInBids) {
-        // After ALL_IN bid(s), remaining players can still PASS or ALL_IN
-        playersWhoCanStillAct++;
-        eligibleForNextBid.push(playerId);
+        // After ALL_IN bid(s), only players who can match or exceed the ALL_IN can continue
+        // Check if player can go ALL_IN with score >= current highest bid
+        const canMatchAllIn =
+          stakeData.highestBid !== null && player.score > stakeData.highestBid;
+
+        if (canMatchAllIn) {
+          playersWhoCanStillAct++;
+          eligibleForNextBid.push(playerId);
+        }
+        // Players who cannot match ALL_IN are effectively out (can only PASS)
       } else if (stakeData.highestBid !== null) {
-        // Count only players who can meaningfully outbid for completion logic
+        // Only add players who can meaningfully outbid
         const minBidRequired = stakeData.highestBid + 1;
+
         if (player.score >= minBidRequired) {
           playersWhoCanStillAct++;
+          eligibleForNextBid.push(playerId);
         }
-        // But all players get a turn to PASS or attempt ALL_IN
-        eligibleForNextBid.push(playerId);
+        // Players who cannot outbid are not eligible (would only PASS anyway)
       } else {
         // No highest bid yet, everyone can participate
         playersWhoCanStillAct++;

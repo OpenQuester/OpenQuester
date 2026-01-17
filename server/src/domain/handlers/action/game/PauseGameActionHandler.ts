@@ -8,6 +8,7 @@ import {
   EmptyInputData,
   GamePauseBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for pausing a game.
@@ -21,7 +22,7 @@ export class PauseGameActionHandler
     action: GameAction<EmptyInputData>
   ): Promise<GameActionHandlerResult<GamePauseBroadcastData>> {
     const result = await this.socketIOGameService.handleGamePause(
-      action.socketId
+      createActionContextFromAction(action)
     );
 
     const pauseData: GamePauseBroadcastData = { timer: result.data.timer };

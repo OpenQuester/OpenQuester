@@ -6,7 +6,7 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { SpecialQuestionUtils } from "domain/utils/QuestionUtils";
+import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -44,7 +44,8 @@ export class QuestionActionValidator {
     const { game, currentPlayer } = context;
 
     // Check if current question is a special question type (noRisk, secret, stake)
-    const isSpecialQuestion = SpecialQuestionUtils.isSpecialQuestion(game);
+    const isSpecialQuestion =
+      SpecialRegularQuestionUtils.isSingleAnswererQuestion(game);
 
     if (isSpecialQuestion) {
       // Special questions: different rules based on phase
@@ -102,7 +103,7 @@ export class QuestionActionValidator {
   }
 
   /**
-   * Validates answer result action requirements
+   * Validates basic requirements and ability to perform answer result action
    */
   public static validateAnswerResultAction(
     context: QuestionActionContext
@@ -127,30 +128,30 @@ export class QuestionActionValidator {
 
     switch (action) {
       case QuestionAction.PLAYER_SKIP:
-        if (currentPlayer!.role !== PlayerRole.PLAYER) {
+        if (currentPlayer?.role !== PlayerRole.PLAYER) {
           throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_SKIP);
         }
         break;
       case QuestionAction.ANSWER:
         if (
-          currentPlayer!.role === PlayerRole.SHOWMAN ||
-          currentPlayer!.role === PlayerRole.SPECTATOR
+          currentPlayer?.role === PlayerRole.SHOWMAN ||
+          currentPlayer?.role === PlayerRole.SPECTATOR
         ) {
           throw new ClientError(ClientResponse.YOU_CANNOT_ANSWER_QUESTION);
         }
         break;
       case QuestionAction.SUBMIT_ANSWER:
-        if (currentPlayer!.role !== PlayerRole.PLAYER) {
+        if (currentPlayer?.role !== PlayerRole.PLAYER) {
           throw new ClientError(ClientResponse.INSUFFICIENT_PERMISSIONS);
         }
         break;
-      case QuestionAction.RESULT:
-        if (currentPlayer!.role !== PlayerRole.SHOWMAN) {
+      case QuestionAction.ANSWER_RESULT:
+        if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
           throw new ClientError(ClientResponse.ONLY_SHOWMAN_SEND_ANSWER_RESULT);
         }
         break;
-      case QuestionAction.SKIP:
-        if (currentPlayer!.role !== PlayerRole.SHOWMAN) {
+      case QuestionAction.FORCE_SKIP:
+        if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
           throw new ClientError(
             ClientResponse.ONLY_SHOWMAN_SKIP_QUESTION_FORCE
           );
@@ -158,15 +159,15 @@ export class QuestionActionValidator {
         break;
       case QuestionAction.PICK:
         if (
-          currentPlayer!.role !== PlayerRole.PLAYER &&
-          currentPlayer!.role !== PlayerRole.SHOWMAN
+          currentPlayer?.role !== PlayerRole.PLAYER &&
+          currentPlayer?.role !== PlayerRole.SHOWMAN
         ) {
           throw new ClientError(ClientResponse.YOU_CANNOT_PICK_QUESTION);
         }
         if (
           game.gameState.currentRound?.type === PackageRoundType.SIMPLE &&
-          game.gameState.currentTurnPlayerId !== currentPlayer!.meta.id &&
-          currentPlayer!.role !== PlayerRole.SHOWMAN
+          game.gameState.currentTurnPlayerId !== currentPlayer?.meta.id &&
+          currentPlayer?.role !== PlayerRole.SHOWMAN
         ) {
           throw new ClientError(ClientResponse.NOT_YOUR_TURN);
         }
@@ -180,6 +181,14 @@ export class QuestionActionValidator {
   ): void {
     if (!game.gameState.currentQuestion) {
       throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
+    }
+
+    // Check if player is eligible to answer (was present when question started)
+    // This prevents players who joined mid-question from answering
+    if (!game.isPlayerEligibleToAnswer(currentPlayerId)) {
+      throw new ClientError(
+        ClientResponse.YOU_CANNOT_ANSWER_RIGHT_AFTER_BECOMING_PLAYER
+      );
     }
 
     // For secret questions where a specific player is designated to answer,
@@ -234,38 +243,12 @@ export class QuestionActionValidator {
     }
   }
 
-  private static _validatePlayerCanSkip(
-    game: Game,
-    currentPlayer: Player
-  ): void {
-    if (game.gameState.answeringPlayer === currentPlayer.meta.id) {
-      throw new ClientError(ClientResponse.CANNOT_SKIP_WHILE_ANSWERING);
-    }
-
-    const hasAnswered = game.gameState.answeredPlayers?.some(
-      (answeredPlayer) => answeredPlayer.player === currentPlayer.meta.id
-    );
-
-    if (hasAnswered) {
-      throw new ClientError(ClientResponse.ALREADY_ANSWERED_QUESTION);
-    }
-  }
-
   private static _validatePlayerHasSkipped(
     game: Game,
     currentPlayer: Player
   ): void {
     if (!game.hasPlayerSkipped(currentPlayer.meta.id)) {
       throw new ClientError(ClientResponse.PLAYER_NOT_SKIPPED);
-    }
-  }
-
-  private static _validatePlayerIsAnswering(
-    game: Game,
-    currentPlayer: Player
-  ): void {
-    if (game.gameState.answeringPlayer !== currentPlayer.meta.id) {
-      throw new ClientError(ClientResponse.CANNOT_SUBMIT_ANSWER);
     }
   }
 }

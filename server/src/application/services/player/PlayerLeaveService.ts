@@ -4,10 +4,9 @@ import { DI_TOKENS } from "application/di/tokens";
 import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   AnsweringPlayerLeaveLogic,
@@ -20,10 +19,8 @@ import {
   TurnPlayerLeaveLogic,
   TurnPlayerScenarioType,
 } from "domain/logic/player-leave/TurnPlayerLeaveLogic";
-import { TimerPersistenceLogic } from "domain/logic/timer/TimerPersistenceLogic";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
-import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   BroadcastEvent,
@@ -31,9 +28,12 @@ import {
 } from "domain/types/service/ServiceResult";
 import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
 import { PlayerKickBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { StakeBiddingToAnsweringPayload } from "domain/types/socket/transition/special-question";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
+import { AnswerResultTransitionPayload } from "domain/types/socket/transition/answering";
 
 /**
  * Reason for player leaving the game
@@ -77,7 +77,6 @@ export class PlayerLeaveService {
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketUserDataService: SocketUserDataService,
     private readonly playerGameStatsService: PlayerGameStatsService,
-    private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly finalRoundService: FinalRoundService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
@@ -186,7 +185,7 @@ export class PlayerLeaveService {
     );
 
     // Handle final bidding player leaving - must be done BEFORE removing player
-    const biddingBroadcasts = await this.handleFinalBiddingPlayerLeave(
+    const finalBiddingBroadcasts = await this.handleFinalBiddingPlayerLeave(
       game,
       userId
     );
@@ -253,7 +252,7 @@ export class PlayerLeaveService {
     // Add bidding, answering, turn player, and media download broadcasts
     broadcasts.push(
       ...stakeBiddingBroadcasts,
-      ...biddingBroadcasts,
+      ...finalBiddingBroadcasts,
       ...answeringBroadcasts,
       ...turnPlayerBroadcasts,
       ...mediaDownloadBroadcasts
@@ -315,6 +314,11 @@ export class PlayerLeaveService {
 
   /**
    * Handle player leaving during stake question bidding phase.
+   *
+   * Flow:
+   * 1. Validate and process auto-pass
+   * 2. If bidding complete with winner, try transition via router
+   * 3. Otherwise handle question skip or continue bidding
    */
   private async handleStakeBiddingPlayerLeave(
     game: Game,
@@ -336,15 +340,40 @@ export class PlayerLeaveService {
     if (mutationResult.questionSkipped) {
       StakeBiddingPlayerLeaveLogic.handleQuestionSkip(game);
       await this.gameService.clearTimer(game.id);
+
+      // Build result using Logic class (skip broadcast only)
+      return StakeBiddingPlayerLeaveLogic.buildResult({
+        game,
+        mutationResult,
+      }).broadcasts;
     }
 
-    // Build result using Logic class
-    const result = StakeBiddingPlayerLeaveLogic.buildResult({
+    // Build auto-pass broadcast
+    const broadcasts = StakeBiddingPlayerLeaveLogic.buildResult({
       game,
       mutationResult,
-    });
+    }).broadcasts;
 
-    return result.broadcasts;
+    // Try transition to ANSWERING if bidding complete with winner
+    if (mutationResult.isBiddingComplete && mutationResult.winnerId !== null) {
+      const transitionResult = await this.phaseTransitionRouter.tryTransition({
+        game,
+        trigger: TransitionTrigger.PLAYER_LEFT,
+        triggeredBy: { playerId: userId, isSystem: false },
+        payload: {
+          isPhaseComplete: true,
+          winnerPlayerId: mutationResult.winnerId,
+          finalBid: mutationResult.winningBid,
+        } satisfies StakeBiddingToAnsweringPayload,
+      });
+
+      if (transitionResult) {
+        // Add transition broadcasts (QUESTION_DATA with timer)
+        broadcasts.push(...transitionResult.broadcasts);
+      }
+    }
+
+    return broadcasts;
   }
 
   /**
@@ -404,7 +433,7 @@ export class PlayerLeaveService {
     }
 
     // Handle regular round answering scenario
-    return await this._handleRegularRoundAnsweringLeave(game);
+    return await this._handleRegularRoundAnsweringLeave(game, userId);
   }
 
   /**
@@ -442,54 +471,36 @@ export class PlayerLeaveService {
 
   /**
    * Handle regular round answering player leave - auto-skip with 0 points.
+   *
+   * Flow:
+   * 1. Get current question type
+   * 2. Try transition to SHOWING_ANSWER via router
+   * 3. Handler processes auto-skip, timer, and broadcasts
    */
   private async _handleRegularRoundAnsweringLeave(
-    game: Game
+    game: Game,
+    userId: number
   ): Promise<BroadcastEvent[]> {
-    // Process auto-skip using Logic class
-    const mutationResult =
-      AnsweringPlayerLeaveLogic.processRegularRoundAutoSkip(game);
+    const currentQuestion = game.gameState.currentQuestion;
+    const questionType = currentQuestion?.type ?? PackageQuestionType.SIMPLE;
 
-    // Handle special question cleanup if needed
-    if (mutationResult.isSpecialQuestion && mutationResult.questionId) {
-      AnsweringPlayerLeaveLogic.handleSpecialQuestionCleanup(
-        game,
-        mutationResult.questionId
-      );
-      await this.gameService.clearTimer(game.id);
-
-      // Build result without timer
-      const result = AnsweringPlayerLeaveLogic.buildRegularRoundResult({
-        game,
-        mutationResult,
-        timer: null,
-      });
-      return result.broadcasts;
-    }
-
-    // Normal question - set up showing timer
-    const timer = await this.gameService.getTimer(
-      game.id,
-      QuestionState.SHOWING
-    );
-
-    if (timer) {
-      game.setTimer(timer);
-      await this.gameService.saveTimer(
-        timer,
-        game.id,
-        TimerPersistenceLogic.getSafeTtlMs(timer)
-      );
-    }
-
-    // Build result using Logic class
-    const result = AnsweringPlayerLeaveLogic.buildRegularRoundResult({
+    // Try transition to SHOWING_ANSWER with SKIP answer type and 0 score
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
-      mutationResult,
-      timer,
+      trigger: TransitionTrigger.PLAYER_LEFT,
+      triggeredBy: { playerId: userId, isSystem: false },
+      payload: {
+        answerType: AnswerResultType.SKIP,
+        scoreResult: 0,
+        questionType,
+      } satisfies AnswerResultTransitionPayload,
     });
 
-    return result.broadcasts;
+    if (transitionResult) {
+      return transitionResult.broadcasts;
+    }
+
+    return [];
   }
 
   /**
@@ -569,39 +580,25 @@ export class PlayerLeaveService {
     game: Game,
     userId: number
   ): Promise<BroadcastEvent[]> {
-    // Validate using Logic class
-    const validation = MediaDownloadPlayerLeaveLogic.validate(game);
-    if (!validation.isEligible) {
-      return [];
-    }
-
-    // Check if all remaining players are ready using Logic class
-    const completionResult = MediaDownloadPlayerLeaveLogic.checkAllPlayersReady(
+    // Attempt transition using the phase transition router
+    // If all remaining players (after userId is removed) are ready, transition to SHOWING
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
-      userId
-    );
-
-    if (!completionResult.allPlayersReady) {
-      return [];
-    }
-
-    // Clear the media download timeout timer
-    await this.gameService.clearTimer(game.id);
-
-    // Set up the actual question showing timer
-    const timer = await this.socketQuestionStateService.setupQuestionTimer(
-      game,
-      GAME_QUESTION_ANSWER_TIME,
-      QuestionState.SHOWING
-    );
-
-    // Build result using Logic class
-    const result = MediaDownloadPlayerLeaveLogic.buildResult({
-      game,
-      completionResult,
-      timer,
+      trigger: TransitionTrigger.PLAYER_LEFT,
+      triggeredBy: { playerId: userId, isSystem: false },
     });
 
-    return result.broadcasts;
+    if (!transitionResult) {
+      return [];
+    }
+
+    // Since transition succeeded, it means all players are ready.
+    const timer = transitionResult.timer ?? null;
+
+    return MediaDownloadPlayerLeaveLogic.buildResult({
+      game,
+      timer,
+      leftUserId: userId,
+    }).broadcasts;
   }
 }

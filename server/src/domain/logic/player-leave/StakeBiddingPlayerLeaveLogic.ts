@@ -2,7 +2,6 @@ import { DEFAULT_QUESTION_PRICE } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
-import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   StakeBidSubmitOutputData,
@@ -179,8 +178,7 @@ export class StakeBiddingPlayerLeaveLogic {
    * Clears stake data and moves to choosing state.
    */
   public static handleQuestionSkip(game: Game): void {
-    game.gameState.stakeQuestionData = null;
-    game.gameState.questionState = QuestionState.CHOOSING;
+    game.resetToChoosingState();
   }
 
   /**

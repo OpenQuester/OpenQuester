@@ -3,7 +3,8 @@ import { singleton } from "tsyringe";
 import { REDIS_LOCK_SESSIONS_CLEANUP } from "domain/constants/redis";
 import {
   SOCKET_GAME_AUTH_TTL,
-  SOCKET_USER_REDIS_NSP,
+  SOCKET_SESSION_PREFIX,
+  SOCKET_USER_PREFIX,
 } from "domain/constants/socket";
 import { SocketRedisUserUpdateDTO } from "domain/types/dto/user/SocketRedisUserUpdateDTO";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
@@ -12,6 +13,12 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 /**
  * Repository for socket user session data (stored in Redis).
+ *
+ * Key structure:
+ * - socket:session:{socketId} -> HASH { id: userId, gameId: string | null }
+ * - socket:user:{userId} -> STRING socketId
+ *
+ * All lookups are O(1) without SCAN in business logic.
  */
 @singleton()
 export class SocketUserDataRepository {
@@ -19,132 +26,150 @@ export class SocketUserDataRepository {
     //
   }
 
-  public async getRaw(socketId: string) {
-    const keys = await this._findKeysBySocketId(socketId);
-    if (!keys.length) {
-      return {} as Record<string, string>;
-    }
-    // Expect exactly one key; if multiple (edge case), pick first.
-    return this.redisService.hgetall(keys[0]);
+  private getSessionKey(socketId: string): string {
+    return `${SOCKET_SESSION_PREFIX}:${socketId}`;
   }
 
+  private getUserKey(userId: number): string {
+    return `${SOCKET_USER_PREFIX}:${userId}`;
+  }
+
+  /**
+   * Get socket session data by socketId (O(1)).
+   */
   public async getSocketData(
     socketId: string
   ): Promise<SocketRedisUserData | null> {
-    const data: Record<string, string> = await this.getRaw(socketId);
+    const data = await this.redisService.hgetall(this.getSessionKey(socketId));
 
-    return data && !ValueUtils.isEmpty(data)
-      ? {
-          id: parseInt(data.id),
-          gameId: data.gameId === "null" ? null : data.gameId,
-        }
-      : null;
+    if (!data || ValueUtils.isEmpty(data)) {
+      return null;
+    }
+
+    return {
+      id: parseInt(data.id, 10),
+      gameId: data.gameId === "null" || !data.gameId ? null : data.gameId,
+    };
   }
 
+  /**
+   * Create socket session and reverse lookup atomically (MULTI/EXEC).
+   */
   public async set(
     socketId: string,
     data: { userId: number; language: string }
-  ) {
-    // Store only under the userId-inclusive key: <nsp>:<userId>:<socketId>
+  ): Promise<void> {
+    const sessionKey = this.getSessionKey(socketId);
+    const userKey = this.getUserKey(data.userId);
+
+    const multi = this.redisService.multi();
+    multi.hset(sessionKey, {
+      id: data.userId.toString(),
+      gameId: "null",
+    });
+    multi.expire(sessionKey, SOCKET_GAME_AUTH_TTL);
+    multi.set(userKey, socketId, "EX", SOCKET_GAME_AUTH_TTL);
+
+    const results = await multi.exec();
+
+    if (!results) {
+      throw new Error(
+        "Failed to create socket session: transaction returned null"
+      );
+    }
+
+    for (const [err] of results) {
+      if (err) {
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * Update socket session (gameId/id) with TTL refresh.
+   */
+  public async update(socketId: string, data: SocketRedisUserUpdateDTO) {
+    const updateData: Record<string, string> = {};
+
+    if (data.id !== undefined) {
+      updateData.id = data.id;
+    }
+    if (data.gameId !== undefined) {
+      updateData.gameId = data.gameId;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return;
+    }
+
     await this.redisService.hset(
-      this._getKey(socketId, data.userId),
-      {
-        id: data.userId,
-        language: data.language,
-      },
+      this.getSessionKey(socketId),
+      updateData,
       SOCKET_GAME_AUTH_TTL
     );
   }
 
-  public async update(socketId: string, data: SocketRedisUserUpdateDTO) {
-    // Require id presence for update to ensure we can target the correct composite key
-    let userId: number | null = null;
-    if (data.id) {
-      try {
-        userId = parseInt(
-          JSON.parse((data.id as unknown as string) || (data.id as string))
-        );
-      } catch {
-        userId = parseInt(data.id as string);
-      }
-    }
-
-    if (userId && !Number.isNaN(userId)) {
-      await this.redisService.hset(
-        this._getKey(socketId, userId),
-        data,
-        SOCKET_GAME_AUTH_TTL
-      );
-    }
-  }
-
+  /**
+   * Remove socket session and reverse lookup atomically.
+   */
   public async remove(socketId: string) {
-    // Single key deletion: need to resolve userId via scan since we only have socketId
-    const keys = await this._findKeysBySocketId(socketId);
-    if (keys.length === 0) return 0;
+    const sessionKey = this.getSessionKey(socketId);
+    const userId = await this.redisService.hget(sessionKey, "id");
+
+    if (!userId) {
+      return 0;
+    }
+
+    const userKey = this.getUserKey(parseInt(userId, 10));
+    const multi = this.redisService.multi();
+    multi.del(sessionKey);
+    multi.del(userKey);
+
+    const results = await multi.exec();
+
+    if (!results) {
+      return 0;
+    }
 
     let deleted = 0;
-    for (const k of keys) {
-      deleted += await this.redisService.del(k);
+    for (const [err, result] of results) {
+      if (!err && ValueUtils.isNumber(result)) {
+        deleted += result;
+      }
     }
 
     return deleted;
   }
 
   /**
-   * Cleans up all socket auth sessions since on server restart connections recreated
+   * Find socketId by userId (O(1)).
+   */
+  public async findSocketIdByUserId(userId: number): Promise<string | null> {
+    return this.redisService.get(this.getUserKey(userId));
+  }
+
+  /**
+   * Cleanup all socket sessions (uses SCAN; acceptable for maintenance).
    */
   public async cleanupAllSession(): Promise<void> {
     const acquired = await this.redisService.setLockKey(
       REDIS_LOCK_SESSIONS_CLEANUP
     );
 
-    if (!acquired) {
-      return; // Another instance acquired the lock
+    if (acquired !== "OK") {
+      return;
     }
 
-    return this.redisService.cleanupKeys(
-      `${SOCKET_USER_REDIS_NSP}:*:*`,
-      "socket session"
+    const sessionKeys = await this.redisService.scan(
+      `${SOCKET_SESSION_PREFIX}:*`
     );
-  }
-
-  /**
-   * Find the socket ID for a specific user ID
-   * Since users can only have one socket in the game, this is more efficient than scanning all sockets
-   */
-  public async findSocketIdByUserId(userId: number): Promise<string | null> {
-    const keys = await this._findKeysByUserId(userId);
-
-    if (keys.length === 0) {
-      return null;
+    if (sessionKeys.length) {
+      await this.redisService.delMultiple(sessionKeys);
     }
 
-    // Extract socket ID from the Redis key: socket:user:${userId}:${socketId}
-    // Since users can only have one socket, we take the first (and should be only) match
-    const socketId = keys[0].split(":").pop();
-    return socketId || null;
-  }
-
-  /**
-   * Helper method to find Redis keys by socketId (reverse lookup: socketId -> userId)
-   * Used by getRaw() and remove() methods
-   */
-  private async _findKeysBySocketId(socketId: string): Promise<string[]> {
-    const pattern = `${SOCKET_USER_REDIS_NSP}:*:${socketId}`;
-    return this.redisService.scan(pattern);
-  }
-
-  /**
-   * Helper method to find Redis keys by userId (forward lookup: userId -> socketId)
-   * Used by findSocketIdByUserId() method
-   */
-  private async _findKeysByUserId(userId: number): Promise<string[]> {
-    const pattern = `${SOCKET_USER_REDIS_NSP}:${userId}:*`;
-    return this.redisService.scan(pattern);
-  }
-
-  private _getKey(socketId: string, userId: number | null) {
-    return `${SOCKET_USER_REDIS_NSP}:${userId ? userId : "*"}:${socketId}`;
+    const userKeys = await this.redisService.scan(`${SOCKET_USER_PREFIX}:*`);
+    if (userKeys.length) {
+      await this.redisService.delMultiple(userKeys);
+    }
   }
 }

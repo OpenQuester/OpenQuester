@@ -556,7 +556,7 @@ describe("Socket Game Chat Tests", () => {
         // Manually set answeringPlayer to simulate answering state
         const playerUserId = await utils.getUserIdFromSocket(playerSockets[0]);
         game.gameState.answeringPlayer = playerUserId;
-        game.gameState.questionState = QuestionState.ANSWERING;
+        game.setQuestionState(QuestionState.ANSWERING);
 
         // Update the game state directly in Redis
         await utils.updateGame(game);
@@ -579,7 +579,7 @@ describe("Socket Game Chat Tests", () => {
 
         // Clean up by clearing the answering state
         game.gameState.answeringPlayer = null;
-        game.gameState.questionState = QuestionState.CHOOSING;
+        game.setQuestionState(QuestionState.CHOOSING);
         await utils.updateGame(game);
       });
 

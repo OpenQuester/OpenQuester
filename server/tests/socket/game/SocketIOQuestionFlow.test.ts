@@ -131,6 +131,11 @@ describe("Socket Question Flow Tests", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
+        const answerShowStartPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
+
         // Set up event listeners BEFORE emitting the answer result
         const answerShowEndPromise = utils.waitForEvent(
           playerSockets[0],
@@ -143,7 +148,9 @@ describe("Socket Question Flow Tests", () => {
           answerType: AnswerResultType.CORRECT,
         });
 
-        // Wait for show answer phase to complete
+        // Wait for state transition to SHOWING_ANSWER
+        await answerShowStartPromise;
+
         // Skip show answer phase immediately for faster test
         await utils.skipShowAnswer(showmanSocket);
         await answerShowEndPromise;
@@ -281,6 +288,10 @@ describe("Socket Question Flow Tests", () => {
           playerSockets[0],
           SocketIOGameEvents.QUESTION_FINISH
         );
+        const showAnswerStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
         showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
 
         const questionFinishData =
@@ -289,6 +300,10 @@ describe("Socket Question Flow Tests", () => {
         // Verify appropriate conflict resolution
         expect(questionFinishData.answerFiles).toBeDefined();
         expect(questionFinishData.answerText).toBeDefined();
+
+        // Wait for SHOWING_ANSWER phase and skip it
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Verify game transitions properly and no scoring issues
         const finalState = await utils.getGameState(setup.gameId);
@@ -321,14 +336,21 @@ describe("Socket Question Flow Tests", () => {
           scoreResult: 100,
           answerType: AnswerResultType.CORRECT,
         });
+        const answerShowStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
 
-        // Wait for show answer phase to complete
-        // Skip show answer phase immediately for faster test
-        await utils.skipShowAnswer(showmanSocket);
-        await utils.waitForEvent(
+        const answerShowEndPromise = utils.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.ANSWER_SHOW_END
         );
+
+        // Wait for state transition to SHOWING_ANSWER before skipping
+        await answerShowStartPromise;
+
+        await utils.skipShowAnswer(showmanSocket);
+        await answerShowEndPromise;
 
         // Verify we're back in choosing state
         const choosingState = await utils.getGameState(setup.gameId);
@@ -923,8 +945,14 @@ describe("Socket Question Flow Tests", () => {
         playerSockets[0],
         SocketIOGameEvents.QUESTION_FINISH
       );
+      const showAnswerStartPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.ANSWER_SHOW_START
+      );
       showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
       await forceSkipPromise;
+      await showAnswerStartPromise;
+      await utils.skipShowAnswer(showmanSocket);
 
       // Check that skipped players list is cleared
       gameState = await utils.getGameState(setup.gameId);

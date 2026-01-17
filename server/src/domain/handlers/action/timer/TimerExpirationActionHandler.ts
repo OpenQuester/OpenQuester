@@ -1,4 +1,4 @@
-import { GameService } from "application/services/game/GameService";
+import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { GameAction } from "domain/types/action/GameAction";
 import {
@@ -20,10 +20,12 @@ export class TimerExpirationActionHandler
   implements GameActionHandler<TimerActionPayload, void>
 {
   constructor(
-    private readonly gameService: GameService,
     private readonly timerExpirationService: TimerExpirationService,
+    private readonly gameLifecycleService: GameLifecycleService,
     private readonly logger: ILogger
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<TimerActionPayload>
@@ -44,6 +46,11 @@ export class TimerExpirationActionHandler
 
     // Service generates type-safe broadcasts with satisfies - just convert format
     const broadcasts = convertBroadcasts(result.broadcasts);
+
+    // Check if game finished and trigger statistics persistence
+    if (result.game?.finishedAt) {
+      await this.gameLifecycleService.handleGameCompletion(gameId);
+    }
 
     return { success: true, broadcasts };
   }
@@ -76,6 +83,11 @@ export class TimerExpirationActionHandler
 
       case QuestionState.BIDDING:
         return this.timerExpirationService.handleBiddingExpiration(gameId);
+
+      case QuestionState.SECRET_TRANSFER:
+        return this.timerExpirationService.handleSecretTransferExpiration(
+          gameId
+        );
 
       default:
         this.logger.warn(`Unhandled question state: ${questionState}`, {

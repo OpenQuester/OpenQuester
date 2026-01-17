@@ -33,8 +33,16 @@ export interface GameStateDTO {
   skippedPlayers: number[] | null;
   /** Secret question specific data - only set when a secret question is picked */
   secretQuestionData?: SecretQuestionGameData | null;
-  /** Stake question specific data - only set when a stake question is picked */
+  /** Stake question specific data - only set when a stake question is picked and bidding ended */
   stakeQuestionData?: StakeQuestionGameData | null;
   /** Game password - only visible to players who have joined the game */
   password?: string | null;
+  /**
+   * Players who were in-game when the current question started.
+   *
+   * This prevents players who join mid-question from answering.
+   *
+   * Set when question is picked, cleared when returning to CHOOSING state.
+   */
+  questionEligiblePlayers?: number[] | null;
 }

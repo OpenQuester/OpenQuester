@@ -144,7 +144,7 @@ describe("Game Statistics Persistence Tests", () => {
             );
 
             // Pick a question in final round to get valid questionId
-            await utils.pickQuestion(showmanSocket);
+            await utils.pickQuestion(showmanSocket, undefined, playerSockets);
           }
         });
 
@@ -180,7 +180,13 @@ describe("Game Statistics Persistence Tests", () => {
 
   it("should record statistics to database when game ends via skip question force", async () => {
     // Setup game with 1 player
-    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0);
+    const setup = await utils.setupGameTestEnvironment(
+      userRepo,
+      _app,
+      1,
+      0,
+      false
+    );
     const { showmanSocket, playerSockets } = setup;
 
     try {
@@ -192,27 +198,48 @@ describe("Game Statistics Persistence Tests", () => {
 
       // Wait for game to finish via skipping all questions in final round
       const gameFinishedPromise = new Promise((resolve) => {
+        let gameFinished = false;
+        let pendingTimeout: NodeJS.Timeout | null = null;
+
         playerSockets[0].on(SocketIOGameEvents.GAME_FINISHED, (data) => {
+          gameFinished = true;
+          if (pendingTimeout) {
+            clearTimeout(pendingTimeout);
+            pendingTimeout = null;
+          }
           resolve(data);
         });
 
-        // TODO: This will break when we add server-side timer for question results showing
-        // * We wont't be able to pick question while previous one is showing answer
         const skipAllQuestions = async () => {
+          // Stop recursion if game has finished
+          if (gameFinished) {
+            return;
+          }
+
           try {
+            const answerShowStart = utils.waitForEvent(
+              showmanSocket,
+              SocketIOGameEvents.ANSWER_SHOW_START,
+              2000
+            );
             // Pick question then immediately skip it
-            await utils.pickQuestion(showmanSocket);
+            await utils.pickQuestion(showmanSocket, undefined, playerSockets);
             showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
 
-            // Continue skipping questions until all are done
-            setTimeout(skipAllQuestions, 100);
+            await answerShowStart;
+            await utils.skipShowAnswer(showmanSocket);
+
+            // Continue skipping questions until all are done (only if game not finished)
+            if (!gameFinished) {
+              pendingTimeout = setTimeout(skipAllQuestions, 100);
+            }
           } catch {
             // If we can't pick more questions, the game should finish soon
           }
         };
 
         // Start skipping questions after a short delay
-        setTimeout(skipAllQuestions, 100);
+        pendingTimeout = setTimeout(skipAllQuestions, 100);
       });
 
       // Wait for game finish event

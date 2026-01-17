@@ -1,12 +1,12 @@
 import { SYSTEM_PLAYER_ID } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
-import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
+import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 
 /**
  * Validation result for media download player leave
@@ -34,8 +34,8 @@ export interface MediaDownloadPlayerLeaveResult {
 
 export interface MediaDownloadPlayerLeaveResultInput {
   game: Game;
-  completionResult: MediaDownloadCompletionResult;
-  timer: GameStateTimer | null;
+  timer: GameStateTimerDTO | null;
+  leftUserId: number;
 }
 
 /**
@@ -94,7 +94,12 @@ export class MediaDownloadPlayerLeaveLogic {
   public static buildResult(
     input: MediaDownloadPlayerLeaveResultInput
   ): MediaDownloadPlayerLeaveResult {
-    const { game, completionResult, timer } = input;
+    const completionResult = this.checkAllPlayersReady(
+      input.game,
+      input.leftUserId
+    );
+
+    const { game, timer } = input;
     const broadcasts: BroadcastEvent[] = [];
 
     if (!completionResult.allPlayersReady) {
@@ -107,7 +112,7 @@ export class MediaDownloadPlayerLeaveLogic {
         playerId: SYSTEM_PLAYER_ID,
         mediaDownloaded: true,
         allPlayersReady: true,
-        timer: timer?.value() ?? null,
+        timer,
       } satisfies MediaDownloadStatusBroadcastData,
       room: game.id,
     });

@@ -19,6 +19,7 @@ import { FinalAnswerReviewLogic } from "domain/state-machine/logic/FinalAnswerRe
 import { TransitionTrigger } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { QuestionAction } from "domain/types/game/QuestionAction";
+import { ActionContext } from "domain/types/action/ActionContext";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
 import { BiddingPhaseInitializationResult } from "domain/types/socket/events/FinalRoundEventData";
@@ -61,11 +62,11 @@ export class FinalRoundService {
    * 5. Persist and return result
    */
   public async handleThemeEliminate(
-    socketId: string,
+    ctx: ActionContext,
     themeId: number
   ): Promise<ThemeEliminateResult> {
     const { game, currentPlayer } =
-      await this.socketGameContextService.fetchGameContext(socketId);
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     const finalRoundHandler = this._getFinalRoundHandler(game);
 
@@ -113,11 +114,11 @@ export class FinalRoundService {
    * 5. Persist and return result
    */
   public async handleFinalBidSubmit(
-    socketId: string,
+    ctx: ActionContext,
     bid: number
   ): Promise<FinalBidSubmitResult> {
     const { game, currentPlayer } =
-      await this.socketGameContextService.fetchGameContext(socketId);
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     FinalBidSubmitLogic.validate(game, currentPlayer);
     const normalizedBid = FinalBidSubmitLogic.addBid(
@@ -153,11 +154,11 @@ export class FinalRoundService {
    * 5. Persist and return result
    */
   public async handleFinalAnswerSubmit(
-    socketId: string,
+    ctx: ActionContext,
     answerText: string
   ): Promise<FinalAnswerSubmitResult> {
     const { game, currentPlayer } =
-      await this.socketGameContextService.fetchGameContext(socketId);
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     // Validation
     GameStateValidator.validateGameInProgress(game);
@@ -227,21 +228,18 @@ export class FinalRoundService {
    * then attempts phase transition via PhaseTransitionRouter.
    */
   public async handleFinalAnswerReview(
-    socketId: string,
+    ctx: ActionContext,
     answerData: FinalAnswerReviewInputData
   ): Promise<FinalAnswerReviewResult> {
     // Context & Validation
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const game = context.game;
-    const currentPlayer = context.currentPlayer;
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     GameStateValidator.validateGameInProgress(game);
     this.socketGameValidationService.validateQuestionAction(
       currentPlayer,
       game,
-      QuestionAction.RESULT
+      QuestionAction.ANSWER_RESULT
     );
     FinalAnswerReviewLogic.validate(game);
 
@@ -251,7 +249,7 @@ export class FinalRoundService {
       answerData
     );
 
-    // Try phase transition if all answers reviewed
+    // Transition to game finish
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.USER_ACTION,
@@ -327,15 +325,17 @@ export class FinalRoundService {
    * Uses BiddingTimeoutLogic for auto-bid processing,
    * then attempts phase transition via PhaseTransitionRouter.
    */
-  public async handleBiddingTimeout(
+  public async handleFinalBiddingTimeout(
     gameId: string
   ): Promise<BiddingTimeoutResult> {
     const game = await this.gameService.getGameEntity(gameId);
+
     if (!game || game.gameState.questionState !== QuestionState.BIDDING) {
       throw new ClientError(ClientResponse.GAME_NOT_STARTED);
     }
 
     const finalRoundData = FinalRoundStateManager.getFinalRoundData(game);
+
     if (!finalRoundData) {
       throw new ClientError(ClientResponse.GAME_NOT_STARTED);
     }
@@ -375,16 +375,19 @@ export class FinalRoundService {
   ): Promise<AutoLossProcessResult> {
     const game = await this.gameService.getGameEntity(gameId);
     if (!game || game.gameState.questionState !== QuestionState.ANSWERING) {
-      throw new ClientError(ClientResponse.GAME_NOT_STARTED);
+      throw new ClientError(ClientResponse.GAME_DATA_IS_CORRUPTED);
     }
 
     const finalRoundData = FinalRoundStateManager.getFinalRoundData(game);
     if (!finalRoundData) {
-      throw new ClientError(ClientResponse.GAME_NOT_STARTED);
+      throw new ClientError(ClientResponse.FINAL_ROUND_NOT_INITIALIZED);
     }
 
     // Use Logic class for pure mutation
-    const mutationResult = AutoLossProcessLogic.processAutoLoss(game);
+    const mutationResult = AutoLossProcessLogic.processAutoLoss(
+      game,
+      finalRoundData
+    );
 
     // Try phase transition (ANSWERING -> REVIEWING) if now complete
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
@@ -401,7 +404,7 @@ export class FinalRoundService {
       const finishTransitionResult =
         await this.phaseTransitionRouter.tryTransition({
           game,
-          trigger: TransitionTrigger.TIMER_EXPIRED,
+          trigger: TransitionTrigger.CONDITION_MET,
           triggeredBy: { isSystem: true },
         });
 

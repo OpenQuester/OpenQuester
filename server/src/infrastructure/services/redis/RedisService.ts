@@ -122,6 +122,13 @@ export class RedisService {
     return this.redisRepository.pipeline();
   }
 
+  /**
+   * Create a Redis transaction (MULTI/EXEC) for atomic multi-key operations.
+   */
+  public multi() {
+    return this.redisRepository.multi();
+  }
+
   public async del(key: string): Promise<number> {
     return this.redisRepository.del(key);
   }

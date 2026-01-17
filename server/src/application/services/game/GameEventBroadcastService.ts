@@ -5,7 +5,6 @@ import {
   SocketBroadcastTarget,
   SocketEventBroadcast,
 } from "domain/handlers/socket/BaseSocketEventHandler";
-import { IGameEventBroadcastService } from "domain/interfaces/game/IGameEventBroadcastService";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
@@ -16,7 +15,7 @@ import { QuestionFinishEventPayload } from "domain/types/socket/events/game/Ques
  * Centralizes event broadcasting logic to ensure consistency.
  */
 @singleton()
-export class GameEventBroadcastService implements IGameEventBroadcastService {
+export class GameEventBroadcastService {
   constructor() {
     //
   }

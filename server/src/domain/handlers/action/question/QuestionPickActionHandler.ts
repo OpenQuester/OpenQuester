@@ -1,6 +1,4 @@
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GamePhase } from "domain/state-machine/types";
 import {
   SocketBroadcastTarget,
   SocketEventBroadcast,
@@ -10,20 +8,19 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
-import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
-import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
-import { SecretQuestionPickedBroadcastData } from "domain/types/socket/events/game/SecretQuestionPickedEventPayload";
-import {
-  StakeBidSubmitOutputData,
-  StakeBidType,
-} from "domain/types/socket/events/game/StakeQuestionEventData";
-import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
-import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
 import { QuestionPickInputData } from "domain/types/socket/events/SocketEventInterfaces";
+import { BroadcastEvent } from "domain/types/service/ServiceResult";
+import {
+  ChoosingToSecretTransferMutationData,
+  ChoosingToStakeBiddingMutationData,
+} from "domain/types/socket/transition/choosing";
+import { SecretQuestionPickedBroadcastData } from "domain/types/socket/events/game/SecretQuestionPickedEventPayload";
+import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
+import { SocketIOQuestionPickService } from "application/services/socket/SocketIOQuestionPickService";
 
 export enum QuestionPickType {
   NORMAL = "normal",
@@ -64,7 +61,7 @@ export class QuestionPickActionHandler
   implements GameActionHandler<QuestionPickInputData, QuestionPickResult>
 {
   constructor(
-    private readonly socketIOQuestionService: SocketIOQuestionService
+    private readonly socketIOQuestionPickService: SocketIOQuestionPickService
   ) {
     //
   }
@@ -72,153 +69,134 @@ export class QuestionPickActionHandler
   public async execute(
     action: GameAction<QuestionPickInputData>
   ): Promise<GameActionHandlerResult<QuestionPickResult>> {
-    const result = await this.socketIOQuestionService.handleQuestionPick(
-      action.socketId,
-      action.payload.questionId
-    );
+    const { game, question, timer, transitionResult } =
+      await this.socketIOQuestionPickService.handleQuestionPick(
+        createActionContextFromAction(action),
+        action.payload.questionId
+      );
 
-    const { game, question, timer, specialQuestionData, automaticNominalBid } =
-      result;
+    const timerDto = timer?.value() ?? undefined;
+    const broadcasts = this.mapBroadcasts(transitionResult.broadcasts);
 
-    // Handle SECRET question
-    if (question.type === PackageQuestionType.SECRET && specialQuestionData) {
-      const secretData = specialQuestionData as SecretQuestionGameData;
-      const broadcastData: SecretQuestionPickedBroadcastData = {
-        pickerPlayerId: secretData.pickerPlayerId,
-        transferType: secretData.transferType,
-        questionId: secretData.questionId,
-      };
+    switch (transitionResult.toPhase) {
+      case GamePhase.SECRET_QUESTION_TRANSFER: {
+        const data =
+          transitionResult.data as ChoosingToSecretTransferMutationData;
 
-      const broadcasts: SocketEventBroadcast<unknown>[] = [
-        {
-          event: SocketIOGameEvents.SECRET_QUESTION_PICKED,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        } satisfies SocketEventBroadcast<SecretQuestionPickedBroadcastData>,
-      ];
+        const secretData: SecretQuestionPickedBroadcastData = {
+          pickerPlayerId: data.pickerPlayerId,
+          transferType: data.transferType,
+          questionId: data.questionId,
+        };
 
-      return {
-        success: true,
-        data: {
-          type: QuestionPickType.SECRET,
-          gameId: game.id,
-          secretData: broadcastData,
-        },
-        broadcasts,
-      };
-    }
-
-    // Handle STAKE question
-    if (question.type === PackageQuestionType.STAKE && specialQuestionData) {
-      const stakeData = specialQuestionData as StakeQuestionGameData;
-      const broadcastData: StakeQuestionPickedBroadcastData = {
-        pickerPlayerId: stakeData.pickerPlayerId,
-        questionId: stakeData.questionId,
-        maxPrice: stakeData.maxPrice,
-        biddingOrder: stakeData.biddingOrder,
-        timer: timer?.value() ?? {
-          durationMs: 0,
-          elapsedMs: 0,
-          startedAt: new Date(),
-          resumedAt: null,
-        },
-      };
-
-      const broadcasts: SocketEventBroadcast<unknown>[] = [
-        {
-          event: SocketIOGameEvents.STAKE_QUESTION_PICKED,
-          data: broadcastData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        } satisfies SocketEventBroadcast<StakeQuestionPickedBroadcastData>,
-      ];
-
-      // If automatic nominal bid happened (only one eligible player)
-      if (automaticNominalBid && timer) {
-        const isPhaseComplete = !stakeData.biddingPhase;
-
-        // Emit the automatic bid event
-        broadcasts.push({
-          event: SocketIOGameEvents.STAKE_BID_SUBMIT,
+        return {
+          success: true,
           data: {
-            playerId: automaticNominalBid.playerId,
-            bidAmount: automaticNominalBid.bidAmount,
-            bidType: StakeBidType.NORMAL,
-            isPhaseComplete,
-            nextBidderId: isPhaseComplete
-              ? null
-              : stakeData.biddingOrder[stakeData.currentBidderIndex] || null,
-            timer: timer.value()!,
-          } satisfies StakeBidSubmitOutputData,
-          target: SocketBroadcastTarget.GAME,
-          gameId: game.id,
-        } satisfies SocketEventBroadcast<StakeBidSubmitOutputData>);
-
-        // Emit winner event if bidding is complete
-        if (isPhaseComplete && stakeData.winnerPlayerId) {
-          broadcasts.push({
-            event: SocketIOGameEvents.STAKE_QUESTION_WINNER,
-            data: {
-              winnerPlayerId: stakeData.winnerPlayerId,
-              finalBid: stakeData.highestBid,
-            } satisfies StakeQuestionWinnerEventData,
-            target: SocketBroadcastTarget.GAME,
+            type: QuestionPickType.SECRET,
             gameId: game.id,
-          } satisfies SocketEventBroadcast<StakeQuestionWinnerEventData>);
-
-          // Question data for automatic bid completion can be broadcast to all
-          // since stake question answer is revealed to everyone after winner determined
-          broadcasts.push({
-            event: SocketIOGameEvents.QUESTION_DATA,
-            data: {
-              data: question,
-              timer: timer.value()!,
-            } satisfies GameQuestionDataEventPayload,
-            target: SocketBroadcastTarget.GAME,
-            gameId: game.id,
-          } satisfies SocketEventBroadcast<GameQuestionDataEventPayload>);
-        }
+            secretData,
+          },
+          broadcasts,
+        };
       }
 
-      return {
-        success: true,
-        data: {
-          type: QuestionPickType.STAKE,
-          gameId: game.id,
-          timer: timer?.value() ?? undefined,
-          question: question,
-          stakeData: broadcastData,
-          automaticNominalBid: automaticNominalBid ?? null,
-        },
-        broadcasts,
-      };
-    }
+      case GamePhase.STAKE_BIDDING: {
+        const data =
+          transitionResult.data as ChoosingToStakeBiddingMutationData;
 
-    // NORMAL question - NO broadcasts here!
-    // Socket handler's afterBroadcast will do personalized per-socket emissions
-    // because showman sees full question data while players see filtered version
-    if (timer) {
-      return {
-        success: true,
-        data: {
-          type: QuestionPickType.NORMAL,
-          gameId: game.id,
-          timer: timer.value()!,
-          question: question,
-        },
-        broadcasts: [], // Empty! Socket handler does personalized broadcasts
-      };
-    }
+        const biddingTimer = transitionResult.timer ?? data.timer ?? timerDto;
 
-    // Fallback - shouldn't happen for normal questions
-    return {
-      success: false,
-      data: {
-        type: QuestionPickType.NORMAL,
-        gameId: game.id,
-      },
-      broadcasts: [],
-    };
+        const stakeData: StakeQuestionPickedBroadcastData = {
+          pickerPlayerId: data.pickerPlayerId,
+          questionId: data.questionId,
+          maxPrice: data.maxPrice,
+          biddingOrder: data.biddingOrder,
+          timer: biddingTimer ?? {
+            durationMs: 0,
+            elapsedMs: 0,
+            startedAt: new Date(),
+            resumedAt: null,
+          },
+        };
+
+        return {
+          success: true,
+          data: {
+            type: QuestionPickType.STAKE,
+            gameId: game.id,
+            timer: biddingTimer ?? undefined,
+            question,
+            stakeData,
+            automaticNominalBid: data.automaticBid ?? null,
+          },
+          broadcasts,
+        };
+      }
+
+      case GamePhase.MEDIA_DOWNLOADING:
+      case GamePhase.SHOWING: {
+        // Normal flow (or fallback without eligible players)
+        if (timerDto) {
+          return {
+            success: true,
+            data: {
+              type: QuestionPickType.NORMAL,
+              gameId: game.id,
+              timer: timerDto,
+              question,
+            },
+            broadcasts,
+          };
+        }
+
+        return {
+          success: false,
+          data: {
+            type: QuestionPickType.NORMAL,
+            gameId: game.id,
+          },
+          broadcasts,
+        };
+      }
+
+      case GamePhase.ANSWERING: {
+        const questionPickType = game.gameState.stakeQuestionData
+          ? QuestionPickType.STAKE
+          : game.gameState.secretQuestionData
+          ? QuestionPickType.SECRET
+          : QuestionPickType.NORMAL;
+
+        return {
+          success: true,
+          data: {
+            type: questionPickType,
+            gameId: game.id,
+          },
+          broadcasts,
+        };
+      }
+
+      default:
+        return {
+          success: false,
+          data: {
+            type: QuestionPickType.NORMAL,
+            gameId: game.id,
+          },
+          broadcasts,
+        };
+    }
+  }
+
+  private mapBroadcasts(
+    events: BroadcastEvent[]
+  ): SocketEventBroadcast<unknown>[] {
+    return events.map((event) => ({
+      event: event.event,
+      data: event.data,
+      target: SocketBroadcastTarget.GAME,
+      gameId: event.room,
+      useRoleBasedBroadcast: event.roleFilter ?? false,
+    }));
   }
 }

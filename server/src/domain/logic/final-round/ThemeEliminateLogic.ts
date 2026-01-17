@@ -204,8 +204,8 @@ export class ThemeEliminateLogic {
       input;
 
     let timer: GameStateTimerDTO | undefined;
-    if (transitionResult?.success && transitionResult.data?.timer) {
-      timer = transitionResult.data.timer as GameStateTimerDTO;
+    if (transitionResult?.success && transitionResult.timer) {
+      timer = transitionResult.timer;
     }
 
     const outputData: ThemeEliminateOutputData = {
@@ -227,7 +227,9 @@ export class ThemeEliminateLogic {
 
     // Add transition broadcasts if transition occurred (service uses satisfies)
     if (transitionResult?.success && transitionResult.broadcasts) {
-      broadcasts.push(...convertBroadcasts(transitionResult.broadcasts, game.id));
+      broadcasts.push(
+        ...convertBroadcasts(transitionResult.broadcasts, game.id)
+      );
     }
 
     return {
@@ -261,7 +263,6 @@ export class ThemeEliminateLogic {
       themeId,
       nextPlayerId: mutationResult.nextPlayerId,
       isPhaseComplete: transitionResult !== null,
-      timer: transitionResult?.data?.timer as GameStateTimerDTO | undefined,
       transitionResult,
     } satisfies ThemeEliminationTimeoutResult;
   }

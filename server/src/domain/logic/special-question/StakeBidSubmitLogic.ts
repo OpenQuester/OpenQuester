@@ -19,6 +19,7 @@ import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/St
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 
 export interface StakeBidProcessResult {
   playerId: number;
@@ -37,7 +38,7 @@ export interface StakeBidSubmitBuildResultInput {
   isPhaseComplete: boolean;
   nextBidderId: number | null;
   winnerPlayerId: number | null;
-  questionData: { question: { id?: number } } | null | undefined;
+  questionData: PackageQuestionDTO | null;
   timer: GameStateTimerDTO | undefined;
 }
 
@@ -100,12 +101,8 @@ export class StakeBidSubmitLogic {
       timer,
     } = input;
 
-    const mappedQuestionData = questionData?.question
-      ? GameQuestionMapper.mapToSimpleQuestion(
-          questionData.question as Parameters<
-            typeof GameQuestionMapper.mapToSimpleQuestion
-          >[0]
-        )
+    const mappedQuestionData = questionData?.id
+      ? GameQuestionMapper.mapToSimpleQuestion(questionData)
       : null;
 
     const outputData: StakeBidSubmitOutputData = {

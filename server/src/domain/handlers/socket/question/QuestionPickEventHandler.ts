@@ -5,7 +5,10 @@ import { SocketGameContextService } from "application/services/socket/SocketGame
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { QuestionPickResult } from "domain/handlers/action/question/QuestionPickActionHandler";
+import {
+  QuestionPickResult,
+  QuestionPickType,
+} from "domain/handlers/action/question/QuestionPickActionHandler";
 import {
   BaseSocketEventHandler,
   SocketEventContext,
@@ -40,14 +43,7 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
     _data: QuestionPickInputData,
     context: SocketEventContext
   ): Promise<string | null> {
-    try {
-      const gameContext = await this.socketGameContextService.fetchGameContext(
-        context.socketId
-      );
-      return gameContext.game?.id ?? null;
-    } catch {
-      return null;
-    }
+    return this.socketGameContextService.getGameIdForSocket(context.socketId);
   }
 
   protected override getActionType(): GameActionType {
@@ -86,7 +82,7 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
 
     // Secret and stake questions are already broadcast by action handler
     // Only normal questions need personalized broadcasts here
-    if (type !== "normal" || !question || !timer) {
+    if (type !== QuestionPickType.NORMAL || !question || !timer) {
       return;
     }
 

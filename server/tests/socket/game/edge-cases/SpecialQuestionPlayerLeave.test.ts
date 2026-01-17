@@ -63,9 +63,7 @@ describe("Special Question Type Player Leave Edge Cases", () => {
         await utils.startGame(showmanSocket);
 
         // Find and pick a secret question
-        const gameState = await utils.getGameState(gameId);
         const secretQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.SECRET,
           gameId
         );
@@ -98,11 +96,7 @@ describe("Special Question Type Player Leave Edge Cases", () => {
           SocketIOGameEvents.QUESTION_DATA
         );
 
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER);
         await questionDataPromise;
-
-        // Player 0 starts answering
-        await utils.answerQuestion(playerSockets[0], showmanSocket);
 
         const answeringState = await utils.getGameState(gameId);
         expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
@@ -124,12 +118,12 @@ describe("Special Question Type Player Leave Edge Cases", () => {
         );
         expect(answerResultData.answerResult.result).toBe(0);
 
-        // Verify secretQuestionData is cleared and state moved to CHOOSING
-        // For secret questions, only one player can answer - if they leave, skip showing and go to choosing
+        // Verify secretQuestionData is cleared and state moved to SHOWING_ANSWER
+        // For secret questions, only one player can answer - if they leave, go to showing answer
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.secretQuestionData).toBeNull();
         expect(finalState!.answeringPlayer).toBeNull();
-        expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
+        expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
       } finally {
         await utils.cleanupGameClients(setup);
       }
@@ -155,9 +149,7 @@ describe("Special Question Type Player Leave Edge Cases", () => {
         );
 
         // Find and pick a stake question
-        const gameState = await utils.getGameState(gameId);
         const stakeQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.STAKE,
           gameId
         );
@@ -208,9 +200,6 @@ describe("Special Question Type Player Leave Edge Cases", () => {
 
         await questionDataPromise;
 
-        // Player 0 (winner) starts answering
-        await utils.answerQuestion(playerSockets[0], showmanSocket);
-
         const answeringState = await utils.getGameState(gameId);
         expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
         expect(answeringState!.answeringPlayer).toBe(setup.playerUsers[0].id);
@@ -231,12 +220,12 @@ describe("Special Question Type Player Leave Edge Cases", () => {
         );
         expect(answerResultData.answerResult.result).toBe(0);
 
-        // Verify stakeQuestionData is cleared and state moved to CHOOSING
-        // For stake questions, only the bid winner can answer - if they leave, skip showing and go to choosing
+        // Verify stakeQuestionData is cleared and state moved to SHOWING_ANSWER
+        // For stake questions, only the bid winner can answer - if they leave, go to showing answer
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.stakeQuestionData).toBeNull();
         expect(finalState!.answeringPlayer).toBeNull();
-        expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
+        expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
       } finally {
         await utils.cleanupGameClients(setup);
       }
@@ -260,9 +249,7 @@ describe("Special Question Type Player Leave Edge Cases", () => {
         await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
         // Find and pick a stake question
-        const gameState = await utils.getGameState(gameId);
         const stakeQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.STAKE,
           gameId
         );

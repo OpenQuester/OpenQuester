@@ -60,9 +60,7 @@ describe("NoRisk Question Implementation", () => {
         await utils.startGame(showmanSocket);
 
         // Find and pick a NoRisk question
-        const gameState = await utils.getGameState(gameId);
         const noRiskQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.NO_RISK,
           gameId
         );
@@ -77,8 +75,18 @@ describe("NoRisk Question Implementation", () => {
         const initialScore = 0;
 
         // Pick the NoRisk question and have player answer it
-        await utils.pickQuestion(showmanSocket, noRiskQuestion!.id);
+        await utils.pickQuestion(
+          showmanSocket,
+          noRiskQuestion!.id,
+          playerSockets
+        );
         await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const showAnswerStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START,
+          2000
+        );
 
         // Set up event listener for answer result before showman reviews
         const answerResultPromise = utils.waitForEvent(
@@ -95,6 +103,8 @@ describe("NoRisk Question Implementation", () => {
 
         // Wait for answer result to be processed
         await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Get the game state to check final player score
         const game = await utils.getGameFromGameService(gameId);
@@ -118,9 +128,7 @@ describe("NoRisk Question Implementation", () => {
         await utils.startGame(showmanSocket);
 
         // Find and pick a NoRisk question
-        const gameState = await utils.getGameState(gameId);
         const noRiskQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.NO_RISK,
           gameId
         );
@@ -135,8 +143,18 @@ describe("NoRisk Question Implementation", () => {
         const initialScore = 0;
 
         // Pick the NoRisk question and have player answer it
-        await utils.pickQuestion(showmanSocket, noRiskQuestion!.id);
+        await utils.pickQuestion(
+          showmanSocket,
+          noRiskQuestion!.id,
+          playerSockets
+        );
         await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const showAnswerStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START,
+          2000
+        );
 
         // Set up event listener for answer result before showman reviews
         const answerResultPromise = utils.waitForEvent(
@@ -153,6 +171,8 @@ describe("NoRisk Question Implementation", () => {
 
         // Wait for answer result to be processed
         await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Get final score - NoRisk questions should still allow score gains
         const game = await utils.getGameFromGameService(gameId);
@@ -176,9 +196,7 @@ describe("NoRisk Question Implementation", () => {
         await utils.startGame(showmanSocket);
 
         // Find and pick a NoRisk question
-        const gameState = await utils.getGameState(gameId);
         const noRiskQuestion = await utils.findQuestionByType(
-          gameState!,
           PackageQuestionType.NO_RISK,
           gameId
         );
@@ -189,12 +207,22 @@ describe("NoRisk Question Implementation", () => {
 
         // Set initial score
         const playerId = setup.playerUsers[0].id;
-        await utils.setPlayerScore(gameId, playerId, 0);
         const initialScore = 0;
+        await utils.setPlayerScore(gameId, playerId, initialScore);
 
         // Pick the NoRisk question and have player answer it
-        await utils.pickQuestion(showmanSocket, noRiskQuestion!.id);
+        await utils.pickQuestion(
+          showmanSocket,
+          noRiskQuestion!.id,
+          playerSockets
+        );
         await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const showAnswerStartPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START,
+          2000
+        );
 
         // Set up event listener for answer result before showman reviews
         const answerResultPromise = utils.waitForEvent(
@@ -211,6 +239,8 @@ describe("NoRisk Question Implementation", () => {
 
         // Wait for answer result to be processed
         await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
 
         // Verify score remains unchanged after skip
         const game = await utils.getGameFromGameService(gameId);

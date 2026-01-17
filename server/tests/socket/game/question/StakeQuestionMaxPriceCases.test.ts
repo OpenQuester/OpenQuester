@@ -506,14 +506,12 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         const autoBidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
-          SocketIOGameEvents.STAKE_BID_SUBMIT,
-          150
+          SocketIOGameEvents.STAKE_BID_SUBMIT
         );
 
         const winnerPromise = utils.waitForEvent<StakeQuestionWinnerEventData>(
           showmanSocket,
-          SocketIOGameEvents.STAKE_QUESTION_WINNER,
-          200
+          SocketIOGameEvents.STAKE_QUESTION_WINNER
         );
 
         // Player 0 (score 50) picks STAKE question (price 200)

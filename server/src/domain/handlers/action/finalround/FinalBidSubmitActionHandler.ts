@@ -9,6 +9,7 @@ import {
   GameActionHandler,
   GameActionHandlerResult,
 } from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 import {
   FinalBidSubmitInputData,
   FinalBidSubmitOutputData,
@@ -30,7 +31,7 @@ export class FinalBidSubmitActionHandler
   ): Promise<GameActionHandlerResult<FinalBidSubmitOutputData>> {
     const { game, playerId, bidAmount, transitionResult } =
       await this.finalRoundService.handleFinalBidSubmit(
-        action.socketId,
+        createActionContextFromAction(action),
         action.payload.bid
       );
 

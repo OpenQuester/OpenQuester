@@ -4,9 +4,10 @@ import { GameService } from "application/services/game/GameService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
+import { SocketIOAnswerResultService } from "application/services/socket/SocketIOAnswerResult";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
+import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { UserService } from "application/services/user/UserService";
 import { GameActionType } from "domain/enums/GameActionType";
@@ -43,6 +44,10 @@ import { DisconnectActionHandler } from "domain/handlers/action/system/Disconnec
 import { TimerExpirationActionHandler } from "domain/handlers/action/timer/TimerExpirationActionHandler";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { SocketIOQuestionPickService } from "application/services/socket/SocketIOQuestionPickService";
+import { SecretQuestionService } from "application/services/question/SecretQuestionService";
+import { StakeQuestionService } from "application/services/question/StakeQuestionService";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 
 /**
  * Dependencies required for configuring action handlers.
@@ -53,12 +58,17 @@ export interface ActionHandlerConfigDeps {
   socketIOGameService: SocketIOGameService;
   socketIOChatService: SocketIOChatService;
   socketIOQuestionService: SocketIOQuestionService;
+  socketIOQuestionPickService: SocketIOQuestionPickService;
+  socketIOAnswerResultService: SocketIOAnswerResultService;
   socketGameContextService: SocketGameContextService;
+  secretQuestionService: SecretQuestionService;
+  stakeQuestionService: StakeQuestionService;
   userService: UserService;
   gameProgressionCoordinator: GameProgressionCoordinator;
-  gameStatisticsCollectorService: GameStatisticsCollectorService;
+  gameLifecycleService: GameLifecycleService;
   gameService: GameService;
   timerExpirationService: TimerExpirationService;
+  phaseTransitionRouter: PhaseTransitionRouter;
   logger: ILogger;
 }
 
@@ -75,12 +85,17 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     socketIOGameService,
     socketIOChatService,
     socketIOQuestionService,
+    socketIOQuestionPickService,
+    socketIOAnswerResultService: socketIOAnswerResult,
     socketGameContextService,
+    secretQuestionService,
+    stakeQuestionService,
     userService,
     gameProgressionCoordinator,
-    gameStatisticsCollectorService,
+    gameLifecycleService,
     gameService,
     timerExpirationService,
+    phaseTransitionRouter,
     logger,
   } = deps;
 
@@ -170,7 +185,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   registry.register(
     GameActionType.QUESTION_PICK,
-    new QuestionPickActionHandler(socketIOQuestionService)
+    new QuestionPickActionHandler(socketIOQuestionPickService)
   );
 
   registry.register(
@@ -185,14 +200,15 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.ANSWER_RESULT,
-    new AnswerResultActionHandler(socketIOQuestionService)
+    new AnswerResultActionHandler(socketIOAnswerResult)
   );
 
   registry.register(
     GameActionType.QUESTION_SKIP,
     new QuestionSkipActionHandler(
       socketIOQuestionService,
-      gameProgressionCoordinator
+      gameService,
+      phaseTransitionRouter
     )
   );
 
@@ -203,25 +219,25 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.SKIP_QUESTION_FORCE,
-    new SkipQuestionForceActionHandler(
-      socketIOQuestionService,
-      gameProgressionCoordinator
-    )
+    new SkipQuestionForceActionHandler(socketIOQuestionService)
   );
 
   registry.register(
     GameActionType.SKIP_SHOW_ANSWER,
-    new SkipShowAnswerActionHandler(socketIOQuestionService)
+    new SkipShowAnswerActionHandler(
+      socketIOQuestionService,
+      gameLifecycleService
+    )
   );
 
   registry.register(
     GameActionType.SECRET_QUESTION_TRANSFER,
-    new SecretQuestionTransferActionHandler(socketIOQuestionService)
+    new SecretQuestionTransferActionHandler(secretQuestionService)
   );
 
   registry.register(
     GameActionType.STAKE_BID_SUBMIT,
-    new StakeBidSubmitActionHandler(socketIOQuestionService)
+    new StakeBidSubmitActionHandler(stakeQuestionService)
   );
 
   // =====================================
@@ -246,7 +262,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     GameActionType.FINAL_ANSWER_REVIEW,
     new FinalAnswerReviewActionHandler(
       finalRoundService,
-      gameStatisticsCollectorService,
+      gameLifecycleService,
       logger
     )
   );
@@ -271,8 +287,8 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // Timer Handlers - single handler for all timer types
   // =====================================
   const timerHandler = new TimerExpirationActionHandler(
-    gameService,
     timerExpirationService,
+    gameLifecycleService,
     logger
   );
 
