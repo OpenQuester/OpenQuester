@@ -22,7 +22,7 @@ export class StakeQuestionValidator {
    * Allows showman to bid on behalf of current bidding player
    */
   public static validateBidSubmission(context: StakeQuestionContext): void {
-    const { currentPlayer, stakeData } = context;
+    const { currentPlayer, stakeData, game } = context;
 
     if (!currentPlayer) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
@@ -37,6 +37,12 @@ export class StakeQuestionValidator {
 
     if (!stakeData) {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
+    }
+
+    if (!game.isPlayerEligibleToAnswer(currentPlayer.meta.id)) {
+      throw new ClientError(
+        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
+      );
     }
 
     this._validatePlayerCanBid(stakeData, currentPlayer);

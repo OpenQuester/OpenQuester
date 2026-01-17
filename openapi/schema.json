@@ -3903,6 +3903,20 @@
             ],
             "description": "Stake question specific data - only set when a stake question is picked"
           },
+          "questionEligiblePlayers": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "description": "Players who were in-game when the current question started"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "password": {
             "type": ["string", "null"],
             "description": "Password required to join the game, if any",
@@ -4530,6 +4544,20 @@
           },
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
+          },
+          "questionEligiblePlayers": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "description": "Players eligible to participate in the current question"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": ["data", "timer"]
@@ -4651,6 +4679,20 @@
             "type": "integer",
             "description": "ID of the picked secret question",
             "examples": [456]
+          },
+          "questionEligiblePlayers": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "description": "Players eligible to participate in the current question"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": ["pickerPlayerId", "questionId", "transferType"]
@@ -5182,6 +5224,20 @@
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer",
             "description": "Timer for the bidding phase (30 seconds per bid)"
+          },
+          "questionEligiblePlayers": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "description": "Players eligible to participate in the current question"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -5453,6 +5509,20 @@
           },
           "timer": {
             "$ref": "#/components/schemas/GameStateTimer"
+          },
+          "questionEligiblePlayers": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "integer"
+                },
+                "description": "Players eligible to participate in the current question"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

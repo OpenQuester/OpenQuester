@@ -84,6 +84,9 @@ export enum ClientResponse {
   YOU_CANNOT_ANSWER_QUESTION = "you_cannot_answer_question",
   /** Player joined mid-question and is not eligible to answer */
   YOU_CANNOT_ANSWER_RIGHT_AFTER_BECOMING_PLAYER = "you_cannot_answer_right_after_becoming_player",
+  /** Player joined mid-question and is not eligible to participate */
+  YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION = "you_cannot_participate_in_current_question",
+  TARGET_PLAYER_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION = "target_player_cannot_participate_in_current_question",
   QUESTION_NOT_FOUND = "question_not_found",
   QUESTION_ALREADY_PICKED = "question_already_picked",
   QUESTION_ALREADY_PLAYED = "question_already_played",
@@ -103,10 +106,12 @@ export enum ClientResponse {
   CANNOT_SKIP_WHILE_ANSWERING = "cannot_skip_while_answering",
   CANNOT_SKIP_WHILE_NOT_ANSWERING = "cannot_skip_while_not_answering",
   CANNOT_CHANGE_ROLE_WHILE_ANSWERING = "cannot_change_role_while_answering",
+  CANNOT_CHANGE_ROLE_DURING_FINAL = "cannot_change_role_during_final",
   ALREADY_ANSWERED_QUESTION = "already_answered_question",
   PLAYER_NOT_SKIPPED = "player_not_skipped",
   ONLY_PLAYERS_CAN_SET_READY = "only_players_can_set_ready",
   SPECTATORS_CANNOT_CHAT_WHILE_ANSWERING = "spectators_cannot_chat_while_answering",
+  FAILED_TO_TRANSITION = "failed_to_transition",
 
   // Player Management
   ONLY_SHOWMAN_CAN_MANAGE_PLAYERS = "only_showman_can_manage_players",

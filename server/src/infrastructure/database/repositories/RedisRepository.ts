@@ -272,10 +272,10 @@ export class RedisRepository {
       { key, fields, expire },
       async () => {
         if (expire) {
-          const pipeline = this._client.pipeline();
-          pipeline.hset(key, fields);
-          pipeline.expire(key, expire);
-          const results = await pipeline.exec();
+          const multi = this._client.multi();
+          multi.hset(key, fields);
+          multi.expire(key, expire);
+          const results = await multi.exec();
 
           if (!results) {
             return -1;

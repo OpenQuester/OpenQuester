@@ -107,6 +107,7 @@
   "only_players_can_change_slots": "Only players can change slots",
   "invalid_score_value": "Invalid score value provided",
   "cannot_change_role_while_answering": "Cannot change role while answering",
+  "cannot_change_role_during_final": "Cannot become a player during the final round",
   "game_not_in_secret_transfer_phase": "Game is not in secret question transfer phase",
   "secret_question_data_not_found": "Secret question data not found",
   "cannot_transfer_secret_question": "Cannot transfer secret question",
@@ -120,5 +121,8 @@
   "package_search_questions_min_more_max": "In package search, 'minQuestions' cannot be greater than 'maxQuestions'",
   "only_showman_skip_show_answer": "Only showman can skip the show answer phase",
   "game_started_cannot_change_package": "Cannot change game package after the game has started",
-  "you_cannot_answer_right_after_becoming_player": "You cannot answer the question right after becoming a player. You will be able to answer the next question."
+  "you_cannot_answer_right_after_becoming_player": "You cannot answer the question right after becoming a player. You will be able to answer the next question.",
+  "you_cannot_participate_in_current_question": "You cannot participate in the current question right after becoming a player. You will be able to participate in the next question.",
+  "failed_to_transition": "Failed to transition game state",
+  "target_player_cannot_participate_in_current_question": "Target player cannot participate in the current question"
 }

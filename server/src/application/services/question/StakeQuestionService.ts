@@ -87,6 +87,12 @@ export class StakeQuestionService {
       stakeData
     );
 
+    if (!game.isPlayerEligibleToAnswer(biddingPlayer.meta.id)) {
+      throw new ClientError(
+        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
+      );
+    }
+
     const stakeQuestionData = GameQuestionMapper.getQuestionAndTheme(
       game.package,
       game.gameState.currentRound!.id,
