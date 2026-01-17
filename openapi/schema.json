@@ -3750,26 +3750,34 @@
         },
         "required": ["gameId", "expiresAt"]
       },
-      "SocketIONotificationData": {
-        "description": "Payload data for notifications",
-        "oneOf": [
-          {
+      "SocketIOGameExpirationWarningNotificationEventPayload": {
+        "type": "object",
+        "description": "Notification payload for impending game expiration",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["game-expiration-warning"]
+          },
+          "data": {
             "$ref": "#/components/schemas/SocketIOGameExpirationWarningNotificationData"
           }
-        ]
+        },
+        "required": ["type", "data"]
       },
       "SocketIONotificationEventPayload": {
         "type": "object",
         "description": "Notification payload emitted to sockets",
-        "properties": {
-          "type": {
-            "$ref": "#/components/schemas/SocketIONotificationType"
-          },
-          "data": {
-            "$ref": "#/components/schemas/SocketIONotificationData"
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "game-expiration-warning": "#/components/schemas/SocketIOGameExpirationWarningNotificationEventPayload"
           }
         },
-        "required": ["type", "data"]
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SocketIOGameExpirationWarningNotificationEventPayload"
+          }
+        ]
       },
       "SocketIONextRoundEventPayload": {
         "type": "object",
