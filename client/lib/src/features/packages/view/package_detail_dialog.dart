@@ -123,12 +123,14 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
         _PackageDetailHeader(package: package),
         Flexible(
           child: SingleChildScrollView(
-            padding: 16.all,
+            padding: 16.vertical,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 20,
               children: [
-                _PackageBasicInfo(package: package),
+                _PackageBasicInfo(
+                  package: package,
+                ).paddingSymmetric(horizontal: 16),
                 _PackageRoundsSection(
                   package: package,
                   mediaProvider: _getMediaReference,
@@ -363,7 +365,7 @@ class _PackageRoundsSection extends StatelessWidget {
           style: context.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w600,
           ),
-        ),
+        ).paddingSymmetric(horizontal: 16),
         ...package.rounds.map(
           (round) => _PackageRoundCard(
             round: round,
@@ -437,17 +439,10 @@ class _PackageThemeItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       elevation: 0,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       color: context.theme.colorScheme.surfaceContainerLow,
       child: ExpansionTile(
-        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        childrenPadding: const EdgeInsets.only(bottom: 8),
-        title: Text(
-          theme.name,
-          style: context.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w500,
-          ),
-        ),
+        title: Text(theme.name, style: context.textTheme.titleMedium),
+        childrenPadding: EdgeInsets.zero,
         subtitle: !theme.description.isEmptyOrNull
             ? Text(
                 theme.description!,
@@ -458,7 +453,7 @@ class _PackageThemeItem extends StatelessWidget {
             : null,
         trailing: ScoreText(
           score: theme.questions.length,
-          textStyle: context.textTheme.labelSmall,
+          textStyle: context.textTheme.labelMedium,
         ),
         children: theme.questions
             .map(
@@ -536,7 +531,7 @@ class _PackageQuestionItem extends StatelessWidget {
     const mediaSize = 200.0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      margin: 4.all,
       padding: 12.all,
       decoration: BoxDecoration(
         color: context.theme.colorScheme.surface,
