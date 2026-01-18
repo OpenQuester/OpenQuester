@@ -53,8 +53,9 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
   }
 
   void _updateFilters() {
-    _controller.updateFilters(_filters);
-    _controller.pagingController.refresh();
+    _controller
+      ..updateFilters(_filters)
+      ..refresh();
   }
 
   void _clearFilters() {
@@ -67,8 +68,9 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
     _maxRoundsFieldKey.currentState?.didChange('');
     _minQuestionsFieldKey.currentState?.didChange('');
     _maxQuestionsFieldKey.currentState?.didChange('');
-    _controller.updateFilters(_filters);
-    _controller.pagingController.refresh();
+    _controller
+      ..updateFilters(_filters)
+      ..refresh();
   }
 
   @override
@@ -81,7 +83,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
         elevation: 0,
         clipBehavior: Clip.antiAlias,
         child: RefreshIndicator.adaptive(
-          onRefresh: () async => _controller.pagingController.refresh(),
+          onRefresh: () async => _controller.refresh(),
           child: CustomScrollView(
             slivers: [
               _buildSliverAppBar(context),
@@ -94,26 +96,24 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
                 PackageListItem
               >(
                 itemBuilder: (_, item, _) => PackageListItemWidget(item: item),
-                noItemsFoundIndicatorBuilder: (_) => Container(
-                  height: max(size.height - 150, 500),
-                  alignment: Alignment.topCenter,
-                  padding: 16.all + 16.top,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 16,
-                    children: [
-                      Icon(
-                        Icons.inbox_rounded,
-                        size: 64,
-                        color: context.theme.colorScheme.onSurfaceVariant,
-                      ),
-                      Text(
-                        LocaleKeys.no_packages_found.tr(),
-                        style: context.textTheme.bodyLarge,
-                      ),
-                    ],
-                  ),
-                ),
+                noItemsFoundIndicatorBuilder: (_) =>
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 16,
+                      children: [
+                        Icon(
+                          Icons.inbox_rounded,
+                          size: 64,
+                          color: context.theme.colorScheme.onSurfaceVariant,
+                        ),
+                        Text(
+                          LocaleKeys.no_packages_found.tr(),
+                          style: context.textTheme.bodyLarge,
+                        ),
+                      ],
+                    ).constrained(
+                      BoxConstraints(maxHeight: max(size.height - 150, 500)),
+                    ),
               ),
             ],
           ),
@@ -133,7 +133,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
       title: Row(
         children: [
           Icon(
-            Icons.search_rounded,
+            Icons.list,
             size: 28,
             color: context.theme.colorScheme.primary,
           ).paddingRight(12),

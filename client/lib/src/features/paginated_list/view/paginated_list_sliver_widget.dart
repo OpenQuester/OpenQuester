@@ -19,7 +19,7 @@ class PaginatedListSliverWidget<
   @override
   Widget build(BuildContext context) {
     return PagingListener(
-      controller: getIt<_Controller>().pagingController,
+      controller: getIt<_Controller>().getController(),
       builder: (context, state, fetchNextPage) =>
           PagedSliverList<int, ListItem>(
             state: state,
