@@ -4,7 +4,7 @@ import 'package:openquester/common_imports.dart';
 /// Reusable password input field with show/hide toggle
 class PasswordInputField extends StatefulWidget {
   const PasswordInputField({
-    required this.onChanged,
+    this.onChanged,
     this.initialValue,
     this.controller,
     this.labelText,

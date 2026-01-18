@@ -7,7 +7,7 @@ class GameValidationConst {
 
   /// Matches any printable Unicode character (including emoji):
   static final gameNameRegExp = RegExp(r'^[^\x00-\x1F]*$', unicode: true);
-  
+
   /// Matches letters, numbers, underscores and hyphens (backend validation):
   static final passwordRegExp = RegExp(r'^[A-Za-z0-9_-]+$');
 }

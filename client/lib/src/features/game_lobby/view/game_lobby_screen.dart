@@ -28,7 +28,7 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   Future<void> _joinGame() async {
     try {
       final controller = getIt<GameLobbyController>();
-      
+
       // Get game info first to check if private
       final gameInfo = await Api.I.api.games.getV1GamesGameId(
         gameId: widget.gameId,
@@ -59,14 +59,16 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
       // If failed and game is private, check if it's a password error
       if (!success && gameInfo.isPrivate && mounted) {
         final lastError = controller.lastError?.toLowerCase() ?? '';
-        final isPasswordError = lastError.contains('password') || 
-                                lastError.contains('incorrect');
+        final isPasswordError =
+            lastError.contains('password') || lastError.contains('incorrect');
 
         // Only retry if error is password-related
         if (isPasswordError) {
           await getIt<ToastController>().show(
             LocaleKeys.incorrect_password.tr(),
           );
+
+          if (!mounted) return;
 
           // Prompt for new password
           password = await showDialog<String>(

@@ -776,9 +776,13 @@ class _PasswordField extends StatelessWidget {
   Widget build(BuildContext context) {
     return PasswordInputField(
       initialValue: state.password,
-      onChanged: (value) => controller.state.value =
-          state.copyWith(password: value.isEmpty ? null : value),
-      labelText: [LocaleKeys.password.tr(), LocaleKeys.optional.tr()].join(' '),
+      onChanged: (value) => controller.state.value = state.copyWith(
+        password: value.isEmpty ? null : value,
+      ),
+      labelText: [
+        LocaleKeys.password.tr(),
+        LocaleKeys.oq_editor_optional.tr(),
+      ].join(' '),
       hintText: LocaleKeys.password_hint.tr(),
       validator: (value) {
         if (value == null || value.isEmpty) return null;
