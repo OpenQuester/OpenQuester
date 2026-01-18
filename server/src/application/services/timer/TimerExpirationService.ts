@@ -18,7 +18,6 @@ import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeout
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import {
   AnsweringToShowingAnswerMutationData,
   AnsweringToShowingMutationData,
@@ -197,15 +196,14 @@ export class TimerExpirationService {
       return this.handleFinalRoundAnsweringExpiration(game);
     }
 
-    const question = await this.socketIOQuestionService.getCurrentQuestion(
+    // Regular answering expiration
+    const { answerResult, timer } = await this.handleRegularAnsweringExpiration(
       game
     );
 
-    // Regular answering expiration
-    const { answerResult, timer } = await this.handleRegularAnsweringExpiration(
-      game,
-      question
-    );
+    if (!answerResult) {
+      return { success: false, game, broadcasts: [] };
+    }
 
     return {
       success: true,
@@ -415,10 +413,7 @@ export class TimerExpirationService {
     };
   }
 
-  private async handleRegularAnsweringExpiration(
-    game: Game,
-    _question: PackageQuestionDTO
-  ) {
+  private async handleRegularAnsweringExpiration(game: Game) {
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
