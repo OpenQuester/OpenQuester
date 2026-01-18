@@ -10,7 +10,9 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { type Request } from "express";
 import { createHash } from "node:crypto";
 import https from "node:https";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { FileService } from "application/services/file/FileService";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { UserService } from "application/services/user/UserService";
@@ -21,7 +23,7 @@ import { HttpStatus } from "domain/enums/HttpStatus";
 import { Permissions } from "domain/enums/Permissions";
 import { ClientError } from "domain/errors/ClientError";
 import { FileDTO } from "domain/types/dto/file/FileDTO";
-import { S3Context } from "domain/types/file/S3Context";
+import type { S3Context } from "domain/types/file/S3Context";
 import { UsageEntries } from "domain/types/usage/usage";
 import { type File } from "infrastructure/database/models/File";
 import { type Package } from "infrastructure/database/models/package/Package";
@@ -33,16 +35,20 @@ import { DependencyService } from "infrastructure/services/dependency/Dependency
 import { StorageUtils } from "infrastructure/utils/StorageUtils";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Service for S3-compatible object storage operations.
+ */
+@singleton()
 export class S3StorageService {
   private _client: S3Client;
 
   constructor(
-    private readonly s3Context: S3Context,
+    @inject(DI_TOKENS.S3Context) private readonly s3Context: S3Context,
     private readonly fileService: FileService,
     private readonly fileUsageService: FileUsageService,
     private readonly userService: UserService,
     private readonly dependencyService: DependencyService,
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     this._client = new S3Client({
       credentials: {

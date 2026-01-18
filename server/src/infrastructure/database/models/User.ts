@@ -1,3 +1,4 @@
+import { container } from "tsyringe";
 import {
   Column,
   CreateDateColumn,
@@ -12,7 +13,6 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 
-import { Container, CONTAINER_TYPES } from "application/Container";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { UserModel } from "domain/types/user/UserModel";
 import { File } from "infrastructure/database/models/File";
@@ -98,9 +98,7 @@ export class User implements UserModel {
   }
 
   public toDTO(): UserDTO {
-    const storage = Container.get<S3StorageService>(
-      CONTAINER_TYPES.S3StorageService
-    );
+    const storage = container.resolve(S3StorageService);
 
     const avatarLink = this.avatar
       ? storage.getUrl(this.avatar.filename)

@@ -1,3 +1,5 @@
+import { singleton } from "tsyringe";
+
 import { UserService } from "application/services/user/UserService";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
@@ -7,6 +9,10 @@ import { ChatSaveInputData } from "domain/types/socket/chat/ChatSaveInputData";
 import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
 import { SocketGameContextService } from "./SocketGameContextService";
 
+/**
+ * Service for game chat operations.
+ */
+@singleton()
 export class SocketIOChatService {
   constructor(
     private readonly socketChatRepository: SocketChatRepository,

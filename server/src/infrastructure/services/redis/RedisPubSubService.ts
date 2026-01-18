@@ -1,3 +1,6 @@
+import { inject, singleton } from "tsyringe";
+
+import { DI_TOKENS } from "application/di/tokens";
 import { REDIS_KEY_EXPIRE_EVENT } from "domain/constants/redis";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { Environment } from "infrastructure/config/Environment";
@@ -6,6 +9,11 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Service for Redis pub/sub and keyspace notifications.
+ * Handles key expiration events for timers, games, etc.
+ */
+@singleton()
 export class RedisPubSubService {
   private _messageHandler: ((channel: string, message: string) => void) | null =
     null;
@@ -13,8 +21,9 @@ export class RedisPubSubService {
 
   constructor(
     private readonly redisService: RedisService,
+    @inject(DI_TOKENS.RedisExpirationHandlers)
     private readonly handlers: RedisExpirationHandler[],
-    private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }

@@ -20,6 +20,7 @@ import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 
 describe("Edge Cases - Graceful Handling", () => {
   let testEnv: TestEnvironment;
@@ -132,7 +133,9 @@ describe("Edge Cases - Graceful Handling", () => {
         expect(answerResult).toBeDefined();
         expect(answerResult.answerResult).toBeDefined();
         expect(answerResult.answerResult.result).toBe(0); // SKIP = 0 points
-        expect(answerResult.answerResult.answerType).toBe("skip");
+        expect(answerResult.answerResult.answerType).toBe(
+          AnswerResultType.SKIP
+        );
 
         // Verify player is now disconnected
         const gameAfter = await utils.getGameFromGameService(gameId);

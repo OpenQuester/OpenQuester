@@ -1,6 +1,12 @@
+import { singleton } from "tsyringe";
+
 import { FileService } from "application/services/file/FileService";
 import { FileUsageService } from "application/services/file/FileUsageService";
 
+/**
+ * Service for tracking file dependencies and usage.
+ */
+@singleton()
 export class DependencyService {
   constructor(
     private readonly fileService: FileService,

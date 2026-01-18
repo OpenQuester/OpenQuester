@@ -104,26 +104,31 @@ Server behavior:
 
 - Score impact: **0** (`AnswerResultType.SKIP`)
 - State transition:
-  - Normal question: goes to `SHOWING` (answer reveal) and starts/continues a showing timer
-  - Secret/stake question: question is treated as finished and the game returns to `CHOOSING`
+  - Normal question: server treats the leave as a SKIP and attempts a phase transition that starts the **show-answer** phase (`SHOWING_ANSWER`). A show-answer timer may be returned in the transition result.
+  - Secret/stake question: the server clears the special question state (secret or stake data) and transitions to the **show-answer** phase (`SHOWING_ANSWER`)—the show phase is used to reveal what happened (often with `timer: null` when there is no subsequent answering timer).
 
 Events you may see:
 
 - `user-leave` (always)
 - `answer-result` (only if leaving player was `answeringPlayer`)
-  - Normal question includes `timer`
-  - Special question includes `timer: null`
+  - Normal question usually includes a non-null `timer` (remaining show time)
+  - Special questions often include `timer: null` (no further answering timer)
+
+Notes:
+
+- The server uses the central transition router for these transitions; clients should expect `answer-show-start` to be emitted when the show-answer phase begins and `answer-show-end` when it finishes. The final state after `answer-show-end` will be `CHOOSING` (or a `next-round`/`game-finished` progression where applicable).
 
 ### <a id="leave-media-downloading"></a> Player leaves while question is in `MEDIA_DOWNLOADING`
 
 Server behavior:
 
-- If all remaining active players are already ready, server clears the download timer and starts the real `SHOWING` timer.
+- If the remaining active players are already ready, the server clears the download timer and attempts a phase transition (via the phase transition router) into the showing path. The transition may return a `timer` for the showing or show-answer phase.
 
 Events you may see:
 
 - `user-leave`
 - `media-download-status` (only if this leave made the remaining set “all ready”)
+- `question-data` / `answer-show-start` depending on the transition result
 
 ### <a id="disconnect"></a> Player disconnects (no explicit leave)
 
@@ -164,24 +169,25 @@ Events:
 
 Server behavior:
 
-- Resets to `CHOOSING`
-- If this was the last question, progresses the round or ends the game
+- When the showing timer expires the server moves into the **show-answer** phase (state `SHOWING_ANSWER`) and emits `answer-show-start` (this allows the UI to show the correct answer and related details). When the show-answer phase finishes the server emits `answer-show-end` and then resets to `CHOOSING` (or progresses the round / ends the game if that was the last question).
 
 Events:
 
-- `question-finish`
-- Possibly `next-round` or `game-finished`
+- `answer-show-start`
+- `answer-show-end`
+- `question-finish` (when applicable)
+- Possibly `next-round` or `game-finished` (if it was the last question)
 
 ### <a id="answering-timeout"></a> Answering timer expires (normal rounds)
 
 Server behavior:
 
-- Treats it as `WRONG` with negative score for priced questions
-- Transitions to `SHOWING` and starts a showing timer
+- Treats it as `WRONG` (penalty applies for priced questions) and attempts a phase transition that starts the **show-answer** phase (`SHOWING_ANSWER`). The transition result includes the show timer.
 
 Events:
 
 - `answer-result` with `AnswerResultType.WRONG` and a `timer`
+- `answer-show-start` followed by `answer-show-end` (after the show timer)
 
 ### <a id="final-answering-timeout"></a> Final round answering timer expires
 

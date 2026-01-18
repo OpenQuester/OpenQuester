@@ -1,5 +1,7 @@
 import { type Namespace } from "socket.io";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "application/di/tokens";
 import { GameService } from "application/services/game/GameService";
 import {
   PlayerLeaveReason,
@@ -46,6 +48,7 @@ import {
   TurnPlayerChangeLogic,
   TurnPlayerChangeResult,
 } from "domain/logic/game/TurnPlayerChangeLogic";
+import { ActionContext } from "domain/types/action/ActionContext";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { GameLobbyLeaveData } from "domain/types/game/GameRoomLeaveData";
@@ -61,6 +64,10 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
+/**
+ * Service for game lobby operations and player management.
+ */
+@singleton()
 export class SocketIOGameService {
   constructor(
     private readonly socketUserDataService: SocketUserDataService,
@@ -73,8 +80,8 @@ export class SocketIOGameService {
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly playerLeaveService: PlayerLeaveService,
-    private readonly logger: ILogger,
-    private readonly gameNamespace: Namespace
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
+    @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace
   ) {
     //
   }
@@ -154,14 +161,12 @@ export class SocketIOGameService {
     return GameJoinLogic.buildResult({ game, player });
   }
 
-  public async startGame(socketId: string) {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const game = context.game;
+  public async startGame(ctx: ActionContext) {
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     this.socketGameValidationService.validateShowmanRole(
-      context.currentPlayer,
+      currentPlayer,
       ShowmanAction.START
     );
 
@@ -236,16 +241,11 @@ export class SocketIOGameService {
    * 4. Execute round progression via handler
    * 5. Persist and return result (via Logic.buildResult)
    */
-  public async handleNextRound(socketId: string) {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const game = context.game;
+  public async handleNextRound(ctx: ActionContext) {
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
-    this.socketGameValidationService.validateNextRound(
-      context.currentPlayer,
-      game
-    );
+    this.socketGameValidationService.validateNextRound(currentPlayer, game);
 
     // Get current question data using Logic class
     const questionData = RoundProgressionLogic.getCurrentQuestionData(game);
@@ -276,30 +276,20 @@ export class SocketIOGameService {
     });
   }
 
-  public async handleGameUnpause(socketId: string) {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const game = context.game;
+  public async handleGameUnpause(ctx: ActionContext) {
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
-    this.socketGameValidationService.validateGameUnpause(
-      context.currentPlayer,
-      game
-    );
+    this.socketGameValidationService.validateGameUnpause(currentPlayer, game);
 
     return this.socketGameTimerService.unpauseGameTimer(game);
   }
 
-  public async handleGamePause(socketId: string) {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const game = context.game;
+  public async handleGamePause(ctx: ActionContext) {
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
-    this.socketGameValidationService.validateGamePause(
-      context.currentPlayer,
-      game
-    );
+    this.socketGameValidationService.validateGamePause(currentPlayer, game);
 
     return this.socketGameTimerService.pauseGameTimer(game);
   }
@@ -308,12 +298,9 @@ export class SocketIOGameService {
     return this.socketUserDataService.remove(socketId);
   }
 
-  public async setPlayerReadiness(socketId: string, isReady: boolean) {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const game = context.game;
-    const currentPlayer = context.currentPlayer;
+  public async setPlayerReadiness(ctx: ActionContext, isReady: boolean) {
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     // Validate player can set ready state
     this.socketGameValidationService.validatePlayerReadyState(
@@ -374,14 +361,12 @@ export class SocketIOGameService {
    * Changes player role
    */
   public async changePlayerRole(
-    socketId: string,
+    actionContext: ActionContext,
     newRole: PlayerRole,
     targetPlayerId: number | null
   ): Promise<RoleChangeResult> {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const { game, currentPlayer } = context;
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(actionContext);
 
     targetPlayerId = targetPlayerId ?? currentPlayer!.meta.id;
 
@@ -438,14 +423,12 @@ export class SocketIOGameService {
    * 4. Persist and return result (via Logic.buildResult)
    */
   public async updatePlayerRestrictions(
-    socketId: string,
+    actionContext: ActionContext,
     targetPlayerId: number,
     restrictions: RestrictionUpdateInput
   ): Promise<PlayerRestrictionResult> {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const { game, currentPlayer } = context;
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(actionContext);
 
     const targetPlayer = game.getPlayer(targetPlayerId, {
       fetchDisconnected: true,
@@ -468,7 +451,7 @@ export class SocketIOGameService {
       await this.gameService.updateGame(game);
 
       const leaveResult = await this.playerLeaveService.handlePlayerLeave(
-        socketId,
+        actionContext.socketId,
         {
           reason: PlayerLeaveReason.BAN,
           targetUserId: targetPlayerId,
@@ -541,7 +524,7 @@ export class SocketIOGameService {
       }
 
       // Get the specific socket and disconnect it
-      const socket = this.gameNamespace.sockets.get(socketId);
+      const socket = this.gamesNsp.sockets.get(socketId);
       if (socket) {
         this.logger.debug(
           `Force disconnecting socket ${socketId} for banned user ${userId}`,
@@ -576,17 +559,15 @@ export class SocketIOGameService {
    * Kicks a player from the game
    */
   public async kickPlayer(
-    socketId: string,
+    actionContext: ActionContext,
     targetPlayerId: number
   ): Promise<{
     game: Game;
     targetPlayerId: number;
     broadcasts: BroadcastEvent[];
   }> {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const { game, currentPlayer } = context;
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(actionContext);
 
     if (!currentPlayer) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
@@ -603,12 +584,15 @@ export class SocketIOGameService {
     this.socketGameValidationService.validatePlayerManagement(currentPlayer);
 
     // Use PlayerLeaveService to handle the removal
-    const result = await this.playerLeaveService.handlePlayerLeave(socketId, {
-      reason: PlayerLeaveReason.KICK,
-      targetUserId: targetPlayerId,
-      kickedBy: currentPlayer.meta.id,
-      cleanupSession: false,
-    });
+    const result = await this.playerLeaveService.handlePlayerLeave(
+      actionContext.socketId,
+      {
+        reason: PlayerLeaveReason.KICK,
+        targetUserId: targetPlayerId,
+        kickedBy: currentPlayer.meta.id,
+        cleanupSession: false,
+      }
+    );
 
     return {
       game: result.game,
@@ -626,14 +610,12 @@ export class SocketIOGameService {
    * 3. Persist and return result (via Logic.buildResult)
    */
   public async changePlayerScore(
-    socketId: string,
+    ctx: ActionContext,
     targetPlayerId: number,
     newScore: number
   ): Promise<PlayerScoreChangeResult> {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const { game, currentPlayer } = context;
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     const targetPlayer = game.getPlayer(targetPlayerId, {
       fetchDisconnected: false,
@@ -670,13 +652,11 @@ export class SocketIOGameService {
    * 3. Persist and return result (via Logic.buildResult)
    */
   public async changeTurnPlayer(
-    socketId: string,
+    ctx: ActionContext,
     newTurnPlayerId: number | null
   ): Promise<TurnPlayerChangeResult> {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const { game, currentPlayer } = context;
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     if (!currentPlayer) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
@@ -705,14 +685,12 @@ export class SocketIOGameService {
    * 3. Persist and return result (via Logic.buildResult)
    */
   public async changePlayerSlot(
-    socketId: string,
+    ctx: ActionContext,
     targetSlot: number,
     targetPlayerId?: number
   ): Promise<PlayerSlotChangeResult> {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const { game, currentPlayer } = context;
+    const { game, currentPlayer } =
+      await this.socketGameContextService.loadGameAndPlayer(ctx);
 
     if (!currentPlayer) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);

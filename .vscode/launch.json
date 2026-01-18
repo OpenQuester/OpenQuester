@@ -49,6 +49,17 @@
       "program": "lib/main.dart",
     },
     {
+      "name": "oqhelper pre_build",
+      "cwd": "client",
+      "request": "launch",
+      "type": "dart",
+      "program": "packages/project_helper/bin/oqhelper.dart",
+      "args": [
+        "pre_build",
+        "-v"
+      ]
+    },
+    {
       "name": "client (release mode)",
       "cwd": "client",
       "request": "launch",

@@ -1640,15 +1640,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "required": ["mutedUntil"],
-                "properties": {
-                  "mutedUntil": {
-                    "type": "string",
-                    "format": "date-time",
-                    "description": "ISO 8601 timestamp when the mute expires"
-                  }
-                }
+                "$ref": "#/components/schemas/UserMuteInput"
               }
             }
           }
@@ -5299,16 +5291,16 @@
             "description": "Question ID being transferred",
             "examples": [456]
           },
-          "transferPhase": {
+          "transferDecisionPhase": {
             "type": "boolean",
-            "description": "Whether currently in transfer phase (waiting for transfer decision)",
+            "description": "Whether currently in the transfer decision phase (waiting for transfer decision)",
             "examples": [true]
           }
         },
         "required": [
           "pickerPlayerId",
           "questionId",
-          "transferPhase",
+          "transferDecisionPhase",
           "transferType"
         ]
       },
@@ -5418,7 +5410,11 @@
             "type": ["integer", "null"]
           },
           "timer": {
-            "$ref": "#/components/schemas/GameStateTimer"
+            "oneOf": [
+              { "$ref": "#/components/schemas/GameStateTimer" },
+              { "type": "null" }
+            ],
+            "description": "Timer for the next bid or remaining time (30 seconds per bid) or null if there is no further timer"
           }
         },
         "required": [
@@ -5426,8 +5422,7 @@
           "bidType",
           "isPhaseComplete",
           "nextBidderId",
-          "playerId",
-          "timer"
+          "playerId"
         ]
       },
       "SocketIOStakeQuestionPickedEventPayload": {
@@ -5478,9 +5473,9 @@
             "examples": [123]
           },
           "finalBid": {
-            "type": "integer",
-            "description": "The final winning bid amount",
-            "examples": [2000]
+            "type": ["integer", "null"],
+            "description": "The final winning bid amount (may be null if not applicable)",
+            "examples": [2000, null]
           }
         },
         "required": ["finalBid", "winnerPlayerId"]
@@ -5573,57 +5568,75 @@
           }
         }
       },
+      "RedisHealthInfo": {
+        "type": "object",
+        "required": [
+          "connected",
+          "keys",
+          "estimatedMemoryBytes",
+          "estimatedMemoryMB",
+          "averageKeySizeKB"
+        ],
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "keys": {
+            "type": "integer"
+          },
+          "estimatedMemoryBytes": {
+            "type": "number"
+          },
+          "estimatedMemoryMB": {
+            "type": "number"
+          },
+          "averageKeySizeKB": {
+            "type": "number"
+          }
+        }
+      },
+      "RedisConnectionInfo": {
+        "type": "object",
+        "required": ["connected", "responseMs"],
+        "properties": {
+          "connected": {
+            "type": "boolean"
+          },
+          "responseMs": {
+            "type": "number"
+          }
+        }
+      },
+      "ServerHealthInfo": {
+        "type": "object",
+        "required": ["uptime", "memory"],
+        "properties": {
+          "uptime": {
+            "type": "number"
+          },
+          "memory": {
+            "type": "object",
+            "required": ["used", "total"],
+            "properties": {
+              "used": {
+                "type": "number"
+              },
+              "total": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
       "AdminSystemHealthData": {
         "type": "object",
         "required": ["redis", "server", "timestamp"],
         "properties": {
           "redis": {
-            "type": "object",
-            "required": [
-              "connected",
-              "keys",
-              "estimatedMemoryBytes",
-              "estimatedMemoryMB",
-              "averageKeySizeKB"
-            ],
-            "properties": {
-              "connected": {
-                "type": "boolean"
-              },
-              "keys": {
-                "type": "integer"
-              },
-              "estimatedMemoryBytes": {
-                "type": "number"
-              },
-              "estimatedMemoryMB": {
-                "type": "number"
-              },
-              "averageKeySizeKB": {
-                "type": "number"
-              }
-            }
+            "$ref": "#/components/schemas/RedisHealthInfo"
           },
           "server": {
-            "type": "object",
-            "required": ["uptime", "memory"],
-            "properties": {
-              "uptime": {
-                "type": "number"
-              },
-              "memory": {
-                "type": "object",
-                "required": ["used", "total"],
-                "properties": {
-                  "used": {
-                    "type": "number"
-                  },
-                  "total": {
-                    "type": "number"
-                  }
-                }
-              }
-            }
+            "$ref": "#/components/schemas/ServerHealthInfo"
           },
           "timestamp": {
             "type": "string",
@@ -5642,16 +5655,7 @@
             "type": "number"
           },
           "redis": {
-            "type": "object",
-            "required": ["connected", "responseMs"],
-            "properties": {
-              "connected": {
-                "type": "boolean"
-              },
-              "responseMs": {
-                "type": "number"
-              }
-            }
+            "$ref": "#/components/schemas/RedisConnectionInfo"
           },
           "timestamp": {
             "type": "string"
@@ -5667,6 +5671,17 @@
           },
           "isBanned": {
             "type": "boolean"
+          }
+        }
+      },
+      "UserMuteInput": {
+        "type": "object",
+        "required": ["mutedUntil"],
+        "properties": {
+          "mutedUntil": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 timestamp when the mute expires"
           }
         }
       },

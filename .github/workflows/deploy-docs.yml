@@ -32,6 +32,7 @@ jobs:
       
       - name: Download Hugo themes
         run: |
+          mkdir -p websites/docs/themes
           cd websites/docs/themes
           git clone --depth 1 https://github.com/alex-shpak/hugo-book hugo-book
           rm -rf hugo-book/.git

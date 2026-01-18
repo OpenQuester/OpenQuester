@@ -1,19 +1,21 @@
+import { singleton } from "tsyringe";
+
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import {
   SocketBroadcastTarget,
   SocketEventBroadcast,
 } from "domain/handlers/socket/BaseSocketEventHandler";
-import { IGameEventBroadcastService } from "domain/interfaces/game/IGameEventBroadcastService";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 
 /**
- * Service responsible for creating standardized game event broadcasts
- * Centralizes event broadcasting logic to ensure consistency
+ * Service responsible for creating standardized game event broadcasts.
+ * Centralizes event broadcasting logic to ensure consistency.
  */
-export class GameEventBroadcastService implements IGameEventBroadcastService {
+@singleton()
+export class GameEventBroadcastService {
   constructor() {
     //
   }

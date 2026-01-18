@@ -1,7 +1,13 @@
+import { singleton } from "tsyringe";
+
 import { FileSource } from "domain/enums/file/FileSource";
 import { FileDTO } from "domain/types/dto/file/FileDTO";
 import { FileRepository } from "infrastructure/database/repositories/FileRepository";
 
+/**
+ * Service for file entity operations.
+ */
+@singleton()
 export class FileService {
   constructor(private readonly fileRepository: FileRepository) {
     //

@@ -1,4 +1,5 @@
 import { Game } from "domain/entities/game/Game";
+import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -56,8 +57,17 @@ export enum TransitionTrigger {
 /**
  * Context passed to transition handlers.
  * Contains everything needed to evaluate and execute a transition.
+ *
+ * NOTE: For regular and final round handlers, check game.gameState conditions, NOT payload.
+ * The pattern is: Service mutates game state → Handler checks state → Handler executes transition.
+ *
+ * Payload is only used for special cases where external data is needed:
+ * - Secret question transfer (targetPlayerId)
+ * - Stake question bidding (bidAmount)
  */
-export interface TransitionContext {
+export interface TransitionContext<
+  TPayload extends Record<string, unknown> = Record<string, unknown>
+> {
   /** The game entity (will be mutated by handler) */
   game: Game;
 
@@ -72,8 +82,11 @@ export interface TransitionContext {
     isSystem: boolean;
   };
 
-  /** Additional data from the triggering action */
-  payload?: Record<string, unknown>;
+  /**
+   * Optional payload for special cases only.
+   * Regular/final round handlers should NOT use this - check game state instead.
+   */
+  payload?: TPayload;
 }
 
 /**
@@ -95,8 +108,11 @@ export interface TransitionResult {
   /** Broadcasts to emit after transition */
   broadcasts: BroadcastEvent[];
 
-  /** Additional data for the caller (e.g., question data, timer info) */
-  data?: Record<string, unknown>;
+  /** Timer state after transition (nullable but always present) */
+  timer: GameStateTimerDTO | null;
+
+  /** Additional data for the caller (handler-specific) */
+  data?: unknown; // Caller casts as needed
 }
 
 /**
@@ -104,7 +120,7 @@ export interface TransitionResult {
  */
 export interface MutationResult {
   /** Any data to pass to broadcast building */
-  data?: Record<string, unknown>;
+  data?: unknown; // Concrete handlers cast internally
 }
 
 /**
@@ -112,12 +128,7 @@ export interface MutationResult {
  */
 export interface TimerResult {
   /** The new timer, if one was set up */
-  timer?: {
-    durationMs: number;
-    elapsedMs: number;
-    startedAt: Date;
-    resumedAt: Date | null;
-  };
+  timer?: GameStateTimerDTO;
 }
 
 /**
@@ -142,7 +153,10 @@ export function getGamePhase(game: Game): GamePhase {
     return GamePhase.STAKE_BIDDING;
   }
 
-  if (secretQuestionData && questionState === QuestionState.CHOOSING) {
+  if (
+    secretQuestionData?.transferDecisionPhase &&
+    questionState === QuestionState.SECRET_TRANSFER
+  ) {
     return GamePhase.SECRET_QUESTION_TRANSFER;
   }
 

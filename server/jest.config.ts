@@ -4,6 +4,8 @@ const config: Config = {
   preset: "ts-jest",
   testEnvironment: "node",
   maxWorkers: 1,
+  // tsyringe requires reflect-metadata to be imported before any tests
+  setupFilesAfterEnv: ["<rootDir>/tests/setup.ts"],
   moduleNameMapper: {
     "^application/(.*)$": "<rootDir>/src/application/$1",
     "^domain/(.*)$": "<rootDir>/src/domain/$1",

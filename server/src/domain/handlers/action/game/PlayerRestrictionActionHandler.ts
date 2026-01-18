@@ -8,6 +8,7 @@ import {
   PlayerRestrictionBroadcastData,
   PlayerRestrictionInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for player restriction (mute/restrict/ban).
@@ -24,10 +25,10 @@ export class PlayerRestrictionActionHandler
   public async execute(
     action: GameAction<PlayerRestrictionInputData>
   ): Promise<GameActionHandlerResult<PlayerRestrictionBroadcastData>> {
-    const { payload, socketId } = action;
+    const { payload } = action;
 
     const result = await this.socketIOGameService.updatePlayerRestrictions(
-      socketId,
+      createActionContextFromAction(action),
       payload.playerId,
       {
         muted: payload.muted,
@@ -43,6 +44,10 @@ export class PlayerRestrictionActionHandler
       banned: payload.banned,
     };
 
-    return { success: true, data: broadcastData, broadcasts: result.broadcasts };
+    return {
+      success: true,
+      data: broadcastData,
+      broadcasts: result.broadcasts,
+    };
   }
 }

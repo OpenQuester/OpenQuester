@@ -33,7 +33,9 @@ export class JoinGameActionHandler
     private readonly socketIOChatService: SocketIOChatService,
     private readonly userService: UserService,
     private readonly socketGameContextService: SocketGameContextService
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     action: GameAction<GameJoinInputData>

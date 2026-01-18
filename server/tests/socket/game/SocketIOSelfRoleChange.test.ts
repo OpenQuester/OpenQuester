@@ -272,29 +272,30 @@ describe("Socket IO Self Role Change", () => {
   describe("Mid-Game Role Changes", () => {
     it("should allow self role changes during mid-game (not answering)", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { showmanSocket, playerSockets, playerUsers } = setup;
 
       try {
         // Start the game first
         const gameStartPromise = utils.waitForEvent(
-          setup.showmanSocket,
+          showmanSocket,
           SocketIOGameEvents.START
         );
 
-        setup.showmanSocket.emit(SocketIOGameEvents.START, {});
+        showmanSocket.emit(SocketIOGameEvents.START, {});
         await gameStartPromise;
 
-        const playerUserId = setup.playerUsers[0].id;
+        const playerUserId = playerUsers[0].id;
         const newRole = PlayerRole.SPECTATOR;
 
         // Wait for PLAYER_ROLE_CHANGE event
         const roleChangeEventPromise =
           utils.waitForEvent<PlayerRoleChangeBroadcastData>(
-            setup.playerSockets[0],
+            playerSockets[0],
             SocketIOGameEvents.PLAYER_ROLE_CHANGE
           );
 
         // Player changes their own role during mid-game
-        setup.playerSockets[0].emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+        playerSockets[0].emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           newRole,
         });
 
@@ -317,22 +318,22 @@ describe("Socket IO Self Role Change", () => {
 
     it("should prevent self role changes during question answering", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { showmanSocket, playerSockets, playerUsers } = setup;
 
       try {
         // Start the game
-        await utils.startGame(setup.showmanSocket);
-
+        await utils.startGame(showmanSocket);
         // Pick a question to enter answering state
-        await utils.pickQuestion(setup.showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Have a player answer the question to enter ANSWERING state
-        await utils.answerQuestion(setup.playerSockets[0], setup.showmanSocket);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-        const playerUserId = setup.playerUsers[0].id;
+        const playerUserId = playerUsers[0].id;
 
         // Wait for error event - role changes should be blocked during answering
         const errorPromise = utils.waitForEvent(
-          setup.playerSockets[0],
+          playerSockets[0],
           SocketIOEvents.ERROR,
           2000
         );
