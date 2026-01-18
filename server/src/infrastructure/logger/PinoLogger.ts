@@ -157,7 +157,7 @@ export class PinoLogger implements ILogger {
     const logger = new PinoLogger();
     try {
       const mergedLogPaths = { ...defaultLogPaths, ...config.logPaths };
-      const allPaths = [...Object.values(mergedLogPaths), UNIFIED_LOG_PATH];
+      const allPaths = [...Object.values(mergedLogPaths)];
       await ensureLogDirs(allPaths);
 
       // Initialize terminal logger
@@ -165,9 +165,6 @@ export class PinoLogger implements ILogger {
 
       // Initialize file loggers
       logger.initFileLoggers(mergedLogPaths);
-
-      // Initialize unified logger for multi-instance support
-      logger.initUnifiedLogger();
 
       logger.initialized = true;
       return logger;

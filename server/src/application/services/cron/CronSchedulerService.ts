@@ -68,6 +68,29 @@ export class CronSchedulerService {
       prefix: LogPrefix.CRON_SCHEDULER,
       scheduledJobs: this.scheduledTasks.size,
     });
+
+    this.runStartupJobs();
+  }
+
+  private runStartupJobs(): void {
+    const startupJobs = this.jobs.filter(
+      (job) => job.enabled && job.runOnStartup
+    );
+
+    if (startupJobs.length === 0) {
+      return;
+    }
+
+    this.logger.info("Running startup cron jobs", {
+      prefix: LogPrefix.CRON_SCHEDULER,
+      jobs: startupJobs.map((job) => job.name),
+    });
+
+    for (const job of startupJobs) {
+      setImmediate(async () => {
+        await this.executeWithLock(job);
+      });
+    }
   }
 
   /**
