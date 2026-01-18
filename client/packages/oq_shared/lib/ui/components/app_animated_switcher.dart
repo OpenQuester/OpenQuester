@@ -8,6 +8,7 @@ class AppAnimatedSwitcher extends StatelessWidget {
     this.visible,
     this.disableSizeTransition = false,
     this.sizeTransitionAxis = Axis.horizontal,
+    this.duration = Durations.medium1,
     super.key,
   });
 
@@ -15,11 +16,12 @@ class AppAnimatedSwitcher extends StatelessWidget {
   final bool? visible;
   final bool disableSizeTransition;
   final Axis sizeTransitionAxis;
+  final Duration duration;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
-      duration: Durations.medium1,
+      duration: duration,
       transitionBuilder: (child, animation) {
         final transition = FadeTransition(opacity: animation, child: child);
 

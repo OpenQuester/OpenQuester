@@ -180,10 +180,21 @@ class _PrivateGameSelect extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            state.private ? Icons.lock_rounded : Icons.public_rounded,
-            size: 20,
-            color: context.theme.colorScheme.primary,
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 200),
+            crossFadeState: state.private
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: Icon(
+              Icons.lock_rounded,
+              size: 20,
+              color: context.theme.colorScheme.primary,
+            ),
+            secondChild: Icon(
+              Icons.public_rounded,
+              size: 20,
+              color: context.theme.colorScheme.primary,
+            ),
           ).paddingRight(12),
           Expanded(
             child: Column(
@@ -472,7 +483,7 @@ class _SelectedPackageIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+      duration: Durations.medium1,
       padding: 12.all,
       decoration: BoxDecoration(
         color: context.theme.colorScheme.primaryContainer.withValues(
@@ -582,6 +593,7 @@ class _GameConfigSection extends StatelessWidget {
             ),
             AppAnimatedSwitcher(
               visible: state.private,
+              sizeTransitionAxis: Axis.vertical,
               child: _PasswordField(state: state, controller: controller),
             ),
             _MaxPlayersSelect(state: state, controller: controller),
