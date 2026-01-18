@@ -73,7 +73,7 @@ export class SecretQuestionValidator {
 
     if (!game.isPlayerEligibleToAnswer(targetPlayerId)) {
       throw new ClientError(
-        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
+        ClientResponse.TARGET_PLAYER_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
       );
     }
 
