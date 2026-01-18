@@ -6,11 +6,15 @@ import {
   GAME_EXPIRATION_WARNING_NAMESPACE,
   GAME_EXPIRATION_WARNING_SECONDS,
 } from "domain/constants/game";
+import { SECOND_MS } from "domain/constants/time";
 import { REDIS_LOCK_GAME_EXPIRATION_WARNING } from "domain/constants/redis";
 import { NotificationType } from "domain/enums/NotificationType";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
-import { NotificationBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+import {
+  GameExpirationWarningNotificationData,
+  NotificationBroadcastData,
+} from "domain/types/socket/events/SocketEventInterfaces";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { RedisService } from "infrastructure/services/redis/RedisService";
@@ -20,7 +24,9 @@ import { Namespace } from "socket.io";
  * Handles game expiration warning events from Redis.
  */
 @singleton()
-export class GameExpirationNotificationHandler implements RedisExpirationHandler {
+export class GameExpirationNotificationHandler
+  implements RedisExpirationHandler
+{
   constructor(
     private readonly gameService: GameService,
     private readonly redisService: RedisService,
@@ -61,15 +67,16 @@ export class GameExpirationNotificationHandler implements RedisExpirationHandler
       return;
     }
 
-    const payload: NotificationBroadcastData = {
-      type: NotificationType.GAME_EXPIRATION_WARNING,
-      data: {
-        gameId,
-        expiresAt: new Date(
-          Date.now() + GAME_EXPIRATION_WARNING_SECONDS * 1000
-        ),
-      },
-    };
+    const payload: NotificationBroadcastData<GameExpirationWarningNotificationData> =
+      {
+        type: NotificationType.GAME_EXPIRATION_WARNING,
+        data: {
+          gameId,
+          expiresAt: new Date(
+            Date.now() + GAME_EXPIRATION_WARNING_SECONDS * SECOND_MS
+          ),
+        },
+      };
 
     this.gamesNsp.to(gameId).emit(SocketIOEvents.NOTIFICATIONS, payload);
 

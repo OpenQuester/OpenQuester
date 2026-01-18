@@ -148,9 +148,11 @@ export interface GameExpirationWarningNotificationData {
   expiresAt: Date;
 }
 
-export interface NotificationBroadcastData {
+export interface NotificationBroadcastData<
+  TData = GameExpirationWarningNotificationData
+> {
   type: NotificationType;
-  data: GameExpirationWarningNotificationData;
+  data: TData;
 }
 
 /**

@@ -4194,8 +4194,7 @@
           "stake-bid-submit",
           "stake-question-winner",
           "media-downloaded",
-          "media-download-status",
-          "notifications"
+          "media-download-status"
         ],
         "examples": ["join"]
       },
@@ -4241,7 +4240,8 @@
           "stake-bid-submit",
           "stake-question-winner",
           "media-downloaded",
-          "media-download-status"
+          "media-download-status",
+          "notifications"
         ],
         "examples": ["join"]
       },
