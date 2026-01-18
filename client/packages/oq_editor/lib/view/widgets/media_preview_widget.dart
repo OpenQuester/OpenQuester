@@ -340,7 +340,6 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
     return Center(
       child: Icon(
         Icons.file_present,
-        size: (widget.size ?? 80) * 0.5,
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );

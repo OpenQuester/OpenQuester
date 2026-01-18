@@ -7,9 +7,14 @@ class PaginatedListSliverWidget<
   ListItem
 >
     extends StatelessWidget {
-  const PaginatedListSliverWidget({required this.itemBuilder, super.key});
+  const PaginatedListSliverWidget({
+    required this.itemBuilder,
+    this.noItemsFoundIndicatorBuilder,
+    super.key,
+  });
 
   final Widget Function(BuildContext, ListItem, int) itemBuilder;
+  final WidgetBuilder? noItemsFoundIndicatorBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +27,7 @@ class PaginatedListSliverWidget<
             builderDelegate: PagedChildBuilderDelegate<ListItem>(
               animateTransitions: true,
               itemBuilder: itemBuilder,
+              noItemsFoundIndicatorBuilder: noItemsFoundIndicatorBuilder,
             ),
           ),
     );

@@ -37,10 +37,8 @@ abstract class PackageSearchFilters with _$PackageSearchFilters {
       maxQuestions != null;
 
   /// Clears all filters
-  PackageSearchFilters clearAll() {
-    return PackageSearchFilters(
-      sortBy: sortBy,
-      order: order,
-    );
-  }
+  PackageSearchFilters clearAll() => PackageSearchFilters(
+    sortBy: sortBy,
+    order: order,
+  );
 }
