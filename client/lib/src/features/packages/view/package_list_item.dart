@@ -5,14 +5,14 @@ import 'package:openquester/openquester.dart';
 
 class PackageListItemWidget extends StatelessWidget {
   const PackageListItemWidget({required this.item, super.key});
+  final PackageListItem item;
 
   static const int _maxVisibleTags = 5;
-
-  final PackageListItem item;
 
   @override
   Widget build(BuildContext context) {
     return Card(
+      clipBehavior: Clip.hardEdge,
       child: InkWell(
         onTap: () => _showPackageDetails(context),
         borderRadius: BorderRadius.circular(12),
@@ -136,6 +136,10 @@ class PackageListItemWidget extends StatelessWidget {
   }
 
   Future<void> _showPackageDetails(BuildContext context) async {
-    await PackageDetailRoute(packageId: item.id).push<void>(context);
+    final result = await PackageDetailRoute(
+      packageId: item.id,
+    ).push<PackageListItem>(context);
+    if (result == null || !context.mounted) return;
+    context.router.pop(result);
   }
 }

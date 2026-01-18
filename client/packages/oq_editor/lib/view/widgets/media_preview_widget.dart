@@ -150,7 +150,7 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
               children: [
                 _buildPreviewContent(context),
                 // Hover/Touch overlay
-                if (_showControls)
+                if (_showControls && !widget.enableControls)
                   Positioned.fill(
                     child: Container(
                       decoration: BoxDecoration(
@@ -174,7 +174,6 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
                                       ? Icons.pause_circle_outline
                                       : Icons.play_circle_outline,
                                   color: Colors.white,
-                                  size: (widget.size ?? 80) * 0.4,
                                 ),
                                 onPressed: () {
                                   final controller =
@@ -205,10 +204,9 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
                             top: 0,
                             right: 0,
                             child: IconButton(
-                              icon: Icon(
+                              icon: const Icon(
                                 Icons.open_in_full,
                                 color: Colors.white,
-                                size: (widget.size ?? 80) * 0.25,
                               ),
                               onPressed: () => _handleTap(context),
                             ),

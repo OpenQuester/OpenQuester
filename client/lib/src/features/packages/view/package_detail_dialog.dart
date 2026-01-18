@@ -53,16 +53,36 @@ class _PackageDetailDialogState extends State<PackageDetailDialog> {
         child: FutureBuilder<OqPackage>(
           future: _packageFuture,
           builder: (context, snapshot) {
+            Widget child;
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return _buildLoadingState(context);
+              child = _buildLoadingState(context);
+            } else if (snapshot.hasError) {
+              child = _buildErrorState(context, snapshot.error!);
+            } else if (snapshot.hasData) {
+              child = _buildContent(context, snapshot.data!);
+            } else {
+              child = _buildLoadingState(context);
             }
-            if (snapshot.hasError) {
-              return _buildErrorState(context, snapshot.error!);
-            }
-            if (snapshot.hasData) {
-              return _buildContent(context, snapshot.data!);
-            }
-            return _buildLoadingState(context);
+
+            return AnimatedSwitcher(
+              duration: Durations.long1,
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SizeTransition(
+                  sizeFactor: animation,
+                  axisAlignment: -1,
+                  child: child,
+                ),
+              ),
+              child: KeyedSubtree(
+                key: ValueKey<String>(
+                  snapshot.connectionState.toString() +
+                      snapshot.hasError.toString() +
+                      snapshot.hasData.toString(),
+                ),
+                child: child,
+              ),
+            );
           },
         ),
       ),

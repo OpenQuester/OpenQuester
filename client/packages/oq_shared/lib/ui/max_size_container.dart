@@ -15,7 +15,7 @@ class MaxSizeContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!enabled||maxWidth == null) return child;
+    if (!enabled || maxWidth == null) return child;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,

@@ -330,13 +330,9 @@ class _MediaPlaybackWidgetState extends State<MediaPlaybackWidget> {
 
   Widget _buildLoadingPreview(BuildContext context) {
     return Center(
-      child: SizedBox(
-        width: (widget.size ?? 80) * 0.4,
-        height: (widget.size ?? 80) * 0.4,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        color: Theme.of(context).colorScheme.primary,
       ),
     );
   }
@@ -462,7 +458,6 @@ class _VideoControlsState extends State<VideoControls> {
           child: StatefulBuilder(
             builder: (context, setVolumeState) {
               return SizedBox(
-                width: 40,
                 height: 100,
                 child: RotatedBox(
                   quarterTurns: 3,

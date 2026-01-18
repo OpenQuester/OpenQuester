@@ -97,10 +97,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
                 PackagesListController,
                 PackageListItem
               >(
-                itemBuilder: (context, item, index) => InkWell(
-                  onTap: () => Navigator.of(context).pop(item),
-                  child: PackageListItemWidget(item: item),
-                ),
+                itemBuilder: (_, item, _) => PackageListItemWidget(item: item),
               ),
             ],
           ),
@@ -116,6 +113,7 @@ class _PackageSearchDialogState extends State<PackageSearchDialog> {
       automaticallyImplyLeading: false,
       expandedHeight: _showFilters ? _filtersPanelExpandedHeight : null,
       stretch: true,
+      floating: true,
       title: Row(
         children: [
           Icon(

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:nb_utils/nb_utils.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/utils/blob_helper.dart';
-import 'package:oq_editor/view/widgets/video_preview_widget.dart';
+import 'package:oq_editor/view/widgets/media_playback_widget.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
