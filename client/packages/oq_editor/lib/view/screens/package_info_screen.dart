@@ -21,7 +21,7 @@ class PackageInfoScreen extends WatchingWidget {
 
     return Scaffold(
       body: MaxSizeContainer(
-        maxWidth: UiModeUtils.maximumDialogWidth,
+        maxWidth: UiModeUtils.maximumDialogWidth(context),
         child: Form(
           key: formKey,
           child: SingleChildScrollView(
