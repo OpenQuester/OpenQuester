@@ -1,9 +1,19 @@
 import 'package:flutter/foundation.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 import 'package:openquester/src/core/logging/logger.dart';
+import 'package:throttling/throttling.dart';
 
 abstract class ListControllerBase<I extends dynamic> extends ChangeNotifier {
   int? _nextPageKey = 0;
+
+  late final PagingController<int, I> _pagingController = PagingController(
+    getNextPageKey: _getNextPageKey,
+    fetchPage: _fetchPage,
+  );
+
+  final _throttling = Throttling<void>(
+    duration: const Duration(milliseconds: 500),
+  );
 
   @protected
   Future<ListResponse<I>> getPage(ListRequest request);
@@ -31,7 +41,7 @@ abstract class ListControllerBase<I extends dynamic> extends ChangeNotifier {
       return;
     }
 
-    final currentLenght = pagingController.items?.length ?? 0;
+    final currentLenght = _pagingController.items?.length ?? 0;
     if (newItems.metadata.total > currentLenght + newItems.list.length) {
       _nextPageKey = listRequest.offset + 1;
     } else {
@@ -41,7 +51,7 @@ abstract class ListControllerBase<I extends dynamic> extends ChangeNotifier {
 
   @protected
   Future<void> deleteItem(dynamic id) async {
-    final state = pagingController.value;
+    final state = _pagingController.value;
     final pages = state.pages;
     if (pages == null) return;
 
@@ -58,12 +68,12 @@ abstract class ListControllerBase<I extends dynamic> extends ChangeNotifier {
     }
 
     // Emit a new state with updated pages
-    pagingController.value = state.copyWith(pages: newPages);
+    _pagingController.value = state.copyWith(pages: newPages);
   }
 
   @protected
   Future<void> addFirstItem(I item) async {
-    final state = pagingController.value;
+    final state = _pagingController.value;
     final pages = state.pages;
     if (pages == null || pages.isEmpty) return;
 
@@ -73,12 +83,12 @@ abstract class ListControllerBase<I extends dynamic> extends ChangeNotifier {
     // Rebuild pages array with the new first page
     final newPages = [firstPage, ...pages.sublist(1)];
 
-    pagingController.value = state.copyWith(pages: newPages);
+    _pagingController.value = state.copyWith(pages: newPages);
   }
 
   @protected
   Future<void> updateItem(I updated) async {
-    final state = pagingController.value;
+    final state = _pagingController.value;
     final pages = state.pages;
     if (pages == null) return;
 
@@ -94,19 +104,14 @@ abstract class ListControllerBase<I extends dynamic> extends ChangeNotifier {
       }
     }
 
-    pagingController.value = state.copyWith(pages: newPages);
+    _pagingController.value = state.copyWith(pages: newPages);
   }
 
   @override
   Future<void> dispose() async {
     super.dispose();
-    pagingController.dispose();
+    _pagingController.dispose();
   }
-
-  late final PagingController<int, I> pagingController = PagingController(
-    getNextPageKey: _getNextPageKey,
-    fetchPage: _fetchPage,
-  );
 
   int? _getNextPageKey(PagingState<int, I> state) {
     if (state.status == PagingStatus.loadingFirstPage) {
@@ -114,6 +119,10 @@ abstract class ListControllerBase<I extends dynamic> extends ChangeNotifier {
     }
     return _nextPageKey;
   }
+
+  void refresh() => _throttling.throttle(_pagingController.refresh);
+
+  PagingController<int, I> getController() => _pagingController;
 }
 
 class ListRequest {
