@@ -20,6 +20,11 @@ export interface ICronJob {
   readonly enabled: boolean;
 
   /**
+   * Whether the job should run immediately on scheduler startup
+   */
+  readonly runOnStartup?: boolean;
+
+  /**
    * TTL in seconds for the distributed lock preventing concurrent execution.
    * Defaults to 3 hours (10800 seconds) if not specified.
    * Should be long enough to handle clock drift between server instances.
