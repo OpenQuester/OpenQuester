@@ -4,6 +4,8 @@ import { DI_TOKENS } from "application/di/tokens";
 import { PackageService } from "application/services/package/PackageService";
 import { UserService } from "application/services/user/UserService";
 import {
+  GAME_EXPIRATION_WARNING_NAMESPACE,
+  GAME_EXPIRATION_WARNING_SECONDS,
   GAME_ID_CHARACTERS,
   GAME_ID_CHARACTERS_LENGTH,
   GAME_NAMESPACE,
@@ -12,6 +14,7 @@ import {
 import { PACKAGE_DETAILED_RELATIONS } from "domain/constants/package";
 import { REDIS_LOCK_GAMES_CLEANUP } from "domain/constants/redis";
 import { TIMER_NSP } from "domain/constants/timer";
+import { SECOND_MS } from "domain/constants/time";
 import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
@@ -58,6 +61,10 @@ export class GameRepository {
     return `${GAME_NAMESPACE}:${gameId}`;
   }
 
+  private getGameExpirationWarningKey(gameId: string) {
+    return `${GAME_EXPIRATION_WARNING_NAMESPACE}:${gameId}`;
+  }
+
   public async getGameEntity(
     gameId: string,
     updatedTtl?: number
@@ -84,6 +91,7 @@ export class GameRepository {
       GameMapper.serializeGameToHash(game),
       GAME_TTL_IN_SECONDS
     );
+    await this.setExpirationWarning(game.id);
   }
 
   public async updateGameWithIndexes(
@@ -102,6 +110,7 @@ export class GameRepository {
     pipeline.expire(key, GAME_TTL_IN_SECONDS);
 
     await pipeline.exec();
+    await this.setExpirationWarning(game.id);
   }
 
   private async _isGameExists(gameId: string) {
@@ -269,6 +278,7 @@ export class GameRepository {
     );
     pipeline.expire(key, GAME_TTL_IN_SECONDS);
     await pipeline.exec();
+    await this.setExpirationWarning(gameId);
 
     return this._parseGameToListItemDTO(game, createdBy, packageDTO);
   }
@@ -286,6 +296,7 @@ export class GameRepository {
     const key = this.getGameKey(gameId);
     const game = await this.getGameEntity(gameId);
     await this.redisService.del(key);
+    await this.clearExpirationWarning(gameId);
     await this.gameIndexManager.removeGameFromIndexes(
       gameId,
       game.toIndexData()
@@ -318,6 +329,7 @@ export class GameRepository {
     );
 
     await this.redisService.del(key);
+    await this.clearExpirationWarning(gameId);
   }
 
   public async gameToListItemDTO(game: Game): Promise<GameListItemDTO> {
@@ -507,6 +519,26 @@ export class GameRepository {
 
   public async clearTimer(gameId: string, timerAdditional?: string) {
     await this.redisService.del(this._getTimerKey(gameId, timerAdditional));
+  }
+
+  private async setExpirationWarning(gameId: string): Promise<void> {
+    const warningTtlSeconds = Math.max(
+      GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS,
+      0
+    );
+    if (warningTtlSeconds === 0) {
+      return;
+    }
+
+    await this.redisService.set(
+      this.getGameExpirationWarningKey(gameId),
+      "1",
+      warningTtlSeconds * SECOND_MS
+    );
+  }
+
+  private async clearExpirationWarning(gameId: string): Promise<void> {
+    await this.redisService.del(this.getGameExpirationWarningKey(gameId));
   }
 
   private _getTimerKey(gameId: string, timerAdditional?: string) {
