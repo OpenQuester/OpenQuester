@@ -18,7 +18,6 @@ import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeout
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import {
   AnsweringToShowingAnswerMutationData,
   AnsweringToShowingMutationData,
@@ -43,6 +42,8 @@ import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
 import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { ClientError } from "domain/errors/ClientError";
+import { ClientResponse } from "domain/enums/ClientResponse";
 
 /**
  * Service handling timer expiration logic.
@@ -195,22 +196,20 @@ export class TimerExpirationService {
       return this.handleFinalRoundAnsweringExpiration(game);
     }
 
-    const question = await this.socketIOQuestionService.getCurrentQuestion(
+    // Regular answering expiration
+    const { answerResult, timer } = await this.handleRegularAnsweringExpiration(
       game
     );
 
-    // Regular answering expiration
-    const { answerResult, timer } = await this.handleRegularAnsweringExpiration(
-      game,
-      question
-    );
+    if (!answerResult) {
+      return { success: false, game, broadcasts: [] };
+    }
 
     return {
       success: true,
       game,
       broadcasts: [
-        // TODO: add proper null-check with error throw
-        AnsweringExpirationLogic.buildBroadcast(gameId, answerResult!, timer),
+        AnsweringExpirationLogic.buildBroadcast(gameId, answerResult, timer),
       ],
     };
   }
@@ -414,10 +413,7 @@ export class TimerExpirationService {
     };
   }
 
-  private async handleRegularAnsweringExpiration(
-    game: Game,
-    _question: PackageQuestionDTO
-  ) {
+  private async handleRegularAnsweringExpiration(game: Game) {
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
@@ -433,7 +429,7 @@ export class TimerExpirationService {
         }
       );
 
-      return { answerResult: null, timer: null };
+      throw new ClientError(ClientResponse.FAILED_TO_TRANSITION);
     }
 
     const resultData = transitionResult.data as

@@ -43,6 +43,12 @@ export class QuestionActionValidator {
 
     const { game, currentPlayer } = context;
 
+    if (!game.isPlayerEligibleToAnswer(currentPlayer!.meta.id)) {
+      throw new ClientError(
+        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
+      );
+    }
+
     // Check if current question is a special question type (noRisk, secret, stake)
     const isSpecialQuestion =
       SpecialRegularQuestionUtils.isSingleAnswererQuestion(game);

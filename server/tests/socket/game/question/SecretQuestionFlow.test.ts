@@ -20,6 +20,7 @@ import { PackageQuestionTransferType } from "domain/types/package/PackageQuestio
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { SecretQuestionPickedBroadcastData } from "domain/types/socket/events/game/SecretQuestionPickedEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   SecretQuestionTransferBroadcastData,
   SecretQuestionTransferInputData,
@@ -198,6 +199,73 @@ describe("Secret Question Flow Tests", () => {
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
         expect(finalState!.secretQuestionData).toBeNull();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should reject transfer to player who joined after secret question picked", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { showmanSocket, gameId } = setup;
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        const secretQuestion = await utils.findQuestionByType(
+          PackageQuestionType.SECRET,
+          gameId,
+          PackageQuestionTransferType.ANY
+        );
+
+        const secretQuestionPickedPromise =
+          utils.waitForEvent<SecretQuestionPickedBroadcastData>(
+            showmanSocket,
+            SocketIOGameEvents.SECRET_QUESTION_PICKED
+          );
+
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: secretQuestion!.id,
+        });
+
+        await secretQuestionPickedPromise;
+
+        const { socket: lateJoinerSocket, user: lateJoinerUser } =
+          await utils.createGameClient(app, userRepo);
+
+        try {
+          await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
+          await utils.waitForActionsComplete(gameId);
+
+          const game = await utils.getGameFromGameService(gameId);
+          expect(
+            game.gameState.questionEligiblePlayers?.includes(lateJoinerUser.id)
+          ).toBe(false);
+
+          const errorPromise = new Promise<string>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error("No error received - transfer was allowed"));
+            }, 3000);
+
+            showmanSocket.once(SocketIOEvents.ERROR, (error: any) => {
+              clearTimeout(timeout);
+              resolve(error.message);
+            });
+          });
+
+          showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+            targetPlayerId: lateJoinerUser.id,
+          } satisfies SecretQuestionTransferInputData);
+
+          const errorMessage = await errorPromise;
+          expect(errorMessage.toLowerCase()).toContain("cannot participate");
+
+          const transferState = await utils.getGameState(gameId);
+          expect(transferState!.questionState).toBe(
+            QuestionState.SECRET_TRANSFER
+          );
+        } finally {
+          await utils.disconnectAndCleanup(lateJoinerSocket);
+        }
       } finally {
         await utils.cleanupGameClients(setup);
       }

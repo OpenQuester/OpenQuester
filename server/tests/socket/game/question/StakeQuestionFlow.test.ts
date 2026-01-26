@@ -32,6 +32,7 @@ import {
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 
 describe("Stake Question Flow Tests", () => {
   let testEnv: TestEnvironment;
@@ -653,6 +654,74 @@ describe("Stake Question Flow Tests", () => {
           expect(bidResult.isPhaseComplete).toBe(true); // All players passed, Player[1] wins
         } finally {
           await cleanup();
+        }
+      });
+
+      it("should reject bids from player who joined after stake bidding started", async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+
+        try {
+          await utils.startGame(showmanSocket);
+
+          await utils.setPlayerScore(gameId, playerUsers[0].id, 100);
+          await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
+          await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
+
+          const stakeQuestionId = await utils.getQuestionIdByType(
+            gameId,
+            PackageQuestionType.STAKE
+          );
+
+          const stakePickedPromise =
+            utils.waitForEvent<StakeQuestionPickedBroadcastData>(
+              showmanSocket,
+              SocketIOGameEvents.STAKE_QUESTION_PICKED
+            );
+
+          playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+            questionId: stakeQuestionId,
+          });
+
+          await stakePickedPromise;
+
+          const { socket: lateJoinerSocket, user: lateJoinerUser } =
+            await utils.createGameClient(app, userRepo);
+
+          try {
+            await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
+            await utils.waitForActionsComplete(gameId);
+
+            const game = await utils.getGameFromGameService(gameId);
+            expect(
+              game.gameState.questionEligiblePlayers?.includes(
+                lateJoinerUser.id
+              )
+            ).toBe(false);
+
+            const errorPromise = new Promise<string>((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                reject(new Error("No error received - bid was allowed"));
+              }, 3000);
+
+              lateJoinerSocket.once(SocketIOEvents.ERROR, (error: any) => {
+                clearTimeout(timeout);
+                resolve(error.message);
+              });
+            });
+
+            lateJoinerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+              bidType: StakeBidType.NORMAL,
+              bidAmount: 100,
+            } satisfies StakeBidSubmitInputData);
+
+            const errorMessage = await errorPromise;
+            expect(errorMessage.toLowerCase()).toContain("cannot participate");
+          } finally {
+            await utils.disconnectAndCleanup(lateJoinerSocket);
+          }
+        } finally {
+          await utils.cleanupGameClients(setup);
         }
       });
     });

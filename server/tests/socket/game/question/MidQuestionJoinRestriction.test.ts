@@ -388,4 +388,115 @@ describe("Mid-Question Join Restriction", () => {
       }
     });
   });
+
+  describe("Final round restrictions", () => {
+    it("should not allow role change to PLAYER during final round", async () => {
+      // Setup: 2 players + 1 spectator, need final round
+      const setup = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        2,
+        1,
+        true // include final round
+      );
+      const { showmanSocket, spectatorSockets, gameId } = setup;
+
+      try {
+        // Start game
+        await utils.startGame(showmanSocket);
+
+        // Progress to final round
+        await utils.progressToNextRound(showmanSocket);
+        await utils.waitForActionsComplete(gameId);
+
+        // Verify we're in final round
+        const gameState = await utils.getGameState(gameId);
+        expect(gameState?.currentRound?.type).toBe("final");
+
+        // Get spectator's user ID
+        const spectatorData = await utils.getSocketUserData(
+          spectatorSockets[0]
+        );
+        const spectatorUserId = spectatorData?.id;
+
+        // Attempt to change spectator to player during final round - should fail
+        const errorPromise = new Promise<string>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("No error received - role change was allowed"));
+          }, 3000);
+
+          spectatorSockets[0].once(SocketIOEvents.ERROR, (error: any) => {
+            clearTimeout(timeout);
+            resolve(error.message);
+          });
+        });
+
+        // Spectator tries to change their own role to player
+        spectatorSockets[0].emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+          playerId: spectatorUserId,
+          newRole: PlayerRole.PLAYER,
+        });
+
+        const errorMessage = await errorPromise;
+        expect(errorMessage.toLowerCase()).toContain("cannot");
+        expect(errorMessage.toLowerCase()).toContain("final");
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should not allow showman to change spectator to player during final round", async () => {
+      // Setup: 2 players + 1 spectator, need final round
+      const setup = await utils.setupGameTestEnvironment(
+        userRepo,
+        app,
+        2,
+        1,
+        true // include final round
+      );
+      const { showmanSocket, spectatorSockets, gameId } = setup;
+
+      try {
+        // Start game
+        await utils.startGame(showmanSocket);
+
+        // Progress to final round
+        await utils.progressToNextRound(showmanSocket);
+        await utils.waitForActionsComplete(gameId);
+
+        // Verify we're in final round
+        const gameState = await utils.getGameState(gameId);
+        expect(gameState?.currentRound?.type).toBe("final");
+
+        // Get spectator's user ID
+        const spectatorData = await utils.getSocketUserData(
+          spectatorSockets[0]
+        );
+        const spectatorUserId = spectatorData?.id;
+
+        // Showman attempts to change spectator to player - should fail
+        const errorPromise = new Promise<string>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("No error received - role change was allowed"));
+          }, 3000);
+
+          showmanSocket.once(SocketIOEvents.ERROR, (error: any) => {
+            clearTimeout(timeout);
+            resolve(error.message);
+          });
+        });
+
+        showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+          playerId: spectatorUserId,
+          newRole: PlayerRole.PLAYER,
+        });
+
+        const errorMessage = await errorPromise;
+        expect(errorMessage.toLowerCase()).toContain("cannot");
+        expect(errorMessage.toLowerCase()).toContain("final");
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+  });
 });

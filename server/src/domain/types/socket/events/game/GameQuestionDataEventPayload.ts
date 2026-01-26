@@ -5,4 +5,6 @@ import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackage
 export interface GameQuestionDataEventPayload {
   data: PackageQuestionDTO | SimplePackageQuestionDTO;
   timer: GameStateTimerDTO;
+  /** Players eligible to participate in the current question */
+  questionEligiblePlayers?: number[] | null;
 }

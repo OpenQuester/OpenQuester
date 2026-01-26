@@ -86,6 +86,10 @@ export class ThemeEliminateLogic {
     FinalRoundValidator.validateThemeEliminationPlayer(player);
     FinalRoundValidator.validateThemeEliminationPhase(game);
 
+    if (player.role !== PlayerRole.SHOWMAN) {
+      FinalRoundValidator.validateEligiblePlayer(game, player);
+    }
+
     // Initialize turn order if needed
     const turnOrder = ThemeEliminateLogic._ensureTurnOrder(
       game,
