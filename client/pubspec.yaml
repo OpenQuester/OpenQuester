@@ -34,7 +34,7 @@ dependencies:
   file_picker: ^10.3.7
   injectable: ^2.7.0
   get_it: ^9.1.1
-  watch_it: ^2.3.1
+  watch_it: ^2.4.1
   shared_preferences: ^2.5.3
   freezed_annotation: ^3.1.0
   json_annotation: ^4.9.0

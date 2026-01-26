@@ -65,9 +65,8 @@ class SocketController {
       });
   }
 
-  Future<void> _refreshOnReconnect() async {
-    getIt<GamesListController>().pagingController.refresh();
-  }
+  Future<void> _refreshOnReconnect() async =>
+      getIt<GamesListController>().refresh();
 
   /// Creates a new socket connection
   Future<Socket> createConnection({String? path, String? id}) async {

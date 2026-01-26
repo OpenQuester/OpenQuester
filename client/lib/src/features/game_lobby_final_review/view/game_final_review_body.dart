@@ -385,7 +385,9 @@ class _PlayerWaitingView extends WatchingWidget {
         )
         .paddingAll(16)
         .constrained(
-          const BoxConstraints(maxWidth: UiModeUtils.maximumDialogWidth),
+          BoxConstraints(
+            maxWidth: UiModeUtils.maximumDialogWidth(context),
+          ),
         );
   }
 }
