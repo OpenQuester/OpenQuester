@@ -180,10 +180,21 @@ class _PrivateGameSelect extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            state.private ? Icons.lock_rounded : Icons.public_rounded,
-            size: 20,
-            color: context.theme.colorScheme.primary,
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 200),
+            crossFadeState: state.private
+                ? CrossFadeState.showFirst
+                : CrossFadeState.showSecond,
+            firstChild: Icon(
+              Icons.lock_rounded,
+              size: 20,
+              color: context.theme.colorScheme.primary,
+            ),
+            secondChild: Icon(
+              Icons.public_rounded,
+              size: 20,
+              color: context.theme.colorScheme.primary,
+            ),
           ).paddingRight(12),
           Expanded(
             child: Column(
@@ -471,7 +482,7 @@ class _SelectedPackageIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+      duration: Durations.medium1,
       padding: 12.all,
       decoration: BoxDecoration(
         color: context.theme.colorScheme.primaryContainer.withValues(
@@ -578,6 +589,11 @@ class _GameConfigSection extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            AppAnimatedSwitcher(
+              visible: state.private,
+              sizeTransitionAxis: Axis.vertical,
+              child: _PasswordField(state: state, controller: controller),
             ),
             _MaxPlayersSelect(state: state, controller: controller),
           ],
@@ -757,6 +773,41 @@ class _AnimatedButtonState extends State<_AnimatedButton>
           );
         },
       ),
+    );
+  }
+}
+
+class _PasswordField extends StatelessWidget {
+  const _PasswordField({required this.state, required this.controller});
+
+  final CreateGameDto state;
+  final CreateGameController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return PasswordInputField(
+      initialValue: state.password,
+      onChanged: (value) => controller.state.value = state.copyWith(
+        password: value.isEmpty ? null : value,
+      ),
+      labelText: [
+        LocaleKeys.password.tr(),
+        LocaleKeys.oq_editor_optional.tr(),
+      ].join(' '),
+      hintText: LocaleKeys.password_hint.tr(),
+      validator: (value) {
+        if (value == null || value.isEmpty) return null;
+        if (value.length > GameValidationConst.maxPasswordLength) {
+          return LocaleKeys.min_length_error.tr(
+            args: [GameValidationConst.maxPasswordLength.toString()],
+          );
+        }
+        if (!GameValidationConst.passwordRegExp.hasMatch(value)) {
+          return LocaleKeys.password_validation.tr();
+        }
+        return null;
+      },
+      maxLength: GameValidationConst.maxPasswordLength,
     );
   }
 }

@@ -6,8 +6,13 @@ import 'package:openquester/common_imports.dart';
 
 @RoutePage()
 class GameLobbyScreen extends WatchingStatefulWidget {
-  const GameLobbyScreen({@PathParam() required this.gameId, super.key});
+  const GameLobbyScreen({
+    @PathParam() required this.gameId,
+    @QueryParam() this.password,
+    super.key,
+  });
   final String gameId;
+  final String? password;
 
   @override
   State<GameLobbyScreen> createState() => _GameLobbyScreenState();
@@ -17,7 +22,86 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(getIt<GameLobbyController>().join(gameId: widget.gameId));
+    unawaited(_joinGame());
+  }
+
+  Future<void> _joinGame() async {
+    try {
+      final controller = getIt<GameLobbyController>();
+
+      // Get game info first to check if private
+      final gameInfo = await Api.I.api.games.getV1GamesGameId(
+        gameId: widget.gameId,
+      );
+
+      var password = widget.password;
+
+      // If game is private and no password provided, prompt for it
+      if (gameInfo.isPrivate && password == null && mounted) {
+        password = await showDialog<String>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => PasswordPromptDialog(gameTitle: gameInfo.title),
+        );
+
+        if (password == null) {
+          if (mounted) Navigator.of(context).pop();
+          return;
+        }
+      }
+
+      // First attempt to join
+      final success = await controller.join(
+        gameId: widget.gameId,
+        password: password,
+      );
+
+      // If failed and game is private, check if it's a password error
+      if (!success && gameInfo.isPrivate && mounted) {
+        final lastError = controller.lastError?.toLowerCase() ?? '';
+        final isPasswordError =
+            lastError.contains('password') || lastError.contains('incorrect');
+
+        // Only retry if error is password-related
+        if (isPasswordError) {
+          await getIt<ToastController>().show(
+            LocaleKeys.incorrect_password.tr(),
+          );
+
+          if (!mounted) return;
+
+          // Prompt for new password
+          password = await showDialog<String>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => PasswordPromptDialog(gameTitle: gameInfo.title),
+          );
+
+          if (password == null) {
+            if (mounted) Navigator.of(context).pop();
+            return;
+          }
+
+          // Retry with new password
+          final retrySuccess = await controller.join(
+            gameId: widget.gameId,
+            password: password,
+          );
+
+          if (!retrySuccess && mounted) {
+            Navigator.of(context).pop();
+          }
+        } else {
+          // For non-password errors, just exit
+          if (mounted) Navigator.of(context).pop();
+        }
+      } else if (!success && mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      logger.e('Error joining game', error: e);
+      if (mounted) Navigator.of(context).pop();
+    }
   }
 
   @override
