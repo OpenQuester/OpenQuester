@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:args/args.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:project_helper/build_task.dart';
@@ -16,9 +17,18 @@ class GenerateFilesTask implements BuildTask {
   Future<bool> execute(
     String workingDirectory, {
     required Logger logger,
+    required ArgResults? argResults,
     Progress? progress,
     bool verbose = false,
   }) async {
+    if (argResults?.arguments.contains('clean-cache') ?? false) {
+      await _cleanBuildCache(
+        workingDirectory,
+        logger: logger,
+        verbose: verbose,
+      );
+    }
+
     progress?.update('Running build_runner...');
 
     final isFlutter = await _isFlutterPackage(workingDirectory);
@@ -41,11 +51,39 @@ class GenerateFilesTask implements BuildTask {
 
     if (result.exitCode != 0) {
       logger.err('✗ build_runner failed');
-      if (!verbose) logger.err(result.stderr.toString());
+      logger.err(result.stderr.toString());
       return false;
     }
 
     if (verbose) logger.success('✓ build_runner completed');
+    return true;
+  }
+
+  Future<bool> _cleanBuildCache(
+    String workingDirectory, {
+    required Logger logger,
+    bool verbose = false,
+  }) async {
+    logger.info('Cleaning build_runner cache...');
+    final isFlutter = await _isFlutterPackage(workingDirectory);
+    final command = isFlutter ? getFlutterCommand() : getDartCommand();
+
+    final cleanArgs = [if (isFlutter) 'pub', 'run', 'build_runner', 'clean'];
+
+    final result = await runCommand(
+      [...command, ...cleanArgs],
+      workingDirectory: workingDirectory,
+      verbose: verbose,
+      logger: logger,
+    );
+
+    if (result.exitCode != 0) {
+      logger.err('✗ build_runner clean failed');
+      logger.err(result.stderr.toString());
+      return false;
+    }
+
+    if (verbose) logger.success('✓ build_runner clean completed');
     return true;
   }
 

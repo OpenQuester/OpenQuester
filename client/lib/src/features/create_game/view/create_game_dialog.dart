@@ -106,7 +106,7 @@ class _MaxPlayersSelect extends StatelessWidget {
       padding: 14.all,
       decoration: BoxDecoration(
         color: context.theme.colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: 12.circular,
         border: Border.all(
           color: context.theme.colorScheme.outline.withValues(alpha: 0.2),
         ),
@@ -181,18 +181,16 @@ class _PrivateGameSelect extends StatelessWidget {
       child: Row(
         children: [
           AnimatedCrossFade(
-            duration: const Duration(milliseconds: 200),
+            duration: Durations.medium1,
             crossFadeState: state.private
                 ? CrossFadeState.showFirst
                 : CrossFadeState.showSecond,
             firstChild: Icon(
               Icons.lock_rounded,
-              size: 20,
               color: context.theme.colorScheme.primary,
             ),
             secondChild: Icon(
               Icons.public_rounded,
-              size: 20,
               color: context.theme.colorScheme.primary,
             ),
           ).paddingRight(12),
@@ -256,7 +254,6 @@ class _AgeRestrictionSelect extends StatelessWidget {
             children: [
               Icon(
                 Icons.family_restroom_rounded,
-                size: 20,
                 color: context.theme.colorScheme.primary,
               ).paddingRight(12),
               Text(
@@ -368,7 +365,7 @@ class _AnimatedPackageButtonState extends State<_AnimatedPackageButton>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 100),
+      duration: Durations.medium1,
       vsync: this,
     );
     _scaleAnimation =

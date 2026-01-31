@@ -91,6 +91,7 @@ class PackageBuilder {
       logger: logger,
       progress: progress,
       verbose: verbose,
+      argResults: null,
     );
 
     if (!result) {

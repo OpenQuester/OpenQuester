@@ -1,3 +1,4 @@
+import 'package:args/args.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:project_helper/build_task.dart';
 import 'package:project_helper/tasks/gen_files_task.dart';
@@ -22,6 +23,7 @@ class PreBuildTask implements BuildTask {
   Future<bool> execute(
     String workingDirectory, {
     required Logger logger,
+    required ArgResults? argResults,
     Progress? progress,
     bool verbose = false,
   }) async {
@@ -32,6 +34,7 @@ class PreBuildTask implements BuildTask {
       logger: logger,
       progress: progress,
       verbose: verbose,
+      argResults: argResults,
     )) {
       if (verbose) logger.err('✗ gen_files failed');
       return false;
@@ -44,6 +47,7 @@ class PreBuildTask implements BuildTask {
       logger: logger,
       progress: progress,
       verbose: verbose,
+      argResults: argResults,
     )) {
       if (verbose) logger.err('✗ gen_locale failed');
       return false;
@@ -56,6 +60,7 @@ class PreBuildTask implements BuildTask {
       logger: logger,
       progress: progress,
       verbose: verbose,
+      argResults: argResults,
     )) {
       if (verbose) logger.err('✗ gen_indexes failed');
       return false;
@@ -69,6 +74,7 @@ class PreBuildTask implements BuildTask {
         logger: logger,
         progress: progress,
         verbose: verbose,
+        argResults: argResults,
       )) {
         if (verbose) logger.err('✗ format failed');
         return false;

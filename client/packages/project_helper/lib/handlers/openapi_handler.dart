@@ -48,7 +48,7 @@ class OpenApiPackageHandler implements PackageHandler {
 
     if (result.exitCode != 0) {
       logger.err('✗ swagger_parser failed');
-      if (!verbose) logger.err(result.stderr.toString());
+      logger.err(result.stderr.toString());
       return false;
     }
 

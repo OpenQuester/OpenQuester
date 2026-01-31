@@ -35,56 +35,53 @@ class MediaFileListTile extends StatelessWidget {
       style: Theme.of(context).textTheme.bodySmall,
     );
 
-    return LayoutBuilder(
-      builder: (context, constrains) {
-        final overflow = constrains.maxWidth < 500;
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              ListTile(
-                leading: GestureDetector(
-                  onTap: () => MediaPreviewDialog.show(context, mediaFile),
-                  child: MediaPreviewWidget(
-                    mediaFile: mediaFile.reference,
-                    type: mediaFile.type,
-                  ),
-                ),
-                title: overflow ? null : title,
-                subtitle: overflow ? null : subtitle,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.open_in_full),
-                      onPressed: () =>
-                          MediaPreviewDialog.show(context, mediaFile),
-                      tooltip: translations.preview,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.timer),
-                      onPressed: onEditDisplayTime,
-                      tooltip: translations.editDisplayTime,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete),
-                      onPressed: onRemove,
-                      tooltip: translations.removeFile,
-                    ),
-                  ],
-                ),
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final overflow = screenWidth < 700;
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            leading: GestureDetector(
+              onTap: () => MediaPreviewDialog.show(context, mediaFile),
+              child: MediaPreviewWidget(
+                mediaFile: mediaFile.reference,
+                type: mediaFile.type,
               ),
-              if (overflow)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [title, subtitle],
-                ).paddingSymmetric(horizontal: 16).paddingTop(8),
-            ],
+            ),
+            title: overflow ? null : title,
+            subtitle: overflow ? null : subtitle,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.open_in_full),
+                  onPressed: () => MediaPreviewDialog.show(context, mediaFile),
+                  tooltip: translations.preview,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.timer),
+                  onPressed: onEditDisplayTime,
+                  tooltip: translations.editDisplayTime,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete),
+                  onPressed: onRemove,
+                  tooltip: translations.removeFile,
+                ),
+              ],
+            ),
           ),
-        );
-      },
+          if (overflow)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [title, subtitle],
+            ).paddingSymmetric(horizontal: 16).paddingTop(8),
+        ],
+      ),
     );
   }
 

@@ -76,6 +76,7 @@ class BuildPackagesCommand extends Command<void> {
         logger: logger,
         progress: progress,
         verbose: verbose,
+        argResults: argResults,
       );
       stopwatch.stop();
 

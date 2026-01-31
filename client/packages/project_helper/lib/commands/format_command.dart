@@ -83,6 +83,7 @@ class FormatCommand extends Command<void> {
         logger: logger,
         progress: progress,
         verbose: verbose,
+        argResults: argResults,
       );
 
       final duration = DateTime.now().difference(startTime);

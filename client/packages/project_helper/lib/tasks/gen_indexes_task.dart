@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as path;
 import 'package:project_helper/build_task.dart';
@@ -17,6 +18,7 @@ class GenerateIndexesTask implements BuildTask {
   Future<bool> execute(
     String workingDirectory, {
     required Logger logger,
+    required ArgResults? argResults,
     Progress? progress,
     bool verbose = false,
   }) async {
@@ -55,7 +57,7 @@ class GenerateIndexesTask implements BuildTask {
 
     if (result.exitCode != 0) {
       logger.err('✗ Index generation failed');
-      if (!verbose) logger.err(result.stderr.toString());
+      logger.err(result.stderr.toString());
       return false;
     }
 

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:args/args.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:project_helper/build_task.dart';
 import 'package:project_helper/utils.dart';
@@ -18,6 +19,7 @@ class FormatExceptionTask implements BuildTask {
   Future<bool> execute(
     String workingDirectory, {
     required Logger logger,
+    required ArgResults? argResults,
     Progress? progress,
     bool verbose = false,
   }) async {

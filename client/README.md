@@ -6,7 +6,7 @@ The Flutter frontend for OpenQuester - an open-source multiplayer quiz game plat
 
 ### Project Structure
 
-```
+```Text
 lib/
 ├── src/
 │   ├── core/              # Core application logic
@@ -59,6 +59,35 @@ lib/
 - **Puro** (recommended): Flutter version manager
 - **Node.js**: For running the backend server
 
+### Flutter Setup (OS-specific)
+
+Follow the official Flutter quick start for your OS:
+<https://docs.flutter.dev/install/quick>
+
+Additional notes:
+
+- **Windows**: install Visual Studio 2022 with “Desktop development with C++” workload (needed for Windows desktop builds).
+- **macOS**: install Xcode and CocoaPods (`sudo gem install cocoapods`) for iOS/macOS builds.
+- **Linux**: install standard desktop build deps for your distro (e.g., clang, cmake, ninja, pkg-config, gtk). Example commands:
+  - **Debian/Ubuntu**:
+
+    ```bash
+    sudo apt-get update
+    sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libwebkit2gtk-4.1-0
+    ```
+
+  - **Arch-based**:
+
+    ```bash
+    sudo pacman -Sy clang cmake ninja pkgconf gtk3 webkit2gtk-4.1
+    ```
+
+  - **Fedora**:
+
+    ```bash
+    sudo dnf install -y clang cmake ninja-build pkgconf-pkg-config gtk3-devel webkit2gtk4.1-devel
+    ```
+
 ### Installation
 
 1. **Clone the repository**
@@ -84,6 +113,7 @@ lib/
    ```
 
 4. **Generate required files**
+
    ```bash
    ./oqhelper pre_build
    ```
@@ -143,7 +173,7 @@ The project uses several code generation tools:
 ### Localization Workflow
 
 1. **Add translations**: Update `assets/localization/en-US.json`
-2. **Generate keys**: Run `./oqhelper pre_build` (or manually: `flutter pub run easy_localization:generate -f keys -o locale_keys.g.dart -S assets/localization/`)
+2. **Generate keys**: Run `./oqhelper gen_locale` (or manually: `flutter pub run easy_localization:generate -f keys -o locale_keys.g.dart -S assets/localization/`)
 3. **Use in code**: `Text(LocaleKeys.my_key.tr())`
 4. **Test**: Verify all strings are localized
 
@@ -192,7 +222,7 @@ flutter test integration_test/
 
 ### Test Structure
 
-```
+```Text
 test/
 ├── features/          # Feature-specific tests
 ├── utils/            # Utility tests
@@ -267,7 +297,7 @@ git commit -m "test(chat): add message rendering tests"
 
 ### Common Issues
 
-**Build failures after git pull**
+#### Build failures after git pull\*\*
 
 ```bash
 ./oqhelper pre_build  # Regenerate all files
@@ -275,20 +305,20 @@ flutter clean        # Clean build cache
 flutter pub get      # Reinstall dependencies
 ```
 
-**Localization keys not found**
+#### Localization keys not found\*\*
 
 ```bash
 ./oqhelper pre_build  # Regenerate locale keys (or run init_project script if oqhelper not found)
 ```
 
-**Dependency injection errors**
+#### Dependency injection errors\*\*
 
 ```bash
 dart run build_runner clean
 dart run build_runner build --delete-conflicting-outputs
 ```
 
-**Hot reload not working**
+#### Hot reload not working\*\*
 
 ```bash
 flutter clean
@@ -299,7 +329,7 @@ flutter run
 
 - **Issues**: [GitHub Issues](https://github.com/OpenQuester/OpenQuester/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/OpenQuester/OpenQuester/discussions)
-- **Discord**: [OpenQuester Discord Server](#)
+- **Discord**: OpenQuester Discord Server (in future)
 
 ## 📄 License
 

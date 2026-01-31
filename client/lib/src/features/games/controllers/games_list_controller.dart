@@ -25,7 +25,9 @@ class GamesListController extends ListControllerBase<GameListItem> {
   }
 
   Future<void> _onSocketEvent(dynamic data) async {
-    final result = GameEventSubscription.fromJson(data as Map<String, Object?>);
+    final result = GameEventSubscriptionUnion.fromJson(
+      data as Map<String, Object?>,
+    );
     switch (result) {
       case GameEventSubscriptionUnionCreated():
         await addFirstItem(result.data);

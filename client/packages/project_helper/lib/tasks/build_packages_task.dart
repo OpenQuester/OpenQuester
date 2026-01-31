@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:args/args.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:path/path.dart' as p;
 import 'package:project_helper/build_task.dart';
@@ -25,6 +26,7 @@ class BuildPackagesTask implements BuildTask {
   Future<bool> execute(
     String workingDirectory, {
     required Logger logger,
+    required ArgResults? argResults,
     Progress? progress,
     bool verbose = false,
   }) async {
@@ -87,12 +89,13 @@ class BuildPackagesTask implements BuildTask {
       final futures = packagesAtPriority.map((packageName) {
         final packagePath = p.join(workingDirectory, 'packages', packageName);
         return _buildPackage(
-          packagePath,
-          packageName,
-          customHandlers[packageName],
-          logger,
-          progress,
-          verbose,
+          packagePath: packagePath,
+          packageName: packageName,
+          handler: customHandlers[packageName],
+          logger: logger,
+          progress: progress,
+          verbose: verbose,
+          argResults: argResults,
         );
       });
 
@@ -109,14 +112,15 @@ class BuildPackagesTask implements BuildTask {
     return true;
   }
 
-  Future<bool> _buildPackage(
-    String packagePath,
-    String packageName,
-    PackageHandler? handler,
-    Logger logger,
-    Progress? progress,
-    bool verbose,
-  ) async {
+  Future<bool> _buildPackage({
+    required String packagePath,
+    required String packageName,
+    required PackageHandler? handler,
+    required Logger logger,
+    required Progress? progress,
+    required bool verbose,
+    required ArgResults? argResults,
+  }) async {
     progress?.update('Building package: $packageName');
     if (verbose) logger.info('Building package: $packageName');
 
@@ -141,6 +145,7 @@ class BuildPackagesTask implements BuildTask {
       logger: logger,
       progress: progress,
       verbose: verbose,
+      argResults: argResults,
     );
 
     if (!success) {

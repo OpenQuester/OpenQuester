@@ -7,6 +7,19 @@ import 'package:project_helper/utils.dart';
 /// Base class for task commands
 abstract class TaskCommand extends Command<void> {
   TaskCommand(this.task, this.logger) {
+    setupArgs();
+  }
+
+  final BuildTask task;
+  final Logger logger;
+
+  @override
+  String get name => task.name;
+
+  @override
+  String get description => task.description;
+
+  void setupArgs() {
     argParser
       ..addFlag(
         'no-puro',
@@ -21,15 +34,6 @@ abstract class TaskCommand extends Command<void> {
         help: 'Show verbose output',
       );
   }
-
-  final BuildTask task;
-  final Logger logger;
-
-  @override
-  String get name => task.name;
-
-  @override
-  String get description => task.description;
 
   @override
   Future<void> run() async {
@@ -52,6 +56,7 @@ abstract class TaskCommand extends Command<void> {
         logger: logger,
         progress: progress,
         verbose: verbose,
+        argResults: argResults,
       );
       stopwatch.stop();
 

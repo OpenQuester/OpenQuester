@@ -1,3 +1,4 @@
+import 'package:args/args.dart';
 import 'package:mason_logger/mason_logger.dart';
 
 /// Interface for build tasks
@@ -14,6 +15,7 @@ abstract class BuildTask {
   Future<bool> execute(
     String workingDirectory, {
     required Logger logger,
+    required ArgResults? argResults,
     Progress? progress,
     bool verbose = false,
   });
