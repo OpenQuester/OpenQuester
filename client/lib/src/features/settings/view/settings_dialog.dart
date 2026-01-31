@@ -74,6 +74,8 @@ class _AppearanceSection extends StatelessWidget {
         _ThemeModeSelector(),
         Divider(),
         _SeedSelector(),
+        Divider(),
+        _LanguageSelector(),
       ],
     );
   }
@@ -213,6 +215,87 @@ class _SeedSelector extends WatchingWidget {
       }).toList(),
     );
   }
+}
+
+class _LanguageSelector extends WatchingWidget {
+  const _LanguageSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = watchIt<SettingsController>();
+    final selectedTag = watchPropertyValue<SettingsController, String?>(
+      (m) => m.settings.localeTag,
+    );
+
+    final options = <_LanguageOption>[
+      _LanguageOption(
+        tag: null,
+        label: LocaleKeys.language_system.tr(),
+        locale: context.deviceLocale,
+      ),
+      ...context.supportedLocales.map(
+        (locale) => _LanguageOption(
+          tag: _localeTag(locale),
+          label: _label(locale),
+          locale: locale,
+        ),
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          LocaleKeys.language.tr(),
+          style: context.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((option) {
+            final selected = option.tag == selectedTag;
+            return ChoiceChip(
+              label: Text(option.label),
+              selected: selected,
+              onSelected: (_) async {
+                final nextLocale = option.locale ?? context.deviceLocale;
+                await context.setLocale(nextLocale);
+                await controller.updateSettings(
+                  controller.settings.copyWith(localeTag: option.tag),
+                );
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  String _localeTag(Locale locale) => !locale.countryCode.isEmptyOrNull
+      ? '${locale.languageCode}-${locale.countryCode}'
+      : locale.languageCode;
+
+  String _label(Locale locale) => switch (_localeTag(locale)) {
+    'en-US' => LocaleKeys.language_english.tr(),
+    'ru-RU' => LocaleKeys.language_russian.tr(),
+    'uk-UA' => LocaleKeys.language_ukrainian.tr(),
+    _ => locale.toLanguageTag(),
+  };
+}
+
+class _LanguageOption {
+  const _LanguageOption({
+    required this.tag,
+    required this.label,
+    required this.locale,
+  });
+
+  final String? tag;
+  final String label;
+  final Locale? locale;
 }
 
 class _AppInfo extends StatelessWidget {

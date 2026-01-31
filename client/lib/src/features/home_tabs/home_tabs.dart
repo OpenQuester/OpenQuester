@@ -131,7 +131,7 @@ class _StartGameButton extends StatelessWidget {
     return FloatingActionButton.extended(
       heroTag: 'start_game',
       onPressed: () => const CreateGameRoute().push<void>(context),
-      label: Text(LocaleKeys.start_game.tr()),
+      label: Text(LocaleKeys.start_game.tr(context: context)),
       icon: const Icon(Icons.play_arrow_outlined),
     );
   }
@@ -217,7 +217,7 @@ class GamesSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SearchBar(
-      hintText: LocaleKeys.type_to_find_games.tr(),
+      hintText: LocaleKeys.type_to_find_games.tr(context: context),
       onChanged: getIt<GamesListController>().search,
       trailing: const [Icon(Icons.search)],
       padding: WidgetStatePropertyAll(16.horizontal),

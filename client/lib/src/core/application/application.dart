@@ -14,6 +14,15 @@ class App extends WatchingStatefulWidget {
 class _AppState extends State<App> with WidgetsBindingObserver {
   bool loading = true;
 
+  Locale? _parseLocaleTag(String? tag) {
+    if (tag == null || tag.isEmpty) return null;
+    final parts = tag.split('-');
+    if (parts.isEmpty) return null;
+    final languageCode = parts.first;
+    final countryCode = parts.length > 1 ? parts[1] : null;
+    return Locale(languageCode, countryCode);
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) =>
       getIt<AppStateController>().appLifecycleState.value = state;
@@ -37,6 +46,15 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     final settings = watchPropertyValue<SettingsController, AppSettings>(
       (e) => e.settings,
     );
+    final targetLocale =
+        _parseLocaleTag(settings.localeTag) ?? context.deviceLocale;
+
+    if (context.locale != targetLocale) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        await context.setLocale(targetLocale);
+      });
+    }
 
     return AppWrapper(
       child: MaterialApp.router(
@@ -57,7 +75,9 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         debugShowCheckedModeBanner: false,
         builder: (context, child) {
           if (loading) return loader;
-          return AppBuilderWrapper(child: child ?? loader);
+          return AppBuilderWrapper(
+            child: child ?? loader,
+          );
         },
       ),
     );
