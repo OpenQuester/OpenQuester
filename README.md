@@ -173,16 +173,6 @@ sudo dnf install ffmpeg  # Fedora
 sudo pacman -S ffmpeg    # Arch Linux
 ```
 
-### Running OpenQuester
-
-After installation, you can:
-
-1. **Create a Game**: Click "Host Game" to create a new game room
-2. **Join a Game**: Enter a game code to join an existing game
-3. **Select Role**: Choose to be a Showman (host), Player, or Spectator
-4. **Upload Packages**: Import custom `.oq` or `.siq` question packages (requires FFmpeg for media encoding)
-5. **Start Playing**: Follow the on-screen instructions to play!
-
 ### Development Builds
 
 For the latest features and updates, check our [GitHub Actions](https://github.com/OpenQuester/OpenQuester/actions) for development builds.
@@ -242,7 +232,10 @@ Quick steps:
 - **PostgreSQL** 14+ (or use Docker)
 - **Redis** 7+ (or use Docker)
 - **FFmpeg** (for package encoding support)
-  - Windows: Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
+  - Windows: 
+    - `winget install Gyan.FFmpeg` (Windows Package Manager)
+    - `choco install ffmpeg` (Chocolatey)
+    - Or download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
   - Linux: `sudo apt install ffmpeg` (Debian/Ubuntu), `sudo dnf install ffmpeg` (Fedora)
   - macOS: `brew install ffmpeg`
 
