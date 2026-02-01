@@ -123,6 +123,7 @@ export 'src/ui/components/conditional_scroll_builder.dart';
 export 'src/ui/components/score_text.dart';
 export 'src/utils/error_handler.dart';
 export 'src/utils/extensions.dart';
+export 'src/utils/locale_utils.dart';
 export 'src/utils/utils.dart';
 export 'workers/models/worker_models.dart';
 export 'workers/package_service.dart';
