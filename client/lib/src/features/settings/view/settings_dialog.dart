@@ -233,11 +233,11 @@ class _LanguageSelector extends WatchingWidget {
         label: LocaleKeys.language_system.tr(),
         locale: context.deviceLocale,
       ),
-      ...context.supportedLocales.map(
-        (locale) => _LanguageOption(
-          tag: _localeTag(locale),
-          label: _label(locale),
-          locale: locale,
+      ...AppLocale.values.map(
+        (appLocale) => _LanguageOption(
+          tag: appLocale.tag,
+          label: appLocale.label(),
+          locale: appLocale.locale,
         ),
       ),
     ];
@@ -273,17 +273,6 @@ class _LanguageSelector extends WatchingWidget {
       ],
     );
   }
-
-  String _localeTag(Locale locale) => !locale.countryCode.isEmptyOrNull
-      ? '${locale.languageCode}-${locale.countryCode}'
-      : locale.languageCode;
-
-  String _label(Locale locale) => switch (_localeTag(locale)) {
-    'en-US' => LocaleKeys.language_english.tr(),
-    'ru-RU' => LocaleKeys.language_russian.tr(),
-    'uk-UA' => LocaleKeys.language_ukrainian.tr(),
-    _ => locale.toLanguageTag(),
-  };
 }
 
 class _LanguageOption {

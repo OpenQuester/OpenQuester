@@ -13,31 +13,58 @@ class App extends WatchingStatefulWidget {
 
 class _AppState extends State<App> with WidgetsBindingObserver {
   bool loading = true;
-
-  Locale? _parseLocaleTag(String? tag) {
-    if (tag == null || tag.isEmpty) return null;
-    final parts = tag.split('-');
-    if (parts.isEmpty) return null;
-    final languageCode = parts.first;
-    final countryCode = parts.length > 1 ? parts[1] : null;
-    return Locale(languageCode, countryCode);
-  }
+  final SettingsController _settingsController = getIt<SettingsController>();
+  String? _lastLocaleTag;
+  Locale? _lastTargetLocale;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) =>
       getIt<AppStateController>().appLifecycleState.value = state;
 
   @override
+  void didChangeLocales(List<Locale>? locales) {
+    _syncLocaleFromSettings();
+  }
+
+  @override
   void initState() {
     super.initState();
     unawaited(AppInit.buildInit().then((_) => setState(() => loading = false)));
     WidgetsBinding.instance.addObserver(this);
+    _settingsController.addListener(_syncLocaleFromSettings);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _syncLocaleFromSettings(),
+    );
   }
 
   @override
   void dispose() {
+    _settingsController.removeListener(_syncLocaleFromSettings);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _syncLocaleFromSettings() {
+    if (!mounted) return;
+    final targetLocale =
+        parseLocaleTag(_settingsController.settings.localeTag) ??
+        context.deviceLocale;
+
+    if (_lastLocaleTag == _settingsController.settings.localeTag &&
+        _lastTargetLocale == targetLocale) {
+      return;
+    }
+
+    _lastLocaleTag = _settingsController.settings.localeTag;
+    _lastTargetLocale = targetLocale;
+
+    if (context.locale == targetLocale) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      if (context.locale == targetLocale) return;
+      await context.setLocale(targetLocale);
+    });
   }
 
   @override
@@ -46,15 +73,6 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     final settings = watchPropertyValue<SettingsController, AppSettings>(
       (e) => e.settings,
     );
-    final targetLocale =
-        _parseLocaleTag(settings.localeTag) ?? context.deviceLocale;
-
-    if (context.locale != targetLocale) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        if (!mounted) return;
-        await context.setLocale(targetLocale);
-      });
-    }
 
     return AppWrapper(
       child: MaterialApp.router(
