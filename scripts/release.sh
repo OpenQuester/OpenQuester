@@ -82,7 +82,7 @@ update_version_in_file() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' -e "s/$pattern/$replacement/" "$file"
     else
-        sed -i "s/$pattern/$replacement/" "$file"
+        sed -i -e "s/$pattern/$replacement/" "$file"
     fi
 }
 
@@ -141,7 +141,7 @@ fi
 # Regenerate API client
 echo -e "${YELLOW}Regenerating API client...${NC}"
 cd client
-make gen_api
+./oqhelper gen_api
 cd "$REPO_ROOT"
 echo -e "${GREEN}✓ API client regenerated${NC}"
 
