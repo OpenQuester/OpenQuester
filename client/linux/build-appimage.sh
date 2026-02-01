@@ -5,8 +5,8 @@ set -e
 # Usage: ./build-appimage.sh <flutter_build_dir>
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUILD_DIR="${1:-../build/linux/x64/release/bundle}"
-OUTPUT_DIR="${2:-../build/linux/appimage}"
+BUILD_DIR="${1:-$SCRIPT_DIR/../build/linux/x64/release/bundle}"
+OUTPUT_DIR="${2:-$SCRIPT_DIR/../build/linux/appimage}"
 
 echo "Building OpenQuester AppImage..."
 echo "Build directory: $BUILD_DIR"
@@ -29,20 +29,16 @@ mkdir -p "$APPDIR/usr/share/icons/hicolor/512x512/apps"
 mkdir -p "$APPDIR/usr/share/icons/hicolor/192x192/apps"
 mkdir -p "$APPDIR/usr/share/metainfo"
 
-# Move application to usr/bin
-mv "$APPDIR/openquester" "$APPDIR/usr/bin/openquester"
-chmod +x "$APPDIR/usr/bin/openquester"
+# Keep Flutter bundle layout intact (openquester, lib/, data/ at AppDir root)
+# to preserve relative asset/aot paths expected by the embedder.
+chmod +x "$APPDIR/openquester"
 
-# Move libraries to usr/lib
+# Provide optional convenience links in usr/bin and usr/lib
+ln -sf ../openquester "$APPDIR/usr/bin/openquester"
 if [ -d "$APPDIR/lib" ]; then
-    mv "$APPDIR/lib"/* "$APPDIR/usr/lib/"
-    rmdir "$APPDIR/lib"
-fi
-
-# Copy data directory
-if [ -d "$APPDIR/data" ]; then
-    mkdir -p "$APPDIR/usr/share/openquester"
-    mv "$APPDIR/data" "$APPDIR/usr/share/openquester/"
+    for file in "$APPDIR/lib"/*; do
+        ln -sf "../../lib/$(basename "$file")" "$APPDIR/usr/lib/$(basename "$file")"
+    done
 fi
 
 # Copy desktop file
@@ -64,10 +60,10 @@ ln -sf usr/share/icons/hicolor/scalable/apps/com.asion.openquester.svg "$APPDIR/
 cat > "$APPDIR/AppRun" << 'EOF'
 #!/bin/bash
 APPDIR="$(dirname "$(readlink -f "${0}")")"
-export LD_LIBRARY_PATH="$APPDIR/usr/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$APPDIR/lib:$APPDIR/usr/lib:$LD_LIBRARY_PATH"
 export PATH="$APPDIR/usr/bin:$PATH"
 export XDG_DATA_DIRS="$APPDIR/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-exec "$APPDIR/usr/bin/openquester" "$@"
+exec "$APPDIR/openquester" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"
 
