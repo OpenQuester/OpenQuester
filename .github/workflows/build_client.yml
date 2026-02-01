@@ -230,7 +230,7 @@ jobs:
             desktop-file-utils appstream
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-          make pre_build
+          ./oqhelper pre_build
 
       - name: Build Linux application
         run: flutter build linux --release --build-number ${{ github.run_number }}
