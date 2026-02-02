@@ -3729,6 +3729,56 @@
         },
         "required": ["timestamp", "userData"]
       },
+      "SocketIONotificationType": {
+        "type": "string",
+        "enum": ["game-expiration-warning"],
+        "examples": ["game-expiration-warning"]
+      },
+      "SocketIOGameExpirationWarningNotificationData": {
+        "type": "object",
+        "description": "Notification data for games that are close to expiring",
+        "properties": {
+          "gameId": {
+            "type": "string",
+            "examples": ["ABCD"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "examples": ["2024-01-01T00:00:00Z"]
+          }
+        },
+        "required": ["gameId", "expiresAt"]
+      },
+      "SocketIOGameExpirationWarningNotificationEventPayload": {
+        "type": "object",
+        "description": "Notification payload for impending game expiration",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["game-expiration-warning"]
+          },
+          "data": {
+            "$ref": "#/components/schemas/SocketIOGameExpirationWarningNotificationData"
+          }
+        },
+        "required": ["type", "data"]
+      },
+      "SocketIONotificationEventPayload": {
+        "type": "object",
+        "description": "Notification payload emitted to sockets",
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "game-expiration-warning": "#/components/schemas/SocketIOGameExpirationWarningNotificationEventPayload"
+          }
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SocketIOGameExpirationWarningNotificationEventPayload"
+          }
+        ]
+      },
       "SocketIONextRoundEventPayload": {
         "type": "object",
         "properties": {
@@ -4103,7 +4153,14 @@
       },
       "SocketIOEvents": {
         "type": "string",
-        "enum": ["error", "disconnect", "connection", "games", "chat-message"],
+        "enum": [
+          "error",
+          "disconnect",
+          "connection",
+          "games",
+          "chat-message",
+          "notifications"
+        ],
         "examples": ["error"]
       },
       "SocketIOUserReceiveEvents": {
@@ -4197,7 +4254,8 @@
           "stake-bid-submit",
           "stake-question-winner",
           "media-downloaded",
-          "media-download-status"
+          "media-download-status",
+          "notifications"
         ],
         "examples": ["join"]
       },

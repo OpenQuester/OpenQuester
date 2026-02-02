@@ -15,9 +15,9 @@ class PaginatedListWidget<
   Widget build(BuildContext context) {
     return SafeArea(
       child: RefreshIndicator.adaptive(
-        onRefresh: () async => getIt<_Controller>().pagingController.refresh(),
+        onRefresh: () async => getIt<_Controller>().refresh(),
         child: PagingListener(
-          controller: getIt<_Controller>().pagingController,
+          controller: getIt<_Controller>().getController(),
           builder: (context, state, fetchNextPage) =>
               PagedListView<int, ListItem>(
                 state: state,

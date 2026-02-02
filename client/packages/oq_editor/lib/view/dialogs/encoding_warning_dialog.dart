@@ -20,8 +20,8 @@ class EncodingWarningDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      constraints: const BoxConstraints(
-        maxWidth: UiModeUtils.maximumDialogWidth,
+      constraints: BoxConstraints(
+        maxWidth: UiModeUtils.maximumDialogWidth(context),
       ),
       child: Padding(
         padding: const EdgeInsets.all(24),

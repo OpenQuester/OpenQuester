@@ -2,8 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
 
 class DialogContainer extends StatelessWidget {
-  const DialogContainer({required this.child, super.key});
+  const DialogContainer({
+    required this.child,
+    this.maxWidth,
+    super.key,
+  });
   final Widget child;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +17,7 @@ class DialogContainer extends StatelessWidget {
       child: SafeArea(
         minimum: 8.all,
         child: MaxSizeContainer(
-          maxWidth: UiModeUtils.maximumDialogWidth,
+          maxWidth: maxWidth,
           child: ScaffoldMessenger(
             child: Scaffold(
               backgroundColor: Colors.transparent,

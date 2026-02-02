@@ -6,11 +6,15 @@ class AdaptiveDialog extends StatefulWidget {
     required this.builder,
     this.allowBottomSheet = true,
     this.constraints,
+    this.maxWidth,
+    this.useScrollView = true,
     super.key,
   });
   final Widget Function(BuildContext) builder;
   final bool allowBottomSheet;
   final BoxConstraints? constraints;
+  final bool useScrollView;
+  final double? maxWidth;
 
   @override
   State<AdaptiveDialog> createState() => _AdaptiveDialogState();
@@ -27,12 +31,16 @@ class _AdaptiveDialogState extends State<AdaptiveDialog>
         GestureDetector(
           // do nothing to swallows the tap
           onTap: () {},
-          child: ListView(
-            controller: scrollController,
-            shrinkWrap: true,
-            children: [widget.builder(context)],
-          ),
+          child: widget.useScrollView
+              ? ListView(
+                  controller: scrollController,
+                  shrinkWrap: true,
+                  children: [widget.builder(context)],
+                )
+              : widget.builder(context),
         );
+
+    final maxWidth = widget.maxWidth ?? UiModeUtils.maximumDialogWidth(context);
 
     return Material(
       color: Colors.transparent,
@@ -45,9 +53,15 @@ class _AdaptiveDialogState extends State<AdaptiveDialog>
                 ? widget.constraints != null
                       ? ConstrainedBox(
                           constraints: widget.constraints!,
-                          child: DialogContainer(child: builder(context, null)),
+                          child: DialogContainer(
+                            maxWidth: maxWidth,
+                            child: builder(context, null),
+                          ),
                         ).center()
-                      : DialogContainer(child: builder(context, null))
+                      : DialogContainer(
+                          maxWidth: maxWidth,
+                          child: builder(context, null),
+                        )
                 : Align(
                     alignment: Alignment.bottomCenter,
                     child: Column(

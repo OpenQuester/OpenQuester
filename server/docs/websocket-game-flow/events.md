@@ -64,6 +64,7 @@ Click an event name to jump to its section.
 | Players     | [`player-kicked`](#player-kicked)                       | C→S + S→C |
 | Players     | [`player-restricted`](#player-restricted)               | C→S + S→C |
 | Players     | [`player-banned`](#player-banned)                       | reserved  |
+| System      | [`notifications`](#notifications)                       | S→C       |
 | System      | [`error`](#error)                                       | S→C       |
 | System      | [`chat-message`](#chat-message)                         | C→S + S→C |
 
@@ -522,6 +523,11 @@ Notes:
 ---
 
 ## System
+
+### `notifications`
+
+- Direction: **S→C** broadcast
+- Payload: `NotificationBroadcastData` = `{ type: "game-expiration-warning", data: { gameId, expiresAt } }`
 
 ### `error`
 
