@@ -74,6 +74,8 @@ class _AppearanceSection extends StatelessWidget {
         _ThemeModeSelector(),
         Divider(),
         _SeedSelector(),
+        Divider(),
+        _LanguageSelector(),
       ],
     );
   }
@@ -213,6 +215,76 @@ class _SeedSelector extends WatchingWidget {
       }).toList(),
     );
   }
+}
+
+class _LanguageSelector extends WatchingWidget {
+  const _LanguageSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = watchIt<SettingsController>();
+    final selectedTag = watchPropertyValue<SettingsController, String?>(
+      (m) => m.settings.localeTag,
+    );
+
+    final options = <_LanguageOption>[
+      _LanguageOption(
+        tag: null,
+        label: LocaleKeys.language_system.tr(),
+        locale: context.deviceLocale,
+      ),
+      ...AppLocale.values.map(
+        (appLocale) => _LanguageOption(
+          tag: appLocale.tag,
+          label: appLocale.label(),
+          locale: appLocale.locale,
+        ),
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          LocaleKeys.language.tr(),
+          style: context.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: options.map((option) {
+            final selected = option.tag == selectedTag;
+            return ChoiceChip(
+              label: Text(option.label),
+              selected: selected,
+              onSelected: (_) async {
+                final nextLocale = option.locale ?? context.deviceLocale;
+                await context.setLocale(nextLocale);
+                await controller.updateSettings(
+                  controller.settings.copyWith(localeTag: option.tag),
+                );
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _LanguageOption {
+  const _LanguageOption({
+    required this.tag,
+    required this.label,
+    required this.locale,
+  });
+
+  final String? tag;
+  final String label;
+  final Locale? locale;
 }
 
 class _AppInfo extends StatelessWidget {

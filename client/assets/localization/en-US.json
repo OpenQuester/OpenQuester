@@ -11,6 +11,11 @@
   "profile_change_avatar": "Change Avatar",
   "login_title": "Log in",
   "settings_title": "Settings",
+  "language": "Language",
+  "language_system": "System",
+  "language_english": "English",
+  "language_russian": "Russian",
+  "language_ukrainian": "Ukrainian",
   "test": "Test",
   "created_by": "created by {}",
   "rounds": {

@@ -1,6 +1,8 @@
 import { CHAT_NSP } from "domain/constants/chat";
 import { MINUTE_MS, SECOND_MS } from "domain/constants/time";
 
+// TODO: Avoid math operations in constants since they executed every time the constant accessed (investigate if true)
+
 export const GAME_NAMESPACE = "game";
 export const GAME_ID_CHARACTERS_LENGTH = 4;
 export const GAME_ID_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -13,6 +15,9 @@ export const SYSTEM_PLAYER_ID = -1;
 export const SYSTEM_SOCKET_ID = "SYSTEM";
 /** 2 hours (updates with almost every action) */
 export const GAME_TTL_IN_SECONDS = 60 * 60 * 2;
+/** 15 minutes */
+export const GAME_EXPIRATION_WARNING_SECONDS = 60 * 15;
+export const GAME_EXPIRATION_WARNING_NAMESPACE = "game-expiration-warning";
 export const GAME_CHAT_NSP = `${CHAT_NSP}:game`;
 /** 3 weeks */
 export const GAME_CHAT_TTL = 60 * 60 * 24 * 21;
