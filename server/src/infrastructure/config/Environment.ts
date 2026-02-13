@@ -4,7 +4,14 @@ import type Redis from "ioredis";
 import path from "path";
 import { type LoggerOptions } from "typeorm";
 
-import { DEFAULT_API_PORT, DEFAULT_METRICS_PORT } from "domain/constants/server";
+import {
+  CRON_EXP_2_AM_DAILY,
+  CRON_EXP_3_AM_DAILY,
+} from "domain/constants/cron";
+import {
+  DEFAULT_API_PORT,
+  DEFAULT_METRICS_PORT,
+} from "domain/constants/server";
 import { SESSION_SECRET_REDIS_NSP } from "domain/constants/session";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
@@ -71,6 +78,13 @@ export class Environment {
 
   // Logs
   public LOG_LEVEL!: LogLevel;
+
+  // Cron jobs
+  public CRON_S3_CLEANUP_EXPRESSION!: string;
+  public LOG_ARCHIVE_CRON_EXPRESSION!: string;
+  public LOG_ARCHIVE_ENABLED!: boolean;
+  public LOG_ARCHIVE_INTERVAL_DAYS!: number;
+  public LOG_ARCHIVE_RETENTION_DAYS!: number;
 
   private constructor(private readonly logger: ILogger) {
     //
@@ -207,6 +221,42 @@ export class Environment {
     this.LOG_LEVEL = this.getEnvVar("LOG_LEVEL", "string", "info");
 
     this.loadServer();
+
+    this.CRON_S3_CLEANUP_EXPRESSION = this.getEnvVar(
+      "CRON_S3_CLEANUP_EXPRESSION",
+      "string",
+      CRON_EXP_2_AM_DAILY,
+      true
+    );
+
+    this.LOG_ARCHIVE_CRON_EXPRESSION = this.getEnvVar(
+      "LOG_ARCHIVE_CRON_EXPRESSION",
+      "string",
+      CRON_EXP_3_AM_DAILY,
+      true
+    );
+
+    this.LOG_ARCHIVE_ENABLED = this.getEnvVar(
+      "LOG_ARCHIVE_ENABLED",
+      "boolean",
+      true,
+      true
+    );
+
+    this.LOG_ARCHIVE_INTERVAL_DAYS = this.getEnvVar(
+      "LOG_ARCHIVE_INTERVAL_DAYS",
+      "number",
+      7,
+      true
+    );
+
+    this.LOG_ARCHIVE_RETENTION_DAYS = this.getEnvVar(
+      "LOG_ARCHIVE_RETENTION_DAYS",
+      "number",
+      90,
+      true
+    );
+
     this.loadRedis();
 
     this.API_DOMAIN = this.getEnvVar("API_DOMAIN", "string", "localhost");
