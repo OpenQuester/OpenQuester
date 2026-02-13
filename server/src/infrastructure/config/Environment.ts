@@ -8,6 +8,10 @@ import {
   CRON_EXP_2_AM_DAILY,
   CRON_EXP_3_AM_DAILY,
 } from "domain/constants/cron";
+import {
+  DEFAULT_API_PORT,
+  DEFAULT_METRICS_PORT,
+} from "domain/constants/server";
 import { SESSION_SECRET_REDIS_NSP } from "domain/constants/session";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
@@ -64,6 +68,13 @@ export class Environment {
   public SOCKET_IO_ADMIN_UI_ENABLE!: boolean;
   public SOCKET_IO_ADMIN_UI_USERNAME!: string;
   public SOCKET_IO_ADMIN_UI_PASSWORD!: string;
+
+  // Server
+  public API_PORT!: number;
+
+  // Metrics
+  public METRICS_PORT!: number;
+  public METRICS_TOKEN!: string;
 
   // Logs
   public LOG_LEVEL!: LogLevel;
@@ -209,6 +220,8 @@ export class Environment {
 
     this.LOG_LEVEL = this.getEnvVar("LOG_LEVEL", "string", "info");
 
+    this.loadServer();
+
     this.CRON_S3_CLEANUP_EXPRESSION = this.getEnvVar(
       "CRON_S3_CLEANUP_EXPRESSION",
       "string",
@@ -273,6 +286,26 @@ export class Environment {
     this.REDIS_HOST = this.getEnvVar("REDIS_HOST", "string", "localhost");
     this.REDIS_PORT = this.getEnvVar("REDIS_PORT", "number", 6379);
     this.REDIS_DB_NUMBER = this.getEnvVar("REDIS_DB_NUMBER", "number", 0);
+  }
+
+  private loadServer() {
+    this.API_PORT = this.getEnvVar("API_PORT", "number", DEFAULT_API_PORT);
+
+    // Dedicated metrics server port, auto-offset by PM2 instance ID.
+    // Each PM2 instance gets a unique metrics port (e.g., 9209, 9210, 9211, 9212)
+    // so Prometheus can scrape each instance independently.
+    const baseMetricsPort: number = this.getEnvVar(
+      "METRICS_PORT",
+      "number",
+      DEFAULT_METRICS_PORT
+    );
+    const instanceId = Number(process.env.NODE_APP_INSTANCE);
+    this.METRICS_PORT = !isNaN(instanceId)
+      ? baseMetricsPort + instanceId
+      : baseMetricsPort;
+
+    // Optional bearer token for /metrics endpoint (required in production)
+    this.METRICS_TOKEN = this.getEnvVar("METRICS_TOKEN", "string", "", true);
   }
 
   private loadDB() {

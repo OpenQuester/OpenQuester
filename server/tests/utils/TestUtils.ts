@@ -1,9 +1,9 @@
 import { container } from "tsyringe";
 
 import { GameService } from "application/services/game/GameService";
+import { GAME_EXPIRATION_WARNING_NAMESPACE } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { GAME_EXPIRATION_WARNING_NAMESPACE } from "domain/constants/game";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
@@ -293,8 +293,9 @@ export class TestUtils {
   ): Promise<void> {
     // Progress through regular rounds using the existing utility
     const game = await this.gameService.getGameEntity(gameId);
-    const rounds = game.package?.rounds || [];
-    const finalRoundIndex = rounds.findIndex(
+    const packageRounds = game.package?.rounds ?? [];
+    const roundsSorted = [...packageRounds].sort((a, b) => a.order - b.order);
+    const finalRoundIndex = roundsSorted.findIndex(
       (r) => r.type === PackageRoundType.FINAL
     );
 

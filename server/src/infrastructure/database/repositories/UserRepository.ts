@@ -17,17 +17,25 @@ import { User } from "infrastructure/database/models/User";
 import { QueryBuilder } from "infrastructure/database/QueryBuilder";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { RedisService } from "infrastructure/services/redis/RedisService";
+
+/** Redis key for atomic guest username counter */
+const GUEST_USERNAME_COUNTER_KEY = "user:guest:counter";
 
 /**
  * Repository for User entity operations.
  */
 @singleton()
 export class UserRepository {
+  /** Flag to track if guest counter has been initialized from DB */
+  private guestCounterInitialized = false;
+
   constructor(
     @inject(DI_TOKENS.TypeORMUserRepository)
     private readonly repository: Repository<User>,
     private readonly fileUsageService: FileUsageService,
     private readonly cache: UserCacheUseCase,
+    private readonly redisService: RedisService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -293,8 +301,37 @@ export class UserRepository {
 
   /**
    * Generates the next available guest username in format guest_001, guest_002, etc.
+   * Uses Redis INCR for atomic, race-condition-free counter.
    */
   private async generateGuestUsername(): Promise<string> {
+    // Initialize counter from DB if not yet done (lazy init, only on first call)
+    await this.initializeGuestCounterIfNeeded();
+
+    // Atomically increment and get next number
+    const nextNumber = await this.redisService.incr(GUEST_USERNAME_COUNTER_KEY);
+
+    // Pad with leading zeros only if number is less than 1000
+    const paddedNumber =
+      nextNumber < 1000
+        ? nextNumber.toString().padStart(3, "0")
+        : nextNumber.toString();
+
+    return `guest_${paddedNumber}`;
+  }
+
+  /**
+   * Initializes the guest username counter in Redis from DB max value.
+   * Uses SETNX for atomic "set if not exists" to handle concurrent server starts.
+   * Only runs once per server instance (tracked by guestCounterInitialized flag).
+   */
+  private async initializeGuestCounterIfNeeded(): Promise<void> {
+    // Skip if already initialized this instance
+    // TODO: Should be runned only once per instance, but better to move to Redis for only 1 init
+    if (this.guestCounterInitialized) {
+      return;
+    }
+
+    // Query DB for current max guest number
     const result = await this.repository
       .createQueryBuilder("user")
       .select("user.username")
@@ -304,21 +341,29 @@ export class UserRepository {
       .limit(1)
       .getOne();
 
-    let nextNumber = 1;
+    let maxNumber = 0;
     if (result) {
       const match = result.username.match(/guest_(\d+)/);
       if (match) {
-        nextNumber = parseInt(match[1], 10) + 1;
+        maxNumber = parseInt(match[1], 10);
       }
     }
 
-    // Pad with leading zeros only if number is less than 1000
-    const paddedNumber =
-      nextNumber < 1000
-        ? nextNumber.toString().padStart(3, "0")
-        : nextNumber.toString();
+    // Atomically set counter only if it doesn't exist (SETNX)
+    // This handles race condition when multiple server instances start simultaneously
+    const wasSet = await this.redisService.setnx(
+      GUEST_USERNAME_COUNTER_KEY,
+      maxNumber.toString()
+    );
 
-    return `guest_${paddedNumber}`;
+    if (wasSet === 1) {
+      this.logger.info(`Guest username counter initialized from DB`, {
+        prefix: LogPrefix.USER,
+        maxNumber,
+      });
+    }
+
+    this.guestCounterInitialized = true;
   }
 
   public async delete(user: User) {

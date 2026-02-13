@@ -2,6 +2,7 @@ import { type Express } from "express";
 import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
+import { USER_CACHE_KEY } from "domain/constants/cache";
 import { Permissions } from "domain/enums/Permissions";
 import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { Permission } from "infrastructure/database/models/Permission";
@@ -74,13 +75,16 @@ describe("User Mute Functionality", () => {
     cleanup = boot.cleanup;
   });
 
-  afterEach(async () => {
-    // Clear Redis cache
+  const clearUserCache = async (): Promise<void> => {
     const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("cache:user:*");
+    const keys = await redisClient.keys(`${USER_CACHE_KEY}:*`);
     if (keys.length > 0) {
       await redisClient.del(...keys);
     }
+  };
+
+  afterEach(async () => {
+    await clearUserCache();
   });
 
   afterAll(async () => {
@@ -95,6 +99,7 @@ describe("User Mute Functionality", () => {
   beforeEach(async () => {
     await deleteAll(userRepo);
     await deleteAll(permRepo);
+    await clearUserCache();
   });
 
   describe("Mute Endpoints", () => {

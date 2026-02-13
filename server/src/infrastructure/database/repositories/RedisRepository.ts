@@ -454,6 +454,27 @@ export class RedisRepository {
     );
   }
 
+  /**
+   * Atomically increment a key's integer value by 1.
+   * If key doesn't exist, it's set to 0 before operation.
+   * @returns The value after increment
+   */
+  public async incr(key: string): Promise<number> {
+    return this.executeWithLogging("Redis INCR", { key }, async () => {
+      return this._client.incr(key);
+    });
+  }
+
+  /**
+   * Set key to value only if key does not exist.
+   * @returns 1 if key was set, 0 if key already existed
+   */
+  public async setnx(key: string, value: string): Promise<number> {
+    return this.executeWithLogging("Redis SETNX", { key }, async () => {
+      return this._client.setnx(key, value);
+    });
+  }
+
   public async zScanMatch(
     key: string,
     cursor: number | string,
