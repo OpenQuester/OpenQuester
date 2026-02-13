@@ -55,6 +55,8 @@ export enum LogPrefix {
   CRON_SCHEDULER = "[CRON_SCHEDULER]: ",
   /** S3 cleanup job */
   S3_CLEANUP = "[S3_CLEANUP]: ",
+  /** Log archival job */
+  LOG_ARCHIVAL = "[LOG_ARCHIVAL]: ",
   /** Statistics persistence and collection */
   STATS = "[STATS]: ",
   /** Game statistics worker */
