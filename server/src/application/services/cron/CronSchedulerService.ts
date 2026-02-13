@@ -87,8 +87,8 @@ export class CronSchedulerService {
     });
 
     for (const job of startupJobs) {
-      setImmediate(async () => {
-        await this.executeWithLock(job);
+      setImmediate(() => {
+        void this.executeWithLock(job);
       });
     }
   }
@@ -116,8 +116,8 @@ export class CronSchedulerService {
       job.cronExpression,
       async () => {
         // Execute job in a separate async context to avoid blocking
-        setImmediate(async () => {
-          await this.executeWithLock(job);
+        setImmediate(() => {
+          void this.executeWithLock(job);
         });
       },
       {

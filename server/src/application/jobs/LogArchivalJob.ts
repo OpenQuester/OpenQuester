@@ -5,9 +5,9 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { LogArchivalService } from "infrastructure/services/log/LogArchivalService";
 
 /**
- * Weekly log archival job.
+ * Daily log archival check job.
  *
- * Runs daily, but archives only when the last archive is >= 7 days ago.
+ * Runs daily, but archives only when the last archive age meets the configured interval.
  * Executes once on startup to catch missed cron windows.
  */
 export class LogArchivalJob extends BaseCronJob {

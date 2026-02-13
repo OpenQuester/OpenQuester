@@ -1,13 +1,13 @@
+import archiver from "archiver";
 import fs from "fs";
 import path from "path";
-import archiver from "archiver";
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "application/di/tokens";
+import { DAY_MS } from "domain/constants/time";
 import { Environment } from "infrastructure/config/Environment";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { DAY_MS } from "domain/constants/time";
 
 const ARCHIVE_FILENAME_REGEX =
   /^logs-(\d{4})-(\d{2})-(\d{2})-(\d{2})-(\d{2})-(\d{2})\.tar\.gz$/;
@@ -24,6 +24,13 @@ interface ArchiveResult {
   totalBytes: number;
 }
 
+/**
+ * Periodically archives current log files and removes old archive files.
+ *
+ * The service is invoked externally (e.g., daily cron). It archives only when
+ * the configured interval since the last archive has elapsed, and then applies
+ * retention-based cleanup for old archives.
+ */
 @singleton()
 export class LogArchivalService {
   private readonly logPrefix = LogPrefix.LOG_ARCHIVAL;
@@ -196,6 +203,19 @@ export class LogArchivalService {
         totalBytes,
       };
     } catch (error) {
+      try {
+        await fs.promises.rm(archivePath, { force: true });
+      } catch (archiveCleanupError) {
+        this.logger.warn("Failed to remove partial log archive file", {
+          prefix: this.logPrefix,
+          archivePath,
+          error:
+            archiveCleanupError instanceof Error
+              ? archiveCleanupError.message
+              : String(archiveCleanupError),
+        });
+      }
+
       this.logger.error("Log archival failed", {
         prefix: this.logPrefix,
         error: error instanceof Error ? error.message : String(error),
@@ -350,6 +370,7 @@ export class LogArchivalService {
   private parseArchiveDate(filename: string): Date | null {
     const match = ARCHIVE_FILENAME_REGEX.exec(filename);
     if (!match) return null;
+    if (match.length !== 7) return null;
 
     // Example: logs-2024-06-15-03-00-00.tar.gz
     const [year, month, day, hour, minute, second] = match

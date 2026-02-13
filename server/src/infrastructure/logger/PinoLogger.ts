@@ -140,7 +140,6 @@ class PerformanceLogImpl implements PerformanceLog {
 export class PinoLogger implements ILogger {
   private readonly loggers: Map<LogType, CustomLogger> = new Map();
   private terminalLogger: CustomLogger | null = null;
-  private unifiedLogger: CustomLogger | null = null;
   private fileStreams: SonicBoom[] = [];
   private initialized = false;
   private logLevel = (process.env.LOG_LEVEL as LogLevel) || "info";
@@ -263,37 +262,6 @@ export class PinoLogger implements ILogger {
           error
         );
       }
-    }
-  }
-
-  /**
-   * Initialize unified logger that writes all logs to a single file.
-   * Used for multi-instance log retrieval via REST API.
-   */
-  private initUnifiedLogger(): void {
-    try {
-      const stream = pino.destination({
-        dest: UNIFIED_LOG_PATH,
-        sync: false,
-        mkdir: true,
-      });
-
-      this.fileStreams.push(stream);
-
-      // Unified logger accepts all levels
-      this.unifiedLogger = pino(
-        {
-          level: "trace",
-          customLevels,
-          useOnlyCustomLevels: true,
-          formatters: {
-            level: (label: string) => ({ level: label }),
-          },
-        },
-        stream
-      ) as CustomLogger;
-    } catch (error) {
-      console.error(`Failed to create unified logger:`, error);
     }
   }
 
@@ -431,7 +399,7 @@ export class PinoLogger implements ILogger {
 
     // Performance logs:
     // - never emit to terminal/stdout
-    // - always write to performance log file and unified log regardless of LOG_LEVEL
+    // - always write to performance log file regardless of LOG_LEVEL
     const isPerformance = type === LogType.PERFORMANCE;
     const shouldEmitToTerminal = !isPerformance;
 
@@ -490,16 +458,6 @@ export class PinoLogger implements ILogger {
           fileLogger[method](msgWithPrefix);
         }
       }
-
-      // Write to unified log file for REST API retrieval (multi-instance support)
-      // NOTE: Unified logs are still gated by LOG_LEVEL (except performance which is always written).
-      if (this.unifiedLogger) {
-        const unifiedMeta = {
-          ...sanitizedMeta,
-          timestamp: new Date().toISOString(),
-        };
-        this.unifiedLogger[method](unifiedMeta, msgWithPrefix);
-      }
     }
   }
 
@@ -521,7 +479,7 @@ export class PinoLogger implements ILogger {
   public static initSync(config: LoggerConfig = {}): ILogger {
     const logger = new PinoLogger();
     const mergedLogPaths = { ...defaultLogPaths, ...config.logPaths };
-    const allPaths = Object.values(mergedLogPaths);
+    const allPaths = [...Object.values(mergedLogPaths)];
 
     // Ensure log directories synchronously
     const uniqueDirs = [

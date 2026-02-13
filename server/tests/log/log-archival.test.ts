@@ -167,4 +167,74 @@ describe("LogArchivalService", () => {
     const tempDirs = archiveEntries.filter((name) => name.startsWith("temp-"));
     expect(tempDirs.length).toBe(0);
   });
+
+  it("skips archival when disabled", async () => {
+    const infoPath = path.join(logsDir(), "info.log");
+    await fs.promises.writeFile(infoPath, "keep-me");
+
+    process.env.LOG_ARCHIVE_ENABLED = "false";
+    const env = Environment.getInstance(logger, { overwrite: true });
+    env.load(true);
+
+    const service = new LogArchivalService(logger);
+    await service.checkAndArchive();
+
+    await expect(fs.promises.access(archivesDir())).rejects.toBeDefined();
+
+    const infoSize = (await fs.promises.stat(infoPath)).size;
+    expect(infoSize).toBeGreaterThan(0);
+  });
+
+  it("cleans up old archives based on retention days", async () => {
+    const infoPath = path.join(logsDir(), "info.log");
+    await fs.promises.writeFile(infoPath, "archive-now");
+
+    await fs.promises.mkdir(archivesDir(), { recursive: true });
+    const stale = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    const recent = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
+    await fs.promises.writeFile(
+      path.join(archivesDir(), `logs-${buildTimestamp(stale)}.tar.gz`),
+      "stale"
+    );
+    await fs.promises.writeFile(
+      path.join(archivesDir(), `logs-${buildTimestamp(recent)}.tar.gz`),
+      "recent"
+    );
+
+    process.env.LOG_ARCHIVE_INTERVAL_DAYS = "1";
+    process.env.LOG_ARCHIVE_RETENTION_DAYS = "7";
+    const env = Environment.getInstance(logger, { overwrite: true });
+    env.load(true);
+
+    const service = new LogArchivalService(logger);
+    await service.checkAndArchive();
+
+    const archiveEntries = await fs.promises.readdir(archivesDir());
+    const archiveFiles = archiveEntries.filter((name) =>
+      name.endsWith(".tar.gz")
+    );
+
+    expect(
+      archiveFiles.some((name) => name === `logs-${buildTimestamp(stale)}.tar.gz`)
+    ).toBe(false);
+    expect(
+      archiveFiles.some((name) => name === `logs-${buildTimestamp(recent)}.tar.gz`)
+    ).toBe(true);
+    expect(archiveFiles.length).toBe(2);
+  });
+
+  it("does not create archive when no log files exist", async () => {
+    const service = new LogArchivalService(logger);
+    await service.checkAndArchive();
+
+    const archiveEntries = await fs.promises.readdir(archivesDir());
+    const archiveFiles = archiveEntries.filter((name) =>
+      name.endsWith(".tar.gz")
+    );
+    const tempDirs = archiveEntries.filter((name) => name.startsWith("temp-"));
+
+    expect(archiveFiles.length).toBe(0);
+    expect(tempDirs.length).toBe(0);
+  });
 });
