@@ -12,6 +12,7 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { verifySession } from "presentation/middleware/authMiddleware";
 import { correlationMiddleware } from "presentation/middleware/correlationMiddleware";
 import { performanceLogMiddleware } from "presentation/middleware/log/performanceLogMiddleware";
+import { metricsMiddleware } from "presentation/middleware/metricsMiddleware";
 
 const CORS_PREFIX = LogPrefix.CORS;
 
@@ -102,6 +103,9 @@ export class MiddlewareController {
 
     // Correlation ID middleware - must be before performance logging
     this.ctx.app.use(correlationMiddleware());
+
+    // Metrics middleware
+    this.ctx.app.use(metricsMiddleware());
 
     this.ctx.app.use(performanceLogMiddleware(this.ctx.logger));
 

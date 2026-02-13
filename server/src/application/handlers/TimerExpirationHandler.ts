@@ -53,10 +53,20 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       return;
     }
 
-    const game = await this.gameService.getGameEntity(
-      gameId,
-      GAME_TTL_IN_SECONDS
-    );
+    let game;
+    try {
+      game = await this.gameService.getGameEntity(
+        gameId,
+        GAME_TTL_IN_SECONDS
+      );
+    } catch {
+      this.logger.warn(`Game not found for expired timer, skipping`, {
+        prefix: LogPrefix.TIMER_EXPIRATION,
+        gameId,
+        key,
+      });
+      return;
+    }
 
     const questionState = game.gameState.questionState;
     const actionType = this.getTimerActionType(questionState);

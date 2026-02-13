@@ -107,6 +107,8 @@ export enum LogPrefix {
   IO_CORS = "[IO CORS]: ",
   /** Error middleware */
   ERROR_MIDDLEWARE = "[ERROR_MIDDLEWARE]: ",
+  /** Metrics collection and server */
+  METRICS = "[METRICS]: ",
 }
 
 /** Type for log prefix values */

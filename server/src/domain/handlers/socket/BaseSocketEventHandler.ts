@@ -16,6 +16,7 @@ import { type ILogger } from "infrastructure/logger/ILogger";
 import { LogContextService } from "infrastructure/logger/LogContext";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { LogTag } from "infrastructure/logger/LogTag";
+import { MetricsService } from "infrastructure/services/metrics/MetricsService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 import { Socket } from "socket.io";
@@ -97,10 +98,30 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
         const validatedData = await this.prepareExecution(data, context);
         const gameId = await this.resolveGameContext(validatedData, context);
         await this.routeAndExecute(validatedData, context, gameId);
+        this.recordMetrics(context, "success");
       } catch (error) {
+        this.recordMetrics(context, "error");
         await this.handleError(error, context);
       }
     });
+  }
+
+  /**
+   * Record socket event metrics for Prometheus.
+   */
+  private recordMetrics(
+    context: SocketEventContext,
+    status: "success" | "error"
+  ): void {
+    const metricsService = MetricsService.getInstance();
+    const durationSeconds = (Date.now() - context.startTime) / 1000;
+    const eventName = this.getEventName();
+
+    metricsService.socketEventsTotal.inc({ event: eventName, status });
+    metricsService.socketEventDuration.observe(
+      { event: eventName, status },
+      durationSeconds
+    );
   }
 
   /**

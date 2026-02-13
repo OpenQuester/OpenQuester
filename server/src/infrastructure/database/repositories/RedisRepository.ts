@@ -246,6 +246,18 @@ export class RedisRepository {
     );
   }
 
+  /**
+   * Retrieve multiple hash fields from a hash in a single round trip.
+   */
+  public async hmget(
+    key: string,
+    fields: string[]
+  ): Promise<(string | null)[]> {
+    return this.executeWithLogging("Redis HMGET", { key, fields }, async () => {
+      return this._client.hmget(key, ...fields);
+    });
+  }
+
   public async get(key: string, updateTtl?: number): Promise<string | null> {
     return this.executeWithLogging(
       "Redis GET",
@@ -452,6 +464,27 @@ export class RedisRepository {
         return this._client.zrange(key, start, stop);
       }
     );
+  }
+
+  /**
+   * Atomically increment a key's integer value by 1.
+   * If key doesn't exist, it's set to 0 before operation.
+   * @returns The value after increment
+   */
+  public async incr(key: string): Promise<number> {
+    return this.executeWithLogging("Redis INCR", { key }, async () => {
+      return this._client.incr(key);
+    });
+  }
+
+  /**
+   * Set key to value only if key does not exist.
+   * @returns 1 if key was set, 0 if key already existed
+   */
+  public async setnx(key: string, value: string): Promise<number> {
+    return this.executeWithLogging("Redis SETNX", { key }, async () => {
+      return this._client.setnx(key, value);
+    });
   }
 
   public async zScanMatch(

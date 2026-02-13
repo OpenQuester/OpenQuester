@@ -18,7 +18,6 @@ import { SocketIOGameService } from "application/services/socket/SocketIOGameSer
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { UserService } from "application/services/user/UserService";
-import { DEFAULT_API_PORT } from "domain/constants/admin";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { ErrorController } from "domain/errors/ErrorController";
@@ -27,6 +26,7 @@ import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { type Database } from "infrastructure/database/Database";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { LogReaderService } from "infrastructure/services/log/LogReaderService";
+import { MetricsService } from "infrastructure/services/metrics/MetricsService";
 import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -38,6 +38,7 @@ import { AuthRestApiController } from "presentation/controllers/rest/AuthRestApi
 import { DevelopmentRestApiController } from "presentation/controllers/rest/DevelopmentRestApiController";
 import { FileRestApiController } from "presentation/controllers/rest/FileRestApiController";
 import { GameRestApiController } from "presentation/controllers/rest/GameRestApiController";
+import { MetricsRestApiController } from "presentation/controllers/rest/MetricsRestApiController";
 import { PackageRestApiController } from "presentation/controllers/rest/PackageRestApiController";
 import { SwaggerRestApiController } from "presentation/controllers/rest/SwaggerRestApiController";
 import { UserRestApiController } from "presentation/controllers/rest/UserRestApiController";
@@ -64,7 +65,7 @@ export class ServeApi {
     this._app = this._context.app;
     this._io = this._context.io;
     this._redis = RedisConfig.getClient();
-    this._port = DEFAULT_API_PORT;
+    this._port = this._context.env.API_PORT;
   }
 
   public async init() {
@@ -98,6 +99,13 @@ export class ServeApi {
         });
       });
       this._io.listen(this._server);
+
+      // Start dedicated metrics HTTP server for Prometheus scraping
+      MetricsService.getInstance().startServer(
+        this._context.env.METRICS_PORT,
+        this._context.env.METRICS_TOKEN,
+        this._context.logger
+      );
 
       // Initialize Dependency Injection Container (tsyringe)
       await bootstrapContainer({
@@ -205,6 +213,7 @@ export class ServeApi {
       deps.logReaderService
     );
     new SwaggerRestApiController(deps.app, this._context.logger);
+    new MetricsRestApiController(deps.app, this._context.env);
 
     if (this._context.env.ENV === EnvType.DEV) {
       new DevelopmentRestApiController(
