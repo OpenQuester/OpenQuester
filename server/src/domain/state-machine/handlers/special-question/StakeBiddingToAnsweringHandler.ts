@@ -182,6 +182,7 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
         data: {
           data: data.questionData,
           timer: timerResult.timer,
+          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
         } satisfies GameQuestionDataEventPayload,
         room: game.id,
       });

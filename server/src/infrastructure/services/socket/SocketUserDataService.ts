@@ -21,6 +21,12 @@ export class SocketUserDataService {
     return this.socketUserDataRepository.getSocketData(socketId);
   }
 
+  public async getSocketDataBatch(
+    socketIds: string[]
+  ): Promise<Map<string, SocketRedisUserData | null>> {
+    return this.socketUserDataRepository.getSocketDataBatch(socketIds);
+  }
+
   public async set(
     socketId: string,
     data: { userId: number; language: string }

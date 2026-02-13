@@ -315,21 +315,18 @@ export class SocketIOQuestionService {
       operationsCount: socketsIds.length,
     });
 
-    // TODO: Find a way to optimize this to reduce redis calls
-    const userDataPromises = socketsIds.map((socketId) =>
-      this.socketGameContextService
-        .fetchUserSocketData(socketId)
-        .then((userSession) => ({
-          socketId,
-          userSession,
-        }))
-    );
-
-    const userDataResults = await Promise.all(userDataPromises);
+    const userDataMap =
+      await this.socketGameContextService.fetchUserSocketDataBatch(socketsIds);
 
     log.finish();
 
-    for (const { socketId, userSession } of userDataResults) {
+    for (const socketId of socketsIds) {
+      const userSession = userDataMap.get(socketId);
+
+      if (!userSession) {
+        continue;
+      }
+
       const player = game.getPlayer(userSession.id, {
         fetchDisconnected: false,
       });
@@ -367,22 +364,19 @@ export class SocketIOQuestionService {
       operationsCount: socketsIds.length,
     });
 
-    // TODO: Find a way to optimize this to reduce redis calls
-    const userDataPromises = socketsIds.map((socketId) =>
-      this.socketGameContextService
-        .fetchUserSocketData(socketId)
-        .then((userSession) => ({
-          socketId,
-          userSession,
-        }))
-    );
-
-    const userDataResults = await Promise.all(userDataPromises);
+    const userDataMap =
+      await this.socketGameContextService.fetchUserSocketDataBatch(socketsIds);
 
     log.finish();
 
     // For each socket, provide appropriate game state based on role
-    for (const { socketId, userSession } of userDataResults) {
+    for (const socketId of socketsIds) {
+      const userSession = userDataMap.get(socketId);
+
+      if (!userSession) {
+        continue;
+      }
+
       const player = game.getPlayer(userSession.id, {
         fetchDisconnected: false,
       });
