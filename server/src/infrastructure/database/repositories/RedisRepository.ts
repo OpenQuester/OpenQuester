@@ -246,18 +246,6 @@ export class RedisRepository {
     );
   }
 
-  /**
-   * Retrieve multiple hash fields from a hash in a single round trip.
-   */
-  public async hmget(
-    key: string,
-    fields: string[]
-  ): Promise<(string | null)[]> {
-    return this.executeWithLogging("Redis HMGET", { key, fields }, async () => {
-      return this._client.hmget(key, ...fields);
-    });
-  }
-
   public async get(key: string, updateTtl?: number): Promise<string | null> {
     return this.executeWithLogging(
       "Redis GET",

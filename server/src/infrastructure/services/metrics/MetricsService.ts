@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import http from "http";
 import {
   collectDefaultMetrics,
@@ -5,9 +6,11 @@ import {
   Histogram,
   Registry,
 } from "prom-client";
+import { singleton } from "tsyringe";
 
 import { type ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { CryptoUtils } from "infrastructure/utils/CryptoUtils";
 
 const METRICS_PREFIX = LogPrefix.METRICS;
 
@@ -18,9 +21,8 @@ const METRICS_PREFIX = LogPrefix.METRICS;
  * In production (PM2 cluster mode), each instance runs a dedicated lightweight
  * HTTP server on a unique port so Prometheus can scrape each instance independently.
  */
+@singleton()
 export class MetricsService {
-  private static _instance: MetricsService | null = null;
-
   private readonly _registry: Registry;
   private _metricsServer: http.Server | null = null;
 
@@ -32,14 +34,7 @@ export class MetricsService {
   private readonly _socketEventsTotal: Counter;
   private readonly _socketEventDuration: Histogram;
 
-  public static getInstance(): MetricsService {
-    if (!MetricsService._instance) {
-      MetricsService._instance = new MetricsService();
-    }
-    return MetricsService._instance;
-  }
-
-  private constructor() {
+  constructor() {
     this._registry = new Registry();
 
     // Collect default Node.js metrics (CPU, memory, event loop, GC, etc.)
@@ -124,6 +119,8 @@ export class MetricsService {
    * hits a random instance each time, breaking counter-based rate() calculations.
    */
   public startServer(port: number, token: string, logger: ILogger): void {
+    const tokenHash = token ? CryptoUtils.sha256(token) : null;
+
     this._metricsServer = http.createServer(async (req, res) => {
       if (req.method !== "GET" || req.url !== "/metrics") {
         res.writeHead(404);
@@ -131,9 +128,17 @@ export class MetricsService {
         return;
       }
 
-      if (token) {
+      if (tokenHash) {
         const authHeader = req.headers.authorization;
-        if (!authHeader?.startsWith("Bearer ") || authHeader.slice(7) !== token) {
+        if (!authHeader?.startsWith("Bearer ")) {
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Forbidden" }));
+          return;
+        }
+
+        const providedToken = authHeader.slice(7);
+        const providedTokenHash = CryptoUtils.sha256(providedToken);
+        if (!timingSafeEqual(providedTokenHash, tokenHash)) {
           res.writeHead(403, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "Forbidden" }));
           return;
@@ -143,6 +148,14 @@ export class MetricsService {
       const metrics = await this._registry.metrics();
       res.writeHead(200, { "Content-Type": this._registry.contentType });
       res.end(metrics);
+    });
+
+    this._metricsServer.once("error", (error) => {
+      logger.error("Failed to start metrics server", {
+        prefix: METRICS_PREFIX,
+        port,
+        error: error instanceof Error ? error.message : String(error),
+      });
     });
 
     this._metricsServer.listen(port, () => {

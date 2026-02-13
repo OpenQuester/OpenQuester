@@ -99,16 +99,6 @@ export class RedisService {
     return this.redisRepository.hget(key, field, updateTtl);
   }
 
-  /**
-   * Retrieve multiple fields from a hash in a single round trip.
-   */
-  public async hmget(
-    key: string,
-    fields: string[]
-  ): Promise<(string | null)[]> {
-    return this.redisRepository.hmget(key, fields);
-  }
-
   public async get(key: string, updateTtl?: number): Promise<string | null> {
     return this.redisRepository.get(key, updateTtl);
   }

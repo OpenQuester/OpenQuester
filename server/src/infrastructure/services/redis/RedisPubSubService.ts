@@ -2,7 +2,6 @@ import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "application/di/tokens";
 import { REDIS_KEY_EXPIRE_EVENT } from "domain/constants/redis";
-import { ServerError } from "domain/errors/ServerError";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { Environment } from "infrastructure/config/Environment";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -50,14 +49,15 @@ export class RedisPubSubService {
             break;
           }
         }
-      } catch {
+      } catch (error) {
         this.logger.error(
           `Error handling Redis key expiration for key: ${message}`,
           {
             prefix: LogPrefix.REDIS,
+            key: message,
+            error: error instanceof Error ? error.message : String(error),
           }
         );
-        throw new ServerError("Error handling Redis key expiration");
       }
     };
 

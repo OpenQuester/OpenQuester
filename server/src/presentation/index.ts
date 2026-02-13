@@ -179,7 +179,7 @@ async function gracefulShutdown(
 
   // Stop metrics server
   try {
-    await MetricsService.getInstance().stopServer();
+    await container.resolve(MetricsService).stopServer();
   } catch {
     // Ignore
   }

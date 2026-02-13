@@ -6,9 +6,7 @@ import { MetricsService } from "infrastructure/services/metrics/MetricsService";
  * Middleware for collecting HTTP request metrics for Prometheus.
  * Tracks: request count (for RPS), request duration (latency).
  */
-export const metricsMiddleware = () => {
-  const metricsService = MetricsService.getInstance();
-
+export const metricsMiddleware = (metricsService: MetricsService) => {
   return (req: Request, res: Response, next: NextFunction) => {
     // Skip metrics endpoint to avoid self-referential data
     if (req.path === "/metrics") {
@@ -19,7 +17,7 @@ export const metricsMiddleware = () => {
     const endTimer = metricsService.httpRequestDuration.startTimer();
 
     // Capture metrics on response finish
-    res.on("finish", () => {
+    res.once("finish", () => {
       const route = normalizeRoute(req);
       const labels = {
         method: req.method,
@@ -48,20 +46,26 @@ function normalizeRoute(req: Request): string {
     return req.baseUrl + req.route.path;
   }
 
-  // Fallback: normalize the path manually
-  let path = req.path;
+  // Fallback: normalize by full path segments only. This avoids accidental
+  // partial matches (for example, preserving "v1" in "/api/v1/reset").
+  const UUID_SEGMENT_REGEX =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const NUMERIC_SEGMENT_REGEX = /^\d+$/;
+  const LONG_ALNUM_SEGMENT_REGEX = /^[a-zA-Z0-9]{20,}$/;
 
-  // Replace UUIDs (v4 format)
-  path = path.replace(
-    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
-    ":id"
-  );
+  const normalizedSegments = req.path
+    .split("/")
+    .map((segment) => {
+      if (
+        UUID_SEGMENT_REGEX.test(segment) ||
+        NUMERIC_SEGMENT_REGEX.test(segment) ||
+        LONG_ALNUM_SEGMENT_REGEX.test(segment)
+      ) {
+        return ":id";
+      }
+      return segment;
+    })
+    .join("/");
 
-  // Replace numeric IDs
-  path = path.replace(/\/\d+(?=\/|$)/g, "/:id");
-
-  // Replace long alphanumeric strings (likely IDs)
-  path = path.replace(/\/[a-zA-Z0-9]{20,}(?=\/|$)/g, "/:id");
-
-  return path;
+  return normalizedSegments;
 }

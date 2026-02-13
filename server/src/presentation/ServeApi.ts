@@ -88,8 +88,23 @@ export class ServeApi {
       // Build database connection
       await this._db.build();
 
+      // Initialize Dependency Injection Container (tsyringe)
+      await bootstrapContainer({
+        db: this._db,
+        redisClient: this._redis,
+        io: this._io,
+        env: this._context.env,
+        logger: this._context.logger,
+      });
+
+      const metricsService = container.resolve(MetricsService);
+
       // Middlewares
-      await new MiddlewareController(this._context, this._redis).initialize();
+      await new MiddlewareController(
+        this._context,
+        this._redis,
+        metricsService
+      ).initialize();
 
       // Initialize server listening
       this._server = this._app.listen(this._port, () => {
@@ -101,20 +116,11 @@ export class ServeApi {
       this._io.listen(this._server);
 
       // Start dedicated metrics HTTP server for Prometheus scraping
-      MetricsService.getInstance().startServer(
+      metricsService.startServer(
         this._context.env.METRICS_PORT,
         this._context.env.METRICS_TOKEN,
         this._context.logger
       );
-
-      // Initialize Dependency Injection Container (tsyringe)
-      await bootstrapContainer({
-        db: this._db,
-        redisClient: this._redis,
-        io: this._io,
-        env: this._context.env,
-        logger: this._context.logger,
-      });
 
       await this._processPrepareJobs();
 
@@ -177,6 +183,7 @@ export class ServeApi {
       gameProgressionCoordinator: container.resolve(GameProgressionCoordinator),
       gameActionExecutor: container.resolve(GameActionExecutor),
       logReaderService: container.resolve(LogReaderService),
+      metricsService: container.resolve(MetricsService),
     };
 
     // REST
@@ -213,7 +220,11 @@ export class ServeApi {
       deps.logReaderService
     );
     new SwaggerRestApiController(deps.app, this._context.logger);
-    new MetricsRestApiController(deps.app, this._context.env);
+    new MetricsRestApiController(
+      deps.app,
+      deps.metricsService,
+      this._context.env
+    );
 
     if (this._context.env.ENV === EnvType.DEV) {
       new DevelopmentRestApiController(
