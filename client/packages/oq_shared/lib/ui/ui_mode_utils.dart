@@ -17,5 +17,6 @@ class UiModeUtils {
   static const double large = 1200;
   static const double medium = 600;
 
-  static const double maximumDialogWidth = medium;
+  static double maximumDialogWidth(BuildContext context) =>
+      wideModeOn(context) ? large : medium;
 }

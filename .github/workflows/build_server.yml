@@ -6,8 +6,16 @@ on:
   pull_request:
 
 jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+    permissions:
+      contents: read
+
   pre_job:
     runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
     outputs:
       should_run: ${{ steps.found_paths.outputs.server == 'true' || steps.should_force.outputs.should_force == 'true' }}
     steps:

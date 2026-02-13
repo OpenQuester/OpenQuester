@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=OpenQuester
+GenericName=Multiplayer Quiz Game
+Comment=Open-Source Multiplayer Quiz Game
+Exec=openquester %u
+Icon=com.asion.openquester
+Terminal=false
+Categories=Game;Education;
+Keywords=quiz;multiplayer;game;trivia;
+StartupWMClass=openquester
+MimeType=x-scheme-handler/openquester;
+X-GNOME-UsesNotifications=true

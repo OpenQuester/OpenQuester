@@ -42,12 +42,29 @@ class AutoUpdateController {
     if (kIsWeb) return '';
     if (Platform.isWindows) return 'OpenQuester-x86_64-$version-Installer.exe';
     if (Platform.isAndroid) return 'app-release.apk';
+    if (Platform.isLinux) {
+      // Flatpak updates through Flathub or system package manager
+      if (_isFlatpakBuild) return '';
+      return 'OpenQuester-x86_64.AppImage';
+    }
     return '';
   }
 
   bool get showUpdateBtn {
     if (kIsWeb) return false;
-    return Platform.isWindows || Platform.isAndroid;
+    if (Platform.isLinux) {
+      // Don't show update button for Flatpak builds
+      if (_isFlatpakBuild) return false;
+    }
+    return Platform.isWindows || Platform.isAndroid || Platform.isLinux;
+  }
+
+  bool get _isFlatpakBuild {
+    const buildType = String.fromEnvironment(
+      'BUILD_TYPE',
+      defaultValue: 'appimage',
+    );
+    return buildType == 'flatpak';
   }
 
   Future<void> openInstallFile() async {

@@ -60,6 +60,24 @@ jobs:
           name: web-app
           path: web/
 
+
+      - name: Download Linux tar.gz
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-tar-gz
+          path: linux/
+
+      - name: Download Linux AppImage
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-appimage
+          path: linux/
+
+      - name: Download Linux Flatpak
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-flatpak
+          path: linux/
       # ––––– Determine the tag we’re releasing –––––
       - name: Fetch all tags
         run: git fetch --tags
@@ -87,6 +105,7 @@ jobs:
           files: |
             android/**/*.apk
             windows/**
+            linux/**
 
       # ––––– Deploy web to Cloudflare Pages –––––
       - name: Publish to Cloudflare Pages (Production)

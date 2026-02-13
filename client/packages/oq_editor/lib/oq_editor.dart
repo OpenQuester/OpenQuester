@@ -40,6 +40,6 @@ export 'view/screens/themes_grid_screen.dart';
 export 'view/widgets/audio_preview_widget.dart';
 export 'view/widgets/media_file_list_tile.dart';
 export 'view/widgets/media_files_section.dart';
+export 'view/widgets/media_playback_widget.dart';
 export 'view/widgets/media_preview_widget.dart';
 export 'view/widgets/package_size_indicator.dart';
-export 'view/widgets/video_preview_widget.dart';

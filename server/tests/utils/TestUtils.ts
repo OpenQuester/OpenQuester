@@ -3,6 +3,7 @@ import { container } from "tsyringe";
 import { GameService } from "application/services/game/GameService";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GAME_EXPIRATION_WARNING_NAMESPACE } from "domain/constants/game";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
@@ -230,6 +231,22 @@ export class TestUtils {
       : `timer:${gameId}`;
     await redisClient.pexpire(timerKey, 50);
     // Wait for expiration to be processed by Redis keyspace notifications
+    await this.wait(waitMs);
+  }
+
+  /**
+   * Expire a game expiration warning key by reducing its TTL.
+   *
+   * @param gameId - The game ID for the warning key
+   * @param waitMs - Time to wait after expiration for event processing (default: 150ms)
+   */
+  public async expireGameExpirationWarning(
+    gameId: string,
+    waitMs: number = 150
+  ): Promise<void> {
+    const redisClient = RedisConfig.getClient();
+    const warningKey = `${GAME_EXPIRATION_WARNING_NAMESPACE}:${gameId}`;
+    await redisClient.pexpire(warningKey, 50);
     await this.wait(waitMs);
   }
 
