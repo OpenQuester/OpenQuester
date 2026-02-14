@@ -41,6 +41,7 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
 @singleton()
 export class S3StorageService {
   private _client: S3Client;
+  private _presignClient: S3Client;
 
   constructor(
     @inject(DI_TOKENS.S3Context) private readonly s3Context: S3Context,
@@ -48,7 +49,7 @@ export class S3StorageService {
     private readonly fileUsageService: FileUsageService,
     private readonly userService: UserService,
     private readonly dependencyService: DependencyService,
-    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
   ) {
     this._client = new S3Client({
       credentials: {
@@ -59,6 +60,23 @@ export class S3StorageService {
       endpoint: this.s3Context.endpoint,
       region: this.s3Context.region,
     });
+    this._presignClient = this.createPresignClient();
+  }
+
+  private createPresignClient(): S3Client {
+    if (this.s3Context.useSubDomainBucketFormat && this.s3Context.urlPrefix) {
+      return new S3Client({
+        credentials: {
+          accessKeyId: this.s3Context.accessKey,
+          secretAccessKey: this.s3Context.secretKey,
+        },
+        forcePathStyle: false,
+        endpoint: this.getSubDomainPublicUrlPrefix(),
+        region: this.s3Context.region,
+      });
+    }
+
+    return this._client;
   }
 
   /**
@@ -74,7 +92,7 @@ export class S3StorageService {
     bucket: string,
     filenameWithPath: string,
     expiresInSeconds: number,
-    filename: string
+    filename: string,
   ) {
     let command: PutObjectCommand | GetObjectCommand;
     let opts = {};
@@ -105,17 +123,14 @@ export class S3StorageService {
         break;
     }
 
-    return getSignedUrl(this._client, command, opts);
+    return getSignedUrl(this._presignClient, command, opts);
   }
 
   public getUrl(filename: string) {
     const filePath = StorageUtils.parseFilePath(filename);
     // Support both subdomain and path-style bucket formats
     if (this.s3Context.useSubDomainBucketFormat) {
-      const baseUrl = this.s3Context.urlPrefix.endsWith("/")
-        ? this.s3Context.urlPrefix.slice(0, -1)
-        : this.s3Context.urlPrefix;
-      return `${baseUrl}/${filePath}`;
+      return `${this.getSubDomainPublicUrlPrefix()}/${filePath}`;
     } else {
       // Path-style: endpoint/bucket/file-path
       const endpoint = this.s3Context.endpoint.endsWith("/")
@@ -123,6 +138,12 @@ export class S3StorageService {
         : this.s3Context.endpoint;
       return `${endpoint}/${this.s3Context.bucket}/${filePath}`;
     }
+  }
+
+  private getSubDomainPublicUrlPrefix(): string {
+    return this.s3Context.urlPrefix.endsWith("/")
+      ? this.s3Context.urlPrefix.slice(0, -1)
+      : this.s3Context.urlPrefix;
   }
 
   /**
@@ -136,7 +157,7 @@ export class S3StorageService {
    */
   public async putFileFromDiscord(
     cdnLink: string,
-    filename: string
+    filename: string,
   ): Promise<any> {
     const log = this.logger.performance(`Discord file upload`, {
       prefix: LogPrefix.S3,
@@ -203,14 +224,14 @@ export class S3StorageService {
 
   public async upload(
     filename: string,
-    expiresIn: number = UPLOAD_FILE_LINK_EXPIRES_IN
+    expiresIn: number = UPLOAD_FILE_LINK_EXPIRES_IN,
   ) {
     return this.performFileUpload(filename, expiresIn);
   }
 
   public async generatePresignedUrls(
     files: FileDTO[],
-    expiresIn: number = UPLOAD_FILE_LINK_EXPIRES_IN
+    expiresIn: number = UPLOAD_FILE_LINK_EXPIRES_IN,
   ) {
     const links: Record<string, string> = {};
     for (const file of files) {
@@ -221,7 +242,7 @@ export class S3StorageService {
         this.s3Context.bucket,
         `${file.path}${filename}`,
         expiresIn,
-        filename
+        filename,
       );
     }
 
@@ -233,7 +254,7 @@ export class S3StorageService {
     expiresIn: number,
     source?: FileSource,
     user?: User,
-    pack?: Package
+    pack?: Package,
   ) {
     if (!source) {
       source = FileSource.S3;
@@ -246,13 +267,13 @@ export class S3StorageService {
       this.s3Context.bucket,
       filenameWithPath,
       expiresIn,
-      filename
+      filename,
     );
 
     const file = await this._writeFile(
       filenameWithPath.replace(filename, ""),
       filename,
-      source
+      source,
     );
 
     if (user || pack) {
@@ -398,7 +419,7 @@ export class S3StorageService {
    * @param batchSize - Number of files to yield per batch (maximum: 1000)
    */
   public async *listS3FilesInBatches(
-    batchSize: number = 1000
+    batchSize: number = 1000,
   ): AsyncGenerator<{ filename: string; s3Key: string }[]> {
     let continuationToken: string | undefined;
     let totalProcessed = 0;
@@ -432,7 +453,7 @@ export class S3StorageService {
               {
                 prefix: LogPrefix.S3_CLEANUP,
                 totalProcessed,
-              }
+              },
             );
           }
         }
@@ -468,7 +489,7 @@ export class S3StorageService {
       {
         prefix: LogPrefix.S3_CLEANUP,
         batches: Math.ceil(s3Keys.length / BATCH_SIZE),
-      }
+      },
     );
 
     let totalDeleted = 0;
@@ -512,14 +533,14 @@ export class S3StorageService {
 
         this.logger.info(
           `Batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
-            s3Keys.length / BATCH_SIZE
+            s3Keys.length / BATCH_SIZE,
           )} completed`,
           {
             prefix: LogPrefix.S3_CLEANUP,
             deletedInBatch: batchDeleted - (result.Errors?.length || 0),
             errorsInBatch: result.Errors?.length || 0,
             totalProgress: `${totalDeleted}/${s3Keys.length}`,
-          }
+          },
         );
       } catch (error) {
         totalErrors += batch.length;
@@ -540,7 +561,7 @@ export class S3StorageService {
         totalFiles: s3Keys.length,
         successCount: totalDeleted - totalErrors,
         errorCount: totalErrors,
-      }
+      },
     );
   }
 
@@ -568,7 +589,7 @@ export class S3StorageService {
    */
   private _applyMinioContentMD5Workaround(
     command: DeleteObjectsCommand,
-    objects: Array<{ Key: string }>
+    objects: Array<{ Key: string }>,
   ): void {
     // Build XML body matching AWS SDK's serialization format
     const xmlBody = this._buildDeleteXmlBody(objects);
@@ -587,7 +608,7 @@ export class S3StorageService {
         relation: "after",
         toMiddleware: "serializerMiddleware",
         name: "addContentMD5Middleware",
-      }
+      },
     );
   }
 
@@ -598,7 +619,7 @@ export class S3StorageService {
   private _buildDeleteXmlBody(objects: Array<{ Key: string }>): string {
     const objectsXml = objects
       .map(
-        (obj) => `<Object><Key>${ValueUtils.escapeXml(obj.Key)}</Key></Object>`
+        (obj) => `<Object><Key>${ValueUtils.escapeXml(obj.Key)}</Key></Object>`,
       )
       .join("");
 
@@ -608,7 +629,7 @@ export class S3StorageService {
   private async _handleAvatarRemove(
     req: Request,
     filename: string,
-    usage: UsageEntries
+    usage: UsageEntries,
   ) {
     const user = await this.userService.getUserByRequest(req, {
       select: ["id"],
@@ -622,7 +643,7 @@ export class S3StorageService {
 
     const hasPermission = await Permission.checkPermission(
       user,
-      Permissions.DELETE_FILE
+      Permissions.DELETE_FILE,
     );
 
     for (const u of usage.users) {
