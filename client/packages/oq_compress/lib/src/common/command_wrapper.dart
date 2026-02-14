@@ -6,6 +6,8 @@ import 'package:universal_io/io.dart';
 
 /// Wraps ffmpeg/ffprobe commands for metadata inspection and media encoding.
 class CommandWrapper {
+  static int? _ffmpegMajorVersionCache;
+
   /// Check if the current platform supports FFmpeg operations.
   ///
   /// Returns true only for desktop platforms (Windows, macOS, Linux)
@@ -40,6 +42,43 @@ class CommandWrapper {
     }
   }
 
+  /// Read FFmpeg major version from `ffmpeg -version` output.
+  ///
+  /// Returns null if parsing fails and caches successful reads.
+  static Future<int?> _getFfmpegMajorVersion() async {
+    if (_ffmpegMajorVersionCache != null) {
+      return _ffmpegMajorVersionCache;
+    }
+
+    try {
+      final result = await Process.run(
+        'ffmpeg',
+        ['-version'],
+        runInShell: Platform.isWindows,
+      ).timeout(const Duration(seconds: 5));
+
+      if (result.exitCode != 0) {
+        return null;
+      }
+
+      final firstLine = result.stdout
+          .toString()
+          .split('\n')
+          .firstWhere(
+            (line) => line.trim().isNotEmpty,
+            orElse: () => '',
+          );
+      final match = RegExp(r'ffmpeg version\s+n?(\d+)').firstMatch(firstLine);
+      final major = int.tryParse(match?.group(1) ?? '');
+      if (major != null) {
+        _ffmpegMajorVersionCache = major;
+      }
+      return major;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Probe the input file for format and stream info.
   Future<FfprobeOutput?> metadata(File file) async {
     const ffprobeArgs = [
@@ -62,14 +101,28 @@ class CommandWrapper {
     required File outputFile,
     required CodecType codecType,
   }) async {
+    final ffmpegMajorVersion = await _getFfmpegMajorVersion();
+
     // --------------------------------------------------------
     // CPU / threading setup (used for video & image AV1 speedups)
     // --------------------------------------------------------
     final cpuCount = min(6, Platform.numberOfProcessors);
     final av1MultiCpuArgs = [
-      '-threads', '$cpuCount',
-      '-cpu-used', '$cpuCount', // speed vs. quality tradeoff
+      '-threads',
+      '$cpuCount',
     ];
+
+    final av1QualityArgs = ffmpegMajorVersion != null && ffmpegMajorVersion <= 7
+        ? const [
+            '-svtav1-params',
+            'preset=6:crf=40',
+          ]
+        : const [
+            '-preset',
+            '6',
+            '-crf',
+            '40',
+          ];
 
     // --------------------------------------------------------
     // Shared metadata / progress flags
@@ -101,36 +154,30 @@ class CommandWrapper {
     ];
 
     // 2) Video + audio (SVT-AV1 video + libopus audio)
-    final svtArgs = [
-      'film-grain=10',
-      'tune=2',
-      'preset=6',
-      'crf=40',
-      'min-qp=0',
-      'scm=0',
-      'enable-qm=1',
-      'qm-min=0',
-      'qm-max=40',
-    ].join(':');
-
     final videoArgs = [
       // video codec & container
       '-c:v', 'libsvtav1',
       '-f', 'webm',
       // visual quality & speed tuning
       '-fpsmax', '20',
-      '-svtav1-params',
-      '"$svtArgs"',
+      ...av1QualityArgs,
       // pixel format & color range
-      '-pix_fmt', 'yuv420p',
+      '-pix_fmt', 'yuv420p10le',
       '-color_range', 'mpeg',
     ];
-    const imageFilters = [
+    const videoFilters = [
       // downscale to max 1280×720
       '-vf',
       "scale='if(gt(a,1280/720),1280,-2)':'if(gt(a,1280/720),-2,720)'",
       // limit duration to 10 seconds
       '-t', '10',
+    ];
+    const imageFilters = [
+      // downscale to max 1280×720
+      '-vf',
+      "scale='if(gt(a,1280/720),1280,-2)':'if(gt(a,1280/720),-2,720)'",
+      // encode as a single AVIF image frame
+      '-frames:v', '1',
     ];
     const videoAudioArgs = [
       // reuse the same audio settings as audio‐only branch
@@ -142,15 +189,15 @@ class CommandWrapper {
     ];
 
     // 3) Image AVIF
-    final imageArgs = [
-      // speedups & parallelism will be injected via _av1MultiCpuArgs
+    const imageArgs = [
       // container and codec
       '-f', 'avif',
-      '-c:v', 'libsvtav1',
-      // 4:4:4 chroma, 10 bit depth
-      '-pix_fmt', 'yuv444p10le',
-      '-svtav1-params',
-      '"$svtArgs"',
+      '-c:v', 'libaom-av1',
+      // constant quality mode for AVIF
+      '-crf', '40',
+      '-b:v', '0',
+      // 4:2:0 chroma, 10 bit depth
+      '-pix_fmt', 'yuv420p10le',
       ...globalMisc,
     ];
 
@@ -170,8 +217,8 @@ class CommandWrapper {
         ...globalMisc,
       ] else if (codecType == CodecType.image)
         ...imageArgs,
-      if ({CodecType.image, CodecType.video}.contains(codecType))
-        ...imageFilters,
+      if (codecType == CodecType.video) ...videoFilters,
+      if (codecType == CodecType.image) ...imageFilters,
       outputFile.path, // output file
     ];
 
