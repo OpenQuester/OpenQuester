@@ -3954,18 +3954,8 @@
             "description": "Stake question specific data - only set when a stake question is picked"
           },
           "questionEligiblePlayers": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "integer"
-                },
-                "description": "Players who were in-game when the current question started"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/QuestionEligiblePlayers",
+            "description": "Players who were in-game when the current question started"
           },
           "password": {
             "type": ["string", "null"],
@@ -4002,6 +3992,13 @@
             "examples": ["2024-01-01T00:00:05Z", null]
           }
         }
+      },
+      "QuestionEligiblePlayers": {
+        "type": ["array", "null"],
+        "items": {
+          "type": "integer"
+        },
+        "description": "Players eligible to participate in the current question"
       },
       "GameStateAnsweredPlayer": {
         "type": "object",
@@ -4604,18 +4601,7 @@
             "$ref": "#/components/schemas/GameStateTimer"
           },
           "questionEligiblePlayers": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "integer"
-                },
-                "description": "Players eligible to participate in the current question"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/QuestionEligiblePlayers"
           }
         },
         "required": ["data", "timer"]
@@ -4739,18 +4725,7 @@
             "examples": [456]
           },
           "questionEligiblePlayers": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "integer"
-                },
-                "description": "Players eligible to participate in the current question"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/QuestionEligiblePlayers"
           }
         },
         "required": ["pickerPlayerId", "questionId", "transferType"]
@@ -5284,18 +5259,7 @@
             "description": "Timer for the bidding phase (30 seconds per bid)"
           },
           "questionEligiblePlayers": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "integer"
-                },
-                "description": "Players eligible to participate in the current question"
-              },
-              {
-                "type": "null"
-              }
-            ]
+            "$ref": "#/components/schemas/QuestionEligiblePlayers"
           }
         },
         "required": [
@@ -5502,124 +5466,36 @@
         ]
       },
       "SocketIOStakeQuestionSubmittedEventPayload": {
-        "type": "object",
         "description": "Data sent to all players when a player submitted a bid",
-        "properties": {
-          "playerId": {
-            "type": "integer",
-            "description": "ID of the player who submitted the bid",
-            "examples": [123]
-          },
-          "bidAmount": {
-            "type": ["integer", "null"],
-            "examples": [456]
-          },
-          "bidType": {
-            "$ref": "#/components/schemas/StakeBidType"
-          },
-          "isPhaseComplete": {
-            "type": "boolean"
-          },
-          "nextBidderId": {
-            "type": ["integer", "null"]
-          },
-          "timer": {
-            "oneOf": [
-              { "$ref": "#/components/schemas/GameStateTimer" },
-              { "type": "null" }
-            ],
-            "description": "Timer for the next bid or remaining time (30 seconds per bid) or null if there is no further timer"
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StakeBidSubmitOutputData"
           }
-        },
-        "required": [
-          "bidAmount",
-          "bidType",
-          "isPhaseComplete",
-          "nextBidderId",
-          "playerId"
         ]
       },
       "SocketIOStakeQuestionPickedEventPayload": {
-        "type": "object",
         "description": "Data sent to all players when a stake question is picked",
-        "properties": {
-          "pickerPlayerId": {
-            "type": "integer",
-            "description": "ID of the player who picked the question",
-            "examples": [123]
-          },
-          "questionId": {
-            "type": "integer",
-            "examples": [456]
-          },
-          "maxPrice": {
-            "type": ["integer", "null"],
-            "description": "Max bid price",
-            "examples": [1000]
-          },
-          "biddingOrder": {
-            "type": "array",
-            "items": {
-              "type": "integer"
-            },
-            "description": "List of ID's of the players in order of bidding",
-            "examples": [[23, 123, 3]]
-          },
-          "timer": {
-            "$ref": "#/components/schemas/GameStateTimer"
-          },
-          "questionEligiblePlayers": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "integer"
-                },
-                "description": "Players eligible to participate in the current question"
-              },
-              {
-                "type": "null"
-              }
-            ]
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StakeQuestionPickedBroadcastData"
           }
-        },
-        "required": [
-          "biddingOrder",
-          "maxPrice",
-          "pickerPlayerId",
-          "questionId",
-          "timer"
         ]
       },
       "SocketIOStakeQuestionWinnerEventPayload": {
-        "type": "object",
         "description": "Data sent to all players when stake question bidding completes and winner is announced. Question data is sent separately via QUESTION_DATA event.",
-        "properties": {
-          "winnerPlayerId": {
-            "type": "integer",
-            "description": "ID of the player who won the bid",
-            "examples": [123]
-          },
-          "finalBid": {
-            "type": ["integer", "null"],
-            "description": "The final winning bid amount (may be null if not applicable)",
-            "examples": [2000, null]
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StakeQuestionWinnerEventData"
           }
-        },
-        "required": ["finalBid", "winnerPlayerId"]
+        ]
       },
       "SocketIOStakeQuestionBidInput": {
-        "type": "object",
-        "properties": {
-          "bidAmount": {
-            "type": ["integer", "null"],
-            "examples": [456]
-          },
-          "bidType": {
-            "$ref": "#/components/schemas/StakeBidType"
+        "description": "Data for stake question bid submission via socket",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/StakeBidSubmitInputData"
           }
-        },
-        "required": ["bidAmount", "bidType"]
+        ]
       },
       "AdminDashboardData": {
         "type": "object",
