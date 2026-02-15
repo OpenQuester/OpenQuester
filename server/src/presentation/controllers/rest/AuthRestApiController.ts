@@ -80,21 +80,11 @@ export class AuthRestApiController {
       await this.socketUserDataService.findSocketIdByUserId(userId);
 
     if (existingSocketId && existingSocketId !== authDTO.socketId) {
-      // Force disconnect the existing socket
-      const existingSocket = this.gameNamespace.sockets.get(existingSocketId);
-      if (existingSocket) {
-        existingSocket.disconnect(true);
-      }
+      // Force disconnect the existing socket (works across instances via Redis adapter)
+      this.gameNamespace.in(existingSocketId).disconnectSockets(true);
 
       // Clean up Redis data for the old socket
       await this.socketUserDataService.remove(existingSocketId);
-    }
-
-    const socket = this.gameNamespace.sockets.get(authDTO.socketId);
-
-    // Apply userId to socket for later use
-    if (socket) {
-      socket.userId = userId;
     }
 
     await this.socketUserDataService.set(authDTO.socketId, {

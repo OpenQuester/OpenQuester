@@ -21,6 +21,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.744.0",
     "@aws-sdk/s3-request-presigner": "^3.744.0",
+    "@influxdata/influxdb3-client": "^2.0.0",
     "@seriousme/openapi-schema-validator": "^2.2.1",
     "@socket.io/admin-ui": "^0.5.1",
     "@socket.io/redis-adapter": "^8.3.0",
@@ -45,7 +46,6 @@
     "pg": "^8.12.0",
     "pino": "^9.7.0",
     "pino-pretty": "^13.0.0",
-    "prom-client": "^15.1.3",
     "reflect-metadata": "^0.2.2",
     "socket.io": "^4.8.0",
     "swagger-ui-express": "^5.0.1",

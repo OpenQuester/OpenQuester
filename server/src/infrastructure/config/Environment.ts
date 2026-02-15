@@ -8,10 +8,7 @@ import {
   CRON_EXP_2_AM_DAILY,
   CRON_EXP_3_AM_DAILY,
 } from "domain/constants/cron";
-import {
-  DEFAULT_API_PORT,
-  DEFAULT_METRICS_PORT,
-} from "domain/constants/server";
+import { DEFAULT_API_PORT } from "domain/constants/server";
 import { SESSION_SECRET_REDIS_NSP } from "domain/constants/session";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
@@ -52,6 +49,7 @@ export class Environment {
   public DB_HOST!: string;
   public DB_PORT!: number;
   public DB_LOGGER!: LoggerOptions;
+  public DB_POOL_SIZE!: number;
 
   // Redis
   public REDIS_USERNAME!: string;
@@ -72,9 +70,8 @@ export class Environment {
   // Server
   public API_PORT!: number;
 
-  // Metrics
-  public METRICS_PORT!: number;
-  public METRICS_TOKEN!: string;
+  // InfluxDB
+  public INFLUX_URL!: string;
 
   // Logs
   public LOG_LEVEL!: LogLevel;
@@ -290,22 +287,7 @@ export class Environment {
 
   private loadServer() {
     this.API_PORT = this.getEnvVar("API_PORT", "number", DEFAULT_API_PORT);
-
-    // Dedicated metrics server port, auto-offset by PM2 instance ID.
-    // Each PM2 instance gets a unique metrics port (e.g., 9209, 9210, 9211, 9212)
-    // so Prometheus can scrape each instance independently.
-    const baseMetricsPort: number = this.getEnvVar(
-      "METRICS_PORT",
-      "number",
-      DEFAULT_METRICS_PORT
-    );
-    const instanceId = Number(process.env.NODE_APP_INSTANCE);
-    this.METRICS_PORT = !isNaN(instanceId)
-      ? baseMetricsPort + instanceId
-      : baseMetricsPort;
-
-    // Optional bearer token for /metrics endpoint (required in production)
-    this.METRICS_TOKEN = this.getEnvVar("METRICS_TOKEN", "string", "", true);
+    this.INFLUX_URL = this.getEnvVar("INFLUX_URL", "string", "", true);
   }
 
   private loadDB() {
@@ -330,6 +312,7 @@ export class Environment {
     );
     this.DB_PORT = this.getEnvVar("DB_PORT", "number", 5432);
     this.DB_LOGGER = this.getEnvVar("DB_LOGGER", ["boolean", "string"], false);
+    this.DB_POOL_SIZE = this.getEnvVar("DB_POOL_SIZE", "number", 25);
   }
 
   private _checkType(

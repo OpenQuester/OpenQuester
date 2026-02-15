@@ -1,204 +1,256 @@
-import { timingSafeEqual } from "crypto";
-import http from "http";
-import {
-  collectDefaultMetrics,
-  Counter,
-  Histogram,
-  Registry,
-} from "prom-client";
-import { singleton } from "tsyringe";
+import { Point } from "@influxdata/influxdb3-client";
+import os from "os";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "application/di/tokens";
+import { Environment } from "infrastructure/config/Environment";
 import { type ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { CryptoUtils } from "infrastructure/utils/CryptoUtils";
+import { InfluxDBClientProxy } from "infrastructure/services/metrics/InfluxDBClientProxy";
+import { MetricsBuffer } from "infrastructure/services/metrics/MetricsBuffer";
+import { SystemMetricsCollector } from "infrastructure/services/metrics/SystemMetricsCollector";
 
-const METRICS_PREFIX = LogPrefix.METRICS;
+const METRICS_PREFIX = LogPrefix.INFLUXDB;
+
+const SHUTDOWN_TIMEOUT_MS = 5000;
+
+export interface MetricsServiceStartConfig {
+  url: string;
+}
+
+export interface HttpRequestLabels {
+  method: string;
+  route: string;
+  statusCode: string;
+}
+
+export interface SocketEventLabels {
+  event: string;
+  status: "success" | "error";
+}
 
 /**
- * Singleton service for Prometheus metrics collection.
- * Provides HTTP and Socket.IO request tracking (RPS, latency) and curated default Node.js metrics.
+ * Singleton service for InfluxDB-based metrics collection.
  *
- * In production (PM2 cluster mode), each instance runs a dedicated lightweight
- * HTTP server on a unique port so Prometheus can scrape each instance independently.
+ * Runs in no-op mode when InfluxDB URL is not configured.
+ * Metrics failures are isolated and never interrupt the application lifecycle.
  */
 @singleton()
 export class MetricsService {
-  private readonly _registry: Registry;
-  private _metricsServer: http.Server | null = null;
+  private readonly _instanceTag: string;
 
-  // HTTP metrics
-  private readonly _httpRequestsTotal: Counter;
-  private readonly _httpRequestDuration: Histogram;
-
-  // Socket.IO metrics
-  private readonly _socketEventsTotal: Counter;
-  private readonly _socketEventDuration: Histogram;
-
-  constructor() {
-    this._registry = new Registry();
-
-    // Collect default Node.js metrics (CPU, memory, event loop, GC, etc.)
-    collectDefaultMetrics({ register: this._registry });
-
-    // Remove useless/noisy default metrics
-    this._removeUnwantedMetrics();
-
-    // HTTP Request Counter - for RPS calculation via rate()
-    this._httpRequestsTotal = new Counter({
-      name: "http_requests_total",
-      help: "Total number of HTTP requests",
-      labelNames: ["method", "route", "status_code"],
-      registers: [this._registry],
-    });
-
-    // HTTP Request Duration Histogram - for latency percentiles
-    this._httpRequestDuration = new Histogram({
-      name: "http_request_duration_seconds",
-      help: "HTTP request duration in seconds",
-      labelNames: ["method", "route", "status_code"],
-      // Buckets optimized for API response times (1ms to 10s)
-      buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
-      registers: [this._registry],
-    });
-
-    // Socket.IO Event Counter - for RPS calculation via rate()
-    this._socketEventsTotal = new Counter({
-      name: "socket_events_total",
-      help: "Total number of Socket.IO events processed",
-      labelNames: ["event", "status"],
-      registers: [this._registry],
-    });
-
-    // Socket.IO Event Duration Histogram - for latency percentiles
-    this._socketEventDuration = new Histogram({
-      name: "socket_event_duration_seconds",
-      help: "Socket.IO event processing duration in seconds",
-      labelNames: ["event", "status"],
-      // Buckets optimized for socket event processing (1ms to 30s for long game actions)
-      buckets: [
-        0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30,
-      ],
-      registers: [this._registry],
-    });
-  }
-
-  public get httpRequestsTotal(): Counter {
-    return this._httpRequestsTotal;
-  }
-
-  public get httpRequestDuration(): Histogram {
-    return this._httpRequestDuration;
-  }
-
-  public get socketEventsTotal(): Counter {
-    return this._socketEventsTotal;
-  }
-
-  public get socketEventDuration(): Histogram {
-    return this._socketEventDuration;
+  constructor(
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
+    @inject(DI_TOKENS.Environment) private readonly _env: Environment,
+    private readonly _influxClient: InfluxDBClientProxy,
+    private readonly _buffer: MetricsBuffer,
+    private readonly _systemCollector: SystemMetricsCollector
+  ) {
+    this._instanceTag = os.hostname();
   }
 
   /**
-   * Get all metrics in Prometheus format
+   * Returns `true` when metrics are actively configured and running.
    */
-  public async getMetrics(): Promise<string> {
-    return this._registry.metrics();
+  public get isRunning(): boolean {
+    return this._buffer.isRunning;
   }
 
   /**
-   * Get content type for metrics response
+   * Starts metrics collection and push delivery to InfluxDB.
+   *
+   * When `INFLUX_URL` is empty, the service runs in no-op mode.
    */
-  public get contentType(): string {
-    return this._registry.contentType;
-  }
+  public start(): void {
+    const config: MetricsServiceStartConfig = {
+      url: this._env.INFLUX_URL,
+    };
 
-  /**
-   * Start a dedicated lightweight HTTP server for Prometheus scraping.
-   * Each PM2 instance runs this on a unique port (METRICS_PORT + NODE_APP_INSTANCE).
-   * This avoids the PM2 cluster mode problem where scraping the shared API port
-   * hits a random instance each time, breaking counter-based rate() calculations.
-   */
-  public startServer(port: number, token: string, logger: ILogger): void {
-    const tokenHash = token ? CryptoUtils.sha256(token) : null;
-
-    this._metricsServer = http.createServer(async (req, res) => {
-      if (req.method !== "GET" || req.url !== "/metrics") {
-        res.writeHead(404);
-        res.end();
-        return;
-      }
-
-      if (tokenHash) {
-        const authHeader = req.headers.authorization;
-        if (!authHeader?.startsWith("Bearer ")) {
-          res.writeHead(403, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Forbidden" }));
-          return;
-        }
-
-        const providedToken = authHeader.slice(7);
-        const providedTokenHash = CryptoUtils.sha256(providedToken);
-        if (!timingSafeEqual(providedTokenHash, tokenHash)) {
-          res.writeHead(403, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Forbidden" }));
-          return;
-        }
-      }
-
-      const metrics = await this._registry.metrics();
-      res.writeHead(200, { "Content-Type": this._registry.contentType });
-      res.end(metrics);
-    });
-
-    this._metricsServer.once("error", (error) => {
-      logger.error("Failed to start metrics server", {
+    if (!config.url?.trim()) {
+      this.logger.info("InfluxDB URL is not configured, metrics are disabled", {
         prefix: METRICS_PREFIX,
-        port,
-        error: error instanceof Error ? error.message : String(error),
       });
-    });
-
-    this._metricsServer.listen(port, () => {
-      logger.info(`Metrics server listening on port: ${port}`, {
-        prefix: METRICS_PREFIX,
-        port,
-      });
-    });
-  }
-
-  /**
-   * Stop the dedicated metrics HTTP server (for graceful shutdown).
-   */
-  public async stopServer(): Promise<void> {
-    if (!this._metricsServer) {
       return;
     }
 
-    return new Promise((resolve) => {
-      this._metricsServer!.close(() => {
-        this._metricsServer = null;
-        resolve();
+    const validation = this._validateInfluxUrl(config.url);
+    if (!validation.valid) {
+      this.logger.warn(validation.reason ?? "INFLUX_URL validation failed", {
+        prefix: METRICS_PREFIX,
       });
+      return;
+    }
+
+    if (this.isRunning) {
+      this.logger.warn("Metrics service is already started", {
+        prefix: METRICS_PREFIX,
+      });
+      return;
+    }
+
+    void this._startInternal(config);
+  }
+
+  private async _startInternal(
+    config: MetricsServiceStartConfig
+  ): Promise<void> {
+    await this._influxClient.configure({
+      url: config.url,
     });
+
+    if (!this._influxClient.isReady) {
+      this.logger.error("Failed to initialize InfluxDB metrics service", {
+        prefix: METRICS_PREFIX,
+      });
+      return;
+    }
+
+    this._buffer.start();
+    this._systemCollector.start();
+
+    this.logger.info("InfluxDB metrics service started", {
+      prefix: METRICS_PREFIX,
+      endpoint: this._sanitizeUrlForLogs(config.url),
+      instance: this._instanceTag,
+    });
+
+    void this._performHealthCheck();
   }
 
   /**
-   * Remove metrics that provide little operational value:
-   * - nodejs_version_info: Static, doesn't change
-   * - process_start_time_seconds: Static, uptime can be derived if needed
-   * - process_open_fds: Rarely actionable
-   * - nodejs_external_memory_bytes: Minimal value for most apps
+   * Stops metrics collection and flushes buffered points.
+   *
+   * This method is resilient and never throws.
    */
-  private _removeUnwantedMetrics(): void {
-    const metricsToRemove = [
-      "nodejs_version_info",
-      "process_start_time_seconds",
-      "process_open_fds",
-      "nodejs_external_memory_bytes",
-    ];
+  public async stop(): Promise<void> {
+    this._systemCollector.stop();
 
-    for (const metricName of metricsToRemove) {
-      this._registry.removeSingleMetric(metricName);
+    if (!this._buffer.isRunning) {
+      await this._influxClient.close();
+      return;
+    }
+
+    try {
+      await Promise.race([
+        this._buffer.close(),
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, SHUTDOWN_TIMEOUT_MS);
+        }),
+      ]);
+    } catch {
+      // Ignore metrics shutdown failures
+    } finally {
+      await this._influxClient.close();
+    }
+  }
+
+  /**
+   * Records a single HTTP request event.
+   *
+   * No-op when metrics are disabled or not initialized.
+   */
+  public recordHttpRequest(
+    labels: HttpRequestLabels,
+    durationSeconds: number
+  ): void {
+    if (!this._buffer.isRunning) {
+      return;
+    }
+
+    try {
+      const point = Point.measurement("http_requests")
+        .setTag("method", labels.method)
+        .setTag("route", labels.route)
+        .setTag("status_code", labels.statusCode)
+        .setTag("instance", this._instanceTag)
+        .setFloatField("duration", durationSeconds)
+        .setIntegerField("count", 1);
+
+      this._buffer.add(point);
+    } catch {
+      // Metrics failures are intentionally isolated
+    }
+  }
+
+  /**
+   * Records a single Socket.IO event.
+   *
+   * No-op when metrics are disabled or not initialized.
+   */
+  public recordSocketEvent(
+    labels: SocketEventLabels,
+    durationSeconds: number
+  ): void {
+    if (!this._buffer.isRunning) {
+      return;
+    }
+
+    try {
+      const point = Point.measurement("socket_events")
+        .setTag("event", labels.event)
+        .setTag("status", labels.status)
+        .setTag("instance", this._instanceTag)
+        .setFloatField("duration", durationSeconds)
+        .setIntegerField("count", 1);
+
+      this._buffer.add(point);
+    } catch {
+      // Metrics failures are intentionally isolated
+    }
+  }
+
+  private async _performHealthCheck(): Promise<void> {
+    if (!this._influxClient.isReady) {
+      return;
+    }
+
+    try {
+      const version = await this._influxClient.getServerVersion();
+      this.logger.info("InfluxDB connection check successful", {
+        prefix: METRICS_PREFIX,
+        version,
+      });
+    } catch (error) {
+      this.logger.warn("InfluxDB is currently unreachable, running degraded", {
+        prefix: METRICS_PREFIX,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private _validateInfluxUrl(url: string): {
+    valid: boolean;
+    reason?: string;
+  } {
+    try {
+      const parsed = new URL(url);
+      const database =
+        parsed.searchParams.get("database")?.trim() ??
+        parsed.searchParams.get("bucket")?.trim();
+
+      if (!database) {
+        return {
+          valid: false,
+          reason:
+            "INFLUX_URL is missing required database query parameter, metrics are disabled",
+        };
+      }
+
+      return { valid: true };
+    } catch {
+      return {
+        valid: false,
+        reason: "INFLUX_URL is invalid, metrics are disabled",
+      };
+    }
+  }
+
+  private _sanitizeUrlForLogs(url: string): string {
+    try {
+      const parsed = new URL(url);
+      return `${parsed.origin}${parsed.pathname}`;
+    } catch {
+      return "invalid-url";
     }
   }
 }

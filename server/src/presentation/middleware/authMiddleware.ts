@@ -22,7 +22,7 @@ const isPublicEndpoint = (
   url: string,
   method: string
 ): boolean => {
-  const publicEndpoints = ["v1/api-docs", "v1/users", "v1/files", "metrics"];
+  const publicEndpoints = ["v1/api-docs", "v1/users", "v1/files"];
 
   if (env.ENV === EnvType.DEV) {
     publicEndpoints.push("v1/dev");

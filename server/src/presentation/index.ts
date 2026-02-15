@@ -177,9 +177,9 @@ async function gracefulShutdown(
     });
   }
 
-  // Stop metrics server
+  // Stop metrics collection
   try {
-    await container.resolve(MetricsService).stopServer();
+    await container.resolve(MetricsService).stop();
   } catch {
     // Ignore
   }

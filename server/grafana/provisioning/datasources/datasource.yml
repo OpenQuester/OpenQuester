@@ -1,9 +1,15 @@
 apiVersion: 1
 
 datasources:
-  - name: Prometheus
-    type: prometheus
+  - name: InfluxDB
+    uid: influxdb-openquester
+    type: influxdb
     access: proxy
-    url: http://prometheus:9090
+    url: http://influxdb3:8181
     isDefault: true
-    editable: false
+    editable: true
+    jsonData:
+      version: SQL
+      dbName: openquester
+      httpMode: POST
+      insecureGrpc: true

@@ -38,7 +38,6 @@ import { AuthRestApiController } from "presentation/controllers/rest/AuthRestApi
 import { DevelopmentRestApiController } from "presentation/controllers/rest/DevelopmentRestApiController";
 import { FileRestApiController } from "presentation/controllers/rest/FileRestApiController";
 import { GameRestApiController } from "presentation/controllers/rest/GameRestApiController";
-import { MetricsRestApiController } from "presentation/controllers/rest/MetricsRestApiController";
 import { PackageRestApiController } from "presentation/controllers/rest/PackageRestApiController";
 import { SwaggerRestApiController } from "presentation/controllers/rest/SwaggerRestApiController";
 import { UserRestApiController } from "presentation/controllers/rest/UserRestApiController";
@@ -115,12 +114,7 @@ export class ServeApi {
       });
       this._io.listen(this._server);
 
-      // Start dedicated metrics HTTP server for Prometheus scraping
-      metricsService.startServer(
-        this._context.env.METRICS_PORT,
-        this._context.env.METRICS_TOKEN,
-        this._context.logger
-      );
+      metricsService.start();
 
       await this._processPrepareJobs();
 
@@ -183,7 +177,6 @@ export class ServeApi {
       gameProgressionCoordinator: container.resolve(GameProgressionCoordinator),
       gameActionExecutor: container.resolve(GameActionExecutor),
       logReaderService: container.resolve(LogReaderService),
-      metricsService: container.resolve(MetricsService),
     };
 
     // REST
@@ -220,11 +213,6 @@ export class ServeApi {
       deps.logReaderService
     );
     new SwaggerRestApiController(deps.app, this._context.logger);
-    new MetricsRestApiController(
-      deps.app,
-      deps.metricsService,
-      this._context.env
-    );
 
     if (this._context.env.ENV === EnvType.DEV) {
       new DevelopmentRestApiController(

@@ -11,34 +11,57 @@
   "panels": [
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "id": 100,
       "title": "Overview",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           },
           "unit": "reqps"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
       "id": 15,
+      "interval": "10s",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -46,38 +69,61 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(http_requests_total{job=\"openquester-api\"}[1m]))",
-          "legendFormat": "HTTP RPS",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"HTTP RPS\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, SUM(count) AS \"HTTP RPS\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         }
       ],
       "title": "HTTP RPS",
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           },
           "unit": "reqps"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
       "id": 22,
+      "interval": "10s",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -85,43 +131,70 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(socket_events_total{job=\"openquester-api\"}[1m]))",
-          "legendFormat": "Socket Events/s",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Socket Events/s\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Socket Events/s\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         }
       ],
       "title": "Socket Events/s",
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 5 },
-              { "color": "red", "value": 15 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 15
+              }
             ]
           },
           "unit": "percent"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
       "id": 30,
+      "interval": "10s",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -129,43 +202,70 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(http_requests_total{job=\"openquester-api\",status_code=~\"5..\"}[1m])) / sum(rate(http_requests_total{job=\"openquester-api\"}[1m])) * 100",
-          "legendFormat": "HTTP 5xx Rate",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "WITH totals AS (SELECT $__dateBin(time) AS time, SUM(count) AS total FROM http_requests WHERE $__timeFilter(time) GROUP BY 1), errors AS (SELECT $__dateBin(time) AS time, SUM(count) AS errors FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '5%' GROUP BY 1) SELECT t.time, 100.0 * COALESCE(e.errors, 0) / NULLIF(t.total, 0) AS \"HTTP 5xx Rate\" FROM totals t LEFT JOIN errors e ON t.time = e.time ORDER BY t.time",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "WITH totals AS (SELECT $__dateBin(time) AS time, SUM(count) AS total FROM http_requests WHERE $__timeFilter(time) GROUP BY 1), errors AS (SELECT $__dateBin(time) AS time, SUM(count) AS errors FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '5%' GROUP BY 1) SELECT t.time, 100.0 * COALESCE(e.errors, 0) / NULLIF(t.total, 0) AS \"HTTP 5xx Rate\" FROM totals t LEFT JOIN errors e ON t.time = e.time ORDER BY t.time"
         }
       ],
       "title": "HTTP Error Rate (5xx)",
       "type": "stat"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "decimals": 2,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 5 },
-              { "color": "red", "value": 15 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 15
+              }
             ]
           },
           "unit": "percent"
         },
         "overrides": []
       },
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
       "id": 31,
+      "interval": "10s",
       "options": {
         "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
@@ -173,10 +273,15 @@
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(socket_events_total{job=\"openquester-api\",status=\"error\"}[1m])) / sum(rate(socket_events_total{job=\"openquester-api\"}[1m])) * 100",
-          "legendFormat": "Socket Error Rate",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "WITH totals AS (SELECT $__dateBin(time) AS time, SUM(count) AS total FROM socket_events WHERE $__timeFilter(time) GROUP BY 1), errors AS (SELECT $__dateBin(time) AS time, SUM(count) AS errors FROM socket_events WHERE $__timeFilter(time) AND status = 'error' GROUP BY 1) SELECT t.time, 100.0 * COALESCE(e.errors, 0) / NULLIF(t.total, 0) AS \"Socket Error Rate\" FROM totals t LEFT JOIN errors e ON t.time = e.time ORDER BY t.time",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "WITH totals AS (SELECT $__dateBin(time) AS time, SUM(count) AS total FROM socket_events WHERE $__timeFilter(time) GROUP BY 1), errors AS (SELECT $__dateBin(time) AS time, SUM(count) AS errors FROM socket_events WHERE $__timeFilter(time) AND status = 'error' GROUP BY 1) SELECT t.time, 100.0 * COALESCE(e.errors, 0) / NULLIF(t.total, 0) AS \"Socket Error Rate\" FROM totals t LEFT JOIN errors e ON t.time = e.time ORDER BY t.time"
         }
       ],
       "title": "Socket Error Rate",
@@ -184,16 +289,26 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
       "id": 101,
       "title": "Throughput",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -204,74 +319,128 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           },
           "unit": "reqps"
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 6 },
+      "gridPos": {
+        "h": 13,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
       "id": 10,
+      "interval": "10s",
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(http_requests_total{job=\"openquester-api\"}[1m]))",
-          "legendFormat": "Total RPS",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Total RPS\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Total RPS\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(http_requests_total{job=\"openquester-api\",status_code=~\"2..\"}[1m]))",
-          "legendFormat": "Success (2xx)",
-          "refId": "B"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Success (2xx)\" FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '2%' GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "B",
+          "query": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Success (2xx)\" FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '2%' GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(http_requests_total{job=\"openquester-api\",status_code=~\"4..\"}[1m]))",
-          "legendFormat": "Client Errors (4xx)",
-          "refId": "C"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Client Errors (4xx)\" FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '4%' GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "C",
+          "query": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Client Errors (4xx)\" FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '4%' GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(http_requests_total{job=\"openquester-api\",status_code=~\"5..\"}[1m]))",
-          "legendFormat": "Server Errors (5xx)",
-          "refId": "D"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Server Errors (5xx)\" FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '5%' GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "D",
+          "query": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Server Errors (5xx)\" FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '5%' GROUP BY 1 ORDER BY 1"
         }
       ],
       "title": "HTTP Requests Per Second",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -282,58 +451,102 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           },
           "unit": "reqps"
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 6 },
+      "gridPos": {
+        "h": 13,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
       "id": 20,
+      "interval": "10s",
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(socket_events_total{job=\"openquester-api\"}[1m]))",
-          "legendFormat": "Total Events/s",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Total Events/s\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Total Events/s\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(socket_events_total{job=\"openquester-api\",status=\"success\"}[1m]))",
-          "legendFormat": "Success",
-          "refId": "B"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Success\" FROM socket_events WHERE $__timeFilter(time) AND status = 'success' GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "B",
+          "query": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Success\" FROM socket_events WHERE $__timeFilter(time) AND status = 'success' GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(socket_events_total{job=\"openquester-api\",status=\"error\"}[1m]))",
-          "legendFormat": "Errors",
-          "refId": "C"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Errors\" FROM socket_events WHERE $__timeFilter(time) AND status = 'error' GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "C",
+          "query": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Errors\" FROM socket_events WHERE $__timeFilter(time) AND status = 'error' GROUP BY 1 ORDER BY 1"
         }
       ],
       "title": "Socket.IO Events Per Second",
@@ -341,16 +554,26 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
       "id": 102,
       "title": "Latency",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -361,75 +584,132 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.5 },
-              { "color": "red", "value": 1 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 16 },
+      "gridPos": {
+        "h": 13,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
       "id": 11,
+      "interval": "10s",
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"openquester-api\"}[5m])) by (le))",
-          "legendFormat": "p50 (median)",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.50) AS \"p50 (median)\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.50) AS \"p50 (median)\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{job=\"openquester-api\"}[5m])) by (le))",
-          "legendFormat": "p90",
-          "refId": "B"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.90) AS \"p90\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "B",
+          "query": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.90) AS \"p90\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"openquester-api\"}[5m])) by (le))",
-          "legendFormat": "p95",
-          "refId": "C"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.95) AS \"p95\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "C",
+          "query": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.95) AS \"p95\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"openquester-api\"}[5m])) by (le))",
-          "legendFormat": "p99",
-          "refId": "D"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.99) AS \"p99\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "D",
+          "query": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.99) AS \"p99\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         }
       ],
       "title": "HTTP Request Latency",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -440,65 +720,117 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.5 },
-              { "color": "red", "value": 1 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 16 },
+      "gridPos": {
+        "h": 13,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
       "id": 21,
+      "interval": "10s",
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.50, sum(rate(socket_event_duration_seconds_bucket{job=\"openquester-api\"}[5m])) by (le))",
-          "legendFormat": "p50 (median)",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.50) AS \"p50 (median)\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.50) AS \"p50 (median)\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.90, sum(rate(socket_event_duration_seconds_bucket{job=\"openquester-api\"}[5m])) by (le))",
-          "legendFormat": "p90",
-          "refId": "B"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.90) AS \"p90\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "B",
+          "query": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.90) AS \"p90\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.95, sum(rate(socket_event_duration_seconds_bucket{job=\"openquester-api\"}[5m])) by (le))",
-          "legendFormat": "p95",
-          "refId": "C"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.95) AS \"p95\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "C",
+          "query": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.95) AS \"p95\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "histogram_quantile(0.99, sum(rate(socket_event_duration_seconds_bucket{job=\"openquester-api\"}[5m])) by (le))",
-          "legendFormat": "p99",
-          "refId": "D"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.99) AS \"p99\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "D",
+          "query": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.99) AS \"p99\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         }
       ],
       "title": "Socket.IO Event Latency",
@@ -506,57 +838,113 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      },
       "id": 103,
       "title": "Top 10 Breakdown",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "custom": {
             "align": "auto",
-            "cellOptions": { "type": "auto" },
+            "cellOptions": {
+              "type": "auto"
+            },
             "inspect": false
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Route" },
-            "properties": [{ "id": "custom.width", "value": 250 }]
+            "matcher": {
+              "id": "byName",
+              "options": "Route"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 250
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "RPS" },
+            "matcher": {
+              "id": "byName",
+              "options": "Count"
+            },
             "properties": [
-              { "id": "unit", "value": "reqps" },
-              { "id": "decimals", "value": 3 }
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
             ]
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 24 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 34
+      },
       "id": 16,
       "options": {
         "cellHeight": "sm",
-        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true,
-        "sortBy": [{ "desc": true, "displayName": "RPS" }]
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Count"
+          }
+        ]
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "topk(10, sum(rate(http_requests_total{job=\"openquester-api\"}[5m])) by (route))",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT route, SUM(count) AS \"Value\" FROM http_requests WHERE $__timeFilter(time) GROUP BY route ORDER BY \"Value\" DESC LIMIT 10",
           "format": "table",
-          "instant": true,
+          "rawQuery": true,
+          "editorMode": "code",
           "legendFormat": "__auto",
-          "refId": "A"
+          "refId": "A",
+          "query": "SELECT route, SUM(count) AS \"Value\" FROM http_requests WHERE $__timeFilter(time) GROUP BY route ORDER BY \"Value\" DESC LIMIT 10"
         }
       ],
       "title": "Top 10 HTTP Routes",
@@ -564,59 +952,118 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true },
-            "renameByName": { "Value": "RPS", "route": "Route" }
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "renameByName": {
+              "Value": "Count",
+              "route": "Route"
+            }
           }
         }
       ],
       "type": "table"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "custom": {
             "align": "auto",
-            "cellOptions": { "type": "auto" },
+            "cellOptions": {
+              "type": "auto"
+            },
             "inspect": false
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
-            "steps": [{ "color": "green", "value": null }]
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Event" },
-            "properties": [{ "id": "custom.width", "value": 250 }]
+            "matcher": {
+              "id": "byName",
+              "options": "Event"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 250
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "Events/s" },
+            "matcher": {
+              "id": "byName",
+              "options": "Count"
+            },
             "properties": [
-              { "id": "unit", "value": "reqps" },
-              { "id": "decimals", "value": 3 }
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
             ]
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 24 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 34
+      },
       "id": 23,
       "options": {
         "cellHeight": "sm",
-        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true,
-        "sortBy": [{ "desc": true, "displayName": "Events/s" }]
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "Count"
+          }
+        ]
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "topk(10, sum(rate(socket_events_total{job=\"openquester-api\"}[5m])) by (event))",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT event, SUM(count) AS \"Value\" FROM socket_events WHERE $__timeFilter(time) GROUP BY event ORDER BY \"Value\" DESC LIMIT 10",
           "format": "table",
-          "instant": true,
+          "rawQuery": true,
+          "editorMode": "code",
           "legendFormat": "__auto",
-          "refId": "A"
+          "refId": "A",
+          "query": "SELECT event, SUM(count) AS \"Value\" FROM socket_events WHERE $__timeFilter(time) GROUP BY event ORDER BY \"Value\" DESC LIMIT 10"
         }
       ],
       "title": "Top 10 Socket Events",
@@ -624,68 +1071,139 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true },
-            "renameByName": { "Value": "Events/s", "event": "Event" }
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "renameByName": {
+              "Value": "Count",
+              "event": "Event"
+            }
           }
         }
       ],
       "type": "table"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "thresholds" },
+          "color": {
+            "mode": "thresholds"
+          },
           "custom": {
             "align": "auto",
-            "cellOptions": { "type": "auto" },
+            "cellOptions": {
+              "type": "auto"
+            },
             "inspect": false
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.1 },
-              { "color": "red", "value": 0.5 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
             ]
           }
         },
         "overrides": [
           {
-            "matcher": { "id": "byName", "options": "Event" },
-            "properties": [{ "id": "custom.width", "value": 250 }]
+            "matcher": {
+              "id": "byName",
+              "options": "Event"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 250
+              }
+            ]
           },
           {
-            "matcher": { "id": "byName", "options": "p95 (s)" },
+            "matcher": {
+              "id": "byName",
+              "options": "p95 (s)"
+            },
             "properties": [
-              { "id": "unit", "value": "s" },
-              { "id": "decimals", "value": 4 },
-              { "id": "color", "value": { "mode": "thresholds" } },
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "decimals",
+                "value": 4
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
               {
                 "id": "custom.cellOptions",
-                "value": { "mode": "gradient", "type": "color-background" }
+                "value": {
+                  "mode": "gradient",
+                  "type": "color-background"
+                }
               }
             ]
           }
         ]
       },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 24 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
       "id": 24,
       "options": {
         "cellHeight": "sm",
-        "footer": { "countRows": false, "fields": "", "reducer": ["sum"], "show": false },
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true,
-        "sortBy": [{ "desc": true, "displayName": "p95 (s)" }]
+        "sortBy": [
+          {
+            "desc": true,
+            "displayName": "p95 (s)"
+          }
+        ]
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "topk(10, histogram_quantile(0.95, sum(rate(socket_event_duration_seconds_bucket{job=\"openquester-api\"}[5m])) by (event, le)))",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT event, approx_percentile_cont(duration, 0.95) AS \"Value\" FROM socket_events WHERE $__timeFilter(time) GROUP BY event ORDER BY \"Value\" DESC LIMIT 10",
           "format": "table",
-          "instant": true,
+          "rawQuery": true,
+          "editorMode": "code",
           "legendFormat": "__auto",
-          "refId": "A"
+          "refId": "A",
+          "query": "SELECT event, approx_percentile_cont(duration, 0.95) AS \"Value\" FROM socket_events WHERE $__timeFilter(time) GROUP BY event ORDER BY \"Value\" DESC LIMIT 10"
         }
       ],
       "title": "Slowest Socket Events (p95)",
@@ -693,8 +1211,16 @@
         {
           "id": "organize",
           "options": {
-            "excludeByName": { "Time": true, "__name__": true, "instance": true, "job": true },
-            "renameByName": { "Value": "p95 (s)", "event": "Event" }
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
+            },
+            "renameByName": {
+              "Value": "p95 (s)",
+              "event": "Event"
+            }
           }
         }
       ],
@@ -702,17 +1228,27 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      },
       "id": 104,
       "title": "System (per instance)",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "description": "CPU usage per instance. Use the Instance dropdown to filter. Shows all instances when 'All' is selected.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -723,63 +1259,107 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           },
           "unit": "percent"
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 33 },
+      "gridPos": {
+        "h": 13,
+        "w": 8,
+        "x": 0,
+        "y": 43
+      },
       "id": 1,
+      "interval": "15s",
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(process_cpu_user_seconds_total{job=\"openquester-api\",instance=~\"$instance\"}[1m]) * 100",
-          "legendFormat": "User CPU % ({{instance}})",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, AVG(cpu_user_pct) AS \"User CPU %\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, AVG(cpu_user_pct) AS \"User CPU %\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(process_cpu_system_seconds_total{job=\"openquester-api\",instance=~\"$instance\"}[1m]) * 100",
-          "legendFormat": "System CPU % ({{instance}})",
-          "refId": "B"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, AVG(cpu_system_pct) AS \"System CPU %\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "B",
+          "query": "SELECT $__dateBin(time) AS time, AVG(cpu_system_pct) AS \"System CPU %\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1"
         }
       ],
       "title": "CPU Usage",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "description": "Memory usage per instance. Use the Instance dropdown to filter.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -790,69 +1370,118 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           },
           "unit": "bytes"
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 33 },
+      "gridPos": {
+        "h": 13,
+        "w": 8,
+        "x": 8,
+        "y": 43
+      },
       "id": 2,
+      "interval": "15s",
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "process_resident_memory_bytes{job=\"openquester-api\",instance=~\"$instance\"}",
-          "legendFormat": "RSS ({{instance}})",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, AVG(rss_bytes) AS \"RSS\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, AVG(rss_bytes) AS \"RSS\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "nodejs_heap_size_used_bytes{job=\"openquester-api\",instance=~\"$instance\"}",
-          "legendFormat": "Heap Used ({{instance}})",
-          "refId": "B"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, AVG(heap_used_bytes) AS \"Heap Used\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "B",
+          "query": "SELECT $__dateBin(time) AS time, AVG(heap_used_bytes) AS \"Heap Used\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "nodejs_heap_size_total_bytes{job=\"openquester-api\",instance=~\"$instance\"}",
-          "legendFormat": "Heap Total ({{instance}})",
-          "refId": "C"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, AVG(heap_total_bytes) AS \"Heap Total\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "C",
+          "query": "SELECT $__dateBin(time) AS time, AVG(heap_total_bytes) AS \"Heap Total\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1"
         }
       ],
       "title": "Memory Usage",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "description": "Event loop lag per instance. Use the Instance dropdown to filter.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -863,46 +1492,80 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           },
           "unit": "s"
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 33 },
+      "gridPos": {
+        "h": 13,
+        "w": 8,
+        "x": 16,
+        "y": 43
+      },
       "id": 3,
+      "interval": "15s",
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "nodejs_eventloop_lag_seconds{job=\"openquester-api\",instance=~\"$instance\"}",
-          "legendFormat": "Event Loop Lag ({{instance}})",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, AVG(event_loop_lag_seconds) AS \"Event Loop Lag\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, AVG(event_loop_lag_seconds) AS \"Event Loop Lag\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1"
         }
       ],
       "title": "Event Loop Lag",
@@ -910,17 +1573,27 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 56
+      },
       "id": 105,
       "title": "System (total)",
       "type": "row"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "description": "Total CPU usage across all instances.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -931,63 +1604,107 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           },
           "unit": "percent"
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 41 },
+      "gridPos": {
+        "h": 13,
+        "w": 12,
+        "x": 0,
+        "y": 57
+      },
       "id": 40,
+      "interval": "15s",
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(process_cpu_user_seconds_total{job=\"openquester-api\"}[1m])) * 100",
-          "legendFormat": "Total User CPU %",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(cpu_user_pct) AS \"Total User CPU %\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, SUM(cpu_user_pct) AS \"Total User CPU %\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(rate(process_cpu_system_seconds_total{job=\"openquester-api\"}[1m])) * 100",
-          "legendFormat": "Total System CPU %",
-          "refId": "B"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(cpu_system_pct) AS \"Total System CPU %\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "B",
+          "query": "SELECT $__dateBin(time) AS time, SUM(cpu_system_pct) AS \"Total System CPU %\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         }
       ],
       "title": "Total CPU Usage",
       "type": "timeseries"
     },
     {
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
       "description": "Total memory usage across all instances.",
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
+          "color": {
+            "mode": "palette-classic"
+          },
           "custom": {
             "axisBorderShow": false,
             "axisCenteredZero": false,
@@ -998,96 +1715,387 @@
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
-            "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
             "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
-            "scaleDistribution": { "type": "linear" },
+            "scaleDistribution": {
+              "type": "linear"
+            },
             "showPoints": "never",
             "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" },
-            "thresholdsStyle": { "mode": "off" }
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "red", "value": 80 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
             ]
           },
           "unit": "bytes"
         },
         "overrides": []
       },
-      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 41 },
+      "gridPos": {
+        "h": 13,
+        "w": 12,
+        "x": 12,
+        "y": 57
+      },
       "id": 41,
+      "interval": "15s",
       "options": {
         "legend": {
-          "calcs": ["mean", "max"],
+          "calcs": [
+            "mean",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
-        "tooltip": { "mode": "multi", "sort": "desc" }
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(process_resident_memory_bytes{job=\"openquester-api\"})",
-          "legendFormat": "Total RSS",
-          "refId": "A"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(rss_bytes) AS \"Total RSS\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, SUM(rss_bytes) AS \"Total RSS\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(nodejs_heap_size_used_bytes{job=\"openquester-api\"})",
-          "legendFormat": "Total Heap Used",
-          "refId": "B"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(heap_used_bytes) AS \"Total Heap Used\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "B",
+          "query": "SELECT $__dateBin(time) AS time, SUM(heap_used_bytes) AS \"Total Heap Used\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "sum(nodejs_heap_size_total_bytes{job=\"openquester-api\"})",
-          "legendFormat": "Total Heap Total",
-          "refId": "C"
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(heap_total_bytes) AS \"Total Heap Total\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "C",
+          "query": "SELECT $__dateBin(time) AS time, SUM(heap_total_bytes) AS \"Total Heap Total\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
         }
       ],
       "title": "Total Memory Usage",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 70
+      },
+      "id": 106,
+      "title": "Online Sockets",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 500
+              },
+              {
+                "color": "red",
+                "value": 1000
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 71
+      },
+      "id": 50,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "WITH latest AS (SELECT instance, online_sockets, ROW_NUMBER() OVER (PARTITION BY instance ORDER BY time DESC) AS rn FROM system_metrics WHERE $__timeFilter(time)) SELECT NOW() AS time, SUM(online_sockets) AS \"Total Online Sockets\" FROM latest WHERE rn = 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "WITH latest AS (SELECT instance, online_sockets, ROW_NUMBER() OVER (PARTITION BY instance ORDER BY time DESC) AS rn FROM system_metrics WHERE $__timeFilter(time)) SELECT NOW() AS time, SUM(online_sockets) AS \"Total Online Sockets\" FROM latest WHERE rn = 1"
+        }
+      ],
+      "title": "Total Online Sockets",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 20
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 71
+      },
+      "id": 52,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "WITH latest AS (SELECT instance, active_games, ROW_NUMBER() OVER (PARTITION BY instance ORDER BY time DESC) AS rn FROM system_metrics WHERE $__timeFilter(time)) SELECT NOW() AS time, MAX(active_games) AS \"Active Online Games\" FROM latest WHERE rn = 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "WITH latest AS (SELECT instance, active_games, ROW_NUMBER() OVER (PARTITION BY instance ORDER BY time DESC) AS rn FROM system_metrics WHERE $__timeFilter(time)) SELECT NOW() AS time, MAX(active_games) AS \"Active Online Games\" FROM latest WHERE rn = 1"
+        }
+      ],
+      "title": "Active Online Games",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-openquester"
+      },
+      "description": "Online WebSocket connections per instance and total across all instances.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 13,
+        "w": 24,
+        "x": 0,
+        "y": 75
+      },
+      "id": 51,
+      "interval": "15s",
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, SUM(online_sockets) AS \"Total\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "A",
+          "query": "SELECT $__dateBin(time) AS time, SUM(online_sockets) AS \"Total\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-openquester"
+          },
+          "rawSql": "SELECT $__dateBin(time) AS time, AVG(online_sockets) AS \"Sockets\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
+          "rawQuery": true,
+          "editorMode": "code",
+          "refId": "B",
+          "query": "SELECT $__dateBin(time) AS time, AVG(online_sockets) AS \"Sockets\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1"
+        }
+      ],
+      "title": "Online Sockets Over Time",
       "type": "timeseries"
     }
   ],
   "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["nodejs", "openquester"],
+  "tags": [
+    "nodejs",
+    "openquester"
+  ],
   "templating": {
     "list": [
-      {
-        "current": {
-          "selected": false,
-          "text": "Prometheus",
-          "value": "prometheus"
-        },
-        "hide": 0,
-        "includeAll": false,
-        "label": "Datasource",
-        "multi": false,
-        "name": "DS_PROMETHEUS",
-        "options": [],
-        "query": "prometheus",
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "type": "datasource"
-      },
       {
         "current": {
           "selected": true,
           "text": "All",
           "value": "$__all"
         },
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-        "definition": "label_values(process_resident_memory_bytes{job=\"openquester-api\"}, instance)",
+        "datasource": {
+          "type": "influxdb",
+          "uid": "influxdb-openquester"
+        },
+        "definition": "SELECT DISTINCT instance FROM http_requests ORDER BY instance",
         "hide": 0,
         "includeAll": true,
         "label": "Instance",
@@ -1095,9 +2103,9 @@
         "name": "instance",
         "options": [],
         "query": {
-          "qryType": 1,
-          "query": "label_values(process_resident_memory_bytes{job=\"openquester-api\"}, instance)",
-          "refId": "InstanceVariable"
+          "rawSql": "SELECT DISTINCT instance FROM http_requests ORDER BY instance",
+          "refId": "InstanceVariable",
+          "query": "SELECT DISTINCT instance FROM http_requests ORDER BY instance"
         },
         "refresh": 2,
         "regex": "",
@@ -1107,7 +2115,10 @@
       }
     ]
   },
-  "time": { "from": "now-1h", "to": "now" },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "timepicker": {},
   "timezone": "",
   "title": "OpenQuester API Metrics",

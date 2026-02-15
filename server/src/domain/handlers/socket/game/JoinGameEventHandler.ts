@@ -68,10 +68,8 @@ export class JoinGameEventHandler extends BaseSocketEventHandler<
     }
 
     if (this.socket.rooms.has(data.gameId)) {
-      const targetSocket = this.socket.nsp.sockets.get(context.socketId);
-      if (targetSocket) {
-        await targetSocket.leave(data.gameId);
-      }
+      // Cross-instance safe via Redis adapter
+      this.socket.nsp.in(context.socketId).socketsLeave(data.gameId);
     }
   }
 

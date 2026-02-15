@@ -523,28 +523,17 @@ export class SocketIOGameService {
         return;
       }
 
-      // Get the specific socket and disconnect it
-      const socket = this.gamesNsp.sockets.get(socketId);
-      if (socket) {
-        this.logger.debug(
-          `Force disconnecting socket ${socketId} for banned user ${userId}`,
-          {
-            prefix: LogPrefix.SOCKET,
-            userId,
-            socketId,
-          }
-        );
-        socket.disconnect(true); // Force disconnect
-      } else {
-        this.logger.debug(
-          `Socket ${socketId} not found in namespace for user ${userId}`,
-          {
-            prefix: LogPrefix.SOCKET,
-            userId,
-            socketId,
-          }
-        );
-      }
+      // Force disconnect across all instances via Redis adapter
+      this.logger.debug(
+        `Force disconnecting socket ${socketId} for banned user ${userId}`,
+        {
+          prefix: LogPrefix.SOCKET,
+          userId,
+          socketId,
+        }
+      );
+
+      this.gamesNsp.in(socketId).disconnectSockets(true);
     } catch (error) {
       this.logger.error(`Failed to force disconnect user ${userId}`, {
         prefix: LogPrefix.SOCKET,

@@ -24,6 +24,11 @@ DB_PASS=
 DB_HOST=
 DB_PORT=
 
+# InfluxDB 3 metrics connection URL
+# Format: http://<host>:<port>/?token=<TOKEN>&database=<DB_NAME>
+INFLUX_URL="http://localhost:8181/?token=YOUR_INFLUX_TOKEN&database=openquester"
+
+
 # Redis
 REDIS_USERNAME=
 REDIS_PASSWORD=

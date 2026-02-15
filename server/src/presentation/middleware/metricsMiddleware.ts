@@ -1,35 +1,26 @@
-import { NextFunction, Request, Response } from "express";
+import { type NextFunction, type Request, type Response } from "express";
 
 import { MetricsService } from "infrastructure/services/metrics/MetricsService";
 
 /**
- * Middleware for collecting HTTP request metrics for Prometheus.
- * Tracks: request count (for RPS), request duration (latency).
+ * Middleware for recording HTTP request metrics to InfluxDB.
  */
 export const metricsMiddleware = (metricsService: MetricsService) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    // Skip metrics endpoint to avoid self-referential data
-    if (req.path === "/metrics") {
-      return next();
-    }
+    const startTime = Date.now();
 
-    // Start timing
-    const endTimer = metricsService.httpRequestDuration.startTimer();
-
-    // Capture metrics on response finish
     res.once("finish", () => {
       const route = normalizeRoute(req);
-      const labels = {
-        method: req.method,
-        route,
-        status_code: res.statusCode.toString(),
-      };
+      const durationSeconds = (Date.now() - startTime) / 1000;
 
-      // Record request count (for RPS calculation)
-      metricsService.httpRequestsTotal.inc(labels);
-
-      // Record request duration
-      endTimer(labels);
+      metricsService.recordHttpRequest(
+        {
+          method: req.method,
+          route,
+          statusCode: res.statusCode.toString(),
+        },
+        durationSeconds
+      );
     });
 
     next();
