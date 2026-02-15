@@ -133,6 +133,7 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
           pickerPlayerId: data.pickerPlayerId,
           transferType: data.transferType,
           questionId: data.questionId,
+          questionEligiblePlayers: ctx.game.getQuestionEligiblePlayers(),
         },
         room: ctx.game.id,
       },
