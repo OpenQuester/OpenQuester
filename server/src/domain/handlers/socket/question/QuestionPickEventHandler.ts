@@ -112,6 +112,7 @@ export class QuestionPickEventHandler extends BaseSocketEventHandler<
         {
           data: questionData,
           timer: timer,
+          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
         },
         socketId
       );

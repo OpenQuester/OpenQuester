@@ -40,6 +40,7 @@ export class FinalBidSubmitLogic {
     }
 
     FinalRoundValidator.validateFinalRoundPlayer(player);
+    FinalRoundValidator.validateEligiblePlayer(game, player);
     FinalRoundValidator.validateBiddingPhase(game);
   }
 

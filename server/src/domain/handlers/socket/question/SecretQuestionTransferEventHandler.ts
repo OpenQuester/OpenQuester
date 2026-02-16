@@ -131,6 +131,7 @@ export class SecretQuestionTransferEventHandler extends BaseSocketEventHandler<
         {
           data: questionData,
           timer: timer,
+          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
         },
         socketId
       );

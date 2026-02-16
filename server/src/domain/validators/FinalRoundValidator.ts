@@ -20,6 +20,17 @@ export class FinalRoundValidator {
   }
 
   /**
+   * Validates that the player was eligible when the final round started.
+   */
+  public static validateEligiblePlayer(game: Game, player: Player): void {
+    if (!game.isPlayerEligibleToAnswer(player.meta.id)) {
+      throw new ClientError(
+        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
+      );
+    }
+  }
+
+  /**
    * Validates that the current player can eliminate themes (players or showman)
    */
   public static validateThemeEliminationPlayer(currentPlayer: Player): void {

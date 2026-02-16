@@ -7,4 +7,6 @@ export interface SecretQuestionPickedBroadcastData {
   transferType: PackageQuestionTransferType;
   /** Question ID for reference */
   questionId: number;
+  /** Players eligible to participate in the current question */
+  questionEligiblePlayers?: number[] | null;
 }
