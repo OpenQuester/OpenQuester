@@ -58,5 +58,5 @@ function normalizeRoute(req: Request): string {
     })
     .join("/");
 
-  return normalizedSegments;
+  return req.baseUrl + normalizedSegments;
 }
