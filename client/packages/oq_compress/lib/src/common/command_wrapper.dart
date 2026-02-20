@@ -104,7 +104,7 @@ class CommandWrapper {
     final ffmpegMajorVersion = await _getFfmpegMajorVersion();
 
     // --------------------------------------------------------
-    // CPU / threading setup (used for video & image AV1 speedups)
+    // CPU / threading setup for multi-core FFmpeg encoding
     // --------------------------------------------------------
     final cpuCount = min(6, Platform.numberOfProcessors);
     final av1MultiCpuArgs = [
