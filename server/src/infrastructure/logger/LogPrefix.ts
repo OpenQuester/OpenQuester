@@ -109,6 +109,8 @@ export enum LogPrefix {
   IO_CORS = "[IO CORS]: ",
   /** Error middleware */
   ERROR_MIDDLEWARE = "[ERROR_MIDDLEWARE]: ",
+  /** InfluxDB metrics collection and writes */
+  INFLUXDB = "[INFLUXDB]: ",
 }
 
 /** Type for log prefix values */

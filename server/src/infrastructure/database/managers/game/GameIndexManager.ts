@@ -1,6 +1,6 @@
 import { ChainableCommander } from "ioredis";
 
-import { GAME_NAMESPACE } from "domain/constants/game";
+import { GAME_INDEX_CREATED_AT_KEY, GAME_INDEX_PREFIX } from "domain/constants/game";
 import { REDIS_LOCK_GAMES_CLEANUP_ORPHANED } from "domain/constants/redis";
 import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import {
@@ -13,7 +13,6 @@ import { RedisService } from "infrastructure/services/redis/RedisService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 export class GameIndexManager {
-  private readonly INDEX_PREFIX = `${GAME_NAMESPACE}:index`;
   private readonly TEMP_KEY_TTL = 30; // seconds
 
   constructor(
@@ -215,9 +214,7 @@ export class GameIndexManager {
     },
     pagination: PaginationOptsBase<T>
   ): Promise<{ ids: string[]; total: number }> {
-    const tempKey = `${
-      this.INDEX_PREFIX
-    }:temp:${Date.now()}:${ValueUtils.generateUUID()}`;
+    const tempKey = `${GAME_INDEX_PREFIX}:temp:${Date.now()}:${ValueUtils.generateUUID()}`;
 
     try {
       await this._buildCompositeIndex(tempKey, {
@@ -387,14 +384,14 @@ export class GameIndexManager {
   }
 
   private get _createdAtIndexKey() {
-    return `${this.INDEX_PREFIX}:createdAt`;
+    return GAME_INDEX_CREATED_AT_KEY;
   }
 
   private _privacyIndexKey(isPrivate: boolean) {
-    return `${this.INDEX_PREFIX}:isPrivate:${isPrivate}`;
+    return `${GAME_INDEX_PREFIX}:isPrivate:${isPrivate}`;
   }
 
   private get _titleIndexKey() {
-    return `${this.INDEX_PREFIX}:title`;
+    return `${GAME_INDEX_PREFIX}:title`;
   }
 }

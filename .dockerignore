@@ -1,0 +1,13 @@
+# Ignore everything by default
+*
+
+# Allow only what the Dockerfile needs
+!server/
+!openapi/schema.json
+
+# Re-exclude heavy/unnecessary paths inside server/
+server/node_modules
+server/dist
+server/data
+server/.env
+server/.env.*

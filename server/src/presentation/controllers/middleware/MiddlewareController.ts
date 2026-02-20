@@ -9,9 +9,11 @@ import { ApiContext } from "application/context/ApiContext";
 import { ClientError } from "domain/errors/ClientError";
 import { EnvType } from "infrastructure/config/Environment";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { MetricsService } from "infrastructure/services/metrics/MetricsService";
 import { verifySession } from "presentation/middleware/authMiddleware";
 import { correlationMiddleware } from "presentation/middleware/correlationMiddleware";
 import { performanceLogMiddleware } from "presentation/middleware/log/performanceLogMiddleware";
+import { metricsMiddleware } from "presentation/middleware/metricsMiddleware";
 
 const CORS_PREFIX = LogPrefix.CORS;
 
@@ -21,7 +23,8 @@ export class MiddlewareController {
 
   constructor(
     private readonly ctx: ApiContext,
-    private readonly redisClient: Redis
+    private readonly redisClient: Redis,
+    private readonly metricsService: MetricsService
   ) {
     this.allowedHosts = this.ctx.env.CORS_ORIGINS;
 
@@ -102,6 +105,9 @@ export class MiddlewareController {
 
     // Correlation ID middleware - must be before performance logging
     this.ctx.app.use(correlationMiddleware());
+
+    // Metrics middleware
+    this.ctx.app.use(metricsMiddleware(this.metricsService));
 
     this.ctx.app.use(performanceLogMiddleware(this.ctx.logger));
 

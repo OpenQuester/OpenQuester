@@ -24,6 +24,7 @@ import { User } from "infrastructure/database/models/User";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 /**
@@ -35,6 +36,7 @@ export class UserService {
     private readonly userRepository: UserRepository,
     private readonly fileUsageService: FileUsageService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly socketUserDataService: SocketUserDataService,
     @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
@@ -237,30 +239,30 @@ export class UserService {
   }
 
   private async forceLeaveAllGames(userId: number): Promise<void> {
-    const userSockets = Array.from(this.gamesNsp.sockets.values()).filter(
-      (s) => s.userId === userId
+    const socketId = await this.socketUserDataService.findSocketIdByUserId(
+      userId
     );
-    if (userSockets.length === 0) return;
 
-    const processedGameIds = new Set<string>();
-    for (const socket of userSockets) {
-      if (!this._gameLobbyLeaver) {
-        throw new ServerError("Game lobby leaver service not initialized");
-      }
+    if (!socketId) return;
 
-      const leaveResult = await this._gameLobbyLeaver.leaveLobby(socket.id);
+    if (!this._gameLobbyLeaver) {
+      throw new ServerError("Game lobby leaver service not initialized");
+    }
 
-      if (leaveResult.emit && leaveResult.data) {
-        const gameId = leaveResult.data.gameId;
+    const leaveResult = await this._gameLobbyLeaver.leaveLobby(socketId);
 
-        if (gameId && !processedGameIds.has(gameId)) {
-          this.gamesNsp
-            .to(gameId)
-            .emit(SocketIOGameEvents.LEAVE, { user: userId });
-          processedGameIds.add(gameId);
-        }
+    if (leaveResult.emit && leaveResult.data) {
+      const gameId = leaveResult.data.gameId;
+
+      if (gameId) {
+        this.gamesNsp
+          .to(gameId)
+          .emit(SocketIOGameEvents.LEAVE, { user: userId });
       }
     }
+
+    // Force disconnect across all instances via Redis adapter
+    this.gamesNsp.in(socketId).disconnectSockets(true);
   }
 
   /**

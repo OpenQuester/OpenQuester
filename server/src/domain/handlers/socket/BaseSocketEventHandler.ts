@@ -16,9 +16,12 @@ import { type ILogger } from "infrastructure/logger/ILogger";
 import { LogContextService } from "infrastructure/logger/LogContext";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { LogTag } from "infrastructure/logger/LogTag";
+import { MetricsService } from "infrastructure/services/metrics/MetricsService";
+import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
 import { Socket } from "socket.io";
+import { container } from "tsyringe";
 
 /**
  * Context information available to all socket event handlers
@@ -71,6 +74,8 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
   protected readonly eventEmitter: SocketIOEventEmitter;
   protected readonly logger: ILogger;
   protected readonly actionExecutor: GameActionExecutor;
+  protected readonly metricsService: MetricsService;
+  private readonly _socketUserDataService: SocketUserDataService;
 
   constructor(
     socket: Socket,
@@ -82,6 +87,10 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
     this.eventEmitter = eventEmitter;
     this.logger = logger;
     this.actionExecutor = actionExecutor;
+
+    // TODO: Inject metricsService and socketUserDataService properly in constructor arguments
+    this.metricsService = container.resolve(MetricsService);
+    this._socketUserDataService = container.resolve(SocketUserDataService);
   }
 
   /**
@@ -89,6 +98,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
    * Implements the template method pattern with hooks for subclasses.
    */
   public async handle(data: TInput): Promise<void> {
+    await this.resolveUserId();
     await this.withLogContext(async () => {
       const context = this.createContext();
       this.logEventReceived();
@@ -97,10 +107,52 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
         const validatedData = await this.prepareExecution(data, context);
         const gameId = await this.resolveGameContext(validatedData, context);
         await this.routeAndExecute(validatedData, context, gameId);
+        this.recordMetrics(context, "success");
       } catch (error) {
+        this.recordMetrics(context, "error");
         await this.handleError(error, context);
       }
     });
+  }
+
+  /**
+   * Record socket event metrics.
+   */
+  private recordMetrics(
+    context: SocketEventContext,
+    status: "success" | "error"
+  ): void {
+    const durationSeconds = (Date.now() - context.startTime) / 1000;
+    const eventName = this.getEventName();
+
+    this.metricsService.recordSocketEvent(
+      {
+        event: eventName,
+        status,
+      },
+      durationSeconds
+    );
+  }
+
+  /**
+   * Ensures `socket.userId` is populated. In multi-instance deployments the
+   * HTTP auth request may land on a different instance than the one owning the
+   * WebSocket, so `socket.userId` is never set in-memory. This method lazily
+   * resolves the userId from Redis (where the auth endpoint always persists it)
+   * and caches it on the socket object for subsequent calls.
+   */
+  private async resolveUserId(): Promise<void> {
+    if (this.socket.userId !== undefined) {
+      return;
+    }
+
+    const data = await this._socketUserDataService.getSocketData(
+      this.socket.id
+    );
+
+    if (data?.id) {
+      this.socket.userId = data.id;
+    }
   }
 
   /**

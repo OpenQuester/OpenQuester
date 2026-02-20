@@ -109,10 +109,8 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
         );
       }
 
-      const targetSocket = this.socket.nsp.sockets.get(socketId);
-      if (targetSocket) {
-        await targetSocket.leave(gameId);
-      }
+      // Cross-instance safe: socketsLeave works via Redis adapter
+      this.socket.nsp.in(socketId).socketsLeave(gameId);
     }
   }
 }

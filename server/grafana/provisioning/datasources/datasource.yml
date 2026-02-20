@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB
+    uid: influxdb-openquester
+    type: influxdb
+    access: proxy
+    url: http://influxdb3:8181
+    isDefault: true
+    editable: true
+    jsonData:
+      version: SQL
+      dbName: openquester
+      httpMode: POST
+      insecureGrpc: true

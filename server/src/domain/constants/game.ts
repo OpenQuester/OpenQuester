@@ -4,6 +4,8 @@ import { MINUTE_MS, SECOND_MS } from "domain/constants/time";
 // TODO: Avoid math operations in constants since they executed every time the constant accessed (investigate if true)
 
 export const GAME_NAMESPACE = "game";
+export const GAME_INDEX_PREFIX = `${GAME_NAMESPACE}:index`;
+export const GAME_INDEX_CREATED_AT_KEY = `${GAME_INDEX_PREFIX}:createdAt`;
 export const GAME_ID_CHARACTERS_LENGTH = 4;
 export const GAME_ID_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 export const GAME_PASSWORD_CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

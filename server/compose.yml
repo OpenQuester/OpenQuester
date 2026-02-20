@@ -10,7 +10,7 @@ services:
       - 5432:5432
     volumes:
       - pgdata:/var/lib/postgresql/data
-    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all -c max_connections=200
 
   # Url: http://localhost:5050/
   pgadmin:
@@ -54,6 +54,115 @@ services:
     volumes:
       - ./data/redis:/bitnami/redis/data
 
+  influxdb3:
+    image: influxdb:3-core
+    restart: unless-stopped
+    container_name: influxdb3
+    user: "0:0"
+    ports:
+      - "8181:8181"
+    command:
+      - influxdb3
+      - serve
+      - --node-id=node0
+      - --object-store=file
+      - --data-dir=/var/lib/influxdb3/data
+      - --without-auth
+    volumes:
+      - influxdb3_data:/var/lib/influxdb3/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  influxdb3-init:
+    image: influxdb:3-core
+    restart: "no"
+    depends_on:
+      - influxdb3
+    command:
+      - /bin/sh
+      - -c
+      - |
+        until influxdb3 show databases -H http://influxdb3:8181 >/dev/null 2>&1; do
+          sleep 1
+        done
+        influxdb3 create database -H http://influxdb3:8181 openquester >/dev/null 2>&1 || true
+
+  # Url: http://localhost:3002/ (admin/admin)
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    container_name: grafana
+    ports:
+      - "3002:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - influxdb3
+      - influxdb3-init
+
+  # Reverse proxy & load balancer
+  # Dashboard: http://localhost:8088/
+  traefik:
+    image: traefik:v3.3
+    restart: unless-stopped
+    container_name: traefik
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+    ports:
+      - "3000:80"
+      - "8088:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # Application server (replicated behind Traefik)
+  oq-server:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    image: openquester-server:local
+    restart: unless-stopped
+    deploy:
+      # replicas: 12
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    depends_on:
+      postgres:
+        condition: service_started
+      oq-redis:
+        condition: service_started
+      minio:
+        condition: service_started
+      influxdb3-init:
+        condition: service_completed_successfully
+    env_file: ./.env
+    environment:
+      # Override host-specific values for Docker networking
+      DB_HOST: postgres
+      REDIS_HOST: oq-redis
+      REDIS_PORT: 6379
+      INFLUX_URL: "http://influxdb3:8181/?database=openquester"
+      S3_ENDPOINT: "http://minio:9000"
+      DB_POOL_SIZE: 8
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.oq-server.rule=PathPrefix(`/`)
+      - traefik.http.routers.oq-server.entrypoints=web
+      - traefik.http.services.oq-server.loadbalancer.server.port=3000
+
 volumes:
   pgdata:
   pgadmin:
+  influxdb3_data:
+  grafana_data:

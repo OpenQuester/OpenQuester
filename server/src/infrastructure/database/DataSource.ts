@@ -138,7 +138,7 @@ export const AppDataSource = new DataSource({
     AddShowAnswerDuration,
     AddViewLogsPerm,
   ],
-  poolSize: 25,
+  poolSize: env.DB_POOL_SIZE,
   migrationsRun: true,
   subscribers: [],
   namingStrategy: new SnakeNamingStrategy(),

@@ -36,17 +36,10 @@ export class UserNotificationRoomService {
     userId: number
   ): Promise<void> {
     const roomName = this.getUserNotificationRoom(userId);
-    const socket = this.gamesNsp.sockets.get(socketId);
 
-    if (!socket) {
-      this.logger.error(
-        `Socket ${socketId} not found when subscribing to user ${userId} notifications (likely disconnected)`,
-        { prefix: LogPrefix.NOTIFICATION }
-      );
-      return;
-    }
+    // Works cross-instance via Redis adapter
+    this.gamesNsp.in(socketId).socketsJoin(roomName);
 
-    await socket.join(roomName);
     this.logger.trace(
       `Socket ${socketId} subscribed to user ${userId} notifications (room: ${roomName})`,
       { prefix: LogPrefix.NOTIFICATION }
@@ -61,17 +54,9 @@ export class UserNotificationRoomService {
     userId: number
   ): Promise<void> {
     const roomName = this.getUserNotificationRoom(userId);
-    const socket = this.gamesNsp.sockets.get(socketId);
 
-    if (!socket) {
-      this.logger.error(
-        `Socket ${socketId} not found when unsubscribing from user ${userId} notifications (likely disconnected)`,
-        { prefix: LogPrefix.NOTIFICATION }
-      );
-      return;
-    }
-
-    await socket.leave(roomName);
+    // Works cross-instance via Redis adapter
+    this.gamesNsp.in(socketId).socketsLeave(roomName);
     this.logger.trace(
       `Socket ${socketId} unsubscribed from user ${userId} notifications (room: ${roomName})`,
       { prefix: LogPrefix.NOTIFICATION }
@@ -87,21 +72,11 @@ export class UserNotificationRoomService {
   ): Promise<void> {
     const userRoom = this.getUserNotificationRoom(userId);
 
-    // Get all sockets in the game room and make them join the user notification room
-    const gameRoom = this.gamesNsp.adapter.rooms.get(gameId);
-    if (!gameRoom || gameRoom.size === 0) {
-      this.logger.error(
-        `Game room ${gameId} not found or empty when subscribing to user ${userId} notifications`,
-        { prefix: LogPrefix.NOTIFICATION }
-      );
-      return;
-    }
-
-    // Use socketsJoin to add all sockets in the game room to the user notification room
-    this.gamesNsp.to(gameId).socketsJoin(userRoom);
+    // Works cross-instance via Redis adapter — no-op if no sockets are in the game room
+    this.gamesNsp.in(gameId).socketsJoin(userRoom);
 
     this.logger.trace(
-      `All players in game ${gameId} (${gameRoom.size} sockets) subscribed to user ${userId} notifications (room: ${userRoom})`,
+      `All players in game ${gameId} subscribed to user ${userId} notifications (room: ${userRoom})`,
       { prefix: LogPrefix.NOTIFICATION }
     );
   }
@@ -115,18 +90,8 @@ export class UserNotificationRoomService {
   ): Promise<void> {
     const userRoom = this.getUserNotificationRoom(userId);
 
-    // Get all sockets in the game room and make them leave the user notification room
-    const gameRoom = this.gamesNsp.adapter.rooms.get(gameId);
-    if (!gameRoom) {
-      this.logger.error(
-        `Game room ${gameId} not found when unsubscribing from user ${userId} notifications`,
-        { prefix: LogPrefix.NOTIFICATION }
-      );
-      return;
-    }
-
-    // Use socketsLeave to remove all sockets in the game room from the user notification room
-    this.gamesNsp.to(gameId).socketsLeave(userRoom);
+    // Works cross-instance via Redis adapter — no-op if no sockets are in the game room
+    this.gamesNsp.in(gameId).socketsLeave(userRoom);
 
     this.logger.trace(
       `All players in game ${gameId} unsubscribed from user ${userId} notifications (room: ${userRoom})`,
@@ -168,12 +133,12 @@ export class UserNotificationRoomService {
       userData,
     } satisfies UserChangeBroadcastData);
 
-    // Debug: Check if there are any sockets in the room
+    // Debug: Check local socket count in the room (may undercount in multi-instance)
     const room = this.gamesNsp.adapter.rooms.get(roomName);
-    const socketsInRoom = room ? room.size : 0;
+    const localSocketsInRoom = room ? room.size : 0;
 
     this.logger.debug(
-      `Emitted user change event for user ${userData.id} to room ${roomName} (${socketsInRoom} sockets)`,
+      `Emitted user change event for user ${userData.id} to room ${roomName} (${localSocketsInRoom} local sockets)`,
       { prefix: LogPrefix.NOTIFICATION }
     );
   }

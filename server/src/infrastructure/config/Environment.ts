@@ -8,6 +8,7 @@ import {
   CRON_EXP_2_AM_DAILY,
   CRON_EXP_3_AM_DAILY,
 } from "domain/constants/cron";
+import { DEFAULT_API_PORT } from "domain/constants/server";
 import { SESSION_SECRET_REDIS_NSP } from "domain/constants/session";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
@@ -48,6 +49,7 @@ export class Environment {
   public DB_HOST!: string;
   public DB_PORT!: number;
   public DB_LOGGER!: LoggerOptions;
+  public DB_POOL_SIZE!: number;
 
   // Redis
   public REDIS_USERNAME!: string;
@@ -64,6 +66,12 @@ export class Environment {
   public SOCKET_IO_ADMIN_UI_ENABLE!: boolean;
   public SOCKET_IO_ADMIN_UI_USERNAME!: string;
   public SOCKET_IO_ADMIN_UI_PASSWORD!: string;
+
+  // Server
+  public API_PORT!: number;
+
+  // InfluxDB
+  public INFLUX_URL!: string;
 
   // Logs
   public LOG_LEVEL!: LogLevel;
@@ -209,6 +217,8 @@ export class Environment {
 
     this.LOG_LEVEL = this.getEnvVar("LOG_LEVEL", "string", "info");
 
+    this.loadServer();
+
     this.CRON_S3_CLEANUP_EXPRESSION = this.getEnvVar(
       "CRON_S3_CLEANUP_EXPRESSION",
       "string",
@@ -275,6 +285,11 @@ export class Environment {
     this.REDIS_DB_NUMBER = this.getEnvVar("REDIS_DB_NUMBER", "number", 0);
   }
 
+  private loadServer() {
+    this.API_PORT = this.getEnvVar("API_PORT", "number", DEFAULT_API_PORT);
+    this.INFLUX_URL = this.getEnvVar("INFLUX_URL", "string", "", true);
+  }
+
   private loadDB() {
     const prod = this._type === "prod";
 
@@ -297,6 +312,7 @@ export class Environment {
     );
     this.DB_PORT = this.getEnvVar("DB_PORT", "number", 5432);
     this.DB_LOGGER = this.getEnvVar("DB_LOGGER", ["boolean", "string"], false);
+    this.DB_POOL_SIZE = this.getEnvVar("DB_POOL_SIZE", "number", 25);
   }
 
   private _checkType(

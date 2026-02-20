@@ -19,6 +19,7 @@ import { AppDataSource } from "infrastructure/database/DataSource";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
+import { MetricsService } from "infrastructure/services/metrics/MetricsService";
 import { ServeApi } from "presentation/ServeApi";
 
 const main = async () => {
@@ -174,6 +175,13 @@ async function gracefulShutdown(
       prefix: LogPrefix.CRON_SCHEDULER,
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+
+  // Stop metrics collection
+  try {
+    await container.resolve(MetricsService).stop();
+  } catch {
+    // Ignore
   }
 
   server.close();

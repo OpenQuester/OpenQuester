@@ -18,7 +18,6 @@ import { SocketIOGameService } from "application/services/socket/SocketIOGameSer
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { UserService } from "application/services/user/UserService";
-import { DEFAULT_API_PORT } from "domain/constants/admin";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { ErrorController } from "domain/errors/ErrorController";
@@ -27,6 +26,7 @@ import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { type Database } from "infrastructure/database/Database";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { LogReaderService } from "infrastructure/services/log/LogReaderService";
+import { MetricsService } from "infrastructure/services/metrics/MetricsService";
 import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -64,7 +64,7 @@ export class ServeApi {
     this._app = this._context.app;
     this._io = this._context.io;
     this._redis = RedisConfig.getClient();
-    this._port = DEFAULT_API_PORT;
+    this._port = this._context.env.API_PORT;
   }
 
   public async init() {
@@ -87,8 +87,23 @@ export class ServeApi {
       // Build database connection
       await this._db.build();
 
+      // Initialize Dependency Injection Container (tsyringe)
+      await bootstrapContainer({
+        db: this._db,
+        redisClient: this._redis,
+        io: this._io,
+        env: this._context.env,
+        logger: this._context.logger,
+      });
+
+      const metricsService = container.resolve(MetricsService);
+
       // Middlewares
-      await new MiddlewareController(this._context, this._redis).initialize();
+      await new MiddlewareController(
+        this._context,
+        this._redis,
+        metricsService
+      ).initialize();
 
       // Initialize server listening
       this._server = this._app.listen(this._port, () => {
@@ -99,14 +114,7 @@ export class ServeApi {
       });
       this._io.listen(this._server);
 
-      // Initialize Dependency Injection Container (tsyringe)
-      await bootstrapContainer({
-        db: this._db,
-        redisClient: this._redis,
-        io: this._io,
-        env: this._context.env,
-        logger: this._context.logger,
-      });
+      metricsService.start();
 
       await this._processPrepareJobs();
 
