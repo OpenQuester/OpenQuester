@@ -1,6 +1,5 @@
 import 'package:crypto/crypto.dart' show md5;
 import 'package:dio/dio.dart';
-import 'package:fetch_client/fetch_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openquester/openquester.dart';
 
@@ -16,18 +15,12 @@ class S3UploadController {
       return status != null && status >= 200 && status < 300;
     }
 
-    final client = kIsWeb
-        ? FetchClient(
-            mode: RequestMode.cors,
-            cache: RequestCache.noCache,
-            credentials: RequestCredentials.cors,
-          )
-        : Dio(
-            BaseOptions(
-              persistentConnection: true,
-              validateStatus: validateStatus,
-            ),
-          );
+    final client = Dio(
+      BaseOptions(
+        persistentConnection: true,
+        validateStatus: validateStatus,
+      ),
+    );
 
     final fileHeaders = _fileHeaders(md5Hash);
     final headers = {
@@ -36,29 +29,15 @@ class S3UploadController {
       'content-type': 'application/octet-stream',
     };
 
-    if (client is FetchClient) {
-      try {
-        final response = await client.put(
-          uploadLink,
-          body: file,
-          headers: headers,
-        );
-
-        throwIf(!validateStatus(response.statusCode), response.body);
-      } catch (e, s) {
-        logger.e(e, stackTrace: s);
-      }
-    } else if (client is Dio) {
-      try {
-        await client.put<void>(
-          uploadLink.toString(),
-          data: Stream.value(file),
-          options: Options(headers: headers),
-        );
-      } on DioException catch (e) {
-        // Ignore "Peer reset connection" error
-        if (e.type != DioExceptionType.unknown) rethrow;
-      }
+    try {
+      await client.put<void>(
+        uploadLink.toString(),
+        data: Stream.value(file),
+        options: Options(headers: headers),
+      );
+    } on DioException catch (e) {
+      // Ignore "Peer reset connection" error
+      if (e.type != DioExceptionType.unknown) rethrow;
     }
   }
 
