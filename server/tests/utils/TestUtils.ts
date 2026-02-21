@@ -12,9 +12,9 @@ import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { Repository } from "typeorm";
 import {
-  GameClientSocket,
-  GameTestSetup,
-  SocketGameTestUtils,
+    GameClientSocket,
+    GameTestSetup,
+    SocketGameTestUtils,
 } from "../socket/game/utils/SocketIOGameTestUtils";
 
 export interface FinalRoundGameSetup {

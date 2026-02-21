@@ -4,9 +4,9 @@ import { DI_TOKENS } from "application/di/tokens";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameService } from "application/services/game/GameService";
 import {
-  GAME_TTL_IN_SECONDS,
-  SYSTEM_PLAYER_ID,
-  SYSTEM_SOCKET_ID,
+    GAME_TTL_IN_SECONDS,
+    SYSTEM_PLAYER_ID,
+    SYSTEM_SOCKET_ID,
 } from "domain/constants/game";
 import { TIMER_NSP } from "domain/constants/timer";
 import { GameActionType } from "domain/enums/GameActionType";
@@ -60,12 +60,16 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
 
     let game;
     try {
-      game = await this.gameService.getGameEntity(gameId, GAME_TTL_IN_SECONDS);
-    } catch {
-      this.logger.debug(
-        `Timer expired for non-existent game '${gameId}', skipping (key: ${key})`,
-        { prefix: LogPrefix.TIMER_EXPIRATION }
+      game = await this.gameService.getGameEntity(
+        gameId,
+        GAME_TTL_IN_SECONDS
       );
+    } catch {
+      this.logger.warn(`Game not found for expired timer, skipping`, {
+        prefix: LogPrefix.TIMER_EXPIRATION,
+        gameId,
+        key,
+      });
       return;
     }
 

@@ -7,8 +7,8 @@ import { RedisConfig } from "infrastructure/config/RedisConfig";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import {
-  RedisLogSanitizer,
-  type RedisLogData,
+    RedisLogSanitizer,
+    type RedisLogData,
 } from "infrastructure/utils/RedisLogSanitizer";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 

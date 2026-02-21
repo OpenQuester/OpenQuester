@@ -5,8 +5,8 @@ import path from "path";
 import { type LoggerOptions } from "typeorm";
 
 import {
-  CRON_EXP_2_AM_DAILY,
-  CRON_EXP_3_AM_DAILY,
+    CRON_EXP_2_AM_DAILY,
+    CRON_EXP_3_AM_DAILY,
 } from "domain/constants/cron";
 import { DEFAULT_API_PORT } from "domain/constants/server";
 import { SESSION_SECRET_REDIS_NSP } from "domain/constants/session";
