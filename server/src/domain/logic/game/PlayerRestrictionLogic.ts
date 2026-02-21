@@ -26,7 +26,7 @@ export interface RestrictionUpdateInput {
 /**
  * Result of processing player restrictions
  */
-export interface PlayerRestrictionMutationResult {
+interface PlayerRestrictionMutationResult {
   originalRole: PlayerRole;
   wasPlayer: boolean;
   shouldBan: boolean;
@@ -187,7 +187,13 @@ export class PlayerRestrictionLogic {
   public static buildRestrictResult(
     input: PlayerRestrictionResultInput
   ): PlayerRestrictionResult {
-    const { game, targetPlayer, newRole, restrictions, gameStateCleanupBroadcasts } = input;
+    const {
+      game,
+      targetPlayer,
+      newRole,
+      restrictions,
+      gameStateCleanupBroadcasts,
+    } = input;
     const playerId = targetPlayer.meta.id;
 
     const broadcasts = this.buildBaseBroadcasts(game, playerId, restrictions);

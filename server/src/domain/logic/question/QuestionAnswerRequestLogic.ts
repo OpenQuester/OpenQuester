@@ -12,7 +12,7 @@ import { QuestionActionValidator } from "domain/validators/QuestionActionValidat
 
 export interface AnswerRequestData {
   userId: number | undefined;
-  gameId: string;
+  game: Game;
   timer: GameStateTimer;
 }
 
@@ -62,7 +62,7 @@ export class QuestionAnswerRequestLogic {
     ];
 
     return {
-      data: { userId: playerId, gameId: game.id, timer },
+      data: { userId: playerId, game, timer },
       broadcasts,
     };
   }

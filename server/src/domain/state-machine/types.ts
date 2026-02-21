@@ -1,4 +1,5 @@
 import { Game } from "domain/entities/game/Game";
+import { type TimerMutation } from "domain/types/action/ActionExecutionContext";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
@@ -111,6 +112,9 @@ export interface TransitionResult {
   /** Timer state after transition (nullable but always present) */
   timer: GameStateTimerDTO | null;
 
+  /** Timer mutations to apply in the OUT pipeline (SET/DEL timer keys) */
+  timerMutations: TimerMutation[];
+
   /** Additional data for the caller (handler-specific) */
   data?: unknown; // Caller casts as needed
 }
@@ -129,6 +133,9 @@ export interface MutationResult {
 export interface TimerResult {
   /** The new timer, if one was set up */
   timer?: GameStateTimerDTO;
+
+  /** Timer mutations to apply in the OUT pipeline (SET/DEL timer keys) */
+  timerMutations: TimerMutation[];
 }
 
 /**

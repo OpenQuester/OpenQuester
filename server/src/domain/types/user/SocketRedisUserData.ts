@@ -1,4 +1,6 @@
+import { userId } from "../ids";
+
 export interface SocketRedisUserData {
-  id: number;
+  id: userId;
   gameId: string | null;
 }

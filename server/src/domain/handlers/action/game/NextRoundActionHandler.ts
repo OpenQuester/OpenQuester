@@ -1,12 +1,10 @@
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
 import { createActionContextFromAction } from "domain/types/action/ActionContext";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
 
@@ -24,11 +22,11 @@ export class NextRoundActionHandler
   }
 
   public async execute(
-    action: GameAction<EmptyInputData>
-  ): Promise<GameActionHandlerResult<GameNextRoundEventPayload>> {
+    ctx: ActionExecutionContext<EmptyInputData>
+  ): Promise<ActionHandlerResult<GameNextRoundEventPayload>> {
     const { game, isGameFinished, nextGameState, questionData } =
       await this.socketIOGameService.handleNextRound(
-        createActionContextFromAction(action)
+        createActionContextFromAction(ctx.action)
       );
 
     const progressionResult =
@@ -48,8 +46,12 @@ export class NextRoundActionHandler
     return {
       success: progressionResult.success,
       data: progressionResult.data as GameNextRoundEventPayload,
-      broadcasts:
-        progressionResult.broadcasts as SocketEventBroadcast<unknown>[],
+      mutations: [
+        ...DataMutationConverter.mutationFromSocketBroadcasts(
+          progressionResult.broadcasts
+        ),
+      ],
+      broadcastGame: game,
     };
   }
 }

@@ -98,7 +98,7 @@ describe("PackageRestApiController", () => {
     packageRepo = dataSource.getRepository<Package>("Package");
     permRepo = dataSource.getRepository<Permission>("Permission");
     // --- utils ---
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     packageUtils = new PackageUtils();
     testUtils = new TestUtils(app, userRepo, serverUrl);
   });

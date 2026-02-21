@@ -11,7 +11,7 @@ import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 /**
  * Result of answer submission mutation
  */
-export interface AnswerSubmitMutationResult {
+interface AnswerSubmitMutationResult {
   /** The submitted answer text (trimmed) */
   answerText: string;
 
@@ -22,7 +22,7 @@ export interface AnswerSubmitMutationResult {
 /**
  * Result of phase completion check
  */
-export interface AnswerPhaseCompletionResult {
+interface AnswerPhaseCompletionResult {
   /** Whether all answers have been submitted */
   isPhaseComplete: boolean;
 

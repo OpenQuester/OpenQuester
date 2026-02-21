@@ -1,3 +1,4 @@
+import { Game } from "domain/entities/game/Game";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 
 export interface GameLobbyLeaveData {
@@ -6,7 +7,7 @@ export interface GameLobbyLeaveData {
   /** Data for event emit */
   data?: {
     userId: number;
-    gameId: string;
+    game: Game;
   };
   /** Additional broadcasts to emit (e.g., answer-result from auto-skip, final round events) */
   broadcasts?: BroadcastEvent[];

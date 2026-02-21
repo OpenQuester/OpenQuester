@@ -1,5 +1,6 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionAnswerResultLogic } from "domain/logic/question/QuestionAnswerResultLogic";
 import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
@@ -19,6 +20,7 @@ import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
 import { QuestionFinishWithAnswerEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import {
   AnsweringToShowingAnswerCtx,
@@ -43,9 +45,9 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
 
   constructor(
     gameService: GameService,
-    timerService: SocketQuestionStateService
+    private readonly packageStore: PackageStore
   ) {
-    super(gameService, timerService);
+    super(gameService);
   }
 
   /**
@@ -144,9 +146,8 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     const currentQuestion = game.gameState.currentQuestion;
 
     if (currentQuestion) {
-      const questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        game.gameState.currentRound!.id,
+      const questionData = await this.packageStore.getQuestionWithTheme(
+        game.id,
         currentQuestion.id!
       );
 
@@ -190,20 +191,23 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
       mutationResult.data as AnsweringToShowingAnswerMutationData;
     const question = mutationData.question;
 
-    // Clear the answering timer
-    await this.gameService.clearTimer(game.id);
-
     // Calculate duration based on answer files (media stacking) or fallback default
     const duration = ShowAnswerLogic.calculateShowAnswerDuration(question);
 
-    // Setup show answer timer
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      duration
-    );
+    const timer = new GameStateTimer(duration);
+    game.gameState.timer = timer.start();
 
     return {
-      timer: timerEntity.value() ?? undefined,
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: duration,
+        },
+      ],
     };
   }
 

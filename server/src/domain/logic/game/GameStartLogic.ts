@@ -4,8 +4,8 @@ import {
   SocketBroadcastTarget,
   SocketEventBroadcast,
 } from "domain/handlers/socket/BaseSocketEventHandler";
-import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
+import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameStartBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 
@@ -21,11 +21,19 @@ export interface GameStartResult {
 }
 
 export class GameStartLogic {
-  public static buildInitialGameState(game: Game): GameStateDTO {
+  /**
+   * Build initial game state with the first round data.
+   * @param game Game entity
+   * @param firstRound The first round fetched from PackageStore
+   */
+  public static buildInitialGameState(
+    game: Game,
+    firstRound: GameStateRoundDTO | null
+  ): GameStateDTO {
     const currentTurnPlayerId = game.getRandomTurnPlayer();
 
     return {
-      currentRound: GameStateMapper.getGameRound(game.package, 0),
+      currentRound: firstRound,
       isPaused: false,
       questionState: QuestionState.CHOOSING,
       answeredPlayers: null,

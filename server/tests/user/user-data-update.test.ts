@@ -40,7 +40,7 @@ describe("User Data Update on Game Join", () => {
     userRepo = testEnv.getDatabase().getRepository(User);
     userRepository = container.resolve(UserRepository);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 

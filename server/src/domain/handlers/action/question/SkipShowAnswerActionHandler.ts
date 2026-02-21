@@ -1,16 +1,20 @@
-import { GameLifecycleService } from "application/services/game/GameLifecycleService";
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
-import { GameAction } from "domain/types/action/GameAction";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { ClientError } from "domain/errors/ClientError";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { TransitionTrigger } from "domain/state-machine/types";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
+  DataMutationConverter,
+  type DataMutation,
+} from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   EmptyInputData,
   EmptyOutputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 
 /**
  * Stateless action handler for skipping the show-answer phase.
@@ -19,35 +23,50 @@ import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 export class SkipShowAnswerActionHandler
   implements GameActionHandler<EmptyInputData, EmptyOutputData>
 {
-  constructor(
-    private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly gameLifecycleService: GameLifecycleService
-  ) {
-    //
-  }
+  constructor(private readonly phaseTransitionRouter: PhaseTransitionRouter) {}
 
   public async execute(
-    action: GameAction<EmptyInputData>
-  ): Promise<GameActionHandlerResult<EmptyOutputData>> {
-    const result = await this.socketIOQuestionService.skipShowAnswer(
-      createActionContextFromAction(action)
-    );
+    ctx: ActionExecutionContext<EmptyInputData>
+  ): Promise<ActionHandlerResult<EmptyOutputData>> {
+    const { game, currentPlayer } = ctx;
 
-    // Convert BroadcastEvent[] to SocketEventBroadcast[] with proper target, gameId, and roleFilter
-    const convertedBroadcasts = convertBroadcasts(
-      result.broadcasts ?? [],
-      action.gameId
-    );
+    if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
+      throw new ClientError(ClientResponse.ONLY_SHOWMAN_SKIP_SHOW_ANSWER);
+    }
 
-    // Check if game finished and trigger statistics persistence
-    if (result.game?.finishedAt) {
-      await this.gameLifecycleService.handleGameCompletion(action.gameId);
+    if (game.gameState.questionState !== QuestionState.SHOWING_ANSWER) {
+      throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
+    }
+
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.USER_ACTION,
+      triggeredBy: { playerId: currentPlayer.meta.id, isSystem: false },
+    });
+
+    if (!transitionResult) {
+      throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
+    }
+
+    const mutations: DataMutation[] = [
+      DataMutationConverter.saveGameMutation(game),
+      ...DataMutationConverter.mutationFromTimerMutations(
+        transitionResult.timerMutations
+      ),
+      ...DataMutationConverter.mutationFromServiceBroadcasts(
+        transitionResult.broadcasts,
+        game.id
+      ),
+    ];
+
+    if (game.finishedAt) {
+      mutations.push(DataMutationConverter.gameCompletionMutation(game.id));
     }
 
     return {
       success: true,
-      data: result.data,
-      broadcasts: convertedBroadcasts,
+      data: {},
+      mutations,
     };
   }
 }

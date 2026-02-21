@@ -1,6 +1,7 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { FINAL_ROUND_BID_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -39,10 +40,9 @@ export class ThemeEliminationToBiddingHandler extends BaseTransitionHandler {
 
   constructor(
     gameService: GameService,
-    timerService: SocketQuestionStateService,
     private readonly roundHandlerFactory: RoundHandlerFactory
   ) {
-    super(gameService, timerService);
+    super(gameService);
   }
 
   /**
@@ -99,17 +99,21 @@ export class ThemeEliminationToBiddingHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    // Clear the theme elimination timer
-    await this.gameService.clearTimer(game.id);
-
     // Setup the bidding timer
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      FINAL_ROUND_BID_TIME
-    );
+    const timer = new GameStateTimer(FINAL_ROUND_BID_TIME);
+    game.gameState.timer = timer.start();
 
     return {
-      timer: timerEntity.value() ?? undefined,
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: FINAL_ROUND_BID_TIME,
+        },
+      ],
     };
   }
 

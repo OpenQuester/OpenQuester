@@ -111,6 +111,3 @@ export const DI_TOKENS = {
    */
   GameLobbyLeaver: Symbol.for("IGameLobbyLeaver"),
 } as const;
-
-/** Type helper for DI token keys */
-export type DITokenKey = keyof typeof DI_TOKENS;

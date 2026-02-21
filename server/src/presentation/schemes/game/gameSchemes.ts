@@ -94,7 +94,7 @@ export const gameRedisDataScheme = () =>
     finishedAt: Joi.alternatives()
       .try(Joi.string().allow(""), Joi.date().iso())
       .optional(),
-    package: Joi.string().required(),
+    roundIndex: Joi.string().required(),
     roundsCount: Joi.string().pattern(/^\d+$/).required(), // Numeric string
     questionsCount: Joi.string().pattern(/^\d+$/).required(), // Numeric string
     gameState: Joi.string().required(),

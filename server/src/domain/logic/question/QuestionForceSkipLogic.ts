@@ -3,6 +3,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 
@@ -26,37 +27,16 @@ export class QuestionForceSkipLogic {
   /**
    * Get the question to be skipped based on current game state.
    * Handles normal questions, stake questions, and secret questions.
+   * @param game Game entity
+   * @param questionData Pre-fetched question+theme data from PackageStore
    */
-  public static getQuestionToSkip(game: Game): {
+  public static getQuestionToSkip(
+    game: Game,
+    questionData: { question: PackageQuestionDTO; theme: PackageThemeDTO } | null
+  ): {
     question: PackageQuestionDTO;
     themeId: number;
   } {
-    const gameState = game.gameState;
-    let questionData;
-
-    if (gameState.currentQuestion) {
-      // Normal question flow
-      questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        gameState.currentRound!.id,
-        gameState.currentQuestion.id!
-      );
-    } else if (gameState.stakeQuestionData) {
-      // Stake question flow
-      questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        gameState.currentRound!.id,
-        gameState.stakeQuestionData.questionId
-      );
-    } else if (gameState.secretQuestionData) {
-      // Secret question flow
-      questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        gameState.currentRound!.id,
-        gameState.secretQuestionData.questionId
-      );
-    }
-
     if (!questionData?.question || !questionData.theme.id) {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
     }

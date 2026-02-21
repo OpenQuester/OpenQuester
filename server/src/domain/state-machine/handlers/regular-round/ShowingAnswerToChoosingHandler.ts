@@ -1,5 +1,5 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -38,10 +38,9 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
 
   constructor(
     gameService: GameService,
-    timerService: SocketQuestionStateService,
     private readonly roundHandlerFactory: RoundHandlerFactory
   ) {
-    super(gameService, timerService);
+    super(gameService);
   }
 
   /**
@@ -127,13 +126,13 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
     ctx: TransitionContext,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    // Clear the show answer timer
-    await this.gameService.clearTimer(ctx.game.id);
-
     // Explicitly set timer to null in game state
     ctx.game.gameState.timer = null;
 
-    return { timer: undefined };
+    return {
+      timer: undefined,
+      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }],
+    };
   }
 
   protected collectBroadcasts(

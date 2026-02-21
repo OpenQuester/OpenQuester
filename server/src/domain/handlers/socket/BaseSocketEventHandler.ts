@@ -9,7 +9,6 @@ import {
 import { ClientError } from "domain/errors/ClientError";
 import { ErrorController } from "domain/errors/ErrorController";
 import { GameAction } from "domain/types/action/GameAction";
-import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { SocketEventEmitter } from "domain/types/socket/EmitTarget";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { type ILogger } from "infrastructure/logger/ILogger";
@@ -293,7 +292,7 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
       id: ValueUtils.generateUUID(),
       type: this.getActionType(),
       gameId,
-      playerId: this.socket.userId ?? 0,
+      playerId: this.socket.userId ?? -1,
       socketId: this.socket.id,
       timestamp: new Date(),
       payload: data,
@@ -508,21 +507,6 @@ export abstract class BaseSocketEventHandler<TInput = any, TOutput = any> {
     if (!broadcasts || !broadcasts.length) return;
 
     for (const broadcast of broadcasts) {
-      // Handle role-based broadcasts for game events
-      if (
-        broadcast.useRoleBasedBroadcast &&
-        broadcast.target === SocketBroadcastTarget.GAME &&
-        broadcast.gameId
-      ) {
-        await this.eventEmitter.emitWithRoleBasedFiltering(
-          broadcast.event,
-          broadcast.data as { gameState: GameStateDTO },
-          broadcast.gameId
-        );
-        continue;
-      }
-
-      // Handle regular broadcasts
       switch (broadcast.target) {
         case SocketBroadcastTarget.SOCKET:
           this.eventEmitter.emit(broadcast.event, broadcast.data);

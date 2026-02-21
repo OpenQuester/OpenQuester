@@ -1,5 +1,5 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
 import { QuestionAnswerResultLogic } from "domain/logic/question/QuestionAnswerResultLogic";
@@ -38,10 +38,9 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
   public readonly toPhase = GamePhase.SHOWING;
 
   constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService
+    gameService: GameService
   ) {
-    super(gameService, timerService);
+    super(gameService);
   }
 
   /**
@@ -126,9 +125,9 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
     const { game } = ctx;
-
-    // Clear the answering timer
-    await this.gameService.clearTimer(game.id);
+    const timerMutations: TimerResult["timerMutations"] = [
+      { op: "delete", key: timerKey(game.id) },
+    ];
 
     // Restore the saved showing timer (saved when player requested to answer)
     const savedTimer = await this.gameService.getTimer(
@@ -145,12 +144,13 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
 
       return {
         timer: savedTimer,
+        timerMutations,
       };
     }
 
     // Fallback: if no saved timer, set timer to null
     game.gameState.timer = null;
-    return { timer: undefined };
+    return { timer: undefined, timerMutations };
   }
 
   protected collectBroadcasts(

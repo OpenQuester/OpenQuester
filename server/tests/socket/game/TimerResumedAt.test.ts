@@ -50,7 +50,7 @@ describe("Timer resumedAt Field", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
     testUtils = new TestUtils(app, userRepo, serverUrl);
   });
@@ -349,6 +349,11 @@ describe("Timer resumedAt Field", () => {
         await utils.startGame(showmanSocket);
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
+        const gameDataAfterPause = await utils.getGameState(gameId);
+        expect(gameDataAfterPause!.timer).toBeDefined();
+        expect(gameDataAfterPause!.timer!.elapsedMs).toBeGreaterThanOrEqual(0);
+        expect(gameDataAfterPause!.timer!.resumedAt).toBeNull();
+
         // Pause and unpause to set resumedAt
         await utils.pauseGame(showmanSocket);
         const unpausePromise = utils.waitForEvent(
@@ -378,6 +383,6 @@ describe("Timer resumedAt Field", () => {
       } finally {
         await utils.cleanupGameClients(setup);
       }
-    });
+    }, 35000);
   });
 });

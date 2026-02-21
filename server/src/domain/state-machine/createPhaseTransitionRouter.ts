@@ -1,5 +1,4 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { FinalAnsweringToReviewingHandler } from "domain/state-machine/handlers/final-round/FinalAnsweringToReviewingHandler";
 import { FinalBiddingToAnsweringHandler } from "domain/state-machine/handlers/final-round/FinalBiddingToAnsweringHandler";
@@ -21,6 +20,7 @@ import { SecretTransferToAnsweringHandler } from "domain/state-machine/handlers/
 import { StakeBiddingToAnsweringHandler } from "domain/state-machine/handlers/special-question/StakeBiddingToAnsweringHandler";
 import { TransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "infrastructure/logger/ILogger";
 
 /**
@@ -31,8 +31,8 @@ import { ILogger } from "infrastructure/logger/ILogger";
  */
 export function createPhaseTransitionRouter(
   gameService: GameService,
-  timerService: SocketQuestionStateService,
   roundHandlerFactory: RoundHandlerFactory,
+  packageStore: PackageStore,
   logger: ILogger
 ): PhaseTransitionRouter {
   const handlers: TransitionHandler[] = [
@@ -41,19 +41,18 @@ export function createPhaseTransitionRouter(
     // =========================================================================
     new ThemeEliminationToBiddingHandler(
       gameService,
-      timerService,
       roundHandlerFactory
     ),
     new FinalBiddingToAnsweringHandler(
       gameService,
-      timerService,
-      roundHandlerFactory
+      roundHandlerFactory,
+      packageStore
     ),
-    new FinalAnsweringToReviewingHandler(gameService, timerService),
+    new FinalAnsweringToReviewingHandler(gameService),
     new FinalReviewingToGameFinishHandler(
       gameService,
-      timerService,
-      roundHandlerFactory
+      roundHandlerFactory,
+      packageStore
     ),
 
     // =========================================================================
@@ -61,56 +60,54 @@ export function createPhaseTransitionRouter(
     // =========================================================================
 
     // Question picked (special): CHOOSING → SECRET_TRANSFER / STAKE_BIDDING
-    new ChoosingToSecretTransferHandler(gameService, timerService),
-    new ChoosingToStakeBiddingHandler(gameService, timerService),
+    new ChoosingToSecretTransferHandler(gameService),
+    new ChoosingToStakeBiddingHandler(gameService),
 
     // Fallback when no eligible players for special questions: CHOOSING → SHOWING
-    new ChoosingToShowingFallbackHandler(gameService, timerService),
+    new ChoosingToShowingFallbackHandler(gameService),
 
     // Question picked (normal): CHOOSING → MEDIA_DOWNLOADING
-    new ChoosingToMediaDownloadingHandler(gameService, timerService),
+    new ChoosingToMediaDownloadingHandler(gameService, packageStore),
 
     // Player buzzes to answer: SHOWING → ANSWERING
-    new ShowingToAnsweringHandler(gameService, timerService),
+    new ShowingToAnsweringHandler(gameService),
 
     // Timer expired, force skip, or all players skipped: SHOWING → SHOWING_ANSWER
-    new ShowingToShowingAnswerHandler(gameService, timerService),
+    new ShowingToShowingAnswerHandler(gameService, packageStore),
 
     // Wrong answer (players remaining): ANSWERING → SHOWING
-    new AnsweringToShowingHandler(gameService, timerService),
+    new AnsweringToShowingHandler(gameService),
 
     // Correct answer or all players exhausted: ANSWERING → SHOWING_ANSWER
-    new AnsweringToShowingAnswerHandler(gameService, timerService),
+    new AnsweringToShowingAnswerHandler(gameService, packageStore),
 
     // Answer display complete: SHOWING_ANSWER → GAME_FINISHED (last question, no final round)
-    new ShowingAnswerToGameFinishHandler(gameService, timerService),
+    new ShowingAnswerToGameFinishHandler(gameService),
 
     // Answer display complete: SHOWING_ANSWER → FINAL_THEME_ELIMINATION (next round is final)
     new ShowingAnswerToThemeEliminationHandler(
       gameService,
-      timerService,
       roundHandlerFactory
     ),
 
     // Answer display complete: SHOWING_ANSWER → CHOOSING (continue regular rounds)
     new ShowingAnswerToChoosingHandler(
       gameService,
-      timerService,
       roundHandlerFactory
     ),
 
     // Media download complete/timeout: MEDIA_DOWNLOADING → SHOWING
-    new MediaDownloadingToShowingHandler(gameService, timerService),
+    new MediaDownloadingToShowingHandler(gameService),
 
     // =========================================================================
     // Special Question Transitions
     // =========================================================================
 
     // Stake question bidding complete: STAKE_BIDDING → ANSWERING
-    new StakeBiddingToAnsweringHandler(gameService, timerService),
+    new StakeBiddingToAnsweringHandler(gameService, packageStore),
 
     // Secret question transferred: SECRET_QUESTION_TRANSFER → ANSWERING
-    new SecretTransferToAnsweringHandler(gameService, timerService),
+    new SecretTransferToAnsweringHandler(gameService, packageStore),
   ];
 
   return new PhaseTransitionRouter(logger, handlers);

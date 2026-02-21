@@ -2,7 +2,6 @@ import { DEFAULT_QUESTION_PRICE } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { BiddingTurn } from "domain/entities/game/values/BiddingTurn";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import {
@@ -35,21 +34,20 @@ export class StakeBiddingTimeoutLogic {
 
   /**
    * Processes timeout: first bidder auto-bids minimum, others auto-pass.
+   * @param game Game entity
+   * @param questionPrice The price of the stake question (fetched from PackageStore by caller)
    */
-  public static processTimeout(game: Game): StakeBiddingTimeoutMutationResult {
+  public static processTimeout(
+    game: Game,
+    questionPrice: number
+  ): StakeBiddingTimeoutMutationResult {
     const stakeData = game.gameState.stakeQuestionData!;
     const allPlayers = game.getInGamePlayers().map((player) => player.toDTO());
     const currentBidderId =
       stakeData.biddingOrder[stakeData.currentBidderIndex];
 
-    // Determine minimum bid (question price or default fallback)
-    const questionData = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState.currentRound!.id,
-      stakeData.questionId
-    );
-    const questionPrice =
-      questionData?.question.price ?? DEFAULT_QUESTION_PRICE;
+    // Use provided question price or default fallback
+    const effectivePrice = questionPrice || DEFAULT_QUESTION_PRICE;
 
     const isFirstBid = this.isFirstBidAttempt(stakeData);
 
@@ -59,7 +57,7 @@ export class StakeBiddingTimeoutLogic {
     if (isFirstBid) {
       // First bidder cannot pass: place minimal allowed bid (question price)
       bidType = StakeBidType.NORMAL;
-      bidAmount = questionPrice;
+      bidAmount = effectivePrice;
       stakeData.bids[currentBidderId] = bidAmount;
       stakeData.highestBid = bidAmount;
     } else {

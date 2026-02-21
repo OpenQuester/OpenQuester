@@ -42,7 +42,7 @@ describe("Game Statistics Persistence Tests", () => {
     gameStatsRepo = testEnv.getDatabase().getRepository(GameStatistics);
     playerGameStatsRepo = testEnv.getDatabase().getRepository(PlayerGameStats);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 

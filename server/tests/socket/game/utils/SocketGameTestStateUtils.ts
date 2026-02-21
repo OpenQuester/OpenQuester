@@ -2,11 +2,10 @@ import { container } from "tsyringe";
 import { GameService } from "application/services/game/GameService";
 import { Game } from "domain/entities/game/Game";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
-import { PackageDTO } from "domain/types/dto/package/PackageDTO";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
 export class SocketGameTestStateUtils {
   private gameService = container.resolve(GameService);
@@ -104,15 +103,17 @@ export class SocketGameTestStateUtils {
     const questionIds: Array<{ id: number; order: number }> = [];
 
     // Collect all unplayed questions with their order
+    const packageStore = container.resolve(PackageStore);
     for (const theme of currentRound.themes) {
       if (theme.questions && theme.questions.length > 0) {
         for (const question of theme.questions) {
           if (question.id && !question.isPlayed) {
             // Get question order from package data
-            const questionOrder = this.getQuestionOrderFromPackage(
-              game.package,
+            const questionData = await packageStore.getQuestion(
+              gameId,
               question.id
             );
+            const questionOrder = questionData?.order ?? 0;
             questionIds.push({ id: question.id, order: questionOrder });
           }
         }
@@ -121,25 +122,6 @@ export class SocketGameTestStateUtils {
 
     // Sort by order and return just the IDs
     return questionIds.sort((a, b) => a.order - b.order).map((q) => q.id);
-  }
-
-  /**
-   * Get question order from package data
-   */
-  private getQuestionOrderFromPackage(
-    packageData: PackageDTO,
-    questionId: number
-  ): number {
-    for (const round of packageData.rounds || []) {
-      for (const theme of round.themes || []) {
-        for (const question of theme.questions || []) {
-          if (question.id === questionId) {
-            return question.order || 0;
-          }
-        }
-      }
-    }
-    return 0; // fallback
   }
 
   /**
@@ -194,18 +176,18 @@ export class SocketGameTestStateUtils {
     }
 
     // Now check each question efficiently
+    const packageStore = container.resolve(PackageStore);
     for (const { question } of questionsToCheck) {
-      const questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        gameState.currentRound!.id,
+      const questionData = await packageStore.getQuestion(
+        gameId,
         question.id
       );
 
-      if (!questionData?.question) {
+      if (!questionData) {
         continue;
       }
 
-      const fullQuestion = questionData.question;
+      const fullQuestion = questionData;
 
       // Filter by secret transfer type if specified
       if (
@@ -246,21 +228,19 @@ export class SocketGameTestStateUtils {
     }
 
     // For other question types, we need to check the package data
+    const packageStore = container.resolve(PackageStore);
     for (const theme of gameState.currentRound.themes) {
       if (theme.questions) {
         for (const question of theme.questions) {
           if (!question.isPlayed) {
-            const questionData = GameQuestionMapper.getQuestionAndTheme(
-              game.package,
-              gameState.currentRound.id,
+            const fullQuestion = await packageStore.getQuestion(
+              gameId,
               question.id
             );
 
-            if (!questionData?.question) {
+            if (!fullQuestion) {
               continue;
             }
-
-            const fullQuestion = questionData.question;
 
             // Direct type comparison for all question types
             if (fullQuestion.type === questionType) {
@@ -390,18 +370,12 @@ export class SocketGameTestStateUtils {
     }
   }
 
-  public getQuestionTypeFromPackage(game: Game, questionId: number) {
-    if (!game.package?.rounds) return null;
-
-    for (const round of game.package.rounds) {
-      for (const theme of round.themes) {
-        for (const question of theme.questions) {
-          if (question.id === questionId) {
-            return question.type;
-          }
-        }
-      }
-    }
-    return null;
+  public async getQuestionTypeFromPackage(
+    game: Game,
+    questionId: number
+  ): Promise<PackageQuestionType | null> {
+    const packageStore = container.resolve(PackageStore);
+    const questionData = await packageStore.getQuestion(game.id, questionId);
+    return questionData?.type ?? null;
   }
 }

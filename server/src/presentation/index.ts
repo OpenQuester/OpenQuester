@@ -120,13 +120,15 @@ const main = async () => {
 
   context.env.load(false);
 
-  ["SIGINT", "SIGTERM", "uncaughtException"].forEach((signal) => {
-    process.on(
-      signal,
-      async (error) =>
-        await gracefulShutdown(context, api?.server, logger, error)
-    );
-  });
+  ["SIGINT", "SIGTERM", "uncaughtException", "unhandledRejection"].forEach(
+    (signal) => {
+      process.on(
+        signal,
+        async (error) =>
+          await gracefulShutdown(context, api?.server, logger, error)
+      );
+    }
+  );
 
   const api = new ServeApi(context);
 

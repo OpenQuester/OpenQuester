@@ -5,24 +5,21 @@ import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
-import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameImportDTO } from "domain/types/dto/game/GameImportDTO";
 import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
+import { RoundIndexEntry } from "domain/types/dto/game/RoundIndexEntry";
 import {
   GameStateAnsweredPlayerData,
   GameStateDTO,
 } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import { GetPlayerOptions } from "domain/types/game/GetPlayerOptions";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { userId } from "domain/types/ids";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerMeta } from "domain/types/socket/game/PlayerMeta";
-import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
-import { FinalRoundTurnManager } from "domain/utils/FinalRoundTurnManager";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 type PlayerAndIndex = {
@@ -33,14 +30,14 @@ type PlayerAndIndex = {
 export class Game {
   private _id: string;
   private _title: string;
-  private _createdBy: number;
+  private _createdBy: userId;
   private _createdAt: Date;
   private _isPrivate: boolean;
   private _ageRestriction: AgeRestriction;
   private _maxPlayers: number;
   private _startedAt: Date | null;
   private _finishedAt: Date | null;
-  private _package: PackageDTO;
+  private _roundIndex: RoundIndexEntry[];
   private _roundsCount: number;
   private _questionsCount: number;
   private _players: Player[];
@@ -56,7 +53,7 @@ export class Game {
     this._maxPlayers = data.maxPlayers;
     this._startedAt = data.startedAt;
     this._finishedAt = data.finishedAt;
-    this._package = data.package;
+    this._roundIndex = data.roundIndex;
     this._roundsCount = data.roundsCount;
     this._questionsCount = data.questionsCount;
     this._players = data.players;
@@ -116,16 +113,12 @@ export class Game {
     this._startedAt = startedAt;
   }
 
-  public get packageId() {
-    return this._package.id;
+  public get roundIndex(): RoundIndexEntry[] {
+    return this._roundIndex;
   }
 
-  public get package() {
-    return this._package;
-  }
-
-  public set package(packageDTO: PackageDTO) {
-    this._package = packageDTO;
+  public set roundIndex(roundIndex: RoundIndexEntry[]) {
+    this._roundIndex = roundIndex;
   }
 
   public set roundsCount(roundsCount: number) {
@@ -308,86 +301,17 @@ export class Game {
     return all.length > 0 && played.length === all.length;
   }
 
-  public getNextRound() {
+  /**
+   * Check if a next round exists using the lightweight round index.
+   * Returns the matching entry (order + type) or null if no next round.
+   */
+  public getNextRound(): RoundIndexEntry | null {
     if (!ValueUtils.isNumber(this.gameState.currentRound?.order)) {
       return null;
     }
 
-    const nextRound = GameStateMapper.getGameRound(
-      this.package,
-      this.gameState.currentRound.order + 1
-    );
-
-    return nextRound;
-  }
-
-  public getProgressionState() {
-    let nextGameState: GameStateDTO | null = null;
-    let isGameFinished = false;
-
-    const nextRound = this.getNextRound();
-
-    if (!nextRound) {
-      this.finish();
-      isGameFinished = true;
-      return { isGameFinished, nextGameState };
-    }
-
-    // Keep password between game state changes
-    const currentPassword = this.gameState.password;
-    nextGameState = GameStateMapper.getClearGameState(nextRound);
-    nextGameState.password = currentPassword;
-    this.gameState = nextGameState;
-
-    if (nextRound.type === PackageRoundType.FINAL) {
-      // Initialize final round data
-      const finalRoundData =
-        FinalRoundStateManager.initializeFinalRoundData(this);
-
-      finalRoundData.turnOrder =
-        FinalRoundTurnManager.initializeTurnOrder(this);
-
-      const currentTurnPlayer = FinalRoundTurnManager.getCurrentTurnPlayer(
-        this,
-        finalRoundData.turnOrder
-      );
-
-      nextGameState.currentTurnPlayerId = currentTurnPlayer ?? undefined;
-      FinalRoundStateManager.updateFinalRoundData(this, finalRoundData);
-
-      nextGameState.finalRoundData = finalRoundData;
-    } else if (nextRound.type === PackageRoundType.SIMPLE) {
-      // Set current turn player to the player with the lowest score
-      const inGamePlayers = this.getInGamePlayers();
-
-      if (inGamePlayers.length > 0) {
-        let minScore = inGamePlayers[0].score;
-        let minPlayers = [inGamePlayers[0]];
-
-        for (let i = 1; i < inGamePlayers.length; i++) {
-          const player = inGamePlayers[i];
-
-          if (player.score < minScore) {
-            minScore = player.score;
-            minPlayers = [player];
-          } else if (player.score === minScore) {
-            minPlayers.push(player);
-          }
-        }
-
-        // If multiple players have the same lowest score, pick randomly among them
-        const chosen =
-          minPlayers.length === 1
-            ? minPlayers[0]
-            : minPlayers[Math.floor(Math.random() * minPlayers.length)];
-
-        nextGameState.currentTurnPlayerId = chosen.meta.id;
-      } else {
-        nextGameState.currentTurnPlayerId = null;
-      }
-    }
-
-    return { isGameFinished, nextGameState };
+    const nextOrder = this.gameState.currentRound!.order + 1;
+    return this._roundIndex.find((r) => r.order === nextOrder) ?? null;
   }
 
   public finish() {

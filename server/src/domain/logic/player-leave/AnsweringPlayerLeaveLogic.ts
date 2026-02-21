@@ -28,7 +28,7 @@ export enum AnsweringScenarioType {
 /**
  * Validation result for answering player leave
  */
-export interface AnsweringPlayerLeaveValidation {
+interface AnsweringPlayerLeaveValidation {
   isEligible: boolean;
   scenarioType: AnsweringScenarioType;
   reason?: string;
@@ -37,7 +37,7 @@ export interface AnsweringPlayerLeaveValidation {
 /**
  * Result of processing regular round answering player leave
  */
-export interface RegularAnsweringMutationResult {
+interface RegularAnsweringMutationResult {
   nextState: QuestionState;
   isSpecialQuestion: boolean;
   questionId?: number;
@@ -185,23 +185,17 @@ export class AnsweringPlayerLeaveLogic {
    * Handle special question cleanup after auto-skip.
    *
    * Marks question as played and clears special question data.
+   * @param game Game entity
+   * @param questionId Question ID to clean up
+   * @param themeId Theme ID of the question (fetched from PackageStore by caller)
    */
   public static handleSpecialQuestionCleanup(
     game: Game,
-    questionId: number
+    questionId: number,
+    themeId: number | null
   ): void {
-    const questionData = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState.currentRound!.id,
-      questionId
-    );
-
-    if (questionData) {
-      GameQuestionMapper.setQuestionPlayed(
-        game,
-        questionId,
-        questionData.theme.id!
-      );
+    if (themeId !== null) {
+      GameQuestionMapper.setQuestionPlayed(game, questionId, themeId);
     }
 
     // Clear special question data and current question

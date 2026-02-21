@@ -59,10 +59,7 @@ export class SocketIOInitializer {
       }
     );
 
-    const eventEmitter = new SocketIOEventEmitter(
-      this.socketIOGameService,
-      this.logger
-    );
+    const eventEmitter = new SocketIOEventEmitter();
     eventEmitter.init(nsp, socket);
 
     // Initialize new standardized event handler registry

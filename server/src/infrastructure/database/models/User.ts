@@ -13,8 +13,9 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 
-import { UserDTO } from "domain/types/dto/user/UserDTO";
-import { UserModel } from "domain/types/user/UserModel";
+import { type UserDTO } from "domain/types/dto/user/UserDTO";
+import { type userId } from "domain/types/ids";
+import { type UserModel } from "domain/types/user/UserModel";
 import { File } from "infrastructure/database/models/File";
 import { Package } from "infrastructure/database/models/package/Package";
 import { Permission } from "infrastructure/database/models/Permission";
@@ -28,7 +29,7 @@ export class User implements UserModel {
   }
 
   @PrimaryGeneratedColumn()
-  id!: number;
+  id!: userId;
 
   @Column({ type: "varchar", unique: true, nullable: false })
   username!: string;

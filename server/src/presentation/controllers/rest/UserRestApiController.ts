@@ -13,6 +13,7 @@ import { UpdateUserInputDTO } from "domain/types/dto/user/UpdateUserInputDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { UserInputDTO } from "domain/types/dto/user/UserInputDTO";
 import { UserPermissionsUpdateDTO } from "domain/types/dto/user/UserPermissionsUpdateDTO";
+import { asUserId } from "domain/types/ids";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { File } from "infrastructure/database/models/File";
 import { User } from "infrastructure/database/models/User";
@@ -72,7 +73,7 @@ export class UserRestApiController {
   }
 
   private getUser = async (req: Request, res: Response) => {
-    const id: number = this._getUserId(req);
+    const id = this._getUserId(req);
 
     const validatedData = new RequestDataValidator<UserInputDTO>(
       { userId: id },
@@ -114,7 +115,7 @@ export class UserRestApiController {
       throw new ClientError(ClientResponse.NO_USER_DATA);
     }
 
-    const user = await this.userService.getRaw(id, {
+    const user = await this.userService.getRaw(asUserId(id), {
       select: USER_SELECT_FIELDS,
       relations: USER_RELATIONS,
       relationSelects: {
@@ -165,7 +166,7 @@ export class UserRestApiController {
     }
 
     const validatedData = new RequestDataValidator<UserInputDTO>(
-      { userId: id },
+      { userId: asUserId(id) },
       userIdScheme()
     ).validate();
 
@@ -204,7 +205,7 @@ export class UserRestApiController {
   };
 
   private updateUserPermissions = async (req: Request, res: Response) => {
-    const userId = Number(req.params.id);
+    const userId = asUserId(Number(req.params.id));
 
     // Validate user ID
     const validatedUserData = new RequestDataValidator<UserInputDTO>(
@@ -248,7 +249,7 @@ export class UserRestApiController {
 
   private _getUserId(req: Request) {
     if (req.params && req.params.id) {
-      return Number(req.params.id);
+      return asUserId(Number(req.params.id));
     } else {
       const id = req.session.userId;
       if (!id) {
@@ -257,7 +258,7 @@ export class UserRestApiController {
           HttpStatus.NOT_FOUND
         );
       }
-      return id;
+      return asUserId(id);
     }
   }
 }

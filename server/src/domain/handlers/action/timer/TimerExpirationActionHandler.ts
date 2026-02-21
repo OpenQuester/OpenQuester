@@ -1,14 +1,11 @@
-import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { TimerActionPayload } from "domain/types/action/TimerActionPayload";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { TimerExpirationResult } from "domain/types/service/ServiceResult";
-import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 
@@ -21,16 +18,15 @@ export class TimerExpirationActionHandler
 {
   constructor(
     private readonly timerExpirationService: TimerExpirationService,
-    private readonly gameLifecycleService: GameLifecycleService,
     private readonly logger: ILogger
   ) {
     //
   }
 
   public async execute(
-    action: GameAction<TimerActionPayload>
-  ): Promise<GameActionHandlerResult<void>> {
-    const { gameId, payload } = action;
+    ctx: ActionExecutionContext<TimerActionPayload>
+  ): Promise<ActionHandlerResult<void>> {
+    const { gameId, payload } = ctx.action;
     const { questionState } = payload;
 
     this.logger.debug(`Timer expiration for game ${gameId}`, {
@@ -41,18 +37,27 @@ export class TimerExpirationActionHandler
     const result = await this.handleTimerExpiration(gameId, questionState);
 
     if (!result.success) {
-      return { success: false, error: "Timer expiration handling failed" };
+      return {
+        success: false,
+        error: "Timer expiration handling failed",
+        mutations: [],
+      };
     }
 
-    // Service generates type-safe broadcasts with satisfies - just convert format
-    const broadcasts = convertBroadcasts(result.broadcasts);
+    const mutations = [
+      ...DataMutationConverter.mutationFromServiceBroadcasts(result.broadcasts),
+    ];
 
-    // Check if game finished and trigger statistics persistence
+    // If game finished, add completion mutation instead of calling service directly
     if (result.game?.finishedAt) {
-      await this.gameLifecycleService.handleGameCompletion(gameId);
+      mutations.push(DataMutationConverter.gameCompletionMutation(gameId));
     }
 
-    return { success: true, broadcasts };
+    return {
+      success: true,
+      mutations,
+      broadcastGame: result.game,
+    };
   }
 
   private async handleTimerExpiration(

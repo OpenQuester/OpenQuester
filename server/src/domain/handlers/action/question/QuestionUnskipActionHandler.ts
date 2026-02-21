@@ -1,14 +1,14 @@
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
+import { PlayerSkipLogic } from "domain/logic/question/PlayerSkipLogic";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
+import { QuestionAction } from "domain/types/game/QuestionAction";
 import {
   EmptyInputData,
   QuestionUnskipBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
 
 /**
  * Stateless action handler for player unskipping question.
@@ -16,23 +16,33 @@ import {
 export class QuestionUnskipActionHandler
   implements GameActionHandler<EmptyInputData, QuestionUnskipBroadcastData>
 {
-  constructor(
-    private readonly socketIOQuestionService: SocketIOQuestionService
-  ) {
-    //
-  }
-
   public async execute(
-    action: GameAction<EmptyInputData>
-  ): Promise<GameActionHandlerResult<QuestionUnskipBroadcastData>> {
-    const result = await this.socketIOQuestionService.handlePlayerUnskip(
-      createActionContextFromAction(action)
-    );
+    ctx: ActionExecutionContext<EmptyInputData>
+  ): Promise<ActionHandlerResult<QuestionUnskipBroadcastData>> {
+    const { game, currentPlayer } = ctx;
+
+    QuestionActionValidator.validateUnskipAction({
+      game,
+      currentPlayer,
+      action: QuestionAction.PLAYER_SKIP,
+    });
+
+    PlayerSkipLogic.processUnskip(game, currentPlayer!);
+
+    const result = PlayerSkipLogic.buildUnskipResult({
+      game,
+      playerId: currentPlayer!.meta.id,
+    });
 
     return {
       success: true,
       data: result.data,
-      broadcasts: result.broadcasts,
+      mutations: [
+        DataMutationConverter.saveGameMutation(game),
+        ...DataMutationConverter.mutationFromSocketBroadcasts(
+          result.broadcasts
+        ),
+      ],
     };
   }
 }

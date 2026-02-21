@@ -1,14 +1,14 @@
-import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
+import { GameService } from "application/services/game/GameService";
+import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
+import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import {
   EmptyInputData,
   GameUnpauseBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for unpausing a game.
@@ -16,17 +16,39 @@ import { createActionContextFromAction } from "domain/types/action/ActionContext
 export class UnpauseGameActionHandler
   implements GameActionHandler<EmptyInputData, GameUnpauseBroadcastData>
 {
-  constructor(private readonly socketIOGameService: SocketIOGameService) {}
+  constructor(
+    private readonly validationService: SocketGameValidationService,
+    private readonly socketGameTimerService: SocketGameTimerService,
+    private readonly gameService: GameService
+  ) {}
 
   public async execute(
-    action: GameAction<EmptyInputData>
-  ): Promise<GameActionHandlerResult<GameUnpauseBroadcastData>> {
-    const result = await this.socketIOGameService.handleGameUnpause(
-      createActionContextFromAction(action)
-    );
+    ctx: ActionExecutionContext<EmptyInputData>
+  ): Promise<ActionHandlerResult<GameUnpauseBroadcastData>> {
+    const { game, currentPlayer } = ctx;
+
+    this.validationService.validateGameUnpause(currentPlayer, game);
+
+    // The active timer key (timer:{gameId}) is already in ctx.timer, but for
+    // unpause we need the saved timer stored under the questionState suffix.
+    const questionState = game.gameState.questionState;
+    const savedTimer = await this.gameService.getTimer(game.id, questionState!);
+
+    const { result, timerMutations } =
+      this.socketGameTimerService.buildUnpauseTimerMutations(game, savedTimer);
 
     const unpauseData: GameUnpauseBroadcastData = { timer: result.data.timer };
 
-    return { success: true, data: unpauseData, broadcasts: result.broadcasts };
+    return {
+      success: true,
+      data: unpauseData,
+      mutations: [
+        DataMutationConverter.saveGameMutation(game),
+        ...DataMutationConverter.mutationFromTimerMutations(timerMutations),
+        ...DataMutationConverter.mutationFromSocketBroadcasts(
+          result.broadcasts
+        ),
+      ],
+    };
   }
 }

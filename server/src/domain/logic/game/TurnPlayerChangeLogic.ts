@@ -27,7 +27,7 @@ export interface TurnPlayerChangeResult {
  *
  * Pattern: Static utility class (no dependencies, pure functions)
  */
-export interface TurnPlayerChangeResultInput {
+interface TurnPlayerChangeResultInput {
   game: Game;
   newTurnPlayerId: number | null;
 }

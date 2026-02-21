@@ -13,6 +13,7 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 export interface AnswerSubmittedResult {
   data: AnswerSubmittedBroadcastData;
   broadcasts: SocketEventBroadcast[];
+  game: Game;
 }
 
 export interface AnswerSubmittedBuildResultInput {
@@ -53,6 +54,6 @@ export class AnswerSubmittedLogic {
       } satisfies SocketEventBroadcast<AnswerSubmittedBroadcastData>,
     ];
 
-    return { data: broadcastData, broadcasts };
+    return { data: broadcastData, broadcasts, game };
   }
 }

@@ -38,7 +38,7 @@ describe("Game expiration notifications", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     socketUtils = new SocketGameTestUtils(serverUrl);
     testUtils = new TestUtils(app, userRepo, serverUrl);
   });

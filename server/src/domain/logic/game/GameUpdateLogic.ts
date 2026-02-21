@@ -7,6 +7,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameUpdateDTO } from "domain/types/dto/game/GameUpdateDTO";
 import { PasswordUtils } from "domain/utils/PasswordUtils";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
@@ -71,7 +72,8 @@ export class GameUpdateLogic {
     game: Game,
     updateData: GameUpdateDTO,
     packageService: PackageService,
-    storage: S3StorageService
+    storage: S3StorageService,
+    packageStore: PackageStore
   ): Promise<void> {
     if (
       !ValueUtils.isNumber(updateData.packageId) ||
@@ -108,9 +110,12 @@ export class GameUpdateLogic {
       fetchIds: true,
     });
 
-    game.package = packageDTO;
+    game.roundIndex = PackageStore.buildRoundIndex(packageDTO);
     game.roundsCount = counts.roundsCount;
     game.questionsCount = counts.questionsCount;
+
+    // Store updated package in Redis
+    await packageStore.storePackage(game.id, packageDTO);
 
     // Reinitialize game state but preserve password
     const nextInitialGameState = GameStateMapper.initGameState();

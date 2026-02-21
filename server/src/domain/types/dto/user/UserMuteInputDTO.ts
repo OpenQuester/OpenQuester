@@ -1,4 +1,6 @@
+import { userId } from "domain/types/ids";
+
 export interface UserMuteInputDTO {
-  userId: number;
+  userId: userId;
   mutedUntil: string;
 }

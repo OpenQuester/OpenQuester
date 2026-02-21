@@ -5,6 +5,7 @@ import { FindOptionsWhere } from "typeorm";
 
 import { DI_TOKENS } from "application/di/tokens";
 import { FileUsageService } from "application/services/file/FileUsageService";
+import { GamePipelineService } from "application/services/pipeline/GamePipelineService";
 import { IGameLobbyLeaver } from "application/services/socket/IGameLobbyLeaver";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
@@ -15,6 +16,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { UpdateUserDTO } from "domain/types/dto/user/UpdateUserDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
+import { asUserId, userId } from "domain/types/ids";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { SelectOptions } from "domain/types/SelectOptions";
@@ -36,6 +38,7 @@ export class UserService {
     private readonly userRepository: UserRepository,
     private readonly fileUsageService: FileUsageService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly gamePipelineService: GamePipelineService,
     private readonly socketUserDataService: SocketUserDataService,
     @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
@@ -94,14 +97,14 @@ export class UserService {
    * Retrieve one user
    */
   public async get(
-    userId: number,
+    userId: userId,
     selectOptions?: SelectOptions<User>
   ): Promise<UserDTO> {
     return (await this.getRaw(userId, selectOptions)).toDTO();
   }
 
   public async getRaw(
-    userId: number,
+    userId: userId,
     selectOptions?: SelectOptions<User>
   ): Promise<User> {
     this.logger.debug("Retrieving user with options: ", {
@@ -211,30 +214,30 @@ export class UserService {
   /**
    * Delete user by params id
    */
-  public async delete(userId: number) {
+  public async delete(userId: userId) {
     const result = await this.performDelete(userId);
     await this.forceLeaveAllGames(userId);
     return result;
   }
 
-  public async ban(userId: number) {
+  public async ban(userId: userId) {
     await this.userRepository.ban(userId);
     await this.forceLeaveAllGames(userId);
   }
 
-  public async unban(userId: number) {
+  public async unban(userId: userId) {
     await this.userRepository.unban(userId);
   }
 
-  public async mute(userId: number, mutedUntil: Date) {
+  public async mute(userId: userId, mutedUntil: Date) {
     await this.userRepository.mute(userId, mutedUntil);
   }
 
-  public async unmute(userId: number) {
+  public async unmute(userId: userId) {
     await this.userRepository.unmute(userId);
   }
 
-  public async restore(userId: number) {
+  public async restore(userId: userId) {
     await this.userRepository.restore(userId);
   }
 
@@ -249,16 +252,28 @@ export class UserService {
       throw new ServerError("Game lobby leaver service not initialized");
     }
 
-    const leaveResult = await this._gameLobbyLeaver.leaveLobby(socketId);
+    const sessionAndGame = await this.gamePipelineService.fetchSessionAndGame(
+      socketId
+    );
+
+    if (!sessionAndGame) {
+      // User is connected but not in any game — just disconnect
+      this.gamesNsp.in(socketId).disconnectSockets(true);
+      return;
+    }
+
+    const { userData, game } = sessionAndGame;
+
+    const leaveResult = await this._gameLobbyLeaver.leaveLobby(
+      socketId,
+      userData,
+      game
+    );
 
     if (leaveResult.emit && leaveResult.data) {
-      const gameId = leaveResult.data.gameId;
-
-      if (gameId) {
-        this.gamesNsp
-          .to(gameId)
-          .emit(SocketIOGameEvents.LEAVE, { user: userId });
-      }
+      this.gamesNsp
+        .to(leaveResult.data.game.id)
+        .emit(SocketIOGameEvents.LEAVE, { user: userId });
     }
 
     // Force disconnect across all instances via Redis adapter
@@ -268,7 +283,7 @@ export class UserService {
   /**
    * User deletion logic
    */
-  private async performDelete(userId: number) {
+  private async performDelete(userId: userId) {
     this.logger.debug("User deletion started", {
       prefix: LogPrefix.USER,
       userId,
@@ -400,14 +415,14 @@ export class UserService {
     }
 
     const id = ValueUtils.validateId(req.session.userId);
-    return this.userRepository.get(id, selectOptions);
+    return this.userRepository.get(asUserId(id), selectOptions);
   }
 
   /**
    * Update user permissions with full business logic validation
    */
   public async updateUserPermissionsByNames(
-    userId: number,
+    userId: userId,
     permissionNames: string[]
   ): Promise<UserDTO> {
     this.logger.debug("User permissions update initiated", {

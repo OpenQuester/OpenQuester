@@ -1,12 +1,12 @@
+import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { type Express } from "express";
+import { User } from "infrastructure/database/models/User";
+import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { io as Client } from "socket.io-client";
 import request from "supertest";
 import { container } from "tsyringe";
 import { Repository } from "typeorm";
-import { User } from "infrastructure/database/models/User";
-import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
 import { GameClientSocket } from "./SocketIOGameTestUtils";
-import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 
 export class SocketGameTestUserUtils {
   private socketUserDataService = container.resolve(SocketUserDataService);

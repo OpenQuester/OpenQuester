@@ -14,15 +14,15 @@ import {
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { GameJoinInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
-import { GameJoinData } from "domain/types/socket/game/GameJoinData";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 
 describe("Socket Game State Tests", () => {
   let testEnv: TestEnvironment;
@@ -41,7 +41,7 @@ describe("Socket Game State Tests", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 
@@ -354,7 +354,7 @@ describe("Socket Game State Tests", () => {
           gameId,
           role: PlayerRole.PLAYER,
           targetSlot: null,
-        } satisfies GameJoinData);
+        } satisfies GameJoinInputData);
       }).finally(async () => {
         await utils.disconnectAndCleanup(lateJoinSocket);
         await utils.cleanupGameClients(setup);

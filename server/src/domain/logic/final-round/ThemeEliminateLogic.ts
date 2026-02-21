@@ -26,7 +26,7 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 /**
  * Validation input for theme elimination
  */
-export interface ThemeEliminateValidationInput {
+interface ThemeEliminateValidationInput {
   game: Game;
   player: Player | null;
   themeId: number;
@@ -36,7 +36,7 @@ export interface ThemeEliminateValidationInput {
 /**
  * Result of theme elimination mutation
  */
-export interface ThemeEliminateMutationResult {
+interface ThemeEliminateMutationResult {
   theme: GameStateThemeDTO;
   turnOrder: number[];
   nextPlayerId: number | null;

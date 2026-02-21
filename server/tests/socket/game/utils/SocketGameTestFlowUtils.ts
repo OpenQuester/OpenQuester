@@ -1,13 +1,15 @@
+import { container } from "tsyringe";
+
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
 import { GameClientSocket } from "./SocketIOGameTestUtils";
 import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
@@ -110,7 +112,7 @@ export class SocketGameTestFlowUtils {
       return;
     }
 
-    const questionPickEvent = this._determineQuestionPickEvent(
+    const questionPickEvent = await this._determineQuestionPickEvent(
       game,
       actualQuestionId
     );
@@ -161,15 +163,16 @@ export class SocketGameTestFlowUtils {
     return this.stateUtils.getFirstAvailableQuestionId(showmanSocket.gameId!);
   }
 
-  private _determineQuestionPickEvent(
+  private async _determineQuestionPickEvent(
     game: Game,
     questionId: number
-  ): SocketIOGameEvents {
-    const { question } = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState!.currentRound!.id,
+  ): Promise<SocketIOGameEvents> {
+    const packageStore = container.resolve(PackageStore);
+    const questionData = await packageStore.getQuestionWithTheme(
+      game.id,
       questionId
-    ) ?? { question: null };
+    );
+    const question = questionData?.question ?? null;
 
     if (!question) {
       throw new Error("Question not found in package");
@@ -480,7 +483,7 @@ export class SocketGameTestFlowUtils {
       for (const theme of game.gameState.currentRound.themes) {
         for (const question of theme.questions) {
           if (question.id === questionId) {
-            questionType = this.stateUtils.getQuestionTypeFromPackage(
+            questionType = await this.stateUtils.getQuestionTypeFromPackage(
               game,
               questionId
             );
@@ -664,11 +667,12 @@ export class SocketGameTestFlowUtils {
           );
 
           if (i === 0) {
-            const { question } = GameQuestionMapper.getQuestionAndTheme(
-              game.package,
-              game.gameState.currentRound!.id,
+            const packageStore = container.resolve(PackageStore);
+            const questionData = await packageStore.getQuestionWithTheme(
+              gameId,
               questionId
-            ) ?? { question: null };
+            );
+            const question = questionData?.question ?? null;
 
             const nominalAmount = question?.price || 300;
 

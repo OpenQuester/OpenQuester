@@ -23,9 +23,10 @@ import { GameMapper } from "domain/mappers/GameMapper";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
+import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import { PackageDTO } from "domain/types/dto/package/PackageDTO";
+import { type PackageFileDTO } from "domain/types/dto/package/PackageFileDTO";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
@@ -33,6 +34,10 @@ import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
 import { PasswordUtils } from "domain/utils/PasswordUtils";
 import { GameRedisValidator } from "domain/validators/GameRedisValidator";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
+import {
+  PackageMetaDTO,
+  PackageStore,
+} from "infrastructure/database/repositories/PackageStore";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
@@ -52,6 +57,7 @@ export class GameRepository {
     private readonly userService: UserService,
     private readonly packageService: PackageService,
     private readonly storage: S3StorageService,
+    private readonly packageStore: PackageStore,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -85,32 +91,59 @@ export class GameRepository {
   }
 
   public async updateGame(game: Game): Promise<void> {
-    const key = this.getGameKey(game.id);
-    await this.redisService.hset(
-      key,
-      GameMapper.serializeGameToHash(game),
-      GAME_TTL_IN_SECONDS
+    const gameKey = this.getGameKey(game.id);
+    const packageKey = this.packageStore.getPackageKey(game.id);
+    const warningKey = this.getGameExpirationWarningKey(game.id);
+    const warningTtlSeconds = Math.max(
+      GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS,
+      0
     );
-    await this.setExpirationWarning(game.id);
+
+    const pipeline = this.redisService.pipeline();
+    pipeline.hset(gameKey, GameMapper.serializeGameToHash(game));
+    pipeline.expire(gameKey, GAME_TTL_IN_SECONDS);
+    pipeline.expire(packageKey, GAME_TTL_IN_SECONDS);
+    if (warningTtlSeconds > 0) {
+      pipeline.set(
+        warningKey,
+        "1",
+        "PX",
+        warningTtlSeconds * SECOND_MS
+      );
+    }
+    await pipeline.exec();
   }
 
   public async updateGameWithIndexes(
     game: Game,
     previousIndexData: GameIndexesInputDTO
   ): Promise<void> {
-    const key = this.getGameKey(game.id);
-    const pipeline = this.redisService.pipeline();
+    const gameKey = this.getGameKey(game.id);
+    const packageKey = this.packageStore.getPackageKey(game.id);
+    const warningKey = this.getGameExpirationWarningKey(game.id);
+    const warningTtlSeconds = Math.max(
+      GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS,
+      0
+    );
 
-    pipeline.hset(key, GameMapper.serializeGameToHash(game));
+    const pipeline = this.redisService.pipeline();
+    pipeline.hset(gameKey, GameMapper.serializeGameToHash(game));
     this.gameIndexManager.updateGameIndexesPipeline(
       pipeline,
       previousIndexData,
       game.toIndexData()
     );
-    pipeline.expire(key, GAME_TTL_IN_SECONDS);
-
+    pipeline.expire(gameKey, GAME_TTL_IN_SECONDS);
+    pipeline.expire(packageKey, GAME_TTL_IN_SECONDS);
+    if (warningTtlSeconds > 0) {
+      pipeline.set(
+        warningKey,
+        "1",
+        "PX",
+        warningTtlSeconds * SECOND_MS
+      );
+    }
     await pipeline.exec();
-    await this.setExpirationWarning(game.id);
   }
 
   private async _isGameExists(gameId: string) {
@@ -172,13 +205,13 @@ export class GameRepository {
       await Promise.all(
         games.map(async (game: Game) => {
           const createdBy = userMap.get(game.createdBy);
-          const packData = game.package;
+          const packMeta = await this.packageStore.getMeta(game.id);
 
-          if (!packData || !packData.author || !createdBy) {
+          if (!packMeta || !packMeta.author || !createdBy) {
             return null;
           }
 
-          return this._parseGameToListItemDTO(game, createdBy, packData);
+          return this._parseGameToListItemDTO(game, createdBy, packMeta);
         })
       )
     ).filter((g): g is GameListItemDTO => g !== null);
@@ -263,12 +296,15 @@ export class GameRepository {
       maxPlayers: gameData.maxPlayers,
       startedAt: null,
       finishedAt: null,
-      package: packageDTO,
+      roundIndex: PackageStore.buildRoundIndex(packageDTO),
       roundsCount: counts.roundsCount,
       questionsCount: counts.questionsCount,
       players: [],
       gameState: initialGameState,
     });
+
+    // Store immutable package data separately
+    await this.packageStore.storePackage(gameId, packageDTO);
 
     const pipeline = this.redisService.pipeline();
     pipeline.hset(key, GameMapper.serializeGameToHash(game));
@@ -277,10 +313,41 @@ export class GameRepository {
       game.toIndexData()
     );
     pipeline.expire(key, GAME_TTL_IN_SECONDS);
-    await pipeline.exec();
-    await this.setExpirationWarning(gameId);
 
-    return this._parseGameToListItemDTO(game, createdBy, packageDTO);
+    const warningTtlSeconds = Math.max(
+      GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS,
+      0
+    );
+    if (warningTtlSeconds > 0) {
+      const warningKey = this.getGameExpirationWarningKey(gameId);
+      pipeline.set(
+        warningKey,
+        "1",
+        "PX",
+        warningTtlSeconds * SECOND_MS
+      );
+    }
+    await pipeline.exec();
+
+    const packMeta: PackageMetaDTO = {
+      id: packageDTO.id,
+      title: packageDTO.title,
+      description: packageDTO.description,
+      author: {
+        id: packageDTO.author.id,
+        username: packageDTO.author.username,
+      },
+      ageRestriction: packageDTO.ageRestriction,
+      language: packageDTO.language,
+      logo: packageDTO.logo,
+      tags: packageDTO.tags.map((t) => ({ tag: t.tag })),
+      createdAt:
+        packageDTO.createdAt instanceof Date
+          ? packageDTO.createdAt.toISOString()
+          : String(packageDTO.createdAt),
+    };
+
+    return this._parseGameToListItemDTO(game, createdBy, packMeta);
   }
 
   /**
@@ -295,7 +362,10 @@ export class GameRepository {
 
     const key = this.getGameKey(gameId);
     const game = await this.getGameEntity(gameId);
+
+    await this.clearAllTimers(gameId);
     await this.redisService.del(key);
+    await this.packageStore.deletePackage(gameId);
     await this.clearExpirationWarning(gameId);
     await this.gameIndexManager.removeGameFromIndexes(
       gameId,
@@ -323,12 +393,15 @@ export class GameRepository {
       throw new ClientError(ClientResponse.ONLY_HOST_CAN_DELETE);
     }
 
+    await this.clearAllTimers(gameId);
+
     await this.gameIndexManager.removeGameFromIndexes(
       gameId,
       game.toIndexData()
     );
 
     await this.redisService.del(key);
+    await this.packageStore.deletePackage(gameId);
     await this.clearExpirationWarning(gameId);
   }
 
@@ -338,16 +411,16 @@ export class GameRepository {
       relations: [],
     });
 
-    const packData = game.package;
+    const packMeta = await this.packageStore.getMeta(game.id);
 
-    if (!packData) {
+    if (!packMeta) {
       throw new ClientError(
         ClientResponse.PACKAGE_NOT_FOUND,
         HttpStatus.NOT_FOUND
       );
     }
 
-    if (!packData.author) {
+    if (!packMeta.author) {
       throw new ClientError(
         ClientResponse.PACKAGE_AUTHOR_NOT_FOUND,
         HttpStatus.NOT_FOUND
@@ -361,7 +434,7 @@ export class GameRepository {
       );
     }
 
-    return this._parseGameToListItemDTO(game, createdBy, packData);
+    return this._parseGameToListItemDTO(game, createdBy, packMeta);
   }
 
   /**
@@ -541,6 +614,23 @@ export class GameRepository {
     await this.redisService.del(this.getGameExpirationWarningKey(gameId));
   }
 
+  /**
+   * Clears all timer keys associated with a game (active + paused/elapsed).
+   * Timer keys follow the pattern: timer:{gameId} and timer:{suffix}:{gameId}
+   */
+  public async clearAllTimers(gameId: string): Promise<void> {
+    // Scan for suffixed keys (timer:{suffix}:{gameId}) using colon delimiter
+    // to avoid substring collisions with other gameIds
+    const suffixedKeys = await this.redisService.scan(
+      `${TIMER_NSP}:*:${gameId}`
+    );
+    // Always include the bare key (timer:{gameId}) which has no suffix
+    const bareKey = this._getTimerKey(gameId);
+    const allKeys = [bareKey, ...suffixedKeys];
+
+    await Promise.all(allKeys.map((key) => this.redisService.del(key)));
+  }
+
   private _getTimerKey(gameId: string, timerAdditional?: string) {
     return timerAdditional
       ? `${TIMER_NSP}:${timerAdditional}:${gameId}`
@@ -550,7 +640,7 @@ export class GameRepository {
   private async _parseGameToListItemDTO(
     game: Game,
     createdBy: ShortUserInfo,
-    packData: PackageDTO
+    packMeta: PackageMetaDTO
   ): Promise<GameListItemDTO> {
     const currentRound = game.gameState.currentRound
       ? game.gameState.currentRound.order + 1
@@ -581,17 +671,17 @@ export class GameRepository {
       currentRound,
       currentQuestion: currentQuestion?.id ?? null,
       package: {
-        id: packData.id!,
-        title: packData.title,
-        description: packData.description,
-        ageRestriction: packData.ageRestriction,
-        author: { id: packData.author.id, username: packData.author.username },
-        createdAt: packData.createdAt,
-        language: packData.language,
-        logo: packData.logo,
+        id: packMeta.id!,
+        title: packMeta.title,
+        description: packMeta.description,
+        ageRestriction: packMeta.ageRestriction as AgeRestriction,
+        author: { id: packMeta.author.id, username: packMeta.author.username },
+        createdAt: new Date(packMeta.createdAt),
+        language: packMeta.language,
+        logo: packMeta.logo as { file: PackageFileDTO } | null | undefined,
         roundsCount: game.roundsCount ?? 0,
         questionsCount: game.questionsCount ?? 0,
-        tags: packData.tags.map((t) => t.tag),
+        tags: packMeta.tags.map((t) => t.tag),
       },
     };
   }

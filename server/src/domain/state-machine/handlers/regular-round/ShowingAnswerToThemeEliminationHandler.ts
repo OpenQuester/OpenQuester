@@ -1,6 +1,7 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { FINAL_ROUND_THEME_ELIMINATION_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -32,10 +33,9 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
 
   constructor(
     gameService: GameService,
-    timerService: SocketQuestionStateService,
     private readonly roundHandlerFactory: RoundHandlerFactory
   ) {
-    super(gameService, timerService);
+    super(gameService);
   }
 
   public canTransition(ctx: TransitionContext): boolean {
@@ -105,17 +105,21 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    // Clear any existing timer from the previous phase
-    await this.gameService.clearTimer(game.id);
-
     // Setup timer for theme elimination (per-player turn timer)
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      FINAL_ROUND_THEME_ELIMINATION_TIME
-    );
+    const timer = new GameStateTimer(FINAL_ROUND_THEME_ELIMINATION_TIME);
+    game.gameState.timer = timer.start();
 
     return {
-      timer: timerEntity.value() ?? undefined,
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: FINAL_ROUND_THEME_ELIMINATION_TIME,
+        },
+      ],
     };
   }
 

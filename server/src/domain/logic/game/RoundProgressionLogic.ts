@@ -1,12 +1,11 @@
 import { Game } from "domain/entities/game/Game";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 
 /**
  * Result of round progression
  */
-export interface RoundProgressionResult {
+interface RoundProgressionResult {
   game: Game;
   isGameFinished: boolean;
   nextGameState: GameStateDTO | null;
@@ -35,22 +34,14 @@ export class RoundProgressionLogic {
   /**
    * Get current question data before round progression.
    * Used for statistics/logging purposes.
+   * @param _game Game entity (unused, kept for interface consistency)
+   * @param questionData Pre-fetched question data from PackageStore
    */
-  public static getCurrentQuestionData(game: Game): PackageQuestionDTO | null {
-    const currentRound = game.gameState.currentRound;
-    const currentQuestion = game.gameState.currentQuestion;
-
-    if (!currentQuestion || !currentRound) {
-      return null;
-    }
-
-    return (
-      GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        currentRound.id,
-        currentQuestion.id!
-      )?.question ?? null
-    );
+  public static getCurrentQuestionData(
+    _game: Game,
+    questionData: PackageQuestionDTO | null
+  ): PackageQuestionDTO | null {
+    return questionData;
   }
 
   /**

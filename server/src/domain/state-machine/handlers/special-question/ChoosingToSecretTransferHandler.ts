@@ -1,5 +1,6 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
@@ -29,11 +30,8 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.CHOOSING;
   public readonly toPhase = GamePhase.SECRET_QUESTION_TRANSFER;
 
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService
-  ) {
-    super(gameService, timerService);
+  constructor(gameService: GameService) {
+    super(gameService);
   }
 
   public canTransition(ctx: ChoosingToSecretTransferCtx): boolean {
@@ -57,7 +55,7 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
     try {
       const { question } = QuestionPickLogic.validateQuestionPick(
         game,
-        payload.questionId
+        payload.questionData
       );
 
       if (question.type !== PackageQuestionType.SECRET) return false;
@@ -81,7 +79,7 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
 
     const { question, theme } = QuestionPickLogic.validateQuestionPick(
       game,
-      payload!.questionId
+      payload!.questionData
     );
 
     const secretData = {
@@ -105,14 +103,23 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
     ctx: ChoosingToSecretTransferCtx,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    await this.gameService.clearTimer(ctx.game.id);
+    const { game } = ctx;
 
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      ctx.game,
-      SECRET_QUESTION_TRANSFER_TIME
-    );
+    const timer = new GameStateTimer(SECRET_QUESTION_TRANSFER_TIME);
+    game.gameState.timer = timer.start();
 
-    return { timer: timerEntity.value() ?? undefined };
+    return {
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: SECRET_QUESTION_TRANSFER_TIME,
+        },
+      ],
+    };
   }
 
   protected collectBroadcasts(

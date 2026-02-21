@@ -55,10 +55,14 @@ export class RedisRepository {
     await this._subClient.unsubscribe(channel);
   }
 
-  public async setLockKey(lockValue: string, expire?: number) {
+  public async setLockKey(
+    lockKey: string,
+    expire?: number,
+    value?: string
+  ) {
     return this._client.set(
-      lockValue,
-      "1",
+      lockKey,
+      value ?? "1",
       "EX",
       expire ?? REDIS_LOCK_KEY_EXPIRE_DEFAULT,
       "NX"
@@ -242,6 +246,22 @@ export class RedisRepository {
           await this.expire(key, updateTtl);
         }
         return value;
+      }
+    );
+  }
+
+  /**
+   * Retrieve multiple fields from a hash in a single round trip.
+   */
+  public async hmget(
+    key: string,
+    fields: string[]
+  ): Promise<(string | null)[]> {
+    return this.executeWithLogging(
+      "Redis HMGET",
+      { key, fields },
+      async () => {
+        return this._client.hmget(key, ...fields);
       }
     );
   }
@@ -473,6 +493,26 @@ export class RedisRepository {
     return this.executeWithLogging("Redis SETNX", { key }, async () => {
       return this._client.setnx(key, value);
     });
+  }
+
+  /**
+   * Execute a Lua script on the Redis server.
+   * @param script The Lua script to execute
+   * @param numkeys Number of keys in the script
+   * @param args Keys followed by arguments
+   */
+  public async eval(
+    script: string,
+    numkeys: number,
+    ...args: (string | number)[]
+  ): Promise<unknown> {
+    return this.executeWithLogging(
+      "Redis EVAL",
+      { numkeys, argsCount: args.length },
+      async () => {
+        return this._client.eval(script, numkeys, ...args);
+      }
+    );
   }
 
   public async zScanMatch(

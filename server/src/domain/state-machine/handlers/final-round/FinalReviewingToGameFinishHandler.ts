@@ -1,5 +1,5 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -19,6 +19,7 @@ import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalReviewingToGameFinishMutationData } from "domain/types/socket/transition/final";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
 /**
  * Result containing question answer data for game completion.
@@ -45,10 +46,10 @@ export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
 
   public constructor(
     gameService: GameService,
-    socketQuestionStateService: SocketQuestionStateService,
-    private readonly roundHandlerFactory: RoundHandlerFactory
+    private readonly roundHandlerFactory: RoundHandlerFactory,
+    private readonly packageStore: PackageStore
   ) {
-    super(gameService, socketQuestionStateService);
+    super(gameService);
   }
 
   /**
@@ -95,7 +96,7 @@ export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
     });
 
     // Get question answer data for final display
-    const questionAnswerData = this._getQuestionAnswerData(game);
+    const questionAnswerData = await this._getQuestionAnswerData(game);
 
     return {
       data: {
@@ -112,13 +113,13 @@ export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
     ctx: TransitionContext,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    // Clear any existing timer on game finish
-    await this.gameService.clearTimer(ctx.game.id);
-
     // Explicitly set timer to null in game state
     ctx.game.gameState.timer = null;
 
-    return { timer: undefined };
+    return {
+      timer: undefined,
+      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }],
+    };
   }
 
   /**
@@ -143,7 +144,9 @@ export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
   /**
    * Get question answer data for final display.
    */
-  private _getQuestionAnswerData(game: Game): QuestionAnswerData | undefined {
+  private async _getQuestionAnswerData(
+    game: Game
+  ): Promise<QuestionAnswerData | undefined> {
     const finalRoundHandler = this._getFinalRoundHandler(game);
     const remainingTheme = finalRoundHandler.getRemainingTheme(game);
 
@@ -151,9 +154,16 @@ export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
       return undefined;
     }
 
-    const packageQuestion = this._getPackageQuestionByThemeId(
-      game,
-      remainingTheme.id
+    // Get the question ID from the remaining theme in game state
+    const questionId = remainingTheme.questions?.[0]?.id;
+    if (!questionId) {
+      return undefined;
+    }
+
+    // Fetch question data from package store
+    const packageQuestion = await this.packageStore.getQuestion(
+      game.id,
+      questionId
     );
 
     if (!packageQuestion) {
@@ -175,24 +185,5 @@ export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
     return this.roundHandlerFactory.create(
       PackageRoundType.FINAL
     ) as FinalRoundHandler;
-  }
-
-  /**
-   * Get the package question by theme ID from the final round.
-   */
-  private _getPackageQuestionByThemeId(game: Game, themeId: number) {
-    const finalRound = game.package.rounds.find(
-      (round) => round.type === PackageRoundType.FINAL
-    );
-    if (!finalRound) {
-      return undefined;
-    }
-
-    const theme = finalRound.themes.find((t) => t.id === themeId);
-    if (!theme?.questions?.length) {
-      return undefined;
-    }
-
-    return theme.questions[0]; // Final round themes have only one question
   }
 }

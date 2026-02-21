@@ -13,14 +13,11 @@ import { SocketGameValidationService } from "application/services/socket/SocketG
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
-import { ServerError } from "domain/errors/ServerError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { GameJoinLogic } from "domain/logic/game/GameJoinLogic";
 import {
   GameStartLogic,
   GameStartResult,
@@ -50,15 +47,14 @@ import {
 } from "domain/logic/game/TurnPlayerChangeLogic";
 import { ActionContext } from "domain/types/action/ActionContext";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
-import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { GameLobbyLeaveData } from "domain/types/game/GameRoomLeaveData";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
-import { GameJoinData } from "domain/types/socket/game/GameJoinData";
-import { GameJoinResult } from "domain/types/socket/game/GameJoinResult";
+import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
@@ -81,84 +77,14 @@ export class SocketIOGameService {
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly playerLeaveService: PlayerLeaveService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
-    @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace
+    @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
+    private readonly packageStore: PackageStore
   ) {
     //
   }
 
   public getGameEntity(gameId: string, updatedTTL?: number): Promise<Game> {
     return this.gameService.getGameEntity(gameId, updatedTTL);
-  }
-
-  /**
-   * Join player to game.
-   *
-   * Flow:
-   * 1. Fetch game and check existing player
-   * 2. Validate preconditions (via Logic class)
-   * 3. Add player to game
-   * 4. Update socket session
-   * 5. Manage player statistics
-   * 6. Return result (via Logic.buildResult)
-   */
-  public async joinPlayer(
-    data: GameJoinData,
-    user: UserDTO,
-    socketId: string
-  ): Promise<GameJoinResult> {
-    const game = await this.gameService.getGameEntity(
-      data.gameId,
-      GAME_TTL_IN_SECONDS
-    );
-
-    GameStateValidator.validateGameNotFinished(game);
-
-    // Check existing player
-    const existingPlayer = game.getPlayer(user.id, { fetchDisconnected: true });
-
-    // Validate using Logic class
-    GameJoinLogic.validate({
-      game,
-      userId: user.id,
-      role: data.role,
-      existingPlayer,
-      targetSlot: data.targetSlot,
-      password: data.password,
-    });
-
-    // Add player to game
-    const player = await game.addPlayer(
-      {
-        id: user.id,
-        username: user.username,
-        avatar: user.avatar ?? null,
-      },
-      data.role,
-      data.targetSlot
-    );
-
-    // Update socket session
-    await this.socketUserDataService.update(socketId, {
-      id: JSON.stringify(user.id),
-      gameId: data.gameId,
-    });
-    await this.gameService.updateGame(game);
-
-    // Manage player statistics based on Logic class checks
-    if (GameJoinLogic.shouldInitializeStats(existingPlayer, data.role)) {
-      await this.playerGameStatsService.initializePlayerSession(
-        data.gameId,
-        user.id,
-        new Date()
-      );
-    } else if (GameJoinLogic.shouldClearLeftAt(existingPlayer, data.role)) {
-      await this.playerGameStatsService.clearPlayerLeftAtTime(
-        data.gameId,
-        user.id
-      );
-    }
-
-    return GameJoinLogic.buildResult({ game, player });
   }
 
   public async startGame(ctx: ActionContext) {
@@ -176,7 +102,8 @@ export class SocketIOGameService {
       throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
     }
 
-    const gameState = GameStartLogic.buildInitialGameState(game);
+    const firstRound = await this.packageStore.getRound(game.id, 0);
+    const gameState = GameStartLogic.buildInitialGameState(game, firstRound);
 
     game.startedAt = new Date();
     game.gameState = gameState;
@@ -203,11 +130,17 @@ export class SocketIOGameService {
 
   public async leaveLobby(
     socketId: string,
-    reason: PlayerLeaveReason = PlayerLeaveReason.LEAVE
+    userData: SocketRedisUserData | null,
+    game: Game
   ): Promise<GameLobbyLeaveData> {
-    const result = await this.playerLeaveService.handlePlayerLeave(socketId, {
-      reason,
-    });
+    const result = await this.playerLeaveService.handlePlayerLeave(
+      socketId,
+      game,
+      userData,
+      {
+        reason: PlayerLeaveReason.LEAVE,
+      }
+    );
 
     if (!result.shouldEmitLeave) {
       return { emit: false };
@@ -226,7 +159,7 @@ export class SocketIOGameService {
 
     return {
       emit: true,
-      data: { userId: result.userId, gameId: result.game.id },
+      data: { userId: result.userId, game: result.game },
       broadcasts: result.broadcasts,
     };
   }
@@ -248,7 +181,14 @@ export class SocketIOGameService {
     this.socketGameValidationService.validateNextRound(currentPlayer, game);
 
     // Get current question data using Logic class
-    const questionData = RoundProgressionLogic.getCurrentQuestionData(game);
+    const currentQuestionId = game.gameState.currentQuestion?.id ?? null;
+    const questionDataRaw = currentQuestionId
+      ? await this.packageStore.getQuestion(game.id, currentQuestionId)
+      : null;
+    const questionData = RoundProgressionLogic.getCurrentQuestionData(
+      game,
+      questionDataRaw
+    );
 
     // Clear any active timer before round progression to prevent stale expirations
     await this.gameService.clearTimer(game.id);
@@ -348,7 +288,8 @@ export class SocketIOGameService {
       return null;
     }
 
-    const gameState = GameStartLogic.buildInitialGameState(game);
+    const firstRound = await this.packageStore.getRound(game.id, 0);
+    const gameState = GameStartLogic.buildInitialGameState(game, firstRound);
 
     game.startedAt = new Date();
     game.gameState = gameState;
@@ -424,17 +365,20 @@ export class SocketIOGameService {
    */
   public async updatePlayerRestrictions(
     actionContext: ActionContext,
+    userData: SocketRedisUserData | null,
+    game: Game,
     targetPlayerId: number,
     restrictions: RestrictionUpdateInput
   ): Promise<PlayerRestrictionResult> {
-    const { game, currentPlayer } =
-      await this.socketGameContextService.loadGameAndPlayer(actionContext);
+    const currentPlayer = game.getPlayer(userData!.id, {
+      fetchDisconnected: false,
+    });
 
     const targetPlayer = game.getPlayer(targetPlayerId, {
       fetchDisconnected: true,
     });
 
-    if (!targetPlayer) {
+    if (!targetPlayer || !currentPlayer) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
 
@@ -452,6 +396,8 @@ export class SocketIOGameService {
 
       const leaveResult = await this.playerLeaveService.handlePlayerLeave(
         actionContext.socketId,
+        game,
+        userData,
         {
           reason: PlayerLeaveReason.BAN,
           targetUserId: targetPlayerId,
@@ -549,24 +495,23 @@ export class SocketIOGameService {
    */
   public async kickPlayer(
     actionContext: ActionContext,
+    game: Game,
+    userData: SocketRedisUserData | null,
     targetPlayerId: number
   ): Promise<{
     game: Game;
     targetPlayerId: number;
     broadcasts: BroadcastEvent[];
   }> {
-    const { game, currentPlayer } =
-      await this.socketGameContextService.loadGameAndPlayer(actionContext);
-
-    if (!currentPlayer) {
-      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
-    }
+    const currentPlayer = game.getPlayer(userData!.id, {
+      fetchDisconnected: false,
+    });
 
     const targetPlayer = game.getPlayer(targetPlayerId, {
       fetchDisconnected: false,
     });
 
-    if (!targetPlayer) {
+    if (!targetPlayer || !currentPlayer) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
 
@@ -575,6 +520,8 @@ export class SocketIOGameService {
     // Use PlayerLeaveService to handle the removal
     const result = await this.playerLeaveService.handlePlayerLeave(
       actionContext.socketId,
+      game,
+      userData,
       {
         reason: PlayerLeaveReason.KICK,
         targetUserId: targetPlayerId,
@@ -736,23 +683,12 @@ export class SocketIOGameService {
 
   public async getGameStateBroadcastMap(
     socketIds: string[],
-    gameId: string,
-    gameState: GameStateDTO
+    game: Game
   ): Promise<Map<string, GameStateDTO>> {
-    // If game is not provided but gameId is, fetch the game
-    const game = await this.gameService.getGameEntity(gameId);
-
-    if (!game) {
-      throw new ServerError(
-        `Game not found for broadcast filtering: ${gameId}`
-      );
-    }
-
     // Use the injected question service for broadcast map
     return this.socketIOQuestionService.getGameStateBroadcastMap(
       socketIds,
-      game,
-      gameState
+      game
     );
   }
 }

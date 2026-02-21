@@ -1,6 +1,7 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
@@ -15,8 +16,9 @@ import {
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
-import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { ChoosingToMediaDownloadingCtx } from "domain/types/socket/transition/choosing";
+import { GameStateValidator } from "domain/validators/GameStateValidator";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
 /**
  * Handles transition from CHOOSING to MEDIA_DOWNLOADING.
@@ -27,9 +29,9 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
 
   constructor(
     gameService: GameService,
-    timerService: SocketQuestionStateService
+    private readonly packageStore: PackageStore
   ) {
-    super(gameService, timerService);
+    super(gameService);
   }
 
   /**
@@ -59,7 +61,7 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
     try {
       const { question } = QuestionPickLogic.validateQuestionPick(
         game,
-        payload.questionId
+        payload.questionData
       );
 
       return (
@@ -80,11 +82,10 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
     ctx: ChoosingToMediaDownloadingCtx
   ): Promise<MutationResult> {
     const { game, payload } = ctx;
-    const questionId = payload!.questionId;
 
     const { question, theme } = QuestionPickLogic.validateQuestionPick(
       game,
-      questionId
+      payload!.questionData
     );
 
     // Set current question and mark as played
@@ -106,14 +107,21 @@ export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    await this.gameService.clearTimer(game.id);
+    const timer = new GameStateTimer(MEDIA_DOWNLOAD_TIMEOUT);
+    game.gameState.timer = timer.start();
 
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      MEDIA_DOWNLOAD_TIMEOUT
-    );
-
-    return { timer: timerEntity.value() ?? undefined };
+    return {
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: MEDIA_DOWNLOAD_TIMEOUT,
+        },
+      ],
+    };
   }
 
   /**

@@ -44,7 +44,7 @@ describe("PlayerRestrictions", () => {
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
 
     playerGameStatsRepository = container.resolve(PlayerGameStatsRepository);

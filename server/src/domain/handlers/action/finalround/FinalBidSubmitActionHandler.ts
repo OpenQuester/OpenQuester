@@ -1,56 +1,76 @@
-import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
+import { FinalBidSubmitLogic } from "domain/logic/final-round/FinalBidSubmitLogic";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { TransitionTrigger } from "domain/state-machine/types";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import {
   FinalBidSubmitInputData,
   FinalBidSubmitOutputData,
 } from "domain/types/socket/events/FinalRoundEventData";
-import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 
 /**
  * Stateless action handler for final round bid submission.
- * Extracts business logic from FinalBidSubmitEventHandler.
+ * Uses prefetched ctx.game and ctx.currentPlayer — no Redis re-fetch.
  */
 export class FinalBidSubmitActionHandler
   implements
     GameActionHandler<FinalBidSubmitInputData, FinalBidSubmitOutputData>
 {
-  constructor(private readonly finalRoundService: FinalRoundService) {}
+  constructor(private readonly phaseTransitionRouter: PhaseTransitionRouter) {}
 
   public async execute(
-    action: GameAction<FinalBidSubmitInputData>
-  ): Promise<GameActionHandlerResult<FinalBidSubmitOutputData>> {
-    const { game, playerId, bidAmount, transitionResult } =
-      await this.finalRoundService.handleFinalBidSubmit(
-        createActionContextFromAction(action),
-        action.payload.bid
-      );
+    ctx: ActionExecutionContext<FinalBidSubmitInputData>
+  ): Promise<ActionHandlerResult<FinalBidSubmitOutputData>> {
+    const { game, currentPlayer, action } = ctx;
 
-    const outputData: FinalBidSubmitOutputData = { playerId, bidAmount };
+    FinalBidSubmitLogic.validate(game, currentPlayer);
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.FINAL_BID_SUBMIT,
-        data: outputData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<FinalBidSubmitOutputData>,
-    ];
+    const normalizedBid = FinalBidSubmitLogic.addBid(
+      game,
+      currentPlayer.meta.id,
+      action.payload.bid
+    );
 
-    // If phase transitioned, add transition broadcasts (service uses satisfies)
-    if (transitionResult?.success) {
-      broadcasts.push(...convertBroadcasts(transitionResult.broadcasts));
-    }
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.USER_ACTION,
+      triggeredBy: { playerId: currentPlayer.meta.id, isSystem: false },
+    });
 
-    return { success: true, data: outputData, broadcasts };
+    const result = FinalBidSubmitLogic.buildResult({
+      game,
+      playerId: currentPlayer.meta.id,
+      bidAmount: normalizedBid,
+      transitionResult,
+    });
+
+    const outputData: FinalBidSubmitOutputData = {
+      playerId: result.playerId,
+      bidAmount: result.bidAmount,
+    };
+
+    return {
+      success: true,
+      data: outputData,
+      mutations: [
+        DataMutationConverter.saveGameMutation(game),
+        ...DataMutationConverter.mutationFromTimerMutations(
+          transitionResult?.timerMutations
+        ),
+        DataMutationConverter.gameBroadcastMutation(
+          game.id,
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          outputData
+        ),
+        ...DataMutationConverter.mutationFromServiceBroadcasts(
+          transitionResult?.success ? transitionResult.broadcasts : undefined,
+          game.id
+        ),
+      ],
+      broadcastGame: game,
+    };
   }
 }

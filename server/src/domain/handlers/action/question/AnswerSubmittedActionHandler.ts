@@ -1,10 +1,9 @@
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
+import { AnswerSubmittedLogic } from "domain/logic/question/AnswerSubmittedLogic";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import {
   AnswerSubmittedBroadcastData,
   AnswerSubmittedInputData,
@@ -12,6 +11,11 @@ import {
 
 /**
  * Stateless action handler for answer submission.
+ *
+ * Context-aware: receives prefetched game/player from the executor's
+ * IN pipeline and returns pure results — no Redis calls.
+ *
+ * This is a read-only handler: no game save and no timer mutations.
  */
 export class AnswerSubmittedActionHandler
   implements
@@ -24,17 +28,24 @@ export class AnswerSubmittedActionHandler
   }
 
   public async execute(
-    action: GameAction<AnswerSubmittedInputData>
-  ): Promise<GameActionHandlerResult<AnswerSubmittedBroadcastData>> {
-    const result = await this.socketIOQuestionService.handleAnswerSubmitted(
-      createActionContextFromAction(action),
-      { answerText: action.payload.answerText }
-    );
+    ctx: ActionExecutionContext<AnswerSubmittedInputData>
+  ): Promise<ActionHandlerResult<AnswerSubmittedBroadcastData>> {
+    AnswerSubmittedLogic.validate(ctx.game, ctx.currentPlayer);
+
+    const result = AnswerSubmittedLogic.buildResult({
+      game: ctx.game,
+      answerText: ctx.action.payload.answerText,
+    });
 
     return {
       success: true,
       data: result.data,
-      broadcasts: result.broadcasts,
+      mutations: [
+        ...DataMutationConverter.mutationFromSocketBroadcasts(
+          result.broadcasts
+        ),
+      ],
+      broadcastGame: ctx.game,
     };
   }
 }

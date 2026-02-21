@@ -293,7 +293,7 @@ export class TestUtils {
   ): Promise<void> {
     // Progress through regular rounds using the existing utility
     const game = await this.gameService.getGameEntity(gameId);
-    const packageRounds = game.package?.rounds ?? [];
+    const packageRounds = game.roundIndex;
     const roundsSorted = [...packageRounds].sort((a, b) => a.order - b.order);
     const finalRoundIndex = roundsSorted.findIndex(
       (r) => r.type === PackageRoundType.FINAL
@@ -520,7 +520,7 @@ export class TestUtils {
     socket: GameClientSocket,
     gameId: string,
     role: PlayerRole
-  ): Promise<string> {
+  ): Promise<void> {
     return this.socketGameTestUtils.joinGame(socket, gameId, role);
   }
 

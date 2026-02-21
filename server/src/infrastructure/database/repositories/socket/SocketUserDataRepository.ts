@@ -7,6 +7,7 @@ import {
   SOCKET_USER_PREFIX,
 } from "domain/constants/socket";
 import { SocketRedisUserUpdateDTO } from "domain/types/dto/user/SocketRedisUserUpdateDTO";
+import { asUserId } from "domain/types/ids";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 import { ValueUtils } from "infrastructure/utils/ValueUtils";
@@ -47,7 +48,7 @@ export class SocketUserDataRepository {
     }
 
     return {
-      id: parseInt(data.id, 10),
+      id: asUserId(parseInt(data.id, 10)),
       gameId: data.gameId === "null" || !data.gameId ? null : data.gameId,
     };
   }
@@ -99,7 +100,7 @@ export class SocketUserDataRepository {
       }
 
       resultMap.set(socketId, {
-        id: parseInt(record.id, 10),
+        id: asUserId(parseInt(record.id, 10)),
         gameId:
           record.gameId === "null" || !record.gameId ? null : record.gameId,
       });

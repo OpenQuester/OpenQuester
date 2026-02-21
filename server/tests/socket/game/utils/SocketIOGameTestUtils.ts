@@ -7,6 +7,7 @@ import { Game } from "domain/entities/game/Game";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import {
@@ -16,14 +17,13 @@ import {
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { User } from "infrastructure/database/models/User";
-import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 
-import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
-import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
-import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
-import { SocketGameTestLobbyUtils } from "./SocketGameTestLobbyUtils";
-import { SocketGameTestFlowUtils } from "./SocketGameTestFlowUtils";
 import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
+import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
+import { SocketGameTestFlowUtils } from "./SocketGameTestFlowUtils";
+import { SocketGameTestLobbyUtils } from "./SocketGameTestLobbyUtils";
+import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
+import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
 
 export interface GameClientSocket extends ClientSocket {
   gameId?: string;
@@ -72,7 +72,7 @@ export class SocketGameTestUtils {
     socket: GameClientSocket,
     gameId: string,
     role: PlayerRole = PlayerRole.PLAYER
-  ): Promise<string> {
+  ): Promise<void> {
     return this.lobbyUtils.joinGame(socket, gameId, role);
   }
 

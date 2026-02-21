@@ -15,6 +15,7 @@ import {
 import { UserMuteInputDTO } from "domain/types/dto/user/UserMuteInputDTO";
 import { UserMuteResponseDTO } from "domain/types/dto/user/UserMuteResponseDTO";
 import { UserUnmuteInputDTO } from "domain/types/dto/user/UserUnmuteInputDTO";
+import { asUserId, userId } from "domain/types/ids";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
@@ -201,8 +202,8 @@ export class AdminRestApiController {
    * Ban user - security action
    */
   private banUser = async (req: Request, res: Response) => {
-    const { userId } = new RequestDataValidator<{ userId: number }>(
-      { userId: Number(req.params.id) },
+    const { userId } = new RequestDataValidator<{ userId: userId }>(
+      { userId: asUserId(Number(req.params.id)) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
@@ -224,8 +225,8 @@ export class AdminRestApiController {
    * Unban user - security action
    */
   private unbanUser = async (req: Request, res: Response) => {
-    const { userId } = new RequestDataValidator<{ userId: number }>(
-      { userId: Number(req.params.id) },
+    const { userId } = new RequestDataValidator<{ userId: userId }>(
+      { userId: asUserId(Number(req.params.id)) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
@@ -245,7 +246,10 @@ export class AdminRestApiController {
 
   private muteUser = async (req: Request, res: Response) => {
     const { userId, mutedUntil } = new RequestDataValidator<UserMuteInputDTO>(
-      { userId: Number(req.params.id), mutedUntil: req.body.mutedUntil },
+      {
+        userId: asUserId(Number(req.params.id)),
+        mutedUntil: req.body.mutedUntil,
+      },
       userMuteScheme()
     ).validate();
 
@@ -270,7 +274,7 @@ export class AdminRestApiController {
 
   private unmuteUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<UserUnmuteInputDTO>(
-      { userId: Number(req.params.id) },
+      { userId: asUserId(Number(req.params.id)) },
       userUnmuteScheme()
     ).validate();
 
@@ -294,8 +298,8 @@ export class AdminRestApiController {
    * Delete user - security action
    */
   private deleteUser = async (req: Request, res: Response) => {
-    const { userId } = new RequestDataValidator<{ userId: number }>(
-      { userId: Number(req.params.id) },
+    const { userId } = new RequestDataValidator<{ userId: userId }>(
+      { userId: asUserId(Number(req.params.id)) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
@@ -314,8 +318,8 @@ export class AdminRestApiController {
    * Restore deleted user - security action
    */
   private restoreUser = async (req: Request, res: Response) => {
-    const { userId } = new RequestDataValidator<{ userId: number }>(
-      { userId: Number(req.params.id) },
+    const { userId } = new RequestDataValidator<{ userId: userId }>(
+      { userId: asUserId(Number(req.params.id)) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 

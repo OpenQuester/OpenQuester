@@ -2,6 +2,7 @@ import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "application/di/tokens";
 import { GameService } from "application/services/game/GameService";
+import { StakeQuestionService } from "application/services/question/StakeQuestionService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
@@ -12,16 +13,19 @@ import {
   SYSTEM_PLAYER_ID,
 } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
+import { ClientResponse } from "domain/enums/ClientResponse";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { ClientError } from "domain/errors/ClientError";
+import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
+import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
 import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeoutLogic";
+import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import {
-  AnsweringToShowingAnswerMutationData,
-  AnsweringToShowingMutationData,
-} from "domain/types/socket/transition/answering";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   BroadcastEvent,
   TimerExpirationResult,
@@ -33,17 +37,14 @@ import {
 } from "domain/types/socket/events/FinalRoundEventData";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import {
+  AnsweringToShowingAnswerMutationData,
+  AnsweringToShowingMutationData,
+} from "domain/types/socket/transition/answering";
+import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { StakeQuestionService } from "application/services/question/StakeQuestionService";
-import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpirationLogic";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
-import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
-import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
-import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
-import { PlayerRole } from "domain/types/game/PlayerRole";
-import { ClientError } from "domain/errors/ClientError";
-import { ClientResponse } from "domain/enums/ClientResponse";
 
 /**
  * Service handling timer expiration logic.
@@ -59,7 +60,8 @@ export class TimerExpirationService {
     private readonly stakeQuestionService: StakeQuestionService,
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
-    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
+    private readonly packageStore: PackageStore
   ) {
     //
   }
@@ -318,9 +320,8 @@ export class TimerExpirationService {
 
     // No players: fall back to showing the question as a simple one
     if (eligiblePlayers.length === 0) {
-      const questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        game.gameState.currentRound!.id,
+      const questionData = await this.packageStore.getQuestionWithTheme(
+        game.id,
         secretData.questionId
       );
 

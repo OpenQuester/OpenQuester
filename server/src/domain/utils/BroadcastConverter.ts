@@ -27,23 +27,3 @@ export function convertBroadcasts(
     useRoleBasedBroadcast: b.roleFilter,
   }));
 }
-
-/**
- * Convert a single BroadcastEvent to SocketEventBroadcast.
- *
- * @param broadcast - Single BroadcastEvent from service layer
- * @param gameId - Game ID (defaults to broadcast's room if not provided)
- * @returns SocketEventBroadcast for handler layer
- */
-export function convertBroadcast(
-  broadcast: BroadcastEvent,
-  gameId?: string
-): SocketEventBroadcast {
-  return {
-    event: broadcast.event,
-    data: broadcast.data,
-    target: SocketBroadcastTarget.GAME,
-    gameId: gameId ?? broadcast.room,
-    useRoleBasedBroadcast: broadcast.roleFilter,
-  };
-}

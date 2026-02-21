@@ -19,6 +19,7 @@ import { User } from "infrastructure/database/models/User";
 export function setTestEnvDefaults() {
   process.env.ENV = "test";
   process.env.NODE_ENV = "test";
+  process.env.API_PORT = "3030";
   process.env.DB_TYPE = "pg";
   process.env.DB_NAME = "test_db";
   process.env.DB_USER = "postgres";
@@ -34,7 +35,7 @@ export function setTestEnvDefaults() {
   process.env.REDIS_DB_NUMBER = "0";
   process.env.CORS_ORIGINS = "localhost";
   process.env.SOCKET_IO_CORS_ORIGINS = "localhost";
-  process.env.LOG_LEVEL = "info";
+  process.env.LOG_LEVEL = "trace";
   // Dummy S3, we don't check S3 in tests, used just to avoid errors
   process.env.S3_ENDPOINT = "http://localhost:9000";
   process.env.S3_URL_PREFIX = "http://bucket.localhost:9000";
@@ -44,6 +45,8 @@ export function setTestEnvDefaults() {
   process.env.S3_ACCESS_KEY = "test-access-key";
   process.env.S3_SECRET_KEY = "test-secret-key";
   process.env.S3_REGION = "eu-west";
+  // Disable InfluxDB metrics in tests — no InfluxDB instance available
+  process.env.INFLUX_URL = "";
 }
 
 export function createTestAppDataSource() {

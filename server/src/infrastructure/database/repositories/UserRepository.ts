@@ -8,6 +8,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { UserStatus } from "domain/enums/user/UserStatus";
 import { UserType } from "domain/enums/user/UserType";
 import { ClientError } from "domain/errors/ClientError";
+import { userId } from "domain/types/ids";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { SelectOptions } from "domain/types/SelectOptions";
@@ -42,7 +43,7 @@ export class UserRepository {
   }
 
   public async get(
-    id: number,
+    id: userId,
     selectOptions: SelectOptions<User>,
     opts?: { searchDeleted: boolean }
   ): Promise<User | null> {
@@ -326,7 +327,6 @@ export class UserRepository {
    */
   private async initializeGuestCounterIfNeeded(): Promise<void> {
     // Skip if already initialized this instance
-    // TODO: Should be runned only once per instance, but better to move to Redis for only 1 init
     if (this.guestCounterInitialized) {
       return;
     }
@@ -377,7 +377,7 @@ export class UserRepository {
     return updateResult;
   }
 
-  public async ban(userId: number) {
+  public async ban(userId: userId) {
     const user = await this.get(userId, {
       select: ["id", "email", "updated_at", "is_banned"],
       relations: [],
@@ -395,7 +395,7 @@ export class UserRepository {
     });
   }
 
-  public async unban(userId: number) {
+  public async unban(userId: userId) {
     const user = await this.get(userId, {
       select: ["id", "email", "updated_at", "is_banned"],
       relations: [],
@@ -417,7 +417,7 @@ export class UserRepository {
     });
   }
 
-  public async mute(userId: number, mutedUntil: Date) {
+  public async mute(userId: userId, mutedUntil: Date) {
     const user = await this.get(userId, {
       select: ["id", "email", "updated_at", "muted_until"],
       relations: [],
@@ -440,7 +440,7 @@ export class UserRepository {
     );
   }
 
-  public async unmute(userId: number) {
+  public async unmute(userId: userId) {
     const user = await this.get(userId, {
       select: ["id", "email", "updated_at", "muted_until"],
       relations: [],
@@ -492,7 +492,7 @@ export class UserRepository {
     return updateResult;
   }
 
-  public async restore(userId: number) {
+  public async restore(userId: userId) {
     const user = await this.get(
       userId,
       {

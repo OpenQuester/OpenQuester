@@ -42,22 +42,18 @@ export class RedisPubSubService {
         prefix: LogPrefix.REDIS,
       });
 
-      try {
-        for (const handler of this.handlers) {
-          if (handler.supports(message)) {
+      for (const handler of this.handlers) {
+        if (handler.supports(message)) {
+          try {
             await handler.handle(message);
-            break;
+          } catch (error) {
+            this.logger.warn(
+              `Error handling key expiration for '${message}': ${error instanceof Error ? error.message : String(error)}`,
+              { prefix: LogPrefix.REDIS }
+            );
           }
+          break;
         }
-      } catch (error) {
-        this.logger.error(
-          `Error handling Redis key expiration for key: ${message}`,
-          {
-            prefix: LogPrefix.REDIS,
-            key: message,
-            error: error instanceof Error ? error.message : String(error),
-          }
-        );
       }
     };
 

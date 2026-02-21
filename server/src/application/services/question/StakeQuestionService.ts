@@ -3,22 +3,19 @@ import { singleton } from "tsyringe";
 import { GameService } from "application/services/game/GameService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
-import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
-import { TransitionTrigger } from "domain/state-machine/types";
 import { STAKE_QUESTION_BID_TIME } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
-import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { StakeBidSubmitLogic } from "domain/logic/special-question/StakeBidSubmitLogic";
 import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeoutLogic";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { StakeBiddingMapper } from "domain/mappers/StakeBiddingMapper";
+import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { TransitionTrigger } from "domain/state-machine/types";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
-import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
 import {
   StakeBidSubmitInputData,
   StakeBidType,
@@ -28,18 +25,9 @@ import {
   StakeBiddingTimeoutMutationResult,
   StakeBiddingTimeoutResult,
 } from "domain/types/socket/question/StakeQuestionResults";
-import { StakeQuestionValidator } from "domain/validators/StakeQuestionValidator";
-import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { StakeBiddingToAnsweringPayload } from "domain/types/socket/transition/special-question";
-
-/**
- * Result from stake question setup.
- */
-export interface StakeQuestionSetupResult {
-  stakeQuestionData: StakeQuestionGameData;
-  timer: GameStateTimer;
-  automaticNominalBid: PlayerBidData | null;
-}
+import { StakeQuestionValidator } from "domain/validators/StakeQuestionValidator";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
 /**
  * Service handling stake question type.
@@ -50,7 +38,8 @@ export class StakeQuestionService {
     private readonly gameService: GameService,
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketQuestionStateService: SocketQuestionStateService,
-    private readonly phaseTransitionRouter: PhaseTransitionRouter
+    private readonly phaseTransitionRouter: PhaseTransitionRouter,
+    private readonly packageStore: PackageStore
   ) {
     //
   }
@@ -87,15 +76,8 @@ export class StakeQuestionService {
       stakeData
     );
 
-    if (!game.isPlayerEligibleToAnswer(biddingPlayer.meta.id)) {
-      throw new ClientError(
-        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
-      );
-    }
-
-    const stakeQuestionData = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState.currentRound!.id,
+    const stakeQuestionData = await this.packageStore.getQuestionWithTheme(
+      game.id,
       stakeData.questionId
     );
 
@@ -170,8 +152,15 @@ export class StakeQuestionService {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
 
+    const stakeData = game.gameState.stakeQuestionData!;
+    const stakeQuestion = await this.packageStore.getQuestion(
+      game.id,
+      stakeData.questionId
+    );
+    const questionPrice = stakeQuestion?.price ?? 0;
+
     const mutationResult: StakeBiddingTimeoutMutationResult =
-      StakeBiddingTimeoutLogic.processTimeout(game);
+      StakeBiddingTimeoutLogic.processTimeout(game, questionPrice);
 
     let transitionResult = null;
     let timer: GameStateTimerDTO | undefined;
@@ -237,9 +226,8 @@ export class StakeQuestionService {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
 
-    const questionAndTheme = GameQuestionMapper.getQuestionAndTheme(
-      input.game.package,
-      input.game.gameState.currentRound!.id,
+    const questionAndTheme = await this.packageStore.getQuestionWithTheme(
+      input.game.id,
       input.questionId
     );
 

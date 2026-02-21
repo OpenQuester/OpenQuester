@@ -4,6 +4,12 @@ import {
   GAME_ID_CHARACTERS_LENGTH,
   STAKE_QUESTION_MIN_BID,
 } from "domain/constants/game";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { ClientError } from "domain/errors/ClientError";
+import {
+  ActionExecutionContext,
+  AuthenticatedActionContext,
+} from "domain/types/action/ActionExecutionContext";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
@@ -17,6 +23,7 @@ import {
   StakeBidType,
 } from "domain/types/socket/events/game/StakeQuestionEventData";
 import {
+  GameJoinInputData,
   PlayerKickInputData,
   PlayerRestrictionInputData,
   PlayerRoleChangeInputData,
@@ -30,12 +37,45 @@ import {
   AnswerResultType,
 } from "domain/types/socket/game/AnswerResultData";
 import { AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
-import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
+import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
 export class GameValidator {
-  public static validateJoinInput(data: GameJoinData) {
+  /**
+   * Validates that the socket user is authenticated.
+   *
+   * @throws ClientError(SOCKET_USER_NOT_AUTHENTICATED) if the user is not authenticated.
+   */
+  public static validateSocketAuthenticated(
+    userData: SocketRedisUserData | null
+  ): asserts userData is SocketRedisUserData {
+    if (!userData) {
+      throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
+    }
+  }
+
+  /**
+   * Type guard that narrows {@link ActionExecutionContext} to
+   * {@link AuthenticatedActionContext}.
+   *
+   * Validates that player is authenticated (socket auth + in-game)
+   *
+   * @throws ClientError(SOCKET_USER_NOT_AUTHENTICATED) if either field is null,
+   *   so callers never have to write the null-check + throw themselves.
+   */
+  public static validatePlayerAuthenticated<T>(
+    ctx: ActionExecutionContext<T>
+  ): asserts ctx is AuthenticatedActionContext<T> {
+    if (!ctx.userData) {
+      throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
+    }
+    if (!ctx.currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+  }
+
+  public static validateJoinInput(data: GameJoinInputData) {
     const schema = Joi.object({
       gameId: Joi.string().length(GAME_ID_CHARACTERS_LENGTH).required(),
       role: Joi.valid(...Object.values(PlayerRole)).required(),
@@ -48,10 +88,11 @@ export class GameValidator {
       password: Joi.string()
         .max(16)
         .pattern(/^[A-Za-z0-9_-]+$/)
+        .allow(null)
         .optional(),
     });
 
-    return this._validate<GameJoinData>(data, schema);
+    return this._validate<GameJoinInputData>(data, schema);
   }
 
   public static validateChatMessage(data: ChatMessageInputData) {

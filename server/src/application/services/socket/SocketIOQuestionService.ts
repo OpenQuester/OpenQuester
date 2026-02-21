@@ -7,18 +7,15 @@ import { SocketGameTimerService } from "application/services/socket/SocketGameTi
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
-import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
-import { TransitionTrigger } from "domain/state-machine/types";
 import {
   GAME_QUESTION_ANSWER_SUBMIT_TIME,
   GAME_QUESTION_ANSWER_TIME,
 } from "domain/constants/game";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { ActionContext } from "domain/types/action/ActionContext";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { AnswerSubmittedLogic } from "domain/logic/question/AnswerSubmittedLogic";
@@ -27,6 +24,9 @@ import { PlayerSkipLogic } from "domain/logic/question/PlayerSkipLogic";
 import { QuestionAnswerRequestLogic } from "domain/logic/question/QuestionAnswerRequestLogic";
 import { QuestionForceSkipLogic } from "domain/logic/question/QuestionForceSkipLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { TransitionTrigger } from "domain/state-machine/types";
+import { ActionContext } from "domain/types/action/ActionContext";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -35,15 +35,16 @@ import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackage
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { BroadcastEvent } from "domain/types/service/ServiceResult";
+import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
+import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
-import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
-import { BroadcastEvent } from "domain/types/service/ServiceResult";
 
 /**
  * Service handling question-related socket events.
@@ -61,7 +62,8 @@ export class SocketIOQuestionService {
     private readonly roundHandlerFactory: RoundHandlerFactory,
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
-    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
+    private readonly packageStore: PackageStore
   ) {
     //
   }
@@ -188,8 +190,23 @@ export class SocketIOQuestionService {
     });
 
     // Get question to skip via Logic class
-    const { question, themeId } =
-      QuestionForceSkipLogic.getQuestionToSkip(game);
+    const forceSkipQuestionId =
+      game.gameState.currentQuestion?.id ??
+      game.gameState.stakeQuestionData?.questionId ??
+      game.gameState.secretQuestionData?.questionId ??
+      null;
+
+    const forceSkipQuestionData = forceSkipQuestionId
+      ? await this.packageStore.getQuestionWithTheme(
+          game.id,
+          forceSkipQuestionId
+        )
+      : null;
+
+    const { question, themeId } = QuestionForceSkipLogic.getQuestionToSkip(
+      game,
+      forceSkipQuestionData
+    );
 
     // Process force skip via Logic class
     QuestionForceSkipLogic.processForceSkip(game, question, themeId);
@@ -276,9 +293,8 @@ export class SocketIOQuestionService {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
     }
 
-    const questionData = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      gameState.currentRound.id,
+    const questionData = await this.packageStore.getQuestionWithTheme(
+      game.id,
       gameState.currentQuestion.id!
     );
 
@@ -343,10 +359,10 @@ export class SocketIOQuestionService {
 
   public async getGameStateBroadcastMap(
     socketsIds: string[],
-    game: Game,
-    gameState: GameStateDTO
+    game: Game
   ): Promise<Map<string, GameStateDTO>> {
     const resultMap = new Map<string, GameStateDTO>();
+    const gameState = game.gameState;
 
     const isFinalRound =
       gameState.currentRound?.type === PackageRoundType.FINAL;
@@ -420,9 +436,8 @@ export class SocketIOQuestionService {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
     }
 
-    const questionData = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      gameState.currentRound!.id,
+    const questionData = await this.packageStore.getQuestionWithTheme(
+      game.id,
       gameState.currentQuestion.id!
     );
 

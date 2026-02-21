@@ -3,13 +3,13 @@
  * Provides strict typing without indexed access patterns
  */
 
+import { NotificationType } from "domain/enums/NotificationType";
 import { ChatMessageGamePayloadDTO } from "domain/types/dto/game/chat/ChatMessageEventPayloadDTO";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
-import { NotificationType } from "domain/enums/NotificationType";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameJoinMeta } from "domain/types/socket/events/game/GameJoinMeta";
 
@@ -25,6 +25,7 @@ export interface GameJoinInputData {
    * Only applicable when role is PLAYER.
    */
   targetSlot: number | null;
+  password?: string | null;
 }
 
 export interface ChatMessageInputData {

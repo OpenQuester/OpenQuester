@@ -1,10 +1,16 @@
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { GameAction } from "domain/types/action/GameAction";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { ClientError } from "domain/errors/ClientError";
+import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { TransitionTrigger } from "domain/state-machine/types";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
+  DataMutationConverter,
+  type DataMutation,
+} from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 
@@ -15,18 +21,50 @@ export class MediaDownloadedActionHandler
   implements
     GameActionHandler<EmptyInputData, MediaDownloadStatusBroadcastData>
 {
-  constructor(
-    private readonly socketIOQuestionService: SocketIOQuestionService
-  ) {
-    //
-  }
+  constructor(private readonly phaseTransitionRouter: PhaseTransitionRouter) {}
 
   public async execute(
-    action: GameAction<EmptyInputData>
-  ): Promise<GameActionHandlerResult<MediaDownloadStatusBroadcastData>> {
-    const result = await this.socketIOQuestionService.handleMediaDownloaded(
-      createActionContextFromAction(action)
-    );
+    ctx: ActionExecutionContext<EmptyInputData>
+  ): Promise<ActionHandlerResult<MediaDownloadStatusBroadcastData>> {
+    const { game, currentPlayer } = ctx;
+
+    if (!currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    MediaDownloadLogic.markPlayerReady(currentPlayer);
+
+    const allPlayersReady = MediaDownloadLogic.areAllPlayersReady(game);
+
+    let transitionTimer = null;
+    const transitionMutations: DataMutation[] = [];
+
+    if (
+      allPlayersReady &&
+      game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING
+    ) {
+      const transitionResult = await this.phaseTransitionRouter.tryTransition({
+        game,
+        trigger: TransitionTrigger.USER_ACTION,
+        triggeredBy: { playerId: currentPlayer.meta.id, isSystem: false },
+      });
+
+      if (transitionResult) {
+        transitionTimer = transitionResult.timer ?? null;
+        transitionMutations.push(
+          ...DataMutationConverter.mutationFromTimerMutations(
+            transitionResult.timerMutations
+          )
+        );
+      }
+    }
+
+    const result = MediaDownloadLogic.buildResult({
+      game,
+      playerId: currentPlayer.meta.id,
+      allPlayersReady,
+      timer: transitionTimer,
+    });
 
     const statusData: MediaDownloadStatusBroadcastData = {
       playerId: result.data.playerId,
@@ -35,6 +73,16 @@ export class MediaDownloadedActionHandler
       timer: result.data.timer,
     };
 
-    return { success: true, data: statusData, broadcasts: result.broadcasts };
+    return {
+      success: true,
+      data: statusData,
+      mutations: [
+        DataMutationConverter.saveGameMutation(game),
+        ...transitionMutations,
+        ...DataMutationConverter.mutationFromSocketBroadcasts(
+          result.broadcasts
+        ),
+      ],
+    };
   }
 }

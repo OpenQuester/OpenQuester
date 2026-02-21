@@ -1,6 +1,8 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { GAME_FINAL_ANSWER_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
 import { Game } from "domain/entities/game/Game";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
@@ -25,6 +27,7 @@ import {
 } from "domain/types/socket/events/FinalRoundEventData";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { FinalBiddingToAnsweringMutationData } from "domain/types/socket/transition/final";
 import { ClientError } from "domain/errors/ClientError";
@@ -49,10 +52,10 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
 
   constructor(
     gameService: GameService,
-    timerService: SocketQuestionStateService,
-    private readonly roundHandlerFactory: RoundHandlerFactory
+    private readonly roundHandlerFactory: RoundHandlerFactory,
+    private readonly packageStore: PackageStore
   ) {
-    super(gameService, timerService);
+    super(gameService);
   }
 
   /**
@@ -98,7 +101,7 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     FinalRoundStateManager.transitionToPhase(game, FinalRoundPhase.ANSWERING);
 
     // Get question data for the remaining theme
-    const questionData = this._getQuestionData(game);
+    const questionData = await this._getQuestionData(game);
 
     if (!questionData) {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
@@ -118,14 +121,23 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     ctx: TransitionContext,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    // Clear the bidding timer
-    await this.gameService.clearTimer(ctx.game.id);
+    const { game } = ctx;
 
     // Setup the answering timer (75 seconds for final round)
-    const timerEntity = await this.timerService.setupFinalAnswerTimer(ctx.game);
+    const timer = new GameStateTimer(GAME_FINAL_ANSWER_TIME);
+    game.gameState.timer = timer.start();
 
     return {
-      timer: timerEntity.value() ?? undefined,
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: GAME_FINAL_ANSWER_TIME,
+        },
+      ],
     };
   }
 
@@ -167,7 +179,9 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
    * Get the question data for the remaining (non-eliminated) theme.
    * Returns full question data (excluding answer info) from the package.
    */
-  private _getQuestionData(game: Game): FinalRoundQuestionData | undefined {
+  private async _getQuestionData(
+    game: Game
+  ): Promise<FinalRoundQuestionData | undefined> {
     const handler = this.roundHandlerFactory.create(
       PackageRoundType.FINAL
     ) as FinalRoundHandler;
@@ -180,10 +194,9 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
 
     const questionId = remainingTheme.questions[0].id;
 
-    // Get full question data from package (with text and files)
-    const questionAndTheme = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState.currentRound!.id,
+    // Get full question data from package store (with text and files)
+    const questionAndTheme = await this.packageStore.getQuestionWithTheme(
+      game.id,
       questionId
     );
 

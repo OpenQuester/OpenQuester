@@ -1,6 +1,7 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -27,10 +28,9 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   public readonly toPhase = GamePhase.SHOWING;
 
   constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService
+    gameService: GameService
   ) {
-    super(gameService, timerService);
+    super(gameService);
   }
 
   /**
@@ -92,14 +92,21 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    await this.gameService.clearTimer(game.id);
+    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_TIME);
+    game.gameState.timer = timer.start();
 
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      GAME_QUESTION_ANSWER_TIME
-    );
-
-    return { timer: timerEntity.value() ?? undefined };
+    return {
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: GAME_QUESTION_ANSWER_TIME,
+        },
+      ],
+    };
   }
 
   /**

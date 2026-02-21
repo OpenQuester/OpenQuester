@@ -1,14 +1,13 @@
-import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
+import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
+import { PlayerScoreChangeLogic } from "domain/logic/game/PlayerScoreChangeLogic";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import {
   PlayerScoreChangeBroadcastData,
   PlayerScoreChangeInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for player score change.
@@ -20,18 +19,29 @@ export class PlayerScoreChangeActionHandler
       PlayerScoreChangeBroadcastData
     >
 {
-  constructor(private readonly socketIOGameService: SocketIOGameService) {}
+  constructor(
+    private readonly validationService: SocketGameValidationService
+  ) {}
 
   public async execute(
-    action: GameAction<PlayerScoreChangeInputData>
-  ): Promise<GameActionHandlerResult<PlayerScoreChangeBroadcastData>> {
+    ctx: ActionExecutionContext<PlayerScoreChangeInputData>
+  ): Promise<ActionHandlerResult<PlayerScoreChangeBroadcastData>> {
+    const { game, currentPlayer, action } = ctx;
     const { payload } = action;
 
-    const result = await this.socketIOGameService.changePlayerScore(
-      createActionContextFromAction(action),
+    this.validationService.validatePlayerScoreChange(currentPlayer);
+
+    const newScore = PlayerScoreChangeLogic.applyScore(
+      game,
       payload.playerId,
       payload.newScore
     );
+
+    const result = PlayerScoreChangeLogic.buildResult({
+      game,
+      targetPlayerId: payload.playerId,
+      newScore,
+    });
 
     const broadcastData: PlayerScoreChangeBroadcastData = {
       playerId: payload.playerId,
@@ -41,7 +51,12 @@ export class PlayerScoreChangeActionHandler
     return {
       success: true,
       data: broadcastData,
-      broadcasts: result.broadcasts,
+      mutations: [
+        DataMutationConverter.saveGameMutation(game),
+        ...DataMutationConverter.mutationFromSocketBroadcasts(
+          result.broadcasts
+        ),
+      ],
     };
   }
 }

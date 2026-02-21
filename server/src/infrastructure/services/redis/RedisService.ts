@@ -39,8 +39,12 @@ export class RedisService {
     return this.redisRepository.publish(channel, message);
   }
 
-  public async setLockKey(lockValue: string, expire?: number) {
-    return this.redisRepository.setLockKey(lockValue, expire);
+  public async setLockKey(
+    lockKey: string,
+    expire?: number,
+    value?: string
+  ) {
+    return this.redisRepository.setLockKey(lockKey, expire, value);
   }
 
   /**
@@ -97,6 +101,16 @@ export class RedisService {
     updateTtl?: number
   ): Promise<string | null> {
     return this.redisRepository.hget(key, field, updateTtl);
+  }
+
+  /**
+   * Retrieve multiple fields from a hash in a single round trip.
+   */
+  public async hmget(
+    key: string,
+    fields: string[]
+  ): Promise<(string | null)[]> {
+    return this.redisRepository.hmget(key, fields);
   }
 
   public async get(key: string, updateTtl?: number): Promise<string | null> {
@@ -221,6 +235,20 @@ export class RedisService {
    */
   public async setnx(key: string, value: string): Promise<number> {
     return this.redisRepository.setnx(key, value);
+  }
+
+  /**
+   * Execute a Lua script on the Redis server.
+   * @param script The Lua script to execute
+   * @param numkeys Number of keys in the script
+   * @param args Keys followed by arguments
+   */
+  public async eval(
+    script: string,
+    numkeys: number,
+    ...args: (string | number)[]
+  ): Promise<unknown> {
+    return this.redisRepository.eval(script, numkeys, ...args);
   }
 
   public async zScanMatch(

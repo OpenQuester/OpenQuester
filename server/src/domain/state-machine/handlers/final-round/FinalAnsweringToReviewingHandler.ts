@@ -1,5 +1,5 @@
 import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -36,10 +36,9 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
   public readonly toPhase = GamePhase.FINAL_REVIEWING;
 
   constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService
+    gameService: GameService
   ) {
-    super(gameService, timerService);
+    super(gameService);
   }
 
   /**
@@ -99,13 +98,13 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     ctx: TransitionContext,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    // Clear the answering timer (no timer for reviewing phase)
-    await this.gameService.clearTimer(ctx.game.id);
-
     // Explicitly set timer to null in game state
     ctx.game.gameState.timer = null;
 
-    return {};
+    return {
+      timer: undefined,
+      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }],
+    };
   }
 
   protected collectBroadcasts(

@@ -16,21 +16,13 @@ import { GameJoinResult } from "domain/types/socket/game/GameJoinResult";
 /**
  * Validation input for game join
  */
-export interface GameJoinValidationInput {
+interface GameJoinValidationInput {
   game: Game;
   userId: number;
   role: PlayerRole;
   existingPlayer: Player | null;
   targetSlot: number | null;
   password?: string;
-}
-
-/**
- * Result of game join mutation
- */
-export interface GameJoinMutationResult {
-  player: Player;
-  wasReconnecting: boolean;
 }
 
 interface GameJoinResultInput {
@@ -88,8 +80,10 @@ export class GameJoinLogic {
     // in theme elimination and bidding phases can answer the final question.
     const isFinalRound =
       game.gameState.currentRound?.type === PackageRoundType.FINAL;
+
     const wasNotPreviouslyPlayer =
       !existingPlayer || existingPlayer.role !== PlayerRole.PLAYER;
+
     if (isFinalRound && role === PlayerRole.PLAYER && wasNotPreviouslyPlayer) {
       throw new ClientError(ClientResponse.CANNOT_JOIN_FINAL_ROUND_AS_PLAYER);
     }

@@ -39,6 +39,7 @@ export class Environment {
 
   // URLs
   public API_DOMAIN!: string;
+  public API_PORT!: number;
   public CORS_ORIGINS!: string[];
 
   // DB vars
@@ -66,9 +67,6 @@ export class Environment {
   public SOCKET_IO_ADMIN_UI_ENABLE!: boolean;
   public SOCKET_IO_ADMIN_UI_USERNAME!: string;
   public SOCKET_IO_ADMIN_UI_PASSWORD!: string;
-
-  // Server
-  public API_PORT!: number;
 
   // InfluxDB
   public INFLUX_URL!: string;

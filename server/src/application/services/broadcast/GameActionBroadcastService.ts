@@ -2,6 +2,7 @@ import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "application/di/tokens";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
+import { Game } from "domain/entities/game/Game";
 import {
   SocketIOEvents,
   SocketIOGameEvents,
@@ -11,7 +12,6 @@ import {
   SocketBroadcastTarget,
   SocketEventBroadcast,
 } from "domain/handlers/socket/BaseSocketEventHandler";
-import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
@@ -72,13 +72,15 @@ export class GameActionBroadcastService {
 
   /**
    * Emit broadcasts from action handler result.
+   * @param broadcasts The broadcasts to emit
+   * @param game Game entity for targeting
    */
   public async emitBroadcasts(
     broadcasts: SocketEventBroadcast[],
-    defaultGameId?: string
+    game: Game
   ): Promise<void> {
     for (const broadcast of broadcasts) {
-      const gameId = broadcast.gameId ?? defaultGameId;
+      const gameId = broadcast.gameId ?? game.id;
 
       switch (broadcast.target) {
         case SocketBroadcastTarget.SOCKET:
@@ -97,11 +99,7 @@ export class GameActionBroadcastService {
           if (gameId) {
             // Handle role-based broadcasts
             if (broadcast.useRoleBasedBroadcast) {
-              await this.emitWithRoleBasedFiltering(
-                broadcast.event,
-                broadcast.data as { gameState: GameStateDTO },
-                gameId
-              );
+              await this.emitWithRoleBasedFiltering(broadcast.event, game);
             } else {
               this.io.to(gameId).emit(broadcast.event, broadcast.data);
             }
@@ -137,8 +135,7 @@ export class GameActionBroadcastService {
    */
   private async emitWithRoleBasedFiltering(
     event: IOEvent,
-    data: { gameState: GameStateDTO },
-    gameId: string
+    game: Game
   ): Promise<void> {
     if (!this._gameService) {
       // Fallback to regular emit if game service not available
@@ -146,26 +143,24 @@ export class GameActionBroadcastService {
         "Role-based filtering not available - game service not initialized",
         { prefix: LogPrefix.BROADCAST }
       );
-      this.io.to(gameId).emit(event, data);
+      this.io.to(game.id).emit(event, { gameState: game.gameState });
       return;
     }
 
     try {
       // Get all socket IDs in the game room
-      const sockets = await this.io.in(gameId).fetchSockets();
+      const sockets = await this.io.in(game.id).fetchSockets();
       const socketIds = sockets.map((socket) => socket.id);
 
       // Use the game service to get the broadcast map
       const broadcastMap = await this._gameService.getGameStateBroadcastMap(
         socketIds,
-        gameId,
-        data.gameState
+        game
       );
 
       // Emit to each socket with the appropriate filtered data
       for (const [socketId, gameState] of broadcastMap.entries()) {
-        const customData = { ...data, gameState };
-        this.io.to(socketId).emit(event, customData);
+        this.io.to(socketId).emit(event, { gameState });
       }
     } catch (error: unknown) {
       this.logger.error(
@@ -173,7 +168,7 @@ export class GameActionBroadcastService {
         { prefix: LogPrefix.BROADCAST }
       );
       // Fallback to regular room emit if role-based filtering fails
-      this.io.to(gameId).emit(event, data);
+      this.io.to(game.id).emit(event, { gameState: game.gameState });
     }
   }
 }

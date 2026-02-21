@@ -1,16 +1,13 @@
-import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
+import { SecretQuestionService } from "application/services/question/SecretQuestionService";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import {
   SecretQuestionTransferBroadcastData,
   SecretQuestionTransferInputData,
 } from "domain/types/socket/game/SecretQuestionTransferData";
-import { SecretQuestionService } from "application/services/question/SecretQuestionService";
 
 /**
  * Result of secret question transfer action.
@@ -48,12 +45,12 @@ export class SecretQuestionTransferActionHandler
   }
 
   public async execute(
-    action: GameAction<SecretQuestionTransferInputData>
-  ): Promise<GameActionHandlerResult<SecretQuestionTransferResult>> {
+    ctx: ActionExecutionContext<SecretQuestionTransferInputData>
+  ): Promise<ActionHandlerResult<SecretQuestionTransferResult>> {
     const result =
       await this.secretQuestionService.handleSecretQuestionTransfer(
-        action.socketId,
-        action.payload
+        ctx.action.socketId,
+        ctx.action.payload
       );
 
     const { game, fromPlayerId, toPlayerId, questionId, timer, question } =
@@ -73,15 +70,11 @@ export class SecretQuestionTransferActionHandler
       roundId: game.gameState.currentRound?.id ?? null,
     };
 
-    // Empty broadcasts - socket handler's afterBroadcast does:
-    // 1. SECRET_QUESTION_TRANSFER event to all players
-    // 2. Personalized QUESTION_DATA to each socket (role-based filtering)
-    const broadcasts: SocketEventBroadcast<unknown>[] = [];
-
     return {
       success: true,
       data: resultData,
-      broadcasts,
+      mutations: [],
+      broadcastGame: game,
     };
   }
 }

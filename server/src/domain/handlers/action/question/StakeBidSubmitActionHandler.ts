@@ -1,13 +1,12 @@
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
+import { StakeQuestionService } from "application/services/question/StakeQuestionService";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import {
   StakeBidSubmitInputData,
   StakeBidSubmitOutputData,
 } from "domain/types/socket/events/game/StakeQuestionEventData";
-import { StakeQuestionService } from "application/services/question/StakeQuestionService";
 
 /**
  * Stateless action handler for stake bid submission.
@@ -21,17 +20,22 @@ export class StakeBidSubmitActionHandler
   }
 
   public async execute(
-    action: GameAction<StakeBidSubmitInputData>
-  ): Promise<GameActionHandlerResult<StakeBidSubmitOutputData>> {
+    ctx: ActionExecutionContext<StakeBidSubmitInputData>
+  ): Promise<ActionHandlerResult<StakeBidSubmitOutputData>> {
     const result = await this.stakeQuestionService.handleStakeBidSubmit(
-      action.socketId,
-      action.payload
+      ctx.action.socketId,
+      ctx.action.payload
     );
 
     return {
       success: true,
       data: result.data,
-      broadcasts: result.broadcasts,
+      mutations: [
+        ...DataMutationConverter.mutationFromSocketBroadcasts(
+          result.broadcasts
+        ),
+      ],
+      broadcastGame: result.game,
     };
   }
 }

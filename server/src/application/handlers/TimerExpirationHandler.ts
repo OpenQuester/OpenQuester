@@ -43,9 +43,14 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
   }
 
   public async handle(key: string): Promise<void> {
-    const gameId = key.split(":")[1];
+    // Timer key format:
+    // - Without timerAdditional: "timer:{gameId}"
+    // - With timerAdditional: "timer:{timerAdditional}:{gameId}"
+    // gameId is always the last segment
+    const parts = key.split(":");
+    const gameId = parts[parts.length - 1];
 
-    if (!gameId) {
+    if (!gameId || parts.length < 2) {
       this.logger.warn(`Invalid timer key format: ${key}`, {
         prefix: LogPrefix.TIMER_EXPIRATION,
         key,
@@ -55,16 +60,12 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
 
     let game;
     try {
-      game = await this.gameService.getGameEntity(
-        gameId,
-        GAME_TTL_IN_SECONDS
-      );
+      game = await this.gameService.getGameEntity(gameId, GAME_TTL_IN_SECONDS);
     } catch {
-      this.logger.warn(`Game not found for expired timer, skipping`, {
-        prefix: LogPrefix.TIMER_EXPIRATION,
-        gameId,
-        key,
-      });
+      this.logger.debug(
+        `Timer expired for non-existent game '${gameId}', skipping (key: ${key})`,
+        { prefix: LogPrefix.TIMER_EXPIRATION }
+      );
       return;
     }
 

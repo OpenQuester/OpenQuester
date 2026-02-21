@@ -6,7 +6,7 @@ import {
 } from "domain/handlers/socket/BaseSocketEventHandler";
 import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 
-export interface PlayerReadinessData {
+interface PlayerReadinessData {
   game: Game;
   playerId: number;
   isReady: boolean;
@@ -14,7 +14,7 @@ export interface PlayerReadinessData {
   shouldAutoStart: boolean;
 }
 
-export interface PlayerReadinessResult {
+interface PlayerReadinessResult {
   data: PlayerReadinessData;
   broadcasts: SocketEventBroadcast[];
 }

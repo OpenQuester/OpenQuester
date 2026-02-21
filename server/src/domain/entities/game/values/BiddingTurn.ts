@@ -6,7 +6,7 @@ export interface BiddingContext {
   allPlayers: PlayerDTO[];
 }
 
-export interface NextBidderResult {
+interface NextBidderResult {
   nextBidderId: number | null;
   isPhaseComplete: boolean;
   winnerPlayerId?: number | null;

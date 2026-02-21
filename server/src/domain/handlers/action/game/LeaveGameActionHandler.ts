@@ -1,14 +1,12 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import {
   EmptyInputData,
   GameLeaveBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { convertBroadcasts } from "domain/utils/BroadcastConverter";
+import { DataMutationConverter } from "../../../types/action/DataMutation";
 
 /**
  * Stateless action handler for player leaving a game.
@@ -20,15 +18,19 @@ export class LeaveGameActionHandler
   constructor(private readonly socketIOGameService: SocketIOGameService) {}
 
   public async execute(
-    action: GameAction<EmptyInputData>
-  ): Promise<GameActionHandlerResult<GameLeaveBroadcastData>> {
-    const result = await this.socketIOGameService.leaveLobby(action.socketId);
+    ctx: ActionExecutionContext<EmptyInputData>
+  ): Promise<ActionHandlerResult<GameLeaveBroadcastData>> {
+    const result = await this.socketIOGameService.leaveLobby(
+      ctx.action.socketId,
+      ctx.userData,
+      ctx.game
+    );
 
     if (!result.emit || !result.data) {
       return {
         success: true,
         data: { user: -1 },
-        broadcasts: [],
+        mutations: [],
       };
     }
 
@@ -36,9 +38,15 @@ export class LeaveGameActionHandler
       user: result.data.userId,
     };
 
-    // Service generates type-safe broadcasts with satisfies - just convert format
-    const broadcasts = convertBroadcasts(result.broadcasts || []);
-
-    return { success: true, data: broadcastData, broadcasts };
+    return {
+      success: true,
+      data: broadcastData,
+      mutations: [
+        ...DataMutationConverter.mutationFromServiceBroadcasts(
+          result.broadcasts
+        ),
+      ],
+      broadcastGame: result.data.game,
+    };
   }
 }

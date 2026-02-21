@@ -1,21 +1,23 @@
-import { type Express } from "express";
-import request from "supertest";
-import { Repository } from "typeorm";
-import { User } from "infrastructure/database/models/User";
-import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
-import { PlayerRole } from "domain/types/game/PlayerRole";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { GameJoinData } from "domain/types/socket/game/GameJoinData";
-import { GameJoinOutputData } from "domain/types/socket/events/SocketEventInterfaces";
+import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
+import {
+  GameJoinInputData,
+  GameJoinOutputData,
+} from "domain/types/socket/events/SocketEventInterfaces";
+import { type Express } from "express";
+import { User } from "infrastructure/database/models/User";
+import request from "supertest";
 import { PackageUtils } from "tests/utils/PackageUtils";
+import { Repository } from "typeorm";
 
-import { GameClientSocket, GameTestSetup } from "./SocketIOGameTestUtils";
-import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
+import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
+import { GameClientSocket, GameTestSetup } from "./SocketIOGameTestUtils";
 
 export class SocketGameTestLobbyUtils {
   private packageUtils: PackageUtils;
@@ -121,6 +123,7 @@ export class SocketGameTestLobbyUtils {
       title: "Test Game " + Math.random().toString(36).substring(7),
       packageId: packageId,
       isPrivate: false,
+      password: undefined,
       ageRestriction: AgeRestriction.NONE,
       maxPlayers: 10,
     };
@@ -152,9 +155,8 @@ export class SocketGameTestLobbyUtils {
     socket: GameClientSocket,
     gameId: string,
     role: PlayerRole = PlayerRole.PLAYER
-  ): Promise<string> {
-    await this.joinSpecificGame(socket, gameId, role);
-    return gameId;
+  ): Promise<void> {
+    return this.joinSpecificGame(socket, gameId, role);
   }
 
   public async joinSpecificGame(
@@ -163,7 +165,12 @@ export class SocketGameTestLobbyUtils {
     role: PlayerRole
   ): Promise<void> {
     return new Promise<void>((resolve) => {
-      const joinData: GameJoinData = { gameId, role, targetSlot: null };
+      const joinData: GameJoinInputData = {
+        gameId,
+        role,
+        targetSlot: null,
+        password: null,
+      };
       socket.once(SocketIOGameEvents.GAME_DATA, () => {
         socket.gameId = gameId;
         socket.role = role;
@@ -180,7 +187,7 @@ export class SocketGameTestLobbyUtils {
     password?: string
   ): Promise<GameJoinOutputData> {
     return new Promise<GameJoinOutputData>((resolve) => {
-      const joinData: GameJoinData = {
+      const joinData: GameJoinInputData = {
         gameId,
         role,
         targetSlot: null,
@@ -205,7 +212,7 @@ export class SocketGameTestLobbyUtils {
     password?: string
   ): Promise<ErrorEventPayload> {
     return new Promise<ErrorEventPayload>((resolve, reject) => {
-      const joinData: GameJoinData = {
+      const joinData: GameJoinInputData = {
         gameId,
         role,
         targetSlot: null,
@@ -233,7 +240,7 @@ export class SocketGameTestLobbyUtils {
     targetSlot: number | null
   ): Promise<void> {
     return new Promise<void>((resolve) => {
-      const joinData: GameJoinData = { gameId, role, targetSlot };
+      const joinData: GameJoinInputData = { gameId, role, targetSlot };
       socket.once(SocketIOGameEvents.GAME_DATA, () => {
         socket.gameId = gameId;
         socket.role = role;
@@ -253,7 +260,7 @@ export class SocketGameTestLobbyUtils {
     targetSlot: number | null
   ): Promise<any> {
     return new Promise<any>((resolve) => {
-      const joinData: GameJoinData = { gameId, role, targetSlot };
+      const joinData: GameJoinInputData = { gameId, role, targetSlot };
       socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
         socket.gameId = gameId;
         socket.role = role;

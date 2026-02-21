@@ -11,7 +11,7 @@ import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerRoleChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 
-export interface RoleChangeMutation {
+interface RoleChangeMutation {
   originalRole: PlayerRole;
   newSlot: number | null;
   wasPlayer: boolean;

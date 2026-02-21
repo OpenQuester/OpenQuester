@@ -20,6 +20,7 @@ import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { GameUpdateValidator } from "domain/validators/GameUpdateValidator";
 import { GameRepository } from "infrastructure/database/repositories/GameRepository";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
@@ -35,7 +36,8 @@ export class GameService {
     private readonly gameRepository: GameRepository,
     private readonly userService: UserService,
     private readonly packageService: PackageService,
-    private readonly storage: S3StorageService
+    private readonly storage: S3StorageService,
+    private readonly packageStore: PackageStore
   ) {
     //
   }
@@ -166,7 +168,8 @@ export class GameService {
       game,
       updateData,
       this.packageService,
-      this.storage
+      this.storage,
+      this.packageStore
     );
 
     await this.gameRepository.updateGameWithIndexes(game, previousIndexData);

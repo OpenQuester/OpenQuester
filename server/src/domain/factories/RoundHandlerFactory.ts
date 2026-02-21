@@ -7,19 +7,24 @@ import { BaseRoundHandler } from "domain/handlers/socket/round/BaseRoundHandler"
 import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
 import { SimpleRoundHandler } from "domain/handlers/socket/round/SimpleRoundHandler";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
 /**
  * Factory for creating round handlers based on round type.
  */
 @singleton()
 export class RoundHandlerFactory {
+  constructor(private readonly packageStore: PackageStore) {
+    //
+  }
+
   /**
    * Creates a round handler for the specified round type
    */
   public create(roundType: PackageRoundType): BaseRoundHandler {
     switch (roundType) {
       case PackageRoundType.SIMPLE:
-        return new SimpleRoundHandler();
+        return new SimpleRoundHandler(this.packageStore);
       case PackageRoundType.FINAL:
         return new FinalRoundHandler();
       default:

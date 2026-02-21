@@ -40,7 +40,7 @@ describe("Final Round Answering Logic", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new TestUtils(app, userRepo, serverUrl);
   });
 

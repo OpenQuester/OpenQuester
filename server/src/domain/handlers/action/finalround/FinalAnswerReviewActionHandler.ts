@@ -1,98 +1,117 @@
-import { FinalRoundService } from "application/services/socket/FinalRoundService";
-import { GameLifecycleService } from "application/services/game/GameLifecycleService";
+import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { FinalAnswerReviewLogic } from "domain/state-machine/logic/FinalAnswerReviewLogic";
+import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
+import { TransitionTrigger } from "domain/state-machine/types";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
+  DataMutationConverter,
+  type DataMutation,
+} from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
+import { QuestionAction } from "domain/types/game/QuestionAction";
 import {
   FinalAnswerReviewInputData,
   FinalAnswerReviewOutputData,
 } from "domain/types/socket/events/FinalAnswerReviewData";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 /**
  * Stateless action handler for final round answer review.
- * Extracts business logic from FinalAnswerReviewEventHandler.
+ * Uses prefetched ctx.game and ctx.currentPlayer — no Redis re-fetch.
  */
 export class FinalAnswerReviewActionHandler
   implements
     GameActionHandler<FinalAnswerReviewInputData, FinalAnswerReviewOutputData>
 {
   constructor(
-    private readonly finalRoundService: FinalRoundService,
-    private readonly gameLifecycleService: GameLifecycleService,
-    private readonly logger: ILogger
-  ) {
-    //
-  }
+    private readonly socketGameValidationService: SocketGameValidationService,
+    private readonly phaseTransitionRouter: PhaseTransitionRouter
+  ) {}
 
   public async execute(
-    action: GameAction<FinalAnswerReviewInputData>
-  ): Promise<GameActionHandlerResult<FinalAnswerReviewOutputData>> {
-    const { game, isGameFinished, reviewResult, questionAnswerData } =
-      await this.finalRoundService.handleFinalAnswerReview(
-        createActionContextFromAction(action),
-        action.payload
-      );
+    ctx: ActionExecutionContext<FinalAnswerReviewInputData>
+  ): Promise<ActionHandlerResult<FinalAnswerReviewOutputData>> {
+    const { game, currentPlayer, action } = ctx;
+
+    GameStateValidator.validateGameInProgress(game);
+    this.socketGameValidationService.validateQuestionAction(
+      currentPlayer,
+      game,
+      QuestionAction.ANSWER_RESULT
+    );
+    FinalAnswerReviewLogic.validate(game);
+
+    const mutationResult = FinalAnswerReviewLogic.reviewAnswer(
+      game,
+      action.payload
+    );
+
+    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.USER_ACTION,
+      triggeredBy: {
+        playerId: currentPlayer?.meta.id,
+        isSystem: false,
+      },
+    });
+
+    const result = FinalAnswerReviewLogic.buildResult({
+      game,
+      mutationResult,
+      transitionResult,
+    });
 
     const outputData: FinalAnswerReviewOutputData = {
       answerId: action.payload.answerId,
-      playerId: reviewResult.playerId,
+      playerId: result.reviewResult.playerId,
       isCorrect: action.payload.isCorrect,
-      scoreChange: reviewResult.scoreChange,
+      scoreChange: result.reviewResult.scoreChange,
     };
 
-    const broadcasts: SocketEventBroadcast<unknown>[] = [
-      {
-        event: SocketIOGameEvents.FINAL_ANSWER_REVIEW,
-        data: outputData,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<FinalAnswerReviewOutputData>,
+    const mutations: DataMutation[] = [
+      DataMutationConverter.saveGameMutation(game),
+      ...DataMutationConverter.mutationFromTimerMutations(
+        transitionResult?.timerMutations
+      ),
+      DataMutationConverter.gameBroadcastMutation(
+        game.id,
+        SocketIOGameEvents.FINAL_ANSWER_REVIEW,
+        outputData
+      ),
     ];
 
-    // When all reviews are complete and game finishes
-    if (isGameFinished) {
-      broadcasts.push({
-        event: SocketIOGameEvents.QUESTION_FINISH,
-        data: {
-          answerFiles: null,
-          answerText: questionAnswerData?.answerText ?? null,
-          nextTurnPlayerId: null,
-        } satisfies QuestionFinishEventPayload,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<QuestionFinishEventPayload>);
+    if (result.isGameFinished) {
+      mutations.push(
+        DataMutationConverter.gameBroadcastMutation(
+          game.id,
+          SocketIOGameEvents.QUESTION_FINISH,
+          {
+            answerFiles: null,
+            answerText: result.questionAnswerData?.answerText ?? null,
+            nextTurnPlayerId: null,
+          } satisfies QuestionFinishEventPayload
+        )
+      );
 
-      broadcasts.push({
-        event: SocketIOGameEvents.GAME_FINISHED,
-        data: true,
-        target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<boolean>);
+      mutations.push(
+        DataMutationConverter.gameBroadcastMutation(
+          game.id,
+          SocketIOGameEvents.GAME_FINISHED,
+          true
+        )
+      );
 
-      // Trigger centralized game completion (statistics persistence)
-      const completionResult =
-        await this.gameLifecycleService.handleGameCompletion(game.id);
-
-      if (!completionResult.success) {
-        this.logger.error("Failed to execute statistics persistence", {
-          prefix: LogPrefix.STATS,
-          gameId: game.id,
-          error: completionResult.error,
-        });
-      }
+      mutations.push(DataMutationConverter.gameCompletionMutation(game.id));
     }
 
-    return { success: true, data: outputData, broadcasts };
+    return {
+      success: true,
+      data: outputData,
+      mutations,
+      broadcastGame: game,
+    };
   }
 }

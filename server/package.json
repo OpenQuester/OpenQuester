@@ -19,8 +19,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.744.0",
-    "@aws-sdk/s3-request-presigner": "^3.744.0",
+    "@aws-sdk/client-s3": "^3.995.0",
+    "@aws-sdk/s3-request-presigner": "^3.995.0",
     "@influxdata/influxdb3-client": "^2.0.0",
     "@seriousme/openapi-schema-validator": "^2.2.1",
     "@socket.io/admin-ui": "^0.5.1",
@@ -40,7 +40,7 @@
     "ioredis": "^5.4.2",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
-    "minio": "^8.0.1",
+    "minio": "^8.0.6",
     "node-cron": "^4.2.1",
     "nodemon": "^3.1.4",
     "pg": "^8.12.0",
@@ -100,5 +100,8 @@
     "splitting": false,
     "sourcemap": true,
     "clean": true
+  },
+  "overrides": {
+    "fast-xml-parser": "^5.3.6"
   }
 }

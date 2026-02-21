@@ -29,7 +29,7 @@ export interface PlayerSlotChangeResult {
 /**
  * Input for `buildResult`.
  */
-export interface PlayerSlotChangeResultInput {
+interface PlayerSlotChangeResultInput {
   game: Game;
   player: Player;
   newSlot: number;

@@ -1,14 +1,11 @@
-import { PlayerLeaveReason } from "application/services/player/PlayerLeaveService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
-import { convertBroadcasts } from "domain/utils/BroadcastConverter";
 
-export interface DisconnectResult {
+interface DisconnectResult {
   gameId: string | null;
   userId: number | null;
 }
@@ -23,25 +20,34 @@ export class DisconnectActionHandler
   constructor(private readonly socketIOGameService: SocketIOGameService) {}
 
   public async execute(
-    action: GameAction<EmptyInputData>
-  ): Promise<GameActionHandlerResult<DisconnectResult>> {
+    ctx: ActionExecutionContext<EmptyInputData>
+  ): Promise<ActionHandlerResult<DisconnectResult>> {
     const result = await this.socketIOGameService.leaveLobby(
-      action.socketId,
-      PlayerLeaveReason.DISCONNECT
+      ctx.action.socketId,
+      ctx.userData,
+      ctx.game
     );
 
-    // Service generates type-safe broadcasts with satisfies - just convert format
-    const broadcasts = result.broadcasts
-      ? convertBroadcasts(result.broadcasts)
-      : [];
+    if (!result.emit || !result.data) {
+      return {
+        success: true,
+        data: { gameId: null, userId: null },
+        mutations: [],
+      };
+    }
 
     return {
       success: true,
       data: {
-        gameId: result.data?.gameId ?? null,
-        userId: result.data?.userId ?? null,
+        gameId: result.data.game.id ?? null,
+        userId: result.data.userId ?? null,
       },
-      broadcasts,
+      mutations: [
+        ...DataMutationConverter.mutationFromServiceBroadcasts(
+          result.broadcasts
+        ),
+      ],
+      broadcastGame: result.data.game,
     };
   }
 }

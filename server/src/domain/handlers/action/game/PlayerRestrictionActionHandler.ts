@@ -1,14 +1,13 @@
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
+import { createActionContextFromAction } from "domain/types/action/ActionContext";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import {
   PlayerRestrictionBroadcastData,
   PlayerRestrictionInputData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for player restriction (mute/restrict/ban).
@@ -23,12 +22,14 @@ export class PlayerRestrictionActionHandler
   constructor(private readonly socketIOGameService: SocketIOGameService) {}
 
   public async execute(
-    action: GameAction<PlayerRestrictionInputData>
-  ): Promise<GameActionHandlerResult<PlayerRestrictionBroadcastData>> {
-    const { payload } = action;
+    ctx: ActionExecutionContext<PlayerRestrictionInputData>
+  ): Promise<ActionHandlerResult<PlayerRestrictionBroadcastData>> {
+    const { payload } = ctx.action;
 
     const result = await this.socketIOGameService.updatePlayerRestrictions(
-      createActionContextFromAction(action),
+      createActionContextFromAction(ctx.action),
+      ctx.userData,
+      ctx.game,
       payload.playerId,
       {
         muted: payload.muted,
@@ -47,7 +48,12 @@ export class PlayerRestrictionActionHandler
     return {
       success: true,
       data: broadcastData,
-      broadcasts: result.broadcasts,
+      mutations: [
+        ...DataMutationConverter.mutationFromSocketBroadcasts(
+          result.broadcasts
+        ),
+      ],
+      broadcastGame: result.data.game,
     };
   }
 }

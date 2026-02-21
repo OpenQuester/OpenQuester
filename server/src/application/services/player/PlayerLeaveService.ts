@@ -29,11 +29,13 @@ import {
 import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
 import { PlayerKickBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
+import { AnswerResultTransitionPayload } from "domain/types/socket/transition/answering";
 import { StakeBiddingToAnsweringPayload } from "domain/types/socket/transition/special-question";
+import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "infrastructure/logger/ILogger";
 import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
-import { AnswerResultTransitionPayload } from "domain/types/socket/transition/answering";
 
 /**
  * Reason for player leaving the game
@@ -48,7 +50,7 @@ export enum PlayerLeaveReason {
 /**
  * Options for player leave operation
  */
-export interface PlayerLeaveOptions {
+interface PlayerLeaveOptions {
   reason: PlayerLeaveReason;
   kickedBy?: number;
   bannedBy?: number;
@@ -59,7 +61,7 @@ export interface PlayerLeaveOptions {
 /**
  * Result from player leave operation
  */
-export interface PlayerLeaveResult extends ServiceResult {
+interface PlayerLeaveResult extends ServiceResult {
   game: Game;
   userId: number;
   wasInGame: boolean;
@@ -79,25 +81,49 @@ export class PlayerLeaveService {
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly finalRoundService: FinalRoundService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
-    @inject(DI_TOKENS.Logger) private readonly logger: ILogger
+    @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
+    private readonly packageStore: PackageStore
   ) {
     //
   }
 
   /**
-   * Handle player leaving the game
-   * Game-level locking handled by action executor
+   * Handle player leaving the game.
+   * Looks up the game and user session from socket data.
+   * Game-level locking handled by action executor.
    */
   public async handlePlayerLeave(
     socketId: string,
+    game: Game,
+    userData: SocketRedisUserData | null,
     options: PlayerLeaveOptions
   ): Promise<PlayerLeaveResult> {
-    const context = await this.socketGameContextService.fetchGameContext(
-      socketId
-    );
-    const game = context.game;
-    const gameId = game.id;
-    const userId = options.targetUserId ?? context.userSession.id;
+    if (!userData?.gameId) {
+      return {
+        success: false,
+        wasInGame: false,
+        game: null as unknown as Game,
+        userId: userData?.id ?? 0,
+        shouldEmitLeave: false,
+        broadcasts: [],
+      };
+    }
+
+    const gameId = userData.gameId;
+    const userSessionId = userData.id;
+
+    if (!game) {
+      return {
+        success: false,
+        wasInGame: false,
+        game: null as unknown as Game,
+        userId: userSessionId,
+        shouldEmitLeave: false,
+        broadcasts: [],
+      };
+    }
+
+    const userId = options.targetUserId ?? userSessionId;
 
     return await this.executePlayerLeave(
       game,
@@ -331,9 +357,17 @@ export class PlayerLeaveService {
     }
 
     // Process auto-pass using Logic class
+    const stakeData = game.gameState.stakeQuestionData!;
+    const stakeQuestion = await this.packageStore.getQuestion(
+      game.id,
+      stakeData.questionId
+    );
+    const questionPrice = stakeQuestion?.price ?? 0;
+
     const mutationResult = StakeBiddingPlayerLeaveLogic.processAutoPass(
       game,
-      userId
+      userId,
+      questionPrice
     );
 
     // Handle question skip if no winner

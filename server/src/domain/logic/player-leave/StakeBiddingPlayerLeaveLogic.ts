@@ -1,7 +1,6 @@
 import { DEFAULT_QUESTION_PRICE } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   StakeBidSubmitOutputData,
@@ -85,10 +84,14 @@ export class StakeBiddingPlayerLeaveLogic {
 
   /**
    * Process auto-pass for leaving player and determine bidding outcome.
+   * @param game Game entity
+   * @param userId Leaving player ID
+   * @param questionPrice The price of the stake question (fetched from PackageStore by caller)
    */
   public static processAutoPass(
     game: Game,
-    userId: number
+    userId: number,
+    questionPrice: number
   ): StakeBiddingPlayerLeaveMutationResult {
     const stakeData = game.gameState.stakeQuestionData!;
 
@@ -121,13 +124,8 @@ export class StakeBiddingPlayerLeaveLogic {
 
         // If they haven't bid yet, they get minimum bid (question price)
         if (stakeData.bids[winnerId] === undefined) {
-          const questionData = GameQuestionMapper.getQuestionAndTheme(
-            game.package,
-            game.gameState.currentRound!.id,
-            stakeData.questionId
-          );
           stakeData.bids[winnerId] =
-            questionData?.question.price || DEFAULT_QUESTION_PRICE;
+            questionPrice || DEFAULT_QUESTION_PRICE;
           stakeData.highestBid = stakeData.bids[winnerId];
         }
         winningBid = stakeData.highestBid;

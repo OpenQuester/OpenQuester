@@ -1,14 +1,13 @@
-import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { GameAction } from "domain/types/action/GameAction";
-import {
-  GameActionHandler,
-  GameActionHandlerResult,
-} from "domain/types/action/GameActionHandler";
+import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
+import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
+import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
+import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import {
   EmptyInputData,
   GamePauseBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
 
 /**
  * Stateless action handler for pausing a game.
@@ -16,17 +15,33 @@ import { createActionContextFromAction } from "domain/types/action/ActionContext
 export class PauseGameActionHandler
   implements GameActionHandler<EmptyInputData, GamePauseBroadcastData>
 {
-  constructor(private readonly socketIOGameService: SocketIOGameService) {}
+  constructor(
+    private readonly validationService: SocketGameValidationService,
+    private readonly socketGameTimerService: SocketGameTimerService
+  ) {}
 
   public async execute(
-    action: GameAction<EmptyInputData>
-  ): Promise<GameActionHandlerResult<GamePauseBroadcastData>> {
-    const result = await this.socketIOGameService.handleGamePause(
-      createActionContextFromAction(action)
-    );
+    ctx: ActionExecutionContext<EmptyInputData>
+  ): Promise<ActionHandlerResult<GamePauseBroadcastData>> {
+    const { game, currentPlayer, timer } = ctx;
+
+    this.validationService.validateGamePause(currentPlayer, game);
+
+    const { result, timerMutations } =
+      this.socketGameTimerService.buildPauseTimerMutations(game, timer);
 
     const pauseData: GamePauseBroadcastData = { timer: result.data.timer };
 
-    return { success: true, data: pauseData, broadcasts: result.broadcasts };
+    return {
+      success: true,
+      data: pauseData,
+      mutations: [
+        DataMutationConverter.saveGameMutation(game),
+        ...DataMutationConverter.mutationFromTimerMutations(timerMutations),
+        ...DataMutationConverter.mutationFromSocketBroadcasts(
+          result.broadcasts
+        ),
+      ],
+    };
   }
 }

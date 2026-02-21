@@ -1,19 +1,20 @@
 import { Player } from "domain/entities/game/Player";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
-import { PackageDTO } from "../package/PackageDTO";
+import { RoundIndexEntry } from "domain/types/dto/game/RoundIndexEntry";
+import { userId } from "domain/types/ids";
 import { GameStateDTO } from "./state/GameStateDTO";
 
 export interface GameImportDTO {
   id: string;
   title: string;
-  createdBy: number;
+  createdBy: userId;
   createdAt: Date;
   isPrivate: boolean;
   ageRestriction: AgeRestriction;
   maxPlayers: number;
   startedAt: Date | null;
   finishedAt: Date | null;
-  package: PackageDTO;
+  roundIndex: RoundIndexEntry[];
   roundsCount: number;
   questionsCount: number;
   players: Player[];
