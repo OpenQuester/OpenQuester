@@ -1,4 +1,14 @@
 {
+  "__inputs": [
+    {
+      "name": "DS_INFLUXDB",
+      "label": "influxdb",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "influxdb",
+      "pluginName": "InfluxDB"
+    }
+  ],
   "annotations": {
     "list": []
   },
@@ -24,7 +34,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -59,9 +69,7 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -71,7 +79,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"HTTP RPS\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -86,7 +94,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -121,9 +129,7 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -133,7 +139,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Socket Events/s\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -148,7 +154,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -192,9 +198,7 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -204,7 +208,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "WITH totals AS (SELECT $__dateBin(time) AS time, SUM(count) AS total FROM http_requests WHERE $__timeFilter(time) GROUP BY 1), errors AS (SELECT $__dateBin(time) AS time, SUM(count) AS errors FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '5%' GROUP BY 1) SELECT t.time, 100.0 * COALESCE(e.errors, 0) / NULLIF(t.total, 0) AS \"HTTP 5xx Rate\" FROM totals t LEFT JOIN errors e ON t.time = e.time ORDER BY t.time",
           "rawQuery": true,
@@ -219,7 +223,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -263,9 +267,7 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -275,7 +277,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "WITH totals AS (SELECT $__dateBin(time) AS time, SUM(count) AS total FROM socket_events WHERE $__timeFilter(time) GROUP BY 1), errors AS (SELECT $__dateBin(time) AS time, SUM(count) AS errors FROM socket_events WHERE $__timeFilter(time) AND status = 'error' GROUP BY 1) SELECT t.time, 100.0 * COALESCE(e.errors, 0) / NULLIF(t.total, 0) AS \"Socket Error Rate\" FROM totals t LEFT JOIN errors e ON t.time = e.time ORDER BY t.time",
           "rawQuery": true,
@@ -302,7 +304,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -369,10 +371,7 @@
       "interval": "10s",
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -386,7 +385,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Total RPS\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -397,7 +396,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Success (2xx)\" FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '2%' GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -408,7 +407,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Client Errors (4xx)\" FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '4%' GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -419,7 +418,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Server Errors (5xx)\" FROM http_requests WHERE $__timeFilter(time) AND status_code LIKE '5%' GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -434,7 +433,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -501,10 +500,7 @@
       "interval": "10s",
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -518,7 +514,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Total Events/s\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -529,7 +525,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Success\" FROM socket_events WHERE $__timeFilter(time) AND status = 'success' GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -540,7 +536,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(count) AS \"Errors\" FROM socket_events WHERE $__timeFilter(time) AND status = 'error' GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -567,7 +563,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -638,10 +634,7 @@
       "interval": "10s",
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -655,7 +648,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.50) AS \"p50 (median)\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -666,7 +659,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.90) AS \"p90\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -677,7 +670,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.95) AS \"p95\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -688,7 +681,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.99) AS \"p99\" FROM http_requests WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -703,7 +696,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -774,10 +767,7 @@
       "interval": "10s",
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -791,7 +781,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.50) AS \"p50 (median)\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -802,7 +792,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.90) AS \"p90\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -813,7 +803,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.95) AS \"p95\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -824,7 +814,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, approx_percentile_cont(duration, 0.99) AS \"p99\" FROM socket_events WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -851,7 +841,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -919,9 +909,7 @@
         "footer": {
           "countRows": false,
           "fields": "",
-          "reducer": [
-            "sum"
-          ],
+          "reducer": ["sum"],
           "show": false
         },
         "showHeader": true,
@@ -936,7 +924,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT route, SUM(count) AS \"Value\" FROM http_requests WHERE $__timeFilter(time) GROUP BY route ORDER BY \"Value\" DESC LIMIT 10",
           "format": "table",
@@ -970,7 +958,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1038,9 +1026,7 @@
         "footer": {
           "countRows": false,
           "fields": "",
-          "reducer": [
-            "sum"
-          ],
+          "reducer": ["sum"],
           "show": false
         },
         "showHeader": true,
@@ -1055,7 +1041,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT event, SUM(count) AS \"Value\" FROM socket_events WHERE $__timeFilter(time) GROUP BY event ORDER BY \"Value\" DESC LIMIT 10",
           "format": "table",
@@ -1089,7 +1075,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1178,9 +1164,7 @@
         "footer": {
           "countRows": false,
           "fields": "",
-          "reducer": [
-            "sum"
-          ],
+          "reducer": ["sum"],
           "show": false
         },
         "showHeader": true,
@@ -1195,7 +1179,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT event, approx_percentile_cont(duration, 0.95) AS \"Value\" FROM socket_events WHERE $__timeFilter(time) GROUP BY event ORDER BY \"Value\" DESC LIMIT 10",
           "format": "table",
@@ -1241,7 +1225,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "description": "CPU usage per instance. Use the Instance dropdown to filter. Shows all instances when 'All' is selected.",
       "fieldConfig": {
@@ -1309,10 +1293,7 @@
       "interval": "15s",
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -1326,7 +1307,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, AVG(cpu_user_pct) AS \"User CPU %\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
           "rawQuery": true,
@@ -1337,7 +1318,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, AVG(cpu_system_pct) AS \"System CPU %\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
           "rawQuery": true,
@@ -1352,7 +1333,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "description": "Memory usage per instance. Use the Instance dropdown to filter.",
       "fieldConfig": {
@@ -1420,10 +1401,7 @@
       "interval": "15s",
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -1437,7 +1415,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, AVG(rss_bytes) AS \"RSS\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
           "rawQuery": true,
@@ -1448,7 +1426,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, AVG(heap_used_bytes) AS \"Heap Used\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
           "rawQuery": true,
@@ -1459,7 +1437,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, AVG(heap_total_bytes) AS \"Heap Total\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
           "rawQuery": true,
@@ -1474,7 +1452,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "description": "Event loop lag per instance. Use the Instance dropdown to filter.",
       "fieldConfig": {
@@ -1542,10 +1520,7 @@
       "interval": "15s",
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -1559,7 +1534,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, AVG(event_loop_lag_seconds) AS \"Event Loop Lag\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
           "rawQuery": true,
@@ -1586,7 +1561,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "description": "Total CPU usage across all instances.",
       "fieldConfig": {
@@ -1654,10 +1629,7 @@
       "interval": "15s",
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -1671,7 +1643,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(cpu_user_pct) AS \"Total User CPU %\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -1682,7 +1654,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(cpu_system_pct) AS \"Total System CPU %\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -1697,7 +1669,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "description": "Total memory usage across all instances.",
       "fieldConfig": {
@@ -1765,10 +1737,7 @@
       "interval": "15s",
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
+          "calcs": ["mean", "max"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -1782,7 +1751,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(rss_bytes) AS \"Total RSS\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -1793,7 +1762,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(heap_used_bytes) AS \"Total Heap Used\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -1804,7 +1773,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(heap_total_bytes) AS \"Total Heap Total\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -1831,7 +1800,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1873,9 +1842,7 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -1885,7 +1852,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "WITH latest AS (SELECT instance, online_sockets, ROW_NUMBER() OVER (PARTITION BY instance ORDER BY time DESC) AS rn FROM system_metrics WHERE $__timeFilter(time)) SELECT NOW() AS time, SUM(online_sockets) AS \"Total Online Sockets\" FROM latest WHERE rn = 1",
           "rawQuery": true,
@@ -1900,7 +1867,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1942,9 +1909,7 @@
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": "",
           "values": false
         },
@@ -1954,7 +1919,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "WITH latest AS (SELECT instance, active_games, ROW_NUMBER() OVER (PARTITION BY instance ORDER BY time DESC) AS rn FROM system_metrics WHERE $__timeFilter(time)) SELECT NOW() AS time, MAX(active_games) AS \"Active Online Games\" FROM latest WHERE rn = 1",
           "rawQuery": true,
@@ -1969,7 +1934,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "influxdb-openquester"
+        "uid": "${DS_INFLUXDB}"
       },
       "description": "Online WebSocket connections per instance and total across all instances.",
       "fieldConfig": {
@@ -2034,11 +1999,7 @@
       "interval": "15s",
       "options": {
         "legend": {
-          "calcs": [
-            "mean",
-            "max",
-            "lastNotNull"
-          ],
+          "calcs": ["mean", "max", "lastNotNull"],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
@@ -2052,7 +2013,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, SUM(online_sockets) AS \"Total\" FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1 ORDER BY 1",
           "rawQuery": true,
@@ -2063,7 +2024,7 @@
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "influxdb-openquester"
+            "uid": "${DS_INFLUXDB}"
           },
           "rawSql": "SELECT $__dateBin(time) AS time, AVG(online_sockets) AS \"Sockets\", instance FROM system_metrics WHERE $__timeFilter(time) GROUP BY 1, instance ORDER BY 1",
           "rawQuery": true,
@@ -2079,10 +2040,7 @@
   "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": [
-    "nodejs",
-    "openquester"
-  ],
+  "tags": ["nodejs", "openquester"],
   "templating": {
     "list": [
       {
@@ -2093,7 +2051,7 @@
         },
         "datasource": {
           "type": "influxdb",
-          "uid": "influxdb-openquester"
+          "uid": "${DS_INFLUXDB}"
         },
         "definition": "SELECT DISTINCT instance FROM http_requests ORDER BY instance",
         "hide": 0,
