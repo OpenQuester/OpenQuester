@@ -69,6 +69,7 @@ export class Environment {
 
   // Server
   public API_PORT!: number;
+  public ADMIN_EMAILS!: string[];
 
   // InfluxDB
   public INFLUX_URL!: string;
@@ -275,6 +276,20 @@ export class Environment {
       "string",
       "admin"
     );
+    const adminEmails = this.getEnvVar(
+      "ADMIN_EMAILS",
+      "string",
+      "",
+      true
+    ) as string;
+    this.ADMIN_EMAILS = [
+      ...new Set(
+        adminEmails
+          .split(",")
+          .map((email: string) => email.trim().toLowerCase())
+          .filter((email: string) => email.length > 0)
+      ),
+    ];
   }
 
   private loadRedis() {

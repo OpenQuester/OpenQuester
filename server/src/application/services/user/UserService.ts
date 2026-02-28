@@ -470,6 +470,78 @@ export class UserService {
     return user.toDTO();
   }
 
+  public async grantAllPermissionsByEmails(emails: string[]): Promise<void> {
+    const normalizedEmails = [
+      ...new Set(
+        emails
+          .map((email: string) => email.trim().toLowerCase())
+          .filter((email: string) => email.length > 0)
+      ),
+    ];
+
+    if (normalizedEmails.length === 0) {
+      return;
+    }
+
+    const allPermissions = await this.userRepository.getAllPermissions();
+    if (allPermissions.length === 0) {
+      this.logger.warn("No permissions found in database for admin bootstrap", {
+        prefix: LogPrefix.USER,
+      });
+      return;
+    }
+
+    const users = await this.userRepository.findByEmails(normalizedEmails);
+    if (users.length === 0) {
+      this.logger.warn("No users found for admin bootstrap emails", {
+        prefix: LogPrefix.USER,
+        emails: normalizedEmails,
+      });
+      return;
+    }
+
+    const foundEmails = new Set(
+      users
+        .map((user: User) => user.email?.toLowerCase())
+        .filter((email): email is string => !!email)
+    );
+    const missingEmails = normalizedEmails.filter(
+      (email) => !foundEmails.has(email)
+    );
+
+    if (missingEmails.length > 0) {
+      this.logger.warn("Some admin bootstrap emails were not found", {
+        prefix: LogPrefix.USER,
+        missingEmails,
+      });
+    }
+
+    const allPermissionIds = new Set(
+      allPermissions.map((permission: Permission) => permission.id)
+    );
+
+    for (const user of users) {
+      const hasAllPermissions =
+        user.permissions.length === allPermissions.length &&
+        user.permissions.every((permission: Permission) =>
+          allPermissionIds.has(permission.id)
+        );
+
+      if (hasAllPermissions) {
+        continue;
+      }
+
+      user.permissions = allPermissions;
+      await this.userRepository.save(user);
+
+      this.logger.audit("Granted all permissions to admin bootstrap user", {
+        prefix: LogPrefix.USER,
+        userId: user.id,
+        email: user.email,
+      });
+    }
+  }
+
   /**
    * Get permission entities by their names
    */

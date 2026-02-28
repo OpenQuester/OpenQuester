@@ -244,6 +244,7 @@ export class ServeApi {
     const pubSub = container.resolve(RedisPubSubService);
     const gameService = container.resolve(GameService);
     const socketUserDataService = container.resolve(SocketUserDataService);
+    const userService = container.resolve(UserService);
 
     // Clean up all games (set all players as disconnected and pause game)
     await gameService.cleanupAllGames();
@@ -253,6 +254,8 @@ export class ServeApi {
 
     // Clean up all authorized socket sessions
     await socketUserDataService.cleanupAllSession();
+
+    await userService.grantAllPermissionsByEmails(this._context.env.ADMIN_EMAILS);
 
     // Init key expiration listeners
     await pubSub.initKeyExpirationHandling();
