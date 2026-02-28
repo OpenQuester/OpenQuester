@@ -470,6 +470,10 @@ export class UserService {
     return user.toDTO();
   }
 
+  /**
+   * Grants all existing permissions to users matched by provided emails.
+   * Used during server startup to bootstrap administrator accounts.
+   */
   public async grantAllPermissionsByEmails(emails: string[]): Promise<void> {
     const normalizedEmails = [
       ...new Set(
@@ -520,26 +524,27 @@ export class UserService {
       allPermissions.map((permission: Permission) => permission.id)
     );
 
-    for (const user of users) {
-      const hasAllPermissions =
+    const usersToUpdate = users.filter((user: User) => {
+      return !(
         user.permissions.length === allPermissions.length &&
         user.permissions.every((permission: Permission) =>
           allPermissionIds.has(permission.id)
-        );
+        )
+      );
+    });
 
-      if (hasAllPermissions) {
-        continue;
-      }
+    await Promise.all(
+      usersToUpdate.map(async (user: User) => {
+        user.permissions = allPermissions;
+        await this.userRepository.save(user);
 
-      user.permissions = allPermissions;
-      await this.userRepository.save(user);
-
-      this.logger.audit("Granted all permissions to admin bootstrap user", {
-        prefix: LogPrefix.USER,
-        userId: user.id,
-        email: user.email,
-      });
-    }
+        this.logger.audit("Granted all permissions to admin bootstrap user", {
+          prefix: LogPrefix.USER,
+          userId: user.id,
+          email: user.email,
+        });
+      })
+    );
   }
 
   /**

@@ -535,12 +535,18 @@ export class UserRepository {
     return permissions;
   }
 
+  /**
+   * Get all permission entities from database.
+   */
   public async getAllPermissions(): Promise<Permission[]> {
     const permissionRepository =
       this.repository.manager.getRepository(Permission);
     return permissionRepository.find();
   }
 
+  /**
+   * Find active users by lowercase email list with permissions relation preloaded.
+   */
   public async findByEmails(emails: string[]): Promise<User[]> {
     if (emails.length === 0) {
       return [];
