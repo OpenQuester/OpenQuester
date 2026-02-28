@@ -281,10 +281,10 @@ export class Environment {
       "string",
       "",
       true
-    ) as string;
+    ) as string | undefined;
     this.ADMIN_EMAILS = [
       ...new Set(
-        adminEmails
+        (adminEmails ?? "")
           .split(",")
           .map((email: string) => email.trim().toLowerCase())
           .filter((email: string) => email.length > 0)
