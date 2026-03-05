@@ -12,6 +12,7 @@ import { FileService } from "application/services/file/FileService";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
+import { PermissionService } from "application/services/permission/PermissionService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
@@ -244,7 +245,7 @@ export class ServeApi {
     const pubSub = container.resolve(RedisPubSubService);
     const gameService = container.resolve(GameService);
     const socketUserDataService = container.resolve(SocketUserDataService);
-    const userService = container.resolve(UserService);
+    const permissionService = container.resolve(PermissionService);
 
     // Clean up all games (set all players as disconnected and pause game)
     await gameService.cleanupAllGames();
@@ -255,7 +256,7 @@ export class ServeApi {
     // Clean up all authorized socket sessions
     await socketUserDataService.cleanupAllSession();
 
-    await userService.grantAllPermissionsByEmails(this._context.env.ADMIN_EMAILS);
+    await permissionService.grantAllPermissionsByEmails(this._context.env.ADMIN_EMAILS);
 
     // Init key expiration listeners
     await pubSub.initKeyExpirationHandling();

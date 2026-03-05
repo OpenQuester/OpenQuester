@@ -15,4 +15,11 @@ export class PermissionRepository {
   ) {
     //
   }
+
+  /**
+   * Get all permission entities from database.
+   */
+  public async getAll(): Promise<Permission[]> {
+    return this.repository.find();
+  }
 }

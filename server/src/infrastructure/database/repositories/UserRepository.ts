@@ -536,32 +536,6 @@ export class UserRepository {
   }
 
   /**
-   * Get all permission entities from database.
-   */
-  public async getAllPermissions(): Promise<Permission[]> {
-    const permissionRepository =
-      this.repository.manager.getRepository(Permission);
-    return permissionRepository.find();
-  }
-
-  /**
-   * Find active users by lowercase email list with permissions relation preloaded.
-   */
-  public async findByEmails(emails: string[]): Promise<User[]> {
-    if (emails.length === 0) {
-      return [];
-    }
-
-    return this.repository
-      .createQueryBuilder("user")
-      .leftJoinAndSelect("user.permissions", "permission")
-      .where("user.email IS NOT NULL")
-      .andWhere("user.is_deleted = false")
-      .andWhere("LOWER(user.email) IN (:...emails)", { emails })
-      .getMany();
-  }
-
-  /**
    * Save updated user entity via repository, sets updated_at to current date and clears cache
    */
   public async save(user: User): Promise<User> {
