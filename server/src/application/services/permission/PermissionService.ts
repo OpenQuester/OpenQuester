@@ -82,8 +82,11 @@ export class PermissionService {
     user: User,
     allPermissionIds: Set<number>
   ): boolean {
-    return user.permissions.every((permission: Permission) =>
-      allPermissionIds.has(permission.id)
+    return (
+      user.permissions.length === allPermissionIds.size &&
+      user.permissions.every((permission: Permission) =>
+        allPermissionIds.has(permission.id)
+      )
     );
   }
 }
