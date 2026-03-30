@@ -83,13 +83,20 @@ export interface UpdateSocketSessionMutation {
   readonly gameId: string;
 }
 
+export enum MutationAction {
+  INIT_SESSION = "INIT_SESSION",
+  CLEAR_LEFT_AT = "CLEAR_LEFT_AT",
+  END_SESSION = "END_SESSION",
+}
+
 /**
  * Discriminated union of all stats side-effects that can be declared
  * as a mutation rather than executed directly in a Use Case.
  */
 export type PlayerStatsMutationAction =
-  | { readonly action: "INIT_SESSION"; readonly joinedAt: Date }
-  | { readonly action: "CLEAR_LEFT_AT" };
+  | { readonly action: MutationAction.INIT_SESSION; readonly joinedAt: Date }
+  | { readonly action: MutationAction.CLEAR_LEFT_AT }
+  | { readonly action: MutationAction.END_SESSION; readonly leftAt: Date };
 
 /**
  * Apply a player statistics side-effect.
@@ -105,6 +112,23 @@ export interface UpdatePlayerStatsMutation {
 }
 
 /**
+ * Delete the game entity from Redis via DEL.
+ * The executor batches this into the OUT pipeline.
+ */
+export interface DeleteGameMutation {
+  readonly type: DataMutationType.DELETE_GAME;
+  readonly gameId: string;
+}
+
+/**
+ * Force disconnect a user's socket.
+ */
+export interface DisconnectSocketMutation {
+  readonly type: DataMutationType.DISCONNECT_SOCKET;
+  readonly userId: number;
+}
+
+/**
  * Discriminated union of all data mutations.
  * Handlers return these as `DataMutation[]` to declare their side effects.
  */
@@ -115,12 +139,19 @@ export type DataMutation =
   | BroadcastMutation
   | GameCompletionMutation
   | UpdateSocketSessionMutation
-  | UpdatePlayerStatsMutation;
+  | UpdatePlayerStatsMutation
+  | DeleteGameMutation
+  | DisconnectSocketMutation;
 
 /** Create a SAVE_GAME mutation. */
 export class DataMutationConverter {
   public static saveGameMutation(game: Game): SaveGameMutation {
     return { type: DataMutationType.SAVE_GAME, game };
+  }
+
+  /** Create a DELETE_GAME mutation. */
+  public static deleteGameMutation(gameId: string): DeleteGameMutation {
+    return { type: DataMutationType.DELETE_GAME, gameId };
   }
 
   /** Create a TIMER_SET mutation. */
@@ -288,7 +319,7 @@ export class DataMutationConverter {
       type: DataMutationType.UPDATE_PLAYER_STATS,
       gameId,
       userId,
-      payload: { action: "INIT_SESSION", joinedAt },
+      payload: { action: MutationAction.INIT_SESSION, joinedAt },
     };
   }
 
@@ -304,7 +335,7 @@ export class DataMutationConverter {
       type: DataMutationType.UPDATE_PLAYER_STATS,
       gameId,
       userId,
-      payload: { action: "CLEAR_LEFT_AT" },
+      payload: { action: MutationAction.CLEAR_LEFT_AT },
     };
   }
 }

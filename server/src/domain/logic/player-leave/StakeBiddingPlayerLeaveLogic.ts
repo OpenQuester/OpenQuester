@@ -32,7 +32,6 @@ export interface StakeBiddingPlayerLeaveMutationResult {
  */
 export interface StakeBiddingPlayerLeaveResult {
   broadcasts: BroadcastEvent[];
-  mutationResult: StakeBiddingPlayerLeaveMutationResult | null;
 }
 
 export interface StakeBiddingPlayerLeaveResultInput {
@@ -189,7 +188,7 @@ export class StakeBiddingPlayerLeaveLogic {
     const broadcasts: BroadcastEvent[] = [];
 
     if (!mutationResult) {
-      return { broadcasts, mutationResult: null };
+      return { broadcasts };
     }
 
     // Emit the auto-pass bid event
@@ -217,7 +216,7 @@ export class StakeBiddingPlayerLeaveLogic {
       });
     }
 
-    return { broadcasts, mutationResult };
+    return { broadcasts };
   }
 
   /**

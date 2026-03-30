@@ -22,11 +22,6 @@ import {
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { GameValidator } from "domain/validators/GameValidator";
 
-// TODO: After all handlers migrated, rename/change interface GameActionHandler
-//       to IGameActionUseCase. The execute() contract stays identical — only
-//       the name changes to correctly reflect that these are Use Cases, not
-//       low-level "handlers" of raw action objects.
-
 /**
  * Orchestrates the full player-join flow
  *

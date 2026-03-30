@@ -41,7 +41,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
  *
  * Entry points that can trigger this:
  * - User submits bid (FinalRoundService.handleFinalBidSubmit)
- * - Player leaves during bidding (PlayerLeaveService.handleFinalBiddingPlayerLeave)
+ * - Player leaves during bidding (FinalBiddingLeaveStrategy)
  * - Bidding timer expires (TimerExpirationService.handleBiddingExpiration)
  *
  * All three entry points now use this single handler through PhaseTransitionRouter.

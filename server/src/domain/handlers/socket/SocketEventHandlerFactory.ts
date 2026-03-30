@@ -145,7 +145,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOGameService,
         this.socketGameContextService
       ),
       new PlayerRestrictionEventHandler(
@@ -153,7 +152,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOGameService,
         this.socketGameContextService
       ),
       new PlayerRoleChangeEventHandler(
@@ -203,7 +201,6 @@ export class SocketEventHandlerFactory {
         eventEmitter,
         this.logger,
         this.gameActionExecutor,
-        this.socketIOGameService,
         this.socketUserDataService
       ),
       new ChatMessageEventHandler(

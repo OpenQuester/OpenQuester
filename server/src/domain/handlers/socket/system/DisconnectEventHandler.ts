@@ -1,7 +1,6 @@
 import { Socket } from "socket.io";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
-import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import {
@@ -25,7 +24,6 @@ export class DisconnectEventHandler extends BaseSocketEventHandler<
     eventEmitter: SocketIOEventEmitter,
     logger: ILogger,
     actionExecutor: GameActionExecutor,
-    private readonly socketIOGameService: SocketIOGameService,
     private readonly socketUserDataService: SocketUserDataService
   ) {
     super(socket, eventEmitter, logger, actionExecutor);

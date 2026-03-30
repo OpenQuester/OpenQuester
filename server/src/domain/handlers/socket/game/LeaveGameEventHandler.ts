@@ -11,7 +11,6 @@ import {
   SocketEventContext,
   SocketEventResult,
 } from "domain/handlers/socket/BaseSocketEventHandler";
-import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import {
   EmptyInputData,
   GameLeaveBroadcastData,
@@ -88,20 +87,7 @@ export class LeaveGameEventHandler extends BaseSocketEventHandler<
           );
         }
 
-        const activePlayers = game.players.filter(
-          (p) => p.gameStatus === PlayerGameStatus.IN_GAME
-        );
-
-        const gameNotStartedOrFinished =
-          game.startedAt === null || game.finishedAt !== null;
-
-        if (activePlayers.length === 0 && gameNotStartedOrFinished) {
-          this.logger.debug(
-            `Deleting empty game ${gameId} after last player left`,
-            { prefix: LogPrefix.NOTIFICATION }
-          );
-          await this.socketIOGameService.deleteGameInternally(gameId);
-        }
+        // Empty game deletion is handled by LeaveGameUseCase via DELETE_GAME mutation
       } catch (error) {
         this.logger.error(
           `Could not clean up user notification rooms for game ${gameId}: ${error}`,

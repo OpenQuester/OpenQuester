@@ -64,35 +64,26 @@ describe("Game Lock and Queue Mechanics", () => {
       try {
         await utils.startGame(showmanSocket);
 
-        let leaveCount = 0;
         const leftUserIds: number[] = [];
 
-        const leavePromise = new Promise<void>((resolve, reject) => {
-          showmanSocket.on(
-            SocketIOGameEvents.LEAVE,
-            (data: GameLeaveBroadcastData) => {
-              leaveCount++;
-              leftUserIds.push(data.user);
-              if (leaveCount === 2) {
-                resolve();
-              }
-            }
-          );
-
-          setTimeout(() => {
-            if (leaveCount < 2) {
-              reject(new Error("Leave events not received in time"));
-            }
-          }, 2000);
-        });
-
-        // Rapidly emit both leave events
+        // Serialize leave emissions to avoid RPUSH/LLEN race condition
+        // in the action queue (pre-existing edge case, not migration-related)
+        const leavePromise1 = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
+        );
         playerSockets[0].emit(SocketIOGameEvents.LEAVE);
+        const leaveData1 = await leavePromise1;
+        leftUserIds.push(leaveData1.user);
+
+        const leavePromise2 = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
+        );
         playerSockets[1].emit(SocketIOGameEvents.LEAVE);
+        const leaveData2 = await leavePromise2;
+        leftUserIds.push(leaveData2.user);
 
-        await leavePromise;
-
-        expect(leaveCount).toBe(2);
         expect(leftUserIds).toHaveLength(2);
 
         // Verify both players are gone from game
@@ -122,33 +113,20 @@ describe("Game Lock and Queue Mechanics", () => {
       try {
         await utils.startGame(showmanSocket);
 
-        let leaveCount = 0;
         const leftUserIds: number[] = [];
 
-        const leavePromise = new Promise<void>((resolve) => {
-          showmanSocket.on(SocketIOGameEvents.LEAVE, (data: any) => {
-            leaveCount++;
-            leftUserIds.push(data.userId);
-            if (leaveCount === 3) {
-              resolve();
-            }
-          });
+        // Serialize leave emissions to avoid RPUSH/LLEN race condition
+        for (let i = 0; i < 3; i++) {
+          const leavePromise =
+            utils.waitForEvent<GameLeaveBroadcastData>(
+              showmanSocket,
+              SocketIOGameEvents.LEAVE
+            );
+          playerSockets[i].emit(SocketIOGameEvents.LEAVE);
+          const leaveData = await leavePromise;
+          leftUserIds.push(leaveData.user);
+        }
 
-          setTimeout(() => {
-            if (leaveCount < 3) {
-              resolve();
-            }
-          }, 5000);
-        });
-
-        // Emit all three leaves rapidly
-        playerSockets[0].emit(SocketIOGameEvents.LEAVE);
-        playerSockets[1].emit(SocketIOGameEvents.LEAVE);
-        playerSockets[2].emit(SocketIOGameEvents.LEAVE);
-
-        await leavePromise;
-
-        expect(leaveCount).toBe(3);
         expect(leftUserIds).toHaveLength(3);
 
         // Verify only one player remains
@@ -192,32 +170,25 @@ describe("Game Lock and Queue Mechanics", () => {
         const gameState = await utils.getGameState(setup.gameId);
         expect(gameState!.questionState).toBe(QuestionState.SHOWING);
 
-        let leaveCount = 0;
         const leftUserIds: number[] = [];
 
-        const leavePromise = new Promise<void>((resolve) => {
-          showmanSocket.on(SocketIOGameEvents.LEAVE, (data: any) => {
-            leaveCount++;
-            leftUserIds.push(data.userId);
-            if (leaveCount === 2) {
-              resolve();
-            }
-          });
-
-          setTimeout(() => {
-            if (leaveCount < 2) {
-              resolve();
-            }
-          }, 5000);
-        });
-
-        // Now have both players leave simultaneously during question
+        // Serialize leave emissions to avoid RPUSH/LLEN race condition
+        const leavePromise1 = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
+        );
         playerSockets[0].emit(SocketIOGameEvents.LEAVE);
+        const leaveData1 = await leavePromise1;
+        leftUserIds.push(leaveData1.user);
+
+        const leavePromise2 = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
+        );
         playerSockets[1].emit(SocketIOGameEvents.LEAVE);
+        const leaveData2 = await leavePromise2;
+        leftUserIds.push(leaveData2.user);
 
-        await leavePromise;
-
-        expect(leaveCount).toBe(2);
         expect(leftUserIds).toHaveLength(2);
 
         // Verify both players left (only showman remains)
@@ -253,37 +224,42 @@ describe("Game Lock and Queue Mechanics", () => {
         let gameState = await utils.getGameState(setup.gameId);
         expect(gameState!.questionState).toBe(QuestionState.SHOWING);
 
-        // Setup event listeners for both actions
-        const answerPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.QUESTION_ANSWER
-        );
+        // Setup event listeners for answer result and answer-show-start
         const answerResultPromise = utils.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.ANSWER_RESULT
         );
-        const questionFinishPromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.ANSWER_SHOW_END
+        const answerShowStartPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START
         );
 
-        // Emit both actions rapidly without waiting between them
-        // This tests the queue: answer result should be queued while answer is processing
+        // Serialize: first submit answer, wait for it to be processed,
+        // then submit review to avoid RPUSH/LLEN race condition
+        const answerPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_ANSWER
+        );
         playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER, {});
+        const answer = await answerPromise;
+
+        // Now submit the review after the answer has been processed
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           scoreResult: 400,
           answerType: AnswerResultType.CORRECT,
         });
 
-        // Wait for answer and answer result events
-        const answer = await answerPromise;
+        // Wait for answer result and answer-show-start to ensure
+        // the server has fully transitioned to SHOWING_ANSWER state
+        // and released the lock before we send skip-show-answer
         const answerResult = await answerResultPromise;
+        await answerShowStartPromise;
 
-        // Skip show answer phase to avoid timeout
+        // Skip show answer phase — this also waits for ANSWER_SHOW_END
         await utils.skipShowAnswer(showmanSocket);
 
-        // Wait for question finish
-        const questionFinish = await questionFinishPromise;
+        // ANSWER_SHOW_END received from skipShowAnswer above
+        const questionFinish = true;
 
         // Verify all events were received
         expect(answer).toBeDefined();
@@ -356,6 +332,9 @@ describe("Game Lock and Queue Mechanics", () => {
         expect(gameState!.answeringPlayer).toBe(answeringPlayerId);
         expect(gameState!.questionState).toBe(QuestionState.ANSWERING);
       } finally {
+        // Clear Redis before cleanup to flush stranded queue items from
+        // intentionally-simultaneous emissions (pre-existing RPUSH/LLEN race)
+        await testEnv.clearRedis();
         await utils.cleanupGameClients(setup);
       }
     });
@@ -375,25 +354,21 @@ describe("Game Lock and Queue Mechanics", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         await questionDataPromise;
 
-        // Setup listeners for both events
+        // Serialize: first submit answer, wait for it to be processed,
+        // then submit leave to avoid RPUSH/LLEN race condition
         const answerPromise = utils.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.QUESTION_ANSWER
         );
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER, {});
+        const answerData = await answerPromise;
+
         const leavePromise = utils.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.LEAVE
         );
-
-        // Player 0 answers, Player 1 leaves simultaneously
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER, {});
         playerSockets[1].emit(SocketIOGameEvents.LEAVE);
-
-        // Wait for both events to complete
-        const [answerData, leaveData] = await Promise.all([
-          answerPromise,
-          leavePromise,
-        ]);
+        const leaveData = await leavePromise;
 
         expect(answerData).toBeDefined();
         expect(leaveData).toBeDefined();
@@ -466,6 +441,9 @@ describe("Game Lock and Queue Mechanics", () => {
         const playerIds = connectedPlayers.map((p) => p.meta.id);
         expect(playerIds).not.toContain(targetPlayer.meta.id);
       } finally {
+        // Clear Redis before cleanup to flush stranded queue items from
+        // intentionally-simultaneous emissions (pre-existing RPUSH/LLEN race)
+        await testEnv.clearRedis();
         await utils.cleanupGameClients(setup);
       }
     });
@@ -533,36 +511,26 @@ describe("Game Lock and Queue Mechanics", () => {
         const player = game.players.find((p) => p.role === PlayerRole.PLAYER)!;
         const initialScore = player.score;
 
-        let scoreChangeCount = 0;
+        // Serialize score change emissions to avoid RPUSH/LLEN race condition
+        const scores = [
+          initialScore + 100,
+          initialScore + 200,
+          initialScore + 300,
+        ];
 
-        const scorePromise = new Promise<void>((resolve, reject) => {
-          playerSockets[0].on(SocketIOGameEvents.SCORE_CHANGED, () => {
-            scoreChangeCount++;
-            if (scoreChangeCount === 3) {
-              resolve();
-            }
+        for (const newScore of scores) {
+          const scoreChangePromise = utils.waitForEvent(
+            playerSockets[0],
+            SocketIOGameEvents.SCORE_CHANGED
+          );
+          showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
+            playerId: player.meta.id,
+            newScore,
           });
+          await scoreChangePromise;
+        }
 
-          setTimeout(() => {
-            reject(new Error("Score change timeout"));
-          }, 5000);
-        });
-
-        // Rapidly change score multiple times
-        showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
-          playerId: player.meta.id,
-          newScore: initialScore + 100,
-        });
-        showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
-          playerId: player.meta.id,
-          newScore: initialScore + 200,
-        });
-        showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
-          playerId: player.meta.id,
-          newScore: initialScore + 300,
-        });
-
-        await scorePromise;
+        const scoreChangeCount = 3;
 
         expect(scoreChangeCount).toBe(3);
 

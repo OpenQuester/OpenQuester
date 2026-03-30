@@ -46,6 +46,7 @@ import { TimerExpirationService } from "application/services/timer/TimerExpirati
 import { UserService } from "application/services/user/UserService";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
+import { PlayerLeaveOrchestrator } from "domain/logic/player-leave/PlayerLeaveOrchestrator";
 import { createPhaseTransitionRouter } from "domain/state-machine/createPhaseTransitionRouter";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { RedisCache } from "infrastructure/cache/RedisCache";
@@ -159,10 +160,6 @@ export async function bootstrapContainer(
   // Note: RedisCache has @singleton() so we use the same instance
   container.register(DI_TOKENS.Cache, { useToken: RedisCache });
 
-  // IGameLobbyLeaver -> SocketIOGameService (registered later, uses delay pattern)
-  // This registration is deferred - the actual wiring happens in STEP 6
-  // via setter injection: userService.setGameLobbyLeaver(socketIOGameService)
-
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 3: Register runtime-created managers
   // ═══════════════════════════════════════════════════════════════════════════
@@ -234,6 +231,7 @@ export async function bootstrapContainer(
     gameStatisticsCollectorService: container.resolve(
       GameStatisticsCollectorService
     ),
+    playerLeaveOrchestrator: container.resolve(PlayerLeaveOrchestrator),
     userService,
     gameProgressionCoordinator: container.resolve(GameProgressionCoordinator),
     gameService,
@@ -256,266 +254,6 @@ export async function bootstrapContainer(
   // GameActionBroadcastService needs init with IO namespace and game service
   const broadcastService = container.resolve(GameActionBroadcastService);
   broadcastService.init(gameNamespace, socketIOGameService);
-
-  // Wire UserService.setGameLobbyLeaver to break circular dependency
-  // SocketIOGameService implements IGameLobbyLeaver interface
-  userService.setGameLobbyLeaver(socketIOGameService);
 }
 
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
-/**
- * Export the container for advanced use cases.
- * Prefer using resolve() helpers in most cases.
- */
 export { container };

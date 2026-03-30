@@ -28,7 +28,7 @@ import { FinalAnsweringToReviewingMutationData } from "domain/types/socket/trans
  *
  * Entry points that can trigger this:
  * - User submits answer (FinalRoundService.handleFinalAnswerSubmit)
- * - Player leaves during answering (PlayerLeaveService.handleAnsweringPlayerLeave)
+ * - Player leaves during answering (AnsweringLeaveStrategy)
  * - Answering timer expires (TimerExpirationService.handleFinalRoundAnsweringExpiration)
  */
 export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {

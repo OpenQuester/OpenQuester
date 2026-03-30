@@ -304,20 +304,34 @@ describe("Final Round Player Leave", () => {
           playerUsers
         );
 
-        // Submit all bids
+        // Submit bids sequentially to reach answering phase
         const questionDataPromise = utils.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
+
+        const firstBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800,
         } satisfies FinalBidSubmitInputData);
+        await firstBidPromise;
+
+        const secondBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600,
         } satisfies FinalBidSubmitInputData);
+        await secondBidPromise;
+
         playerSockets[2].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 500,
         } satisfies FinalBidSubmitInputData);
+
         await questionDataPromise;
 
         // Verify we're in answering phase
@@ -442,12 +456,25 @@ describe("Final Round Player Leave", () => {
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
+
+        const firstBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800,
         });
+        await firstBidPromise;
+
+        const secondBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600,
         });
+        await secondBidPromise;
+
         playerSockets[2].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 500,
         });
@@ -518,9 +545,16 @@ describe("Final Round Player Leave", () => {
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
+
+        const firstBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800,
         });
+        await firstBidPromise;
+
         playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600,
         });

@@ -4,16 +4,16 @@ import { inject, singleton } from "tsyringe";
 import { FindOptionsWhere } from "typeorm";
 
 import { DI_TOKENS } from "application/di/tokens";
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { GamePipelineService } from "application/services/pipeline/GamePipelineService";
-import { IGameLobbyLeaver } from "application/services/socket/IGameLobbyLeaver";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
 import { ClientResponse } from "domain/enums/ClientResponse";
+import { GameActionType } from "domain/enums/GameActionType";
 import { HttpStatus } from "domain/enums/HttpStatus";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
-import { ServerError } from "domain/errors/ServerError";
+import { type GameAction } from "domain/types/action/GameAction";
 import { UpdateUserDTO } from "domain/types/dto/user/UpdateUserDTO";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { asUserId, userId } from "domain/types/ids";
@@ -40,15 +40,11 @@ export class UserService {
     private readonly userNotificationRoomService: UserNotificationRoomService,
     private readonly gamePipelineService: GamePipelineService,
     private readonly socketUserDataService: SocketUserDataService,
+    private readonly actionExecutor: GameActionExecutor,
     @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
-  }
-  private _gameLobbyLeaver: IGameLobbyLeaver | null = null;
-
-  public setGameLobbyLeaver(leaver: IGameLobbyLeaver): void {
-    this._gameLobbyLeaver = leaver;
   }
 
   /**
@@ -248,10 +244,6 @@ export class UserService {
 
     if (!socketId) return;
 
-    if (!this._gameLobbyLeaver) {
-      throw new ServerError("Game lobby leaver service not initialized");
-    }
-
     const sessionAndGame = await this.gamePipelineService.fetchSessionAndGame(
       socketId
     );
@@ -262,19 +254,21 @@ export class UserService {
       return;
     }
 
-    const { userData, game } = sessionAndGame;
+    const { game } = sessionAndGame;
 
-    const leaveResult = await this._gameLobbyLeaver.leaveLobby(
-      socketId,
-      userData,
-      game
-    );
+    // Dispatch leave through the action executor for proper Redis locking
+    // and unified leave logic (game state cleanup, broadcasts, stats)
+    const action: GameAction = {
+      id: ValueUtils.generateUUID(),
+      type: GameActionType.LEAVE,
+      gameId: game.id,
+      playerId: userId,
+      socketId: socketId,
+      timestamp: new Date(),
+      payload: {},
+    };
 
-    if (leaveResult.emit && leaveResult.data) {
-      this.gamesNsp
-        .to(leaveResult.data.game.id)
-        .emit(SocketIOGameEvents.LEAVE, { user: userId });
-    }
+    await this.actionExecutor.submitAction(action);
 
     // Force disconnect across all instances via Redis adapter
     this.gamesNsp.in(socketId).disconnectSockets(true);

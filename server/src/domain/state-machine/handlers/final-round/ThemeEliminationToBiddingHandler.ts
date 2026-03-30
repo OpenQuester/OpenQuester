@@ -32,7 +32,7 @@ import { ServerError } from "domain/errors/ServerError";
  * Entry points that can trigger this:
  * - User eliminates a theme (FinalRoundService.handleThemeEliminate)
  * - Theme elimination timer expires (TimerExpirationService.handleThemeEliminationExpiration)
- * - Player leaves during theme elimination (PlayerLeaveService)
+ * - Player leaves during theme elimination (TurnPlayerLeaveStrategy)
  */
 export class ThemeEliminationToBiddingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.FINAL_THEME_ELIMINATION;

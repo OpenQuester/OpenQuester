@@ -1,8 +1,19 @@
-import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { createActionContextFromAction } from "domain/types/action/ActionContext";
+import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { DataMutationType } from "domain/enums/DataMutationType";
+import { ClientError } from "domain/errors/ClientError";
+import { PlayerRestrictionLogic } from "domain/logic/game/PlayerRestrictionLogic";
+import {
+  PlayerLeaveOrchestrator,
+  PlayerLeaveReason,
+} from "domain/logic/player-leave/PlayerLeaveOrchestrator";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
-import { DataMutationConverter } from "domain/types/action/DataMutation";
+import {
+  DataMutation,
+  DataMutationConverter,
+  MutationAction,
+} from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import {
   PlayerRestrictionBroadcastData,
@@ -19,23 +30,105 @@ export class PlayerRestrictionActionHandler
       PlayerRestrictionBroadcastData
     >
 {
-  constructor(private readonly socketIOGameService: SocketIOGameService) {}
+  constructor(
+    private readonly socketGameValidationService: SocketGameValidationService,
+    private readonly playerLeaveOrchestrator: PlayerLeaveOrchestrator
+  ) {
+    //
+  }
 
   public async execute(
     ctx: ActionExecutionContext<PlayerRestrictionInputData>
   ): Promise<ActionHandlerResult<PlayerRestrictionBroadcastData>> {
-    const { payload } = ctx.action;
+    const { game, userData, action } = ctx;
+    const { payload } = action;
+    const targetPlayerId = payload.playerId;
 
-    const result = await this.socketIOGameService.updatePlayerRestrictions(
-      createActionContextFromAction(ctx.action),
-      ctx.userData,
-      ctx.game,
-      payload.playerId,
-      {
-        muted: payload.muted,
-        restricted: payload.restricted,
-        banned: payload.banned,
+    const currentPlayer = game.getPlayer(userData!.id, {
+      fetchDisconnected: false,
+    });
+
+    const targetPlayer = game.getPlayer(targetPlayerId, {
+      fetchDisconnected: true,
+    });
+
+    if (!targetPlayer || !currentPlayer) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+
+    this.socketGameValidationService.validatePlayerManagement(currentPlayer);
+
+    const mutation = PlayerRestrictionLogic.applyRestrictions(targetPlayer, {
+      muted: payload.muted,
+      restricted: payload.restricted,
+      banned: payload.banned,
+    });
+
+    const mutations: DataMutation[] = [];
+    let broadcasts = [];
+
+    if (mutation.shouldBan) {
+      const leaveResult = await this.playerLeaveOrchestrator.processLeave(
+        game,
+        targetPlayerId,
+        {
+          reason: PlayerLeaveReason.BAN,
+        }
+      );
+
+      mutations.push(...leaveResult.mutations);
+
+      const banResult = PlayerRestrictionLogic.buildBanResult({
+        game,
+        targetPlayer,
+        restrictions: payload,
+      });
+
+      broadcasts = [...leaveResult.broadcasts, ...banResult.broadcasts];
+
+      mutations.push({
+        type: DataMutationType.DISCONNECT_SOCKET,
+        userId: targetPlayerId,
+      });
+    } else if (mutation.shouldRestrictToSpectator) {
+      const cleanupResult =
+        await this.playerLeaveOrchestrator.processGameStateCleanup(
+          game,
+          targetPlayerId
+        );
+
+      mutations.push(...cleanupResult.mutations);
+
+      if (PlayerRestrictionLogic.wasPlayerRole(mutation.originalRole)) {
+        mutations.push({
+          type: DataMutationType.UPDATE_PLAYER_STATS,
+          gameId: game.id,
+          userId: targetPlayerId,
+          payload: { action: MutationAction.END_SESSION, leftAt: new Date() },
+        });
       }
+
+      const restrictResult = PlayerRestrictionLogic.buildRestrictResult({
+        game,
+        targetPlayer,
+        newRole: mutation.newRole!,
+        restrictions: payload,
+        gameStateCleanupBroadcasts: cleanupResult.broadcasts,
+      });
+
+      broadcasts = restrictResult.broadcasts;
+    } else {
+      const simpleResult = PlayerRestrictionLogic.buildSimpleResult({
+        game,
+        targetPlayer,
+        restrictions: payload,
+      });
+      broadcasts = simpleResult.broadcasts;
+    }
+
+    mutations.push(DataMutationConverter.saveGameMutation(game));
+    mutations.push(
+      ...DataMutationConverter.mutationFromSocketBroadcasts(broadcasts)
     );
 
     const broadcastData: PlayerRestrictionBroadcastData = {
@@ -48,12 +141,8 @@ export class PlayerRestrictionActionHandler
     return {
       success: true,
       data: broadcastData,
-      mutations: [
-        ...DataMutationConverter.mutationFromSocketBroadcasts(
-          result.broadcasts
-        ),
-      ],
-      broadcastGame: result.data.game,
+      mutations,
+      broadcastGame: game,
     };
   }
 }

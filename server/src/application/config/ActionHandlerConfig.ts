@@ -13,13 +13,13 @@ import { PlayerGameStatsService } from "application/services/statistics/PlayerGa
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { UserService } from "application/services/user/UserService";
 import { JoinGameUseCase } from "application/usecases/game/JoinGameUseCase";
+import { LeaveGameUseCase } from "application/usecases/game/LeaveGameUseCase";
 import { GameActionType } from "domain/enums/GameActionType";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { FinalAnswerReviewActionHandler } from "domain/handlers/action/finalround/FinalAnswerReviewActionHandler";
 import { FinalAnswerSubmitActionHandler } from "domain/handlers/action/finalround/FinalAnswerSubmitActionHandler";
 import { FinalBidSubmitActionHandler } from "domain/handlers/action/finalround/FinalBidSubmitActionHandler";
 import { ThemeEliminateActionHandler } from "domain/handlers/action/finalround/ThemeEliminateActionHandler";
-import { LeaveGameActionHandler } from "domain/handlers/action/game/LeaveGameActionHandler";
 import { MediaDownloadedActionHandler } from "domain/handlers/action/game/MediaDownloadedActionHandler";
 import { NextRoundActionHandler } from "domain/handlers/action/game/NextRoundActionHandler";
 import { PauseGameActionHandler } from "domain/handlers/action/game/PauseGameActionHandler";
@@ -45,6 +45,7 @@ import { SkipShowAnswerActionHandler } from "domain/handlers/action/question/Ski
 import { StakeBidSubmitActionHandler } from "domain/handlers/action/question/StakeBidSubmitActionHandler";
 import { DisconnectActionHandler } from "domain/handlers/action/system/DisconnectActionHandler";
 import { TimerExpirationActionHandler } from "domain/handlers/action/timer/TimerExpirationActionHandler";
+import { PlayerLeaveOrchestrator } from "domain/logic/player-leave/PlayerLeaveOrchestrator";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -69,6 +70,7 @@ export interface ActionHandlerConfigDeps {
   gameService: GameService;
   timerExpirationService: TimerExpirationService;
   phaseTransitionRouter: PhaseTransitionRouter;
+  playerLeaveOrchestrator: PlayerLeaveOrchestrator;
   roundHandlerFactory: RoundHandlerFactory;
   packageStore: PackageStore;
   logger: ILogger;
@@ -95,6 +97,8 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     gameProgressionCoordinator,
     timerExpirationService,
     phaseTransitionRouter,
+    playerLeaveOrchestrator,
+    socketGameValidationService,
     roundHandlerFactory,
     packageStore,
     logger,
@@ -110,7 +114,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.LEAVE,
-    new LeaveGameActionHandler(socketIOGameService)
+    new LeaveGameUseCase(playerLeaveOrchestrator)
   );
 
   registry.register(
@@ -160,35 +164,41 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.PLAYER_KICK,
-    new PlayerKickActionHandler(socketIOGameService)
+    new PlayerKickActionHandler(
+      socketGameValidationService,
+      playerLeaveOrchestrator
+    )
   );
 
   registry.register(
     GameActionType.PLAYER_RESTRICTION,
-    new PlayerRestrictionActionHandler(socketIOGameService)
+    new PlayerRestrictionActionHandler(
+      socketGameValidationService,
+      playerLeaveOrchestrator
+    )
   );
 
   registry.register(
     GameActionType.PLAYER_ROLE_CHANGE,
     new PlayerRoleChangeActionHandler(
-      deps.socketGameValidationService,
+      socketGameValidationService,
       playerGameStatsService
     )
   );
 
   registry.register(
     GameActionType.PLAYER_SCORE_CHANGE,
-    new PlayerScoreChangeActionHandler(deps.socketGameValidationService)
+    new PlayerScoreChangeActionHandler(socketGameValidationService)
   );
 
   registry.register(
     GameActionType.PLAYER_SLOT_CHANGE,
-    new PlayerSlotChangeActionHandler(deps.socketGameValidationService)
+    new PlayerSlotChangeActionHandler(socketGameValidationService)
   );
 
   registry.register(
     GameActionType.TURN_PLAYER_CHANGE,
-    new TurnPlayerChangeActionHandler(deps.socketGameValidationService)
+    new TurnPlayerChangeActionHandler(socketGameValidationService)
   );
 
   // =====================================
@@ -291,7 +301,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   registry.register(
     GameActionType.DISCONNECT,
-    new DisconnectActionHandler(socketIOGameService)
+    new DisconnectActionHandler(playerLeaveOrchestrator)
   );
 
   registry.register(

@@ -3,10 +3,6 @@ import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "application/di/tokens";
 import { GameService } from "application/services/game/GameService";
-import {
-  PlayerLeaveReason,
-  PlayerLeaveService,
-} from "application/services/player/PlayerLeaveService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
@@ -23,11 +19,7 @@ import {
   GameStartResult,
 } from "domain/logic/game/GameStartLogic";
 import { PlayerReadinessLogic } from "domain/logic/game/PlayerReadinessLogic";
-import {
-  PlayerRestrictionLogic,
-  PlayerRestrictionResult,
-  RestrictionUpdateInput,
-} from "domain/logic/game/PlayerRestrictionLogic";
+
 import {
   PlayerRoleChangeLogic,
   RoleChangeResult,
@@ -47,12 +39,9 @@ import {
 } from "domain/logic/game/TurnPlayerChangeLogic";
 import { ActionContext } from "domain/types/action/ActionContext";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
-import { GameLobbyLeaveData } from "domain/types/game/GameRoomLeaveData";
-import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
-import { BroadcastEvent } from "domain/types/service/ServiceResult";
-import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
+
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { ILogger } from "infrastructure/logger/ILogger";
@@ -75,7 +64,6 @@ export class SocketIOGameService {
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly gameStatisticsCollectorService: GameStatisticsCollectorService,
     private readonly playerGameStatsService: PlayerGameStatsService,
-    private readonly playerLeaveService: PlayerLeaveService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
     @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
     private readonly packageStore: PackageStore
@@ -126,42 +114,6 @@ export class SocketIOGameService {
     }
 
     return GameStartLogic.buildResult(game);
-  }
-
-  public async leaveLobby(
-    socketId: string,
-    userData: SocketRedisUserData | null,
-    game: Game
-  ): Promise<GameLobbyLeaveData> {
-    const result = await this.playerLeaveService.handlePlayerLeave(
-      socketId,
-      game,
-      userData,
-      {
-        reason: PlayerLeaveReason.LEAVE,
-      }
-    );
-
-    if (!result.shouldEmitLeave) {
-      return { emit: false };
-    }
-
-    const activePlayers = result.game.players.filter(
-      (p) => p.gameStatus === PlayerGameStatus.IN_GAME
-    );
-
-    const gameNotStartedOrFinished =
-      result.game.startedAt === null || result.game.finishedAt !== null;
-
-    if (activePlayers.length === 0 && gameNotStartedOrFinished) {
-      await this.deleteGameInternally(result.game.id);
-    }
-
-    return {
-      emit: true,
-      data: { userId: result.userId, game: result.game },
-      broadcasts: result.broadcasts,
-    };
   }
 
   /**
@@ -352,189 +304,6 @@ export class SocketIOGameService {
     await this.gameService.updateGame(game);
 
     return PlayerRoleChangeLogic.buildResult({ game, targetPlayer });
-  }
-
-  /**
-   * Updates player restrictions (mute/restrict/ban).
-   *
-   * Flow:
-   * 1. Fetch context and validate
-   * 2. Apply restrictions (via Logic class)
-   * 3. Handle ban (remove from game) or restriction (change to spectator)
-   * 4. Persist and return result (via Logic.buildResult)
-   */
-  public async updatePlayerRestrictions(
-    actionContext: ActionContext,
-    userData: SocketRedisUserData | null,
-    game: Game,
-    targetPlayerId: number,
-    restrictions: RestrictionUpdateInput
-  ): Promise<PlayerRestrictionResult> {
-    const currentPlayer = game.getPlayer(userData!.id, {
-      fetchDisconnected: false,
-    });
-
-    const targetPlayer = game.getPlayer(targetPlayerId, {
-      fetchDisconnected: true,
-    });
-
-    if (!targetPlayer || !currentPlayer) {
-      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
-    }
-
-    this.socketGameValidationService.validatePlayerManagement(currentPlayer);
-
-    // Apply restrictions using Logic class
-    const mutation = PlayerRestrictionLogic.applyRestrictions(
-      targetPlayer,
-      restrictions
-    );
-
-    // Handle ban scenario
-    if (mutation.shouldBan) {
-      await this.gameService.updateGame(game);
-
-      const leaveResult = await this.playerLeaveService.handlePlayerLeave(
-        actionContext.socketId,
-        game,
-        userData,
-        {
-          reason: PlayerLeaveReason.BAN,
-          targetUserId: targetPlayerId,
-          bannedBy: currentPlayer!.meta.id,
-          cleanupSession: false,
-        }
-      );
-
-      await this.forceDisconnectUserSocket(targetPlayerId);
-
-      return PlayerRestrictionLogic.buildBanResult({
-        game: leaveResult.game,
-        targetPlayer,
-        restrictions,
-      });
-    }
-
-    // Handle restriction to spectator scenario
-    if (mutation.shouldRestrictToSpectator) {
-      const gameStateCleanupBroadcasts =
-        await this.playerLeaveService.handlePlayerGameStateCleanup(
-          game,
-          targetPlayerId
-        );
-
-      if (PlayerRestrictionLogic.wasPlayerRole(mutation.originalRole)) {
-        await this.playerGameStatsService.endPlayerSession(
-          game.id,
-          targetPlayerId,
-          new Date()
-        );
-      }
-
-      await this.gameService.updateGame(game);
-
-      return PlayerRestrictionLogic.buildRestrictResult({
-        game,
-        targetPlayer,
-        newRole: mutation.newRole!,
-        restrictions,
-        gameStateCleanupBroadcasts,
-      });
-    }
-
-    // Simple restriction update (no role change)
-    await this.gameService.updateGame(game);
-    return PlayerRestrictionLogic.buildSimpleResult({
-      game,
-      targetPlayer,
-      restrictions,
-    });
-  }
-
-  /**
-   * Forces disconnection of the socket for a specific user
-   */
-  private async forceDisconnectUserSocket(userId: number): Promise<void> {
-    try {
-      // Find the user's socket ID efficiently using Redis lookup
-      const socketId = await this.socketUserDataService.findSocketIdByUserId(
-        userId
-      );
-
-      if (!socketId) {
-        this.logger.debug(`No active socket found for banned user ${userId}`, {
-          prefix: LogPrefix.SOCKET,
-          userId,
-        });
-        return;
-      }
-
-      // Force disconnect across all instances via Redis adapter
-      this.logger.debug(
-        `Force disconnecting socket ${socketId} for banned user ${userId}`,
-        {
-          prefix: LogPrefix.SOCKET,
-          userId,
-          socketId,
-        }
-      );
-
-      this.gamesNsp.in(socketId).disconnectSockets(true);
-    } catch (error) {
-      this.logger.error(`Failed to force disconnect user ${userId}`, {
-        prefix: LogPrefix.SOCKET,
-        userId,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-    }
-  }
-
-  /**
-   * Kicks a player from the game
-   */
-  public async kickPlayer(
-    actionContext: ActionContext,
-    game: Game,
-    userData: SocketRedisUserData | null,
-    targetPlayerId: number
-  ): Promise<{
-    game: Game;
-    targetPlayerId: number;
-    broadcasts: BroadcastEvent[];
-  }> {
-    const currentPlayer = game.getPlayer(userData!.id, {
-      fetchDisconnected: false,
-    });
-
-    const targetPlayer = game.getPlayer(targetPlayerId, {
-      fetchDisconnected: false,
-    });
-
-    if (!targetPlayer || !currentPlayer) {
-      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
-    }
-
-    this.socketGameValidationService.validatePlayerManagement(currentPlayer);
-
-    // Use PlayerLeaveService to handle the removal
-    const result = await this.playerLeaveService.handlePlayerLeave(
-      actionContext.socketId,
-      game,
-      userData,
-      {
-        reason: PlayerLeaveReason.KICK,
-        targetUserId: targetPlayerId,
-        kickedBy: currentPlayer.meta.id,
-        cleanupSession: false,
-      }
-    );
-
-    return {
-      game: result.game,
-      targetPlayerId,
-      broadcasts: result.broadcasts || [],
-    };
   }
 
   /**

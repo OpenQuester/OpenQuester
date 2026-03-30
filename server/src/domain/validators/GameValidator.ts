@@ -70,7 +70,7 @@ export class GameValidator {
     if (!ctx.userData) {
       throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
     }
-    if (!ctx.currentPlayer) {
+    if (!ctx.currentPlayer || !ctx.userData.gameId) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
   }

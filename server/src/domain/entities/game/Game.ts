@@ -251,6 +251,13 @@ export class Game {
     );
   }
 
+  /** Includes showman */
+  public getActivePlayers(): Player[] {
+    return this.players.filter(
+      (p) => p.gameStatus === PlayerGameStatus.IN_GAME
+    );
+  }
+
   public getRandomTurnPlayer() {
     const inGamePlayers = this.getInGamePlayers();
     if (inGamePlayers.length > 0) {

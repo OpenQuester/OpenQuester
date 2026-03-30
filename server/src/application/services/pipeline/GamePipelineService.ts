@@ -24,6 +24,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { GameMapper } from "domain/mappers/GameMapper";
 import {
+  type DeleteGameMutation,
   type DeleteTimerMutation,
   type SaveGameMutation,
   type SetTimerMutation,
@@ -121,6 +122,7 @@ export interface PipelineInSuccess {
  */
 interface OutPipelineInput {
   saveGame: SaveGameMutation | null;
+  deleteGame: DeleteGameMutation | null;
   timerSets: SetTimerMutation[];
   timerDeletes: DeleteTimerMutation[];
 }
@@ -285,6 +287,11 @@ export class GamePipelineService {
       this.appendGameSave(pipeline, gameId, classified.saveGame.game);
     }
 
+    // ── Game delete ──
+    if (classified.deleteGame) {
+      this.appendGameDelete(pipeline, gameId);
+    }
+
     // ── Timer DELETE mutations ──
     for (const m of classified.timerDeletes) {
       pipeline.del(m.key);
@@ -332,6 +339,19 @@ export class GamePipelineService {
     if (WARNING_TTL_SECONDS > 0) {
       pipeline.set(wKey, "1", "PX", WARNING_TTL_SECONDS * SECOND_MS);
     }
+  }
+
+  /**
+   * Append game-delete commands to an existing pipeline.
+   */
+  public appendGameDelete(pipeline: ChainableCommander, gameId: string): void {
+    const gKey = gameKey(gameId);
+    const pKey = packageKey(gameId);
+    const wKey = expirationWarningKey(gameId);
+    const tKey = timerKey(gameId);
+    const qKey = queueKey(gameId);
+
+    pipeline.del(gKey, pKey, wKey, tKey, qKey);
   }
 
   // ════════════════════════════════════════════════════════════════════════

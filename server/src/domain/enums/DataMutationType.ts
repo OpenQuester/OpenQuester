@@ -32,4 +32,10 @@ export enum DataMutationType {
    * Replaces hidden `playerGameStatsService.*` calls scattered across services.
    */
   UPDATE_PLAYER_STATS = "update-player-stats",
+
+  /** Delete game entity from Redis (DEL game:{gameId}) */
+  DELETE_GAME = "delete-game",
+
+  /** Force disconnect a user's socket */
+  DISCONNECT_SOCKET = "disconnect-socket",
 }

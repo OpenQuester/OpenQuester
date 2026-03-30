@@ -34,7 +34,6 @@ export interface TurnPlayerLeaveValidation {
  */
 export interface TurnPlayerLeaveResult {
   broadcasts: BroadcastEvent[];
-  handledByFinalRoundService: boolean;
 }
 
 /**
@@ -125,7 +124,6 @@ export class TurnPlayerLeaveLogic {
 
     return {
       broadcasts,
-      handledByFinalRoundService: true,
     };
   }
 }

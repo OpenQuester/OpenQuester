@@ -5,6 +5,7 @@ import {
   COMPARE_AND_DELETE_SCRIPT,
   DRAIN_AND_REACQUIRE_SCRIPT,
 } from "application/scripts/actionLuaScripts";
+import { lockKey } from "domain/constants/redisKeys";
 import { SOCKET_SESSION_PREFIX } from "domain/constants/socket";
 import { RedisService } from "infrastructure/services/redis/RedisService";
 
@@ -65,15 +66,10 @@ export type DrainResult =
  */
 @singleton()
 export class GameActionLockService {
-  private readonly LOCK_KEY_PREFIX = "game:action:lock";
   private readonly DEFAULT_LOCK_TTL = 10;
 
   constructor(private readonly redisService: RedisService) {
     //
-  }
-
-  private getLockKey(gameId: string): string {
-    return `${this.LOCK_KEY_PREFIX}:${gameId}`;
   }
 
   /**
@@ -85,9 +81,9 @@ export class GameActionLockService {
     gameId: string,
     ttl: number = this.DEFAULT_LOCK_TTL
   ): Promise<LockAcquireResult> {
-    const lockKey = this.getLockKey(gameId);
+    const key = lockKey(gameId);
     const token = randomUUID();
-    const acquired = await this.redisService.setLockKey(lockKey, ttl, token);
+    const acquired = await this.redisService.setLockKey(key, ttl, token);
 
     return {
       acquired: acquired === "OK",
@@ -101,11 +97,11 @@ export class GameActionLockService {
    * Returns true if the lock was successfully released, false if the token didn't match.
    */
   public async releaseLock(gameId: string, token: string): Promise<boolean> {
-    const lockKey = this.getLockKey(gameId);
+    const key = lockKey(gameId);
     const result = await this.redisService.eval(
       COMPARE_AND_DELETE_SCRIPT,
       1,
-      lockKey,
+      key,
       token
     );
     return result === 1;
@@ -205,8 +201,8 @@ export class GameActionLockService {
    * Check if game has active action lock.
    */
   public async isLocked(gameId: string): Promise<boolean> {
-    const lockKey = this.getLockKey(gameId);
-    const exists = await this.redisService.get(lockKey);
+    const key = lockKey(gameId);
+    const exists = await this.redisService.get(key);
     return exists !== null;
   }
 }

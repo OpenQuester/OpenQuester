@@ -3,55 +3,45 @@ import {
   PlayerLeaveOrchestrator,
   PlayerLeaveReason,
 } from "domain/logic/player-leave/PlayerLeaveOrchestrator";
-import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
-import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import { ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import {
   DataMutationConverter,
   MutationAction,
 } from "domain/types/action/DataMutation";
-import { type GameActionHandler } from "domain/types/action/GameActionHandler";
-import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
+import { GameActionHandler } from "domain/types/action/GameActionHandler";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
+import {
+  EmptyInputData,
+  GameLeaveBroadcastData,
+} from "domain/types/socket/events/SocketEventInterfaces";
+import { GameValidator } from "domain/validators/GameValidator";
 
-interface DisconnectResult {
-  gameId: string | null;
-  userId: number | null;
-}
-
-/**
- * Stateless action handler for socket disconnect.
- * Handles leaving the game lobby when a socket disconnects.
- */
-export class DisconnectActionHandler
-  implements GameActionHandler<EmptyInputData, DisconnectResult>
+export class LeaveGameUseCase
+  implements GameActionHandler<EmptyInputData, GameLeaveBroadcastData>
 {
   constructor(
     private readonly playerLeaveOrchestrator: PlayerLeaveOrchestrator
-  ) {}
+  ) {
+    //
+  }
 
   public async execute(
     ctx: ActionExecutionContext<EmptyInputData>
-  ): Promise<ActionHandlerResult<DisconnectResult>> {
+  ): Promise<ActionHandlerResult<GameLeaveBroadcastData>> {
+    GameValidator.validatePlayerAuthenticated(ctx);
+
     const { game, userData, action } = ctx;
 
-    if (!userData?.gameId) {
-      return {
-        success: true,
-        data: { gameId: null, userId: null },
-        mutations: [],
-      };
-    }
-
     const userId = userData.id;
-    const targetPlayer = game.getPlayer(userId, { fetchDisconnected: true });
-    const wasPlayer = targetPlayer?.role === PlayerRole.PLAYER;
+    const targetPlayer = game.getPlayer(userId, { fetchDisconnected: false });
+    const wasPlayer = targetPlayer!.role === PlayerRole.PLAYER;
 
     const leaveResult = await this.playerLeaveOrchestrator.processLeave(
       game,
       userId,
       {
-        reason: PlayerLeaveReason.DISCONNECT,
+        reason: PlayerLeaveReason.LEAVE,
       }
     );
 
@@ -75,13 +65,12 @@ export class DisconnectActionHandler
       });
     }
 
-    const activePlayers = game.players.filter(
-      (p) => p.gameStatus === PlayerGameStatus.IN_GAME
-    );
+    const activePlayers = game.getActivePlayers();
 
     const gameNotStartedOrFinished =
       game.startedAt === null || game.finishedAt !== null;
 
+    // Delete game if not started or finished and all players left (to avoid hanging empty games)
     if (activePlayers.length === 0 && gameNotStartedOrFinished) {
       mutations.push(DataMutationConverter.deleteGameMutation(game.id));
     } else {
@@ -96,10 +85,7 @@ export class DisconnectActionHandler
 
     return {
       success: true,
-      data: {
-        gameId: game.id,
-        userId,
-      },
+      data: { user: userId },
       mutations,
       broadcastGame: game,
     };

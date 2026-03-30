@@ -1,3 +1,4 @@
+import { Namespace } from "socket.io";
 import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "application/di/tokens";
@@ -11,9 +12,12 @@ import { type SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEven
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import {
+  MutationAction,
   type BroadcastMutation,
   type DataMutation,
+  type DeleteGameMutation,
   type DeleteTimerMutation,
+  type DisconnectSocketMutation,
   type GameCompletionMutation,
   type SaveGameMutation,
   type SetTimerMutation,
@@ -30,12 +34,14 @@ import { SocketUserDataService } from "infrastructure/services/socket/SocketUser
  */
 interface ClassifiedMutations {
   saveGame: SaveGameMutation | null;
+  deleteGame: DeleteGameMutation | null;
   timerSets: SetTimerMutation[];
   timerDeletes: DeleteTimerMutation[];
   broadcasts: BroadcastMutation[];
   completions: GameCompletionMutation[];
   socketSessionUpdates: UpdateSocketSessionMutation[];
   playerStatsUpdates: UpdatePlayerStatsMutation[];
+  disconnectSockets: DisconnectSocketMutation[];
 }
 
 /**
@@ -70,6 +76,7 @@ export class DataMutationProcessor {
     private readonly gameLifecycleService: GameLifecycleService,
     private readonly socketUserDataService: SocketUserDataService,
     private readonly playerGameStatsService: PlayerGameStatsService,
+    @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -93,6 +100,7 @@ export class DataMutationProcessor {
     await this.executeSocketSessionUpdates(classified.socketSessionUpdates);
     // TODO: Since player stats updates is DB action - should be done in async to not block websocket event flow
     await this.executePlayerStatsUpdates(classified.playerStatsUpdates);
+    await this.executeDisconnectSockets(classified.disconnectSockets);
 
     const broadcastGame = this.resolveBroadcastGame(
       result,
@@ -128,12 +136,14 @@ export class DataMutationProcessor {
    */
   private classifyMutations(mutations: DataMutation[]): ClassifiedMutations {
     let saveGame: SaveGameMutation | null = null;
+    let deleteGame: DeleteGameMutation | null = null;
     const timerSets: SetTimerMutation[] = [];
     const timerDeletes: DeleteTimerMutation[] = [];
     const broadcasts: BroadcastMutation[] = [];
     const completions: GameCompletionMutation[] = [];
     const socketSessionUpdates: UpdateSocketSessionMutation[] = [];
     const playerStatsUpdates: UpdatePlayerStatsMutation[] = [];
+    const disconnectSockets: DisconnectSocketMutation[] = [];
 
     for (const mutation of mutations) {
       switch (mutation.type) {
@@ -141,6 +151,10 @@ export class DataMutationProcessor {
           // Last SAVE_GAME wins — handlers should only have one,
           // but if multiple exist the last state is the most complete
           saveGame = mutation;
+          break;
+
+        case DataMutationType.DELETE_GAME:
+          deleteGame = mutation;
           break;
 
         case DataMutationType.TIMER_SET:
@@ -166,17 +180,23 @@ export class DataMutationProcessor {
         case DataMutationType.UPDATE_PLAYER_STATS:
           playerStatsUpdates.push(mutation);
           break;
+
+        case DataMutationType.DISCONNECT_SOCKET:
+          disconnectSockets.push(mutation);
+          break;
       }
     }
 
     return {
       saveGame,
+      deleteGame,
       timerSets,
       timerDeletes,
       broadcasts,
       completions,
       socketSessionUpdates,
       playerStatsUpdates,
+      disconnectSockets,
     };
   }
 
@@ -275,10 +295,14 @@ export class DataMutationProcessor {
   private async executePlayerStatsUpdates(
     updates: UpdatePlayerStatsMutation[]
   ): Promise<void> {
+    if (updates.length === 0) {
+      return;
+    }
+
     for (const mutation of updates) {
       try {
         switch (mutation.payload.action) {
-          case "INIT_SESSION":
+          case MutationAction.INIT_SESSION:
             await this.playerGameStatsService.initializePlayerSession(
               mutation.gameId,
               mutation.userId,
@@ -286,10 +310,18 @@ export class DataMutationProcessor {
             );
             break;
 
-          case "CLEAR_LEFT_AT":
+          case MutationAction.CLEAR_LEFT_AT:
             await this.playerGameStatsService.clearPlayerLeftAtTime(
               mutation.gameId,
               mutation.userId
+            );
+            break;
+
+          case MutationAction.END_SESSION:
+            await this.playerGameStatsService.endPlayerSession(
+              mutation.gameId,
+              mutation.userId,
+              mutation.payload.leftAt
             );
             break;
         }
@@ -307,7 +339,44 @@ export class DataMutationProcessor {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  Step 6: Game completion
+  //  Step 6: Disconnect sockets
+  // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Force disconnect sockets for banned/kicked users.
+   */
+  private async executeDisconnectSockets(
+    mutations: DisconnectSocketMutation[]
+  ): Promise<void> {
+    if (mutations.length === 0) {
+      return;
+    }
+
+    for (const mutation of mutations) {
+      try {
+        const socketId = await this.socketUserDataService.findSocketIdByUserId(
+          mutation.userId
+        );
+        if (socketId) {
+          this.gamesNsp.in(socketId).disconnectSockets(true);
+          this.logger.info(`Forced disconnect for user ${mutation.userId}`, {
+            prefix: LogPrefix.ACTION,
+            userId: mutation.userId,
+            socketId,
+          });
+        }
+      } catch (error) {
+        this.logger.warn("Failed to disconnect socket", {
+          prefix: LogPrefix.ACTION,
+          userId: mutation.userId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Step 7: Game completion
   // ════════════════════════════════════════════════════════════════════════
 
   /**

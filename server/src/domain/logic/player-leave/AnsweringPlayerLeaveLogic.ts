@@ -1,20 +1,15 @@
 import { Game } from "domain/entities/game/Game";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { QuestionAnswerResultLogic } from "domain/logic/question/QuestionAnswerResultLogic";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { AutoLossProcessLogic } from "domain/state-machine/logic/AutoLossProcessLogic";
-import { TransitionResult } from "domain/state-machine/types";
-import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { type TransitionResult } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   FinalAnswerSubmitOutputData,
   SocketIOFinalAutoLossEventPayload,
 } from "domain/types/socket/events/FinalRoundEventData";
-import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 
 /**
  * Type of answering scenario
@@ -35,44 +30,10 @@ interface AnsweringPlayerLeaveValidation {
 }
 
 /**
- * Result of processing regular round answering player leave
- */
-interface RegularAnsweringMutationResult {
-  nextState: QuestionState;
-  isSpecialQuestion: boolean;
-  questionId?: number;
-}
-
-/**
  * Result of answering player leave operation
  */
 export interface AnsweringPlayerLeaveFinalResult {
   broadcasts: BroadcastEvent[];
-  requiresTimerSetup: boolean;
-  nextState?: QuestionState;
-  isSpecialQuestion?: boolean;
-  questionId?: number;
-}
-
-export interface AnsweringPlayerLeaveRegularResult {
-  broadcasts: BroadcastEvent[];
-  requiresTimerSetup: boolean;
-  nextState?: QuestionState;
-  isSpecialQuestion?: boolean;
-  questionId?: number;
-}
-
-export interface AnsweringPlayerLeaveRegularProcessInput {
-  game: Game;
-  mutationResult: RegularAnsweringMutationResult;
-  timer: GameStateTimerDTO | null;
-}
-
-export interface AnsweringPlayerLeaveFinalProcessInput {
-  game: Game;
-  userId: number;
-  wasProcessed: boolean;
-  transitionResult: TransitionResult | null;
 }
 
 export interface AnsweringPlayerLeaveFinalResultInput {
@@ -80,12 +41,6 @@ export interface AnsweringPlayerLeaveFinalResultInput {
   userId: number;
   wasProcessed: boolean;
   transitionResult: TransitionResult | null;
-}
-
-export interface AnsweringPlayerLeaveRegularResultInput {
-  game: Game;
-  mutationResult: RegularAnsweringMutationResult;
-  timer: GameStateTimerDTO | null;
 }
 
 /**
@@ -145,66 +100,6 @@ export class AnsweringPlayerLeaveLogic {
   }
 
   /**
-   * Process auto-skip for regular round answering player leave.
-   *
-   * For special questions (secret/stake), go directly to CHOOSING.
-   * For normal questions, go to SHOWING to display correct answer.
-   */
-  public static processRegularRoundAutoSkip(
-    game: Game
-  ): RegularAnsweringMutationResult {
-    const currentQuestion = game.gameState.currentQuestion;
-    const isSpecialQuestion =
-      currentQuestion &&
-      (currentQuestion.type === PackageQuestionType.SECRET ||
-        currentQuestion.type === PackageQuestionType.STAKE);
-
-    const nextState = isSpecialQuestion
-      ? QuestionState.CHOOSING
-      : QuestionState.SHOWING;
-
-    // Auto-skip answer with 0 points
-    game.handleQuestionAnswer(0, AnswerResultType.SKIP, nextState);
-
-    // Get question ID for special questions (to mark as played)
-    let questionId: number | undefined;
-    if (isSpecialQuestion) {
-      questionId =
-        game.gameState.secretQuestionData?.questionId ||
-        game.gameState.stakeQuestionData?.questionId;
-    }
-
-    return {
-      nextState,
-      isSpecialQuestion: isSpecialQuestion ?? false,
-      questionId,
-    };
-  }
-
-  /**
-   * Handle special question cleanup after auto-skip.
-   *
-   * Marks question as played and clears special question data.
-   * @param game Game entity
-   * @param questionId Question ID to clean up
-   * @param themeId Theme ID of the question (fetched from PackageStore by caller)
-   */
-  public static handleSpecialQuestionCleanup(
-    game: Game,
-    questionId: number,
-    themeId: number | null
-  ): void {
-    if (themeId !== null) {
-      GameQuestionMapper.setQuestionPlayed(game, questionId, themeId);
-    }
-
-    // Clear special question data and current question
-    game.gameState.secretQuestionData = null;
-    game.gameState.stakeQuestionData = null;
-    game.gameState.currentQuestion = null;
-  }
-
-  /**
    * Builds result for final round answering player leave.
    */
   public static buildFinalRoundResult(
@@ -214,7 +109,7 @@ export class AnsweringPlayerLeaveLogic {
     const broadcasts: BroadcastEvent[] = [];
 
     if (!wasProcessed) {
-      return { broadcasts, requiresTimerSetup: false };
+      return { broadcasts };
     }
 
     // Signal submission
@@ -241,38 +136,6 @@ export class AnsweringPlayerLeaveLogic {
       broadcasts.push(...transitionResult.broadcasts);
     }
 
-    return { broadcasts, requiresTimerSetup: false };
-  }
-
-  /**
-   * Builds result for regular round answering player leave.
-   */
-  public static buildRegularRoundResult(
-    input: AnsweringPlayerLeaveRegularResultInput
-  ): AnsweringPlayerLeaveRegularResult {
-    const { game, mutationResult, timer } = input;
-    const broadcasts: BroadcastEvent[] = [];
-
-    // Get answer result from game state (populated by handleQuestionAnswer)
-    // Use the most recent answered player entry
-    const answeredPlayers = game.gameState.answeredPlayers || [];
-    const answerResult = answeredPlayers[answeredPlayers.length - 1];
-
-    broadcasts.push({
-      event: SocketIOGameEvents.ANSWER_RESULT,
-      data: QuestionAnswerResultLogic.buildSocketPayload({
-        answerResult,
-        timer,
-      }),
-      room: game.id,
-    });
-
-    return {
-      broadcasts,
-      requiresTimerSetup: !mutationResult.isSpecialQuestion,
-      nextState: mutationResult.nextState,
-      isSpecialQuestion: mutationResult.isSpecialQuestion,
-      questionId: mutationResult.questionId,
-    };
+    return { broadcasts };
   }
 }
