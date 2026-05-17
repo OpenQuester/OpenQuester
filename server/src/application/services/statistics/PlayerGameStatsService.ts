@@ -1,12 +1,13 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerGameStatsData } from "domain/types/statistics/PlayerGameStatsData";
 import { PlayerGameStatsRedisUpdate } from "domain/types/statistics/PlayerGameStatsRedisData";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { PlayerGameStatisticsMapper } from "domain/mappers/PlayerGameStatisticsMapper";
 
 /**
  * Service for managing player game statistics.
@@ -32,20 +33,11 @@ export class PlayerGameStatsService {
     this.logger.debug("Initializing player session", {
       prefix: LogPrefix.PLAYER_STATS,
       gameId,
-      userId,
+      userId
     });
 
     // Create initial session data in Redis for live tracking
-    const sessionData: PlayerGameStatsRedisUpdate = {
-      gameId,
-      userId: userId.toString(),
-      joinedAt: joinedAt.toISOString(),
-      leftAt: "",
-      currentScore: 0,
-      questionsAnswered: 0,
-      correctAnswers: 0,
-      wrongAnswers: 0,
-    };
+    const sessionData = PlayerGameStatisticsMapper.playerStatsInitData(gameId, userId, joinedAt);
 
     try {
       await this.repository.initializeStats(gameId, userId, sessionData);
@@ -54,7 +46,7 @@ export class PlayerGameStatsService {
         prefix: LogPrefix.PLAYER_STATS,
         gameId: gameId,
         userId: userId,
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   }
@@ -63,37 +55,30 @@ export class PlayerGameStatsService {
    * End player live session in Redis when they leave a game
    * This updates the leave time and saves final session stats
    */
-  public async endPlayerSession(
-    gameId: string,
-    userId: number,
-    leftAt: Date
-  ): Promise<void> {
+  public async endPlayerSession(gameId: string, userId: number, leftAt: Date): Promise<void> {
     this.logger.debug("Ending player session", {
       prefix: LogPrefix.PLAYER_STATS,
       gameId,
-      userId,
+      userId
     });
 
     try {
       // Update session with leave time and finalize
       await this.repository.updateStats(gameId, userId, {
-        leftAt: leftAt.toISOString(),
+        leftAt: leftAt.toISOString()
       });
     } catch (error) {
       this.logger.error("Failed to end player session", {
         prefix: LogPrefix.PLAYER_STATS,
         gameId,
         userId,
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.message : String(error)
       });
       throw error;
     }
   }
 
-  public async clearPlayerLeftAtTime(
-    gameId: string,
-    userId: number
-  ): Promise<void> {
+  public async clearPlayerLeftAtTime(gameId: string, userId: number): Promise<void> {
     try {
       // Use empty string instead of null for Redis storage consistency
       await this.repository.updateStats(gameId, userId, { leftAt: "" });
@@ -102,7 +87,7 @@ export class PlayerGameStatsService {
         prefix: LogPrefix.PLAYER_STATS,
         gameId,
         userId,
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.message : String(error)
       });
       throw error;
     }
@@ -128,12 +113,12 @@ export class PlayerGameStatsService {
       const isCorrect = answerType === AnswerResultType.CORRECT;
       const isWrong = answerType === AnswerResultType.WRONG;
 
-      const updates: PlayerGameStatsRedisUpdate = {
+      const updates = {
         currentScore: newScore,
         questionsAnswered: questionsAnswered + 1,
         correctAnswers: isCorrect ? correctAnswers + 1 : correctAnswers,
-        wrongAnswers: isWrong ? wrongAnswers + 1 : wrongAnswers,
-      };
+        wrongAnswers: isWrong ? wrongAnswers + 1 : wrongAnswers
+      } satisfies PlayerGameStatsRedisUpdate;
 
       await this.repository.updateStats(gameId, userId, updates);
     } catch (error) {
@@ -141,7 +126,7 @@ export class PlayerGameStatsService {
         prefix: LogPrefix.PLAYER_STATS,
         gameId,
         userId,
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.message : String(error)
       });
       throw error;
     }
@@ -150,17 +135,14 @@ export class PlayerGameStatsService {
   /**
    * Collect and save player statistics for a finished game from Redis data
    */
-  public async collectGamePlayerStats(
-    gameId: string,
-    gameStatsId: number
-  ): Promise<void> {
+  public async collectGamePlayerStats(gameId: string, gameStatsId: number): Promise<void> {
     // Get all player stats from Redis before cleanup
     const livePlayerStats = await this.repository.getAllStatsForGame(gameId);
 
     if (livePlayerStats.length === 0) {
       this.logger.warn("No player statistics found in Redis", {
         prefix: LogPrefix.PLAYER_STATS,
-        gameId,
+        gameId
       });
       return;
     }
@@ -171,8 +153,7 @@ export class PlayerGameStatsService {
       // Parse Redis data fields
       const finalScore = parseInt(data.currentScore || "0");
       const joinedAt = data.joinedAt ? new Date(data.joinedAt) : new Date();
-      const leftAt =
-        data.leftAt && data.leftAt !== "" ? new Date(data.leftAt) : null;
+      const leftAt = data.leftAt && data.leftAt !== "" ? new Date(data.leftAt) : null;
       const questionsAnswered = parseInt(data.questionsAnswered || "0");
       const correctAnswers = parseInt(data.correctAnswers || "0");
       const wrongAnswers = parseInt(data.wrongAnswers || "0");
@@ -193,7 +174,7 @@ export class PlayerGameStatsService {
         leftAt,
         questionsAnswered,
         correctAnswers,
-        wrongAnswers,
+        wrongAnswers
       };
 
       playerStatsData.push(playerData);
@@ -202,23 +183,18 @@ export class PlayerGameStatsService {
     // Save all player statistics with calculated placements
     await this.repository.saveMany(this._calculatePlacements(playerStatsData));
 
-    this.logger.debug(
-      "Player game statistics collected successfully from Redis",
-      {
-        prefix: LogPrefix.PLAYER_STATS,
-        gameId,
-        playersCount: playerStatsData.length,
-      }
-    );
+    this.logger.debug("Player game statistics collected successfully from Redis", {
+      prefix: LogPrefix.PLAYER_STATS,
+      gameId,
+      playersCount: playerStatsData.length
+    });
   }
 
   /**
    * Calculate placements for players based on final scores
    * Handles ties correctly - players with same score get same placement
    */
-  private _calculatePlacements(
-    playerStats: PlayerGameStatsData[]
-  ): PlayerGameStatsData[] {
+  private _calculatePlacements(playerStats: PlayerGameStatsData[]): PlayerGameStatsData[] {
     // Sort players by final score (descending - highest score first)
     const sorted = [...playerStats].sort((a, b) => b.finalScore - a.finalScore);
 
@@ -238,19 +214,5 @@ export class PlayerGameStatsService {
     }
 
     return sorted;
-  }
-
-  /**
-   * Get player statistics for a specific game
-   */
-  public async getGamePlayerStats(gameStatsId: number) {
-    return this.repository.getByGameStatsId(gameStatsId);
-  }
-
-  /**
-   * Get player statistics history for a user
-   */
-  public async getUserPlayerStats(userId: number, limit = 50) {
-    return this.repository.getByUserId(userId, limit);
   }
 }

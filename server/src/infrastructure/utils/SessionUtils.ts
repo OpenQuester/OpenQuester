@@ -7,11 +7,6 @@ export class SessionUtils {
    * @param length secret length
    */
   public static async generateSecret(length: number) {
-    const secret = crypto
-      .randomBytes(length)
-      .toString("base64")
-      .slice(0, length);
-
-    return secret;
+    return crypto.randomBytes(length).toString("base64").slice(0, length);
   }
 }

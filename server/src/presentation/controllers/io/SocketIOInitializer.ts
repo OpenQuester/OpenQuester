@@ -1,93 +1,31 @@
-import { Server as IOServer, Namespace, Socket } from "socket.io";
+import { Server as IOServer, Socket } from "socket.io";
 
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
-import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
-import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
-import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
-import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
-import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
-import { SocketEventHandlerFactory } from "domain/handlers/socket/SocketEventHandlerFactory";
-import { SocketEventHandlerRegistry } from "domain/handlers/socket/SocketEventHandlerRegistry";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
-import { SocketIOEventEmitter } from "presentation/emitters/SocketIOEventEmitter";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { SocketActionDispatcher } from "presentation/controllers/io/SocketActionDispatcher";
 
 export class SocketIOInitializer {
-  private readonly handlerFactory: SocketEventHandlerFactory;
-
   constructor(
     private readonly io: IOServer,
-    private readonly socketIOGameService: SocketIOGameService,
-    private readonly socketIOChatService: SocketIOChatService,
-    private readonly socketUserDataService: SocketUserDataService,
-    private readonly socketIOQuestionService: SocketIOQuestionService,
-    private readonly userNotificationRoomService: UserNotificationRoomService,
-    private readonly socketGameContextService: SocketGameContextService,
-    private readonly gameProgressionCoordinator: GameProgressionCoordinator,
-    private readonly gameActionExecutor: GameActionExecutor,
+    private readonly dispatcher: SocketActionDispatcher,
     private readonly logger: ILogger
   ) {
-    this.handlerFactory = new SocketEventHandlerFactory(
-      this.socketIOGameService,
-      this.socketIOChatService,
-      this.socketUserDataService,
-      this.userNotificationRoomService,
-      this.socketIOQuestionService,
-      this.socketGameContextService,
-      this.gameProgressionCoordinator,
-      this.gameActionExecutor,
-      this.logger
-    );
-
     const gameNamespace = this.io.of(SOCKET_GAME_NAMESPACE);
 
-    gameNamespace.on(SocketIOEvents.CONNECTION, (socket: Socket) => {
-      this._initializeGameControllers(gameNamespace, socket);
+    gameNamespace.on(SocketIOEvents.CONNECTION, async (socket: Socket) => {
+      this.logger.trace(`Socket Game controllers initialization started for ${socket.id}`, {
+        prefix: LogPrefix.SOCKET_INIT,
+        socketId: socket.id
+      });
+
+      await this.dispatcher.registerAll(socket);
+
+      this.logger.trace(`Socket event listeners registered`, {
+        prefix: LogPrefix.SOCKET_INIT,
+        socketId: socket.id
+      });
     });
-  }
-
-  private _initializeGameControllers(nsp: Namespace, socket: Socket) {
-    this.logger.trace(
-      `Socket Game controllers initialization started for ${socket.id}`,
-      {
-        prefix: LogPrefix.SOCKET_INIT,
-        socketId: socket.id,
-      }
-    );
-
-    const eventEmitter = new SocketIOEventEmitter();
-    eventEmitter.init(nsp, socket);
-
-    // Initialize new standardized event handler registry
-    const handlerRegistry = new SocketEventHandlerRegistry(
-      socket,
-      eventEmitter,
-      this.logger
-    );
-
-    // Register all standardized event handlers
-    const allHandlers = this.handlerFactory.createAllHandlers(
-      socket,
-      eventEmitter
-    );
-    for (const handler of allHandlers) {
-      handlerRegistry.registerInstance(handler);
-    }
-    // Log handler registration stats
-    const registryStats = handlerRegistry.getStats();
-    this.logger.trace(
-      `Registered ${registryStats.totalHandlers} standardized socket handlers`,
-      {
-        prefix: LogPrefix.SOCKET_INIT,
-        socketId: socket.id,
-        gameEvents: registryStats.gameEvents,
-        systemEvents: registryStats.systemEvents,
-        events: registryStats.eventNames.join(", "),
-      }
-    );
   }
 }

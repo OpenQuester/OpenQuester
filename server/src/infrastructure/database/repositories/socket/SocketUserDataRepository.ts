@@ -4,13 +4,13 @@ import { REDIS_LOCK_SESSIONS_CLEANUP } from "domain/constants/redis";
 import {
   SOCKET_GAME_AUTH_TTL,
   SOCKET_SESSION_PREFIX,
-  SOCKET_USER_PREFIX,
+  SOCKET_USER_PREFIX
 } from "domain/constants/socket";
 import { SocketRedisUserUpdateDTO } from "domain/types/dto/user/SocketRedisUserUpdateDTO";
 import { asUserId } from "domain/types/ids";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
-import { RedisService } from "infrastructure/services/redis/RedisService";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 
 /**
  * Repository for socket user session data (stored in Redis).
@@ -23,7 +23,7 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
  */
 @singleton()
 export class SocketUserDataRepository {
-  constructor(private readonly redisService: RedisService) {
+  constructor(private readonly redisRepository: RedisRepository) {
     //
   }
 
@@ -38,19 +38,21 @@ export class SocketUserDataRepository {
   /**
    * Get socket session data by socketId (O(1)).
    */
-  public async getSocketData(
-    socketId: string
-  ): Promise<SocketRedisUserData | null> {
-    const data = await this.redisService.hgetall(this.getSessionKey(socketId));
+  public async getSocketData(socketId: string): Promise<SocketRedisUserData | null> {
+    try {
+      const data = await this.redisRepository.hgetall(this.getSessionKey(socketId));
 
-    if (!data || ValueUtils.isEmpty(data)) {
+      if (!data || ValueUtils.isEmpty(data)) {
+        return null;
+      }
+
+      return {
+        id: asUserId(parseInt(data.id, 10)),
+        gameId: data.gameId === "null" || !data.gameId ? null : data.gameId
+      };
+    } catch {
       return null;
     }
-
-    return {
-      id: asUserId(parseInt(data.id, 10)),
-      gameId: data.gameId === "null" || !data.gameId ? null : data.gameId,
-    };
   }
 
   /**
@@ -63,7 +65,7 @@ export class SocketUserDataRepository {
       return new Map();
     }
 
-    const pipeline = this.redisService.pipeline();
+    const pipeline = this.redisRepository.pipeline();
     const keys = socketIds.map((socketId) => this.getSessionKey(socketId));
 
     for (const key of keys) {
@@ -101,8 +103,7 @@ export class SocketUserDataRepository {
 
       resultMap.set(socketId, {
         id: asUserId(parseInt(record.id, 10)),
-        gameId:
-          record.gameId === "null" || !record.gameId ? null : record.gameId,
+        gameId: record.gameId === "null" || !record.gameId ? null : record.gameId
       });
     }
 
@@ -112,17 +113,14 @@ export class SocketUserDataRepository {
   /**
    * Create socket session and reverse lookup atomically (MULTI/EXEC).
    */
-  public async set(
-    socketId: string,
-    data: { userId: number; language: string }
-  ): Promise<void> {
+  public async set(socketId: string, data: { userId: number; language: string }): Promise<void> {
     const sessionKey = this.getSessionKey(socketId);
     const userKey = this.getUserKey(data.userId);
 
-    const multi = this.redisService.multi();
+    const multi = this.redisRepository.multi();
     multi.hset(sessionKey, {
       id: data.userId.toString(),
-      gameId: "null",
+      gameId: "null"
     });
     multi.expire(sessionKey, SOCKET_GAME_AUTH_TTL);
     multi.set(userKey, socketId, "EX", SOCKET_GAME_AUTH_TTL);
@@ -130,9 +128,7 @@ export class SocketUserDataRepository {
     const results = await multi.exec();
 
     if (!results) {
-      throw new Error(
-        "Failed to create socket session: transaction returned null"
-      );
+      throw new Error("Failed to create socket session: transaction returned null");
     }
 
     for (const [err] of results) {
@@ -159,11 +155,7 @@ export class SocketUserDataRepository {
       return;
     }
 
-    await this.redisService.hset(
-      this.getSessionKey(socketId),
-      updateData,
-      SOCKET_GAME_AUTH_TTL
-    );
+    await this.redisRepository.hset(this.getSessionKey(socketId), updateData, SOCKET_GAME_AUTH_TTL);
   }
 
   /**
@@ -171,14 +163,14 @@ export class SocketUserDataRepository {
    */
   public async remove(socketId: string) {
     const sessionKey = this.getSessionKey(socketId);
-    const userId = await this.redisService.hget(sessionKey, "id");
+    const userId = await this.redisRepository.hget(sessionKey, "id");
 
     if (!userId) {
       return 0;
     }
 
     const userKey = this.getUserKey(parseInt(userId, 10));
-    const multi = this.redisService.multi();
+    const multi = this.redisRepository.multi();
     multi.del(sessionKey);
     multi.del(userKey);
 
@@ -202,31 +194,27 @@ export class SocketUserDataRepository {
    * Find socketId by userId (O(1)).
    */
   public async findSocketIdByUserId(userId: number): Promise<string | null> {
-    return this.redisService.get(this.getUserKey(userId));
+    return this.redisRepository.get(this.getUserKey(userId));
   }
 
   /**
    * Cleanup all socket sessions (uses SCAN; acceptable for maintenance).
    */
   public async cleanupAllSession(): Promise<void> {
-    const acquired = await this.redisService.setLockKey(
-      REDIS_LOCK_SESSIONS_CLEANUP
-    );
+    const acquired = await this.redisRepository.setLockKey(REDIS_LOCK_SESSIONS_CLEANUP);
 
     if (acquired !== "OK") {
       return;
     }
 
-    const sessionKeys = await this.redisService.scan(
-      `${SOCKET_SESSION_PREFIX}:*`
-    );
+    const sessionKeys = await this.redisRepository.scan(`${SOCKET_SESSION_PREFIX}:*`);
     if (sessionKeys.length) {
-      await this.redisService.delMultiple(sessionKeys);
+      await this.redisRepository.delMultiple(sessionKeys);
     }
 
-    const userKeys = await this.redisService.scan(`${SOCKET_USER_PREFIX}:*`);
+    const userKeys = await this.redisRepository.scan(`${SOCKET_USER_PREFIX}:*`);
     if (userKeys.length) {
-      await this.redisService.delMultiple(userKeys);
+      await this.redisRepository.delMultiple(userKeys);
     }
   }
 }

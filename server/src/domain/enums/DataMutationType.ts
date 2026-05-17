@@ -28,7 +28,7 @@ export enum DataMutationType {
   UPDATE_SOCKET_SESSION = "update-socket-session",
 
   /**
-   * Apply a player stats side-effect (initialize session or clear leftAt time).
+   * Apply a player stats side effect (initialize session or clear leftAt time).
    * Replaces hidden `playerGameStatsService.*` calls scattered across services.
    */
   UPDATE_PLAYER_STATS = "update-player-stats",
@@ -37,5 +37,5 @@ export enum DataMutationType {
   DELETE_GAME = "delete-game",
 
   /** Force disconnect a user's socket */
-  DISCONNECT_SOCKET = "disconnect-socket",
+  DISCONNECT_SOCKET = "disconnect-socket"
 }

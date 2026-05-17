@@ -1,4 +1,10 @@
 import { DataSource, DataSourceOptions } from "typeorm";
+import {
+  getTestApiPort,
+  getTestDbName,
+  getTestRedisDb,
+  TEST_TIMEOUTS
+} from "tests/utils/TestTimeouts";
 
 // Models
 import { File } from "infrastructure/database/models/File";
@@ -19,9 +25,11 @@ import { User } from "infrastructure/database/models/User";
 export function setTestEnvDefaults() {
   process.env.ENV = "test";
   process.env.NODE_ENV = "test";
-  process.env.API_PORT = "3030";
+  process.env.API_PORT = String(getTestApiPort());
   process.env.DB_TYPE = "pg";
-  process.env.DB_NAME = "test_db";
+  if (!process.env.DB_NAME) {
+    process.env.DB_NAME = getTestDbName();
+  }
   process.env.DB_USER = "postgres";
   process.env.DB_PASS = "postgres";
   process.env.DB_HOST = "localhost";
@@ -32,7 +40,9 @@ export function setTestEnvDefaults() {
   process.env.SESSION_MAX_AGE = "3600000";
   process.env.REDIS_HOST = "localhost";
   process.env.REDIS_PORT = "6379";
-  process.env.REDIS_DB_NUMBER = "0";
+  if (!process.env.REDIS_DB_NUMBER) {
+    process.env.REDIS_DB_NUMBER = String(getTestRedisDb());
+  }
   process.env.CORS_ORIGINS = "localhost";
   process.env.SOCKET_IO_CORS_ORIGINS = "localhost";
   process.env.LOG_LEVEL = "trace";
@@ -47,6 +57,7 @@ export function setTestEnvDefaults() {
   process.env.S3_REGION = "eu-west";
   // Disable InfluxDB metrics in tests — no InfluxDB instance available
   process.env.INFLUX_URL = "";
+  process.env.TEST_DB_NAME_PREFIX = TEST_TIMEOUTS.TEST_DB_NAME_PREFIX;
 }
 
 export function createTestAppDataSource() {

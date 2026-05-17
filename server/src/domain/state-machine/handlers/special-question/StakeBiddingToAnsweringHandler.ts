@@ -1,27 +1,23 @@
-import { GameService } from "application/services/game/GameService";
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
   GamePhase,
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
-import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import {
   StakeBiddingToAnsweringCtx,
-  StakeBiddingToAnsweringMutationData,
+  StakeBiddingToAnsweringMutationData
 } from "domain/types/socket/transition/special-question";
 
 /**
@@ -40,13 +36,6 @@ import {
 export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.STAKE_BIDDING;
   public readonly toPhase = GamePhase.ANSWERING;
-
-  constructor(
-    gameService: GameService,
-    private readonly packageStore: PackageStore
-  ) {
-    super(gameService);
-  }
 
   /**
    * Check if this transition should occur.
@@ -81,9 +70,7 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
       trigger === TransitionTrigger.PLAYER_LEFT
     ) {
       // Check if payload indicates phase completion with a winner
-      return (
-        payload.isPhaseComplete === true && payload.winnerPlayerId !== null
-      );
+      return payload.isPhaseComplete && payload.winnerPlayerId !== null;
     }
 
     return false;
@@ -93,26 +80,15 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     GameStateValidator.validateGameInProgress(ctx.game);
   }
 
-  protected async mutate(
-    ctx: StakeBiddingToAnsweringCtx
-  ): Promise<MutationResult> {
+  protected async mutate(ctx: StakeBiddingToAnsweringCtx): Promise<MutationResult> {
     const { game, payload } = ctx;
     const stakeData = game.gameState.stakeQuestionData!;
 
     // Get winner (from payload or stake data)
     const winnerPlayerId = payload?.winnerPlayerId ?? stakeData.winnerPlayerId!;
 
-    // Get question data
-    let questionData: SimplePackageQuestionDTO | null = null;
-    const questionResult = await this.packageStore.getQuestionWithTheme(
-      game.id,
-      stakeData.questionId
-    );
-
-    if (questionResult) {
-      questionData = GameQuestionMapper.mapToSimpleQuestion(
-        questionResult.question
-      );
+    const questionData = ctx.resources?.simpleQuestion ?? null;
+    if (questionData) {
       game.gameState.currentQuestion = questionData;
     }
 
@@ -121,15 +97,15 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     game.gameState.stakeQuestionData = {
       ...stakeData,
       biddingPhase: false,
-      winnerPlayerId,
+      winnerPlayerId
     };
 
     return {
       data: {
         winnerPlayerId,
         finalBid: stakeData.highestBid,
-        questionData,
-      } satisfies StakeBiddingToAnsweringMutationData,
+        questionData
+      } satisfies StakeBiddingToAnsweringMutationData
     };
   }
 
@@ -151,9 +127,9 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: GAME_QUESTION_ANSWER_TIME,
-        },
-      ],
+          pxTtl: GAME_QUESTION_ANSWER_TIME
+        }
+      ]
     };
   }
 
@@ -164,9 +140,7 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
   ): BroadcastEvent[] {
     const { game } = ctx;
     const broadcasts: BroadcastEvent[] = [];
-    const data = mutationResult.data as
-      | StakeBiddingToAnsweringMutationData
-      | undefined;
+    const data = mutationResult.data as StakeBiddingToAnsweringMutationData | undefined;
 
     if (!data) return broadcasts;
 
@@ -175,9 +149,9 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
       event: SocketIOGameEvents.STAKE_QUESTION_WINNER,
       data: {
         winnerPlayerId: data.winnerPlayerId,
-        finalBid: data.finalBid,
+        finalBid: data.finalBid
       } satisfies StakeQuestionWinnerEventData,
-      room: game.id,
+      room: game.id
     });
 
     // 2. QUESTION_DATA - sends question to all players
@@ -187,9 +161,9 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
         data: {
           data: data.questionData,
           timer: timerResult.timer,
-          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+          questionEligiblePlayers: game.getQuestionEligiblePlayers()
         } satisfies GameQuestionDataEventPayload,
-        room: game.id,
+        room: game.id
       });
     }
 

@@ -19,6 +19,7 @@ import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { User } from "infrastructure/database/models/User";
 
 import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
 import { SocketGameTestFlowUtils } from "./SocketGameTestFlowUtils";
 import { SocketGameTestLobbyUtils } from "./SocketGameTestLobbyUtils";
@@ -312,7 +313,7 @@ export class SocketGameTestUtils {
 
   public async waitForActionsComplete(
     gameId: string,
-    timeout: number = 5000
+    timeout: number = TEST_TIMEOUTS.ACTION_QUEUE_WAIT_MS
   ): Promise<void> {
     return this.eventUtils.waitForActionsComplete(gameId, timeout);
   }
@@ -324,7 +325,7 @@ export class SocketGameTestUtils {
   public async waitForEvent<T = any>(
     socket: GameClientSocket,
     event: string,
-    timeout: number = 5000
+    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
   ): Promise<T> {
     return this.eventUtils.waitForEvent(socket, event, timeout);
   }
@@ -332,7 +333,7 @@ export class SocketGameTestUtils {
   public async waitForNoEvent(
     socket: GameClientSocket,
     event: string,
-    timeout: number = 150
+    timeout: number = TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS
   ): Promise<void> {
     return this.eventUtils.waitForNoEvent(socket, event, timeout);
   }

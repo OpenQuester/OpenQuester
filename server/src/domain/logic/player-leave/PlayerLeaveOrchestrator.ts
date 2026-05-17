@@ -6,11 +6,14 @@ import { AnsweringLeaveStrategy } from "domain/logic/player-leave/strategies/Ans
 import { FinalBiddingLeaveStrategy } from "domain/logic/player-leave/strategies/FinalBiddingLeaveStrategy";
 import {
   IPlayerLeaveStrategy,
+  PlayerLeaveStrategyInput,
   PlayerLeaveStrategyResult,
+  StakeBiddingLeaveInput,
 } from "domain/logic/player-leave/strategies/IPlayerLeaveStrategy";
 import { MediaDownloadLeaveStrategy } from "domain/logic/player-leave/strategies/MediaDownloadLeaveStrategy";
 import { StakeBiddingLeaveStrategy } from "domain/logic/player-leave/strategies/StakeBiddingLeaveStrategy";
 import { TurnPlayerLeaveStrategy } from "domain/logic/player-leave/strategies/TurnPlayerLeaveStrategy";
+import { type TransitionResources } from "domain/state-machine/types";
 import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
 import { PlayerKickBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 
@@ -23,6 +26,13 @@ export enum PlayerLeaveReason {
 
 export interface PlayerLeaveOptions {
   reason: PlayerLeaveReason;
+  stakeBidding?: StakeBiddingLeaveInput;
+  transitionResources?: TransitionResources;
+}
+
+export interface PlayerLeaveCleanupOptions {
+  stakeBidding?: StakeBiddingLeaveInput;
+  transitionResources?: TransitionResources;
 }
 
 @singleton()
@@ -54,6 +64,12 @@ export class PlayerLeaveOrchestrator {
       mutations: [],
       broadcasts: [],
     };
+    const strategyInput: PlayerLeaveStrategyInput = {
+      game,
+      userId,
+      stakeBidding: options.stakeBidding,
+      transitionResources: options.transitionResources,
+    };
 
     // Execute strategies BEFORE removing player
     for (const strategy of this.strategies) {
@@ -62,8 +78,8 @@ export class PlayerLeaveOrchestrator {
         continue;
       }
 
-      if (strategy.canHandle(game, userId)) {
-        const strategyResult = await strategy.execute(game, userId);
+      if (strategy.canHandle(strategyInput)) {
+        const strategyResult = await strategy.execute(strategyInput);
         result.mutations.push(...strategyResult.mutations);
         result.broadcasts.push(...strategyResult.broadcasts);
       }
@@ -83,8 +99,8 @@ export class PlayerLeaveOrchestrator {
     const mediaDownloadStrategy = this.strategies.find(
       (s) => s instanceof MediaDownloadLeaveStrategy
     );
-    if (mediaDownloadStrategy?.canHandle(game, userId)) {
-      const strategyResult = await mediaDownloadStrategy.execute(game, userId);
+    if (mediaDownloadStrategy?.canHandle(strategyInput)) {
+      const strategyResult = await mediaDownloadStrategy.execute(strategyInput);
       result.mutations.push(...strategyResult.mutations);
       result.broadcasts.push(...strategyResult.broadcasts);
     }
@@ -124,16 +140,23 @@ export class PlayerLeaveOrchestrator {
 
   public async processGameStateCleanup(
     game: Game,
-    userId: number
+    userId: number,
+    options: PlayerLeaveCleanupOptions = {}
   ): Promise<PlayerLeaveStrategyResult> {
     const result: PlayerLeaveStrategyResult = {
       mutations: [],
       broadcasts: [],
     };
+    const strategyInput: PlayerLeaveStrategyInput = {
+      game,
+      userId,
+      stakeBidding: options.stakeBidding,
+      transitionResources: options.transitionResources,
+    };
 
     for (const strategy of this.strategies) {
-      if (strategy.canHandle(game, userId)) {
-        const strategyResult = await strategy.execute(game, userId);
+      if (strategy.canHandle(strategyInput)) {
+        const strategyResult = await strategy.execute(strategyInput);
         result.mutations.push(...strategyResult.mutations);
         result.broadcasts.push(...strategyResult.broadcasts);
       }

@@ -15,11 +15,12 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 describe("Choice Question Flow Tests", () => {
   let testEnv: TestEnvironment;
@@ -95,20 +96,9 @@ describe("Choice Question Flow Tests", () => {
         expect(choiceQuestionId).not.toBeNull();
 
         // Set up promise to capture initial question data
-        const questionDataPromise = new Promise<GameQuestionDataEventPayload>(
-          (resolve, reject) => {
-            const timeout = setTimeout(() => {
-              reject(new Error("Test timeout waiting for QUESTION_DATA"));
-            }, 2000);
-
-            playerSocket.once(
-              SocketIOGameEvents.QUESTION_DATA,
-              (data: GameQuestionDataEventPayload) => {
-                clearTimeout(timeout);
-                resolve(data);
-              }
-            );
-          }
+        const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          playerSocket,
+          SocketIOGameEvents.QUESTION_DATA
         );
 
         // Pick the choice question
@@ -137,7 +127,6 @@ describe("Choice Question Flow Tests", () => {
         const mediaStatusPromise = utils.waitForEvent(
           playerSocket,
           SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-          2000
         );
         playerSocket.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         await mediaStatusPromise;
@@ -200,13 +189,11 @@ describe("Choice Question Flow Tests", () => {
         const answerResultPromise = utils.waitForEvent(
           playerSocket,
           SocketIOGameEvents.ANSWER_RESULT,
-          2000
         );
 
         const answerShowStartPromise = utils.waitForEvent(
           playerSocket,
           SocketIOGameEvents.ANSWER_SHOW_START,
-          2000
         );
 
         // Submit answer result from showman
@@ -261,15 +248,14 @@ describe("Choice Question Flow Tests", () => {
         expect(choiceQuestionId).not.toBeNull();
 
         // Set up promises to capture data sent to both showman and player
-        const showmanDataPromise = new Promise<GameQuestionDataEventPayload>(
-          (resolve) => {
-            showmanSocket.once(SocketIOGameEvents.QUESTION_DATA, resolve);
-          }
-        );
-        const playerDataPromise = new Promise<GameQuestionDataEventPayload>(
-          (resolve) => {
-            playerSocket.once(SocketIOGameEvents.QUESTION_DATA, resolve);
-          }
+        const showmanDataPromise =
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          );
+        const playerDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          playerSocket,
+          SocketIOGameEvents.QUESTION_DATA
         );
 
         // Pick the choice question
@@ -285,13 +271,17 @@ describe("Choice Question Flow Tests", () => {
         // Both should receive question data
         expect(showmanData.data.type).toBe(PackageQuestionType.CHOICE);
         expect(showmanData.data.text).toBe("Choice question text");
-        expect(showmanData.data.showDelay).toBe(3000);
+        expect(showmanData.data.showDelay).toBe(
+          TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS
+        );
         expect(showmanData.data.answers).toBeDefined();
         expect(showmanData.data.answers?.length).toBe(4);
 
         expect(playerData.data.type).toBe(PackageQuestionType.CHOICE);
         expect(playerData.data.text).toBe("Choice question text");
-        expect(playerData.data.showDelay).toBe(3000);
+        expect(playerData.data.showDelay).toBe(
+          TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS
+        );
         expect(playerData.data.answers).toBeDefined();
         expect(playerData.data.answers?.length).toBe(4);
 
@@ -348,46 +338,27 @@ describe("Choice Question Flow Tests", () => {
         }
 
         // Pick the choice question and verify structure
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Test timeout waiting for QUESTION_DATA"));
-          }, 5000);
-
-          playerSockets[0].once(
-            SocketIOGameEvents.QUESTION_DATA,
-            (data: GameQuestionDataEventPayload) => {
-              clearTimeout(timeout);
-              try {
-                expect(data.data.type).toBe(PackageQuestionType.CHOICE);
-                expect(data.data.answers).toBeDefined();
-                expect(data.data.answers?.length).toBe(4);
-
-                // Verify all options are present and ordered correctly
-                const answers = data.data.answers!;
-                expect(answers.find((a) => a.order === 0)?.text).toBe(
-                  "Option A"
-                );
-                expect(answers.find((a) => a.order === 1)?.text).toBe(
-                  "Option B"
-                );
-                expect(answers.find((a) => a.order === 2)?.text).toBe(
-                  "Option C"
-                );
-                expect(answers.find((a) => a.order === 3)?.text).toBe(
-                  "Option D"
-                );
-
-                resolve();
-              } catch (err) {
-                reject(err);
-              }
-            }
+        const questionDataPromise =
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            playerSockets[0],
+            SocketIOGameEvents.QUESTION_DATA
           );
 
-          showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-            questionId: choiceQuestionId,
-          });
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: choiceQuestionId,
         });
+        const questionData = await questionDataPromise;
+
+        expect(questionData.data.type).toBe(PackageQuestionType.CHOICE);
+        expect(questionData.data.answers).toBeDefined();
+        expect(questionData.data.answers?.length).toBe(4);
+
+        // Verify all options are present and ordered correctly
+        const answers = questionData.data.answers!;
+        expect(answers.find((a) => a.order === 0)?.text).toBe("Option A");
+        expect(answers.find((a) => a.order === 1)?.text).toBe("Option B");
+        expect(answers.find((a) => a.order === 2)?.text).toBe("Option C");
+        expect(answers.find((a) => a.order === 3)?.text).toBe("Option D");
       } finally {
         await utils.cleanupGameClients(setup);
       }

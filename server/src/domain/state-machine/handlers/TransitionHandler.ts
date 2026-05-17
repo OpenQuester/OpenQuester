@@ -1,11 +1,10 @@
-import { GameService } from "application/services/game/GameService";
 import { timerKey } from "domain/constants/redisKeys";
 import {
   GamePhase,
   MutationResult,
   TimerResult,
   TransitionContext,
-  TransitionResult,
+  TransitionResult
 } from "domain/state-machine/types";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 
@@ -49,12 +48,6 @@ export abstract class BaseTransitionHandler implements TransitionHandler {
   abstract readonly fromPhase: GamePhase;
   abstract readonly toPhase: GamePhase;
 
-  constructor(
-    protected readonly gameService: GameService
-  ) {
-    //
-  }
-
   abstract canTransition(ctx: TransitionContext): boolean;
 
   /**
@@ -82,7 +75,7 @@ export abstract class BaseTransitionHandler implements TransitionHandler {
       broadcasts,
       timer: timerResult.timer ?? null,
       timerMutations: timerResult.timerMutations,
-      data: mutationResult.data,
+      data: mutationResult.data
     };
   }
 
@@ -111,7 +104,7 @@ export abstract class BaseTransitionHandler implements TransitionHandler {
   ): Promise<TimerResult> {
     return {
       timer: undefined,
-      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }],
+      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }]
     };
   }
 

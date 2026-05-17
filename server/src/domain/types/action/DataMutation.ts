@@ -5,10 +5,8 @@ import {
   type SocketIOGameEvents,
   type SocketIOUserEvents,
 } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  type SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { type TimerMutation } from "domain/types/action/ActionExecutionContext";
 import { type BroadcastEvent } from "domain/types/service/ServiceResult";
 
@@ -337,5 +335,25 @@ export class DataMutationConverter {
       userId,
       payload: { action: MutationAction.CLEAR_LEFT_AT },
     };
+  }
+
+  /**
+   * Convert a {@link BroadcastMutation} array to the
+   * {@link SocketEventBroadcast} shape expected by broadcast services.
+   *
+   * Centralises the field-by-field mapping that was previously duplicated in
+   * {@link DataMutationProcessor} and {@link GameActionExecutor}.
+   */
+  public static broadcastsToSocketEvents(
+    broadcasts: BroadcastMutation[]
+  ): SocketEventBroadcast[] {
+    return broadcasts.map((b) => ({
+      event: b.event,
+      data: b.data,
+      target: b.target,
+      gameId: b.gameId,
+      socketId: b.socketId,
+      useRoleBasedBroadcast: b.useRoleBasedBroadcast,
+    }));
   }
 }

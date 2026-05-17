@@ -5,7 +5,7 @@ import {
   TableForeignKey,
 } from "typeorm";
 
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddPlayerGameStatsTable_0_17_0_3_1754379351456

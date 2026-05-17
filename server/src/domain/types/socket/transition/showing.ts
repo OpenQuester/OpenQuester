@@ -1,4 +1,4 @@
-import { GameStateDTO } from "../../dto/game/state/GameStateDTO";
+import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 
 export type ShowingToAnsweringMutationData = {

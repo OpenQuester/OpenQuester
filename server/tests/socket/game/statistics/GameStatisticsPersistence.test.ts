@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
@@ -14,7 +7,7 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
 import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -129,19 +122,16 @@ describe("Game Statistics Persistence Tests", () => {
             // First need to pick a question to have a valid questionId for answer-result
             let finalQuestionId: number = 0;
 
-            showmanSocket.once(
-              SocketIOGameEvents.QUESTION_DATA,
-              (questionData) => {
-                finalQuestionId = questionData.id;
+            showmanSocket.once(SocketIOGameEvents.QUESTION_DATA, (questionData) => {
+              finalQuestionId = questionData.id;
 
-                // Then emit answer-result to end the game
-                showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-                  questionId: finalQuestionId,
-                  answerType: AnswerResultType.CORRECT,
-                  scoreResult: 100,
-                });
-              }
-            );
+              // Then emit answer-result to end the game
+              showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+                questionId: finalQuestionId,
+                answerType: AnswerResultType.CORRECT,
+                scoreResult: 100
+              });
+            });
 
             // Pick a question in final round to get valid questionId
             await utils.pickQuestion(showmanSocket, undefined, playerSockets);
@@ -180,13 +170,7 @@ describe("Game Statistics Persistence Tests", () => {
 
   it("should record statistics to database when game ends via skip question force", async () => {
     // Setup game with 1 player
-    const setup = await utils.setupGameTestEnvironment(
-      userRepo,
-      _app,
-      1,
-      0,
-      false
-    );
+    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
     const { showmanSocket, playerSockets } = setup;
 
     try {

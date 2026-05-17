@@ -1,6 +1,7 @@
 import { singleton } from "tsyringe";
 
 import { GameService } from "application/services/game/GameService";
+import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { STAKE_QUESTION_BID_TIME } from "domain/constants/game";
@@ -39,6 +40,7 @@ export class StakeQuestionService {
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
+    private readonly transitionResourceService: TransitionResourceService,
     private readonly packageStore: PackageStore
   ) {
     //
@@ -180,6 +182,9 @@ export class StakeQuestionService {
               winnerPlayerId: mutationResult.winnerPlayerId,
               finalBid: mutationResult.highestBid,
             },
+            resources: this.transitionResourceService.fromSimpleQuestion(
+              stakeQuestion
+            ),
           }
         );
     } else if (!mutationResult.isPhaseComplete) {
@@ -208,6 +213,15 @@ export class StakeQuestionService {
     timer: GameStateTimerDTO | undefined;
     questionData: PackageQuestionDTO;
   }> {
+    const questionAndTheme = await this.packageStore.getQuestionWithTheme(
+      input.game.id,
+      input.questionId
+    );
+
+    if (!questionAndTheme) {
+      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
+    }
+
     const transitionResult =
       await this.phaseTransitionRouter.tryTransition<StakeBiddingToAnsweringPayload>(
         {
@@ -219,20 +233,14 @@ export class StakeQuestionService {
             winnerPlayerId: input.winnerPlayerId,
             finalBid: input.finalBid,
           },
+          resources: this.transitionResourceService.fromSimpleQuestion(
+            questionAndTheme.question
+          ),
         }
       );
 
     if (!transitionResult) {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
-    }
-
-    const questionAndTheme = await this.packageStore.getQuestionWithTheme(
-      input.game.id,
-      input.questionId
-    );
-
-    if (!questionAndTheme) {
-      throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
     }
 
     return {

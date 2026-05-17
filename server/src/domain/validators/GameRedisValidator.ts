@@ -1,5 +1,5 @@
 import { GameRedisHashDTO } from "domain/types/dto/game/GameRedisHashDTO";
-import { gameRedisDataScheme } from "presentation/schemes/game/gameSchemes";
+import { gameRedisDataScheme } from "domain/validators/schemas/GameRedisDataSchema";
 
 export class GameRedisValidator {
   /**

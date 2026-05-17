@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -28,10 +27,6 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.CHOOSING;
   public readonly toPhase = GamePhase.SHOWING;
-
-  constructor(gameService: GameService) {
-    super(gameService);
-  }
 
   public canTransition(ctx: ChoosingToShowingFallbackCtx): boolean {
     const { game, trigger, payload } = ctx;

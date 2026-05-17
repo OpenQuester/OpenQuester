@@ -9,7 +9,6 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import { SHOW_ANSWER_DURATION_TEXT } from "domain/constants/game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import {
@@ -18,11 +17,12 @@ import {
 } from "domain/types/socket/events/game/AnswerShowEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { TestUtils } from "tests/utils/TestUtils";
 
 describe("Show Answer Flow Tests", () => {
@@ -76,8 +76,7 @@ describe("Show Answer Flow Tests", () => {
         const answerShowStartPromise =
           utils.waitForEvent<AnswerShowStartEventPayload>(
             playerSockets[0],
-            SocketIOGameEvents.ANSWER_SHOW_START,
-            5000
+            SocketIOGameEvents.ANSWER_SHOW_START
           );
 
         // Submit correct answer
@@ -114,8 +113,7 @@ describe("Show Answer Flow Tests", () => {
         // Set up listener for ANSWER_SHOW_START event
         const answerShowStartPromise = utils.waitForEvent(
           playerSockets[0],
-          SocketIOGameEvents.ANSWER_SHOW_START,
-          5000
+          SocketIOGameEvents.ANSWER_SHOW_START
         );
 
         // Submit correct answer
@@ -135,7 +133,7 @@ describe("Show Answer Flow Tests", () => {
         const answerShowEndPromise = utils.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.ANSWER_SHOW_END,
-          1000
+          TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
         );
 
         // Expire the timer
@@ -171,8 +169,7 @@ describe("Show Answer Flow Tests", () => {
         const answerShowStartPromise =
           utils.waitForEvent<AnswerShowStartEventPayload>(
             playerSockets[0],
-            SocketIOGameEvents.ANSWER_SHOW_START,
-            5000
+            SocketIOGameEvents.ANSWER_SHOW_START
           );
 
         // Submit wrong answer - in 1 player game, player is exhausted after 1 wrong answer
@@ -209,8 +206,7 @@ describe("Show Answer Flow Tests", () => {
         // Set up listener for ANSWER_RESULT event
         const answerResultPromise = utils.waitForEvent(
           playerSockets[0],
-          SocketIOGameEvents.ANSWER_RESULT,
-          5000
+          SocketIOGameEvents.ANSWER_RESULT
         );
 
         // Submit wrong answer
@@ -254,8 +250,7 @@ describe("Show Answer Flow Tests", () => {
         const answerShowStartPromise =
           utils.waitForEvent<AnswerShowStartEventPayload>(
             playerSockets[0],
-            SocketIOGameEvents.ANSWER_SHOW_START,
-            5000
+            SocketIOGameEvents.ANSWER_SHOW_START
           );
 
         // Submit correct answer
@@ -273,7 +268,9 @@ describe("Show Answer Flow Tests", () => {
 
         // Verify game has the timer with expected duration
         const gameState = await utils.getGameState(gameId);
-        expect(gameState!.timer?.durationMs).toBe(SHOW_ANSWER_DURATION_TEXT);
+        expect(gameState!.timer?.durationMs).toBe(
+          TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS
+        );
       } finally {
         await utils.cleanupGameClients(setup);
       }
@@ -313,8 +310,7 @@ describe("Show Answer Flow Tests", () => {
         // Set up listener for ANSWER_SHOW_START event
         const answerShowStartPromise = utils.waitForEvent(
           playerSockets[0],
-          SocketIOGameEvents.ANSWER_SHOW_START,
-          5000
+          SocketIOGameEvents.ANSWER_SHOW_START
         );
 
         // Submit correct answer
@@ -334,7 +330,7 @@ describe("Show Answer Flow Tests", () => {
         const nextRoundPromise = utils.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.NEXT_ROUND,
-          1000
+          TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
         );
 
         // Expire the timer
@@ -362,8 +358,7 @@ describe("Show Answer Flow Tests", () => {
         // Set up listener for ANSWER_SHOW_START event
         const answerShowStartPromise = utils.waitForEvent(
           playerSockets[0],
-          SocketIOGameEvents.ANSWER_SHOW_START,
-          5000
+          SocketIOGameEvents.ANSWER_SHOW_START
         );
 
         // Submit correct answer
@@ -383,8 +378,7 @@ describe("Show Answer Flow Tests", () => {
         const answerShowEndPromise =
           utils.waitForEvent<AnswerShowEndEventPayload>(
             playerSockets[0],
-            SocketIOGameEvents.ANSWER_SHOW_END,
-            5000
+            SocketIOGameEvents.ANSWER_SHOW_END
           );
 
         // Skip show-answer phase
@@ -416,8 +410,7 @@ describe("Show Answer Flow Tests", () => {
         // Set up listener for ANSWER_SHOW_START event
         const answerShowStartPromise = utils.waitForEvent(
           playerSockets[0],
-          SocketIOGameEvents.ANSWER_SHOW_START,
-          5000
+          SocketIOGameEvents.ANSWER_SHOW_START
         );
 
         // Submit correct answer
@@ -436,8 +429,7 @@ describe("Show Answer Flow Tests", () => {
         // Set up listener for error event
         const errorPromise = utils.waitForEvent(
           playerSockets[0],
-          "error",
-          1000
+          "error"
         );
 
         // Player tries to skip (should fail)
@@ -469,7 +461,7 @@ describe("Show Answer Flow Tests", () => {
         expect(gameState!.questionState).not.toBe(QuestionState.SHOWING_ANSWER);
 
         // Set up listener for error event
-        const errorPromise = utils.waitForEvent(showmanSocket, "error", 1000);
+        const errorPromise = utils.waitForEvent(showmanSocket, "error");
 
         // Showman tries to skip show-answer when not in correct state (should fail)
         showmanSocket.emit(SocketIOGameEvents.SKIP_SHOW_ANSWER);

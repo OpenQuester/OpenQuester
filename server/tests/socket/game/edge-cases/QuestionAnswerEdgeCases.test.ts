@@ -1,24 +1,14 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -84,34 +74,28 @@ describe("Question Answer Edge Cases", () => {
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
         // Set up listener for answer result
-        const answerResultPromise =
-          utils.waitForEvent<QuestionAnswerResultEventPayload>(
-            playerSockets[1],
-            SocketIOGameEvents.ANSWER_RESULT,
-            3000
-          );
+        const answerResultPromise = utils.waitForEvent<QuestionAnswerResultEventPayload>(
+          playerSockets[1],
+          SocketIOGameEvents.ANSWER_RESULT
+        );
 
         // Showman sends wrong answer result first (before disconnect)
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           answerType: AnswerResultType.WRONG,
-          scoreResult: -100,
+          scoreResult: -100
         });
 
         await answerResultPromise;
 
         // Now player 0 disconnects (while in SHOWING state, not answering)
-        const leavePromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE,
-          3000
-        );
+        const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
         playerSockets[0].disconnect();
         await leavePromise;
 
         // Verify player is disconnected
         const game = await utils.getGameFromGameService(gameId);
         const player = game.getPlayer(playerUsers[0].id, {
-          fetchDisconnected: true,
+          fetchDisconnected: true
         });
         expect(player?.gameStatus).toBe(PlayerGameStatus.DISCONNECTED);
         // Verify their score was updated (penalty applied)
@@ -134,14 +118,11 @@ describe("Question Answer Edge Cases", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Players 2 and 3 skip the question
-        await new Promise<void>((resolve) => {
-          showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
-          playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
-        });
-        await new Promise<void>((resolve) => {
-          showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
-          playerSockets[2].emit(SocketIOGameEvents.QUESTION_SKIP, {});
-        });
+        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_SKIP);
+        playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+
+        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_SKIP);
+        playerSockets[2].emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
         // Verify 2 players have skipped
         const stateAfterSkips = await utils.getGameState(gameId);
@@ -158,32 +139,27 @@ describe("Question Answer Edge Cases", () => {
         expect(answeringState!.answeringPlayer).toBe(playerUsers[0].id);
 
         // Set up listeners for answer result AND question finish
-        const answerResultPromise =
-          utils.waitForEvent<QuestionAnswerResultEventPayload>(
-            playerSockets[0],
-            SocketIOGameEvents.ANSWER_RESULT,
-            3000
-          );
+        const answerResultPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_RESULT
+        );
 
         const answerShowEndPromise = utils.waitForEvent(
           showmanSocket,
-          SocketIOGameEvents.ANSWER_SHOW_END,
-          3000
+          SocketIOGameEvents.ANSWER_SHOW_END
         );
 
         // Showman sends wrong answer result
         // Since all other players have skipped, question should auto-skip
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           answerType: AnswerResultType.WRONG,
-          scoreResult: -100,
+          scoreResult: -100
         });
 
         // Verify answer result and question finish were both received
         const answerResult = await answerResultPromise;
         expect(answerResult).toBeDefined();
-        expect(answerResult.answerResult.answerType).toBe(
-          AnswerResultType.WRONG
-        );
+        expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
         // Timer should NOT be null since we now show answer even if everyone skipped
         expect(answerResult.timer).not.toBeNull();
 
@@ -215,10 +191,8 @@ describe("Question Answer Edge Cases", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Only Player 2 skips (Player 3 can still answer)
-        await new Promise<void>((resolve) => {
-          showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
-          playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
-        });
+        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_SKIP);
+        playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
         // Verify 1 player has skipped
         const stateAfterSkip = await utils.getGameState(gameId);
@@ -229,25 +203,21 @@ describe("Question Answer Edge Cases", () => {
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
         // Set up listener for answer result
-        const answerResultPromise =
-          utils.waitForEvent<QuestionAnswerResultEventPayload>(
-            playerSockets[0],
-            SocketIOGameEvents.ANSWER_RESULT,
-            3000
-          );
+        const answerResultPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_RESULT
+        );
 
         // Showman sends wrong answer result
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           answerType: AnswerResultType.WRONG,
-          scoreResult: -100,
+          scoreResult: -100
         });
 
         // Verify answer result received with timer (normal SHOWING transition)
         const answerResult = await answerResultPromise;
         expect(answerResult).toBeDefined();
-        expect(answerResult.answerResult.answerType).toBe(
-          AnswerResultType.WRONG
-        );
+        expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
         // Timer should be set since Player 3 can still answer
         expect(answerResult.timer).toBeDefined();
 
@@ -270,10 +240,8 @@ describe("Question Answer Edge Cases", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Player 2 skips
-        await new Promise<void>((resolve) => {
-          showmanSocket.once(SocketIOGameEvents.QUESTION_SKIP, resolve);
-          playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
-        });
+        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_SKIP);
+        playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
         // Verify Player 2 skipped
         const stateAfterSkip = await utils.getGameState(gameId);
@@ -283,22 +251,19 @@ describe("Question Answer Edge Cases", () => {
         await utils.answerQuestion(playerSockets[0], showmanSocket);
 
         // Set up listeners
-        const answerResultPromise =
-          utils.waitForEvent<QuestionAnswerResultEventPayload>(
-            playerSockets[0],
-            SocketIOGameEvents.ANSWER_RESULT,
-            3000
-          );
+        const answerResultPromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_RESULT
+        );
         const questionFinishPromise = utils.waitForEvent(
           showmanSocket,
-          SocketIOGameEvents.ANSWER_SHOW_END,
-          3000
+          SocketIOGameEvents.ANSWER_SHOW_END
         );
 
         // Showman sends wrong answer - should auto-skip since Player 2 already skipped
         showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
           answerType: AnswerResultType.WRONG,
-          scoreResult: -100,
+          scoreResult: -100
         });
 
         // Both events should be received
@@ -330,22 +295,22 @@ describe("Question Answer Edge Cases", () => {
         // Try to pick a non-existent question
         const nonExistentQuestionId = 999999;
 
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Test timeout - expected error event"));
-          }, 5000);
+        const nonExistentQuestionErrorPromise = utils.waitForEvent<unknown>(
+          showmanSocket,
+          SocketIOEvents.ERROR
+        );
 
-          showmanSocket.on(SocketIOEvents.ERROR, (error: unknown) => {
-            clearTimeout(timeout);
-            const errorObj = error as { message?: string };
-            expect(errorObj.message?.toLowerCase()).toContain("not found");
-            resolve();
-          });
-
-          showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-            questionId: nonExistentQuestionId,
-          });
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: nonExistentQuestionId
         });
+
+        const nonExistentQuestionError = await nonExistentQuestionErrorPromise;
+        const nonExistentQuestionErrorObj = nonExistentQuestionError as {
+          message?: string;
+        };
+        expect(nonExistentQuestionErrorObj.message?.toLowerCase()).toContain(
+          "not found"
+        );
       } finally {
         await utils.cleanupGameClients(setup);
       }

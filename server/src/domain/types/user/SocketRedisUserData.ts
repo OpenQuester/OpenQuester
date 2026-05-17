@@ -1,4 +1,4 @@
-import { userId } from "../ids";
+import { userId } from "domain/types/ids";
 
 export interface SocketRedisUserData {
   id: userId;

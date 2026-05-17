@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { STAKE_QUESTION_BID_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -38,10 +37,6 @@ import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/gam
 export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.CHOOSING;
   public readonly toPhase = GamePhase.STAKE_BIDDING;
-
-  constructor(gameService: GameService) {
-    super(gameService);
-  }
 
   public canTransition(ctx: ChoosingToStakeBiddingCtx): boolean {
     const { game, trigger, payload } = ctx;

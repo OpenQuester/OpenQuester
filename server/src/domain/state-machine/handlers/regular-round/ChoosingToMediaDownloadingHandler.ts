@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -18,7 +17,6 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { ChoosingToMediaDownloadingCtx } from "domain/types/socket/transition/choosing";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
-import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
 /**
  * Handles transition from CHOOSING to MEDIA_DOWNLOADING.
@@ -26,13 +24,6 @@ import { PackageStore } from "infrastructure/database/repositories/PackageStore"
 export class ChoosingToMediaDownloadingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.CHOOSING;
   public readonly toPhase = GamePhase.MEDIA_DOWNLOADING;
-
-  constructor(
-    gameService: GameService,
-    private readonly packageStore: PackageStore
-  ) {
-    super(gameService);
-  }
 
   /**
    * Eligible when:

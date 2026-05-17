@@ -1,47 +1,52 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { DataMutationProcessor } from "application/executors/DataMutationProcessor";
 import { GameActionHandlerRegistry } from "application/registries/GameActionHandlerRegistry";
 import { GameActionBroadcastService } from "application/services/broadcast/GameActionBroadcastService";
 import {
   GamePipelineService,
   PIPELINE_LOCK_TTL_SECONDS,
-  type PipelineInResult,
   type PipelineInSuccess,
+  type PipelineReadResult
 } from "application/services/pipeline/GamePipelineService";
+import { SocketActionHooks } from "application/services/socket/SocketActionHooks";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
-import {
-  gameKey,
-  lockKey,
-  queueKey,
-  timerKey,
-} from "domain/constants/redisKeys";
+import { gameKey, lockKey, queueKey, timerKey } from "domain/constants/redisKeys";
 import { type Game } from "domain/entities/game/Game";
-import { GameActionType } from "domain/enums/GameActionType";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { DataMutationType } from "domain/enums/DataMutationType";
+import { HttpStatus } from "domain/enums/HttpStatus";
+import { ClientError } from "domain/errors/ClientError";
 import { ErrorController } from "domain/errors/ErrorController";
-import { GameMapper } from "domain/mappers/GameMapper";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import {
-  type GameAction,
-  GameActionResult,
-} from "domain/types/action/GameAction";
+  DataMutationConverter,
+  type BroadcastMutation,
+  type DataMutation
+} from "domain/types/action/DataMutation";
+import { type GameAction, type GameActionResult } from "domain/types/action/GameAction";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
-import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import { asUserId } from "domain/types/ids";
-import { type SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
-import { GameRedisValidator } from "domain/validators/GameRedisValidator";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogContextService } from "infrastructure/logger/LogContext";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { LogTag } from "infrastructure/logger/LogTag";
-import { GameActionLockService } from "infrastructure/services/lock/GameActionLockService";
-import { GameActionQueueService } from "infrastructure/services/queue/GameActionQueueService";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ILogger } from "shared/logging/ILogger";
+import { LogContextService } from "shared/logging/LogContext";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { LogTag } from "shared/logging/LogTag";
+import {
+  DrainStatus,
+  GameActionLockService
+} from "application/services/lock/GameActionLockService";
+import { GameActionQueueService } from "application/services/queue/GameActionQueueService";
 
-/** Safety cap on drain iterations. Remaining items are picked up by the next submitAction. */
-const MAX_DRAIN_ITERATIONS = 100;
+type DrainedActionResult =
+  | {
+      actionId: string;
+      result: GameActionResult;
+      stopDraining?: false;
+    }
+  | {
+      stopDraining: true;
+    };
 
 /**
  * Orchestrates game action execution with locking and queuing.
@@ -56,11 +61,12 @@ const MAX_DRAIN_ITERATIONS = 100;
  * via switch-case (Redis pipeline, broadcasts, game completion).
  *
  * Flow:
- * 1. Action arrives → IN pipeline: try acquire lock + prefetch game/timer (1 RT)
- * 2. If locked → queue action in Redis (1 RT), return success (queued)
- * 3. If unlocked → execute handler with prefetched context (pure, 0 RT)
- * 4. After execution → DataMutationProcessor: save game + timer mutations + broadcasts + completions (1 RT + broadcasts)
- * 5. If queue non-empty → drain loop using atomic Lua script per iteration
+ * 1. Action arrives → queue it before trying to become the processor.
+ * 2. If lock acquisition fails → return success; current processor drains it.
+ * 3. If lock acquisition succeeds → drain queued actions using atomic Lua.
+ * 4. Each drained action fetches game/session/timer in the Lua drain step,
+ *    executes its handler, persists mutations/broadcasts, then runs any
+ *    post-execution socket hook before the next action is drained.
  */
 @singleton()
 export class GameActionExecutor {
@@ -71,6 +77,7 @@ export class GameActionExecutor {
     private readonly lockService: GameActionLockService,
     private readonly mutationProcessor: DataMutationProcessor,
     private readonly pipelineService: GamePipelineService,
+    private readonly socketActionHooks: SocketActionHooks,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -87,7 +94,7 @@ export class GameActionExecutor {
   public async submitAction(action: GameAction): Promise<GameActionResult> {
     // Ensure log context has game and action tags
     LogContextService.setGameId(action.gameId);
-    LogContextService.addTag(LogTag.QUEUE);
+    LogContextService.addTag(LogTag.ACTION);
 
     if (!this.handlerRegistry.has(action.type)) {
       const error = `No handler registered for action type: ${action.type}`;
@@ -96,76 +103,115 @@ export class GameActionExecutor {
         prefix: LogPrefix.ACTION,
         actionId: action.id,
         actionType: action.type,
-        gameId: action.gameId,
+        gameId: action.gameId
       });
 
       return { success: false, error };
     }
 
-    const handler = this.handlerRegistry.get(action.type)!;
+    const queueResult = await this.queueService.queueActionAndTryStartProcessor(action);
 
     this.logger.debug(`Action submitted`, {
       prefix: LogPrefix.ACTION,
       actionId: action.id,
       actionType: action.type,
-      gameId: action.gameId,
+      gameId: action.gameId
     });
 
-    // ── IN pipeline: lock + speculative prefetch in 1 RT ──
-    const inResult = await this.executePipelineIn(
-      action.gameId,
-      action.socketId
-    );
-
-    if (!inResult.lockAcquired) {
-      await this.queueService.pushAction(action);
-
+    if (!queueResult.shouldProcessQueue) {
       this.logger.debug(`Action queued (lock contention)`, {
         prefix: LogPrefix.ACTION,
         actionId: action.id,
         actionType: action.type,
-        gameId: action.gameId,
+        gameId: action.gameId
       });
 
       return { success: true };
     }
 
-    try {
-      const ctx = this.buildContext(action, inResult);
-      const result = await this.executeAction(handler, ctx);
-      const { queueLength } = await this.mutationProcessor.process(result, ctx);
+    const result = await this.drainQueue(action.gameId, queueResult.lockToken, action.id);
 
-      // Drain or release
-      if (queueLength > 0) {
-        await this.drainQueue(action.gameId, inResult.lockToken);
-      } else {
-        await this.lockService.releaseLock(action.gameId, inResult.lockToken);
-      }
-
-      return {
-        success: result.success,
-        data: result.data,
-        error: result.error,
-      };
-    } catch (error) {
-      await this.lockService.releaseLock(action.gameId, inResult.lockToken);
-      throw error;
+    if (!result) {
+      return { success: true };
     }
+
+    return result;
   }
 
-  // ════════════════════════════════════════════════════════════════════════
-  //  IN Pipeline
-  // ════════════════════════════════════════════════════════════════════════
+  /**
+   * Submit an action for direct execution, bypassing the lock/queue system.
+   *
+   * Used for actions that read game state for permission checks but never
+   * mutate it (e.g. chat messages). Context is fully prefetched via the
+   * read-only pipeline (same data as the normal IN pipeline, no lock).
+   *
+   * Only broadcast mutations are processed; game save / timer / queue
+   * mutations are ignored.
+   */
+  public async submitDirectAction(action: GameAction): Promise<GameActionResult> {
+    LogContextService.addTag(LogTag.ACTION);
+
+    const handler = this.handlerRegistry.get(action.type);
+
+    if (!handler) {
+      const error = `No handler registered for action type: ${action.type}`;
+
+      this.logger.warn(error, {
+        prefix: LogPrefix.ACTION,
+        actionId: action.id,
+        actionType: action.type
+      });
+
+      return { success: false, error };
+    }
+
+    this.logger.debug(`Direct action submitted`, {
+      prefix: LogPrefix.ACTION,
+      actionId: action.id,
+      actionType: action.type
+    });
+
+    // Fetch real game/timer/userData context without acquiring a lock.
+    // Direct execution handlers read state but never mutate it, so no
+    // synchronization is needed.
+    const readResult = await this.pipelineService.executePipelineReadOnly(
+      action.gameId,
+      action.socketId
+    );
+
+    const ctx = this.buildDirectContext(action, readResult);
+    const result = await this.executeAction(handler, ctx);
+
+    if (result.success) {
+      await this.emitDirectBroadcasts(result.mutations, ctx.game);
+    }
+
+    return {
+      success: result.success,
+      data: result.data,
+      error: result.error
+    };
+  }
 
   /**
-   * Delegates to {@link GamePipelineService.executePipelineIn}.
-   * See that method for full documentation.
+   * Extract and emit only BROADCAST mutations for direct execution.
+   *
+   * Direct execution bypasses the {@link DataMutationProcessor} pipeline
+   * entirely — there's no game save, no timers, no queue to drain.
+   * The real `game` is passed so {@link GameActionBroadcastService} can
+   * use role-based filtering if needed (though chat broadcasts don't need it).
    */
-  private async executePipelineIn(
-    gameId: string,
-    socketId: string
-  ): Promise<PipelineInResult> {
-    return this.pipelineService.executePipelineIn(gameId, socketId);
+  private async emitDirectBroadcasts(mutations: DataMutation[], game: Game): Promise<void> {
+    const broadcastMutations = mutations.filter(
+      (m): m is BroadcastMutation => m.type === DataMutationType.BROADCAST
+    );
+
+    if (broadcastMutations.length > 0) {
+      await this.broadcastService.emitBroadcasts(
+        DataMutationConverter.broadcastsToSocketEvents(broadcastMutations),
+        game
+      );
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -180,7 +226,7 @@ export class GameActionExecutor {
     inResult: PipelineInSuccess
   ): ActionExecutionContext<unknown> {
     const currentPlayer = inResult.game.getPlayer(action.playerId, {
-      fetchDisconnected: false,
+      fetchDisconnected: false
     });
 
     return {
@@ -189,7 +235,30 @@ export class GameActionExecutor {
       currentPlayer,
       timer: inResult.timer,
       lockToken: inResult.lockToken,
-      userData: inResult.userData,
+      userData: inResult.userData
+    };
+  }
+
+  /**
+   * Build an ActionExecutionContext from an action and a read-only pipeline
+   * result. Used by direct-execution actions — no lock is held, so
+   * `lockToken` is empty.
+   */
+  private buildDirectContext(
+    action: GameAction,
+    readResult: PipelineReadResult
+  ): ActionExecutionContext<unknown> {
+    const currentPlayer = readResult.game.getPlayer(action.playerId, {
+      fetchDisconnected: false
+    });
+
+    return {
+      action,
+      game: readResult.game,
+      currentPlayer,
+      timer: readResult.timer,
+      lockToken: "",
+      userData: readResult.userData
     };
   }
 
@@ -220,24 +289,19 @@ export class GameActionExecutor {
         gameId: action.gameId,
         success: result.success,
         durationMs,
-        mutationCount: result.mutations.length,
+        mutationCount: result.mutations.length
       });
 
       return result;
     } catch (error) {
       const durationMs = Date.now() - startTime;
-      const { message } = await ErrorController.resolveError(
-        error,
-        this.logger,
-        undefined,
-        {
-          source: "action-executor",
-          actionId: action.id,
-          actionType: action.type,
-          gameId: action.gameId,
-          durationMs,
-        }
-      );
+      const { message } = await ErrorController.resolveError(error, this.logger, undefined, {
+        source: "action-executor",
+        actionId: action.id,
+        actionType: action.type,
+        gameId: action.gameId,
+        durationMs
+      });
 
       this.broadcastService.emitError(action.socketId, message);
 
@@ -245,7 +309,7 @@ export class GameActionExecutor {
         success: false,
         error: message,
         mutations: [],
-        broadcastGame: ctx.game,
+        broadcastGame: ctx.game
       };
     }
   }
@@ -258,8 +322,8 @@ export class GameActionExecutor {
    * Process a single drained action: deserialize, validate, look up handler,
    * build context, execute, process mutations.
    *
-   * @returns true if execution succeeded and draining should continue,
-   *          false if processing should stop (caller must release the lock).
+   * @returns Result for the drained action, or null if the item should be
+   * skipped and draining can continue.
    */
   private async executeDrainedAction(
     rawAction: string,
@@ -268,74 +332,118 @@ export class GameActionExecutor {
     rawTimer: string | null,
     lockToken: string,
     gameId: string
-  ): Promise<boolean> {
+  ): Promise<DrainedActionResult | null> {
     const action = this.deserializeAction(rawAction);
 
     if (!action) {
       this.logger.warn(`Failed to deserialize queued action`, {
         prefix: LogPrefix.ACTION,
-        gameId,
+        gameId
       });
-      return false;
+      return null;
     }
 
     this.logger.debug(`Draining queued action`, {
       prefix: LogPrefix.ACTION,
       actionId: action.id,
       actionType: action.type,
-      gameId,
+      gameId
     });
 
-    const game = this.parseGameHash(gameHash);
+    const game = GamePipelineService.parseGameHash(gameHash);
 
     if (!game) {
       this.logger.warn(`Game not found for drained action`, {
         prefix: LogPrefix.ACTION,
-        gameId,
+        actionId: action.id,
+        actionType: action.type,
+        gameId
       });
-      return false;
+
+      return {
+        actionId: action.id,
+        result: await this.emitActionError(
+          action,
+          new ClientError(ClientResponse.GAME_NOT_FOUND, HttpStatus.NOT_FOUND, {
+            gameId: action.gameId
+          }),
+          "drained-action-game-not-found"
+        )
+      };
     }
 
-    const timer = GameActionExecutor.parseTimer(rawTimer);
+    const timer = GamePipelineService.parseTimer(rawTimer);
 
     const handler = this.handlerRegistry.get(action.type);
 
     if (!handler) {
-      this.logger.error(
-        `No handler registered for drained action type: ${action.type}`,
-        {
-          prefix: LogPrefix.ACTION,
-          actionId: action.id,
-          actionType: action.type,
-          gameId,
-        }
-      );
-      return false;
+      this.logger.error(`No handler registered for drained action type: ${action.type}`, {
+        prefix: LogPrefix.ACTION,
+        actionId: action.id,
+        actionType: action.type,
+        gameId
+      });
+
+      return {
+        actionId: action.id,
+        result: await this.emitActionError(
+          action,
+          new ClientError(`No handler registered for action type: ${action.type}`),
+          "drained-action-handler-not-found"
+        )
+      };
     }
 
-    const userData: SocketRedisUserData | null =
-      sessionHash && !ValueUtils.isEmpty(sessionHash)
-        ? {
-            id: asUserId(parseInt(sessionHash.id, 10)),
-            gameId:
-              sessionHash.gameId === "null" || !sessionHash.gameId
-                ? null
-                : sessionHash.gameId,
-          }
-        : null;
+    const userData = GamePipelineService.parseUserData(sessionHash);
 
     const ctx = this.buildContext(action, {
       lockAcquired: true,
       lockToken,
       game,
       timer,
-      userData,
+      userData
     });
 
     const result = await this.executeAction(handler, ctx);
     await this.mutationProcessor.process(result, ctx);
+    await this.socketActionHooks.run(
+      action,
+      {
+        success: result.success,
+        data: result.data,
+        error: result.error
+      },
+      result.broadcastGame ?? ctx.game
+    );
 
-    return true;
+    return {
+      actionId: action.id,
+      result: {
+        success: result.success,
+        data: result.data,
+        error: result.error
+      }
+    };
+  }
+
+  private async emitActionError(
+    action: GameAction,
+    error: unknown,
+    source: string
+  ): Promise<GameActionResult> {
+    const { message } = await ErrorController.resolveError(error, this.logger, undefined, {
+      source,
+      actionId: action.id,
+      actionType: action.type,
+      gameId: action.gameId
+    });
+
+    this.broadcastService.emitError(action.socketId, message);
+
+    return {
+      success: false,
+      error: message
+    };
   }
 
   /**
@@ -346,23 +454,22 @@ export class GameActionExecutor {
    * This guarantees the lock is never "free" between iterations, preventing
    * external actions from breaking FIFO order.
    *
-   * Bounded by {@link MAX_DRAIN_ITERATIONS} as a safety cap. If the queue
-   * still has items after the cap, the lock is released and remaining items
-   * are picked up by the next {@link submitAction} call.
-   *
    * @param gameId The game to drain the queue for
    * @param currentToken The current lock token held by the caller
+   * @param targetActionId Optional action whose result should be returned
    */
   private async drainQueue(
     gameId: string,
-    currentToken: string
-  ): Promise<void> {
+    currentToken: string,
+    targetActionId?: string
+  ): Promise<GameActionResult | null> {
     const lKey = lockKey(gameId);
     const qKey = queueKey(gameId);
     const gKey = gameKey(gameId);
     const tKey = timerKey(gameId);
+    let targetResult: GameActionResult | null = null;
 
-    for (let i = 0; i < MAX_DRAIN_ITERATIONS; i++) {
+    while (currentToken) {
       const drainResult = await this.lockService.drainAndReacquire(
         lKey,
         qKey,
@@ -373,50 +480,54 @@ export class GameActionExecutor {
         GAME_TTL_IN_SECONDS
       );
 
-      if (drainResult.status === "lock-lost") {
-        this.logger.warn(
-          `Lock lost during queue drain — another holder took over`,
-          {
+      switch (drainResult.status) {
+        case DrainStatus.LOCK_LOST:
+          this.logger.warn(`Lock lost during queue drain — another holder took over`, {
             prefix: LogPrefix.ACTION,
-            gameId,
+            gameId
+          });
+          return targetResult;
+
+        case DrainStatus.QUEUE_EMPTY:
+          // Lock already released by the Lua script
+          return targetResult;
+
+        case DrainStatus.ACTION_POPPED: {
+          currentToken = drainResult.token;
+
+          try {
+            const drainedResult = await this.executeDrainedAction(
+              drainResult.action,
+              drainResult.gameHash,
+              drainResult.sessionHash,
+              drainResult.timer,
+              currentToken,
+              gameId
+            );
+
+            if (!drainedResult) {
+              break;
+            }
+
+            if (drainedResult.stopDraining) {
+              await this.lockService.releaseLock(gameId, currentToken);
+              return targetResult;
+            }
+
+            if (drainedResult.actionId === targetActionId) {
+              targetResult = drainedResult.result;
+            }
+          } catch (error) {
+            await this.lockService.releaseLock(gameId, currentToken);
+            throw error;
           }
-        );
-        return;
-      }
 
-      if (drainResult.status === "queue-empty") {
-        // Lock already released by the Lua script
-        return;
-      }
-
-      // action-popped: parse and execute
-      currentToken = drainResult.token;
-
-      const success = await this.executeDrainedAction(
-        drainResult.action,
-        drainResult.gameHash,
-        drainResult.sessionHash,
-        drainResult.timer,
-        currentToken,
-        gameId
-      );
-
-      if (!success) {
-        await this.lockService.releaseLock(gameId, currentToken);
-        return;
+          break;
+        }
       }
     }
 
-    // Safety cap reached — release lock so remaining items are picked up
-    // by the next submitAction call
-    this.logger.warn(
-      `Drain loop hit safety cap (${MAX_DRAIN_ITERATIONS} iterations)`,
-      {
-        prefix: LogPrefix.ACTION,
-        gameId,
-      }
-    );
-    await this.lockService.releaseLock(gameId, currentToken);
+    return targetResult;
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -433,72 +544,10 @@ export class GameActionExecutor {
       return {
         ...parsed,
         timestamp: new Date(parsed.timestamp),
-        payload:
-          typeof parsed.payload === "string"
-            ? JSON.parse(parsed.payload)
-            : parsed.payload,
+        payload: typeof parsed.payload === "string" ? JSON.parse(parsed.payload) : parsed.payload
       } as GameAction;
     } catch {
       return null;
     }
-  }
-
-  /**
-   * Parse a raw game hash (Record<string, string>) into a Game entity.
-   * Returns null if the hash is empty or validation fails.
-   */
-  private parseGameHash(rawHash: Record<string, string>): Game | null {
-    if (!rawHash || ValueUtils.isEmpty(rawHash)) {
-      return null;
-    }
-
-    try {
-      const validatedData = GameRedisValidator.validateRedisData(rawHash);
-      return GameMapper.deserializeGameHash(validatedData);
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Parse a raw timer JSON string into a GameStateTimerDTO.
-   * Returns null if the string is empty/null or parsing fails.
-   */
-  private static parseTimer(raw: string | null): GameStateTimerDTO | null {
-    if (!raw || ValueUtils.isEmpty(raw)) {
-      return null;
-    }
-
-    try {
-      // TODO: Use Joi schema
-      return JSON.parse(raw) as GameStateTimerDTO;
-    } catch {
-      return null;
-    }
-  }
-
-  // ════════════════════════════════════════════════════════════════════════
-  //  Public helpers
-  // ════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Check if there are queued actions.
-   */
-  public async hasQueuedActions(gameId: string): Promise<boolean> {
-    return !(await this.queueService.isEmpty(gameId));
-  }
-
-  /**
-   * Peek at next queued action without removing it.
-   */
-  public async peekNextAction(gameId: string): Promise<GameAction | null> {
-    return this.queueService.peekAction(gameId);
-  }
-
-  /**
-   * Check if a handler is registered for the given action type.
-   */
-  public hasHandler(actionType: GameActionType): boolean {
-    return this.handlerRegistry.has(actionType);
   }
 }

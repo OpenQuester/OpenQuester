@@ -40,9 +40,7 @@ export class BiddingTimeoutLogic {
 
     // Find players who haven't submitted bids
     const eligiblePlayers = game.players.filter(
-      (p) =>
-        p.role === PlayerRole.PLAYER &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
+      (p) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME
     );
 
     for (const player of eligiblePlayers) {
@@ -50,19 +48,12 @@ export class BiddingTimeoutLogic {
         FinalRoundStateManager.addBid(game, player.meta.id, TIMEOUT_BID_AMOUNT);
         timeoutBids.push({
           playerId: player.meta.id,
-          bidAmount: TIMEOUT_BID_AMOUNT,
+          bidAmount: TIMEOUT_BID_AMOUNT
         });
       }
     }
 
     return { timeoutBids };
-  }
-
-  /**
-   * Check if all bids have been submitted (including timeout bids).
-   */
-  public static areAllBidsSubmitted(game: Game): boolean {
-    return FinalRoundStateManager.areAllBidsSubmitted(game);
   }
 
   /**
@@ -74,8 +65,7 @@ export class BiddingTimeoutLogic {
     transitionResult: TransitionResult;
   }): BiddingTimeoutResult {
     const { game, mutationResult, transitionResult } = input;
-    const mutationData =
-      transitionResult.data as FinalBiddingToAnsweringMutationData;
+    const mutationData = transitionResult.data as FinalBiddingToAnsweringMutationData;
 
     const questionData = mutationData.questionData;
 
@@ -83,7 +73,7 @@ export class BiddingTimeoutLogic {
       game,
       timeoutBids: mutationResult.timeoutBids,
       questionData,
-      transitionResult,
+      transitionResult
     };
   }
 }

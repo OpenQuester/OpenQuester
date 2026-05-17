@@ -1,10 +1,10 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { GameService } from "application/services/game/GameService";
+import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { StakeQuestionService } from "application/services/question/StakeQuestionService";
 import { FinalRoundService } from "application/services/socket/FinalRoundService";
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import {
@@ -22,7 +22,7 @@ import { AnsweringExpirationLogic } from "domain/logic/timer/AnsweringExpiration
 import { StakeBiddingTimeoutLogic } from "domain/logic/timer/StakeBiddingTimeoutLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
-import { TransitionTrigger } from "domain/state-machine/types";
+import { type TransitionResources, TransitionTrigger } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -43,8 +43,8 @@ import {
 } from "domain/types/socket/transition/answering";
 import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Service handling timer expiration logic.
@@ -54,12 +54,12 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
 export class TimerExpirationService {
   constructor(
     private readonly gameService: GameService,
-    private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly socketQuestionStateService: SocketQuestionStateService,
     private readonly finalRoundService: FinalRoundService,
     private readonly stakeQuestionService: StakeQuestionService,
     private readonly playerGameStatsService: PlayerGameStatsService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
+    private readonly transitionResourceService: TransitionResourceService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger,
     private readonly packageStore: PackageStore
   ) {
@@ -132,6 +132,9 @@ export class TimerExpirationService {
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
+      resources: await this.transitionResourceService.getCurrentQuestionWithTheme(
+        game
+      ),
     });
 
     if (!transitionResult) {
@@ -167,6 +170,7 @@ export class TimerExpirationService {
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
+      resources: await this.transitionResourceService.getNextRound(game),
     });
 
     if (!transitionResult) {
@@ -415,10 +419,13 @@ export class TimerExpirationService {
   }
 
   private async handleRegularAnsweringExpiration(game: Game) {
+    const transitionResources = await this._getAnsweringTransitionResources(game);
+
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
+      ...(transitionResources ? { resources: transitionResources } : {}),
     });
 
     if (!transitionResult) {
@@ -464,6 +471,22 @@ export class TimerExpirationService {
     await this.gameService.updateGame(game);
 
     return { answerResult: playerAnswerResult, timer: transitionResult.timer };
+  }
+
+  private async _getAnsweringTransitionResources(
+    game: Game
+  ): Promise<TransitionResources | undefined> {
+    const resources: Array<TransitionResources | undefined> = [];
+
+    if (game.willAllPlayersBeExhausted()) {
+      resources.push(
+        await this.transitionResourceService.getCurrentQuestionWithTheme(game)
+      );
+    } else {
+      resources.push(await this.transitionResourceService.getSavedShowingTimer(game));
+    }
+
+    return this.transitionResourceService.merge(...resources);
   }
 
   /**

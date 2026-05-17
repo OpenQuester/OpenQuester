@@ -1,17 +1,15 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
-import { PackageService } from "application/services/package/PackageService";
-import { UserService } from "application/services/user/UserService";
+import { DI_TOKENS } from "shared/di/tokens";
 import {
   GAME_EXPIRATION_WARNING_NAMESPACE,
   GAME_EXPIRATION_WARNING_SECONDS,
   GAME_ID_CHARACTERS,
   GAME_ID_CHARACTERS_LENGTH,
   GAME_NAMESPACE,
-  GAME_TTL_IN_SECONDS,
+  GAME_TTL_IN_SECONDS
 } from "domain/constants/game";
-import { PACKAGE_DETAILED_RELATIONS } from "domain/constants/package";
+import { PACKAGE_DETAILED_RELATIONS, PACKAGE_SELECT_FIELDS } from "domain/constants/package";
 import { REDIS_LOCK_GAMES_CLEANUP } from "domain/constants/redis";
 import { TIMER_NSP } from "domain/constants/timer";
 import { SECOND_MS } from "domain/constants/time";
@@ -27,6 +25,7 @@ import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { type PackageFileDTO } from "domain/types/dto/package/PackageFileDTO";
+import { asUserId } from "domain/types/ids";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
@@ -34,16 +33,14 @@ import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
 import { PasswordUtils } from "domain/utils/PasswordUtils";
 import { GameRedisValidator } from "domain/validators/GameRedisValidator";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
-import {
-  PackageMetaDTO,
-  PackageStore,
-} from "infrastructure/database/repositories/PackageStore";
-import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { RedisService } from "infrastructure/services/redis/RedisService";
-import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { PackageMetaDTO, PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { ValueUtils } from "domain/utils/ValueUtils";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
+import { UserRepository } from "infrastructure/database/repositories/UserRepository";
+import { PackageRepository } from "infrastructure/database/repositories/PackageRepository";
+import { S3FileUrlBuilder } from "infrastructure/storage/S3FileUrlBuilder";
 
 /**
  * Repository for Game entity operations (stored in Redis).
@@ -51,12 +48,12 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
 @singleton()
 export class GameRepository {
   constructor(
-    private readonly redisService: RedisService,
+    private readonly redisRepository: RedisRepository,
     @inject(DI_TOKENS.GameIndexManager)
     private readonly gameIndexManager: GameIndexManager,
-    private readonly userService: UserService,
-    private readonly packageService: PackageService,
-    private readonly storage: S3StorageService,
+    private readonly userRepository: UserRepository,
+    private readonly packageRepository: PackageRepository,
+    private readonly fileUrlBuilder: S3FileUrlBuilder,
     private readonly packageStore: PackageStore,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
@@ -71,19 +68,12 @@ export class GameRepository {
     return `${GAME_EXPIRATION_WARNING_NAMESPACE}:${gameId}`;
   }
 
-  public async getGameEntity(
-    gameId: string,
-    updatedTtl?: number
-  ): Promise<Game> {
+  public async getGameEntity(gameId: string, updatedTtl?: number): Promise<Game> {
     const key = this.getGameKey(gameId);
-    const data = await this.redisService.hgetall(key, updatedTtl);
+    const data = await this.redisRepository.hgetall(key, updatedTtl);
 
     if (!data || ValueUtils.isEmpty(data)) {
-      throw new ClientError(
-        ClientResponse.GAME_NOT_FOUND,
-        HttpStatus.NOT_FOUND,
-        { gameId }
-      );
+      throw new ClientError(ClientResponse.GAME_NOT_FOUND, HttpStatus.NOT_FOUND, { gameId });
     }
 
     const validatedData = GameRedisValidator.validateRedisData(data);
@@ -94,22 +84,14 @@ export class GameRepository {
     const gameKey = this.getGameKey(game.id);
     const packageKey = this.packageStore.getPackageKey(game.id);
     const warningKey = this.getGameExpirationWarningKey(game.id);
-    const warningTtlSeconds = Math.max(
-      GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS,
-      0
-    );
+    const warningTtlSeconds = Math.max(GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS, 0);
 
-    const pipeline = this.redisService.pipeline();
+    const pipeline = this.redisRepository.pipeline();
     pipeline.hset(gameKey, GameMapper.serializeGameToHash(game));
     pipeline.expire(gameKey, GAME_TTL_IN_SECONDS);
     pipeline.expire(packageKey, GAME_TTL_IN_SECONDS);
     if (warningTtlSeconds > 0) {
-      pipeline.set(
-        warningKey,
-        "1",
-        "PX",
-        warningTtlSeconds * SECOND_MS
-      );
+      pipeline.set(warningKey, "1", "PX", warningTtlSeconds * SECOND_MS);
     }
     await pipeline.exec();
   }
@@ -121,12 +103,9 @@ export class GameRepository {
     const gameKey = this.getGameKey(game.id);
     const packageKey = this.packageStore.getPackageKey(game.id);
     const warningKey = this.getGameExpirationWarningKey(game.id);
-    const warningTtlSeconds = Math.max(
-      GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS,
-      0
-    );
+    const warningTtlSeconds = Math.max(GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS, 0);
 
-    const pipeline = this.redisService.pipeline();
+    const pipeline = this.redisRepository.pipeline();
     pipeline.hset(gameKey, GameMapper.serializeGameToHash(game));
     this.gameIndexManager.updateGameIndexesPipeline(
       pipeline,
@@ -136,31 +115,19 @@ export class GameRepository {
     pipeline.expire(gameKey, GAME_TTL_IN_SECONDS);
     pipeline.expire(packageKey, GAME_TTL_IN_SECONDS);
     if (warningTtlSeconds > 0) {
-      pipeline.set(
-        warningKey,
-        "1",
-        "PX",
-        warningTtlSeconds * SECOND_MS
-      );
+      pipeline.set(warningKey, "1", "PX", warningTtlSeconds * SECOND_MS);
     }
     await pipeline.exec();
   }
 
   private async _isGameExists(gameId: string) {
     const key = this.getGameKey(gameId);
-    const data = await this.redisService.hgetall(key);
+    const data = await this.redisRepository.hgetall(key);
 
-    if (data && !ValueUtils.isEmpty(data)) {
-      return true;
-    }
-
-    return false;
+    return data && !ValueUtils.isEmpty(data);
   }
 
-  public async getGame(
-    gameId: string,
-    updatedTtl?: number
-  ): Promise<GameListItemDTO> {
+  public async getGame(gameId: string, updatedTtl?: number): Promise<GameListItemDTO> {
     const game = await this.getGameEntity(gameId, updatedTtl);
     return this.gameToListItemDTO(game);
   }
@@ -173,13 +140,13 @@ export class GameRepository {
         createdAtMax: paginationOpts.createdAtMax,
         createdAtMin: paginationOpts.createdAtMin,
         isPrivate: paginationOpts.isPrivate,
-        titlePrefix: paginationOpts.titlePrefix,
+        titlePrefix: paginationOpts.titlePrefix
       },
       {
         limit: paginationOpts.limit,
         offset: paginationOpts.offset,
         order: paginationOpts.order,
-        sortBy: paginationOpts.sortBy,
+        sortBy: paginationOpts.sortBy
       }
     );
 
@@ -194,9 +161,9 @@ export class GameRepository {
       userIds.add(game.createdBy);
     });
 
-    const users = await this.userService.findByIds(Array.from(userIds), {
+    const users = await this.userRepository.findByIds(Array.from(userIds), {
       select: ["id", "username"],
-      relations: [],
+      relations: []
     });
 
     const userMap = new Map(users.map((u) => [u.id, u]));
@@ -219,33 +186,27 @@ export class GameRepository {
     return {
       data: gamesItems,
       pageInfo: {
-        total,
-      },
+        total
+      }
     };
   }
 
   public async createGame(
     gameData: GameCreateDTO,
-    createdBy: User
+    createdBy: ShortUserInfo
   ): Promise<GameListItemDTO> {
-    const packageData = await this.packageService.getPackageRaw(
+    const packageData = await this.packageRepository.get(
       gameData.packageId,
-      undefined,
+      PACKAGE_SELECT_FIELDS,
       PACKAGE_DETAILED_RELATIONS
     );
 
     if (!packageData) {
-      throw new ClientError(
-        ClientResponse.PACKAGE_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+      throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     if (!packageData.author) {
-      throw new ClientError(
-        ClientResponse.PACKAGE_AUTHOR_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+      throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     let gameId = "";
@@ -260,36 +221,30 @@ export class GameRepository {
     } while (await this._isGameExists(gameId));
 
     if (collisionsCounter > 0) {
-      this.logger.warn(
-        `Game id collisions while game creation: ${collisionsCounter}`,
-        {
-          prefix: LogPrefix.GAME,
-        }
-      );
+      this.logger.warn(`Game id collisions while game creation: ${collisionsCounter}`, {
+        prefix: LogPrefix.GAME
+      });
     }
 
     const key = this.getGameKey(gameId);
 
-    const counts = await this.packageService.getCountsForPackage(
-      gameData.packageId
-    );
+    const counts = await this.packageRepository.getCountsForPackage(gameData.packageId);
 
-    const packageDTO = packageData.toDTO(this.storage, {
-      fetchIds: true,
+    const packageDTO = packageData.toDTO(this.fileUrlBuilder, {
+      fetchIds: true
     });
 
     const initialGameState = GameStateMapper.initGameState();
 
     // Handle password for private games
     if (gameData.isPrivate) {
-      initialGameState.password =
-        gameData.password || PasswordUtils.generateGamePassword();
+      initialGameState.password = gameData.password || PasswordUtils.generateGamePassword();
     }
 
     const game = new Game({
       id: gameId,
       title: gameData.title,
-      createdBy: createdBy.id,
+      createdBy: asUserId(createdBy.id),
       createdAt: new Date(),
       isPrivate: gameData.isPrivate,
       ageRestriction: gameData.ageRestriction,
@@ -300,32 +255,21 @@ export class GameRepository {
       roundsCount: counts.roundsCount,
       questionsCount: counts.questionsCount,
       players: [],
-      gameState: initialGameState,
+      gameState: initialGameState
     });
 
     // Store immutable package data separately
     await this.packageStore.storePackage(gameId, packageDTO);
 
-    const pipeline = this.redisService.pipeline();
+    const pipeline = this.redisRepository.pipeline();
     pipeline.hset(key, GameMapper.serializeGameToHash(game));
-    this.gameIndexManager.addGameToIndexesPipeline(
-      pipeline,
-      game.toIndexData()
-    );
+    this.gameIndexManager.addGameToIndexesPipeline(pipeline, game.toIndexData());
     pipeline.expire(key, GAME_TTL_IN_SECONDS);
 
-    const warningTtlSeconds = Math.max(
-      GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS,
-      0
-    );
+    const warningTtlSeconds = Math.max(GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS, 0);
     if (warningTtlSeconds > 0) {
       const warningKey = this.getGameExpirationWarningKey(gameId);
-      pipeline.set(
-        warningKey,
-        "1",
-        "PX",
-        warningTtlSeconds * SECOND_MS
-      );
+      pipeline.set(warningKey, "1", "PX", warningTtlSeconds * SECOND_MS);
     }
     await pipeline.exec();
 
@@ -335,7 +279,7 @@ export class GameRepository {
       description: packageDTO.description,
       author: {
         id: packageDTO.author.id,
-        username: packageDTO.author.username,
+        username: packageDTO.author.username
       },
       ageRestriction: packageDTO.ageRestriction,
       language: packageDTO.language,
@@ -344,49 +288,22 @@ export class GameRepository {
       createdAt:
         packageDTO.createdAt instanceof Date
           ? packageDTO.createdAt.toISOString()
-          : String(packageDTO.createdAt),
+          : String(packageDTO.createdAt)
     };
 
     return this._parseGameToListItemDTO(game, createdBy, packMeta);
   }
 
-  /**
-   * **Warning:** This method bypasses host check, so it can be used only in
-   * automated flows (e.g. when everyone leaves and game is finished)
-   */
-  public async deleteInternally(gameId: string): Promise<void> {
-    this.logger.debug("Delete game internally", {
-      prefix: LogPrefix.GAME,
-      gameId,
-    });
-
-    const key = this.getGameKey(gameId);
-    const game = await this.getGameEntity(gameId);
-
-    await this.clearAllTimers(gameId);
-    await this.redisService.del(key);
-    await this.packageStore.deletePackage(gameId);
-    await this.clearExpirationWarning(gameId);
-    await this.gameIndexManager.removeGameFromIndexes(
-      gameId,
-      game.toIndexData()
-    );
-  }
-
   public async deleteGame(user: number, gameId: string) {
     this.logger.debug("Delete game", {
       prefix: LogPrefix.GAME,
-      gameId,
+      gameId
     });
     const key = this.getGameKey(gameId);
     const game = await this.getGameEntity(gameId);
 
     if (!game) {
-      throw new ClientError(
-        ClientResponse.GAME_NOT_FOUND,
-        HttpStatus.NOT_FOUND,
-        { gameId }
-      );
+      throw new ClientError(ClientResponse.GAME_NOT_FOUND, HttpStatus.NOT_FOUND, { gameId });
     }
 
     if (game.createdBy !== user) {
@@ -395,43 +312,31 @@ export class GameRepository {
 
     await this.clearAllTimers(gameId);
 
-    await this.gameIndexManager.removeGameFromIndexes(
-      gameId,
-      game.toIndexData()
-    );
+    await this.gameIndexManager.removeGameFromIndexes(gameId, game.toIndexData());
 
-    await this.redisService.del(key);
+    await this.redisRepository.del(key);
     await this.packageStore.deletePackage(gameId);
     await this.clearExpirationWarning(gameId);
   }
 
   public async gameToListItemDTO(game: Game): Promise<GameListItemDTO> {
-    const createdBy = await this.userService.get(game.createdBy, {
+    const createdBy = await this.userRepository.get(game.createdBy, {
       select: ["id", "username"],
-      relations: [],
+      relations: []
     });
 
     const packMeta = await this.packageStore.getMeta(game.id);
 
     if (!packMeta) {
-      throw new ClientError(
-        ClientResponse.PACKAGE_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+      throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     if (!packMeta.author) {
-      throw new ClientError(
-        ClientResponse.PACKAGE_AUTHOR_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+      throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     if (!createdBy) {
-      throw new ClientError(
-        ClientResponse.USER_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     return this._parseGameToListItemDTO(game, createdBy, packMeta);
@@ -451,9 +356,7 @@ export class GameRepository {
    * This ensures games can continue after server restart without stuck states.
    */
   public async cleanupAllGames(): Promise<void> {
-    const acquired = await this.redisService.setLockKey(
-      REDIS_LOCK_GAMES_CLEANUP
-    );
+    const acquired = await this.redisRepository.setLockKey(REDIS_LOCK_GAMES_CLEANUP);
 
     if (!acquired) {
       return; // Another instance acquired the lock
@@ -461,7 +364,7 @@ export class GameRepository {
 
     const startTime = Date.now();
 
-    const keys = await this.redisService.scan(this.getGameKey("*"));
+    const keys = await this.redisRepository.scan(this.getGameKey("*"));
     let gamesCounter = 0;
     let timerRecoveryCounter = 0;
 
@@ -552,6 +455,7 @@ export class GameRepository {
   }
 
   /**
+   * @param gameId
    * @param timerAdditional means additional body between timer and gameId,
    *  e.g. timer:showing:ABCD, it this case timerAdditional is 'showing'
    */
@@ -559,7 +463,7 @@ export class GameRepository {
     const key = this._getTimerKey(gameId, timerAdditional);
 
     try {
-      const timer = await this.redisService.get(key);
+      const timer = await this.redisRepository.get(key);
       if (ValueUtils.isBad(timer) || ValueUtils.isEmpty(timer)) {
         return null;
       }
@@ -571,6 +475,8 @@ export class GameRepository {
   }
 
   /**
+   * @param timer
+   * @param gameId
    * @param timerAdditional means additional body between timer and gameId,
    *  e.g. timer:showing:ABCD, it this case timerAdditional is 'showing'
    * @param ttl in milliseconds
@@ -583,35 +489,15 @@ export class GameRepository {
   ) {
     const key = this._getTimerKey(gameId, timerAdditional);
 
-    await this.redisService.set(
-      key,
-      JSON.stringify(timer),
-      ttl ? ttl : timer.durationMs
-    );
+    await this.redisRepository.set(key, JSON.stringify(timer), ttl ? ttl : timer.durationMs);
   }
 
   public async clearTimer(gameId: string, timerAdditional?: string) {
-    await this.redisService.del(this._getTimerKey(gameId, timerAdditional));
-  }
-
-  private async setExpirationWarning(gameId: string): Promise<void> {
-    const warningTtlSeconds = Math.max(
-      GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS,
-      0
-    );
-    if (warningTtlSeconds === 0) {
-      return;
-    }
-
-    await this.redisService.set(
-      this.getGameExpirationWarningKey(gameId),
-      "1",
-      warningTtlSeconds * SECOND_MS
-    );
+    await this.redisRepository.del(this._getTimerKey(gameId, timerAdditional));
   }
 
   private async clearExpirationWarning(gameId: string): Promise<void> {
-    await this.redisService.del(this.getGameExpirationWarningKey(gameId));
+    await this.redisRepository.del(this.getGameExpirationWarningKey(gameId));
   }
 
   /**
@@ -621,20 +507,16 @@ export class GameRepository {
   public async clearAllTimers(gameId: string): Promise<void> {
     // Scan for suffixed keys (timer:{suffix}:{gameId}) using colon delimiter
     // to avoid substring collisions with other gameIds
-    const suffixedKeys = await this.redisService.scan(
-      `${TIMER_NSP}:*:${gameId}`
-    );
+    const suffixedKeys = await this.redisRepository.scan(`${TIMER_NSP}:*:${gameId}`);
     // Always include the bare key (timer:{gameId}) which has no suffix
     const bareKey = this._getTimerKey(gameId);
     const allKeys = [bareKey, ...suffixedKeys];
 
-    await Promise.all(allKeys.map((key) => this.redisService.del(key)));
+    await Promise.all(allKeys.map((key) => this.redisRepository.del(key)));
   }
 
   private _getTimerKey(gameId: string, timerAdditional?: string) {
-    return timerAdditional
-      ? `${TIMER_NSP}:${timerAdditional}:${gameId}`
-      : `${TIMER_NSP}:${gameId}`;
+    return timerAdditional ? `${TIMER_NSP}:${timerAdditional}:${gameId}` : `${TIMER_NSP}:${gameId}`;
   }
 
   private async _parseGameToListItemDTO(
@@ -642,13 +524,9 @@ export class GameRepository {
     createdBy: ShortUserInfo,
     packMeta: PackageMetaDTO
   ): Promise<GameListItemDTO> {
-    const currentRound = game.gameState.currentRound
-      ? game.gameState.currentRound.order + 1
-      : null;
+    const currentRound = game.gameState.currentRound ? game.gameState.currentRound.order + 1 : null;
 
-    const currentQuestion = game.gameState.currentQuestion
-      ? game.gameState.currentQuestion
-      : null;
+    const currentQuestion = game.gameState.currentQuestion ? game.gameState.currentQuestion : null;
 
     return {
       id: game.id,
@@ -659,11 +537,11 @@ export class GameRepository {
       players: game.players.map((p) => ({
         id: p.meta.id,
         role: p.role,
-        slot: p.gameSlot,
+        slot: p.gameSlot
       })),
       createdBy: {
         id: createdBy.id,
-        username: createdBy.username,
+        username: createdBy.username
       },
       startedAt: game.startedAt,
       finishedAt: game.finishedAt,
@@ -681,24 +559,21 @@ export class GameRepository {
         logo: packMeta.logo as { file: PackageFileDTO } | null | undefined,
         roundsCount: game.roundsCount ?? 0,
         questionsCount: game.questionsCount ?? 0,
-        tags: packMeta.tags.map((t) => t.tag),
-      },
+        tags: packMeta.tags.map((t) => t.tag)
+      }
     };
   }
 
   private _generateGameId() {
     let result = "";
     for (let i = 0; i < GAME_ID_CHARACTERS_LENGTH; i++) {
-      result +=
-        GAME_ID_CHARACTERS[
-          Math.floor(Math.random() * GAME_ID_CHARACTERS.length)
-        ];
+      result += GAME_ID_CHARACTERS[Math.floor(Math.random() * GAME_ID_CHARACTERS.length)];
     }
     return result;
   }
 
   private async _fetchGameDetails(gameIds: string[]) {
-    const pipeline = this.redisService.pipeline();
+    const pipeline = this.redisRepository.pipeline();
     gameIds.forEach((id) => pipeline.hgetall(this.getGameKey(id)));
 
     const results = await pipeline.exec();
@@ -717,25 +592,10 @@ export class GameRepository {
           this.logger.warn("Skipping invalid game Redis data", {
             prefix: LogPrefix.GAME,
             error: error instanceof Error ? error.message : String(error),
-            gameIdsCount: gameIds.length,
+            gameIdsCount: gameIds.length
           });
         }
       })
       .filter((g): g is Game => !!g);
-  }
-
-  /**
-   * @param expire seconds to expire the lock
-   */
-  public async gameLock(key: string, expire: number): Promise<boolean> {
-    const acquired = await this.redisService.setLockKey(key, expire);
-    return acquired === "OK";
-  }
-
-  /**
-   * Releases a game lock by deleting the lock key from Redis
-   */
-  public async gameUnlock(key: string): Promise<number> {
-    return this.redisService.del(key);
   }
 }

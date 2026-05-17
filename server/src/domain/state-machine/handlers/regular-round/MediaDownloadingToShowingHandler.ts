@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -26,12 +25,6 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.MEDIA_DOWNLOADING;
   public readonly toPhase = GamePhase.SHOWING;
-
-  constructor(
-    gameService: GameService
-  ) {
-    super(gameService);
-  }
 
   /**
    * Eligible when:
@@ -110,7 +103,7 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   }
 
   /**
-   * No broadcasts here: MediaDownloadedActionHandler builds MEDIA_DOWNLOAD_STATUS
+   * No broadcasts here: MediaDownloadedUseCase builds MEDIA_DOWNLOAD_STATUS
    * using service result data to keep personalized payload intact.
    */
   protected collectBroadcasts(

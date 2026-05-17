@@ -1,8 +1,8 @@
 import { BaseCronJob } from "application/jobs/BaseCronJob";
 import { CRON_EXP_3_AM_DAILY } from "domain/constants/cron";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { LogArchivalService } from "infrastructure/services/log/LogArchivalService";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { LogArchivalService } from "application/services/log/LogArchivalService";
 
 /**
  * Daily log archival check job.
@@ -29,7 +29,7 @@ export class LogArchivalJob extends BaseCronJob {
 
   protected async run(): Promise<void> {
     this.logger.info("Running log archival check", {
-      prefix: LogPrefix.LOG_ARCHIVAL,
+      prefix: LogPrefix.LOG_ARCHIVAL
     });
 
     await this.logArchivalService.checkAndArchive();

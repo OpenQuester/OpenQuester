@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { timerKey } from "domain/constants/redisKeys";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -34,12 +33,6 @@ import { FinalAnsweringToReviewingMutationData } from "domain/types/socket/trans
 export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.FINAL_ANSWERING;
   public readonly toPhase = GamePhase.FINAL_REVIEWING;
-
-  constructor(
-    gameService: GameService
-  ) {
-    super(gameService);
-  }
 
   /**
    * Strict check for transition eligibility.

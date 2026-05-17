@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { GAME_QUESTION_ANSWER_SUBMIT_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -25,17 +24,11 @@ import { ShowingToAnsweringMutationData } from "domain/types/socket/transition/s
  * This transition occurs when a player buzzes to answer a question.
  *
  * Entry points:
- * - Player buzzes (SocketIOQuestionService.handleQuestionAnswer)
+ * - Player buzzes (QuestionAnswerUseCase)
  */
 export class ShowingToAnsweringHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.SHOWING;
   public readonly toPhase = GamePhase.ANSWERING;
-
-  constructor(
-    gameService: GameService
-  ) {
-    super(gameService);
-  }
 
   /**
    * Check if this transition should occur.

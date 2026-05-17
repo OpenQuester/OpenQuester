@@ -2,8 +2,8 @@ import { type NextFunction, type Request, type Response } from "express";
 
 import { BaseError } from "domain/errors/BaseError";
 import { ErrorController } from "domain/errors/ErrorController";
-import { type ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { type ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Express error handling middleware - outermost error boundary for HTTP requests

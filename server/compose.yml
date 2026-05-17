@@ -82,7 +82,13 @@ services:
       - /bin/sh
       - -c
       - |
+        attempts=0
         until influxdb3 show databases -H http://influxdb3:8181 >/dev/null 2>&1; do
+          attempts=$$((attempts + 1))
+          if [ "$$attempts" -ge 60 ]; then
+            echo "InfluxDB did not become ready after 60 seconds" >&2
+            exit 1
+          fi
           sleep 1
         done
         influxdb3 create database -H http://influxdb3:8181 openquester >/dev/null 2>&1 || true

@@ -1,16 +1,17 @@
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { type Express } from "express";
 import { User } from "infrastructure/database/models/User";
-import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
 import { io as Client } from "socket.io-client";
 import request from "supertest";
 import { container } from "tsyringe";
 import { Repository } from "typeorm";
 import { GameClientSocket } from "./SocketIOGameTestUtils";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 export class SocketGameTestUserUtils {
   private socketUserDataService = container.resolve(SocketUserDataService);
-  private serverUrl: string;
+  private readonly serverUrl: string;
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl;
@@ -27,19 +28,15 @@ export class SocketGameTestUserUtils {
       email: `${username}@test.com`,
       is_deleted: false,
       created_at: new Date(),
-      updated_at: new Date(),
+      updated_at: new Date()
     });
     await userRepo.save(user);
 
     // Login
-    const loginRes = await request(app)
-      .post("/v1/test/login")
-      .send({ userId: user.id });
+    const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
 
     if (loginRes.status !== 200) {
-      throw new Error(
-        `Failed to login user ${username}: ${JSON.stringify(loginRes.body)}`
-      );
+      throw new Error(`Failed to login user ${username}: ${JSON.stringify(loginRes.body)}`);
     }
 
     const cookie = loginRes.headers["set-cookie"];
@@ -50,19 +47,12 @@ export class SocketGameTestUserUtils {
     return { user, cookie };
   }
 
-  public async loginExistingUser(
-    app: Express,
-    userId: number
-  ): Promise<{ cookie: string }> {
+  public async loginExistingUser(app: Express, userId: number): Promise<{ cookie: string }> {
     // Login existing user by ID
     const loginRes = await request(app).post("/v1/test/login").send({ userId });
 
     if (loginRes.status !== 200) {
-      throw new Error(
-        `Failed to login existing user ${userId}: ${JSON.stringify(
-          loginRes.body
-        )}`
-      );
+      throw new Error(`Failed to login existing user ${userId}: ${JSON.stringify(loginRes.body)}`);
     }
 
     const cookie = loginRes.headers["set-cookie"];
@@ -84,9 +74,7 @@ export class SocketGameTestUserUtils {
       .send({ socketId: socket.id });
 
     if (authRes.status !== 200) {
-      throw new Error(
-        `Failed to authenticate socket: ${JSON.stringify(authRes.body)}`
-      );
+      throw new Error(`Failed to authenticate socket: ${JSON.stringify(authRes.body)}`);
     }
   }
 
@@ -94,26 +82,24 @@ export class SocketGameTestUserUtils {
     app: Express,
     userRepo: Repository<User>
   ): Promise<{ socket: GameClientSocket; user: User; cookie: string }> {
-    const username = `testuser_${Date.now()}_${Math.random()
-      .toString(36)
-      .slice(2, 7)}`;
-    const { user, cookie } = await this.createAndLoginUser(
-      userRepo,
-      app,
-      username
-    );
+    const username = `testuser_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const { user, cookie } = await this.createAndLoginUser(userRepo, app, username);
 
     const socket = Client(this.serverUrl, {
       transports: ["websocket"],
       autoConnect: true,
-      reconnection: false,
+      reconnection: false
     }) as GameClientSocket;
 
     // Wait for connection
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error("[Socket Debug] Connection timeout after 5000ms"));
-      }, 5000);
+        reject(
+          new Error(
+            `[Socket Debug] Connection timeout after ${TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS}ms`
+          )
+        );
+      }, TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS);
 
       socket.on("connect", async () => {
         clearTimeout(timeout);
@@ -147,14 +133,18 @@ export class SocketGameTestUserUtils {
     const socket = Client(this.serverUrl, {
       transports: ["websocket"],
       autoConnect: true,
-      reconnection: false,
+      reconnection: false
     }) as GameClientSocket;
 
     // Wait for connection
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error("[Socket Debug] Connection timeout after 5000ms"));
-      }, 5000);
+        reject(
+          new Error(
+            `[Socket Debug] Connection timeout after ${TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS}ms`
+          )
+        );
+      }, TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS);
 
       socket.on("connect", async () => {
         clearTimeout(timeout);
@@ -179,14 +169,18 @@ export class SocketGameTestUserUtils {
     const socket = Client(this.serverUrl, {
       transports: ["websocket"],
       autoConnect: true,
-      reconnection: false,
+      reconnection: false
     }) as GameClientSocket;
 
     // Wait for connection without authentication
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error("[Socket Debug] Connection timeout after 5000ms"));
-      }, 5000);
+        reject(
+          new Error(
+            `[Socket Debug] Connection timeout after ${TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS}ms`
+          )
+        );
+      }, TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS);
 
       socket.on("connect", () => {
         clearTimeout(timeout);
@@ -202,9 +196,7 @@ export class SocketGameTestUserUtils {
     return socket;
   }
 
-  public async getSocketUserData(
-    socket: GameClientSocket
-  ): Promise<SocketRedisUserData | null> {
+  public async getSocketUserData(socket: GameClientSocket): Promise<SocketRedisUserData | null> {
     if (!socket.id) return null;
     return await this.socketUserDataService.getSocketData(socket.id);
   }
@@ -220,9 +212,7 @@ export class SocketGameTestUserUtils {
     return socketUserData.id;
   }
 
-  public async getPlayerUserIdFromSocket(
-    socket: GameClientSocket
-  ): Promise<number> {
+  public async getPlayerUserIdFromSocket(socket: GameClientSocket): Promise<number> {
     return this.getUserIdFromSocket(socket);
   }
 }

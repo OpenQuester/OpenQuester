@@ -17,7 +17,7 @@ import {
 import { GameEvent, GameEventDTO } from "domain/types/dto/game/GameEventDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";

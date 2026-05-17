@@ -3,7 +3,7 @@ import { TransitionResult } from "domain/state-machine/types";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
 import {
   AnswerReviewData,
-  FinalAnswerReviewResult,
+  FinalAnswerReviewResult
 } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
@@ -61,22 +61,14 @@ export class FinalAnswerReviewLogic {
 
     const result: AnswerReviewMutationResult = {
       reviewResult,
-      isPhaseComplete,
+      isPhaseComplete
     };
 
     if (isPhaseComplete) {
-      result.allReviews =
-        FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
+      result.allReviews = FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
     }
 
     return result;
-  }
-
-  /**
-   * Check if all answers have been reviewed.
-   */
-  public static areAllAnswersReviewed(game: Game): boolean {
-    return FinalRoundStateManager.areAllAnswersReviewed(game);
   }
 
   /**
@@ -88,9 +80,7 @@ export class FinalAnswerReviewLogic {
     transitionResult: TransitionResult | null;
   }): FinalAnswerReviewResult {
     const { game, mutationResult, transitionResult } = input;
-    const data = transitionResult?.data as
-      | FinalReviewingToGameFinishMutationData
-      | undefined;
+    const data = transitionResult?.data as FinalReviewingToGameFinishMutationData | undefined;
 
     const isGameFinished = data?.isGameFinished ?? false;
     const questionAnswerData = data?.questionAnswerData;
@@ -100,7 +90,7 @@ export class FinalAnswerReviewLogic {
       isGameFinished,
       reviewResult: mutationResult.reviewResult,
       allReviews: mutationResult.allReviews,
-      questionAnswerData: questionAnswerData ?? undefined,
+      questionAnswerData: questionAnswerData ?? undefined
     } satisfies FinalAnswerReviewResult;
   }
 }

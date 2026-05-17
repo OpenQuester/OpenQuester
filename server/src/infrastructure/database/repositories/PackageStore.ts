@@ -1,6 +1,6 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { GAME_NAMESPACE, GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { RoundIndexEntry } from "domain/types/dto/game/RoundIndexEntry";
@@ -13,9 +13,9 @@ import { PackageTagDTO } from "domain/types/dto/package/PackageTagDTO";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { RedisService } from "infrastructure/services/redis/RedisService";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 
 /**
  * Metadata stored under the "meta" field of a package hash
@@ -74,7 +74,7 @@ export class PackageStore {
   private static readonly PACKAGE_KEY_PREFIX = `${GAME_NAMESPACE}:package`;
 
   constructor(
-    private readonly redisService: RedisService,
+    private readonly redisRepository: RedisRepository,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -110,9 +110,7 @@ export class PackageStore {
       logo: pack.logo,
       tags: pack.tags.map((t) => ({ tag: t.tag })),
       createdAt:
-        pack.createdAt instanceof Date
-          ? pack.createdAt.toISOString()
-          : String(pack.createdAt),
+        pack.createdAt instanceof Date ? pack.createdAt.toISOString() : String(pack.createdAt)
     };
     fields["meta"] = JSON.stringify(meta);
 
@@ -129,8 +127,8 @@ export class PackageStore {
           name: theme.name,
           order: theme.order,
           description: theme.description,
-          questionIds: theme.questions.map((q) => q.id!),
-        })),
+          questionIds: theme.questions.map((q) => q.id!)
+        }))
       };
       fields[`round:${round.order}`] = JSON.stringify(roundStore);
 
@@ -138,7 +136,7 @@ export class PackageStore {
       for (const theme of round.themes) {
         const themeRef: PackageQuestionThemeDTO = {
           id: theme.id!,
-          name: theme.name,
+          name: theme.name
         };
         const themeRefJson = JSON.stringify(themeRef);
 
@@ -149,12 +147,12 @@ export class PackageStore {
       }
     }
 
-    await this.redisService.hset(key, fields, ttl);
+    await this.redisRepository.hset(key, fields, ttl);
 
     this.logger.debug("Package stored in Redis", {
       prefix: LogPrefix.GAME,
       gameId,
-      fieldsCount: Object.keys(fields).length,
+      fieldsCount: Object.keys(fields).length
     });
   }
 
@@ -165,19 +163,16 @@ export class PackageStore {
   public static buildRoundIndex(pack: PackageDTO): RoundIndexEntry[] {
     return pack.rounds.map((round) => ({
       order: round.order,
-      type: round.type,
+      type: round.type
     }));
   }
 
   /**
    * Retrieve a single question by ID.
    */
-  public async getQuestion(
-    gameId: string,
-    questionId: number
-  ): Promise<PackageQuestionDTO | null> {
+  public async getQuestion(gameId: string, questionId: number): Promise<PackageQuestionDTO | null> {
     const key = this.getPackageKey(gameId);
-    const results = await this.redisService.hmget(key, [`q:${questionId}`]);
+    const results = await this.redisRepository.hmget(key, [`q:${questionId}`]);
 
     const [raw] = results;
 
@@ -199,9 +194,9 @@ export class PackageStore {
     theme: PackageThemeDTO;
   } | null> {
     const key = this.getPackageKey(gameId);
-    const results = await this.redisService.hmget(key, [
+    const results = await this.redisRepository.hmget(key, [
       `q:${questionId}`,
-      `q:${questionId}:theme`,
+      `q:${questionId}:theme`
     ]);
 
     const [questionRaw, themeRaw] = results;
@@ -217,7 +212,7 @@ export class PackageStore {
       id: themeRef.id,
       name: themeRef.name,
       order: 0,
-      questions: [],
+      questions: []
     };
 
     return { question, theme };
@@ -226,12 +221,9 @@ export class PackageStore {
   /**
    * Retrieve round metadata (including theme structure) for building GameStateRoundDTO.
    */
-  public async getRound(
-    gameId: string,
-    roundOrder: number
-  ): Promise<GameStateRoundDTO | null> {
+  public async getRound(gameId: string, roundOrder: number): Promise<GameStateRoundDTO | null> {
     const key = this.getPackageKey(gameId);
-    const results = await this.redisService.hmget(key, [`round:${roundOrder}`]);
+    const results = await this.redisRepository.hmget(key, [`round:${roundOrder}`]);
     const [raw] = results;
 
     if (!raw) {
@@ -248,7 +240,7 @@ export class PackageStore {
 
     // Fetch all questions in a single HMGET
     const questionFields = questionIds.map((id) => `q:${id}`);
-    const questionResults = await this.redisService.hmget(key, questionFields);
+    const questionResults = await this.redisRepository.hmget(key, questionFields);
 
     const questionMap = new Map<number, PackageQuestionDTO>();
     for (let i = 0; i < questionIds.length; i++) {
@@ -275,10 +267,10 @@ export class PackageStore {
             order: q.order,
             price: q.isHidden ? null : q.price,
             questionComment: q.questionComment ?? null,
-            isPlayed: false,
+            isPlayed: false
           };
         })
-        .filter((q): q is NonNullable<typeof q> => q !== null),
+        .filter((q): q is NonNullable<typeof q> => q !== null)
     }));
 
     return {
@@ -287,7 +279,7 @@ export class PackageStore {
       type: roundData.type as PackageRoundType,
       description: roundData.description ?? null,
       order: roundData.order,
-      themes,
+      themes
     };
   }
 
@@ -296,7 +288,7 @@ export class PackageStore {
    */
   public async getMeta(gameId: string): Promise<PackageMetaDTO | null> {
     const key = this.getPackageKey(gameId);
-    const raw = await this.redisService.hget(key, "meta");
+    const raw = await this.redisRepository.hget(key, "meta");
 
     if (!raw) {
       return null;
@@ -311,7 +303,7 @@ export class PackageStore {
    */
   public async getFullPackage(gameId: string): Promise<PackageDTO | null> {
     const key = this.getPackageKey(gameId);
-    const allFields = await this.redisService.hgetall(key);
+    const allFields = await this.redisRepository.hgetall(key);
 
     if (!allFields || Object.keys(allFields).length === 0) {
       return null;
@@ -350,10 +342,7 @@ export class PackageStore {
       if (field.endsWith(":theme")) {
         const match = field.match(/^q:(\d+):theme$/);
         if (match) {
-          themeMap.set(
-            parseInt(match[1]),
-            JSON.parse(value) as PackageQuestionThemeDTO
-          );
+          themeMap.set(parseInt(match[1]), JSON.parse(value) as PackageQuestionThemeDTO);
         }
       }
     }
@@ -373,9 +362,9 @@ export class PackageStore {
           description: theme.description,
           questions: theme.questionIds
             .map((qId) => questionMap.get(qId))
-            .filter((q): q is PackageQuestionDTO => !!q),
+            .filter((q): q is PackageQuestionDTO => !!q)
         })
-      ),
+      )
     }));
 
     return {
@@ -388,7 +377,7 @@ export class PackageStore {
       logo: meta.logo as { file: PackageFileDTO } | null | undefined,
       rounds: fullRounds,
       tags: meta.tags as PackageTagDTO[],
-      createdAt: new Date(meta.createdAt),
+      createdAt: new Date(meta.createdAt)
     };
   }
 
@@ -397,17 +386,6 @@ export class PackageStore {
    */
   public async deletePackage(gameId: string): Promise<void> {
     const key = this.getPackageKey(gameId);
-    await this.redisService.del(key);
-  }
-
-  /**
-   * Refresh the TTL on a game's package hash.
-   */
-  public async refreshTtl(
-    gameId: string,
-    ttl: number = GAME_TTL_IN_SECONDS
-  ): Promise<void> {
-    const key = this.getPackageKey(gameId);
-    await this.redisService.expire(key, ttl);
+    await this.redisRepository.del(key);
   }
 }

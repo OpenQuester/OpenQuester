@@ -17,7 +17,7 @@ import {
 } from "domain/types/socket/events/FinalRoundEventData";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -162,9 +162,7 @@ describe("Final Round Answering Logic", () => {
       expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.REVIEWING);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
 
     it("should handle empty answers as auto-loss", async () => {
@@ -274,9 +272,7 @@ describe("Final Round Answering Logic", () => {
       expect(validReview!.answerType).toBe(FinalAnswerType.PENDING);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
 
     it("should handle single player answering", async () => {
@@ -346,9 +342,7 @@ describe("Final Round Answering Logic", () => {
       expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.REVIEWING);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
 
     it("should handle multiple players with mixed answer types", async () => {
@@ -478,9 +472,7 @@ describe("Final Round Answering Logic", () => {
       expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.REVIEWING);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
   });
 
@@ -616,9 +608,7 @@ describe("Final Round Answering Logic", () => {
       expect(gameFinishedEvent).toBe(true);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
 
     it("should handle mixed correct and incorrect reviews", async () => {
@@ -754,9 +744,7 @@ describe("Final Round Answering Logic", () => {
       expect(reviewEvents).toHaveLength(2);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
   });
 });

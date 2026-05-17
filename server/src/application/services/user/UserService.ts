@@ -1,33 +1,35 @@
-import { type Request } from "express";
-import { Namespace } from "socket.io";
 import { inject, singleton } from "tsyringe";
-import { FindOptionsWhere } from "typeorm";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
+import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { GamePipelineService } from "application/services/pipeline/GamePipelineService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
+import { UserSessionService } from "application/services/user/UserSessionService";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { GameActionType } from "domain/enums/GameActionType";
 import { HttpStatus } from "domain/enums/HttpStatus";
+import { Permissions } from "domain/enums/Permissions";
 import { ClientError } from "domain/errors/ClientError";
 import { type GameAction } from "domain/types/action/GameAction";
-import { UpdateUserDTO } from "domain/types/dto/user/UpdateUserDTO";
+import { UpdateUserDTO } from "application/types/user/UpdateUserDTO";
+import { UsersStats } from "domain/types/admin/AdminTypes";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
-import { asUserId, userId } from "domain/types/ids";
+import { userId } from "domain/types/ids";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { SelectOptions } from "domain/types/SelectOptions";
-import { RegisterUser } from "domain/types/user/RegisterUser";
+import { RegisterUser } from "application/types/user/RegisterUser";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { S3FileUrlBuilder } from "infrastructure/storage/S3FileUrlBuilder";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
  * Service for user management operations.
@@ -38,29 +40,30 @@ export class UserService {
     private readonly userRepository: UserRepository,
     private readonly fileUsageService: FileUsageService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly userSessionService: UserSessionService,
     private readonly gamePipelineService: GamePipelineService,
     private readonly socketUserDataService: SocketUserDataService,
     private readonly actionExecutor: GameActionExecutor,
-    @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
+    private readonly fileUrlBuilder: S3FileUrlBuilder,
+    @inject(DI_TOKENS.RealtimeGateway) private readonly realtimeGateway: RealtimeGateway,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }
 
+  // --- Endpoint related methods --- //
   /**
    * Get list of all available users in DB
    */
-  public async list(
-    paginationOpts: UserPaginationOpts
-  ): Promise<PaginatedResult<UserDTO[]>> {
+  public async list(paginationOpts: UserPaginationOpts): Promise<PaginatedResult<UserDTO[]>> {
     this.logger.debug("Users listing with pagination options: ", {
       prefix: LogPrefix.USER,
-      paginationOpts,
+      paginationOpts
     });
 
     const log = this.logger.performance(`User listing`, {
       prefix: LogPrefix.USER,
-      paginationOpts,
+      paginationOpts
     });
 
     const usersListPaginated = await this.userRepository.list(paginationOpts, {
@@ -68,51 +71,43 @@ export class UserService {
       relations: USER_RELATIONS,
       relationSelects: {
         avatar: ["id", "filename"],
-        permissions: ["id", "name"],
-      },
+        permissions: ["id", "name"]
+      }
     });
 
-    const usersData: UserDTO[] = usersListPaginated.data.map((user) =>
-      user.toDTO()
-    );
+    const usersData: UserDTO[] = usersListPaginated.data.map((user) => this.toDTO(user));
 
     log.finish({ usersData });
 
     return { data: usersData, pageInfo: usersListPaginated.pageInfo };
   }
 
-  public async listRecent(
-    limit: number,
-    selectOptions: SelectOptions<User>,
-    since?: Date
-  ) {
+  public async listRecent(limit: number, selectOptions: SelectOptions<User>, since?: Date) {
     return this.userRepository.listRecent(limit, selectOptions, since);
   }
 
   /**
    * Retrieve one user
    */
-  public async get(
-    userId: userId,
-    selectOptions?: SelectOptions<User>
-  ): Promise<UserDTO> {
-    return (await this.getRaw(userId, selectOptions)).toDTO();
+  public async get(userId: userId, selectOptions?: SelectOptions<User>): Promise<UserDTO> {
+    return this.toDTO(await this.getRaw(userId, selectOptions));
   }
 
-  public async getRaw(
-    userId: userId,
-    selectOptions?: SelectOptions<User>
-  ): Promise<User> {
+  public toDTO(user: User): UserDTO {
+    return user.toDTO(this.fileUrlBuilder);
+  }
+
+  public async getRaw(userId: userId, selectOptions?: SelectOptions<User>): Promise<User> {
     this.logger.debug("Retrieving user with options: ", {
       prefix: LogPrefix.USER,
       userId,
-      selectOptions,
+      selectOptions
     });
 
     const log = this.logger.performance(`User retrieval`, {
       prefix: LogPrefix.USER,
       userId,
-      selectOptions,
+      selectOptions
     });
 
     const user = await this.userRepository.get(userId, {
@@ -120,26 +115,23 @@ export class UserService {
       relations: selectOptions?.relations ?? USER_RELATIONS,
       relationSelects: selectOptions?.relationSelects ?? {
         avatar: ["id", "filename"],
-        permissions: ["id", "name"],
-      },
+        permissions: ["id", "name"]
+      }
     });
 
     if (!user) {
       this.logger.trace(`User not found: ${userId}`, {
         prefix: LogPrefix.USER,
-        userId,
+        userId
       });
       log.finish();
 
-      throw new ClientError(
-        ClientResponse.USER_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     log.finish({
       hasAvatar: !!user.avatar,
-      permissionCount: user.permissions?.length || 0,
+      permissionCount: user.permissions?.length || 0
     });
 
     return user;
@@ -149,13 +141,13 @@ export class UserService {
     this.logger.trace("User creation started", {
       prefix: LogPrefix.USER,
       email: data.email,
-      username: data.username,
+      username: data.username
     });
 
     const log = this.logger.performance(`User creation`, {
       prefix: LogPrefix.USER,
       email: data.email,
-      username: data.username,
+      username: data.username
     });
     const user = await this.userRepository.create(data);
 
@@ -166,59 +158,49 @@ export class UserService {
       userId: user.id,
       email: data.email,
       username: data.username,
-      isGuest: user.is_guest,
+      isGuest: user.is_guest
     });
 
     return user;
   }
 
-  public async find(
-    where: FindOptionsWhere<User>,
-    selectOptions: SelectOptions<User>
-  ) {
-    return this.userRepository.find(where, selectOptions);
+  public async getStats(): Promise<UsersStats> {
+    return this.userRepository.getStats();
   }
 
-  public async count(where: FindOptionsWhere<User>): Promise<number> {
-    return this.userRepository.count(where);
+  public async findActiveByDiscordId(
+    discordId: string,
+    selectOptions: SelectOptions<User>
+  ): Promise<User | null> {
+    return this.userRepository.findActiveByDiscordId(discordId, selectOptions);
   }
 
-  /**
-   * Same as `get` method, but with custom `where` condition and avoids cache
-   */
-  public async findOne(
-    where: FindOptionsWhere<User>,
+  public async findActiveByIdentity(
+    input: { username: string; email: string; discordId: string },
     selectOptions: SelectOptions<User>
-  ) {
-    return this.userRepository.findOne(where, selectOptions);
-  }
-
-  public findByIds(
-    ids: number[],
-    selectOptions: SelectOptions<User>
-  ): Promise<User[]> {
-    return this.userRepository.findByIds(ids, selectOptions);
+  ): Promise<User | null> {
+    return this.userRepository.findActiveByIdentity(input, selectOptions);
   }
 
   /**
    * Update user by params id
    */
   public async update(user: User, updateUserData: UpdateUserDTO) {
-    return this.performUpdate(user, updateUserData);
+    return this._performUpdate(user, updateUserData);
   }
 
   /**
    * Delete user by params id
    */
   public async delete(userId: userId) {
-    const result = await this.performDelete(userId);
-    await this.forceLeaveAllGames(userId);
+    const result = await this._performDelete(userId);
+    await this._forceLeaveAllGames(userId);
     return result;
   }
 
   public async ban(userId: userId) {
     await this.userRepository.ban(userId);
-    await this.forceLeaveAllGames(userId);
+    await this._forceLeaveAllGames(userId);
   }
 
   public async unban(userId: userId) {
@@ -237,20 +219,132 @@ export class UserService {
     await this.userRepository.restore(userId);
   }
 
-  private async forceLeaveAllGames(userId: number): Promise<void> {
-    const socketId = await this.socketUserDataService.findSocketIdByUserId(
-      userId
+  // --- Public methods --- //
+
+  public async getUserBySession(
+    sessionUserId: number | undefined,
+    selectOptions: SelectOptions<User>
+  ): Promise<User> {
+    return this.userSessionService.getUserBySession(sessionUserId, selectOptions);
+  }
+
+  public async getValidatedSessionUser(input: {
+    sessionUserId: number | undefined;
+  }): Promise<User> {
+    return this.userSessionService.getValidatedSessionUser(input);
+  }
+
+  public async hasPermission(input: {
+    sessionUserId: number | undefined;
+    permission: Permissions;
+  }): Promise<boolean> {
+    return this.userSessionService.hasPermission(input);
+  }
+
+  public async canManageTargetUser(input: {
+    sessionUserId: number | undefined;
+    targetUserId: number;
+    permission: Permissions;
+  }): Promise<boolean> {
+    return this.userSessionService.canManageTargetUser(input);
+  }
+
+  public userHasPermission(user: User, permission: Permissions): boolean {
+    return this.userSessionService.userHasPermission(user, permission);
+  }
+
+  /**
+   * Update user permissions with full business logic validation
+   */
+  public async updateUserPermissionsByNames(
+    userId: userId,
+    permissionNames: string[]
+  ): Promise<UserDTO> {
+    this.logger.debug("User permissions update initiated", {
+      prefix: LogPrefix.USER,
+      userId,
+      permissionsCount: permissionNames.length,
+      permissionNames
+    });
+
+    // Get the target user with current permissions
+    const user = await this.getRaw(userId, {
+      select: USER_SELECT_FIELDS,
+      relations: USER_RELATIONS,
+      relationSelects: {
+        avatar: ["id", "filename"],
+        permissions: ["id", "name"]
+      }
+    });
+
+    if (!user || user.is_deleted) {
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+
+    // Get permission entities by names
+    const newPermissions = await this.getPermissionsByNames(permissionNames);
+
+    // Validate that all requested permissions exist
+    const foundPermissionNames = newPermissions.map((p: Permission) => p.name);
+    const missingPermissions = permissionNames.filter(
+      (name) => !foundPermissionNames.includes(name)
     );
+
+    if (missingPermissions.length > 0) {
+      throw new ClientError(ClientResponse.INVALID_INPUT, HttpStatus.BAD_REQUEST);
+    }
+
+    // Store old permissions for audit logging
+    const oldPermissionsCount = user.permissions?.length || 0;
+
+    // Update user permissions (replace all)
+    user.permissions = newPermissions;
+
+    // Save the user with updated permissions
+    await this.userRepository.update(user);
+
+    this.logger.audit("User permissions updated", {
+      prefix: LogPrefix.USER,
+      userId,
+      oldPermissionsCount,
+      newPermissionsCount: newPermissions.length,
+      newPermissions: newPermissions.map((p: Permission) => p.name)
+    });
+
+    return this.toDTO(user);
+  }
+
+  /**
+   * Get permission entities by their names
+   */
+  public async getPermissionsByNames(permissionNames: string[]): Promise<Permission[]> {
+    if (permissionNames.length === 0) {
+      return [];
+    }
+
+    // Add a method to UserRepository to get permissions
+    const permissions = await this.userRepository.getPermissionsByNames(permissionNames);
+
+    this.logger.debug("Found permissions while permission change", {
+      prefix: LogPrefix.USER,
+      requestedCount: permissionNames.length,
+      foundCount: permissions.length,
+      foundNames: permissions.map((p: Permission) => p.name)
+    });
+
+    return permissions;
+  }
+
+  private async _forceLeaveAllGames(userId: number): Promise<void> {
+    const socketId = await this.socketUserDataService.findSocketIdByUserId(userId);
 
     if (!socketId) return;
 
-    const sessionAndGame = await this.gamePipelineService.fetchSessionAndGame(
-      socketId
-    );
+    const sessionAndGame = await this.gamePipelineService.fetchSessionAndGame(socketId);
 
     if (!sessionAndGame) {
       // User is connected but not in any game — just disconnect
-      this.gamesNsp.in(socketId).disconnectSockets(true);
+      this.realtimeGateway.disconnectSocket(socketId);
       return;
     }
 
@@ -265,43 +359,41 @@ export class UserService {
       playerId: userId,
       socketId: socketId,
       timestamp: new Date(),
-      payload: {},
+      payload: {}
     };
 
     await this.actionExecutor.submitAction(action);
 
     // Force disconnect across all instances via Redis adapter
-    this.gamesNsp.in(socketId).disconnectSockets(true);
+    this.realtimeGateway.disconnectSocket(socketId);
   }
 
+  // --- Private methods --- //
   /**
    * User deletion logic
    */
-  private async performDelete(userId: userId) {
+  private async _performDelete(userId: userId) {
     this.logger.debug("User deletion started", {
       prefix: LogPrefix.USER,
-      userId,
+      userId
     });
 
     const user = await this.userRepository.get(userId, {
       select: ["id", "is_deleted"],
-      relations: [],
+      relations: []
     });
 
     if (!user || user.is_deleted) {
-      this.logger.warn(
-        `User deletion failed - ${user ? "already deleted" : "not found"}`,
-        {
-          prefix: LogPrefix.USER,
-          userId,
-        }
-      );
+      this.logger.warn(`User deletion failed - ${user ? "already deleted" : "not found"}`, {
+        prefix: LogPrefix.USER,
+        userId
+      });
       throw new ClientError(ClientResponse.USER_NOT_FOUND);
     }
 
     const log = this.logger.performance(`User deletion`, {
       prefix: LogPrefix.USER,
-      userId,
+      userId
     });
 
     const result = await this.userRepository.delete(user);
@@ -310,7 +402,7 @@ export class UserService {
 
     this.logger.audit("User deleted", {
       prefix: LogPrefix.USER,
-      userId,
+      userId
     });
 
     return result;
@@ -319,24 +411,18 @@ export class UserService {
   /**
    * User updating logic
    */
-  private async performUpdate(
-    user: User,
-    updateUserData: UpdateUserDTO
-  ): Promise<UserDTO> {
+  private async _performUpdate(user: User, updateUserData: UpdateUserDTO): Promise<UserDTO> {
     this.logger.trace("User update started", {
       prefix: LogPrefix.USER,
       userId: user.id,
-      updateFields: Object.keys(updateUserData),
+      updateFields: Object.keys(updateUserData)
     });
 
     const updateData = updateUserData;
 
     // Check username uniqueness if username is being changed
     if (updateData.username && updateData.username !== user.username) {
-      const existingUser = await this.userRepository.findOne(
-        { username: updateData.username },
-        { select: ["id"], relations: [], relationSelects: {} }
-      );
+      const existingUser = await this.userRepository.existsByUsername(updateData.username);
 
       if (existingUser) {
         throw new ClientError(ClientResponse.USER_ALREADY_EXISTS);
@@ -361,7 +447,7 @@ export class UserService {
     const log = this.logger.performance(`User update`, {
       prefix: LogPrefix.USER,
       userId: user.id,
-      changedFields: Object.keys(updateUserData),
+      changedFields: Object.keys(updateUserData)
     });
 
     await this.userRepository.update(user);
@@ -373,134 +459,22 @@ export class UserService {
       }
     }
 
-    const updatedUserDTO = user.toDTO();
+    const updatedUserDTO = this.toDTO(user);
 
     // Emit user change event if notification service is available
-    this.userNotificationRoomService.emitUserChange(updatedUserDTO);
+    await this.userNotificationRoomService.emitUserChange(updatedUserDTO);
 
     log.finish({
-      avatarChanged:
-        updateData.avatar && updateData.avatar.id != previousAvatar?.id,
+      avatarChanged: updateData.avatar && updateData.avatar.id != previousAvatar?.id
     });
 
     this.logger.audit("User updated", {
       prefix: LogPrefix.USER,
       userId: user.id,
       changedFieldsCount: Object.keys(updateUserData).length,
-      updatedAt: user.updated_at,
+      updatedAt: user.updated_at
     });
 
     return updatedUserDTO;
-  }
-
-  public async getUserByRequest(
-    req: Request,
-    selectOptions: SelectOptions<User>
-  ) {
-    if (!req.session.userId) {
-      throw new ClientError(
-        ClientResponse.INVALID_SESSION,
-        HttpStatus.UNAUTHORIZED
-      );
-    }
-
-    if (req.user) {
-      return req.user;
-    }
-
-    const id = ValueUtils.validateId(req.session.userId);
-    return this.userRepository.get(asUserId(id), selectOptions);
-  }
-
-  /**
-   * Update user permissions with full business logic validation
-   */
-  public async updateUserPermissionsByNames(
-    userId: userId,
-    permissionNames: string[]
-  ): Promise<UserDTO> {
-    this.logger.debug("User permissions update initiated", {
-      prefix: LogPrefix.USER,
-      userId,
-      permissionsCount: permissionNames.length,
-      permissionNames,
-    });
-
-    // Get the target user with current permissions
-    const user = await this.getRaw(userId, {
-      select: USER_SELECT_FIELDS,
-      relations: USER_RELATIONS,
-      relationSelects: {
-        avatar: ["id", "filename"],
-        permissions: ["id", "name"],
-      },
-    });
-
-    if (!user || user.is_deleted) {
-      throw new ClientError(
-        ClientResponse.USER_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
-    }
-
-    // Get permission entities by names
-    const newPermissions = await this.getPermissionsByNames(permissionNames);
-
-    // Validate that all requested permissions exist
-    const foundPermissionNames = newPermissions.map((p: Permission) => p.name);
-    const missingPermissions = permissionNames.filter(
-      (name) => !foundPermissionNames.includes(name)
-    );
-
-    if (missingPermissions.length > 0) {
-      throw new ClientError(
-        ClientResponse.INVALID_INPUT,
-        HttpStatus.BAD_REQUEST
-      );
-    }
-
-    // Store old permissions for audit logging
-    const oldPermissionsCount = user.permissions?.length || 0;
-
-    // Update user permissions (replace all)
-    user.permissions = newPermissions;
-
-    // Save the user with updated permissions
-    await this.userRepository.update(user);
-
-    this.logger.audit("User permissions updated", {
-      prefix: LogPrefix.USER,
-      userId,
-      oldPermissionsCount,
-      newPermissionsCount: newPermissions.length,
-      newPermissions: newPermissions.map((p: Permission) => p.name),
-    });
-
-    return user.toDTO();
-  }
-
-  /**
-   * Get permission entities by their names
-   */
-  public async getPermissionsByNames(
-    permissionNames: string[]
-  ): Promise<Permission[]> {
-    if (permissionNames.length === 0) {
-      return [];
-    }
-
-    // Add a method to UserRepository to get permissions
-    const permissions = await this.userRepository.getPermissionsByNames(
-      permissionNames
-    );
-
-    this.logger.debug("Found permissions while permission change", {
-      prefix: LogPrefix.USER,
-      requestedCount: permissionNames.length,
-      foundCount: permissions.length,
-      foundNames: permissions.map((p: Permission) => p.name),
-    });
-
-    return permissions;
   }
 }

@@ -94,19 +94,18 @@ Legend:
 ## Files Modified
 
 ### Backend
-- `server/src/domain/enums/SocketIOEvents.ts` - Added new event enums
+- `src/domain/enums/SocketIOEvents.ts` - Added new event enums
   ```typescript
   MEDIA_DOWNLOADED = "media-downloaded",      // Client -> Server
   MEDIA_DOWNLOAD_STATUS = "media-download-status",  // Server -> All Clients
   ```
-- `server/src/domain/types/dto/game/player/PlayerDTO.ts` - Added mediaDownloaded field
-- `server/src/domain/entities/game/Player.ts` - Added media download tracking
-- `server/src/domain/handlers/socket/game/MediaDownloadedEventHandler.ts` - New handler
-- `server/src/application/services/socket/SocketIOQuestionService.ts` - Added media download methods
-  - `handleMediaDownloaded(socketId)` - Handles incoming media downloaded event
-  - `resetMediaDownloadStatus(game)` - Resets all players' status
-- `server/src/domain/handlers/socket/SocketEventHandlerFactory.ts` - Registered handler
-- `server/src/domain/types/socket/events/game/MediaDownloadStatusEventPayload.ts` - Event payload type
+- `src/domain/types/dto/game/player/PlayerDTO.ts` - Added mediaDownloaded field
+- `src/domain/entities/game/Player.ts` - Added media download tracking
+- `src/presentation/controllers/io/SocketActionMap.ts` - Maps `MEDIA_DOWNLOADED` to `GameActionType.MEDIA_DOWNLOADED`
+- `src/application/usecases/game/MediaDownloadedUseCase.ts` - Marks the player as ready and returns save/broadcast mutations
+- `src/application/config/ActionHandlerConfig.ts` - Registers the media downloaded use case
+- `src/domain/logic/question/MediaDownloadLogic.ts` - Checks whether all active players are ready
+- `src/domain/types/socket/events/game/MediaDownloadStatusEventPayload.ts` - Event payload type
   ```typescript
   interface MediaDownloadStatusBroadcastData {
     playerId: number;
@@ -114,7 +113,7 @@ Legend:
     allPlayersReady: boolean;
   }
   ```
-- `openapi/schema.json` - Updated OpenAPI schema
+- OpenAPI schema - Updated media download event contract
 
 ### Frontend
 - `client/lib/src/features/game_question/controllers/game_question_controller.dart` - Send media downloaded event
@@ -149,14 +148,14 @@ socket?.on(SocketIOGameReceiveEvents.mediaDownloadStatus.json!, (data) {
 
 ### Server-Side (TypeScript)
 ```typescript
-// The handler automatically:
+// The use case automatically:
 // 1. Marks player as downloaded
 // 2. Checks if all players are ready
 // 3. Broadcasts status to all clients
-await socketIOQuestionService.handleMediaDownloaded(socketId);
+await gameActionExecutor.submitAction(mediaDownloadedAction);
 
 // Reset status when new question is picked
-socketIOQuestionService.resetMediaDownloadStatus(game);
+MediaDownloadLogic.resetAllPlayerStatus(game);
 ```
 
 ## Future Enhancements

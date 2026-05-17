@@ -1,11 +1,11 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { GAME_NAMESPACE } from "domain/constants/game";
 import { REDIS_LOCK_GAME_EXPIRATION } from "domain/constants/redis";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
 import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
-import { RedisService } from "infrastructure/services/redis/RedisService";
+import { RedisService } from "application/services/redis/RedisService";
 
 /**
  * Handles game expiration events from Redis.

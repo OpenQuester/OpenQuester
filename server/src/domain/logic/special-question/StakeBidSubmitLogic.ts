@@ -3,32 +3,21 @@ import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import {
   StakeBidSubmitOutputData,
-  StakeBidType,
+  StakeBidType
 } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { StakeBidSubmitResult } from "domain/types/socket/question/StakeQuestionResults";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
-
-export interface StakeBidProcessResult {
-  playerId: number;
-  bidAmount: number;
-  bidType: StakeBidType;
-  isPhaseComplete: boolean;
-  nextBidderId: number | null;
-  winnerPlayerId: number | null;
-}
 
 export interface StakeBidSubmitBuildResultInput {
   game: Game;
@@ -73,7 +62,7 @@ export class StakeBidSubmitLogic {
 
     const biddingPlayerId = stakeData.biddingOrder[currentBidderIndex];
     const targetPlayer = game.getPlayer(biddingPlayerId, {
-      fetchDisconnected: false,
+      fetchDisconnected: false
     });
 
     if (!targetPlayer) {
@@ -86,9 +75,7 @@ export class StakeBidSubmitLogic {
   /**
    * Build the result for stake bid submission with broadcasts.
    */
-  public static buildResult(
-    input: StakeBidSubmitBuildResultInput
-  ): StakeBidSubmitResult {
+  public static buildResult(input: StakeBidSubmitBuildResultInput): StakeBidSubmitResult {
     const {
       game,
       playerId,
@@ -98,7 +85,7 @@ export class StakeBidSubmitLogic {
       nextBidderId,
       winnerPlayerId,
       questionData,
-      timer,
+      timer
     } = input;
 
     const mappedQuestionData = questionData?.id
@@ -111,7 +98,7 @@ export class StakeBidSubmitLogic {
       bidType,
       isPhaseComplete,
       nextBidderId,
-      timer,
+      timer
     };
 
     const broadcasts: SocketEventBroadcast[] = [
@@ -119,8 +106,8 @@ export class StakeBidSubmitLogic {
         event: SocketIOGameEvents.STAKE_BID_SUBMIT,
         data: outputData,
         target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<StakeBidSubmitOutputData>,
+        gameId: game.id
+      } satisfies SocketEventBroadcast<StakeBidSubmitOutputData>
     ];
 
     // If bidding phase is complete, announce winner and start question
@@ -131,10 +118,10 @@ export class StakeBidSubmitLogic {
         event: SocketIOGameEvents.STAKE_QUESTION_WINNER,
         data: {
           winnerPlayerId,
-          finalBid,
+          finalBid
         } satisfies StakeQuestionWinnerEventData,
         target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
+        gameId: game.id
       } satisfies SocketEventBroadcast<StakeQuestionWinnerEventData>);
 
       broadcasts.push({
@@ -142,10 +129,10 @@ export class StakeBidSubmitLogic {
         data: {
           data: mappedQuestionData,
           timer,
-          questionEligiblePlayers: game.getQuestionEligiblePlayers(),
+          questionEligiblePlayers: game.getQuestionEligiblePlayers()
         } satisfies GameQuestionDataEventPayload,
         target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
+        gameId: game.id
       } satisfies SocketEventBroadcast<GameQuestionDataEventPayload>);
     }
 
@@ -160,7 +147,7 @@ export class StakeBidSubmitLogic {
       nextBidderId,
       winnerPlayerId,
       questionData: mappedQuestionData,
-      timer,
+      timer
     };
   }
 }

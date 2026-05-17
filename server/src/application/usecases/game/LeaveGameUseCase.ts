@@ -1,8 +1,6 @@
+import { PlayerLeaveService } from "application/services/game/PlayerLeaveService";
 import { DataMutationType } from "domain/enums/DataMutationType";
-import {
-  PlayerLeaveOrchestrator,
-  PlayerLeaveReason,
-} from "domain/logic/player-leave/PlayerLeaveOrchestrator";
+import { PlayerLeaveReason } from "domain/logic/player-leave/PlayerLeaveOrchestrator";
 import { ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import {
@@ -21,7 +19,7 @@ export class LeaveGameUseCase
   implements GameActionHandler<EmptyInputData, GameLeaveBroadcastData>
 {
   constructor(
-    private readonly playerLeaveOrchestrator: PlayerLeaveOrchestrator
+    private readonly playerLeaveService: PlayerLeaveService
   ) {
     //
   }
@@ -37,7 +35,7 @@ export class LeaveGameUseCase
     const targetPlayer = game.getPlayer(userId, { fetchDisconnected: false });
     const wasPlayer = targetPlayer!.role === PlayerRole.PLAYER;
 
-    const leaveResult = await this.playerLeaveOrchestrator.processLeave(
+    const leaveResult = await this.playerLeaveService.processLeave(
       game,
       userId,
       {

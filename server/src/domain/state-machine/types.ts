@@ -1,9 +1,15 @@
 import { Game } from "domain/entities/game/Game";
 import { type TimerMutation } from "domain/types/action/ActionExecutionContext";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
+import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
+import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
+import { QuestionAnswerData } from "domain/types/socket/finalround/QuestionAnswerData";
 
 /**
  * All possible game phases (combines QuestionState + game context).
@@ -88,6 +94,34 @@ export interface TransitionContext<
    * Regular/final round handlers should NOT use this - check game state instead.
    */
   payload?: TPayload;
+
+  /** Server-side data prefetched by application callers for pure transitions. */
+  resources?: TransitionResources;
+}
+
+export interface TransitionResources {
+  /** Saved showing timer restored when a wrong answer returns to SHOWING. */
+  savedShowingTimer?: GameStateTimerDTO | null;
+
+  /** Full question/theme data for answer display and played-state mutation. */
+  questionWithTheme?: TransitionQuestionWithTheme | null;
+
+  /** Public question data used when special-question bidding/transfer starts answering. */
+  simpleQuestion?: SimplePackageQuestionDTO | null;
+
+  /** Final round question data used when final bidding completes. */
+  finalRoundQuestionData?: FinalRoundQuestionData | null;
+
+  /** Prefetched next round metadata for round progression. */
+  nextRound?: GameStateRoundDTO | null;
+
+  /** Final question/answer text shown when the game finishes. */
+  finalQuestionAnswerData?: QuestionAnswerData | null;
+}
+
+export interface TransitionQuestionWithTheme {
+  question: PackageQuestionDTO;
+  theme: PackageThemeDTO;
 }
 
 /**

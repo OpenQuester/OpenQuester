@@ -1,8 +1,10 @@
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PaginationOptsBase } from "domain/types/pagination/PaginationOpts";
-import { Package } from "infrastructure/database/models/package/Package";
 
-export interface PackageSearchOpts extends PaginationOptsBase<Package> {
+export type PackageSortField = "id" | "title" | "created_at" | "author";
+
+export interface PackageSearchOpts
+  extends PaginationOptsBase<PackageSortField> {
   // Text search
   title?: string;
   description?: string;

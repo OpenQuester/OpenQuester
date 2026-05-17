@@ -1,20 +1,19 @@
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
-import { PackageThemeImport } from "domain/types/package/import/PackageThemeImport";
+import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
 import { PackageQuestion } from "infrastructure/database/models/package/PackageQuestion";
 import { PackageRound } from "infrastructure/database/models/package/PackageRound";
-import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
+
+export interface PackageThemeImport {
+  name: string;
+  description?: string | null;
+  round: PackageRound;
+  order: number;
+}
 
 @Entity("package_theme")
 export class PackageTheme {
@@ -22,7 +21,7 @@ export class PackageTheme {
   id!: number;
 
   @ManyToOne(() => PackageRound, (round) => round.themes, {
-    onDelete: "CASCADE",
+    onDelete: "CASCADE"
   })
   @JoinColumn({ name: "round" })
   round!: PackageRound;
@@ -33,10 +32,7 @@ export class PackageTheme {
   @Column({ type: "text", nullable: true })
   description?: string | null;
 
-  @OneToMany(
-    () => PackageQuestion,
-    (question: PackageQuestion) => question.theme
-  )
+  @OneToMany(() => PackageQuestion, (question: PackageQuestion) => question.theme)
   questions!: PackageQuestion[];
 
   @Column({ type: "int" })
@@ -49,33 +45,28 @@ export class PackageTheme {
     this.order = data.order;
   }
 
-  public toDTO(
-    storage: S3StorageService,
-    opts: PackageDTOOptions
-  ): PackageThemeDTO {
+  public toDTO(fileUrlBuilder: IFileUrlBuilder, opts: PackageDTOOptions): PackageThemeDTO {
     if (this.questions.length < 1) {
       throw new ClientError(ClientResponse.PACKAGE_CORRUPTED, undefined, {
         id: this.id,
-        missing: "questions",
+        missing: "questions"
       });
     }
 
-    const questionsDTO = this.questions.map((question) =>
-      question.toDTO(storage, opts)
-    );
+    const questionsDTO = this.questions.map((question) => question.toDTO(fileUrlBuilder, opts));
 
     let dto: PackageThemeDTO = {
       id: this.id,
       order: this.order,
       name: this.name,
       description: this.description,
-      questions: questionsDTO,
+      questions: questionsDTO
     };
 
     if (opts.fetchIds) {
       dto = {
         id: this.id,
-        ...dto,
+        ...dto
       };
     }
 

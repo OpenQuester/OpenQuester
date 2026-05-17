@@ -21,11 +21,12 @@ import {
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { container } from "tsyringe";
 
 describe("PlayerRestrictions", () => {
@@ -113,7 +114,7 @@ describe("PlayerRestrictions", () => {
           reject(
             new Error("Expected error for restricted player joining as PLAYER")
           );
-        }, 3000);
+        }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
         restrictedSocket.on(SocketIOEvents.ERROR, (error: any) => {
           clearTimeout(timeout);
@@ -135,7 +136,7 @@ describe("PlayerRestrictions", () => {
           reject(
             new Error("Expected error for restricted player joining as SHOWMAN")
           );
-        }, 3000);
+        }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
         restrictedSocket.on(SocketIOEvents.ERROR, (error: any) => {
           clearTimeout(timeout);
@@ -226,7 +227,7 @@ describe("PlayerRestrictions", () => {
           reject(
             new Error("Expected error for banned player joining as PLAYER")
           );
-        }, 3000);
+        }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
         bannedSocket.on(SocketIOEvents.ERROR, (error: any) => {
           clearTimeout(timeout);
@@ -246,7 +247,7 @@ describe("PlayerRestrictions", () => {
           reject(
             new Error("Expected error for banned player joining as SHOWMAN")
           );
-        }, 3000);
+        }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
         bannedSocket.on(SocketIOEvents.ERROR, (error: any) => {
           clearTimeout(timeout);
@@ -266,7 +267,7 @@ describe("PlayerRestrictions", () => {
           reject(
             new Error("Expected error for banned player joining as SPECTATOR")
           );
-        }, 3000);
+        }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
         bannedSocket.on(SocketIOEvents.ERROR, (error: any) => {
           clearTimeout(timeout);
@@ -302,7 +303,7 @@ describe("PlayerRestrictions", () => {
             reject(
               new Error("PLAYER_KICKED event not received within timeout")
             );
-          }, 5000);
+          }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
           setup.showmanSocket.once(
             SocketIOGameEvents.PLAYER_KICKED,
@@ -319,7 +320,7 @@ describe("PlayerRestrictions", () => {
         (resolve, reject) => {
           const timeout = setTimeout(() => {
             reject(new Error("LEAVE event not received within timeout"));
-          }, 5000);
+          }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
           setup.showmanSocket.once(
             SocketIOGameEvents.LEAVE,
@@ -336,7 +337,7 @@ describe("PlayerRestrictions", () => {
         (resolve, reject) => {
           const timeout = setTimeout(() => {
             reject(new Error("Player LEAVE event not received within timeout"));
-          }, 5000);
+          }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
           playerSocket.once(
             SocketIOGameEvents.LEAVE,
@@ -434,7 +435,7 @@ describe("PlayerRestrictions", () => {
             reject(
               new Error("PLAYER_KICKED event not received within timeout")
             );
-          }, 5000);
+          }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
           showmanSocket.once(
             SocketIOGameEvents.PLAYER_KICKED,

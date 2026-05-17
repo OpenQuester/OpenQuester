@@ -3,11 +3,11 @@ import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
 import { Permissions } from "domain/enums/Permissions";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
+import { RedisConfig } from "shared/config/RedisConfig";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogTag } from "infrastructure/logger/LogTag";
+import { ILogger } from "shared/logging/ILogger";
+import { LogTag } from "shared/logging/LogTag";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -72,7 +72,7 @@ describe("Admin Logs API", () => {
 
     // Create VIEW_SYSTEM_LOGS permission
     viewLogsPermission = permRepo.create({
-      name: Permissions.VIEW_SYSTEM_LOGS,
+      name: Permissions.VIEW_SYSTEM_LOGS
     });
     await permRepo.save(viewLogsPermission);
 
@@ -81,7 +81,7 @@ describe("Admin Logs API", () => {
       username: "admin",
       email: "admin@test.com",
       is_deleted: false,
-      permissions: [viewLogsPermission],
+      permissions: [viewLogsPermission]
     });
     await userRepo.save(adminUser);
 
@@ -90,14 +90,12 @@ describe("Admin Logs API", () => {
       username: "regular",
       email: "regular@test.com",
       is_deleted: false,
-      permissions: [],
+      permissions: []
     });
     await userRepo.save(regularUser);
 
     // Login both users
-    const adminLoginRes = await request(app)
-      .post("/v1/test/login")
-      .send({ userId: adminUser.id });
+    const adminLoginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
     adminCookie = adminLoginRes.headers["set-cookie"];
 
     const regularLoginRes = await request(app)
@@ -151,9 +149,7 @@ describe("Admin Logs API", () => {
     it("should return 200 for user with VIEW_SYSTEM_LOGS permission", async () => {
       logTestUtils.createEmptyFile();
 
-      const res = await request(app)
-        .get("/v1/admin/api/system/logs")
-        .set("Cookie", adminCookie);
+      const res = await request(app).get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
     });
@@ -166,9 +162,7 @@ describe("Admin Logs API", () => {
   describe("Edge Cases", () => {
     it("should return empty result when log file does not exist", async () => {
       // Don't create log file
-      const res = await request(app)
-        .get("/v1/admin/api/system/logs")
-        .set("Cookie", adminCookie);
+      const res = await request(app).get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
       expect(res.body.logs).toEqual([]);
@@ -178,9 +172,7 @@ describe("Admin Logs API", () => {
     it("should return empty result when log file is empty", async () => {
       logTestUtils.createEmptyFile();
 
-      const res = await request(app)
-        .get("/v1/admin/api/system/logs")
-        .set("Cookie", adminCookie);
+      const res = await request(app).get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
       expect(res.body.logs).toEqual([]);
@@ -214,9 +206,7 @@ describe("Admin Logs API", () => {
       // First entry should be the newest (last in file)
       expect(res.body.logs[0].msg).toBe("Scheduled cleanup completed");
       // Last entry should be the oldest (first in file)
-      expect(res.body.logs[res.body.logs.length - 1].msg).toBe(
-        "Server started"
-      );
+      expect(res.body.logs[res.body.logs.length - 1].msg).toBe("Server started");
     });
   });
 
@@ -439,9 +429,7 @@ describe("Admin Logs API", () => {
 
     it("should filter by since timestamp", async () => {
       const res = await request(app)
-        .get(
-          "/v1/admin/api/system/logs?since=2025-01-01T14:00:00.000Z&limit=100"
-        )
+        .get("/v1/admin/api/system/logs?since=2025-01-01T14:00:00.000Z&limit=100")
         .set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
@@ -451,9 +439,7 @@ describe("Admin Logs API", () => {
 
     it("should filter by until timestamp", async () => {
       const res = await request(app)
-        .get(
-          "/v1/admin/api/system/logs?until=2025-01-01T10:00:00.000Z&limit=100"
-        )
+        .get("/v1/admin/api/system/logs?until=2025-01-01T10:00:00.000Z&limit=100")
         .set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
@@ -565,9 +551,7 @@ describe("Admin Logs API", () => {
       const manyEntries = LogTestUtils.generateSequentialEntries(150);
       logTestUtils.writeEntries(manyEntries);
 
-      const res = await request(app)
-        .get("/v1/admin/api/system/logs")
-        .set("Cookie", adminCookie);
+      const res = await request(app).get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
       expect(res.body.pagination.scanned).toBe(100); // Default limit
@@ -631,7 +615,7 @@ describe("Admin Logs API", () => {
           correlationId: "11111111-2222-4333-8444-555555555555",
           gameId: "TEST",
           userId: 42,
-          tags: [LogTag.GAME],
+          tags: [LogTag.GAME]
         },
         {
           level: "info",
@@ -640,7 +624,7 @@ describe("Admin Logs API", () => {
           correlationId: "11111111-2222-4333-8444-555555555555",
           gameId: "TEST",
           userId: 42,
-          tags: [LogTag.GAME],
+          tags: [LogTag.GAME]
         },
         {
           level: "debug",
@@ -649,8 +633,8 @@ describe("Admin Logs API", () => {
           correlationId: "11111111-2222-4333-8444-555555555555",
           gameId: "TEST",
           userId: 42,
-          tags: [LogTag.GAME],
-        },
+          tags: [LogTag.GAME]
+        }
       ];
       logTestUtils.writeEntries(specificEntries);
 

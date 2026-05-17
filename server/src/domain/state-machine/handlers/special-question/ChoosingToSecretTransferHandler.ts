@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -29,10 +28,6 @@ import { SECRET_QUESTION_TRANSFER_TIME } from "domain/constants/game";
 export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.CHOOSING;
   public readonly toPhase = GamePhase.SECRET_QUESTION_TRANSFER;
-
-  constructor(gameService: GameService) {
-    super(gameService);
-  }
 
   public canTransition(ctx: ChoosingToSecretTransferCtx): boolean {
     const { game, trigger, payload } = ctx;

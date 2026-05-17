@@ -2,10 +2,8 @@ import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { Player } from "domain/entities/game/Player";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { QuestionAnswerEventPayload } from "domain/types/socket/events/game/QuestionAnswerEventPayload";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
@@ -29,7 +27,7 @@ export interface AnswerRequestBuildResultInput {
 
 /**
  * Logic class for handling player answer request processing.
- * Extracts business logic from SocketIOQuestionService.handleQuestionAnswer.
+ * Extracts business logic from QuestionAnswerUseCase.
  */
 export class QuestionAnswerRequestLogic {
   public static validate(game: Game, currentPlayer: Player | null) {

@@ -28,10 +28,6 @@ export interface GameJoinInputData {
   password?: string | null;
 }
 
-export interface ChatMessageInputData {
-  message: string;
-}
-
 export interface QuestionPickInputData {
   questionId: number;
 }
@@ -149,9 +145,7 @@ export interface GameExpirationWarningNotificationData {
   expiresAt: Date;
 }
 
-export interface NotificationBroadcastData<
-  TData = GameExpirationWarningNotificationData
-> {
+export interface NotificationBroadcastData<TData = GameExpirationWarningNotificationData> {
   type: NotificationType;
   data: TData;
 }

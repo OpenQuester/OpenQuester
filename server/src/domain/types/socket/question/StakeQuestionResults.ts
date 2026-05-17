@@ -1,5 +1,5 @@
 import { Game } from "domain/entities/game/Game";
-import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { TransitionResult } from "domain/state-machine/types";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";

@@ -1,16 +1,16 @@
 import { IncomingHttpHeaders } from "http";
 
-import { TranslateService as ts } from "application/services/text/TranslateService";
+import { TranslateService as ts } from "domain/utils/TranslateService";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { BaseError } from "domain/errors/BaseError";
 import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
 import { Language } from "domain/types/text/translation";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { TemplateUtils } from "domain/utils/TemplateUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 export class ErrorController {
   /**
@@ -27,12 +27,12 @@ export class ErrorController {
     message: string;
     code: number;
   }> {
-    error = await this._formatError(error, ts.parseHeaders(headers));
+    error = await this._formatError(error, ts.parseAcceptLanguage(headers?.["accept-language"]));
 
     if (error instanceof SyntaxError) {
       return {
         message: error.message,
-        code: HttpStatus.BAD_REQUEST,
+        code: HttpStatus.BAD_REQUEST
       };
     }
 
@@ -53,11 +53,11 @@ export class ErrorController {
         prefix: LogPrefix.ERROR,
         error: error.message,
         stack: error.stack,
-        ...(contextMeta ?? {}),
+        ...(contextMeta ?? {})
       });
       return {
         message: ServerResponse.INTERNAL_SERVER_ERROR,
-        code: HttpStatus.INTERNAL,
+        code: HttpStatus.INTERNAL
       };
     }
 
@@ -65,7 +65,7 @@ export class ErrorController {
     if (error instanceof ClientError) {
       return {
         message: error.message,
-        code: error.code,
+        code: error.code
       };
     }
 
@@ -73,11 +73,11 @@ export class ErrorController {
     logger.error(`Unknown error type encountered`, {
       prefix: LogPrefix.ERROR,
       error: JSON.stringify(error),
-      ...(contextMeta ?? {}),
+      ...(contextMeta ?? {})
     });
     return {
       message: ServerResponse.INTERNAL_SERVER_ERROR,
-      code: HttpStatus.INTERNAL,
+      code: HttpStatus.INTERNAL
     };
   }
 
@@ -87,8 +87,7 @@ export class ErrorController {
     }
     const args = error.textArgs;
 
-    const translatedMessage = await ts.translate(error.message, lang);
-    let message = translatedMessage;
+    let message = await ts.translate(error.message, lang);
 
     if (args && ValueUtils.isObject(args) && !ValueUtils.isEmpty(args)) {
       message = TemplateUtils.text(message, args);

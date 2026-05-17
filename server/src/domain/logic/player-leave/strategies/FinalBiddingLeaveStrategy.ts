@@ -1,37 +1,49 @@
 import { singleton } from "tsyringe";
 
-import { Game } from "domain/entities/game/Game";
 import { FinalBiddingPlayerLeaveLogic } from "domain/logic/player-leave/FinalBiddingPlayerLeaveLogic";
 import {
   IPlayerLeaveStrategy,
+  PlayerLeaveStrategyInput,
   PlayerLeaveStrategyResult,
 } from "domain/logic/player-leave/strategies/IPlayerLeaveStrategy";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
-import { TransitionTrigger } from "domain/state-machine/types";
+import {
+  type TransitionContext,
+  TransitionTrigger,
+} from "domain/state-machine/types";
 import { DataMutationConverter } from "domain/types/action/DataMutation";
 
 @singleton()
 export class FinalBiddingLeaveStrategy implements IPlayerLeaveStrategy {
   constructor(private readonly phaseTransitionRouter: PhaseTransitionRouter) {}
 
-  public canHandle(game: Game, userId: number): boolean {
+  public canHandle(input: PlayerLeaveStrategyInput): boolean {
+    const { game, userId } = input;
     return FinalBiddingPlayerLeaveLogic.validate(game, userId).isEligible;
   }
 
   public async execute(
-    game: Game,
-    userId: number
+    input: PlayerLeaveStrategyInput
   ): Promise<PlayerLeaveStrategyResult> {
+    const { game, userId, transitionResources } = input;
     const mutationResult = FinalBiddingPlayerLeaveLogic.processAutoBid(
       game,
       userId
     );
 
-    const transitionResult = await this.phaseTransitionRouter.tryTransition({
+    const transitionContext: TransitionContext = {
       game,
       trigger: TransitionTrigger.PLAYER_LEFT,
       triggeredBy: { playerId: userId, isSystem: false },
-    });
+    };
+
+    if (transitionResources) {
+      transitionContext.resources = transitionResources;
+    }
+
+    const transitionResult = await this.phaseTransitionRouter.tryTransition(
+      transitionContext
+    );
 
     const logicResult = FinalBiddingPlayerLeaveLogic.buildResult({
       game,

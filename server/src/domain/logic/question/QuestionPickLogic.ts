@@ -1,25 +1,18 @@
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { ClientResponse } from "domain/enums/ClientResponse";
-import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { ClientError } from "domain/errors/ClientError";
-import {
-  QuestionPickResult,
-  QuestionPickType,
-} from "domain/handlers/action/question/QuestionPickActionHandler";
+import { QuestionPickResult, QuestionPickType } from "domain/types/question/QuestionPickTypes";
 import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { GamePhase, TransitionResult } from "domain/state-machine/types";
-import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
-import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
-import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
 import { SecretQuestionPickedBroadcastData } from "domain/types/socket/events/game/SecretQuestionPickedEventPayload";
 import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
 import {
   ChoosingToSecretTransferMutationData,
-  ChoosingToStakeBiddingMutationData,
+  ChoosingToStakeBiddingMutationData
 } from "domain/types/socket/transition/choosing";
 
 export interface QuestionPickValidationResult {
@@ -27,17 +20,9 @@ export interface QuestionPickValidationResult {
   theme: PackageThemeDTO;
 }
 
-export interface QuestionPickBuildResultInput {
-  question: PackageQuestionDTO;
-  game: Game;
-  timer: GameStateTimer | null;
-  specialQuestionData: SecretQuestionGameData | StakeQuestionGameData | null;
-  automaticNominalBid: PlayerBidData | null;
-}
-
 /**
  * Logic class for handling question pick processing.
- * Extracts validation and result building from SocketIOQuestionService.handleQuestionPick.
+ * Extracts validation and result building from QuestionPickUseCase.
  */
 export class QuestionPickLogic {
   /**
@@ -75,19 +60,14 @@ export class QuestionPickLogic {
     themeId: number
   ): void {
     // For normal questions, set currentQuestion immediately
-    game.gameState.currentQuestion =
-      GameQuestionMapper.mapToSimpleQuestion(question);
+    game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(question);
     GameQuestionMapper.setQuestionPlayed(game, question.id!, themeId);
   }
 
   /**
    * Mark question as played for special questions.
    */
-  public static markQuestionPlayed(
-    game: Game,
-    questionId: number,
-    themeId: number
-  ): void {
+  public static markQuestionPlayed(game: Game, questionId: number, themeId: number): void {
     GameQuestionMapper.setQuestionPlayed(game, questionId, themeId);
   }
 
@@ -96,25 +76,6 @@ export class QuestionPickLogic {
    */
   public static resetMediaDownloadStatus(game: Game): void {
     MediaDownloadLogic.resetAllPlayerStatus(game);
-  }
-
-  /**
-   * Handle fallback to normal question when special question setup fails.
-   */
-  public static handleSpecialQuestionFallback(
-    game: Game,
-    questionType: PackageQuestionType,
-    questionData: QuestionPickValidationResult
-  ): void {
-    if (questionType === PackageQuestionType.SECRET) {
-      game.gameState.secretQuestionData = null;
-    } else if (questionType === PackageQuestionType.STAKE) {
-      game.gameState.stakeQuestionData = null;
-    }
-    // For normal question fallback, set currentQuestion
-    game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
-      questionData.question
-    );
   }
 
   public static buildResult(
@@ -130,13 +91,12 @@ export class QuestionPickLogic {
 
     switch (transitionResult.toPhase) {
       case GamePhase.SECRET_QUESTION_TRANSFER: {
-        const data =
-          transitionResult.data as ChoosingToSecretTransferMutationData;
+        const data = transitionResult.data as ChoosingToSecretTransferMutationData;
 
         const secretData: SecretQuestionPickedBroadcastData = {
           pickerPlayerId: data.pickerPlayerId,
           transferType: data.transferType,
-          questionId: data.questionId,
+          questionId: data.questionId
         };
 
         return {
@@ -144,14 +104,13 @@ export class QuestionPickLogic {
           data: {
             type: QuestionPickType.SECRET,
             gameId: game.id,
-            secretData,
-          },
+            secretData
+          }
         };
       }
 
       case GamePhase.STAKE_BIDDING: {
-        const data =
-          transitionResult.data as ChoosingToStakeBiddingMutationData;
+        const data = transitionResult.data as ChoosingToStakeBiddingMutationData;
 
         const biddingTimer = transitionResult.timer ?? data.timer ?? timerDto;
 
@@ -164,8 +123,8 @@ export class QuestionPickLogic {
             durationMs: 0,
             elapsedMs: 0,
             startedAt: new Date(),
-            resumedAt: null,
-          },
+            resumedAt: null
+          }
         };
 
         return {
@@ -176,8 +135,8 @@ export class QuestionPickLogic {
             timer: biddingTimer ?? undefined,
             question,
             stakeData,
-            automaticNominalBid: data.automaticBid ?? null,
-          },
+            automaticNominalBid: data.automaticBid ?? null
+          }
         };
       }
 
@@ -190,8 +149,8 @@ export class QuestionPickLogic {
               type: QuestionPickType.NORMAL,
               gameId: game.id,
               timer: timerDto,
-              question,
-            },
+              question
+            }
           };
         }
 
@@ -199,8 +158,8 @@ export class QuestionPickLogic {
           success: false,
           data: {
             type: QuestionPickType.NORMAL,
-            gameId: game.id,
-          },
+            gameId: game.id
+          }
         };
       }
 
@@ -208,15 +167,15 @@ export class QuestionPickLogic {
         const questionPickType = game.gameState.stakeQuestionData
           ? QuestionPickType.STAKE
           : game.gameState.secretQuestionData
-          ? QuestionPickType.SECRET
-          : QuestionPickType.NORMAL;
+            ? QuestionPickType.SECRET
+            : QuestionPickType.NORMAL;
 
         return {
           success: true,
           data: {
             type: questionPickType,
-            gameId: game.id,
-          },
+            gameId: game.id
+          }
         };
       }
 
@@ -225,8 +184,8 @@ export class QuestionPickLogic {
           success: false,
           data: {
             type: QuestionPickType.NORMAL,
-            gameId: game.id,
-          },
+            gameId: game.id
+          }
         };
     }
   }

@@ -1,22 +1,18 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameService } from "application/services/game/GameService";
-import {
-    GAME_TTL_IN_SECONDS,
-    SYSTEM_PLAYER_ID,
-    SYSTEM_SOCKET_ID,
-} from "domain/constants/game";
+import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID, SYSTEM_SOCKET_ID } from "domain/constants/game";
 import { TIMER_NSP } from "domain/constants/timer";
 import { GameActionType } from "domain/enums/GameActionType";
 import { GameAction } from "domain/types/action/GameAction";
 import { TimerActionPayload } from "domain/types/action/TimerActionPayload";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { RedisExpirationHandler } from "domain/types/redis/RedisExpirationHandler";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
  * Handles timer expiration events from Redis keyspace notifications.
@@ -53,22 +49,19 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     if (!gameId || parts.length < 2) {
       this.logger.warn(`Invalid timer key format: ${key}`, {
         prefix: LogPrefix.TIMER_EXPIRATION,
-        key,
+        key
       });
       return;
     }
 
     let game;
     try {
-      game = await this.gameService.getGameEntity(
-        gameId,
-        GAME_TTL_IN_SECONDS
-      );
+      game = await this.gameService.getGameEntity(gameId, GAME_TTL_IN_SECONDS);
     } catch {
       this.logger.warn(`Game not found for expired timer, skipping`, {
         prefix: LogPrefix.TIMER_EXPIRATION,
         gameId,
-        key,
+        key
       });
       return;
     }
@@ -86,17 +79,15 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       payload: {
         timerKey: key,
         questionState: questionState,
-        expirationTime: new Date(),
-      },
+        expirationTime: new Date()
+      }
     };
 
     // Submit action - execution handled by registered TimerExpirationActionHandler
     await this.actionExecutor.submitAction(action);
   }
 
-  private getTimerActionType(
-    questionState: QuestionState | null
-  ): GameActionType {
+  private getTimerActionType(questionState: QuestionState | null): GameActionType {
     switch (questionState) {
       case QuestionState.MEDIA_DOWNLOADING:
         return GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED;

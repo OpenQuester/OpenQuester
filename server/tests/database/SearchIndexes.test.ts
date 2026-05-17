@@ -1,5 +1,5 @@
 import { AddSearchIndexes_0_15_3_1752686138751 } from "infrastructure/database/migrations/0.15.3_AddSearchIndexes";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";

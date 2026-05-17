@@ -6,7 +6,7 @@ import { DataMutationType } from "domain/enums/DataMutationType";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
-import { SocketBroadcastTarget } from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
 import { GameJoinLogic } from "domain/logic/game/GameJoinLogic";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
@@ -47,6 +47,12 @@ export class JoinGameUseCase
     GameValidator.validateSocketAuthenticated(ctx.userData);
 
     const { userData } = ctx;
+
+    // 1b. Duplicate-join guard: reject if already in this game (0 RT)
+    // userData.gameId is prefetched in the IN pipeline, no extra Redis call.
+    if (userData.gameId === payload.gameId) {
+      throw new ClientError(ClientResponse.ALREADY_IN_GAME);
+    }
 
     // 2. Fail-fast game state check (0 RT)
     GameStateValidator.validateGameNotFinished(game);

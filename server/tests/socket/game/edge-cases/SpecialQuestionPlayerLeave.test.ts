@@ -14,7 +14,7 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
@@ -233,6 +233,52 @@ describe("Special Question Type Player Leave Edge Cases", () => {
   });
 
   describe("Stake Question - Player Leaves During Bidding", () => {
+    it("should auto-bid nominal price when leaving completes bidding before any bid", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        await utils.setPlayerScore(gameId, playerUsers[0].id, 500);
+        await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
+        await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
+
+        const stakeQuestion = await utils.findQuestionByType(
+          PackageQuestionType.STAKE,
+          gameId
+        );
+        expect(stakeQuestion).toBeDefined();
+
+        const stakePickedPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_PICKED
+        );
+
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestion!.id,
+        });
+        await stakePickedPromise;
+
+        const winnerPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_WINNER,
+          3000
+        );
+
+        playerSockets[0].emit(SocketIOGameEvents.LEAVE);
+
+        const winnerData = await winnerPromise;
+        expect(winnerData.winnerPlayerId).toBe(playerUsers[1].id);
+        expect(winnerData.finalBid).toBe(200);
+
+        const gameState = await utils.getGameState(gameId);
+        expect(gameState!.stakeQuestionData?.highestBid).toBe(200);
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
     it("should auto-pass for leaving player during stake bidding and continue with remaining players", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;

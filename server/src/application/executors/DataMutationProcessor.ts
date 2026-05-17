@@ -1,17 +1,17 @@
-import { Namespace } from "socket.io";
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
+import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
 import { GameActionBroadcastService } from "application/services/broadcast/GameActionBroadcastService";
 import { GameLifecycleService } from "application/services/game/GameLifecycleService";
 import { GamePipelineService } from "application/services/pipeline/GamePipelineService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { type Game } from "domain/entities/game/Game";
 import { DataMutationType } from "domain/enums/DataMutationType";
-import { type SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import {
+  DataMutationConverter,
   MutationAction,
   type BroadcastMutation,
   type DataMutation,
@@ -22,11 +22,11 @@ import {
   type SaveGameMutation,
   type SetTimerMutation,
   type UpdatePlayerStatsMutation,
-  type UpdateSocketSessionMutation,
+  type UpdateSocketSessionMutation
 } from "domain/types/action/DataMutation";
-import { type ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
+import { type ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
 
 /**
  * Classified mutations grouped by type for ordered processing.
@@ -45,13 +45,6 @@ interface ClassifiedMutations {
 }
 
 /**
- * Result of mutation processing — used by the executor for drain decisions.
- */
-interface MutationProcessResult {
-  queueLength: number;
-}
-
-/**
  * Processes {@link DataMutation} arrays returned by action handlers.
  *
  * This is the single place where handler-declared mutations are translated
@@ -63,10 +56,11 @@ interface MutationProcessResult {
  *   2. **OUT pipeline** — SAVE_GAME + TIMER_SET + TIMER_DELETE batched in 1 RT
  *   3. **Socket session updates** — socket↔game association written to Redis
  *   4. **Player stats updates** — stats initialisation / leftAt clearance
- *   5. **Broadcasts** — emitted after all state is persisted (clients may
+ *   5. **Disconnect sockets** — forced disconnect side effects
+ *   6. **Game completion** — statistics persistence, cleanup
+ *   7. **Broadcasts** — emitted after all state is persisted (clients may
  *      query Redis immediately upon receiving a broadcast, so every write
  *      must be visible before the notification fires)
- *   6. **Game completion** — statistics persistence, cleanup (last)
  */
 @singleton()
 export class DataMutationProcessor {
@@ -76,7 +70,7 @@ export class DataMutationProcessor {
     private readonly gameLifecycleService: GameLifecycleService,
     private readonly socketUserDataService: SocketUserDataService,
     private readonly playerGameStatsService: PlayerGameStatsService,
-    @inject(DI_TOKENS.IOGameNamespace) private readonly gamesNsp: Namespace,
+    @inject(DI_TOKENS.RealtimeGateway) private readonly realtimeGateway: RealtimeGateway,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -87,35 +81,24 @@ export class DataMutationProcessor {
    *
    * @param result - The handler result containing mutations
    * @param ctx - The action execution context (for game fallback, gameId)
-   * @returns Queue length for the executor's drain decision
    */
   public async process(
     result: ActionHandlerResult,
     ctx: ActionExecutionContext<unknown>
-  ): Promise<MutationProcessResult> {
+  ): Promise<void> {
     const classified = this.classifyMutations(result.mutations);
 
-    const { queueLength } = await this.executePipeline(classified, ctx.game.id);
+    await this.executePipeline(classified, ctx.game.id);
 
     await this.executeSocketSessionUpdates(classified.socketSessionUpdates);
     // TODO: Since player stats updates is DB action - should be done in async to not block websocket event flow
     await this.executePlayerStatsUpdates(classified.playerStatsUpdates);
     await this.executeDisconnectSockets(classified.disconnectSockets);
 
-    const broadcastGame = this.resolveBroadcastGame(
-      result,
-      classified,
-      ctx.game
-    );
-    await this.emitBroadcasts(
-      classified.broadcasts,
-      broadcastGame,
-      result.success
-    );
-
     await this.executeCompletions(classified.completions);
 
-    return { queueLength };
+    const broadcastGame = this.resolveBroadcastGame(result, classified, ctx.game);
+    await this.emitBroadcasts(classified.broadcasts, broadcastGame, result.success);
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -132,7 +115,7 @@ export class DataMutationProcessor {
    * - **TIMER_SET** → `SET key value PX ttl` appended to pipeline
    * - **TIMER_DELETE** → `DEL key` appended to pipeline
    * - **BROADCAST** → socket event queued for emission after pipeline
-   * - **GAME_COMPLETION** → lifecycle handler queued for post-broadcast execution
+   * - **GAME_COMPLETION** → lifecycle handler queued before finish broadcasts
    */
   private classifyMutations(mutations: DataMutation[]): ClassifiedMutations {
     let saveGame: SaveGameMutation | null = null;
@@ -196,7 +179,7 @@ export class DataMutationProcessor {
       completions,
       socketSessionUpdates,
       playerStatsUpdates,
-      disconnectSockets,
+      disconnectSockets
     };
   }
 
@@ -208,22 +191,19 @@ export class DataMutationProcessor {
    * Delegates to {@link GamePipelineService.executeOutPipeline}.
    * See that method for full documentation of pipeline commands.
    */
-  private async executePipeline(
-    classified: ClassifiedMutations,
-    gameId: string
-  ): Promise<{ queueLength: number }> {
+  private async executePipeline(classified: ClassifiedMutations, gameId: string): Promise<void> {
     return this.pipelineService.executeOutPipeline(classified, gameId);
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  Step 3: Socket session updates
+  //  Step 7: Broadcasts
   // ════════════════════════════════════════════════════════════════════════
 
   /**
    * Emit broadcasts from classified mutations.
    * Only emits when the handler result was successful.
    *
-   * Broadcasts run AFTER all state writes (pipeline, session, stats) so that
+   * Broadcasts run AFTER all state writes and completion handling so that
    * clients querying Redis upon receiving a broadcast always see consistent data.
    */
   private async emitBroadcasts(
@@ -235,21 +215,14 @@ export class DataMutationProcessor {
       return;
     }
 
-    // Convert BroadcastMutation[] to SocketEventBroadcast[] for the broadcast service
-    const socketBroadcasts: SocketEventBroadcast[] = broadcasts.map((b) => ({
-      event: b.event,
-      data: b.data,
-      target: b.target,
-      gameId: b.gameId,
-      socketId: b.socketId,
-      useRoleBasedBroadcast: b.useRoleBasedBroadcast,
-    }));
-
-    await this.broadcastService.emitBroadcasts(socketBroadcasts, game);
+    await this.broadcastService.emitBroadcasts(
+      DataMutationConverter.broadcastsToSocketEvents(broadcasts),
+      game
+    );
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  Step 4: Player stats updates
+  //  Step 3: Socket session updates
   // ════════════════════════════════════════════════════════════════════════
 
   /**
@@ -259,14 +232,12 @@ export class DataMutationProcessor {
    * `SocketIOGameService.joinPlayerToGame`). By declaring them as mutations
    * the execution is transparent and auditable.
    */
-  private async executeSocketSessionUpdates(
-    updates: UpdateSocketSessionMutation[]
-  ): Promise<void> {
+  private async executeSocketSessionUpdates(updates: UpdateSocketSessionMutation[]): Promise<void> {
     for (const mutation of updates) {
       try {
         await this.socketUserDataService.update(mutation.socketId, {
           id: mutation.userId,
-          gameId: mutation.gameId,
+          gameId: mutation.gameId
         });
       } catch (error) {
         // Session updates are best-effort: if they fail the game state is
@@ -275,14 +246,14 @@ export class DataMutationProcessor {
           prefix: LogPrefix.ACTION,
           socketId: mutation.socketId,
           gameId: mutation.gameId,
-          error: error instanceof Error ? error.message : String(error),
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  Step 5: Broadcasts
+  //  Step 4: Player stats updates
   // ════════════════════════════════════════════════════════════════════════
 
   /**
@@ -292,9 +263,7 @@ export class DataMutationProcessor {
    * mutations the Use Case stays pure and tests can assert exactly which
    * stats operations will occur for a given flow.
    */
-  private async executePlayerStatsUpdates(
-    updates: UpdatePlayerStatsMutation[]
-  ): Promise<void> {
+  private async executePlayerStatsUpdates(updates: UpdatePlayerStatsMutation[]): Promise<void> {
     if (updates.length === 0) {
       return;
     }
@@ -332,70 +301,69 @@ export class DataMutationProcessor {
           gameId: mutation.gameId,
           userId: mutation.userId,
           action: mutation.payload.action,
-          error: error instanceof Error ? error.message : String(error),
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  Step 6: Disconnect sockets
+  //  Step 5: Disconnect sockets
   // ════════════════════════════════════════════════════════════════════════
 
   /**
    * Force disconnect sockets for banned/kicked users.
    */
-  private async executeDisconnectSockets(
-    mutations: DisconnectSocketMutation[]
-  ): Promise<void> {
+  private async executeDisconnectSockets(mutations: DisconnectSocketMutation[]): Promise<void> {
     if (mutations.length === 0) {
       return;
     }
 
     for (const mutation of mutations) {
       try {
-        const socketId = await this.socketUserDataService.findSocketIdByUserId(
-          mutation.userId
-        );
+        const socketId = await this.socketUserDataService.findSocketIdByUserId(mutation.userId);
         if (socketId) {
-          this.gamesNsp.in(socketId).disconnectSockets(true);
+          // Clear the session BEFORE disconnecting so the disconnect event
+          // handler sees gameId=null and returns early — preventing a spurious
+          // DISCONNECT action from being queued and competing for the game lock.
+          await this.socketUserDataService.update(socketId, {
+            id: JSON.stringify(mutation.userId),
+            gameId: JSON.stringify(null)
+          });
+          this.realtimeGateway.disconnectSocket(socketId);
           this.logger.info(`Forced disconnect for user ${mutation.userId}`, {
             prefix: LogPrefix.ACTION,
             userId: mutation.userId,
-            socketId,
+            socketId
           });
         }
       } catch (error) {
         this.logger.warn("Failed to disconnect socket", {
           prefix: LogPrefix.ACTION,
           userId: mutation.userId,
-          error: error instanceof Error ? error.message : String(error),
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  Step 7: Game completion
+  //  Step 6: Game completion
   // ════════════════════════════════════════════════════════════════════════
 
   /**
    * Execute game completion handlers (statistics, cleanup).
-   * Runs after broadcasts so clients receive events before server-side cleanup.
+   * Runs before broadcasts so GAME_FINISHED is emitted after persistence was attempted.
    */
-  private async executeCompletions(
-    completions: GameCompletionMutation[]
-  ): Promise<void> {
+  private async executeCompletions(completions: GameCompletionMutation[]): Promise<void> {
     for (const completion of completions) {
-      const result = await this.gameLifecycleService.handleGameCompletion(
-        completion.gameId
-      );
+      const result = await this.gameLifecycleService.handleGameCompletion(completion.gameId);
 
       if (!result.success) {
         this.logger.error("Failed to execute game completion", {
           prefix: LogPrefix.ACTION,
           gameId: completion.gameId,
-          error: result.error,
+          error: result.error
         });
       }
     }

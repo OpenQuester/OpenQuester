@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { timerKey } from "domain/constants/redisKeys";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
@@ -19,7 +18,6 @@ import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO"
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { AnswerShowStartEventPayload } from "domain/types/socket/events/game/AnswerShowEventPayload";
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
-import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { ShowingToShowingAnswerMutationData } from "domain/types/socket/transition/showing";
 
@@ -34,13 +32,6 @@ import { ShowingToShowingAnswerMutationData } from "domain/types/socket/transiti
 export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.SHOWING;
   public readonly toPhase = GamePhase.SHOWING_ANSWER;
-
-  constructor(
-    gameService: GameService,
-    private readonly packageStore: PackageStore
-  ) {
-    super(gameService);
-  }
 
   /**
    * Only allow transition in regular round showing state when one of the
@@ -79,22 +70,15 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
 
     let question: PackageQuestionDTO | null = null;
     const currentQuestion = game.gameState.currentQuestion;
+    const questionData = ctx.resources?.questionWithTheme ?? null;
 
-    // TODO: Similar structure found among other files, can be moved to mapper
-    if (currentQuestion) {
-      const questionData = await this.packageStore.getQuestionWithTheme(
-        game.id,
-        currentQuestion.id!
+    if (currentQuestion && questionData) {
+      question = questionData.question;
+      GameQuestionMapper.setQuestionPlayed(
+        game,
+        question.id!,
+        questionData.theme.id!
       );
-
-      if (questionData) {
-        question = questionData.question;
-        GameQuestionMapper.setQuestionPlayed(
-          game,
-          question.id!,
-          questionData.theme.id!
-        );
-      }
     }
 
     game.setQuestionState(QuestionState.SHOWING_ANSWER);

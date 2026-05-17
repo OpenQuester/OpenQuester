@@ -1,19 +1,20 @@
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageFileDTO } from "domain/types/dto/package/PackageFileDTO";
 import { PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
-import { PackageAnswerFileImport } from "domain/types/package/import/PackageAnswerFileImport";
+import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
 import { File } from "infrastructure/database/models/File";
 import { PackageQuestion } from "infrastructure/database/models/package/PackageQuestion";
-import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
+
+export interface PackageAnswerFileImport {
+  file: File;
+  order: number;
+  type: PackageFileType;
+  display_time: number | null;
+  question: PackageQuestion;
+}
 
 @Entity("package_answer_file")
 export class PackageAnswerFile {
@@ -21,7 +22,7 @@ export class PackageAnswerFile {
   id!: number;
 
   @ManyToOne(() => PackageQuestion, (question) => question.answerFiles, {
-    onDelete: "CASCADE",
+    onDelete: "CASCADE"
   })
   @JoinColumn({ name: "question" })
   question!: PackageQuestion;
@@ -47,14 +48,11 @@ export class PackageAnswerFile {
     this.question = data.question;
   }
 
-  public toDTO(
-    storage: S3StorageService,
-    opts: PackageDTOOptions
-  ): PackageQuestionFileDTO {
+  public toDTO(fileUrlBuilder: IFileUrlBuilder, opts: PackageDTOOptions): PackageQuestionFileDTO {
     const fileDTO: PackageFileDTO = {
       md5: this.file.filename,
       type: this.type,
-      link: storage.getUrl(this.file.filename),
+      link: fileUrlBuilder.getUrl(this.file.filename)
     };
 
     if (opts.fetchIds) {
@@ -64,7 +62,7 @@ export class PackageAnswerFile {
     return {
       file: fileDTO,
       order: this.order,
-      displayTime: this.display_time,
+      displayTime: this.display_time
     };
   }
 }

@@ -1,9 +1,9 @@
 import { singleton } from "tsyringe";
 
-import { Game } from "domain/entities/game/Game";
 import { MediaDownloadPlayerLeaveLogic } from "domain/logic/player-leave/MediaDownloadPlayerLeaveLogic";
 import {
   IPlayerLeaveStrategy,
+  PlayerLeaveStrategyInput,
   PlayerLeaveStrategyResult,
 } from "domain/logic/player-leave/strategies/IPlayerLeaveStrategy";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
@@ -14,14 +14,15 @@ import { DataMutationConverter } from "domain/types/action/DataMutation";
 export class MediaDownloadLeaveStrategy implements IPlayerLeaveStrategy {
   constructor(private readonly phaseTransitionRouter: PhaseTransitionRouter) {}
 
-  public canHandle(game: Game, _userId: number): boolean {
+  public canHandle(input: PlayerLeaveStrategyInput): boolean {
+    const { game } = input;
     return MediaDownloadPlayerLeaveLogic.validate(game).isEligible;
   }
 
   public async execute(
-    game: Game,
-    userId: number
+    input: PlayerLeaveStrategyInput
   ): Promise<PlayerLeaveStrategyResult> {
+    const { game, userId } = input;
     // Try to transition to showing if this was last player who hasn't downloaded yet
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,

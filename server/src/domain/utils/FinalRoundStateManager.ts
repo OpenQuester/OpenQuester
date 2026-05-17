@@ -1,8 +1,4 @@
-import {
-  FINAL_ROUND_MIN_BID,
-  MAX_SCORE_DELTA,
-  SCORE_ABS_LIMIT,
-} from "domain/constants/game";
+import { FINAL_ROUND_MIN_BID, MAX_SCORE_DELTA, SCORE_ABS_LIMIT } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
@@ -13,11 +9,11 @@ import {
   BidConstraints,
   FinalRoundAnswer,
   FinalRoundGameData,
-  FinalRoundQuestionData,
+  FinalRoundQuestionData
 } from "domain/types/finalround/FinalRoundInterfaces";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
  * Manages final round state transitions and data persistence
@@ -32,7 +28,7 @@ export class FinalRoundStateManager {
       turnOrder: [],
       bids: {},
       answers: [],
-      eliminatedThemes: [],
+      eliminatedThemes: []
     };
 
     game.gameState.finalRoundData = finalRoundData;
@@ -57,10 +53,7 @@ export class FinalRoundStateManager {
   /**
    * Update final round data in game state
    */
-  public static updateFinalRoundData(
-    game: Game,
-    data: FinalRoundGameData
-  ): void {
+  public static updateFinalRoundData(game: Game, data: FinalRoundGameData): void {
     game.gameState.finalRoundData = data;
   }
 
@@ -68,8 +61,7 @@ export class FinalRoundStateManager {
    * Transition to next phase of final round
    */
   public static transitionToPhase(game: Game, phase: FinalRoundPhase): void {
-    const data =
-      this.getFinalRoundData(game) || this.initializeFinalRoundData(game);
+    const data = this.getFinalRoundData(game) || this.initializeFinalRoundData(game);
     data.phase = phase;
 
     // Update question state to match phase
@@ -109,10 +101,7 @@ export class FinalRoundStateManager {
    * This is called when transitioning from bidding to answering phase.
    * The data is stored so that players joining during answering/reviewing can access it.
    */
-  public static setQuestionData(
-    game: Game,
-    questionData: FinalRoundQuestionData
-  ): void {
+  public static setQuestionData(game: Game, questionData: FinalRoundQuestionData): void {
     const data = this.getFinalRoundData(game);
     if (!data) {
       throw new ServerError("Final round data not initialized");
@@ -125,9 +114,7 @@ export class FinalRoundStateManager {
   /**
    * Get question data from final round data
    */
-  public static getQuestionData(
-    game: Game
-  ): FinalRoundQuestionData | undefined {
+  public static getQuestionData(game: Game): FinalRoundQuestionData | undefined {
     const data = this.getFinalRoundData(game);
     return data?.questionData;
   }
@@ -142,11 +129,7 @@ export class FinalRoundStateManager {
     }
 
     const eligiblePlayerIds = game.players
-      .filter(
-        (p) =>
-          p.role === PlayerRole.PLAYER &&
-          p.gameStatus === PlayerGameStatus.IN_GAME
-      )
+      .filter((p) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME)
       .map((p) => p.meta.id);
 
     return eligiblePlayerIds.every((id) => data.bids[id] !== undefined);
@@ -173,7 +156,7 @@ export class FinalRoundStateManager {
       submittedAt: new Date(),
       autoLoss: isAutoLoss,
       // Auto-loss answers are automatically marked as incorrect (no showman review needed)
-      isCorrect: isAutoLoss ? false : undefined,
+      isCorrect: isAutoLoss ? false : undefined
     };
 
     data.answers.push(answer);
@@ -192,17 +175,11 @@ export class FinalRoundStateManager {
 
     // Players with zero bids are excluded from answering requirement.
     const eligiblePlayerIds = game.players
-      .filter(
-        (p) =>
-          p.role === PlayerRole.PLAYER &&
-          p.gameStatus === PlayerGameStatus.IN_GAME
-      )
+      .filter((p) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME)
       .map((p) => p.meta.id)
       .filter((id) => (data.bids[id] ?? 0) > 0);
 
-    return eligiblePlayerIds.every((id) =>
-      data.answers.some((answer) => answer.playerId === id)
-    );
+    return eligiblePlayerIds.every((id) => data.answers.some((answer) => answer.playerId === id));
   }
 
   /**
@@ -257,10 +234,7 @@ export class FinalRoundStateManager {
   /**
    * Get bid constraints for a player
    */
-  public static getBidConstraints(
-    game: Game,
-    playerId: number
-  ): BidConstraints {
+  public static getBidConstraints(game: Game, playerId: number): BidConstraints {
     const player = game.players.find((p) => p.meta.id === playerId);
     if (!player) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
@@ -272,27 +246,20 @@ export class FinalRoundStateManager {
     return {
       minBid: FINAL_ROUND_MIN_BID,
       maxBid: maxBid,
-      playerScore: playerScore,
+      playerScore: playerScore
     };
   }
 
   /**
    * Validate and normalize bid amount
    */
-  public static validateAndNormalizeBid(
-    game: Game,
-    playerId: number,
-    bidAmount: number
-  ): number {
+  public static validateAndNormalizeBid(game: Game, playerId: number, bidAmount: number): number {
     const constraints = this.getBidConstraints(game, playerId);
 
     if (bidAmount <= 0 || constraints.playerScore <= 0) {
       return FINAL_ROUND_MIN_BID;
     }
 
-    return Math.min(
-      Math.max(bidAmount, constraints.minBid),
-      constraints.maxBid
-    );
+    return Math.min(Math.max(bidAmount, constraints.minBid), constraints.maxBid);
   }
 }

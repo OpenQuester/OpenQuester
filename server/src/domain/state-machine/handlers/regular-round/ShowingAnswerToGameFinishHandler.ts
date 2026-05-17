@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { timerKey } from "domain/constants/redisKeys";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -23,12 +22,6 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 export class ShowingAnswerToGameFinishHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.SHOWING_ANSWER;
   public readonly toPhase = GamePhase.GAME_FINISHED;
-
-  constructor(
-    gameService: GameService
-  ) {
-    super(gameService);
-  }
 
   public canTransition(ctx: TransitionContext): boolean {
     const { game, trigger } = ctx;

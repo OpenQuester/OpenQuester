@@ -3,10 +3,10 @@ import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
 import { Permissions } from "domain/enums/Permissions";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
+import { RedisConfig } from "shared/config/RedisConfig";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -24,29 +24,23 @@ async function preparePermission(
   return perm;
 }
 
-async function createUser(
-  userRepo: Repository<User>,
-  permissions: Permission[]
-) {
+async function createUser(userRepo: Repository<User>, permissions: Permission[]) {
   const user = userRepo.create({
     username: "testuser",
     email: "test@example.com",
     is_deleted: false,
-    permissions: permissions,
+    permissions: permissions
   });
   await userRepo.save(user);
   return user;
 }
 
-async function createTargetUser(
-  userRepo: Repository<User>,
-  permissions: Permission[] = []
-) {
+async function createTargetUser(userRepo: Repository<User>, permissions: Permission[] = []) {
   const user = userRepo.create({
     username: "targetuser",
     email: "target@example.com",
     is_deleted: false,
-    permissions: permissions,
+    permissions: permissions
   });
   await userRepo.save(user);
   return user;
@@ -100,10 +94,7 @@ describe("User Permissions Management", () => {
 
   it("should update user permissions successfully", async () => {
     // Create permissions
-    const managePerm = await preparePermission(
-      permRepo,
-      Permissions.MANAGE_PERMISSIONS
-    );
+    const managePerm = await preparePermission(permRepo, Permissions.MANAGE_PERMISSIONS);
     await preparePermission(permRepo, Permissions.EDIT_PACKAGE);
     await preparePermission(permRepo, Permissions.DELETE_PACKAGE);
 
@@ -114,9 +105,7 @@ describe("User Permissions Management", () => {
     const targetUser = await createTargetUser(userRepo, []);
 
     // Login as admin
-    const loginRes = await request(app)
-      .post("/v1/test/login")
-      .send({ userId: adminUser.id });
+    const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
 
     expect(loginRes.status).toBe(200);
     const cookies = loginRes.headers["set-cookie"];
@@ -126,30 +115,23 @@ describe("User Permissions Management", () => {
       .patch(`/v1/users/${targetUser.id}/permissions`)
       .set("Cookie", cookies)
       .send({
-        permissions: [Permissions.EDIT_PACKAGE, Permissions.DELETE_PACKAGE],
+        permissions: [Permissions.EDIT_PACKAGE, Permissions.DELETE_PACKAGE]
       });
 
     expect(updateRes.status).toBe(200);
-    expect(updateRes.body.message).toBe(
-      "User permissions updated successfully"
-    );
+    expect(updateRes.body.message).toBe("User permissions updated successfully");
     expect(updateRes.body.data).toBeDefined();
     expect(updateRes.body.data.id).toBe(targetUser.id);
     expect(updateRes.body.data.permissions).toHaveLength(2);
 
-    const permissionNames = updateRes.body.data.permissions.map(
-      (p: Permission) => p.name
-    );
+    const permissionNames = updateRes.body.data.permissions.map((p: Permission) => p.name);
     expect(permissionNames).toContain(Permissions.EDIT_PACKAGE);
     expect(permissionNames).toContain(Permissions.DELETE_PACKAGE);
   });
 
   it("should require manage_permissions permission", async () => {
     // Create permissions
-    const editPerm = await preparePermission(
-      permRepo,
-      Permissions.EDIT_PACKAGE
-    );
+    const editPerm = await preparePermission(permRepo, Permissions.EDIT_PACKAGE);
 
     // Create user without manage permissions permission
     const user = await createUser(userRepo, [editPerm]);
@@ -158,9 +140,7 @@ describe("User Permissions Management", () => {
     const targetUser = await createTargetUser(userRepo, []);
 
     // Login as user without manage permissions
-    const loginRes = await request(app)
-      .post("/v1/test/login")
-      .send({ userId: user.id });
+    const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
 
     expect(loginRes.status).toBe(200);
     const cookies = loginRes.headers["set-cookie"];
@@ -170,7 +150,7 @@ describe("User Permissions Management", () => {
       .patch(`/v1/users/${targetUser.id}/permissions`)
       .set("Cookie", cookies)
       .send({
-        permissions: [Permissions.EDIT_PACKAGE],
+        permissions: [Permissions.EDIT_PACKAGE]
       });
 
     expect(updateRes.status).toBe(403);
@@ -178,14 +158,8 @@ describe("User Permissions Management", () => {
 
   it("should handle empty permissions array", async () => {
     // Create permissions
-    const managePerm = await preparePermission(
-      permRepo,
-      Permissions.MANAGE_PERMISSIONS
-    );
-    const editPerm = await preparePermission(
-      permRepo,
-      Permissions.EDIT_PACKAGE
-    );
+    const managePerm = await preparePermission(permRepo, Permissions.MANAGE_PERMISSIONS);
+    const editPerm = await preparePermission(permRepo, Permissions.EDIT_PACKAGE);
 
     // Create admin user
     const adminUser = await createUser(userRepo, [managePerm]);
@@ -194,9 +168,7 @@ describe("User Permissions Management", () => {
     const targetUser = await createTargetUser(userRepo, [editPerm]);
 
     // Login as admin
-    const loginRes = await request(app)
-      .post("/v1/test/login")
-      .send({ userId: adminUser.id });
+    const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
 
     expect(loginRes.status).toBe(200);
     const cookies = loginRes.headers["set-cookie"];
@@ -206,7 +178,7 @@ describe("User Permissions Management", () => {
       .patch(`/v1/users/${targetUser.id}/permissions`)
       .set("Cookie", cookies)
       .send({
-        permissions: [],
+        permissions: []
       });
 
     expect(updateRes.status).toBe(200);
@@ -215,10 +187,7 @@ describe("User Permissions Management", () => {
 
   it("should handle invalid permission names", async () => {
     // Create permissions
-    const managePerm = await preparePermission(
-      permRepo,
-      Permissions.MANAGE_PERMISSIONS
-    );
+    const managePerm = await preparePermission(permRepo, Permissions.MANAGE_PERMISSIONS);
 
     // Create admin user
     const adminUser = await createUser(userRepo, [managePerm]);
@@ -227,9 +196,7 @@ describe("User Permissions Management", () => {
     const targetUser = await createTargetUser(userRepo, []);
 
     // Login as admin
-    const loginRes = await request(app)
-      .post("/v1/test/login")
-      .send({ userId: adminUser.id });
+    const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
 
     expect(loginRes.status).toBe(200);
     const cookies = loginRes.headers["set-cookie"];
@@ -239,7 +206,7 @@ describe("User Permissions Management", () => {
       .patch(`/v1/users/${targetUser.id}/permissions`)
       .set("Cookie", cookies)
       .send({
-        permissions: ["invalid_permission", "another_invalid"],
+        permissions: ["invalid_permission", "another_invalid"]
       });
 
     expect(updateRes.status).toBe(400);
@@ -247,18 +214,13 @@ describe("User Permissions Management", () => {
 
   it("should handle non-existent user", async () => {
     // Create permissions
-    const managePerm = await preparePermission(
-      permRepo,
-      Permissions.MANAGE_PERMISSIONS
-    );
+    const managePerm = await preparePermission(permRepo, Permissions.MANAGE_PERMISSIONS);
 
     // Create admin user
     const adminUser = await createUser(userRepo, [managePerm]);
 
     // Login as admin
-    const loginRes = await request(app)
-      .post("/v1/test/login")
-      .send({ userId: adminUser.id });
+    const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
 
     expect(loginRes.status).toBe(200);
     const cookies = loginRes.headers["set-cookie"];
@@ -268,7 +230,7 @@ describe("User Permissions Management", () => {
       .patch("/v1/users/99999/permissions")
       .set("Cookie", cookies)
       .send({
-        permissions: [Permissions.EDIT_PACKAGE],
+        permissions: [Permissions.EDIT_PACKAGE]
       });
 
     expect(updateRes.status).toBe(404);

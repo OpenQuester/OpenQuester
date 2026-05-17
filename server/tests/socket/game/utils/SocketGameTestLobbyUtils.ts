@@ -7,13 +7,14 @@ import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload"
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import {
   GameJoinInputData,
-  GameJoinOutputData,
+  GameJoinOutputData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { type Express } from "express";
 import { User } from "infrastructure/database/models/User";
 import request from "supertest";
 import { PackageUtils } from "tests/utils/PackageUtils";
 import { Repository } from "typeorm";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
@@ -41,7 +42,7 @@ export class SocketGameTestLobbyUtils {
     const {
       socket: showmanSocket,
       gameId,
-      user: showmanUser,
+      user: showmanUser
     } = await this.createGameWithShowman(
       app,
       userRepo,
@@ -53,10 +54,7 @@ export class SocketGameTestLobbyUtils {
     const playerSockets: GameClientSocket[] = [];
     const playerUsers: User[] = [];
     for (let i = 0; i < playerCount; i++) {
-      const { socket, user } = await this.userUtils.createGameClient(
-        app,
-        userRepo
-      );
+      const { socket, user } = await this.userUtils.createGameClient(app, userRepo);
       await this.joinGame(socket, gameId, PlayerRole.PLAYER);
       playerSockets.push(socket as GameClientSocket);
       playerUsers.push(user);
@@ -76,7 +74,7 @@ export class SocketGameTestLobbyUtils {
       playerSockets,
       spectatorSockets,
       showmanUser,
-      playerUsers,
+      playerUsers
     };
   }
 
@@ -85,18 +83,19 @@ export class SocketGameTestLobbyUtils {
     userRepo: Repository<User>,
     includeFinalRound: boolean = true,
     additionalSimpleQuestions: number = 0
-  ): Promise<{ socket: GameClientSocket; gameId: string; user: User }> {
+  ): Promise<{
+    socket: GameClientSocket;
+    gameId: string;
+    user: User;
+  }> {
     // Create a test user and get authenticated socket
-    const { socket, user, cookie } = await this.userUtils.createGameClient(
-      app,
-      userRepo
-    );
+    const { socket, user, cookie } = await this.userUtils.createGameClient(app, userRepo);
 
     // Create a test package
     const packageData = this.packageUtils.createTestPackageData(
       {
         id: user.id,
-        username: user.username,
+        username: user.username
       },
       includeFinalRound,
       additionalSimpleQuestions
@@ -109,9 +108,7 @@ export class SocketGameTestLobbyUtils {
 
     if (packageRes.status !== 200) {
       throw new Error(
-        `Failed to create package: ${packageRes.status} - ${JSON.stringify(
-          packageRes.body
-        )}`
+        `Failed to create package: ${packageRes.status} - ${JSON.stringify(packageRes.body)}`
       );
     }
 
@@ -125,21 +122,14 @@ export class SocketGameTestLobbyUtils {
       isPrivate: false,
       password: undefined,
       ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10,
+      maxPlayers: 10
     };
 
     // Create the game via REST API
-    const gameRes = await request(app)
-      .post("/v1/games")
-      .set("Cookie", cookie)
-      .send(gameData);
+    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
 
     if (gameRes.status !== 200) {
-      throw new Error(
-        `Failed to create game: ${gameRes.status} - ${JSON.stringify(
-          gameRes.body
-        )}`
-      );
+      throw new Error(`Failed to create game: ${gameRes.status} - ${JSON.stringify(gameRes.body)}`);
     }
 
     const createdGame = gameRes.body;
@@ -164,14 +154,19 @@ export class SocketGameTestLobbyUtils {
     gameId: string,
     role: PlayerRole
   ): Promise<void> {
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
       const joinData: GameJoinInputData = {
         gameId,
         role,
         targetSlot: null,
-        password: null,
+        password: null
       };
+      const timeout = setTimeout(() => {
+        socket.removeAllListeners(SocketIOGameEvents.GAME_DATA);
+        reject(new Error(`GAME_DATA not received within timeout (gameId=${gameId} role=${role})`));
+      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
       socket.once(SocketIOGameEvents.GAME_DATA, () => {
+        clearTimeout(timeout);
         socket.gameId = gameId;
         socket.role = role;
         resolve();
@@ -186,14 +181,19 @@ export class SocketGameTestLobbyUtils {
     role: PlayerRole,
     password?: string
   ): Promise<GameJoinOutputData> {
-    return new Promise<GameJoinOutputData>((resolve) => {
+    return new Promise<GameJoinOutputData>((resolve, reject) => {
       const joinData: GameJoinInputData = {
         gameId,
         role,
         targetSlot: null,
-        password,
+        password
       };
+      const timeout = setTimeout(() => {
+        socket.removeAllListeners(SocketIOGameEvents.GAME_DATA);
+        reject(new Error(`GAME_DATA not received within timeout (gameId=${gameId} role=${role})`));
+      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
       socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
+        clearTimeout(timeout);
         socket.gameId = gameId;
         socket.role = role;
         resolve(gameData);
@@ -216,7 +216,7 @@ export class SocketGameTestLobbyUtils {
         gameId,
         role,
         targetSlot: null,
-        password,
+        password
       };
       socket.once("error", (error: ErrorEventPayload) => {
         resolve(error);
@@ -225,7 +225,7 @@ export class SocketGameTestLobbyUtils {
       // Timeout in case no error is received
       setTimeout(
         () => reject(new Error("Expected error but none received")),
-        5000
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
       );
     });
   }
@@ -239,9 +239,18 @@ export class SocketGameTestLobbyUtils {
     role: PlayerRole,
     targetSlot: number | null
   ): Promise<void> {
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
       const joinData: GameJoinInputData = { gameId, role, targetSlot };
+      const timeout = setTimeout(() => {
+        socket.removeAllListeners(SocketIOGameEvents.GAME_DATA);
+        reject(
+          new Error(
+            `GAME_DATA not received within timeout (gameId=${gameId} role=${role} slot=${targetSlot})`
+          )
+        );
+      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
       socket.once(SocketIOGameEvents.GAME_DATA, () => {
+        clearTimeout(timeout);
         socket.gameId = gameId;
         socket.role = role;
         resolve();
@@ -259,9 +268,18 @@ export class SocketGameTestLobbyUtils {
     role: PlayerRole,
     targetSlot: number | null
   ): Promise<any> {
-    return new Promise<any>((resolve) => {
+    return new Promise<any>((resolve, reject) => {
       const joinData: GameJoinInputData = { gameId, role, targetSlot };
+      const timeout = setTimeout(() => {
+        socket.removeAllListeners(SocketIOGameEvents.GAME_DATA);
+        reject(
+          new Error(
+            `GAME_DATA not received within timeout (gameId=${gameId} role=${role} slot=${targetSlot})`
+          )
+        );
+      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
       socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
+        clearTimeout(timeout);
         socket.gameId = gameId;
         socket.role = role;
         resolve(gameData);
@@ -271,8 +289,13 @@ export class SocketGameTestLobbyUtils {
   }
 
   public async leaveGame(socket: GameClientSocket): Promise<void> {
-    return new Promise<void>((resolve) => {
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        socket.removeAllListeners(SocketIOGameEvents.LEAVE);
+        reject(new Error("LEAVE event not received within timeout"));
+      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
       socket.once(SocketIOGameEvents.LEAVE, () => {
+        clearTimeout(timeout);
         socket.gameId = undefined;
         socket.role = undefined;
         resolve();
@@ -281,76 +304,73 @@ export class SocketGameTestLobbyUtils {
     });
   }
 
-  public async disconnectAndCleanup(socket: GameClientSocket): Promise<void> {
+  public async disconnectAndCleanup(
+    socket: GameClientSocket,
+    waitForDrain: boolean = true
+  ): Promise<void> {
     if (!socket) return;
+
+    const gameId = socket.gameId;
+
     if (socket.connected) {
       socket.disconnect();
     }
     socket.removeAllListeners();
     socket.close();
+
+    if (!waitForDrain || !gameId) {
+      return;
+    }
+
+    // The server processes disconnect asynchronously through GameActionExecutor.
+    // Give it one short tick to enqueue, then wait for queue/lock drain.
+    await new Promise((resolve) => setTimeout(resolve, TEST_TIMEOUTS.TEST_CLEANUP_DRAIN_MS));
+    await this.eventUtils.waitForActionsComplete(gameId);
   }
 
   public async cleanupGameClients(setup: GameTestSetup): Promise<void> {
     try {
       await this.eventUtils.waitForActionsComplete(setup.gameId);
 
-      await this.disconnectAndCleanup(setup.showmanSocket);
+      await this.disconnectAndCleanup(setup.showmanSocket, false);
+
       await Promise.all(
-        setup.playerSockets.map((socket) => this.disconnectAndCleanup(socket))
+        setup.playerSockets.map((socket) => this.disconnectAndCleanup(socket, false))
       );
+
       await Promise.all(
-        setup.spectatorSockets.map((socket) =>
-          this.disconnectAndCleanup(socket)
-        )
+        setup.spectatorSockets.map((socket) => this.disconnectAndCleanup(socket, false))
       );
+
+      // Client-side socket.disconnect() triggers async DisconnectUseCase actions
+      // on the server. Give those handlers a tick to enqueue, then wait for drain.
+      await new Promise((resolve) => setTimeout(resolve, TEST_TIMEOUTS.TEST_CLEANUP_DRAIN_MS));
+      await this.eventUtils.waitForActionsComplete(setup.gameId);
     } catch (err) {
       console.error("Error during cleanup:", err);
     }
   }
 
-  public async deleteGame(
-    app: Express,
-    gameId: string,
-    cookie: string[]
-  ): Promise<void> {
-    const deleteRes = await request(app)
-      .delete(`/v1/games/${gameId}`)
-      .set("Cookie", cookie);
+  public async deleteGame(app: Express, gameId: string, cookie: string[]): Promise<void> {
+    const deleteRes = await request(app).delete(`/v1/games/${gameId}`).set("Cookie", cookie);
 
     if (![HttpStatus.OK, HttpStatus.NO_CONTENT].includes(deleteRes.status)) {
       throw new Error(
-        `Failed to delete game: ${deleteRes.status} - ${JSON.stringify(
-          deleteRes.body
-        )}`
+        `Failed to delete game: ${deleteRes.status} - ${JSON.stringify(deleteRes.body)}`
       );
     }
   }
 
-  public async deleteGameAsCreator(
-    app: Express,
-    gameId: string,
-    creatorId: number
-  ): Promise<void> {
-    // Login as the creator
-    const { cookie } = await this.userUtils.loginExistingUser(app, creatorId);
-
-    // Delete the game
-    await this.deleteGame(app, gameId, [cookie]);
-  }
-
-  public async deleteGameWithClient(
-    app: Express,
-    gameId: string,
-    clientData: { socket: GameClientSocket; user: User; cookie: string[] }
-  ): Promise<void> {
-    await this.deleteGame(app, gameId, clientData.cookie);
-  }
-
-  public async startGame(
-    showmanSocket: GameClientSocket
-  ): Promise<GameStartEventPayload> {
-    return new Promise((resolve) => {
-      showmanSocket.once(SocketIOGameEvents.START, resolve);
+  public async startGame(showmanSocket: GameClientSocket): Promise<GameStartEventPayload> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        showmanSocket.removeAllListeners(SocketIOGameEvents.START);
+        reject(new Error("START event not received within timeout"));
+      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
+      showmanSocket.once(SocketIOGameEvents.START, (data) => {
+        clearTimeout(timeout);
+        resolve(data);
+      });
       showmanSocket.emit(SocketIOGameEvents.START);
     });
   }
@@ -359,7 +379,7 @@ export class SocketGameTestLobbyUtils {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error("Timeout waiting for GAME_PAUSE event"));
-      }, 5000);
+      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
       const cleanup = () => {
         clearTimeout(timeout);

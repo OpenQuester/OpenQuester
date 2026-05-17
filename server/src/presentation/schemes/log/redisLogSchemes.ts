@@ -1,4 +1,4 @@
-import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
+import { type GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import Joi from "joi";
 
 export const gameStateDataSchema = () =>

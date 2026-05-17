@@ -1,9 +1,6 @@
-import {
-  GAME_EXPIRATION_WARNING_NAMESPACE,
-  GAME_NAMESPACE,
-} from "domain/constants/game";
+import { GAME_EXPIRATION_WARNING_NAMESPACE, GAME_NAMESPACE } from "domain/constants/game";
 import { TIMER_NSP } from "domain/constants/timer";
-import { SOCKET_SESSION_PREFIX } from "./socket";
+import { SOCKET_SESSION_PREFIX } from "domain/constants/socket";
 
 const LOCK_KEY_PREFIX = "game:action:lock";
 const QUEUE_KEY_PREFIX = "game:action:queue";
@@ -30,9 +27,7 @@ export function expirationWarningKey(gameId: string): string {
 }
 
 export function timerKey(gameId: string, timerAdditional?: string): string {
-  return timerAdditional
-    ? `${TIMER_NSP}:${timerAdditional}:${gameId}`
-    : `${TIMER_NSP}:${gameId}`;
+  return timerAdditional ? `${TIMER_NSP}:${timerAdditional}:${gameId}` : `${TIMER_NSP}:${gameId}`;
 }
 
 export function sessionKey(socketId: string): string {

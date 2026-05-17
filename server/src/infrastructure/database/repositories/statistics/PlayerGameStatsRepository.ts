@@ -1,22 +1,20 @@
 import { inject, singleton } from "tsyringe";
 import { Repository } from "typeorm";
 
-import { DI_TOKENS } from "application/di/tokens";
-import {
-  PLAYER_STATISTICS_REDIS_NSP,
-  PLAYER_STATISTICS_TTL,
-} from "domain/constants/statistics";
+import { DI_TOKENS } from "shared/di/tokens";
+import { PLAYER_STATISTICS_REDIS_NSP, PLAYER_STATISTICS_TTL } from "domain/constants/statistics";
 import { ServerError } from "domain/errors/ServerError";
+import { PlayerGameStatisticsMapper } from "domain/mappers/PlayerGameStatisticsMapper";
 import { PlayerGameStatsData } from "domain/types/statistics/PlayerGameStatsData";
 import {
   PlayerGameStatsRedisData,
-  PlayerGameStatsRedisUpdate,
+  PlayerGameStatsRedisUpdate
 } from "domain/types/statistics/PlayerGameStatsRedisData";
 import { PlayerGameStatsRedisValidator } from "domain/validators/PlayerGameStatsRedisValidator";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { RedisService } from "infrastructure/services/redis/RedisService";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 
 /**
  * Repository for player game statistics (Redis + PostgreSQL).
@@ -26,7 +24,7 @@ export class PlayerGameStatsRepository {
   constructor(
     @inject(DI_TOKENS.TypeORMPlayerGameStatsRepository)
     private readonly repository: Repository<PlayerGameStats>,
-    private readonly redisService: RedisService,
+    private readonly redisRepository: RedisRepository,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -38,10 +36,10 @@ export class PlayerGameStatsRepository {
   public async initializeStats(
     gameId: string,
     userId: number,
-    sessionData: PlayerGameStatsRedisUpdate
+    sessionData: Record<string, string>
   ): Promise<void> {
     const key = this._getStatsRedisKey(gameId, userId);
-    await this.redisService.hset(key, sessionData, PLAYER_STATISTICS_TTL);
+    await this.redisRepository.hset(key, sessionData, PLAYER_STATISTICS_TTL);
   }
 
   /**
@@ -53,18 +51,17 @@ export class PlayerGameStatsRepository {
     updates: PlayerGameStatsRedisUpdate
   ): Promise<void> {
     const key = this._getStatsRedisKey(gameId, userId);
-    await this.redisService.hset(key, updates, PLAYER_STATISTICS_TTL);
+    const updateData = PlayerGameStatisticsMapper.buildPlayerStatsUpdateData(updates);
+
+    await this.redisRepository.hset(key, updateData, PLAYER_STATISTICS_TTL);
   }
 
   /**
    * Get player session data from Redis
    */
-  public async getStats(
-    gameId: string,
-    userId: number
-  ): Promise<PlayerGameStatsRedisData | null> {
+  public async getStats(gameId: string, userId: number): Promise<PlayerGameStatsRedisData | null> {
     const key = this._getStatsRedisKey(gameId, userId);
-    const data = await this.redisService.hgetall(key);
+    const data = await this.redisRepository.hgetall(key);
 
     if (!data || Object.keys(data).length === 0) {
       return null;
@@ -88,7 +85,7 @@ export class PlayerGameStatsRepository {
     gameId: string
   ): Promise<Array<{ userId: number; data: PlayerGameStatsRedisData }>> {
     const pattern = `${PLAYER_STATISTICS_REDIS_NSP}:${gameId}:*`;
-    const keys = await this.redisService.scan(pattern);
+    const keys = await this.redisRepository.scan(pattern);
 
     const playerStats: Array<{
       userId: number;
@@ -96,14 +93,13 @@ export class PlayerGameStatsRepository {
     }> = [];
 
     for (const key of keys) {
-      const data = await this.redisService.hgetall(key);
+      const data = await this.redisRepository.hgetall(key);
       if (data && Object.keys(data).length > 0) {
         // Extract userId from key: "player_stats:gameId:userId"
         const userId = parseInt(key.split(":").pop() || "-1");
         if (userId !== -1) {
           try {
-            const validatedData =
-              PlayerGameStatsRedisValidator.validateRedisData(data);
+            const validatedData = PlayerGameStatsRedisValidator.validateRedisData(data);
 
             playerStats.push({ userId, data: validatedData });
           } catch (error) {
@@ -123,29 +119,9 @@ export class PlayerGameStatsRepository {
   }
 
   /**
-   * Delete player session from Redis
-   */
-  public async deleteStats(gameId: string, userId: number): Promise<void> {
-    const key = this._getStatsRedisKey(gameId, userId);
-    await this.redisService.del(key);
-  }
-
-  /**
-   * Save player game statistics to database
-   */
-  public async save(data: PlayerGameStatsData): Promise<PlayerGameStats> {
-    const entity = new PlayerGameStats();
-    entity.import(data);
-
-    return this.repository.save(entity);
-  }
-
-  /**
    * Save multiple player game statistics to database
    */
-  public async saveMany(
-    dataList: PlayerGameStatsData[]
-  ): Promise<PlayerGameStats[]> {
+  public async saveMany(dataList: PlayerGameStatsData[]): Promise<PlayerGameStats[]> {
     const entities = dataList.map((data) => {
       const entity = new PlayerGameStats();
       entity.import(data);
@@ -158,71 +134,24 @@ export class PlayerGameStatsRepository {
   /**
    * Get player game statistics by game statistics ID
    */
-  public async getByGameStatsId(
-    gameStatsId: number
-  ): Promise<PlayerGameStats[]> {
+  public async getByGameStatsId(gameStatsId: number): Promise<PlayerGameStats[]> {
     return this.repository.find({
       where: { game_stats_id: gameStatsId },
       relations: ["user"],
-      order: { placement: "ASC" },
+      order: { placement: "ASC" }
     });
   }
 
   /**
    * Get player game statistics by user ID
    */
-  public async getByUserId(
-    userId: number,
-    limit = 50
-  ): Promise<PlayerGameStats[]> {
+  public async getByUserId(userId: number, limit = 50): Promise<PlayerGameStats[]> {
     return this.repository.find({
       where: { user_id: userId },
       relations: ["gameStats"],
       order: { created_at: "DESC" },
-      take: limit,
+      take: limit
     });
-  }
-
-  /**
-   * Get player statistics for a specific game and user
-   */
-  public async getByGameAndUser(
-    gameStatsId: number,
-    userId: number
-  ): Promise<PlayerGameStats | null> {
-    return this.repository.findOne({
-      where: {
-        game_stats_id: gameStatsId,
-        user_id: userId,
-      },
-      relations: ["user", "gameStats"],
-    });
-  }
-
-  /**
-   * Calculate player rankings/placements for a game
-   */
-  public async updatePlacements(gameStatsId: number): Promise<void> {
-    // Get all players for this game sorted by final score (descending)
-    const playerStats = await this.repository.find({
-      where: { game_stats_id: gameStatsId },
-      order: { final_score: "DESC" },
-    });
-
-    // Assign placements based on score ranking
-    for (let i = 0; i < playerStats.length; i++) {
-      const player = playerStats[i];
-      let placement = i + 1;
-
-      // Handle ties - players with same score get same placement
-      if (i > 0 && playerStats[i - 1].final_score === player.final_score) {
-        placement = playerStats[i - 1].placement!;
-      }
-
-      player.placement = placement;
-    }
-
-    await this.repository.save(playerStats);
   }
 
   /**

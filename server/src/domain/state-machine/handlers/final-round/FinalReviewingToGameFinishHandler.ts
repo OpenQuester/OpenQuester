@@ -1,10 +1,7 @@
-import { GameService } from "application/services/game/GameService";
 import { timerKey } from "domain/constants/redisKeys";
-import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -12,24 +9,12 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionContext,
+  TransitionContext
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalReviewingToGameFinishMutationData } from "domain/types/socket/transition/final";
-import { PackageStore } from "infrastructure/database/repositories/PackageStore";
-
-/**
- * Result containing question answer data for game completion.
- */
-export interface QuestionAnswerData {
-  themeId: number;
-  themeName: string;
-  questionText?: string;
-  answerText?: string;
-}
 
 /**
  * Handles transition from FINAL_REVIEWING → RESULTS (game finished).
@@ -43,14 +28,6 @@ export interface QuestionAnswerData {
 export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.FINAL_REVIEWING;
   public readonly toPhase = GamePhase.GAME_FINISHED;
-
-  public constructor(
-    gameService: GameService,
-    private readonly roundHandlerFactory: RoundHandlerFactory,
-    private readonly packageStore: PackageStore
-  ) {
-    super(gameService);
-  }
 
   /**
    * Strict check for transition eligibility.
@@ -90,19 +67,22 @@ export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
     const { game } = ctx;
 
     // Handle round progression (finishes the game)
-    const roundHandler = this.roundHandlerFactory.createFromGame(game);
+    const roundHandler = RoundHandlerFactory.createFromGame(game);
+
+    const nextRoundData = ctx.resources?.nextRound ?? null;
+
     const result = await roundHandler.handleRoundProgression(game, {
       forced: true,
+      nextRound: nextRoundData
     });
 
-    // Get question answer data for final display
-    const questionAnswerData = await this._getQuestionAnswerData(game);
+    const questionAnswerData = ctx.resources?.finalQuestionAnswerData ?? null;
 
     return {
       data: {
         isGameFinished: result.isGameFinished,
-        questionAnswerData: questionAnswerData ?? null,
-      } satisfies FinalReviewingToGameFinishMutationData,
+        questionAnswerData: questionAnswerData ?? null
+      } satisfies FinalReviewingToGameFinishMutationData
     };
   }
 
@@ -118,7 +98,7 @@ export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
 
     return {
       timer: undefined,
-      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }],
+      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }]
     };
   }
 
@@ -136,54 +116,9 @@ export class FinalReviewingToGameFinishHandler extends BaseTransitionHandler {
       {
         event: SocketIOGameEvents.GAME_FINISHED,
         data: true,
-        room: game.id,
-      },
+        room: game.id
+      }
     ];
   }
 
-  /**
-   * Get question answer data for final display.
-   */
-  private async _getQuestionAnswerData(
-    game: Game
-  ): Promise<QuestionAnswerData | undefined> {
-    const finalRoundHandler = this._getFinalRoundHandler(game);
-    const remainingTheme = finalRoundHandler.getRemainingTheme(game);
-
-    if (!remainingTheme?.id || !remainingTheme?.name) {
-      return undefined;
-    }
-
-    // Get the question ID from the remaining theme in game state
-    const questionId = remainingTheme.questions?.[0]?.id;
-    if (!questionId) {
-      return undefined;
-    }
-
-    // Fetch question data from package store
-    const packageQuestion = await this.packageStore.getQuestion(
-      game.id,
-      questionId
-    );
-
-    if (!packageQuestion) {
-      return undefined;
-    }
-
-    return {
-      themeId: remainingTheme.id,
-      themeName: remainingTheme.name,
-      questionText: packageQuestion.text || undefined,
-      answerText: packageQuestion.answerText || undefined,
-    };
-  }
-
-  /**
-   * Get the final round handler.
-   */
-  private _getFinalRoundHandler(_game: Game): FinalRoundHandler {
-    return this.roundHandlerFactory.create(
-      PackageRoundType.FINAL
-    ) as FinalRoundHandler;
-  }
 }

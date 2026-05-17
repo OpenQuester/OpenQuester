@@ -10,7 +10,7 @@ import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { RoundIndexEntry } from "domain/types/dto/game/RoundIndexEntry";
 import {
   GameStateAnsweredPlayerData,
-  GameStateDTO,
+  GameStateDTO
 } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -20,7 +20,7 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { userId } from "domain/types/ids";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerMeta } from "domain/types/socket/game/PlayerMeta";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 type PlayerAndIndex = {
   player: Player | null;
@@ -28,10 +28,10 @@ type PlayerAndIndex = {
 };
 
 export class Game {
-  private _id: string;
+  private readonly _id: string;
   private _title: string;
-  private _createdBy: userId;
-  private _createdAt: Date;
+  private readonly _createdBy: userId;
+  private readonly _createdAt: Date;
   private _isPrivate: boolean;
   private _ageRestriction: AgeRestriction;
   private _maxPlayers: number;
@@ -40,7 +40,7 @@ export class Game {
   private _roundIndex: RoundIndexEntry[];
   private _roundsCount: number;
   private _questionsCount: number;
-  private _players: Player[];
+  private readonly _players: Player[];
   private _gameState: GameStateDTO;
 
   constructor(data: GameImportDTO) {
@@ -174,11 +174,7 @@ export class Game {
   ): Promise<Player> {
     const playerData = this._players.find((p) => p.meta.id === meta.id);
 
-    const slotIdx = this._resolveJoinSlot(
-      role,
-      targetSlot,
-      playerData?.gameSlot
-    );
+    const slotIdx = this._resolveJoinSlot(role, targetSlot, playerData?.gameSlot);
 
     if (playerData) {
       playerData.gameStatus = PlayerGameStatus.IN_GAME;
@@ -195,11 +191,11 @@ export class Game {
       restrictionData: {
         banned: false,
         muted: false,
-        restricted: false,
+        restricted: false
       },
       score: 0,
       status: PlayerGameStatus.IN_GAME,
-      slot: slotIdx,
+      slot: slotIdx
     });
 
     this._players.push(player);
@@ -221,10 +217,7 @@ export class Game {
     return player ?? null;
   }
 
-  public getPlayerAndIndex(
-    userId: number,
-    opts: GetPlayerOptions
-  ): PlayerAndIndex {
+  public getPlayerAndIndex(userId: number, opts: GetPlayerOptions): PlayerAndIndex {
     const playerIndex = this._players.findIndex((p) => {
       if (p.meta.id !== userId) {
         return false;
@@ -238,24 +231,20 @@ export class Game {
 
     return {
       player: playerIndex !== -1 ? this._players[playerIndex] : null,
-      index: playerIndex,
+      index: playerIndex
     };
   }
 
   /** Get all players in game excluding showman */
   public getInGamePlayers(): Player[] {
     return this.players.filter(
-      (p) =>
-        p.role === PlayerRole.PLAYER &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
+      (p) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME
     );
   }
 
   /** Includes showman */
   public getActivePlayers(): Player[] {
-    return this.players.filter(
-      (p) => p.gameStatus === PlayerGameStatus.IN_GAME
-    );
+    return this.players.filter((p) => p.gameStatus === PlayerGameStatus.IN_GAME);
   }
 
   public getRandomTurnPlayer() {
@@ -275,24 +264,12 @@ export class Game {
     }
   }
 
-  public checkFreeSlot(): boolean {
-    const occupiedSlots = this._players.filter(
-      (p) =>
-        p.role === PlayerRole.PLAYER &&
-        p.gameSlot !== null &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
-    ).length;
-    return occupiedSlots < this._maxPlayers;
-  }
-
   /**
    * @returns Whether showman slot is taken
    */
   public checkShowmanSlotIsTaken(): boolean {
     return this._players.some(
-      (p) =>
-        p.role === PlayerRole.SHOWMAN &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
+      (p) => p.role === PlayerRole.SHOWMAN && p.gameStatus === PlayerGameStatus.IN_GAME
     );
   }
 
@@ -301,9 +278,7 @@ export class Game {
       return;
     }
 
-    const { played, all } = GameQuestionMapper.getPlayedAndAllQuestions(
-      this.gameState
-    );
+    const { played, all } = GameQuestionMapper.getPlayedAndAllQuestions(this.gameState);
 
     return all.length > 0 && played.length === all.length;
   }
@@ -347,10 +322,6 @@ export class Game {
     return this._players.find((p) => p.role === PlayerRole.SHOWMAN);
   }
 
-  public set readyPlayers(players: number[]) {
-    this.gameState.readyPlayers = players;
-  }
-
   public isEveryoneReady() {
     if (!this.gameState.readyPlayers?.length) {
       return false;
@@ -359,17 +330,16 @@ export class Game {
     // Consider only in-game players
     const validPlayers = this.players.filter(
       (player) =>
-        player.gameStatus === PlayerGameStatus.IN_GAME &&
-        player.role === PlayerRole.PLAYER
+        player.gameStatus === PlayerGameStatus.IN_GAME && player.role === PlayerRole.PLAYER
     );
 
     return validPlayers.length === this.gameState.readyPlayers.length;
   }
 
   /**
-   * @param question on which question player answered
+   * @param scoreResult score delta
+   * @param answerType wrong, correct or skip
    * @param nextState next question state to set
-   * @param options answering options
    * @returns answer result DTO that can be emitted to clients
    */
   public handleQuestionAnswer(
@@ -379,12 +349,9 @@ export class Game {
   ): GameStateAnsweredPlayerData {
     // Use fetchDisconnected: true to handle case where answering player
     // disconnects before timer expires or showman sends result
-    const { player, index } = this.getPlayerAndIndex(
-      this.gameState.answeringPlayer!,
-      {
-        fetchDisconnected: true,
-      }
-    );
+    const { player, index } = this.getPlayerAndIndex(this.gameState.answeringPlayer!, {
+      fetchDisconnected: true
+    });
 
     if (!player) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
@@ -395,10 +362,7 @@ export class Game {
     let modifiedScoreResult = ValueUtils.clampAbs(scoreResult, MAX_SCORE_DELTA);
 
     // For NoRisk questions, prevent score loss by setting negative results to 0
-    if (
-      scoreResult < 0 &&
-      this.gameState.currentQuestion?.type === PackageQuestionType.NO_RISK
-    ) {
+    if (scoreResult < 0 && this.gameState.currentQuestion?.type === PackageQuestionType.NO_RISK) {
       modifiedScoreResult = 0;
     }
 
@@ -416,7 +380,7 @@ export class Game {
       player: this.gameState.answeringPlayer!,
       result: modifiedScoreResult,
       score,
-      answerType,
+      answerType
     };
 
     const answeredPlayers = this.gameState.answeredPlayers || [];
@@ -481,9 +445,7 @@ export class Game {
       return;
     }
 
-    this.gameState.skippedPlayers = this.gameState.skippedPlayers.filter(
-      (id) => id !== playerId
-    );
+    this.gameState.skippedPlayers = this.gameState.skippedPlayers.filter((id) => id !== playerId);
 
     if (this.gameState.skippedPlayers.length === 0) {
       this.gameState.skippedPlayers = null;
@@ -501,38 +463,7 @@ export class Game {
     }
 
     const skippedPlayers = this.gameState.skippedPlayers ?? [];
-    return activePlayers.every((player) =>
-      skippedPlayers.includes(player.meta.id)
-    );
-  }
-
-  /**
-   * Check if all active players have exhausted their answer attempts.
-   *
-   * A player is "exhausted" when they have either:
-   * - Pressed the skip button (added to skippedPlayers)
-   * - Already answered incorrectly (added to answeredPlayers)
-   *
-   * When all players are exhausted, the question should auto-finish since
-   * no one remains who can provide a correct answer.
-   *
-   * @returns true if no active player can answer, false if someone can still try
-   */
-  public areAllPlayersExhausted(): boolean {
-    const activePlayers = this.getInGamePlayers();
-    if (activePlayers.length === 0) {
-      return true;
-    }
-
-    const skippedPlayers = this.gameState.skippedPlayers ?? [];
-    const answeredPlayerIds =
-      this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
-
-    return activePlayers.every(
-      (player) =>
-        skippedPlayers.includes(player.meta.id) ||
-        answeredPlayerIds.includes(player.meta.id)
-    );
+    return activePlayers.every((player) => skippedPlayers.includes(player.meta.id));
   }
 
   /**
@@ -550,8 +481,7 @@ export class Game {
     }
 
     const skippedPlayers = this.gameState.skippedPlayers ?? [];
-    const answeredPlayerIds =
-      this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
+    const answeredPlayerIds = this.gameState.answeredPlayers?.map((ap) => ap.player) ?? [];
 
     // Include the current answering player as if they were already exhausted
     const currentAnsweringPlayer = this.gameState.answeringPlayer;
@@ -561,13 +491,8 @@ export class Game {
 
     return activePlayers.every(
       (player) =>
-        skippedPlayers.includes(player.meta.id) ||
-        willBeExhaustedIds.includes(player.meta.id)
+        skippedPlayers.includes(player.meta.id) || willBeExhaustedIds.includes(player.meta.id)
     );
-  }
-
-  public getSkippedPlayers(): number[] {
-    return this.gameState.skippedPlayers ?? [];
   }
 
   // =========================================================================
@@ -581,17 +506,7 @@ export class Game {
    */
   public captureQuestionEligiblePlayers(): void {
     const inGamePlayers = this.getInGamePlayers();
-    this.gameState.questionEligiblePlayers = inGamePlayers.map(
-      (p) => p.meta.id
-    );
-  }
-
-  /**
-   * Clears the question eligible players list.
-   * Should be called when returning to CHOOSING state.
-   */
-  public clearQuestionEligiblePlayers(): void {
-    this.gameState.questionEligiblePlayers = null;
+    this.gameState.questionEligiblePlayers = inGamePlayers.map((p) => p.meta.id);
   }
 
   /**
@@ -646,9 +561,7 @@ export class Game {
     return this._getFirstFreeSlotIndex();
   }
 
-  private _getPreservedReconnectSlot(
-    existingSlot: number | null | undefined
-  ): number | null {
+  private _getPreservedReconnectSlot(existingSlot: number | null | undefined): number | null {
     if (ValueUtils.isBad(existingSlot)) {
       return null;
     }
@@ -693,7 +606,7 @@ export class Game {
       id: this._id,
       createdAt: this._createdAt,
       isPrivate: this._isPrivate,
-      title: this._title,
+      title: this._title
     };
   }
 }

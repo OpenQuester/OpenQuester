@@ -1,8 +1,6 @@
-import { GameService } from "application/services/game/GameService";
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -13,13 +11,11 @@ import {
   TransitionTrigger,
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   SecretTransferToAnsweringCtx,
   SecretTransferToAnsweringMutationData,
 } from "domain/types/socket/transition/special-question";
-import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 /**
@@ -34,13 +30,6 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.SECRET_QUESTION_TRANSFER;
   public readonly toPhase = GamePhase.ANSWERING;
-
-  constructor(
-    gameService: GameService,
-    private readonly packageStore: PackageStore
-  ) {
-    super(gameService);
-  }
 
   /**
    * Check if this transition should occur.
@@ -97,17 +86,8 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     const targetPlayerId = payload!.targetPlayerId;
     const fromPlayerId = secretData.pickerPlayerId;
 
-    // Get question data
-    let questionData: SimplePackageQuestionDTO | null = null;
-    const questionResult = await this.packageStore.getQuestionWithTheme(
-      game.id,
-      secretData.questionId
-    );
-
-    if (questionResult) {
-      questionData = GameQuestionMapper.mapToSimpleQuestion(
-        questionResult.question
-      );
+    const questionData = ctx.resources?.simpleQuestion ?? null;
+    if (questionData) {
       game.gameState.currentQuestion = questionData;
     }
 

@@ -1,5 +1,5 @@
 import { PlayerGameStatsRedisData } from "domain/types/statistics/PlayerGameStatsRedisData";
-import { playerGameStatsDataScheme } from "presentation/schemes/game/playerSchemes";
+import { playerGameStatsDataScheme } from "domain/validators/schemas/PlayerGameStatsRedisDataSchema";
 
 export class PlayerGameStatsRedisValidator {
   /**

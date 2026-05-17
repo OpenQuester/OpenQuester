@@ -1,77 +1,76 @@
 import { GameActionHandlerRegistry } from "application/registries/GameActionHandlerRegistry";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { GameService } from "application/services/game/GameService";
+import { PlayerLeaveService } from "application/services/game/PlayerLeaveService";
+import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { SecretQuestionService } from "application/services/question/SecretQuestionService";
 import { StakeQuestionService } from "application/services/question/StakeQuestionService";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
 import { SocketGameValidationService } from "application/services/socket/SocketGameValidationService";
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
-import { SocketIOGameService } from "application/services/socket/SocketIOGameService";
-import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { TimerExpirationService } from "application/services/timer/TimerExpirationService";
 import { UserService } from "application/services/user/UserService";
+import { FinalAnswerReviewUseCase } from "application/usecases/finalround/FinalAnswerReviewUseCase";
+import { FinalAnswerSubmitUseCase } from "application/usecases/finalround/FinalAnswerSubmitUseCase";
+import { FinalBidSubmitUseCase } from "application/usecases/finalround/FinalBidSubmitUseCase";
+import { ThemeEliminateUseCase } from "application/usecases/finalround/ThemeEliminateUseCase";
 import { JoinGameUseCase } from "application/usecases/game/JoinGameUseCase";
 import { LeaveGameUseCase } from "application/usecases/game/LeaveGameUseCase";
+import { MediaDownloadedUseCase } from "application/usecases/game/MediaDownloadedUseCase";
+import { NextRoundUseCase } from "application/usecases/game/NextRoundUseCase";
+import { PauseGameUseCase } from "application/usecases/game/PauseGameUseCase";
+import { PlayerKickUseCase } from "application/usecases/game/PlayerKickUseCase";
+import { PlayerReadyUseCase } from "application/usecases/game/PlayerReadyUseCase";
+import { PlayerRestrictionUseCase } from "application/usecases/game/PlayerRestrictionUseCase";
+import { PlayerRoleChangeUseCase } from "application/usecases/game/PlayerRoleChangeUseCase";
+import { PlayerScoreChangeUseCase } from "application/usecases/game/PlayerScoreChangeUseCase";
+import { PlayerSlotChangeUseCase } from "application/usecases/game/PlayerSlotChangeUseCase";
+import { PlayerUnreadyUseCase } from "application/usecases/game/PlayerUnreadyUseCase";
+import { StartGameUseCase } from "application/usecases/game/StartGameUseCase";
+import { TurnPlayerChangeUseCase } from "application/usecases/game/TurnPlayerChangeUseCase";
+import { UnpauseGameUseCase } from "application/usecases/game/UnpauseGameUseCase";
+import { AnswerResultUseCase } from "application/usecases/question/AnswerResultUseCase";
+import { AnswerSubmittedUseCase } from "application/usecases/question/AnswerSubmittedUseCase";
+import { QuestionAnswerUseCase } from "application/usecases/question/QuestionAnswerUseCase";
+import { QuestionPickUseCase } from "application/usecases/question/QuestionPickUseCase";
+import { QuestionSkipUseCase } from "application/usecases/question/QuestionSkipUseCase";
+import { QuestionUnskipUseCase } from "application/usecases/question/QuestionUnskipUseCase";
+import { SecretQuestionTransferUseCase } from "application/usecases/question/SecretQuestionTransferUseCase";
+import { SkipQuestionForceUseCase } from "application/usecases/question/SkipQuestionForceUseCase";
+import { SkipShowAnswerUseCase } from "application/usecases/question/SkipShowAnswerUseCase";
+import { StakeBidSubmitUseCase } from "application/usecases/question/StakeBidSubmitUseCase";
+import { ChatMessageUseCase } from "application/usecases/direct/ChatMessageUseCase";
+import { DisconnectUseCase } from "application/usecases/system/DisconnectUseCase";
+import { TimerExpirationUseCase } from "application/usecases/timer/TimerExpirationUseCase";
 import { GameActionType } from "domain/enums/GameActionType";
-import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { FinalAnswerReviewActionHandler } from "domain/handlers/action/finalround/FinalAnswerReviewActionHandler";
-import { FinalAnswerSubmitActionHandler } from "domain/handlers/action/finalround/FinalAnswerSubmitActionHandler";
-import { FinalBidSubmitActionHandler } from "domain/handlers/action/finalround/FinalBidSubmitActionHandler";
-import { ThemeEliminateActionHandler } from "domain/handlers/action/finalround/ThemeEliminateActionHandler";
-import { MediaDownloadedActionHandler } from "domain/handlers/action/game/MediaDownloadedActionHandler";
-import { NextRoundActionHandler } from "domain/handlers/action/game/NextRoundActionHandler";
-import { PauseGameActionHandler } from "domain/handlers/action/game/PauseGameActionHandler";
-import { PlayerKickActionHandler } from "domain/handlers/action/game/PlayerKickActionHandler";
-import { PlayerReadyActionHandler } from "domain/handlers/action/game/PlayerReadyActionHandler";
-import { PlayerRestrictionActionHandler } from "domain/handlers/action/game/PlayerRestrictionActionHandler";
-import { PlayerRoleChangeActionHandler } from "domain/handlers/action/game/PlayerRoleChangeActionHandler";
-import { PlayerScoreChangeActionHandler } from "domain/handlers/action/game/PlayerScoreChangeActionHandler";
-import { PlayerSlotChangeActionHandler } from "domain/handlers/action/game/PlayerSlotChangeActionHandler";
-import { PlayerUnreadyActionHandler } from "domain/handlers/action/game/PlayerUnreadyActionHandler";
-import { StartGameActionHandler } from "domain/handlers/action/game/StartGameActionHandler";
-import { TurnPlayerChangeActionHandler } from "domain/handlers/action/game/TurnPlayerChangeActionHandler";
-import { UnpauseGameActionHandler } from "domain/handlers/action/game/UnpauseGameActionHandler";
-import { AnswerResultActionHandler } from "domain/handlers/action/question/AnswerResultActionHandler";
-import { AnswerSubmittedActionHandler } from "domain/handlers/action/question/AnswerSubmittedActionHandler";
-import { QuestionAnswerActionHandler } from "domain/handlers/action/question/QuestionAnswerActionHandler";
-import { QuestionPickActionHandler } from "domain/handlers/action/question/QuestionPickActionHandler";
-import { QuestionSkipActionHandler } from "domain/handlers/action/question/QuestionSkipActionHandler";
-import { QuestionUnskipActionHandler } from "domain/handlers/action/question/QuestionUnskipActionHandler";
-import { SecretQuestionTransferActionHandler } from "domain/handlers/action/question/SecretQuestionTransferActionHandler";
-import { SkipQuestionForceActionHandler } from "domain/handlers/action/question/SkipQuestionForceActionHandler";
-import { SkipShowAnswerActionHandler } from "domain/handlers/action/question/SkipShowAnswerActionHandler";
-import { StakeBidSubmitActionHandler } from "domain/handlers/action/question/StakeBidSubmitActionHandler";
-import { DisconnectActionHandler } from "domain/handlers/action/system/DisconnectActionHandler";
-import { TimerExpirationActionHandler } from "domain/handlers/action/timer/TimerExpirationActionHandler";
-import { PlayerLeaveOrchestrator } from "domain/logic/player-leave/PlayerLeaveOrchestrator";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Dependencies required for configuring action handlers.
  */
 export interface ActionHandlerConfigDeps {
   registry: GameActionHandlerRegistry;
-  socketIOGameService: SocketIOGameService;
   socketGameValidationService: SocketGameValidationService;
   socketIOChatService: SocketIOChatService;
-  socketIOQuestionService: SocketIOQuestionService;
   socketGameTimerService: SocketGameTimerService;
   secretQuestionService: SecretQuestionService;
   stakeQuestionService: StakeQuestionService;
   playerGameStatsService: PlayerGameStatsService;
   gameStatisticsCollectorService: GameStatisticsCollectorService;
   userService: UserService;
+  socketChatRepository: SocketChatRepository;
   gameProgressionCoordinator: GameProgressionCoordinator;
   gameService: GameService;
   timerExpirationService: TimerExpirationService;
   phaseTransitionRouter: PhaseTransitionRouter;
-  playerLeaveOrchestrator: PlayerLeaveOrchestrator;
-  roundHandlerFactory: RoundHandlerFactory;
+  playerLeaveService: PlayerLeaveService;
+  transitionResourceService: TransitionResourceService;
   packageStore: PackageStore;
   logger: ILogger;
 }
@@ -85,186 +84,141 @@ export interface ActionHandlerConfigDeps {
 export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   const {
     registry,
-    socketIOGameService,
     socketIOChatService,
-    socketIOQuestionService,
     socketGameTimerService,
     secretQuestionService,
     stakeQuestionService,
     playerGameStatsService,
     gameStatisticsCollectorService,
     userService,
+    socketChatRepository,
     gameProgressionCoordinator,
+    gameService,
     timerExpirationService,
     phaseTransitionRouter,
-    playerLeaveOrchestrator,
+    playerLeaveService,
+    transitionResourceService,
     socketGameValidationService,
-    roundHandlerFactory,
     packageStore,
-    logger,
+    logger
   } = deps;
 
   // =====================================
   // Game Lifecycle Handlers
   // =====================================
-  registry.register(
-    GameActionType.JOIN,
-    new JoinGameUseCase(userService, socketIOChatService)
-  );
+  registry.register(GameActionType.JOIN, new JoinGameUseCase(userService, socketIOChatService));
 
-  registry.register(
-    GameActionType.LEAVE,
-    new LeaveGameUseCase(playerLeaveOrchestrator)
-  );
+  registry.register(GameActionType.LEAVE, new LeaveGameUseCase(playerLeaveService));
 
   registry.register(
     GameActionType.START,
-    new StartGameActionHandler(
-      deps.socketGameValidationService,
-      packageStore,
-      gameStatisticsCollectorService,
-      logger
-    )
+    new StartGameUseCase(packageStore, gameStatisticsCollectorService, logger)
   );
 
-  registry.register(
-    GameActionType.PAUSE,
-    new PauseGameActionHandler(
-      deps.socketGameValidationService,
-      socketGameTimerService
-    )
-  );
+  registry.register(GameActionType.PAUSE, new PauseGameUseCase(socketGameTimerService));
 
   registry.register(
     GameActionType.UNPAUSE,
-    new UnpauseGameActionHandler(
-      deps.socketGameValidationService,
-      socketGameTimerService,
-      deps.gameService
-    )
+    new UnpauseGameUseCase(socketGameTimerService, gameService)
   );
 
   registry.register(
     GameActionType.NEXT_ROUND,
-    new NextRoundActionHandler(socketIOGameService, gameProgressionCoordinator)
+    new NextRoundUseCase(packageStore, socketGameTimerService, gameProgressionCoordinator)
   );
 
   // =====================================
   // Player Management Handlers
   // =====================================
-  registry.register(
-    GameActionType.PLAYER_READY,
-    new PlayerReadyActionHandler(socketIOGameService, packageStore)
-  );
+  registry.register(GameActionType.PLAYER_READY, new PlayerReadyUseCase(packageStore));
 
-  registry.register(
-    GameActionType.PLAYER_UNREADY,
-    new PlayerUnreadyActionHandler(socketIOGameService)
-  );
+  registry.register(GameActionType.PLAYER_UNREADY, new PlayerUnreadyUseCase());
 
-  registry.register(
-    GameActionType.PLAYER_KICK,
-    new PlayerKickActionHandler(
-      socketGameValidationService,
-      playerLeaveOrchestrator
-    )
-  );
+  registry.register(GameActionType.PLAYER_KICK, new PlayerKickUseCase(playerLeaveService));
 
   registry.register(
     GameActionType.PLAYER_RESTRICTION,
-    new PlayerRestrictionActionHandler(
-      socketGameValidationService,
-      playerLeaveOrchestrator
-    )
+    new PlayerRestrictionUseCase(playerLeaveService)
   );
 
   registry.register(
     GameActionType.PLAYER_ROLE_CHANGE,
-    new PlayerRoleChangeActionHandler(
-      socketGameValidationService,
-      playerGameStatsService
-    )
+    new PlayerRoleChangeUseCase(socketGameValidationService, playerGameStatsService)
   );
 
-  registry.register(
-    GameActionType.PLAYER_SCORE_CHANGE,
-    new PlayerScoreChangeActionHandler(socketGameValidationService)
-  );
+  registry.register(GameActionType.PLAYER_SCORE_CHANGE, new PlayerScoreChangeUseCase());
 
   registry.register(
     GameActionType.PLAYER_SLOT_CHANGE,
-    new PlayerSlotChangeActionHandler(socketGameValidationService)
+    new PlayerSlotChangeUseCase(socketGameValidationService)
   );
 
-  registry.register(
-    GameActionType.TURN_PLAYER_CHANGE,
-    new TurnPlayerChangeActionHandler(socketGameValidationService)
-  );
+  registry.register(GameActionType.TURN_PLAYER_CHANGE, new TurnPlayerChangeUseCase());
 
   // =====================================
   // Question Handlers
   // =====================================
   registry.register(
     GameActionType.QUESTION_PICK,
-    new QuestionPickActionHandler(packageStore, phaseTransitionRouter)
-  );
-
-  registry.register(
-    GameActionType.QUESTION_ANSWER,
-    new QuestionAnswerActionHandler(
-      socketIOQuestionService,
+    new QuestionPickUseCase(
+      packageStore,
       phaseTransitionRouter,
-      socketGameTimerService
+      transitionResourceService
     )
   );
 
   registry.register(
-    GameActionType.ANSWER_SUBMITTED,
-    new AnswerSubmittedActionHandler(socketIOQuestionService)
+    GameActionType.QUESTION_ANSWER,
+    new QuestionAnswerUseCase(phaseTransitionRouter, socketGameTimerService)
   );
+
+  registry.register(GameActionType.ANSWER_SUBMITTED, new AnswerSubmittedUseCase());
 
   registry.register(
     GameActionType.ANSWER_RESULT,
-    new AnswerResultActionHandler(
+    new AnswerResultUseCase(
       phaseTransitionRouter,
       playerGameStatsService,
+      transitionResourceService,
       logger
     )
   );
 
   registry.register(
     GameActionType.QUESTION_SKIP,
-    new QuestionSkipActionHandler(
+    new QuestionSkipUseCase(
       phaseTransitionRouter,
       socketGameTimerService,
       playerGameStatsService,
+      transitionResourceService,
       logger
     )
   );
 
-  registry.register(
-    GameActionType.QUESTION_UNSKIP,
-    new QuestionUnskipActionHandler()
-  );
+  registry.register(GameActionType.QUESTION_UNSKIP, new QuestionUnskipUseCase());
 
   registry.register(
     GameActionType.SKIP_QUESTION_FORCE,
-    new SkipQuestionForceActionHandler(packageStore)
+    new SkipQuestionForceUseCase(
+      packageStore,
+      phaseTransitionRouter,
+      transitionResourceService
+    )
   );
 
   registry.register(
     GameActionType.SKIP_SHOW_ANSWER,
-    new SkipShowAnswerActionHandler(phaseTransitionRouter)
+    new SkipShowAnswerUseCase(phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(
     GameActionType.SECRET_QUESTION_TRANSFER,
-    new SecretQuestionTransferActionHandler(secretQuestionService)
+    new SecretQuestionTransferUseCase(secretQuestionService)
   );
 
   registry.register(
     GameActionType.STAKE_BID_SUBMIT,
-    new StakeBidSubmitActionHandler(stakeQuestionService)
+    new StakeBidSubmitUseCase(stakeQuestionService)
   );
 
   // =====================================
@@ -272,71 +226,60 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   registry.register(
     GameActionType.FINAL_BID_SUBMIT,
-    new FinalBidSubmitActionHandler(phaseTransitionRouter)
+    new FinalBidSubmitUseCase(phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(
     GameActionType.THEME_ELIMINATE,
-    new ThemeEliminateActionHandler(phaseTransitionRouter, roundHandlerFactory)
+    new ThemeEliminateUseCase(phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(
     GameActionType.FINAL_ANSWER_SUBMIT,
-    new FinalAnswerSubmitActionHandler(
-      deps.socketGameValidationService,
-      phaseTransitionRouter
+    new FinalAnswerSubmitUseCase(
+      socketGameValidationService,
+      phaseTransitionRouter,
+      transitionResourceService
     )
   );
 
   registry.register(
     GameActionType.FINAL_ANSWER_REVIEW,
-    new FinalAnswerReviewActionHandler(
-      deps.socketGameValidationService,
-      phaseTransitionRouter
+    new FinalAnswerReviewUseCase(
+      socketGameValidationService,
+      phaseTransitionRouter,
+      transitionResourceService
     )
   );
 
   // =====================================
   // System Handlers
   // =====================================
-  registry.register(
-    GameActionType.DISCONNECT,
-    new DisconnectActionHandler(playerLeaveOrchestrator)
-  );
+  registry.register(GameActionType.DISCONNECT, new DisconnectUseCase(playerLeaveService));
 
   registry.register(
     GameActionType.MEDIA_DOWNLOADED,
-    new MediaDownloadedActionHandler(phaseTransitionRouter)
+    new MediaDownloadedUseCase(phaseTransitionRouter)
   );
 
-  // Note: CHAT_MESSAGE does not need action queue per user request
-  // Chat messages are processed directly by socket handler without locking
+  registry.register(
+    GameActionType.CHAT_MESSAGE,
+    new ChatMessageUseCase(userService, socketChatRepository)
+  );
 
   // =====================================
   // Timer Handlers - single handler for all timer types
   // =====================================
-  const timerHandler = new TimerExpirationActionHandler(
-    timerExpirationService,
-    logger
-  );
+  const timerHandler = new TimerExpirationUseCase(timerExpirationService, logger);
 
   registry.register(GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED, timerHandler);
-  registry.register(
-    GameActionType.TIMER_QUESTION_SHOWING_EXPIRED,
-    timerHandler
-  );
-  registry.register(
-    GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED,
-    timerHandler
-  );
-  registry.register(
-    GameActionType.TIMER_THEME_ELIMINATION_EXPIRED,
-    timerHandler
-  );
+  registry.register(GameActionType.TIMER_QUESTION_SHOWING_EXPIRED, timerHandler);
+  registry.register(GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED, timerHandler);
+  registry.register(GameActionType.TIMER_THEME_ELIMINATION_EXPIRED, timerHandler);
   registry.register(GameActionType.TIMER_BIDDING_EXPIRED, timerHandler);
   registry.register(GameActionType.TIMER_FINAL_ANSWERING_EXPIRED, timerHandler);
 
   logger.info(`Registered ${registry.getStats().total} action handlers`, {
-    prefix: LogPrefix.ACTION_CONFIG,
+    prefix: LogPrefix.ACTION_CONFIG
   });
 }

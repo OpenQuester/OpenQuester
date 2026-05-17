@@ -7,14 +7,14 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
 import { ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import {
   GameClientSocket,
-  SocketGameTestUtils,
+  SocketGameTestUtils
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 describe("Socket Game Chat Tests", () => {
@@ -70,11 +70,11 @@ describe("Socket Game Chat Tests", () => {
       await testEnv.teardown();
       if (cleanup) await cleanup();
       logger.info("Test environment torn down successfully.", {
-        prefix: LogPrefix.TEST,
+        prefix: LogPrefix.TEST
       });
     } catch (err) {
       logger.error(`Error during teardown: ${JSON.stringify(err)}`, {
-        prefix: LogPrefix.TEST,
+        prefix: LogPrefix.TEST
       });
     }
   });
@@ -86,12 +86,10 @@ describe("Socket Game Chat Tests", () => {
       const chatMessage: ChatMessageInputData = { message };
 
       const receivePromises = allSockets.map((socket) =>
-        utils
-          .waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE)
-          .then((response) => {
-            expect(response.message).toBe(message);
-            expect(response.user).toBeDefined();
-          })
+        utils.waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE).then((response) => {
+          expect(response.message).toBe(message);
+          expect(response.user).toBeDefined();
+        })
       );
 
       // Showman sends a chat message
@@ -106,12 +104,10 @@ describe("Socket Game Chat Tests", () => {
       const chatMessage: ChatMessageInputData = { message };
 
       const receivePromises = allSockets.map((socket) =>
-        utils
-          .waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE)
-          .then((response) => {
-            expect(response.message).toBe(message);
-            expect(response.user).toBeDefined();
-          })
+        utils.waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE).then((response) => {
+          expect(response.message).toBe(message);
+          expect(response.user).toBeDefined();
+        })
       );
 
       senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, chatMessage);
@@ -125,12 +121,10 @@ describe("Socket Game Chat Tests", () => {
       const chatMessage: ChatMessageInputData = { message };
 
       const receivePromises = allSockets.map((socket) =>
-        utils
-          .waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE)
-          .then((response) => {
-            expect(response.message).toBe(message);
-            expect(response.user).toBeDefined();
-          })
+        utils.waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE).then((response) => {
+          expect(response.message).toBe(message);
+          expect(response.user).toBeDefined();
+        })
       );
 
       spectator.emit(SocketIOEvents.CHAT_MESSAGE, chatMessage);
@@ -139,18 +133,15 @@ describe("Socket Game Chat Tests", () => {
 
     it("should reject chat messages from users not in a game", async () => {
       const outsider = await utils.createGameClient(app, userRepo);
-      const errorPromise = utils.waitForEvent(
-        outsider.socket,
-        SocketIOEvents.ERROR
-      );
+      const errorPromise = utils.waitForEvent(outsider.socket, SocketIOEvents.ERROR);
 
       outsider.socket.emit(SocketIOEvents.CHAT_MESSAGE, {
-        message: "This should not be sent",
+        message: "This should not be sent"
       });
 
       const errorResult = await errorPromise;
       expect(errorResult).toMatchObject({
-        message: expect.any(String),
+        message: expect.any(String)
       });
       await utils.disconnectAndCleanup(outsider.socket);
     });
@@ -158,30 +149,24 @@ describe("Socket Game Chat Tests", () => {
     it("should reject chat messages after a user leaves the game", async () => {
       const leavingPlayer = playerSockets[0];
       await utils.leaveGame(leavingPlayer);
-      const errorPromise = utils.waitForEvent(
-        leavingPlayer,
-        SocketIOEvents.ERROR
-      );
+      const errorPromise = utils.waitForEvent(leavingPlayer, SocketIOEvents.ERROR);
 
       leavingPlayer.emit(SocketIOEvents.CHAT_MESSAGE, {
-        message: "This should not be sent",
+        message: "This should not be sent"
       });
       const errorResult = await errorPromise;
       expect(errorResult).toMatchObject({
-        message: expect.any(String),
+        message: expect.any(String)
       });
     });
 
     it("should reject invalid chat payloads", async () => {
-      const errorPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOEvents.ERROR
-      );
+      const errorPromise = utils.waitForEvent(showmanSocket, SocketIOEvents.ERROR);
       // Missing message field
       showmanSocket.emit(SocketIOEvents.CHAT_MESSAGE, {});
       const errorResult = await errorPromise;
       expect(errorResult).toMatchObject({
-        message: expect.any(String),
+        message: expect.any(String)
       });
     });
 
@@ -204,18 +189,15 @@ describe("Socket Game Chat Tests", () => {
       }
 
       // Try to send a chat message from the muted player
-      const errorPromise = utils.waitForEvent(
-        mutedPlayerSocket,
-        SocketIOEvents.ERROR
-      );
+      const errorPromise = utils.waitForEvent(mutedPlayerSocket, SocketIOEvents.ERROR);
 
       mutedPlayerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
-        message: "This message should be rejected",
+        message: "This message should be rejected"
       });
 
       const errorResult = await errorPromise;
       expect(errorResult).toMatchObject({
-        message: expect.stringContaining("muted"),
+        message: expect.stringContaining("muted")
       });
     });
 
@@ -237,18 +219,15 @@ describe("Socket Game Chat Tests", () => {
       await userRepo.save(user);
 
       // Try to send a chat message in the current game
-      const errorPromise1 = utils.waitForEvent(
-        mutedPlayerSocket,
-        SocketIOEvents.ERROR
-      );
+      const errorPromise1 = utils.waitForEvent(mutedPlayerSocket, SocketIOEvents.ERROR);
 
       mutedPlayerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
-        message: "This message should be rejected in game 1",
+        message: "This message should be rejected in game 1"
       });
 
       const errorResult1 = await errorPromise1;
       expect(errorResult1).toMatchObject({
-        message: expect.stringContaining("muted"),
+        message: expect.stringContaining("muted")
       });
 
       // Leave the current game
@@ -258,25 +237,18 @@ describe("Socket Game Chat Tests", () => {
       const setup2 = await utils.setupGameTestEnvironment(userRepo, app, 0, 0);
       try {
         // Join the new game with the muted player
-        await utils.joinSpecificGame(
-          mutedPlayerSocket,
-          setup2.gameId,
-          PlayerRole.PLAYER
-        );
+        await utils.joinSpecificGame(mutedPlayerSocket, setup2.gameId, PlayerRole.PLAYER);
 
         // Try to send a chat message in the new game
-        const errorPromise2 = utils.waitForEvent(
-          mutedPlayerSocket,
-          SocketIOEvents.ERROR
-        );
+        const errorPromise2 = utils.waitForEvent(mutedPlayerSocket, SocketIOEvents.ERROR);
 
         mutedPlayerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
-          message: "This message should be rejected in game 2",
+          message: "This message should be rejected in game 2"
         });
 
         const errorResult2 = await errorPromise2;
         expect(errorResult2).toMatchObject({
-          message: expect.stringContaining("muted"),
+          message: expect.stringContaining("muted")
         });
       } finally {
         // Cleanup the second game
@@ -317,10 +289,7 @@ describe("Socket Game Chat Tests", () => {
         try {
           // Message with leading and trailing whitespace
           const original = "   Hello, world!   \n\t  ";
-          const receivePromise = utils.waitForEvent(
-            playerSocket,
-            SocketIOEvents.CHAT_MESSAGE
-          );
+          const receivePromise = utils.waitForEvent(playerSocket, SocketIOEvents.CHAT_MESSAGE);
           playerSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message: original });
           const response = await receivePromise;
           expect(response.message).toBe("Hello, world!");
@@ -337,24 +306,18 @@ describe("Socket Game Chat Tests", () => {
         try {
           // 2. Send message at max length (255 chars)
           const maxLengthMessage = "a".repeat(255);
-          const receivePromise = utils.waitForEvent(
-            playerSocket,
-            SocketIOEvents.CHAT_MESSAGE
-          );
+          const receivePromise = utils.waitForEvent(playerSocket, SocketIOEvents.CHAT_MESSAGE);
           playerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
-            message: maxLengthMessage,
+            message: maxLengthMessage
           });
           const response = await receivePromise;
           expect(response.message).toBe(maxLengthMessage);
 
           // 3. Send message exceeding max length (256 chars)
           const tooLongMessage = "b".repeat(256);
-          const errorPromise = utils.waitForEvent(
-            playerSocket,
-            SocketIOEvents.ERROR
-          );
+          const errorPromise = utils.waitForEvent(playerSocket, SocketIOEvents.ERROR);
           playerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
-            message: tooLongMessage,
+            message: tooLongMessage
           });
           const error = await errorPromise;
           // Should be a validation error, message may mention length or validation
@@ -369,11 +332,7 @@ describe("Socket Game Chat Tests", () => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
         const { playerSockets, spectatorSockets, showmanSocket } = setup;
         const senderSocket = playerSockets[0];
-        const allReceivers = [
-          ...playerSockets,
-          ...spectatorSockets,
-          showmanSocket,
-        ];
+        const allReceivers = [...playerSockets, ...spectatorSockets, showmanSocket];
         try {
           const messages = [
             // Simple and mixed scripts
@@ -385,7 +344,7 @@ describe("Socket Game Chat Tests", () => {
             "Special chars: !@#$%^&*()_+-=[]{};':\",.<>/?|`~",
             "Mix: Hello 🌍 你好 мир 😀",
             // Mixed-script message
-            "Test: 😀 Привет 你好 Hello مرحبا",
+            "Test: 😀 Привет 你好 Hello مرحبا"
           ];
 
           // For Unicode, 255 code units, not code points (Joi counts JS string length)
@@ -399,21 +358,16 @@ describe("Socket Game Chat Tests", () => {
               utils.waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE)
             );
             senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message: msg });
-            const results = await Promise.all<ChatMessageBroadcastData>(
-              receivePromises
-            );
+            const results = await Promise.all<ChatMessageBroadcastData>(receivePromises);
             for (const res of results) {
               expect(res.message).toBe(msg);
             }
           }
 
           // Over max length Unicode message should be rejected
-          const errorPromise = utils.waitForEvent(
-            senderSocket,
-            SocketIOEvents.ERROR
-          );
+          const errorPromise = utils.waitForEvent(senderSocket, SocketIOEvents.ERROR);
           senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
-            message: overMaxUnicodeMsg,
+            message: overMaxUnicodeMsg
           });
           const error = await errorPromise;
           expect(error.message).toMatch(/length|validation|255/i);
@@ -436,11 +390,7 @@ describe("Socket Game Chat Tests", () => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
         const { playerSockets, spectatorSockets, showmanSocket } = setup;
         const senderSocket = playerSockets[0];
-        const otherSockets = [
-          playerSockets[1],
-          ...spectatorSockets,
-          showmanSocket,
-        ];
+        const otherSockets = [playerSockets[1], ...spectatorSockets, showmanSocket];
         const testMessage = "Message before disconnect";
 
         // 2. Prepare listeners for all other sockets
@@ -449,12 +399,9 @@ describe("Socket Game Chat Tests", () => {
         );
 
         // 3. Wait for sender to receive their own message (ensures server processed it)
-        const senderReceivePromise = utils.waitForEvent(
-          senderSocket,
-          SocketIOEvents.CHAT_MESSAGE
-        );
+        const senderReceivePromise = utils.waitForEvent(senderSocket, SocketIOEvents.CHAT_MESSAGE);
         senderSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
-          message: testMessage,
+          message: testMessage
         });
         await senderReceivePromise;
 
@@ -472,7 +419,7 @@ describe("Socket Game Chat Tests", () => {
         // Clean up remaining sockets using the original setup object
         await utils.cleanupGameClients({
           ...setup,
-          playerSockets: [playerSockets[1]],
+          playerSockets: [playerSockets[1]]
         });
       });
 
@@ -490,7 +437,7 @@ describe("Socket Game Chat Tests", () => {
 
           // Test whitespace-only message
           playerSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
-            message: "   \t\n  ",
+            message: "   \t\n  "
           });
         } finally {
           await utils.cleanupGameClients(setup);
@@ -523,20 +470,17 @@ describe("Socket Game Chat Tests", () => {
             }, 5000);
 
             // Listen for chat message on other player
-            playerSockets[1].on(
-              SocketIOEvents.CHAT_MESSAGE,
-              (data: ChatMessageBroadcastData) => {
-                clearTimeout(timeout);
-                expect(data.message).toBe(testMessage);
-                expect(data.user).toBeDefined();
-                expect(data.timestamp).toBeDefined();
-                resolve();
-              }
-            );
+            playerSockets[1].on(SocketIOEvents.CHAT_MESSAGE, (data: ChatMessageBroadcastData) => {
+              clearTimeout(timeout);
+              expect(data.message).toBe(testMessage);
+              expect(data.user).toBeDefined();
+              expect(data.timestamp).toBeDefined();
+              resolve();
+            });
 
             // Send chat message during pause
             playerSockets[0].emit(SocketIOEvents.CHAT_MESSAGE, {
-              message: testMessage,
+              message: testMessage
             });
           });
         } finally {
@@ -554,8 +498,7 @@ describe("Socket Game Chat Tests", () => {
         if (!game) throw new Error("Game not found");
 
         // Manually set answeringPlayer to simulate answering state
-        const playerUserId = await utils.getUserIdFromSocket(playerSockets[0]);
-        game.gameState.answeringPlayer = playerUserId;
+        game.gameState.answeringPlayer = await utils.getUserIdFromSocket(playerSockets[0]);
         game.setQuestionState(QuestionState.ANSWERING);
 
         // Update the game state directly in Redis
@@ -563,18 +506,15 @@ describe("Socket Game Chat Tests", () => {
 
         // Now try to send a chat message from a spectator while player is answering
         const spectatorSocket = spectatorSockets[0];
-        const errorPromise = utils.waitForEvent(
-          spectatorSocket,
-          SocketIOEvents.ERROR
-        );
+        const errorPromise = utils.waitForEvent(spectatorSocket, SocketIOEvents.ERROR);
 
         spectatorSocket.emit(SocketIOEvents.CHAT_MESSAGE, {
-          message: "This should be blocked while player is answering",
+          message: "This should be blocked while player is answering"
         });
 
         const errorResult = await errorPromise;
         expect(errorResult).toMatchObject({
-          message: "Spectators cannot chat while player is answering",
+          message: "Spectators cannot chat while player is answering"
         });
 
         // Clean up by clearing the answering state
@@ -593,21 +533,15 @@ describe("Socket Game Chat Tests", () => {
         expect(gameState!.questionState).toBe("choosing");
 
         // In choosing state, no player is answering, so spectators should be able to chat
-        const allSockets = [
-          showmanSocket,
-          ...playerSockets,
-          ...spectatorSockets,
-        ];
+        const allSockets = [showmanSocket, ...playerSockets, ...spectatorSockets];
         const spectatorSocket = spectatorSockets[0];
         const message = "Spectator chat during choosing state";
 
         const receivePromises = allSockets.map((socket) =>
-          utils
-            .waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE)
-            .then((response) => {
-              expect(response.message).toBe(message);
-              expect(response.user).toBeDefined();
-            })
+          utils.waitForEvent(socket, SocketIOEvents.CHAT_MESSAGE).then((response) => {
+            expect(response.message).toBe(message);
+            expect(response.user).toBeDefined();
+          })
         );
 
         spectatorSocket.emit(SocketIOEvents.CHAT_MESSAGE, { message });
@@ -698,10 +632,7 @@ describe("Socket Game Chat Tests", () => {
         // 6. Reconnect the player (create a new socket for the same user)
         // createGameClient does not accept userId, so we cannot reconnect as the same user in this test utility.
         // For the purpose of this test, we will reconnect as a new user, which still verifies chat history retrieval for new joiners.
-        const { socket: newReconnect } = await utils.createGameClient(
-          app,
-          userRepo
-        );
+        const { socket: newReconnect } = await utils.createGameClient(app, userRepo);
         // 7. Rejoin the game
         const gameData = await utils.joinSpecificGameWithData(
           newReconnect,
@@ -720,7 +651,7 @@ describe("Socket Game Chat Tests", () => {
         await utils.disconnectAndCleanup(newReconnect);
         await utils.cleanupGameClients({
           ...setup,
-          playerSockets: [senderSocket],
+          playerSockets: [senderSocket]
         });
       });
     });

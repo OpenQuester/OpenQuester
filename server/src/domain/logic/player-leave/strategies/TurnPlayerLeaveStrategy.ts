@@ -2,15 +2,16 @@ import { singleton } from "tsyringe";
 
 import { Game } from "domain/entities/game/Game";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
+import { FinalRoundHandler } from "domain/handlers/round/FinalRoundHandler";
 import { ThemeEliminateLogic } from "domain/logic/final-round/ThemeEliminateLogic";
 import {
   TurnPlayerLeaveLogic,
-  TurnPlayerScenarioType,
+  TurnPlayerScenarioType
 } from "domain/logic/player-leave/TurnPlayerLeaveLogic";
 import {
   IPlayerLeaveStrategy,
-  PlayerLeaveStrategyResult,
+  PlayerLeaveStrategyInput,
+  PlayerLeaveStrategyResult
 } from "domain/logic/player-leave/strategies/IPlayerLeaveStrategy";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
@@ -19,25 +20,18 @@ import { PackageRoundType } from "domain/types/package/PackageRoundType";
 
 @singleton()
 export class TurnPlayerLeaveStrategy implements IPlayerLeaveStrategy {
-  constructor(
-    private readonly roundHandlerFactory: RoundHandlerFactory,
-    private readonly phaseTransitionRouter: PhaseTransitionRouter
-  ) {}
+  constructor(private readonly phaseTransitionRouter: PhaseTransitionRouter) {}
 
-  public canHandle(game: Game, userId: number): boolean {
+  public canHandle(input: PlayerLeaveStrategyInput): boolean {
+    const { game, userId } = input;
     return TurnPlayerLeaveLogic.validate(game, userId).isEligible;
   }
 
-  public async execute(
-    game: Game,
-    userId: number
-  ): Promise<PlayerLeaveStrategyResult> {
+  public async execute(input: PlayerLeaveStrategyInput): Promise<PlayerLeaveStrategyResult> {
+    const { game, userId } = input;
     const validation = TurnPlayerLeaveLogic.validate(game, userId);
 
-    if (
-      validation.scenarioType ===
-      TurnPlayerScenarioType.FINAL_ROUND_THEME_ELIMINATION
-    ) {
+    if (validation.scenarioType === TurnPlayerScenarioType.FINAL_ROUND_THEME_ELIMINATION) {
       return this._handleFinalRoundTurnPlayerLeave(game, userId);
     }
 
@@ -51,26 +45,19 @@ export class TurnPlayerLeaveStrategy implements IPlayerLeaveStrategy {
   ): Promise<PlayerLeaveStrategyResult> {
     const finalRoundHandler = this._getFinalRoundHandler(game);
 
-    const themeId = ThemeEliminateLogic.selectRandomTheme(
-      game,
-      finalRoundHandler
-    );
+    const themeId = ThemeEliminateLogic.selectRandomTheme(game, finalRoundHandler);
 
-    const mutationResult = ThemeEliminateLogic.eliminateTheme(
-      game,
-      themeId,
-      finalRoundHandler
-    );
+    const mutationResult = ThemeEliminateLogic.eliminateTheme(game, themeId, finalRoundHandler);
 
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.PLAYER_LEFT,
-      triggeredBy: { playerId: userId, isSystem: false },
+      triggeredBy: { playerId: userId, isSystem: false }
     });
 
     const result: PlayerLeaveStrategyResult = {
       mutations: [],
-      broadcasts: [],
+      broadcasts: []
     };
 
     const themeEliminateResult = ThemeEliminateLogic.buildResult({
@@ -78,21 +65,16 @@ export class TurnPlayerLeaveStrategy implements IPlayerLeaveStrategy {
       eliminatedBy: userId,
       themeId,
       mutationResult,
-      transitionResult,
+      transitionResult
     });
 
-    const leaveResult = TurnPlayerLeaveLogic.buildFinalRoundResult(
-      game,
-      themeEliminateResult
-    );
+    const leaveResult = TurnPlayerLeaveLogic.buildFinalRoundResult(game, themeEliminateResult);
 
     result.broadcasts.push(...leaveResult.broadcasts);
 
     if (transitionResult) {
       result.mutations.push(
-        ...DataMutationConverter.mutationFromTimerMutations(
-          transitionResult.timerMutations
-        )
+        ...DataMutationConverter.mutationFromTimerMutations(transitionResult.timerMutations)
       );
     }
 
@@ -100,7 +82,7 @@ export class TurnPlayerLeaveStrategy implements IPlayerLeaveStrategy {
   }
 
   private _getFinalRoundHandler(game: Game): FinalRoundHandler {
-    const handler = this.roundHandlerFactory.createFromGame(game);
+    const handler = RoundHandlerFactory.createFromGame(game);
     if (handler.getRoundType() !== PackageRoundType.FINAL) {
       throw new Error("Expected final round handler");
     }

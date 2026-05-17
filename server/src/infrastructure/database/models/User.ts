@@ -1,4 +1,3 @@
-import { container } from "tsyringe";
 import {
   Column,
   CreateDateColumn,
@@ -10,16 +9,31 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
   Unique,
-  UpdateDateColumn,
+  UpdateDateColumn
 } from "typeorm";
 
 import { type UserDTO } from "domain/types/dto/user/UserDTO";
 import { type userId } from "domain/types/ids";
-import { type UserModel } from "domain/types/user/UserModel";
+import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
 import { File } from "infrastructure/database/models/File";
 import { Package } from "infrastructure/database/models/package/Package";
 import { Permission } from "infrastructure/database/models/Permission";
-import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
+import { BaseModel } from "domain/types/BaseModel";
+
+/** All possible user fields */
+export interface UserModel extends BaseModel {
+  id?: userId;
+  username: string;
+  name?: string | null;
+  email?: string | null;
+  discord_id?: string | null;
+  birthday?: Date | null;
+  avatar?: File | null;
+  permissions?: Permission[];
+  is_banned?: boolean;
+  is_guest?: boolean;
+  muted_until?: Date | null;
+}
 
 @Entity("user")
 @Unique(["email", "username", "discord_id"])
@@ -75,7 +89,7 @@ export class User implements UserModel {
   @JoinTable({
     name: "user_permissions",
     joinColumn: { name: "user_id", referencedColumnName: "id" },
-    inverseJoinColumn: { name: "permission_id", referencedColumnName: "id" },
+    inverseJoinColumn: { name: "permission_id", referencedColumnName: "id" }
   })
   permissions!: Permission[];
 
@@ -98,12 +112,8 @@ export class User implements UserModel {
     this.permissions = data.permissions ?? this.permissions ?? [];
   }
 
-  public toDTO(): UserDTO {
-    const storage = container.resolve(S3StorageService);
-
-    const avatarLink = this.avatar
-      ? storage.getUrl(this.avatar.filename)
-      : null;
+  public toDTO(fileUrlBuilder: IFileUrlBuilder): UserDTO {
+    const avatarLink = this.avatar ? fileUrlBuilder.getUrl(this.avatar.filename) : null;
 
     return {
       id: this.id,
@@ -119,13 +129,11 @@ export class User implements UserModel {
       isDeleted: this.is_deleted,
       isBanned: this.is_banned,
       isGuest: this.is_guest,
-      mutedUntil: this.muted_until,
+      mutedUntil: this.muted_until
     };
   }
 
   public get isMuted(): boolean {
-    return (
-      (this.muted_until ?? false) && new Date() < new Date(this.muted_until!)
-    );
+    return (this.muted_until ?? false) && new Date() < new Date(this.muted_until!);
   }
 }

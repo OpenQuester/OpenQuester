@@ -4,13 +4,12 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
-  PrimaryGeneratedColumn,
+  PrimaryGeneratedColumn
 } from "typeorm";
 
 import { PlayerGameStatsData } from "domain/types/statistics/PlayerGameStatsData";
 import { User } from "infrastructure/database/models/User";
-
-import { GameStatistics } from "./GameStatistics";
+import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
 
 @Entity("player_game_stats")
 export class PlayerGameStats {
@@ -69,22 +68,5 @@ export class PlayerGameStats {
     this.questions_answered = data.questionsAnswered;
     this.correct_answers = data.correctAnswers;
     this.wrong_answers = data.wrongAnswers;
-  }
-
-  /**
-   * Convert to PlayerGameStatsData interface
-   */
-  public toData(): PlayerGameStatsData {
-    return {
-      gameStatsId: this.game_stats_id,
-      userId: this.user_id,
-      finalScore: this.final_score,
-      placement: this.placement ?? null,
-      joinedAt: this.joined_at,
-      leftAt: this.left_at ?? null,
-      questionsAnswered: this.questions_answered,
-      correctAnswers: this.correct_answers,
-      wrongAnswers: this.wrong_answers,
-    };
   }
 }

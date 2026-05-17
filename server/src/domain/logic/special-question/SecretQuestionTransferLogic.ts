@@ -1,7 +1,5 @@
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
-import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { SecretQuestionGameData } from "domain/types/dto/game/state/SecretQuestionGameData";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 
@@ -29,29 +27,12 @@ export interface SecretQuestionTransferBuildResultInput {
  */
 export class SecretQuestionTransferLogic {
   /**
-   * Process the transfer: update game state with new answering player.
-   */
-  public static processTransfer(
-    game: Game,
-    questionData: { question: PackageQuestionDTO },
-    targetPlayerId: number
-  ): void {
-    game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(
-      questionData.question
-    );
-    game.gameState.secretQuestionData = null;
-    game.setQuestionState(QuestionState.ANSWERING);
-    game.gameState.answeringPlayer = targetPlayerId;
-  }
-
-  /**
    * Build the result for secret question transfer.
    */
   public static buildResult(
     input: SecretQuestionTransferBuildResultInput
   ): SecretQuestionTransferResult {
-    const { game, fromPlayerId, toPlayerId, secretData, timer, question } =
-      input;
+    const { game, fromPlayerId, toPlayerId, secretData, timer, question } = input;
 
     return {
       game,
@@ -59,7 +40,7 @@ export class SecretQuestionTransferLogic {
       toPlayerId,
       questionId: secretData.questionId,
       timer,
-      question,
+      question
     };
   }
 }

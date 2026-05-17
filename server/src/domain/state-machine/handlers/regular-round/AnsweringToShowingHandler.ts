@@ -1,4 +1,3 @@
-import { GameService } from "application/services/game/GameService";
 import { timerKey } from "domain/constants/redisKeys";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GamePauseLogic } from "domain/logic/timer/GamePauseLogic";
@@ -10,7 +9,7 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -18,7 +17,7 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import {
   AnsweringToShowingCtx,
-  AnsweringToShowingMutationData,
+  AnsweringToShowingMutationData
 } from "domain/types/socket/transition/answering";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 
@@ -30,18 +29,12 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
  * - Player's answering timer expires (auto-wrong)
  *
  * Entry points:
- * - Showman marks answer as wrong (SocketIOQuestionService.handleAnswerResult)
+ * - Showman marks answer as wrong (AnswerResultUseCase)
  * - Answering timer expires (TimerExpirationService.handleAnsweringExpiration)
  */
 export class AnsweringToShowingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.ANSWERING;
   public readonly toPhase = GamePhase.SHOWING;
-
-  constructor(
-    gameService: GameService
-  ) {
-    super(gameService);
-  }
 
   /**
    * Check if this transition should occur.
@@ -61,20 +54,12 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
     }
 
     // 2. Must be simple round in ANSWERING state
-    if (
-      !TransitionGuards.canTransitionInRegularRound(
-        game,
-        QuestionState.ANSWERING
-      )
-    ) {
+    if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.ANSWERING)) {
       return false;
     }
 
     // 3. Must have answer result or timer expiration
-    if (
-      trigger === TransitionTrigger.USER_ACTION ||
-      trigger === TransitionTrigger.PLAYER_LEFT
-    ) {
+    if (trigger === TransitionTrigger.USER_ACTION || trigger === TransitionTrigger.PLAYER_LEFT) {
       const answerType = payload?.answerType;
       return (
         answerType !== AnswerResultType.CORRECT && // skip or wrong
@@ -84,11 +69,7 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
     }
 
     // 4. Not all players will be exhausted - if they will be, we go to SHOWING_ANSWER instead
-    if (game.willAllPlayersBeExhausted()) {
-      return false;
-    }
-
-    return true;
+    return !game.willAllPlayersBeExhausted();
   }
 
   protected override validate(ctx: AnsweringToShowingCtx): void {
@@ -115,8 +96,8 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
     return {
       data: {
         answeringPlayer,
-        playerAnswerResult,
-      } satisfies AnsweringToShowingMutationData,
+        playerAnswerResult
+      } satisfies AnsweringToShowingMutationData
     };
   }
 
@@ -126,14 +107,11 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
     const timerMutations: TimerResult["timerMutations"] = [
-      { op: "delete", key: timerKey(game.id) },
+      { op: "delete", key: timerKey(game.id) }
     ];
 
-    // Restore the saved showing timer (saved when player requested to answer)
-    const savedTimer = await this.gameService.getTimer(
-      game.id,
-      QuestionState.SHOWING
-    );
+    // Restore the saved showing timer (saved when player requested to answer).
+    const savedTimer = ctx.resources?.savedShowingTimer ?? null;
 
     if (savedTimer) {
       // Update timer with resumedAt timestamp to indicate it was restored
@@ -144,7 +122,7 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
 
       return {
         timer: savedTimer,
-        timerMutations,
+        timerMutations
       };
     }
 
@@ -165,10 +143,10 @@ export class AnsweringToShowingHandler extends BaseTransitionHandler {
         event: SocketIOGameEvents.ANSWER_RESULT,
         data: QuestionAnswerResultLogic.buildSocketPayload({
           answerResult: mutationData.playerAnswerResult,
-          timer: timerResult.timer ?? null,
+          timer: timerResult.timer ?? null
         }),
-        room: ctx.game.id,
-      },
+        room: ctx.game.id
+      }
     ];
   }
 }

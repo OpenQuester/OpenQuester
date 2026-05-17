@@ -5,7 +5,7 @@ import { singleton } from "tsyringe";
 import {
   GAME_EXPIRATION_WARNING_SECONDS,
   GAME_NAMESPACE,
-  GAME_TTL_IN_SECONDS,
+  GAME_TTL_IN_SECONDS
 } from "domain/constants/game";
 import {
   expirationWarningKey,
@@ -13,7 +13,7 @@ import {
   lockKey,
   packageKey,
   queueKey,
-  timerKey,
+  timerKey
 } from "domain/constants/redisKeys";
 import { SOCKET_SESSION_PREFIX } from "domain/constants/socket";
 import { SECOND_MS } from "domain/constants/time";
@@ -27,23 +27,20 @@ import {
   type DeleteGameMutation,
   type DeleteTimerMutation,
   type SaveGameMutation,
-  type SetTimerMutation,
+  type SetTimerMutation
 } from "domain/types/action/DataMutation";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { asUserId } from "domain/types/ids";
 import { type SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { GameRedisValidator } from "domain/validators/GameRedisValidator";
-import { GameActionLockService } from "infrastructure/services/lock/GameActionLockService";
-import { RedisService } from "infrastructure/services/redis/RedisService";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { GameActionLockService } from "application/services/lock/GameActionLockService";
+import { RedisService } from "application/services/redis/RedisService";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 /** TTL for the action-execution Redis lock. */
 export const PIPELINE_LOCK_TTL_SECONDS = 10;
 
-const WARNING_TTL_SECONDS = Math.max(
-  GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS,
-  0
-);
+const WARNING_TTL_SECONDS = Math.max(GAME_TTL_IN_SECONDS - GAME_EXPIRATION_WARNING_SECONDS, 0);
 
 /**
  * Lua script that fetches a socket session and the associated game in a single
@@ -103,6 +100,17 @@ const FETCH_SESSION_AND_GAME_SCRIPT = `
  */
 export type PipelineInResult = PipelineInLockFailed | PipelineInSuccess;
 
+/**
+ * Result of the read-only pipeline: game/timer/session prefetch without
+ * any lock acquisition. Used by direct-execution actions that don't
+ * mutate game state and therefore don't need synchronization.
+ */
+export interface PipelineReadResult {
+  game: Game;
+  timer: GameStateTimerDTO | null;
+  userData: SocketRedisUserData | null;
+}
+
 export interface PipelineInLockFailed {
   lockAcquired: false;
   lockToken: "";
@@ -144,7 +152,7 @@ interface SessionAndGame {
  *
  * Three operations:
  * - {@link executePipelineIn} — lock attempt + game/timer/session prefetch (1 RT)
- * - {@link executeOutPipeline} — game save + timer mutations + queue length (1 RT)
+ * - {@link executeOutPipeline} — game save + timer mutations (1 RT)
  * - {@link fetchSessionAndGame} — Lua-script session + game fetch for forced-leave flows (1 RT)
  */
 @singleton()
@@ -173,10 +181,7 @@ export class GamePipelineService {
    * Returns a discriminated union: lock failed (no game data) or
    * lock acquired with parsed game, timer, and userData.
    */
-  public async executePipelineIn(
-    gameId: string,
-    socketId: string
-  ): Promise<PipelineInResult> {
+  public async executePipelineIn(gameId: string, socketId: string): Promise<PipelineInResult> {
     const token = randomUUID();
     const gKey = gameKey(gameId);
     const sessionKey = `${SOCKET_SESSION_PREFIX}:${socketId}`;
@@ -196,67 +201,81 @@ export class GamePipelineService {
     const results = await pipeline.exec();
 
     if (!results || results.length < 5) {
-      throw new ServerError(
-        "IN pipeline returned unexpected number of results"
-      );
+      throw new ServerError("IN pipeline returned unexpected number of results");
     }
 
     // [0] SET NX returns "OK" on success, null on failure
-    const lockReply = results[0][1];
-    const lockAcquired = lockReply === "OK";
+    const lockAcquired = results[0][1] === "OK";
 
     if (!lockAcquired) {
       return { lockAcquired: false, lockToken: "" };
     }
 
-    // [1] Parse game hash
-    const rawHash = results[1][1] as Record<string, string>;
+    // [1] Parse game hash — release lock and throw if game is missing
+    const game = GamePipelineService.parseGameHash(results[1][1] as Record<string, string>);
 
-    if (!rawHash || ValueUtils.isEmpty(rawHash)) {
-      // Game doesn't exist — release the lock we just acquired and throw
+    if (!game) {
       await this.lockService.releaseLock(gameId, token);
-      throw new ClientError(
-        ClientResponse.GAME_NOT_FOUND,
-        HttpStatus.NOT_FOUND,
-        { gameId }
-      );
+      throw new ClientError(ClientResponse.GAME_NOT_FOUND, HttpStatus.NOT_FOUND, { gameId });
     }
-
-    const validatedData = GameRedisValidator.validateRedisData(rawHash);
-    const game = GameMapper.deserializeGameHash(validatedData);
-
-    // [3] Parse active timer
-    const rawTimer = results[3][1] as string | null;
-    let timer: GameStateTimerDTO | null = null;
-
-    if (rawTimer && !ValueUtils.isEmpty(rawTimer)) {
-      try {
-        // TODO: Use Joi schema
-        timer = JSON.parse(rawTimer) as GameStateTimerDTO;
-      } catch {
-        timer = null;
-      }
-    }
-
-    // [4] Parse socket session data
-    const rawSession = results[4][1] as Record<string, string> | null;
-    const userData: SocketRedisUserData | null =
-      rawSession && !ValueUtils.isEmpty(rawSession)
-        ? {
-            id: asUserId(parseInt(rawSession.id, 10)),
-            gameId:
-              rawSession.gameId === "null" || !rawSession.gameId
-                ? null
-                : rawSession.gameId,
-          }
-        : null;
 
     return {
       lockAcquired: true,
       lockToken: token,
       game,
-      timer,
-      userData,
+      // [3] Active timer
+      timer: GamePipelineService.parseTimer(results[3][1] as string | null),
+      // [4] Socket session data
+      userData: GamePipelineService.parseUserData(results[4][1] as Record<string, string> | null)
+    };
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  Read-only Pipeline
+  // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Build and execute a read-only context-fetch pipeline — same data as
+   * {@link executePipelineIn} but **without** the lock attempt.
+   *
+   * Throws {@link ClientError} GAME_NOT_FOUND if the game hash is empty.
+   */
+  public async executePipelineReadOnly(
+    gameId: string,
+    socketId: string
+  ): Promise<PipelineReadResult> {
+    const gKey = gameKey(gameId);
+    const sessionKey = `${SOCKET_SESSION_PREFIX}:${socketId}`;
+
+    const pipeline = this.redisService.pipeline();
+    // [0] Game hash
+    pipeline.hgetall(gKey);
+    // [1] TTL refresh
+    pipeline.expire(gKey, GAME_TTL_IN_SECONDS);
+    // [2] Active timer
+    pipeline.get(timerKey(gameId));
+    // [3] Socket session data
+    pipeline.hgetall(sessionKey);
+
+    const results = await pipeline.exec();
+
+    if (!results || results.length < 4) {
+      throw new ServerError("Read-only pipeline returned unexpected number of results");
+    }
+
+    // [0] Parse game hash
+    const game = GamePipelineService.parseGameHash(results[0][1] as Record<string, string>);
+
+    if (!game) {
+      throw new ClientError(ClientResponse.GAME_NOT_FOUND, HttpStatus.NOT_FOUND, { gameId });
+    }
+
+    return {
+      game,
+      // [2] Active timer
+      timer: GamePipelineService.parseTimer(results[2][1] as string | null),
+      // [3] Socket session data
+      userData: GamePipelineService.parseUserData(results[3][1] as Record<string, string> | null)
     };
   }
 
@@ -274,12 +293,8 @@ export class GamePipelineService {
    *   SET game-expiration-warning:{gameId} "1" PX ... (if saveGame)
    *   SET key value PX ttl                            (per timerSet)
    *   DEL key                                         (per timerDelete)
-   *   LLEN game:action:queue:{gameId}                 (always — drain decision)
    */
-  public async executeOutPipeline(
-    classified: OutPipelineInput,
-    gameId: string
-  ): Promise<{ queueLength: number }> {
+  public async executeOutPipeline(classified: OutPipelineInput, gameId: string): Promise<void> {
     const pipeline = this.redisService.pipeline();
 
     // ── Game save ──
@@ -302,20 +317,17 @@ export class GamePipelineService {
       pipeline.set(m.key, m.value, "PX", m.pxTtl);
     }
 
-    // ── Queue length check (always last) ──
-    pipeline.llen(queueKey(gameId));
-
     const results = await pipeline.exec();
 
-    if (!results || results.length === 0) {
-      return { queueLength: 0 };
+    if (!results) {
+      return;
     }
 
-    // LLEN is always the last command
-    const llenResult = results[results.length - 1];
-    const queueLength = (llenResult[1] as number) ?? 0;
-
-    return { queueLength };
+    for (const [error] of results) {
+      if (error) {
+        throw error;
+      }
+    }
   }
 
   /**
@@ -323,11 +335,7 @@ export class GamePipelineService {
    * Used by {@link executeOutPipeline}; exposed for callers that build
    * their own pipelines (e.g. drain loop in GameActionExecutor).
    */
-  public appendGameSave(
-    pipeline: ChainableCommander,
-    gameId: string,
-    game: Game
-  ): void {
+  public appendGameSave(pipeline: ChainableCommander, gameId: string, game: Game): void {
     const gKey = gameKey(gameId);
     const pKey = packageKey(gameId);
     const wKey = expirationWarningKey(gameId);
@@ -371,9 +379,7 @@ export class GamePipelineService {
    *
    * Returns null if the session is missing, has no gameId, or the game doesn't exist.
    */
-  public async fetchSessionAndGame(
-    socketId: string
-  ): Promise<SessionAndGame | null> {
+  public async fetchSessionAndGame(socketId: string): Promise<SessionAndGame | null> {
     const sessionKey = `${SOCKET_SESSION_PREFIX}:${socketId}`;
 
     const result = (await this.redisService.eval(
@@ -395,13 +401,11 @@ export class GamePipelineService {
       rawSession[result[i]] = result[i + 1];
     }
 
-    const userData: SocketRedisUserData = {
-      id: asUserId(parseInt(rawSession.id, 10)),
-      gameId:
-        rawSession.gameId === "null" || !rawSession.gameId
-          ? null
-          : rawSession.gameId,
-    };
+    const userData = GamePipelineService.parseUserData(rawSession);
+
+    if (!userData) {
+      return null;
+    }
 
     // If Lua returned only session fields (no game), it means no game was found
     const gameFieldsStart = 1 + sessionFieldCount;
@@ -416,17 +420,67 @@ export class GamePipelineService {
       rawHash[result[i]] = result[i + 1];
     }
 
-    if (ValueUtils.isEmpty(rawHash)) {
+    const game = GamePipelineService.parseGameHash(rawHash);
+
+    if (!game) {
       return null;
     }
-
-    const validatedData = GameRedisValidator.validateRedisData(rawHash);
-    const game = GameMapper.deserializeGameHash(validatedData);
 
     return { userData, game };
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  Private helpers
+  //  Static parsing helpers (also used by GameActionExecutor drain path)
   // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Parse a raw game hash into a Game entity.
+   * Returns null if the hash is empty, missing, or validation/deserialization fails.
+   */
+  public static parseGameHash(rawHash: Record<string, string> | null): Game | null {
+    if (!rawHash || ValueUtils.isEmpty(rawHash)) {
+      return null;
+    }
+
+    try {
+      const validatedData = GameRedisValidator.validateRedisData(rawHash);
+      return GameMapper.deserializeGameHash(validatedData);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse a raw timer JSON string into a GameStateTimerDTO.
+   * Returns null if the value is empty/null or parsing fails.
+   */
+  public static parseTimer(raw: string | null): GameStateTimerDTO | null {
+    if (!raw || ValueUtils.isEmpty(raw)) {
+      return null;
+    }
+
+    try {
+      // TODO: Use Joi schema
+      return JSON.parse(raw) as GameStateTimerDTO;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Parse a raw socket-session hash into SocketRedisUserData.
+   * Returns null if the hash is empty or missing.
+   */
+  public static parseUserData(
+    rawSession: Record<string, string> | null
+  ): SocketRedisUserData | null {
+    if (!rawSession || ValueUtils.isEmpty(rawSession)) {
+      return null;
+    }
+
+    return {
+      id: asUserId(parseInt(rawSession.id, 10)),
+      gameId: rawSession.gameId === "null" || !rawSession.gameId ? null : rawSession.gameId
+    };
+  }
 }
