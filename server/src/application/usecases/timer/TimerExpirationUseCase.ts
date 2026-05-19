@@ -45,6 +45,9 @@ export class TimerExpirationUseCase
     }
 
     const mutations = [
+      ...DataMutationConverter.mutationFromTimerMutations(
+        result.timerMutations
+      ),
       ...DataMutationConverter.mutationFromServiceBroadcasts(result.broadcasts),
     ];
 

@@ -16,7 +16,7 @@ export class PlayerGameStatisticsMapper {
     return {
       gameId,
       userId: userId.toString(),
-      joinedAt: joinedAt.getTime().toString(),
+      joinedAt: joinedAt.toISOString(),
       leftAt: "",
       currentScore: "0",
       questionsAnswered: "0",

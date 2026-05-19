@@ -1,6 +1,6 @@
 import "express-session";
 
-import { Session } from "server/src/domain/types/auth/session";
+import { Session } from "domain/types/auth/session";
 import { type RequestAuthContext } from "shared/context/RequestAuthContext";
 
 declare module "express-session" {

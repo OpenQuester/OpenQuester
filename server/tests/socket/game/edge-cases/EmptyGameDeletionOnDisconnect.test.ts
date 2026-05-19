@@ -7,6 +7,7 @@ import {
   it,
 } from "@jest/globals";
 import { type Express } from "express";
+import request from "supertest";
 import { Repository } from "typeorm";
 
 import { User } from "infrastructure/database/models/User";
@@ -53,6 +54,18 @@ describe("Empty game deletion on disconnect", () => {
     }
   });
 
+  const expectGameRemovedFromLobbyIndexes = async (gameId: string): Promise<void> => {
+    const { cookie } = await testUtils.createAndLoginUser(`lobby-index-${gameId}`);
+    const listRes = await request(app)
+      .get("/v1/games")
+      .set("Cookie", cookie)
+      .query({ limit: 10, offset: 0 });
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.pageInfo.total).toBe(0);
+    expect(listRes.body.data).toEqual([]);
+  };
+
   it("should delete game when last user disconnects before game start", async () => {
     const setup = await socketUtils.setupGameTestEnvironment(
       userRepo,
@@ -79,6 +92,7 @@ describe("Empty game deletion on disconnect", () => {
       );
 
       expect(deleted).toBe(true);
+      await expectGameRemovedFromLobbyIndexes(gameId);
     } finally {
       await socketUtils.disconnectAndCleanup(showmanSocket);
     }
@@ -115,6 +129,7 @@ describe("Empty game deletion on disconnect", () => {
       );
 
       expect(deleted).toBe(true);
+      await expectGameRemovedFromLobbyIndexes(gameId);
     } finally {
       await socketUtils.disconnectAndCleanup(showmanSocket);
     }

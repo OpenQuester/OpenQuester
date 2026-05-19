@@ -35,7 +35,7 @@ export const createGameScheme = () =>
 export const updateGameScheme = () =>
   Joi.object<GameUpdateDTO>({
     title: Joi.string().min(GAME_TITLE_MIN_CHARS).max(GAME_TITLE_MAX_CHARS).optional(),
-    packageId: Joi.number().optional(),
+    packageId: Joi.number().min(1).optional(),
     isPrivate: Joi.boolean().optional(),
     ageRestriction: Joi.valid(...Object.values(AgeRestriction)).optional(),
     maxPlayers: Joi.number().max(GAME_MAX_PLAYERS).optional(),

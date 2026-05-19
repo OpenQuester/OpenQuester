@@ -22,6 +22,7 @@ Most game-changing actions are serialized per game by the Redis-backed lock and 
 8. Return side effects as `DataMutation[]` instead of performing hidden writes or emits inside the use case.
 9. Add a hook in `src/presentation/controllers/io/SocketActionHooks.ts` only for transport-level side effects that must happen after execution.
 10. Add or update socket tests for success, validation failure, and queue-sensitive behavior when applicable.
+11. Update `../openapi/schema.json` socket event enums/payload schemas and `docs/websocket-game-flow/` when the event is public.
 
 ## `SocketActionMap` Entry
 
@@ -83,3 +84,4 @@ export class MyActionUseCase implements GameActionHandler<MyInput, MyOutput> {
 - The use case returns declared mutations instead of directly writing Redis or emitting sockets.
 - Domain rules are extracted to `domain/` when reusable or non-trivial.
 - Tests cover bad payloads and expected broadcasts.
+- OpenAPI socket metadata and websocket docs list the correct direction, payload, and queue/direct-execution behavior.

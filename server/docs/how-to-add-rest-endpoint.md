@@ -18,6 +18,7 @@ REST controller -> RequestDataValidator/Joi scheme -> application service -> inf
 6. Wrap route handlers with `asyncHandler`.
 7. Return HTTP statuses from `HttpStatus`.
 8. Throw `ClientError` for expected user-facing failures.
+9. Update `../openapi/schema.json` for the endpoint, request/response schemas, errors, and side effects such as socket lobby events.
 
 ## Controller Pattern
 
@@ -51,3 +52,4 @@ createThing = async (req: Request, res: Response) => {
 - Input DTOs and response DTOs are typed.
 - Errors use `ClientError` or `ServerError` consistently.
 - Relevant tests cover validation and service behavior when the endpoint changes behavior.
+- `../openapi/schema.json` matches the implemented validation rules and response body.

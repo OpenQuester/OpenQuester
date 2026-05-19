@@ -2,13 +2,45 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpenQuester API",
-    "version": "0.22.0"
+    "version": "0.22.0",
+    "description": "REST API plus Socket.IO contract metadata for OpenQuester. Socket.IO clients authenticate an existing HTTP session with POST /v1/auth/socket, then use the /games namespace for game-flow events."
   },
   "security": [
     {
       "SessionAuth": []
     }
   ],
+  "x-socket-io": {
+    "version": "4.x",
+    "namespace": "/games",
+    "authentication": {
+      "endpoint": "POST /v1/auth/socket",
+      "requestSchema": "#/components/schemas/InputSocketIOAuth",
+      "sessionSecurity": "SessionAuth",
+      "description": "Send the connected Socket.IO socket id while authenticated by the HTTP session cookie. The server stores the socket session for later game action routing."
+    },
+    "delivery": {
+      "errors": "Socket errors are emitted to the origin socket with the standard error event and payload { \"message\": string }.",
+      "gameChangingEvents": "Client-to-server game events are serialized per game through the Redis action queue and lock.",
+      "directEvents": "Read-only events such as chat-message bypass the game mutation queue but still prefetch game/session context for validation."
+    },
+    "events": {
+      "lobby": {
+        "event": "games",
+        "payloadSchema": "#/components/schemas/GameEventSubscription",
+        "description": "Broadcast when REST game create/update/delete changes the lobby list."
+      },
+      "clientToServer": {
+        "schema": "#/components/schemas/SocketIOGameSendEvents"
+      },
+      "serverToClient": {
+        "schema": "#/components/schemas/SocketIOGameReceiveEvents"
+      },
+      "system": {
+        "schema": "#/components/schemas/SocketIOEvents"
+      }
+    }
+  },
   "paths": {
     "/v1/files/{filename}": {
       "get": {
@@ -923,6 +955,7 @@
     "/v1/auth/socket": {
       "post": {
         "summary": "Authorize socket.io connection",
+        "description": "Associates the authenticated HTTP session with a Socket.IO socket id. Call this after the Socket.IO connection is established and before emitting game events on the /games namespace.",
         "tags": ["Auth"],
         "requestBody": {
           "required": true,
@@ -961,6 +994,7 @@
     "/v1/games": {
       "get": {
         "summary": "Get all games",
+        "description": "Returns lobby games from Redis-backed indexes. Games deleted by REST or by empty-game cleanup are removed from these indexes before they disappear from the listing.",
         "tags": ["Games"],
         "parameters": [
           {
@@ -1127,6 +1161,7 @@
       },
       "delete": {
         "summary": "Delete game",
+        "description": "Deletes game state, package snapshot, timers, expiration warning, and lobby indexes. On success emits a lobby games event with { event: \"deleted\", data: { id } }.",
         "tags": ["Games"],
         "parameters": [
           {
@@ -1156,7 +1191,7 @@
       },
       "patch": {
         "summary": "Update game settings",
-        "description": "Update game settings. Only the showman or host can update the game. Package can only be changed before the game starts. All other fields can be changed at any time.",
+        "description": "Update game settings. Only the showman can update the game. Package can only be changed before the game starts. When packageId changes, the server loads the new package snapshot, rebuilds round/question indexes and counts, resets game state, and preserves the current password. Emits GameEventDTO with event \"changed\" to both lobby and game room.",
         "tags": ["Games"],
         "parameters": [
           {
@@ -2172,7 +2207,8 @@
           },
           "packageId": {
             "type": "integer",
-            "minimum": 0,
+            "minimum": 1,
+            "description": "Existing package id used to initialize immutable game package snapshot",
             "examples": [1]
           },
           "isPrivate": {
@@ -2214,8 +2250,8 @@
           },
           "packageId": {
             "type": "integer",
-            "minimum": 0,
-            "description": "Can only be changed before game starts",
+            "minimum": 1,
+            "description": "Existing package id. Can only be changed before the game starts. Updating it replaces the game package snapshot and resets round/question state.",
             "examples": [2]
           },
           "isPrivate": {
@@ -2245,8 +2281,11 @@
         "type": "string",
         "enum": [
           "game_started_cannot_change_package",
+          "package_not_found",
+          "package_author_not_found",
           "game_password_not_allowed_for_public_game",
           "game_password_cannot_be_removed_for_private_game",
+          "cannot_set_max_players_below_current",
           "invalid_input"
         ],
         "description": "Error codes specific to game update operations"
@@ -2864,12 +2903,12 @@
       },
       "GameEventSubscription": {
         "type": "object",
+        "description": "Payload emitted on the lobby-level games Socket.IO event.",
         "discriminator": {
           "propertyName": "event",
           "mapping": {
             "created": "#/components/schemas/GameUpdateEventSubscription",
             "changed": "#/components/schemas/GameUpdateEventSubscription",
-            "started": "#/components/schemas/GameUpdateEventSubscription",
             "deleted": "#/components/schemas/GameDeleteEventSubscription"
           }
         },
@@ -2884,19 +2923,21 @@
       },
       "GameUpdateEventSubscription": {
         "type": "object",
+        "description": "Lobby games event for created or changed games.",
         "properties": {
           "event": {
             "type": "string",
-            "enum": ["created", "changed", "started"]
+            "enum": ["created", "changed"]
           },
           "data": {
             "$ref": "#/components/schemas/GameListItem"
           }
         },
-        "required": ["data", "event", "type"]
+        "required": ["data", "event"]
       },
       "GameDeleteEventSubscription": {
         "type": "object",
+        "description": "Lobby games event for deleted games.",
         "properties": {
           "event": {
             "type": "string",
@@ -2912,7 +2953,7 @@
             "required": ["id"]
           }
         },
-        "required": ["data", "event", "type"]
+        "required": ["data", "event"]
       },
       "AgeRestriction": {
         "type": "string",
@@ -4150,6 +4191,7 @@
       },
       "SocketIOEvents": {
         "type": "string",
+        "description": "Socket.IO system and cross-game events. The games event carries GameEventSubscription; chat-message is direct execution; notifications carries SocketIONotificationEventPayload.",
         "enum": [
           "error",
           "disconnect",
@@ -4167,17 +4209,16 @@
       },
       "SocketIOGameSendEvents": {
         "type": "string",
+        "description": "Client-to-server game events accepted on the /games namespace. Game-changing events are processed through the per-game action queue.",
         "enum": [
           "join",
           "user-leave",
-          "game-data",
           "start",
           "question-pick",
           "question-answer",
-          "question-finish",
           "answer-submitted",
-          "next-round",
           "answer-result",
+          "next-round",
           "skip-question-force",
           "skip-show-answer",
           "game-pause",
@@ -4196,21 +4237,15 @@
           "final-bid-submit",
           "final-answer-submit",
           "final-answer-review",
-          "final-phase-complete",
-          "final-question-data",
-          "final-submit-end",
-          "final-auto-loss",
           "secret-question-transfer",
-          "stake-question-picked",
           "stake-bid-submit",
-          "stake-question-winner",
-          "media-downloaded",
-          "media-download-status"
+          "media-downloaded"
         ],
         "examples": ["join"]
       },
       "SocketIOGameReceiveEvents": {
         "type": "string",
+        "description": "Server-to-client game events emitted on the /games namespace.",
         "enum": [
           "join",
           "start",
@@ -4250,7 +4285,6 @@
           "stake-question-picked",
           "stake-bid-submit",
           "stake-question-winner",
-          "media-downloaded",
           "media-download-status",
           "notifications"
         ],

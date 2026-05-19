@@ -110,6 +110,7 @@ export class TimerExpirationService {
           room: gameId,
         },
       ],
+      timerMutations: transitionResult.timerMutations,
     };
   }
 
@@ -147,6 +148,7 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts: transitionResult.broadcasts,
+      timerMutations: transitionResult.timerMutations,
     };
   }
 
@@ -183,6 +185,7 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts: transitionResult.broadcasts,
+      timerMutations: transitionResult.timerMutations,
     };
   }
 
@@ -203,9 +206,8 @@ export class TimerExpirationService {
     }
 
     // Regular answering expiration
-    const { answerResult, timer } = await this.handleRegularAnsweringExpiration(
-      game
-    );
+    const { answerResult, timer, timerMutations } =
+      await this.handleRegularAnsweringExpiration(game);
 
     if (!answerResult) {
       return { success: false, game, broadcasts: [] };
@@ -217,6 +219,7 @@ export class TimerExpirationService {
       broadcasts: [
         AnsweringExpirationLogic.buildBroadcast(gameId, answerResult, timer),
       ],
+      timerMutations,
     };
   }
 
@@ -254,6 +257,7 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts,
+      timerMutations: result.transitionResult?.timerMutations,
     };
   }
 
@@ -290,6 +294,7 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts,
+      timerMutations: result.transitionResult.timerMutations,
     };
   }
 
@@ -396,6 +401,7 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts: transitionResult.broadcasts,
+      timerMutations: transitionResult.timerMutations,
     };
   }
 
@@ -470,7 +476,11 @@ export class TimerExpirationService {
 
     await this.gameService.updateGame(game);
 
-    return { answerResult: playerAnswerResult, timer: transitionResult.timer };
+    return {
+      answerResult: playerAnswerResult,
+      timer: transitionResult.timer,
+      timerMutations: transitionResult.timerMutations,
+    };
   }
 
   private async _getAnsweringTransitionResources(
@@ -528,6 +538,7 @@ export class TimerExpirationService {
       success: true,
       game,
       broadcasts,
+      timerMutations: result.transitionResult?.timerMutations,
     };
   }
 }

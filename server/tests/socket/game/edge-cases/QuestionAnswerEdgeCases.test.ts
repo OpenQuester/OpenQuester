@@ -118,11 +118,19 @@ describe("Question Answer Edge Cases", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Players 2 and 3 skip the question
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_SKIP);
+        const questionSkipPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_SKIP
+        );
         playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+        await questionSkipPromise;
 
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_SKIP);
+        const questionSkipPromise2 = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_SKIP
+        );
         playerSockets[2].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+        await questionSkipPromise2;
 
         // Verify 2 players have skipped
         const stateAfterSkips = await utils.getGameState(gameId);
@@ -191,8 +199,12 @@ describe("Question Answer Edge Cases", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Only Player 2 skips (Player 3 can still answer)
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_SKIP);
+        const questionSkipPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_SKIP
+        );
         playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+        await questionSkipPromise;
 
         // Verify 1 player has skipped
         const stateAfterSkip = await utils.getGameState(gameId);
@@ -240,8 +252,12 @@ describe("Question Answer Edge Cases", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Player 2 skips
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_SKIP);
+        const questionSkipPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_SKIP
+        );
         playerSockets[1].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+        await questionSkipPromise;
 
         // Verify Player 2 skipped
         const stateAfterSkip = await utils.getGameState(gameId);
@@ -308,9 +324,7 @@ describe("Question Answer Edge Cases", () => {
         const nonExistentQuestionErrorObj = nonExistentQuestionError as {
           message?: string;
         };
-        expect(nonExistentQuestionErrorObj.message?.toLowerCase()).toContain(
-          "not found"
-        );
+        expect(nonExistentQuestionErrorObj.message?.toLowerCase()).toContain("not found");
       } finally {
         await utils.cleanupGameClients(setup);
       }

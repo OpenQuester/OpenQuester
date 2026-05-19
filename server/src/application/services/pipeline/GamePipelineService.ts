@@ -1,7 +1,8 @@
 import { randomUUID } from "crypto";
 import { type ChainableCommander } from "ioredis";
-import { singleton } from "tsyringe";
+import { inject, singleton } from "tsyringe";
 
+import { DI_TOKENS } from "shared/di/tokens";
 import {
   GAME_EXPIRATION_WARNING_SECONDS,
   GAME_NAMESPACE,
@@ -29,6 +30,7 @@ import {
   type SaveGameMutation,
   type SetTimerMutation
 } from "domain/types/action/DataMutation";
+import { type GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { asUserId } from "domain/types/ids";
 import { type SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
@@ -36,6 +38,7 @@ import { GameRedisValidator } from "domain/validators/GameRedisValidator";
 import { GameActionLockService } from "application/services/lock/GameActionLockService";
 import { RedisService } from "application/services/redis/RedisService";
 import { ValueUtils } from "domain/utils/ValueUtils";
+import { GameIndexManager } from "infrastructure/database/managers/game/GameIndexManager";
 
 /** TTL for the action-execution Redis lock. */
 export const PIPELINE_LOCK_TTL_SECONDS = 10;
@@ -159,7 +162,9 @@ interface SessionAndGame {
 export class GamePipelineService {
   constructor(
     private readonly redisService: RedisService,
-    private readonly lockService: GameActionLockService
+    private readonly lockService: GameActionLockService,
+    @inject(DI_TOKENS.GameIndexManager)
+    private readonly gameIndexManager: GameIndexManager
   ) {
     //
   }
@@ -294,7 +299,11 @@ export class GamePipelineService {
    *   SET key value PX ttl                            (per timerSet)
    *   DEL key                                         (per timerDelete)
    */
-  public async executeOutPipeline(classified: OutPipelineInput, gameId: string): Promise<void> {
+  public async executeOutPipeline(
+    classified: OutPipelineInput,
+    gameId: string,
+    gameIndexData: GameIndexesInputDTO
+  ): Promise<void> {
     const pipeline = this.redisService.pipeline();
 
     // ── Game save ──
@@ -304,6 +313,7 @@ export class GamePipelineService {
 
     // ── Game delete ──
     if (classified.deleteGame) {
+      this.gameIndexManager.removeGameFromIndexesPipeline(pipeline, gameId, gameIndexData);
       this.appendGameDelete(pipeline, gameId);
     }
 

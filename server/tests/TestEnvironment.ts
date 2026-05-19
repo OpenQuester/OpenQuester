@@ -29,6 +29,7 @@ export class TestEnvironment {
     RedisConfig.getClient(); // Get client to initialize it
     await RedisConfig.initConfig();
     await RedisConfig.waitForConnection();
+    await this.clearRedis();
   }
 
   public async teardown(): Promise<void> {

@@ -3,6 +3,7 @@ import {
   SocketIOEvents,
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
+import { type TimerMutation } from "domain/types/action/ActionExecutionContext";
 
 /**
  * Represents a broadcast event to be emitted
@@ -29,4 +30,5 @@ export interface ServiceResult<TData = unknown> {
  */
 export interface TimerExpirationResult extends ServiceResult {
   game?: Game;
+  timerMutations?: TimerMutation[];
 }

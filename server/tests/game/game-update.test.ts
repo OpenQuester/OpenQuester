@@ -243,6 +243,84 @@ describe("Game REST update", () => {
     }
   });
 
+  it("should update package data before game start", async () => {
+    const userRepo = testEnv.getDatabase().getRepository(User);
+
+    const {
+      socket: showmanSocket,
+      user: showmanUser,
+      cookie: showmanCookie,
+    } = await utils.createGameClient(app, userRepo);
+
+    let gameId = "";
+
+    try {
+      const packageData1 = packageUtils.createTestPackageData(
+        { id: showmanUser.id, username: showmanUser.username },
+        false,
+        0
+      );
+
+      const packageRes1 = await request(app)
+        .post("/v1/packages")
+        .set("Cookie", showmanCookie)
+        .send({ content: packageData1 });
+
+      expect(packageRes1.status).toBe(200);
+
+      const packageData2 = packageUtils.createTestPackageData(
+        { id: showmanUser.id, username: showmanUser.username },
+        false,
+        3
+      );
+      packageData2.title = "Replacement Test Package";
+
+      const packageRes2 = await request(app)
+        .post("/v1/packages")
+        .set("Cookie", showmanCookie)
+        .send({ content: packageData2 });
+
+      expect(packageRes2.status).toBe(200);
+
+      const gameRes = await request(app)
+        .post("/v1/games")
+        .set("Cookie", showmanCookie)
+        .send({
+          title: "Package Update Test",
+          packageId: packageRes1.body.id,
+          isPrivate: false,
+          ageRestriction: AgeRestriction.NONE,
+          maxPlayers: 10,
+        });
+
+      expect(gameRes.status).toBe(200);
+      gameId = gameRes.body.id;
+
+      await utils.joinGame(showmanSocket, gameId, PlayerRole.SHOWMAN);
+
+      const updateRes = await request(app)
+        .patch(`/v1/games/${gameId}`)
+        .set("Cookie", showmanCookie)
+        .send({
+          packageId: packageRes2.body.id,
+        });
+
+      expect(updateRes.status).toBe(200);
+      expect(updateRes.body.package.id).toBe(packageRes2.body.id);
+      expect(updateRes.body.package.title).toBe("Replacement Test Package");
+      expect(updateRes.body.package.roundsCount).toBe(2);
+      expect(updateRes.body.package.questionsCount).toBe(11);
+    } finally {
+      await utils.disconnectAndCleanup(showmanSocket);
+
+      if (gameId) {
+        await request(app)
+          .delete(`/v1/games/${gameId}`)
+          .set("Cookie", showmanCookie);
+      }
+    }
+  });
+
   it("should reject setting password for public game", async () => {
     const userRepo = testEnv.getDatabase().getRepository(User);
 

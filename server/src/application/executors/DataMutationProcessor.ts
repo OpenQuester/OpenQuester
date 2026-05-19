@@ -88,7 +88,7 @@ export class DataMutationProcessor {
   ): Promise<void> {
     const classified = this.classifyMutations(result.mutations);
 
-    await this.executePipeline(classified, ctx.game.id);
+    await this.executePipeline(classified, ctx.game);
 
     await this.executeSocketSessionUpdates(classified.socketSessionUpdates);
     // TODO: Since player stats updates is DB action - should be done in async to not block websocket event flow
@@ -191,8 +191,8 @@ export class DataMutationProcessor {
    * Delegates to {@link GamePipelineService.executeOutPipeline}.
    * See that method for full documentation of pipeline commands.
    */
-  private async executePipeline(classified: ClassifiedMutations, gameId: string): Promise<void> {
-    return this.pipelineService.executeOutPipeline(classified, gameId);
+  private async executePipeline(classified: ClassifiedMutations, game: Game): Promise<void> {
+    return this.pipelineService.executeOutPipeline(classified, game.id, game.toIndexData());
   }
 
   // ════════════════════════════════════════════════════════════════════════

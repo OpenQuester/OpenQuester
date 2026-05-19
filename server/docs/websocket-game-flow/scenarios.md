@@ -70,6 +70,7 @@ Events:
 Server behavior:
 
 - If the last active player leaves before game start (or after finish), server deletes the game state.
+- Cleanup removes the game hash, package snapshot, timers, expiration warning, action queue, and lobby indexes. The game should no longer appear in `GET /v1/games`.
 
 Events:
 
@@ -377,9 +378,11 @@ Events:
 Server behavior:
 
 - Auto-finishes the question and progresses as needed.
+- If several players skip at nearly the same time, the action queue processes each skip in order against the latest state. Clients may receive multiple `question-skip` broadcasts before the final `question-finish` / progression event.
 
 Events:
 
+- `question-skip` for each accepted player skip
 - `question-finish`
 - Possibly `next-round` or `game-finished`
 

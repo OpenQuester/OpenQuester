@@ -49,6 +49,18 @@ export class GameIndexManager {
     return pipeline;
   }
 
+  public removeGameFromIndexesPipeline(
+    pipeline: ChainableCommander,
+    gameId: string,
+    gameData: GameIndexesInputDTO
+  ): ChainableCommander {
+    pipeline.zrem(this._createdAtIndexKey, gameId);
+    pipeline.srem(this._privacyIndexKey(gameData.isPrivate), gameId);
+    pipeline.zrem(this._titleIndexKey, `${gameData.title.toLowerCase()}:${gameId}`);
+
+    return pipeline;
+  }
+
   public async removeGameFromIndexes(gameId: string, gameData: GameIndexesInputDTO) {
     this.logger.debug("Removing game from indexes", {
       prefix: LogPrefix.GAME_INDEX,
