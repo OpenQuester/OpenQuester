@@ -39,7 +39,7 @@ export function setTestEnvDefaults() {
   process.env.API_DOMAIN = "localhost";
   process.env.SESSION_MAX_AGE = "3600000";
   process.env.REDIS_HOST = "localhost";
-  process.env.REDIS_PORT = "6379";
+  process.env.REDIS_PORT ||= "6379";
   if (!process.env.REDIS_DB_NUMBER) {
     process.env.REDIS_DB_NUMBER = String(getTestRedisDb());
   }

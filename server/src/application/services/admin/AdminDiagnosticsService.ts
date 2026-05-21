@@ -26,7 +26,7 @@ export class AdminDiagnosticsService {
     const eventLoopLagMs = Number(end - start) / 1_000_000;
 
     let redisOk = false;
-    let redisResponseMs: number | null;
+    let redisResponseMs: number | null = null;
 
     const redisStart = process.hrtime.bigint();
     try {
