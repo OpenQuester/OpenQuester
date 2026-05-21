@@ -248,7 +248,7 @@ export class TimerExpirationService {
     }
 
     // Final round bidding timeout (existing flow)
-    const result = await this.finalRoundService.handleFinalBiddingTimeout(gameId);
+    const result = await this.finalRoundService.handleFinalBiddingTimeout(game);
 
     const timeoutBidBroadcasts: BroadcastEvent<FinalBidSubmitOutputData>[] = result.timeoutBids.map(
       (bid) => ({
@@ -513,7 +513,7 @@ export class TimerExpirationService {
    * Handle final round answering timeout - creates auto-loss entries.
    */
   private async handleFinalRoundAnsweringExpiration(game: Game): Promise<TimerExpirationResult> {
-    const result = await this.finalRoundService.processAutoLossAnswers(game.id);
+    const result = await this.finalRoundService.processAutoLossAnswers(game);
 
     const broadcasts: BroadcastEvent[] = [];
 

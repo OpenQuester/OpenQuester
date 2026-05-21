@@ -125,6 +125,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
     }
 
     game.setQuestionState(QuestionState.BIDDING);
+    game.gameState.answerShowData = null;
     game.gameState.stakeQuestionData = stakeData;
 
     // Mark question played and reset media download statuses

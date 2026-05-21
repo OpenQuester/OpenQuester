@@ -86,6 +86,11 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
     game.gameState.answeredPlayers = null;
     game.gameState.skippedPlayers = null;
     game.gameState.answeringPlayer = null;
+    game.gameState.answerShowData = {
+      answerFiles: question?.answerFiles ?? null,
+      answerText: question?.answerText ?? null,
+      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+    };
 
     return {
       data: {
@@ -125,23 +130,18 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
 
   protected collectBroadcasts(
     ctx: TransitionContext,
-    mutationResult: MutationResult,
+    _mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
-    const mutationData =
-      mutationResult.data as ShowingToShowingAnswerMutationData;
     const { game } = ctx;
-    const question = mutationData.question;
 
     const broadcasts: BroadcastEvent[] = [];
+    const answerShowData =
+      game.gameState.answerShowData as QuestionFinishEventPayload;
 
     broadcasts.push({
       event: SocketIOGameEvents.QUESTION_FINISH,
-      data: {
-        answerFiles: question?.answerFiles ?? null,
-        answerText: question?.answerText ?? null,
-        nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-      } satisfies QuestionFinishEventPayload,
+      data: answerShowData,
       room: game.id,
     });
 

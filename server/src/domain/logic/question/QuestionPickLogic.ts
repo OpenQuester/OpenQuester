@@ -60,6 +60,7 @@ export class QuestionPickLogic {
     themeId: number
   ): void {
     // For normal questions, set currentQuestion immediately
+    game.gameState.answerShowData = null;
     game.gameState.currentQuestion = GameQuestionMapper.mapToSimpleQuestion(question);
     GameQuestionMapper.setQuestionPlayed(game, question.id!, themeId);
   }

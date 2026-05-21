@@ -116,6 +116,8 @@ Edge cases (server-handled):
 Notes:
 
 - Treat this as the authoritative initial snapshot for UI.
+- If a socket joins during an active regular question, it also receives the current role-filtered `question-data` event when question text is still active.
+- If a socket joins during `SHOWING_ANSWER`, `gameState.answerShowData` contains the answer reveal payload current sockets already received through `question-finish`.
 
 ### `user-leave`
 
@@ -292,6 +294,7 @@ Edge cases (server-handled):
 Notes:
 
 - The show / reveal flow is now explicit: the server may enter a **show-answer** phase (`SHOWING_ANSWER`) and emit `answer-show-start` before `question-finish`/`answer-show-end` depending on the transition. Clients should handle `answer-show-start`/`answer-show-end` consistently and not assume immediate return to `CHOOSING` on a `question-finish`.
+- During `SHOWING_ANSWER`, the same reveal payload is stored in `gameState.answerShowData` so late joiners can render the current answer display.
 
 Edge cases (server-handled):
 

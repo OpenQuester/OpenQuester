@@ -134,6 +134,12 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     game.gameState.currentQuestion = null;
     game.gameState.stakeQuestionData = null;
     game.gameState.secretQuestionData = null;
+    game.gameState.answerShowData = {
+      answerFiles: question?.answerFiles ?? null,
+      answerText: question?.answerText ?? null,
+      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+      answerResult: playerAnswerResult
+    };
 
     return {
       data: {
@@ -181,7 +187,6 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     const { game } = ctx;
 
     const playerAnswerResult = mutationData.playerAnswerResult;
-    const question = mutationData.question;
 
     const broadcasts: BroadcastEvent[] = [];
 
@@ -196,12 +201,8 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     });
 
     // 2. QUESTION_FINISH - with answer data
-    const questionFinishPayload: QuestionFinishWithAnswerEventPayload = {
-      answerFiles: question?.answerFiles ?? null,
-      answerText: question?.answerText ?? null,
-      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-      answerResult: playerAnswerResult
-    };
+    const questionFinishPayload =
+      game.gameState.answerShowData as QuestionFinishWithAnswerEventPayload;
 
     broadcasts.push({
       event: SocketIOGameEvents.QUESTION_FINISH,

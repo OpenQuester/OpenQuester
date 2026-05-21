@@ -91,6 +91,7 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     }
 
     // Clear any stale special-question data and proceed as a normal question
+    game.gameState.answerShowData = null;
     game.gameState.secretQuestionData = null;
     game.gameState.stakeQuestionData = null;
     game.setQuestionState(questionState);

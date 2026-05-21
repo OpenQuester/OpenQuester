@@ -83,6 +83,7 @@ export class SkipQuestionForceUseCase implements GameActionHandler<
       answerText: question?.answerText ?? null,
       nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null
     };
+    game.gameState.answerShowData = questionFinishPayload;
 
     const broadcasts: SocketEventBroadcast[] = [
       {

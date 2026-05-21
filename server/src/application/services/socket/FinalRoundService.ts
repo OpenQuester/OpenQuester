@@ -82,10 +82,8 @@ export class FinalRoundService {
    * Uses BiddingTimeoutLogic for auto-bid processing,
    * then attempts phase transition via PhaseTransitionRouter.
    */
-  public async handleFinalBiddingTimeout(gameId: string): Promise<BiddingTimeoutResult> {
-    const game = await this.gameService.getGameEntity(gameId);
-
-    if (!game || game.gameState.questionState !== QuestionState.BIDDING) {
+  public async handleFinalBiddingTimeout(game: Game): Promise<BiddingTimeoutResult> {
+    if (game.gameState.questionState !== QuestionState.BIDDING) {
       throw new ClientError(ClientResponse.GAME_NOT_STARTED);
     }
 
@@ -126,9 +124,8 @@ export class FinalRoundService {
    *
    * Uses AutoLossProcessLogic for pure mutation logic.
    */
-  public async processAutoLossAnswers(gameId: string): Promise<AutoLossProcessResult> {
-    const game = await this.gameService.getGameEntity(gameId);
-    if (!game || game.gameState.questionState !== QuestionState.ANSWERING) {
+  public async processAutoLossAnswers(game: Game): Promise<AutoLossProcessResult> {
+    if (game.gameState.questionState !== QuestionState.ANSWERING) {
       throw new ClientError(ClientResponse.GAME_DATA_IS_CORRUPTED);
     }
 

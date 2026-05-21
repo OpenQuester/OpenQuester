@@ -408,6 +408,7 @@ export class Game {
     this.gameState.answeredPlayers = null;
     this.gameState.answeringPlayer = null;
     this.gameState.skippedPlayers = null;
+    this.gameState.answerShowData = null;
     this.gameState.secretQuestionData = null;
     this.gameState.stakeQuestionData = null;
     this.gameState.questionEligiblePlayers = null;

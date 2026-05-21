@@ -12,8 +12,6 @@ import { RedisRepository } from "infrastructure/database/repositories/RedisRepos
  */
 @singleton()
 export class SocketChatRepository {
-  private messageOrderCounter = 0;
-
   constructor(private readonly redisRepository: RedisRepository) {
     //
   }
@@ -34,10 +32,7 @@ export class SocketChatRepository {
 
     const key = this.getGameChatKey(data.gameId, data.gameCreatedAt);
 
-    await this.redisRepository.zadd(key, [
-      this.buildMessageOrderScore(message.timestamp),
-      JSON.stringify(message)
-    ]);
+    await this.redisRepository.zadd(key, [message.timestamp.getTime(), JSON.stringify(message)]);
 
     await this.redisRepository.expire(key, GAME_CHAT_TTL);
 
@@ -55,12 +50,5 @@ export class SocketChatRepository {
     );
 
     return ChatMapper.serializeChatMessages(messages);
-  }
-
-  private buildMessageOrderScore(timestamp: Date): number {
-    this.messageOrderCounter = (this.messageOrderCounter + 1) % 1_000;
-
-    // Redis sorted sets use the score for history order; the counter breaks same-ms ties.
-    return timestamp.getTime() * 1_000 + this.messageOrderCounter;
   }
 }

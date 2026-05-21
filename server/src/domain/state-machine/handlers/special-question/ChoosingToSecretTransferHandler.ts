@@ -85,6 +85,7 @@ export class ChoosingToSecretTransferHandler extends BaseTransitionHandler {
     } satisfies ChoosingToSecretTransferMutationData;
 
     game.setQuestionState(QuestionState.SECRET_TRANSFER);
+    game.gameState.answerShowData = null;
     game.gameState.secretQuestionData = secretData;
 
     // Mark question as played and reset media status for all players

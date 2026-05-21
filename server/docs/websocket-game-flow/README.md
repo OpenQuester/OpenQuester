@@ -23,6 +23,7 @@ Not in scope:
 - **Role-based data filtering**:
   - `question-data`: showman receives full question; others receive a “simple” question.
   - `next-round` in final round: showman receives full round themes/questions; others receive themes with empty questions.
+- **Join snapshots during questions**: joining sockets get `game-data`; during active regular question text they also get role-filtered `question-data`, and during answer reveal they use `gameState.answerShowData`.
 
 ## Docs
 

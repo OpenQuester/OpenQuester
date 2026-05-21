@@ -170,13 +170,13 @@ Events:
 
 Server behavior:
 
-- When the showing timer expires the server moves into the **show-answer** phase (state `SHOWING_ANSWER`) and emits `answer-show-start` (this allows the UI to show the correct answer and related details). When the show-answer phase finishes the server emits `answer-show-end` and then resets to `CHOOSING` (or progresses the round / ends the game if that was the last question).
+- When the showing timer expires the server moves into the **show-answer** phase (state `SHOWING_ANSWER`) and emits `question-finish` plus `answer-show-start` (this allows the UI to show the correct answer and related details). The answer reveal payload is also kept in `gameState.answerShowData` for sockets that join during the reveal phase. When the show-answer phase finishes the server emits `answer-show-end` and then resets to `CHOOSING` (or progresses the round / ends the game if that was the last question).
 
 Events:
 
+- `question-finish`
 - `answer-show-start`
 - `answer-show-end`
-- `question-finish` (when applicable)
 - Possibly `next-round` or `game-finished` (if it was the last question)
 
 ### <a id="answering-timeout"></a> Answering timer expires (normal rounds)

@@ -9,6 +9,7 @@ import { UserNotificationRoomService } from "application/services/socket/UserNot
 import { type Game } from "domain/entities/game/Game";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { type GameAction, type GameActionResult } from "domain/types/action/GameAction";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
@@ -19,7 +20,9 @@ import {
   type GameJoinOutputData,
   type GameLeaveBroadcastData
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { type SecretQuestionTransferBroadcastData } from "domain/types/socket/game/SecretQuestionTransferData";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
@@ -43,6 +46,7 @@ export class SocketActionHooks {
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
+    private readonly packageStore: PackageStore,
     @inject(DI_TOKENS.RealtimeGateway) private readonly realtimeGateway: RealtimeGateway,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
@@ -82,7 +86,7 @@ export class SocketActionHooks {
     }
   }
 
-  private async afterJoinGame({ action, result }: AfterExecutionHookContext): Promise<void> {
+  private async afterJoinGame({ action, game, result }: AfterExecutionHookContext): Promise<void> {
     if (!result.success || !result.data) {
       return;
     }
@@ -103,12 +107,51 @@ export class SocketActionHooks {
       );
     }
 
+    await this.emitCurrentQuestionDataToJoinedSocket(action, game);
+
     if (data.players.length > 1 && currentUserId) {
       await this.userNotificationRoomService.subscribeGameToUserNotifications(
         action.gameId,
         currentUserId
       );
     }
+  }
+
+  private async emitCurrentQuestionDataToJoinedSocket(
+    action: GameAction,
+    game: Game
+  ): Promise<void> {
+    const currentQuestion = game.gameState.currentQuestion;
+    const timer = game.gameState.timer;
+
+    if (!currentQuestion?.id || !timer) {
+      return;
+    }
+
+    const questionWithTheme = await this.packageStore.getQuestionWithTheme(
+      game.id,
+      currentQuestion.id
+    );
+
+    if (!questionWithTheme) {
+      return;
+    }
+
+    const joinedPlayer = game.getPlayer(action.playerId, {
+      fetchDisconnected: false
+    });
+    const questionData =
+      joinedPlayer?.role === PlayerRole.SHOWMAN
+        ? questionWithTheme.question
+        : GameQuestionMapper.mapToSimpleQuestion(questionWithTheme.question);
+
+    this.realtimeGateway.publish(
+      RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.QUESTION_DATA, {
+        data: questionData,
+        timer,
+        questionEligiblePlayers: game.getQuestionEligiblePlayers()
+      } satisfies GameQuestionDataEventPayload)
+    );
   }
 
   private async afterLeaveGame({ action, game, result }: AfterExecutionHookContext): Promise<void> {
