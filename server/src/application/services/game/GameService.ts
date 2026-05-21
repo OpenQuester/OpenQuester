@@ -107,7 +107,7 @@ export class GameService {
     GameUpdateLogic.applyBasicUpdates(game, updateData);
     GameUpdateLogic.applyPasswordUpdate(game, updateData);
 
-    if (ValueUtils.isNumber(updateData.packageId) && updateData.packageId < 0) {
+    if (ValueUtils.isNumber(updateData.packageId)) {
       const packageData = await this.packageService.getPackageRaw(
         updateData.packageId,
         PACKAGE_SELECT_FIELDS,

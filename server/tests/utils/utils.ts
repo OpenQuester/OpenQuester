@@ -30,10 +30,10 @@ export function setTestEnvDefaults() {
   if (!process.env.DB_NAME) {
     process.env.DB_NAME = getTestDbName();
   }
-  process.env.DB_USER = "postgres";
-  process.env.DB_PASS = "postgres";
-  process.env.DB_HOST = "localhost";
-  process.env.DB_PORT = "5432";
+  process.env.DB_USER ||= "postgres";
+  process.env.DB_PASS ||= "postgres";
+  process.env.DB_HOST ||= "localhost";
+  process.env.DB_PORT ||= "5432";
   process.env.DB_LOGGER = "false";
   process.env.SESSION_SECRET = "test_secret";
   process.env.API_DOMAIN = "localhost";

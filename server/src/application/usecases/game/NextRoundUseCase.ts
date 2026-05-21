@@ -1,19 +1,28 @@
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
 import { SocketGameTimerService } from "application/services/socket/SocketGameTimerService";
+import { FINAL_ROUND_THEME_ELIMINATION_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { type Game } from "domain/entities/game/Game";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
+import {
+  type ActionExecutionContext,
+  type TimerMutation
+} from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
 import { DataMutationConverter } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
+import { type GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
+import { type GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { type GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { type EmptyInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { GameValidator } from "domain/validators/GameValidator";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
-import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 
 /**
  * Handles advancing to the next round.
@@ -21,8 +30,8 @@ import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO
  * Flow:
  * 1. Validate showman role and game-in-progress state
  * 2. Fetch current question data (for statistics/finish broadcast)
- * 3. Clear active timer via mutation
- * 4. Execute round progression via round handler
+ * 3. Execute round progression via round handler
+ * 4. Rebuild timer mutations for the next round
  * 5. Delegate game progression broadcasting to coordinator
  */
 export class NextRoundUseCase implements GameActionHandler<
@@ -54,9 +63,6 @@ export class NextRoundUseCase implements GameActionHandler<
       ? await this.packageStore.getQuestion(game.id, currentQuestionId)
       : null;
 
-    // Build timer clear mutation (replaces direct gameService.clearTimer call)
-    const timerClearMutation = this.socketGameTimerService.buildClearTimerMutation(game.id);
-
     // Execute round progression
     const roundHandler = RoundHandlerFactory.createFromGame(game);
     roundHandler.validateRoundProgression(game);
@@ -75,6 +81,12 @@ export class NextRoundUseCase implements GameActionHandler<
       nextRound: nextRoundData
     });
 
+    const timerMutations = this.buildNextRoundTimerMutations(
+      game,
+      nextRoundData,
+      nextGameState
+    );
+
     // Delegate game progression broadcasting to coordinator
     const progressionResult = await this.gameProgressionCoordinator.processGameProgression({
       game,
@@ -90,7 +102,7 @@ export class NextRoundUseCase implements GameActionHandler<
     });
 
     const mutations = [
-      ...DataMutationConverter.mutationFromTimerMutations([timerClearMutation]),
+      ...DataMutationConverter.mutationFromTimerMutations(timerMutations),
       ...DataMutationConverter.mutationFromSocketBroadcasts(progressionResult.broadcasts)
     ];
 
@@ -105,5 +117,37 @@ export class NextRoundUseCase implements GameActionHandler<
       mutations,
       broadcastGame: game
     };
+  }
+
+  private buildNextRoundTimerMutations(
+    game: Game,
+    nextRoundData: GameStateRoundDTO | null,
+    nextGameState: GameStateDTO | null
+  ): TimerMutation[] {
+    const timerMutations = [
+      this.socketGameTimerService.buildClearTimerMutation(game.id)
+    ];
+
+    const shouldStartThemeEliminationTimer =
+      !!nextGameState && nextRoundData?.type === PackageRoundType.FINAL;
+
+    if (!shouldStartThemeEliminationTimer) {
+      return timerMutations;
+    }
+
+    const themeEliminationTimer = new GameStateTimer(
+      FINAL_ROUND_THEME_ELIMINATION_TIME
+    ).start();
+
+    nextGameState.timer = themeEliminationTimer;
+    game.gameState.timer = themeEliminationTimer;
+    timerMutations.push({
+      op: "set",
+      key: timerKey(game.id),
+      value: JSON.stringify(themeEliminationTimer),
+      pxTtl: FINAL_ROUND_THEME_ELIMINATION_TIME
+    });
+
+    return timerMutations;
   }
 }

@@ -169,6 +169,44 @@ describe("Socket Game Flow Tests", () => {
         await utils.cleanupGameClients(setup);
       });
     });
+
+    it("should no-op when leaving after already leaving the game", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { playerSockets, showmanSocket } = setup;
+
+      try {
+        await utils.leaveGame(playerSockets[0]);
+
+        const playerSessionAfterLeave = await utils.getSocketUserData(playerSockets[0]);
+        expect(playerSessionAfterLeave?.gameId).toBeNull();
+
+        const noShowmanLeavePromise = utils.waitForNoEvent(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
+        );
+        const noPlayerLeavePromise = utils.waitForNoEvent(
+          playerSockets[0],
+          SocketIOGameEvents.LEAVE
+        );
+        const noPlayerErrorPromise = utils.waitForNoEvent(
+          playerSockets[0],
+          SocketIOEvents.ERROR
+        );
+
+        playerSockets[0].emit(SocketIOGameEvents.LEAVE);
+
+        await Promise.all([
+          noShowmanLeavePromise,
+          noPlayerLeavePromise,
+          noPlayerErrorPromise,
+        ]);
+
+        const playerSessionAfterNoop = await utils.getSocketUserData(playerSockets[0]);
+        expect(playerSessionAfterNoop?.gameId).toBeNull();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
   });
 
   describe("Game Start Flow", () => {

@@ -3,7 +3,6 @@ import { inject, singleton } from "tsyringe";
 import { DI_TOKENS } from "shared/di/tokens";
 import { RealtimeEvents } from "application/ports/realtime/RealtimeEvent";
 import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
-import { GameService } from "application/services/game/GameService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
@@ -44,7 +43,6 @@ export class SocketActionHooks {
     private readonly socketGameContextService: SocketGameContextService,
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
-    private readonly gameService: GameService,
     @inject(DI_TOKENS.RealtimeGateway) private readonly realtimeGateway: RealtimeGateway,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
@@ -113,11 +111,10 @@ export class SocketActionHooks {
     }
   }
 
-  private async afterLeaveGame({ action, result }: AfterExecutionHookContext): Promise<void> {
-    try {
-      const game = await this.gameService.getGameEntity(action.gameId);
-      const allPlayerIds = game.players.map((p) => p.meta.id);
+  private async afterLeaveGame({ action, game, result }: AfterExecutionHookContext): Promise<void> {
+    const allPlayerIds = game.players.map((p) => p.meta.id);
 
+    try {
       await this.userNotificationRoomService.unsubscribeFromMultipleUserNotifications(
         action.socketId,
         allPlayerIds

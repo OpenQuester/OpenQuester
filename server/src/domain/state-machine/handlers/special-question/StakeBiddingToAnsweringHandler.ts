@@ -88,6 +88,7 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     const winnerPlayerId = payload?.winnerPlayerId ?? stakeData.winnerPlayerId!;
 
     const questionData = ctx.resources?.simpleQuestion ?? null;
+    const fullQuestionData = ctx.resources?.questionWithTheme?.question ?? null;
     if (questionData) {
       game.gameState.currentQuestion = questionData;
     }
@@ -104,7 +105,8 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
       data: {
         winnerPlayerId,
         finalBid: stakeData.highestBid,
-        questionData
+        questionData,
+        fullQuestionData
       } satisfies StakeBiddingToAnsweringMutationData
     };
   }
@@ -155,15 +157,18 @@ export class StakeBiddingToAnsweringHandler extends BaseTransitionHandler {
     });
 
     // 2. QUESTION_DATA - sends question to all players
-    if (data.questionData && timerResult.timer) {
+    const questionPayload = data.fullQuestionData ?? data.questionData;
+
+    if (questionPayload && timerResult.timer) {
       broadcasts.push({
         event: SocketIOGameEvents.QUESTION_DATA,
         data: {
-          data: data.questionData,
+          data: questionPayload,
           timer: timerResult.timer,
           questionEligiblePlayers: game.getQuestionEligiblePlayers()
         } satisfies GameQuestionDataEventPayload,
-        room: game.id
+        room: game.id,
+        roleFilter: Boolean(data.fullQuestionData)
       });
     }
 

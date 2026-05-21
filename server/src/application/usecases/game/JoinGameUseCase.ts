@@ -1,8 +1,12 @@
 import { SocketIOChatService } from "application/services/socket/SocketIOChatService";
 import { UserService } from "application/services/user/UserService";
 import { GAME_CHAT_HISTORY_RETRIEVAL_LIMIT } from "domain/constants/game";
+import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { DataMutationType } from "domain/enums/DataMutationType";
+import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { PlayerRole } from "domain/types/game/PlayerRole";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
@@ -15,6 +19,7 @@ import {
   type BroadcastMutation,
 } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
+import { type GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import {
   type GameJoinInputData,
   type GameJoinOutputData,
@@ -98,7 +103,7 @@ export class JoinGameUseCase
     const gameJoinData: GameJoinOutputData = {
       meta: { title: game.title },
       players: game.players.map((p) => p.toDTO()),
-      gameState: game.gameState,
+      gameState: this.buildJoinVisibleGameState(game, player.role),
       chatMessages,
     };
 
@@ -155,6 +160,61 @@ export class JoinGameUseCase
           : []),
       ],
       broadcastGame: game,
+    };
+  }
+
+  private buildJoinVisibleGameState(game: Game, joinedRole: PlayerRole): GameStateDTO {
+    const gameState = game.gameState;
+    const currentRound = this.buildJoinVisibleCurrentRound(gameState, joinedRole);
+    const finalRoundData = this.buildJoinVisibleFinalRoundData(gameState);
+
+    if (currentRound === gameState.currentRound && finalRoundData === gameState.finalRoundData) {
+      return gameState;
+    }
+
+    return {
+      ...gameState,
+      currentRound,
+      finalRoundData,
+    };
+  }
+
+  private buildJoinVisibleCurrentRound(
+    gameState: GameStateDTO,
+    joinedRole: PlayerRole
+  ): GameStateDTO["currentRound"] {
+    const currentRound = gameState.currentRound;
+    const canSeeFinalRoundQuestions = joinedRole === PlayerRole.SHOWMAN;
+
+    if (currentRound?.type !== PackageRoundType.FINAL || canSeeFinalRoundQuestions) {
+      return currentRound;
+    }
+
+    return {
+      ...currentRound,
+      themes: currentRound.themes.map((theme) => ({
+        ...theme,
+        questions: [],
+      })),
+    };
+  }
+
+  private buildJoinVisibleFinalRoundData(
+    gameState: GameStateDTO
+  ): GameStateDTO["finalRoundData"] {
+    const finalRoundData = gameState.finalRoundData;
+
+    if (finalRoundData?.phase !== FinalRoundPhase.ANSWERING) {
+      return finalRoundData;
+    }
+
+    return {
+      ...finalRoundData,
+      // Submitted final answers stay private until review reveals all answers.
+      answers: finalRoundData.answers.map((answer) => ({
+        ...answer,
+        answer: "",
+      })),
     };
   }
 }

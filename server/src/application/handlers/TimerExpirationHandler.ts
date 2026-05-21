@@ -4,8 +4,10 @@ import { DI_TOKENS } from "shared/di/tokens";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { GameService } from "application/services/game/GameService";
 import { GAME_TTL_IN_SECONDS, SYSTEM_PLAYER_ID, SYSTEM_SOCKET_ID } from "domain/constants/game";
+import { type Game } from "domain/entities/game/Game";
 import { TIMER_NSP } from "domain/constants/timer";
 import { GameActionType } from "domain/enums/GameActionType";
+import { GamePhase, getGamePhase } from "domain/state-machine/types";
 import { GameAction } from "domain/types/action/GameAction";
 import { TimerActionPayload } from "domain/types/action/TimerActionPayload";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -67,7 +69,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     }
 
     const questionState = game.gameState.questionState;
-    const actionType = this.getTimerActionType(questionState);
+    const actionType = this.getTimerActionType(game);
 
     const action: GameAction<TimerActionPayload> = {
       id: ValueUtils.generateUUID(),
@@ -87,7 +89,14 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     await this.actionExecutor.submitAction(action);
   }
 
-  private getTimerActionType(questionState: QuestionState | null): GameActionType {
+  private getTimerActionType(game: Game): GameActionType {
+    const questionState = game.gameState.questionState;
+
+    // Final answering shares ANSWERING question state, so phase decides its timer action.
+    if (getGamePhase(game) === GamePhase.FINAL_ANSWERING) {
+      return GameActionType.TIMER_FINAL_ANSWERING_EXPIRED;
+    }
+
     switch (questionState) {
       case QuestionState.MEDIA_DOWNLOADING:
         return GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED;

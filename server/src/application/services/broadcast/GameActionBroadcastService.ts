@@ -11,8 +11,10 @@ import {
   SocketIOUserEvents
 } from "domain/enums/SocketIOEvents";
 import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
+import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
@@ -83,7 +85,15 @@ export class GameActionBroadcastService {
           if (gameId) {
             // Handle role-based broadcasts
             if (broadcast.useRoleBasedBroadcast) {
-              await this.emitWithRoleBasedFiltering(broadcast.event, game);
+              if (broadcast.event === SocketIOGameEvents.QUESTION_DATA) {
+                await this.emitQuestionDataWithRoleBasedFiltering(
+                  gameId,
+                  broadcast.data,
+                  game
+                );
+              } else {
+                await this.emitWithRoleBasedFiltering(broadcast.event, game);
+              }
             } else {
               this.realtimeGateway.publish(
                 RealtimeEvents.toRoom(gameId, broadcast.event, broadcast.data)
@@ -142,6 +152,41 @@ export class GameActionBroadcastService {
       // Fallback to regular room emit if role-based filtering fails
       this.realtimeGateway.publish(
         RealtimeEvents.toRoom(game.id, event, { gameState: game.gameState })
+      );
+    }
+  }
+
+  private async emitQuestionDataWithRoleBasedFiltering(
+    gameId: string,
+    data: unknown,
+    game: Game
+  ): Promise<void> {
+    const payload = data as GameQuestionDataEventPayload & {
+      data: PackageQuestionDTO;
+    };
+
+    try {
+      const socketIds = await this.realtimeGateway.getRoomSocketIds(gameId);
+      const broadcastMap = await this.questionService.mapSocketToQuestionPayload(
+        socketIds,
+        game,
+        payload.data
+      );
+
+      for (const [socketId, questionData] of broadcastMap.entries()) {
+        this.realtimeGateway.publish(
+          RealtimeEvents.toSocket(socketId, SocketIOGameEvents.QUESTION_DATA, {
+            ...payload,
+            data: questionData
+          } satisfies GameQuestionDataEventPayload)
+        );
+      }
+    } catch (error: unknown) {
+      this.logger.error(
+        `Error in question-data role-based filtering emit: ${JSON.stringify(error)}`,
+        {
+          prefix: LogPrefix.BROADCAST
+        }
       );
     }
   }

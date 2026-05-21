@@ -18,16 +18,45 @@ import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeave
 import {
   GameLeaveBroadcastData,
   PlayerKickBroadcastData,
+  PlayerRestrictionBroadcastData,
+  PlayerRoleChangeBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
 import { PlayerGameStatsRepository } from "infrastructure/database/repositories/statistics/PlayerGameStatsRepository";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import {
+  type GameClientSocket,
+  SocketGameTestUtils,
+} from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { container } from "tsyringe";
+
+function waitForSocketDisconnect(socket: GameClientSocket): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let timeout: NodeJS.Timeout | null = null;
+
+    const onDisconnect = (): void => {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+
+      socket.off("disconnect", onDisconnect);
+      resolve();
+    };
+
+    timeout = setTimeout(() => {
+      timeout = null;
+      socket.off("disconnect", onDisconnect);
+      reject(new Error("Socket disconnect event not received within timeout"));
+    }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
+
+    socket.once("disconnect", onDisconnect);
+  });
+}
 
 describe("PlayerRestrictions", () => {
   let testEnv: TestEnvironment;
@@ -172,6 +201,89 @@ describe("PlayerRestrictions", () => {
     }
   });
 
+
+  it("should broadcast role change and persist spectator role when restricting a player", async () => {
+    const userRepo = testEnv.getDatabase().getRepository(User);
+    const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
+
+    try {
+      const targetPlayerId = setup.playerUsers[0].id;
+      const targetPlayerSocket = setup.playerSockets[0];
+      const spectatorSocket = setup.spectatorSockets[0];
+
+      const restrictionEventPromise = utils.waitForEvent<PlayerRestrictionBroadcastData>(
+        setup.showmanSocket,
+        SocketIOGameEvents.PLAYER_RESTRICTED
+      );
+      const showmanRoleChangePromise = utils.waitForEvent<PlayerRoleChangeBroadcastData>(
+        setup.showmanSocket,
+        SocketIOGameEvents.PLAYER_ROLE_CHANGE
+      );
+      const targetRoleChangePromise = utils.waitForEvent<PlayerRoleChangeBroadcastData>(
+        targetPlayerSocket,
+        SocketIOGameEvents.PLAYER_ROLE_CHANGE
+      );
+      const spectatorRoleChangePromise = utils.waitForEvent<PlayerRoleChangeBroadcastData>(
+        spectatorSocket,
+        SocketIOGameEvents.PLAYER_ROLE_CHANGE
+      );
+
+      setup.showmanSocket.emit(SocketIOGameEvents.PLAYER_RESTRICTED, {
+        playerId: targetPlayerId,
+        muted: false,
+        restricted: true,
+        banned: false,
+      });
+
+      const [restrictionData, showmanRoleChange, targetRoleChange, spectatorRoleChange] =
+        await Promise.all([
+          restrictionEventPromise,
+          showmanRoleChangePromise,
+          targetRoleChangePromise,
+          spectatorRoleChangePromise,
+        ]);
+
+      expect(restrictionData).toMatchObject({
+        playerId: targetPlayerId,
+        muted: false,
+        restricted: true,
+        banned: false,
+      });
+
+      for (const roleChangeData of [
+        showmanRoleChange,
+        targetRoleChange,
+        spectatorRoleChange,
+      ]) {
+        expect(roleChangeData.playerId).toBe(targetPlayerId);
+        expect(roleChangeData.newRole).toBe(PlayerRole.SPECTATOR);
+        expect(roleChangeData.players).toContainEqual(
+          expect.objectContaining({
+            meta: expect.objectContaining({ id: targetPlayerId }),
+            role: PlayerRole.SPECTATOR,
+            slot: null,
+            restrictionData: expect.objectContaining({ restricted: true }),
+          })
+        );
+      }
+
+      await utils.waitForNoEvent(setup.showmanSocket, SocketIOGameEvents.LEAVE);
+
+      const game = await utils.getGameFromGameService(setup.gameId);
+      const restrictedPlayer = game.getPlayer(targetPlayerId, {
+        fetchDisconnected: true,
+      });
+
+      expect(restrictedPlayer).toBeDefined();
+      expect(restrictedPlayer!.role).toBe(PlayerRole.SPECTATOR);
+      expect(restrictedPlayer!.gameSlot).toBeNull();
+      expect(restrictedPlayer!.isRestricted).toBe(true);
+      expect(targetPlayerSocket.connected).toBe(true);
+    } finally {
+      await utils.cleanupGameClients(setup);
+    }
+  });
+
   it("should prevent banned player from joining in any role", async () => {
     const userRepo = testEnv.getDatabase().getRepository(User);
     const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
@@ -282,6 +394,59 @@ describe("PlayerRestrictions", () => {
       });
 
       await utils.disconnectAndCleanup(bannedSocket);
+    } finally {
+      await utils.cleanupGameClients(setup);
+    }
+  });
+
+
+  it("should force-disconnect banned player after restriction and leave broadcasts", async () => {
+    const userRepo = testEnv.getDatabase().getRepository(User);
+    const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
+
+    try {
+      const targetPlayerId = setup.playerUsers[0].id;
+      const bannedPlayerSocket = setup.playerSockets[0];
+
+      const restrictionEventPromise = utils.waitForEvent<PlayerRestrictionBroadcastData>(
+        setup.showmanSocket,
+        SocketIOGameEvents.PLAYER_RESTRICTED
+      );
+      const leaveEventPromise = utils.waitForEvent<GameLeaveBroadcastData>(
+        setup.showmanSocket,
+        SocketIOGameEvents.LEAVE
+      );
+      const disconnectPromise = waitForSocketDisconnect(bannedPlayerSocket);
+
+      setup.showmanSocket.emit(SocketIOGameEvents.PLAYER_RESTRICTED, {
+        playerId: targetPlayerId,
+        muted: false,
+        restricted: false,
+        banned: true,
+      });
+
+      const [restrictionData, leaveData] = await Promise.all([
+        restrictionEventPromise,
+        leaveEventPromise,
+        disconnectPromise,
+      ]);
+
+      expect(restrictionData).toMatchObject({
+        playerId: targetPlayerId,
+        muted: false,
+        restricted: false,
+        banned: true,
+      });
+      expect(leaveData.user).toBe(targetPlayerId);
+      expect(bannedPlayerSocket.connected).toBe(false);
+
+      const game = await utils.getGameFromGameService(setup.gameId);
+      const bannedPlayer = game.getPlayer(targetPlayerId, {
+        fetchDisconnected: true,
+      });
+
+      expect(bannedPlayer).toBeDefined();
+      expect(bannedPlayer!.isBanned).toBe(true);
     } finally {
       await utils.cleanupGameClients(setup);
     }

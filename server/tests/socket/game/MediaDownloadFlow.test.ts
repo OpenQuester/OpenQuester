@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/glo
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
@@ -292,7 +293,10 @@ describe("Media Download Flow Tests", () => {
           TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
         );
 
-        await testUtils.expireTimer(gameId);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED
+        );
 
         const statusData = await statusPromise;
 
@@ -343,7 +347,10 @@ describe("Media Download Flow Tests", () => {
           TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
         );
 
-        await testUtils.expireTimer(gameId);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED
+        );
 
         const timeoutStatus = await timeoutStatusPromise;
 

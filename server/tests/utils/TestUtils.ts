@@ -3,8 +3,10 @@ import { container } from "tsyringe";
 import { GameService } from "application/services/game/GameService";
 import { GAME_EXPIRATION_WARNING_NAMESPACE } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
+import { GameJoinOutputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { type Express } from "express";
@@ -171,7 +173,7 @@ export class TestUtils {
   /**
    * Wait for specified time
    */
-  public async wait(ms: number): Promise<void> {
+  private async wait(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
@@ -215,18 +217,32 @@ export class TestUtils {
    *
    * @param gameId - The game ID for the timer
    * @param keyPattern - Optional pattern for specific timer types (e.g., "media-download")
-   * @param waitMs - Time to wait after expiration for event processing (default: 150ms)
    */
-  public async expireTimer(
-    gameId: string,
-    keyPattern: string = "",
-    waitMs: number = TEST_TIMEOUTS.REDIS_EXPIRY_WAIT_MS
-  ): Promise<void> {
+  public async expireTimer(gameId: string, keyPattern: string = ""): Promise<void> {
     const redisClient = RedisConfig.getClient();
     const timerKey = keyPattern ? `timer:${keyPattern}:${gameId}` : `timer:${gameId}`;
     await redisClient.pexpire(timerKey, 50);
-    // Wait for expiration to be processed by Redis keyspace notifications
-    await this.wait(waitMs);
+  }
+
+  /**
+   * Expire a timer and wait until Redis keyspace handling submits the game action.
+   * Prefer this in socket-flow tests so timer assertions are event/action-driven.
+   */
+  public async expireTimerAndWaitForAction(
+    gameId: string,
+    actionType?: GameActionType,
+    keyPattern: string = "",
+    timeout: number = TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
+  ): Promise<void> {
+    const timerActionSubmitted = this.socketGameTestUtils.waitForSubmittedActions(
+      gameId,
+      1,
+      actionType,
+      timeout
+    );
+
+    await this.expireTimer(gameId, keyPattern);
+    await timerActionSubmitted;
   }
 
   /**
@@ -392,6 +408,14 @@ export class TestUtils {
    */
   public async joinGame(socket: GameClientSocket, gameId: string, role: PlayerRole): Promise<void> {
     return this.socketGameTestUtils.joinGame(socket, gameId, role);
+  }
+
+  public async joinGameWithData(
+    socket: GameClientSocket,
+    gameId: string,
+    role: PlayerRole
+  ): Promise<GameJoinOutputData> {
+    return this.socketGameTestUtils.joinSpecificGameWithData(socket, gameId, role);
   }
 
   /**

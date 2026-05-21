@@ -88,8 +88,9 @@ export class StakeBidSubmitLogic {
       timer
     } = input;
 
-    const mappedQuestionData = questionData?.id
-      ? GameQuestionMapper.mapToSimpleQuestion(questionData)
+    const fullQuestionData = questionData?.id ? questionData : null;
+    const mappedQuestionData = fullQuestionData
+      ? GameQuestionMapper.mapToSimpleQuestion(fullQuestionData)
       : null;
 
     const outputData: StakeBidSubmitOutputData = {
@@ -111,7 +112,7 @@ export class StakeBidSubmitLogic {
     ];
 
     // If bidding phase is complete, announce winner and start question
-    if (isPhaseComplete && winnerPlayerId && mappedQuestionData && timer) {
+    if (isPhaseComplete && winnerPlayerId && fullQuestionData && mappedQuestionData && timer) {
       const finalBid = game.gameState.stakeQuestionData?.highestBid || null;
 
       broadcasts.push({
@@ -127,12 +128,13 @@ export class StakeBidSubmitLogic {
       broadcasts.push({
         event: SocketIOGameEvents.QUESTION_DATA,
         data: {
-          data: mappedQuestionData,
+          data: fullQuestionData,
           timer,
           questionEligiblePlayers: game.getQuestionEligiblePlayers()
         } satisfies GameQuestionDataEventPayload,
         target: SocketBroadcastTarget.GAME,
-        gameId: game.id
+        gameId: game.id,
+        useRoleBasedBroadcast: true
       } satisfies SocketEventBroadcast<GameQuestionDataEventPayload>);
     }
 

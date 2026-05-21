@@ -9,6 +9,7 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -321,7 +322,10 @@ describe("Timer resumedAt Field", () => {
         );
 
         // Expire the answering timer
-        await testUtils.expireTimer(gameId);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED
+        );
 
         const answerResult = await answerResultPromise;
 

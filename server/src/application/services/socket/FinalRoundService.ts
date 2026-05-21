@@ -29,7 +29,6 @@ import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 export class FinalRoundService {
   constructor(
     private readonly gameService: GameService,
-    private readonly roundHandlerFactory: RoundHandlerFactory,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
     private readonly transitionResourceService: TransitionResourceService
   ) {
@@ -63,9 +62,7 @@ export class FinalRoundService {
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
-      resources: await this.transitionResourceService.getFinalRoundQuestionData(
-        game
-      )
+      resources: await this.transitionResourceService.getFinalRoundQuestionData(game)
     });
 
     // Persist game state
@@ -106,9 +103,7 @@ export class FinalRoundService {
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
       triggeredBy: { isSystem: true },
-      resources: await this.transitionResourceService.getFinalRoundQuestionData(
-        game
-      )
+      resources: await this.transitionResourceService.getFinalRoundQuestionData(game)
     });
 
     // Transition must succeed for bidding timeout (all bids now submitted)
@@ -158,10 +153,7 @@ export class FinalRoundService {
         game,
         trigger: TransitionTrigger.CONDITION_MET,
         triggeredBy: { isSystem: true },
-        resources:
-          await this.transitionResourceService.getFinalReviewingToGameFinishResources(
-            game
-          )
+        resources: await this.transitionResourceService.getFinalReviewingToGameFinishResources(game)
       });
 
       // Merge broadcasts from both transitions

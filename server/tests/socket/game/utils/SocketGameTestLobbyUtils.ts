@@ -1,4 +1,6 @@
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { GameActionType } from "domain/enums/GameActionType";
+import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
@@ -10,6 +12,7 @@ import {
   GameJoinOutputData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { type Express } from "express";
+import { container } from "tsyringe";
 import { User } from "infrastructure/database/models/User";
 import request from "supertest";
 import { PackageUtils } from "tests/utils/PackageUtils";
@@ -22,6 +25,7 @@ import { GameClientSocket, GameTestSetup } from "./SocketIOGameTestUtils";
 
 export class SocketGameTestLobbyUtils {
   private packageUtils: PackageUtils;
+  private socketGameContextService = container.resolve(SocketGameContextService);
 
   constructor(
     private userUtils: SocketGameTestUserUtils,
@@ -311,20 +315,23 @@ export class SocketGameTestLobbyUtils {
     if (!socket) return;
 
     const gameId = socket.gameId;
+    const shouldWaitForDisconnectAction =
+      waitForDrain && gameId && (await this.hasServerGameSession(socket, gameId));
 
-    if (socket.connected) {
-      socket.disconnect();
-    }
-    socket.removeAllListeners();
-    socket.close();
-
-    if (!waitForDrain || !gameId) {
+    if (!shouldWaitForDisconnectAction) {
+      this.closeClientSocket(socket);
       return;
     }
 
-    // The server processes disconnect asynchronously through GameActionExecutor.
-    // Give it one short tick to enqueue, then wait for queue/lock drain.
-    await new Promise((resolve) => setTimeout(resolve, TEST_TIMEOUTS.TEST_CLEANUP_DRAIN_MS));
+    const disconnectActionPromise = this.eventUtils.waitForSubmittedActions(
+      gameId,
+      1,
+      GameActionType.DISCONNECT
+    );
+
+    this.closeClientSocket(socket);
+
+    await disconnectActionPromise;
     await this.eventUtils.waitForActionsComplete(gameId);
   }
 
@@ -332,23 +339,70 @@ export class SocketGameTestLobbyUtils {
     try {
       await this.eventUtils.waitForActionsComplete(setup.gameId);
 
-      await this.disconnectAndCleanup(setup.showmanSocket, false);
-
-      await Promise.all(
-        setup.playerSockets.map((socket) => this.disconnectAndCleanup(socket, false))
+      const sockets = [
+        setup.showmanSocket,
+        ...setup.playerSockets,
+        ...setup.spectatorSockets
+      ];
+      const socketsWithServerGameSession = await this.getSocketsWithServerGameSession(
+        setup.gameId,
+        sockets
       );
 
-      await Promise.all(
-        setup.spectatorSockets.map((socket) => this.disconnectAndCleanup(socket, false))
-      );
+      const disconnectActionsPromise =
+        socketsWithServerGameSession.length > 0
+          ? this.eventUtils.waitForSubmittedActions(
+              setup.gameId,
+              socketsWithServerGameSession.length,
+              GameActionType.DISCONNECT
+            )
+          : Promise.resolve();
 
-      // Client-side socket.disconnect() triggers async DisconnectUseCase actions
-      // on the server. Give those handlers a tick to enqueue, then wait for drain.
-      await new Promise((resolve) => setTimeout(resolve, TEST_TIMEOUTS.TEST_CLEANUP_DRAIN_MS));
+      sockets.forEach((socket) => this.closeClientSocket(socket));
+
+      await disconnectActionsPromise;
       await this.eventUtils.waitForActionsComplete(setup.gameId);
     } catch (err) {
       console.error("Error during cleanup:", err);
     }
+  }
+
+  private async getSocketsWithServerGameSession(
+    gameId: string,
+    sockets: GameClientSocket[]
+  ): Promise<GameClientSocket[]> {
+    const socketsWithSession: GameClientSocket[] = [];
+
+    for (const socket of sockets) {
+      if (await this.hasServerGameSession(socket, gameId)) {
+        socketsWithSession.push(socket);
+      }
+    }
+
+    return socketsWithSession;
+  }
+
+  private async hasServerGameSession(socket: GameClientSocket, gameId: string): Promise<boolean> {
+    if (!socket.connected) {
+      return false;
+    }
+
+    const socketId = socket.id;
+    if (!socketId) {
+      return false;
+    }
+
+    const serverGameId = await this.socketGameContextService.getGameIdForSocket(socketId);
+    return serverGameId === gameId;
+  }
+
+  private closeClientSocket(socket: GameClientSocket): void {
+    if (socket.connected) {
+      socket.disconnect();
+    }
+
+    socket.removeAllListeners();
+    socket.close();
   }
 
   public async deleteGame(app: Express, gameId: string, cookie: string[]): Promise<void> {

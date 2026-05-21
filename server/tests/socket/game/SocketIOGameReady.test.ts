@@ -14,6 +14,10 @@ import {
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import {
+  type GameStartBroadcastData,
+  type PlayerReadinessBroadcastData,
+} from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -104,40 +108,52 @@ describe("SocketIOGameReady", () => {
     });
 
     it("should trigger auto-start when all players are ready", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
-      const { playerSockets, showmanSocket } = setup;
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1);
+      const { playerSockets, showmanSocket, spectatorSockets } = setup;
 
       try {
-        let gameStarted = false;
-
-        // Listen for game start event
-        showmanSocket.on(SocketIOGameEvents.START, () => {
-          gameStarted = true;
-        });
-
-        const noStartPromise = utils.waitForNoEvent(
-          showmanSocket,
-          SocketIOGameEvents.START
-        );
-        // Set first two players ready (should not auto-start yet)
         await utils.setPlayerReady(playerSockets[0]);
         await utils.setPlayerReady(playerSockets[1]);
 
-        await noStartPromise;
+        await utils.waitForNoEvent(showmanSocket, SocketIOGameEvents.START);
 
-        expect(gameStarted).toBe(false);
-
-        const startPromise = utils.waitForEvent(
+        const finalReadyOnShowmanPromise = utils.waitForEvent<PlayerReadinessBroadcastData>(
           showmanSocket,
-          SocketIOGameEvents.START
+          SocketIOGameEvents.PLAYER_READY
+        );
+        const finalReadyOnSpectatorPromise = utils.waitForEvent<PlayerReadinessBroadcastData>(
+          spectatorSockets[0],
+          SocketIOGameEvents.PLAYER_READY
+        );
+        const startPromises = [showmanSocket, ...playerSockets, spectatorSockets[0]].map((socket) =>
+          utils.waitForEvent<GameStartBroadcastData>(socket, SocketIOGameEvents.START)
         );
 
-        // Third player ready should trigger auto-start
         await utils.setPlayerReady(playerSockets[2]);
 
-        await startPromise;
+        const [finalReadyOnShowman, finalReadyOnSpectator, ...startEvents] = await Promise.all([
+          finalReadyOnShowmanPromise,
+          finalReadyOnSpectatorPromise,
+          ...startPromises,
+        ]);
 
-        expect(gameStarted).toBe(true);
+        for (const readyData of [finalReadyOnShowman, finalReadyOnSpectator]) {
+          expect(readyData.playerId).toBe(setup.playerUsers[2].id);
+          expect(readyData.isReady).toBe(true);
+          expect(readyData.autoStartTriggered).toBe(true);
+          expect(readyData.readyPlayers).toEqual(
+            expect.arrayContaining(setup.playerUsers.map((user) => user.id))
+          );
+        }
+
+        for (const startData of startEvents) {
+          expect(startData.currentRound).toBeDefined();
+          expect(startData.currentRound.order).toBe(0);
+        }
+
+        const gameState = await utils.getGameState(setup.gameId);
+        expect(gameState?.currentRound?.order).toBe(0);
+        expect(gameState?.readyPlayers).toBeNull();
       } finally {
         await utils.cleanupGameClients(setup);
       }

@@ -717,8 +717,12 @@ export class SocketGameTestFlowUtils {
 
     await answerResultPromise;
 
-    // Game state is saved before broadcasts, so state should be updated
-    const gameState = await this.stateUtils.getGameState(showmanSocket.gameId!);
+    const gameAfterAnswerResult = await this.stateUtils.getGame(showmanSocket.gameId!);
+    if (gameAfterAnswerResult.finishedAt) {
+      return;
+    }
+
+    const gameState = gameAfterAnswerResult.gameState;
 
     // Handle case when no eligible players remain and show answer phase is started
     if (gameState?.questionState === QuestionState.SHOWING_ANSWER) {

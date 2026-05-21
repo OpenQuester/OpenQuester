@@ -9,6 +9,7 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import {
@@ -137,7 +138,10 @@ describe("Show Answer Flow Tests", () => {
         );
 
         // Expire the timer
-        await testUtils.expireTimer(gameId);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
 
         // Wait for ANSWER_SHOW_END event
         const answerShowEndData = await answerShowEndPromise;
@@ -334,7 +338,10 @@ describe("Show Answer Flow Tests", () => {
         );
 
         // Expire the timer
-        await testUtils.expireTimer(gameId);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
 
         // Wait for NEXT_ROUND event (game should progress since all questions are played)
         await nextRoundPromise;

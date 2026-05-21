@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { SYSTEM_PLAYER_ID } from "domain/constants/game";
+import { GameActionType } from "domain/enums/GameActionType";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -86,6 +88,107 @@ describe("Final Round Bidding Logic", () => {
 
       // Clean up
       await utils.cleanupGameClients(setupResult);
+    });
+
+    it("should auto-eliminate the last theme on timer expiration and enter bidding", async () => {
+      const setupResult = await utils.setupFinalRoundGame({
+        playersCount: 3,
+        playerScores: [1500, 1200, 1000]
+      });
+
+      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setupResult;
+      const spectatorSocket = spectatorSockets[0];
+
+      try {
+        let gameState = await utils.getGameState(gameId);
+        let activeThemes =
+          gameState.currentRound?.themes?.filter(
+            (theme) => !theme.questions?.some((question) => question.isPlayed)
+          ) ?? [];
+
+        while (activeThemes.length > 2) {
+          const [themeToEliminate] = activeThemes;
+          const eliminationPromise = utils.waitForEvent<ThemeEliminateOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.THEME_ELIMINATE
+          );
+
+          showmanSocket.emit(SocketIOGameEvents.THEME_ELIMINATE, {
+            themeId: themeToEliminate.id
+          });
+          await eliminationPromise;
+
+          gameState = await utils.getGameState(gameId);
+          activeThemes =
+            gameState.currentRound?.themes?.filter(
+              (theme) => !theme.questions?.some((question) => question.isPlayed)
+            ) ?? [];
+        }
+
+        const remainingThemeIds = activeThemes.map((theme) => theme.id);
+        const themeEliminatePromises = [
+          utils.waitForEvent<ThemeEliminateOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.THEME_ELIMINATE
+          ),
+          utils.waitForEvent<ThemeEliminateOutputData>(
+            playerSockets[0],
+            SocketIOGameEvents.THEME_ELIMINATE
+          ),
+          utils.waitForEvent<ThemeEliminateOutputData>(
+            spectatorSocket,
+            SocketIOGameEvents.THEME_ELIMINATE
+          )
+        ];
+        const phaseCompletePromises = [
+          utils.waitForEvent<FinalPhaseCompleteEventData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_PHASE_COMPLETE
+          ),
+          utils.waitForEvent<FinalPhaseCompleteEventData>(
+            playerSockets[0],
+            SocketIOGameEvents.FINAL_PHASE_COMPLETE
+          ),
+          utils.waitForEvent<FinalPhaseCompleteEventData>(
+            spectatorSocket,
+            SocketIOGameEvents.FINAL_PHASE_COMPLETE
+          )
+        ];
+
+        await utils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_THEME_ELIMINATION_EXPIRED
+        );
+
+        const timeoutEliminations = await Promise.all(themeEliminatePromises);
+        const phaseCompletions = await Promise.all(phaseCompletePromises);
+
+        for (const elimination of timeoutEliminations) {
+          expect(remainingThemeIds).toContain(elimination.themeId);
+          expect(elimination.eliminatedBy).toBe(SYSTEM_PLAYER_ID);
+          expect(elimination.nextPlayerId).toBeNull();
+        }
+
+        for (const phaseComplete of phaseCompletions) {
+          expect(phaseComplete.phase).toBe(FinalRoundPhase.THEME_ELIMINATION);
+          expect(phaseComplete.nextPhase).toBe(FinalRoundPhase.BIDDING);
+          expect(phaseComplete.timer).toBeDefined();
+          expect(phaseComplete.timer!.durationMs).toBe(45000);
+        }
+
+        const finalGameState = await utils.getGameState(gameId);
+        const eliminatedThemeIds = finalGameState.finalRoundData?.eliminatedThemes ?? [];
+        const activeThemeIds = remainingThemeIds.filter(
+          (themeId) => !eliminatedThemeIds.includes(themeId)
+        );
+
+        expect(finalGameState.finalRoundData?.phase).toBe(FinalRoundPhase.BIDDING);
+        expect(finalGameState.questionState).toBe(QuestionState.BIDDING);
+        expect(finalGameState.timer?.durationMs).toBe(45000);
+        expect(activeThemeIds).toHaveLength(1);
+      } finally {
+        await utils.cleanupGameClients(setupResult);
+      }
     });
 
     it("should automatically bid 1 for players with score <= 1", async () => {
@@ -185,6 +288,119 @@ describe("Final Round Bidding Logic", () => {
 
       // Clean up
       await utils.cleanupGameClients(setupResult);
+    });
+
+    it("should broadcast timeout auto-bids before revealing final question", async () => {
+      const setupResult = await utils.setupFinalRoundGame({
+        playersCount: 3,
+        playerScores: [1500, 1200, 1000]
+      });
+
+      const {
+        showmanSocket,
+        playerSockets,
+        spectatorSockets,
+        gameId,
+        playerUsers
+      } = setupResult;
+      const spectatorSocket = spectatorSockets[0];
+      const showmanAutoBids: FinalBidSubmitOutputData[] = [];
+      const playerAutoBids: FinalBidSubmitOutputData[] = [];
+      const spectatorAutoBids: FinalBidSubmitOutputData[] = [];
+
+      try {
+        const biddingPhasePromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.FINAL_PHASE_COMPLETE
+        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
+        await biddingPhasePromise;
+
+        const manualBidPromise = utils.waitForEvent<FinalBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
+        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 700 });
+        const manualBid = await manualBidPromise;
+        expect(manualBid).toEqual({
+          playerId: playerUsers[0].id,
+          bidAmount: 700
+        });
+
+        const recordAutoBid =
+          (events: FinalBidSubmitOutputData[]) =>
+          (data: FinalBidSubmitOutputData): void => {
+            if (data.isAutomatic) {
+              events.push(data);
+            }
+          };
+
+        showmanSocket.on(
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          recordAutoBid(showmanAutoBids)
+        );
+        playerSockets[1].on(
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          recordAutoBid(playerAutoBids)
+        );
+        spectatorSocket.on(
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          recordAutoBid(spectatorAutoBids)
+        );
+
+        const questionDataPromises = [
+          utils.waitForEvent<FinalQuestionEventData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_QUESTION_DATA
+          ),
+          utils.waitForEvent<FinalQuestionEventData>(
+            playerSockets[1],
+            SocketIOGameEvents.FINAL_QUESTION_DATA
+          ),
+          utils.waitForEvent<FinalQuestionEventData>(
+            spectatorSocket,
+            SocketIOGameEvents.FINAL_QUESTION_DATA
+          )
+        ];
+        const phaseCompletePromise = utils.waitForEvent<FinalPhaseCompleteEventData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_PHASE_COMPLETE
+        );
+
+        await utils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_BIDDING_EXPIRED
+        );
+
+        const questionEvents = await Promise.all(questionDataPromises);
+        const phaseComplete = await phaseCompletePromise;
+
+        const expectedTimeoutBids = [
+          { playerId: playerUsers[1].id, bidAmount: 1, isAutomatic: true },
+          { playerId: playerUsers[2].id, bidAmount: 1, isAutomatic: true }
+        ];
+
+        expect(showmanAutoBids).toEqual(expectedTimeoutBids);
+        expect(playerAutoBids).toEqual(expectedTimeoutBids);
+        expect(spectatorAutoBids).toEqual(expectedTimeoutBids);
+
+        for (const questionEvent of questionEvents) {
+          expect(questionEvent.questionData).toBeDefined();
+          expect(questionEvent.questionData.question).toBeDefined();
+        }
+
+        expect(phaseComplete.phase).toBe(FinalRoundPhase.BIDDING);
+        expect(phaseComplete.nextPhase).toBe(FinalRoundPhase.ANSWERING);
+        expect(phaseComplete.timer).toBeDefined();
+
+        const gameState = await utils.getGameState(gameId);
+        expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.ANSWERING);
+        expect(gameState.finalRoundData?.bids[playerUsers[0].id]).toBe(700);
+        expect(gameState.finalRoundData?.bids[playerUsers[1].id]).toBe(1);
+        expect(gameState.finalRoundData?.bids[playerUsers[2].id]).toBe(1);
+      } finally {
+        await utils.cleanupGameClients(setupResult);
+      }
     });
 
     it("should immediately transition to question phase when all players have score <= 1", async () => {

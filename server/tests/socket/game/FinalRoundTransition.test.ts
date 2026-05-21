@@ -9,6 +9,7 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { FINAL_ROUND_THEME_ELIMINATION_TIME } from "domain/constants/game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -35,6 +36,8 @@ function verifyFinalRoundData(gameState: GameStateDTO) {
   }
 
   expect(gameState.questionState).toBe(QuestionState.THEME_ELIMINATION);
+  expect(gameState.timer).toBeDefined();
+  expect(gameState.timer!.durationMs).toBe(FINAL_ROUND_THEME_ELIMINATION_TIME);
 
   // Most importantly - verify final round data is present
   expect(finalData.turnOrder).toBeDefined();

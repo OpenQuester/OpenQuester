@@ -788,10 +788,7 @@ describe("Player Game Statistics Tests", () => {
         });
         await answerResultPromise2;
 
-        // Skip show answer manually without waiting for end event
-        showmanSocket.emit(SocketIOGameEvents.SKIP_SHOW_ANSWER);
-        await new Promise((resolve) => setTimeout(resolve, 50));
-
+        // ANSWER_RESULT is emitted after the stat update; other players can still answer.
         // Verify Player 1 stats (1 correct, 0 wrong)
         const player1Stats = await playerGameStatsRepository.getStats(
           gameId,

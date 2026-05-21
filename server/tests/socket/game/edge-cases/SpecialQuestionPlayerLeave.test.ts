@@ -12,7 +12,12 @@ import { Repository } from "typeorm";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
+import {
+  StakeBidSubmitOutputData,
+  StakeBidType,
+} from "domain/types/socket/events/game/StakeQuestionEventData";
+import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
+import { GameLeaveBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -280,8 +285,14 @@ describe("Special Question Type Player Leave Edge Cases", () => {
     });
 
     it("should auto-pass for leaving player during stake bidding and continue with remaining players", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1);
+      const {
+        showmanSocket,
+        playerSockets,
+        spectatorSockets,
+        gameId,
+        playerUsers,
+      } = setup;
 
       try {
         await utils.startGame(showmanSocket);
@@ -331,26 +342,52 @@ describe("Special Question Type Player Leave Edge Cases", () => {
 
         // Player 1 (next in line) leaves during their turn to bid
         // This should trigger auto-pass for player 1
-        const autoBidPromise = utils.waitForEvent(
+        const autoBidOnShowmanPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
-          SocketIOGameEvents.STAKE_BID_SUBMIT,
-          3000
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        const autoBidOnSpectatorPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+          spectatorSockets[0],
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
         );
 
         playerSockets[1].emit(SocketIOGameEvents.LEAVE);
 
-        // Should receive auto-pass event for leaving player
-        const autoBidData = await autoBidPromise;
-        expect(autoBidData.playerId).toBe(playerUsers[1].id);
-        expect(autoBidData.bidType).toBe(StakeBidType.PASS);
+        const [autoBidData, spectatorAutoBidData, leaveData] = await Promise.all([
+          autoBidOnShowmanPromise,
+          autoBidOnSpectatorPromise,
+          leavePromise,
+        ]);
 
-        // Verify game continues - player 2 should now be current bidder
-        // Since player 2 is last and there's already a bid, they can pass or bid
-        // Let's have player 2 pass to trigger winner determination
-        const stakeWinnerPromise = utils.waitForEvent(
+        expect(leaveData.user).toBe(playerUsers[1].id);
+        expect(autoBidData).toMatchObject({
+          playerId: playerUsers[1].id,
+          bidAmount: null,
+          bidType: StakeBidType.PASS,
+          isPhaseComplete: false,
+          nextBidderId: playerUsers[2].id,
+        });
+        expect(spectatorAutoBidData).toEqual(autoBidData);
+
+        const stateAfterLeave = await utils.getGameState(gameId);
+        expect(stateAfterLeave!.questionState).toBe(QuestionState.BIDDING);
+        expect(stateAfterLeave!.stakeQuestionData?.currentBidderIndex).toBe(2);
+
+        const stakeWinnerPromise = utils.waitForEvent<StakeQuestionWinnerEventData>(
           showmanSocket,
-          SocketIOGameEvents.STAKE_QUESTION_WINNER,
-          3000
+          SocketIOGameEvents.STAKE_QUESTION_WINNER
+        );
+        const spectatorQuestionDataPromise = utils.waitForEvent(
+          spectatorSockets[0],
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const showmanQuestionDataPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
         );
 
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
@@ -358,9 +395,18 @@ describe("Special Question Type Player Leave Edge Cases", () => {
           bidAmount: null,
         });
 
-        const winnerData = await stakeWinnerPromise;
-        // Player 0 should win since they were the only one who bid
+        const [winnerData] = await Promise.all([
+          stakeWinnerPromise,
+          spectatorQuestionDataPromise,
+          showmanQuestionDataPromise,
+        ]);
         expect(winnerData.winnerPlayerId).toBe(playerUsers[0].id);
+        expect(winnerData.finalBid).toBe(200);
+
+        const finalState = await utils.getGameState(gameId);
+        expect(finalState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(finalState!.answeringPlayer).toBe(playerUsers[0].id);
+
       } finally {
         await utils.cleanupGameClients(setup);
       }

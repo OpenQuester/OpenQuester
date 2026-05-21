@@ -1,6 +1,10 @@
 import Joi from "joi";
 
-import { GAME_ID_CHARACTERS_LENGTH, STAKE_QUESTION_MIN_BID } from "domain/constants/game";
+import {
+  FINAL_ROUND_ANSWER_MAX_LENGTH,
+  GAME_ID_CHARACTERS_LENGTH,
+  STAKE_QUESTION_MIN_BID
+} from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import {
@@ -158,7 +162,7 @@ export class GameValidator {
 
   public static validateFinalAnswerSubmit(data: FinalAnswerSubmitInputData) {
     const schema = Joi.object<FinalAnswerSubmitInputData>({
-      answerText: Joi.string().max(255).allow("", null)
+      answerText: Joi.string().max(FINAL_ROUND_ANSWER_MAX_LENGTH).allow("", null)
     });
 
     return this._validate<FinalAnswerSubmitInputData>(data, schema);

@@ -125,6 +125,9 @@ export class QuestionSkipUseCase
     const clearTimerMutation =
       this.socketGameTimerService.buildClearTimerMutation(game.id);
 
+    // Keep saved game state in sync with the deleted Redis timer key.
+    game.setTimer(null);
+
     // Build result with ANSWER_RESULT broadcast
     const result = PlayerSkipLogic.buildGiveUpResult({
       game,

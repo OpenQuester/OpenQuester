@@ -131,75 +131,48 @@ describe("SocketIOGameLobby", () => {
     }
   });
 
-  it("should handle concurrent join/leave operations", async () => {
+  it("should handle repeated join/leave operations", async () => {
     const userRepo = testEnv.getDatabase().getRepository(User);
 
-    // Create game with showman first
     const { socket: showmanSocket, gameId } = await utils.createGameWithShowman(
       app,
       userRepo
     );
 
     try {
-      // Create a player
       const { socket: playerSocket } = await utils.createGameClient(
         app,
         userRepo
       );
 
-      // Test rapid join/leave sequence
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 10000);
-
-        let joinCount = 0;
-        let leaveCount = 0;
+      try {
         const expectedOperations = 5;
 
-        const checkCompletion = () => {
-          if (
-            joinCount === expectedOperations &&
-            leaveCount === expectedOperations
-          ) {
-            clearTimeout(timeout);
-            resolve();
-          }
-        };
+        for (let index = 0; index < expectedOperations; index++) {
+          const joinPromise = utils.waitForEvent(
+            playerSocket,
+            SocketIOGameEvents.GAME_DATA
+          );
+          playerSocket.emit(SocketIOGameEvents.JOIN, {
+            gameId,
+            role: PlayerRole.PLAYER,
+          });
+          await joinPromise;
 
-        playerSocket.on(SocketIOGameEvents.GAME_DATA, () => {
-          joinCount++;
-          checkCompletion();
+          const leavePromise = utils.waitForEvent<GameLeaveEventPayload>(
+            playerSocket,
+            SocketIOGameEvents.LEAVE
+          );
+          playerSocket.emit(SocketIOGameEvents.LEAVE);
+          const leaveResponse = await leavePromise;
 
-          // Immediately leave after joining
-          setTimeout(() => {
-            playerSocket.emit(SocketIOGameEvents.LEAVE);
-          }, 100);
-        });
+          expect(leaveResponse.user).toBeDefined();
+        }
 
-        playerSocket.on(SocketIOGameEvents.LEAVE, () => {
-          leaveCount++;
-          checkCompletion();
-
-          // Join again if we haven't reached the expected count
-          if (joinCount < expectedOperations) {
-            setTimeout(() => {
-              playerSocket.emit(SocketIOGameEvents.JOIN, {
-                gameId,
-                role: PlayerRole.PLAYER,
-              });
-            }, 100);
-          }
-        });
-
-        // Start the sequence
-        playerSocket.emit(SocketIOGameEvents.JOIN, {
-          gameId,
-          role: PlayerRole.PLAYER,
-        });
-      });
-
-      await utils.disconnectAndCleanup(playerSocket);
+        await utils.waitForActionsComplete(gameId);
+      } finally {
+        await utils.disconnectAndCleanup(playerSocket);
+      }
     } finally {
       await utils.disconnectAndCleanup(showmanSocket);
     }

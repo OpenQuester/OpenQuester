@@ -262,9 +262,6 @@ describe("Media Download Player Leave Edge Cases", () => {
         playerSockets[1].emit(SocketIOGameEvents.LEAVE);
         await leavePromise;
 
-        // Give some time for state to settle
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
         // Player 2 still hasn't downloaded, so should remain in MEDIA_DOWNLOADING
         const gameStateAfter = await utils.getGameState(gameId);
         expect(gameStateAfter!.questionState).toBe(
@@ -374,9 +371,6 @@ describe("Media Download Player Leave Edge Cases", () => {
         playerSockets[0].emit(SocketIOGameEvents.LEAVE);
         await leavePromise;
 
-        // Give some time for state to settle
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
         // Player 1 still hasn't downloaded
         const gameStateAfter = await utils.getGameState(gameId);
         expect(gameStateAfter!.questionState).toBe(
@@ -389,7 +383,7 @@ describe("Media Download Player Leave Edge Cases", () => {
   });
 
   describe("All Players Leave During Media Download", () => {
-    it("should handle case when all players leave during media download", async () => {
+    it("should transition to SHOWING when all players leave during media download", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { showmanSocket, playerSockets, gameId } = setup;
 
@@ -425,10 +419,10 @@ describe("Media Download Player Leave Edge Cases", () => {
         const game = await utils.getGameFromGameService(gameId);
         expect(game).toBeDefined();
 
-        // Should remain in MEDIA_DOWNLOADING (no active players to trigger transition)
-        // OR transition to SHOWING if the logic considers "all 0 remaining = all ready"
         const gameStateAfter = await utils.getGameState(gameId);
-        expect(gameStateAfter).toBeDefined();
+        expect(gameStateAfter!.questionState).toBe(QuestionState.SHOWING);
+        expect(gameStateAfter!.timer).toBeDefined();
+        expect(gameStateAfter!.timer).not.toBeNull();
       } finally {
         await utils.cleanupGameClients(setup);
       }
@@ -464,12 +458,10 @@ describe("Media Download Player Leave Edge Cases", () => {
         // Wait for leave to be processed
         await utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
 
-        // Give time for state processing
-        await new Promise((resolve) => setTimeout(resolve, 200));
-
-        // Game should handle this gracefully
         const gameStateAfter = await utils.getGameState(gameId);
-        expect(gameStateAfter).toBeDefined();
+        expect(gameStateAfter!.questionState).toBe(QuestionState.SHOWING);
+        expect(gameStateAfter!.timer).toBeDefined();
+        expect(gameStateAfter!.timer).not.toBeNull();
       } finally {
         await utils.cleanupGameClients(setup);
       }

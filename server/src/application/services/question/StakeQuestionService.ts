@@ -155,10 +155,11 @@ export class StakeQuestionService {
     }
 
     const stakeData = game.gameState.stakeQuestionData!;
-    const stakeQuestion = await this.packageStore.getQuestion(
+    const stakeQuestionData = await this.packageStore.getQuestionWithTheme(
       game.id,
       stakeData.questionId
     );
+    const stakeQuestion = stakeQuestionData?.question ?? null;
     const questionPrice = stakeQuestion?.price ?? 0;
 
     const mutationResult: StakeBiddingTimeoutMutationResult =
@@ -182,8 +183,8 @@ export class StakeQuestionService {
               winnerPlayerId: mutationResult.winnerPlayerId,
               finalBid: mutationResult.highestBid,
             },
-            resources: this.transitionResourceService.fromSimpleQuestion(
-              stakeQuestion
+            resources: this.transitionResourceService.fromQuestionWithTheme(
+              stakeQuestionData
             ),
           }
         );
@@ -233,8 +234,8 @@ export class StakeQuestionService {
             winnerPlayerId: input.winnerPlayerId,
             finalBid: input.finalBid,
           },
-          resources: this.transitionResourceService.fromSimpleQuestion(
-            questionAndTheme.question
+          resources: this.transitionResourceService.fromQuestionWithTheme(
+            questionAndTheme
           ),
         }
       );

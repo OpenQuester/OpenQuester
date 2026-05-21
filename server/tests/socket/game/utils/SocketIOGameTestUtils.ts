@@ -5,6 +5,7 @@ import { Repository } from "typeorm";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { Game } from "domain/entities/game/Game";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { GameActionType } from "domain/enums/GameActionType";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
@@ -316,6 +317,23 @@ export class SocketGameTestUtils {
     timeout: number = TEST_TIMEOUTS.ACTION_QUEUE_WAIT_MS
   ): Promise<void> {
     return this.eventUtils.waitForActionsComplete(gameId, timeout);
+  }
+
+  public async waitForQueueLengthAtLeast(
+    gameId: string,
+    expectedLength: number,
+    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+  ): Promise<void> {
+    return this.eventUtils.waitForQueueLengthAtLeast(gameId, expectedLength, timeout);
+  }
+
+  public async waitForSubmittedActions(
+    gameId: string,
+    expectedCount: number,
+    actionType?: GameActionType,
+    timeout: number = TEST_TIMEOUTS.ACTION_QUEUE_WAIT_MS
+  ): Promise<void> {
+    return this.eventUtils.waitForSubmittedActions(gameId, expectedCount, actionType, timeout);
   }
 
   public async cleanupGameClients(setup: GameTestSetup): Promise<void> {

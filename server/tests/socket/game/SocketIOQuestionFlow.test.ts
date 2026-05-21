@@ -13,8 +13,10 @@ import {
   SocketIOEvents,
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
+import { GameActionType } from "domain/enums/GameActionType";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import {
+  AnswerSubmittedBroadcastData,
   QuestionSkipBroadcastData,
   QuestionUnskipBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
@@ -163,6 +165,51 @@ describe("Socket Question Flow Tests", () => {
       }
     });
 
+    it("should broadcast submitted answer text to all game clients", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+      const { showmanSocket, playerSockets, spectatorSockets } = setup;
+
+      try {
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const answerText = "Visible normal-round answer";
+        const submittedPromises = [
+          utils.waitForEvent<AnswerSubmittedBroadcastData>(
+            showmanSocket,
+            SocketIOGameEvents.ANSWER_SUBMITTED
+          ),
+          utils.waitForEvent<AnswerSubmittedBroadcastData>(
+            playerSockets[0],
+            SocketIOGameEvents.ANSWER_SUBMITTED
+          ),
+          utils.waitForEvent<AnswerSubmittedBroadcastData>(
+            playerSockets[1],
+            SocketIOGameEvents.ANSWER_SUBMITTED
+          ),
+          utils.waitForEvent<AnswerSubmittedBroadcastData>(
+            spectatorSockets[0],
+            SocketIOGameEvents.ANSWER_SUBMITTED
+          ),
+        ];
+
+        playerSockets[0].emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+          answerText,
+        });
+
+        const submittedEvents = await Promise.all(submittedPromises);
+        expect(submittedEvents).toEqual([
+          { answerText },
+          { answerText },
+          { answerText },
+          { answerText },
+        ]);
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
     it("should handle incorrect answer submission", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
@@ -235,34 +282,31 @@ describe("Socket Question Flow Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      // Start game and pick question
-      await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-
-      await new Promise<void>((resolve, reject) => {
-        const errorTimeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
+      try {
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         let answerCount = 0;
         showmanSocket.on(SocketIOGameEvents.QUESTION_ANSWER, () => {
           answerCount++;
         });
 
-        // Check that server rejects multiple answers attempts, only first one is valid
-        setTimeout(() => {
-          expect(answerCount).toBe(1);
-          clearTimeout(errorTimeout);
-          resolve();
-        }, 500);
-
-        // Multiple players try to answer simultaneously
         playerSockets.forEach((socket) => {
           socket.emit(SocketIOGameEvents.QUESTION_ANSWER, {});
         });
-      }).finally(async () => {
+
+        await utils.waitForSubmittedActions(
+          setup.gameId,
+          playerSockets.length,
+          GameActionType.QUESTION_ANSWER
+        );
+        await utils.waitForActionsComplete(setup.gameId);
+
+        expect(answerCount).toBe(1);
+      } finally {
+        showmanSocket.removeAllListeners(SocketIOGameEvents.QUESTION_ANSWER);
         await utils.cleanupGameClients(setup);
-      });
+      }
     });
 
     it("should handle question skip during answer submission", async () => {

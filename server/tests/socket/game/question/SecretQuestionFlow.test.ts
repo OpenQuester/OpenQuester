@@ -2,12 +2,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/glo
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { GameActionType } from "domain/enums/GameActionType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
+import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { SecretQuestionPickedBroadcastData } from "domain/types/socket/events/game/SecretQuestionPickedEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -19,6 +21,7 @@ import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { TestUtils } from "tests/utils/TestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 
@@ -29,6 +32,7 @@ describe("Secret Question Flow Tests", () => {
   let userRepo: Repository<User>;
   let serverUrl: string;
   let utils: SocketGameTestUtils;
+  let testUtils: TestUtils;
   let logger: ILogger;
 
   beforeAll(async () => {
@@ -41,6 +45,7 @@ describe("Secret Question Flow Tests", () => {
     cleanup = boot.cleanup;
     serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
+    testUtils = new TestUtils(app, userRepo, serverUrl);
   });
 
   beforeEach(async () => {
@@ -174,6 +179,374 @@ describe("Secret Question Flow Tests", () => {
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
         expect(finalState!.secretQuestionData).toBeNull();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should treat answering player skip as give up with wrong answer broadcast", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
+      const answeringPlayerSocket = playerSockets[0];
+      const spectatorSocket = spectatorSockets[0];
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        const secretQuestion = await utils.findQuestionByType(
+          PackageQuestionType.SECRET,
+          gameId,
+          PackageQuestionTransferType.ANY
+        );
+        expect(secretQuestion).toBeDefined();
+
+        const pickedPromise = utils.waitForEvent<SecretQuestionPickedBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.SECRET_QUESTION_PICKED
+        );
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: secretQuestion!.id
+        });
+        await pickedPromise;
+
+        const questionDataPromise =
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            answeringPlayerSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          );
+        showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+          targetPlayerId: setup.playerUsers[0].id
+        } satisfies SecretQuestionTransferInputData);
+        await questionDataPromise;
+
+        const answeringState = await utils.getGameState(gameId);
+        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(answeringState!.answeringPlayer).toBe(setup.playerUsers[0].id);
+
+        const answerResultPromises = [
+          utils.waitForEvent<QuestionAnswerResultEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.ANSWER_RESULT
+          ),
+          utils.waitForEvent<QuestionAnswerResultEventPayload>(
+            answeringPlayerSocket,
+            SocketIOGameEvents.ANSWER_RESULT
+          ),
+          utils.waitForEvent<QuestionAnswerResultEventPayload>(
+            playerSockets[1],
+            SocketIOGameEvents.ANSWER_RESULT
+          ),
+          utils.waitForEvent<QuestionAnswerResultEventPayload>(
+            spectatorSocket,
+            SocketIOGameEvents.ANSWER_RESULT
+          )
+        ];
+        const noQuestionSkipPromise = utils.waitForNoEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_SKIP
+        );
+
+        answeringPlayerSocket.emit(SocketIOGameEvents.QUESTION_SKIP, {});
+
+        const answerResults = await Promise.all(answerResultPromises);
+        await noQuestionSkipPromise;
+
+        const expectedPenalty = -Math.max(1, secretQuestion!.price ?? 1);
+        for (const answerResult of answerResults) {
+          expect(answerResult.answerResult.player).toBe(setup.playerUsers[0].id);
+          expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
+          expect(answerResult.answerResult.result).toBe(expectedPenalty);
+          expect(answerResult.timer).toBeNull();
+        }
+
+        const finalState = await utils.getGameState(gameId);
+        expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
+        expect(finalState!.answeringPlayer).toBeNull();
+        expect(finalState!.timer).toBeNull();
+        expect(finalState!.secretQuestionData).toBeNull();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should auto-transfer on timer expiration and send personalized question data", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
+      const spectatorSocket = spectatorSockets[0];
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        const secretQuestion = await utils.findQuestionByType(
+          PackageQuestionType.SECRET,
+          gameId,
+          PackageQuestionTransferType.ANY
+        );
+        expect(secretQuestion).toBeDefined();
+
+        const pickedPromise = utils.waitForEvent<SecretQuestionPickedBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.SECRET_QUESTION_PICKED
+        );
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: secretQuestion!.id
+        });
+        await pickedPromise;
+
+        const transferState = await utils.getGameState(gameId);
+        expect(transferState!.questionState).toBe(QuestionState.SECRET_TRANSFER);
+        expect(transferState!.timer).toBeDefined();
+
+        const transferPromises = [
+          utils.waitForEvent<SecretQuestionTransferBroadcastData>(
+            showmanSocket,
+            SocketIOGameEvents.SECRET_QUESTION_TRANSFER
+          ),
+          utils.waitForEvent<SecretQuestionTransferBroadcastData>(
+            playerSockets[0],
+            SocketIOGameEvents.SECRET_QUESTION_TRANSFER
+          ),
+          utils.waitForEvent<SecretQuestionTransferBroadcastData>(
+            spectatorSocket,
+            SocketIOGameEvents.SECRET_QUESTION_TRANSFER
+          )
+        ];
+        const questionDataPromises = [
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          ),
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            playerSockets[0],
+            SocketIOGameEvents.QUESTION_DATA
+          ),
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            playerSockets[1],
+            SocketIOGameEvents.QUESTION_DATA
+          ),
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            spectatorSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          )
+        ];
+
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
+
+        const transferEvents = await Promise.all(transferPromises);
+        const questionDataEvents = await Promise.all(questionDataPromises);
+        const [showmanQuestionData, playerQuestionData] = questionDataEvents;
+        const targetPlayerIds = setup.playerUsers.map((user) => user.id);
+
+        for (const transferEvent of transferEvents) {
+          expect(transferEvent.fromPlayerId).toBe(setup.showmanUser.id);
+          expect(targetPlayerIds).toContain(transferEvent.toPlayerId);
+          expect(transferEvent.questionId).toBe(secretQuestion!.id);
+        }
+        expect(new Set(transferEvents.map((event) => event.toPlayerId)).size).toBe(1);
+
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
+          "Secret answer"
+        );
+        expect("answerText" in playerQuestionData.data).toBe(false);
+
+        for (const questionData of questionDataEvents) {
+          expect(questionData.timer).toBeDefined();
+          expect(questionData.questionEligiblePlayers).toEqual(
+            expect.arrayContaining(targetPlayerIds)
+          );
+        }
+
+        const answeringState = await utils.getGameState(gameId);
+        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(answeringState!.secretQuestionData).toBeNull();
+        expect(answeringState!.answeringPlayer).toBe(transferEvents[0].toPlayerId);
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should fallback to direct answering with personalized question data when only one player is eligible", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
+      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
+      const playerSocket = playerSockets[0];
+      const spectatorSocket = spectatorSockets[0];
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        const secretQuestion = await utils.findQuestionByType(
+          PackageQuestionType.SECRET,
+          gameId,
+          PackageQuestionTransferType.ANY
+        );
+        expect(secretQuestion).toBeDefined();
+
+        const questionDataPromises = [
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          ),
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            playerSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          ),
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            spectatorSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          )
+        ];
+
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: secretQuestion!.id
+        });
+
+        const [showmanQuestionData, playerQuestionData, spectatorQuestionData] =
+          await Promise.all(questionDataPromises);
+
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
+          "Secret answer"
+        );
+        expect("answerText" in playerQuestionData.data).toBe(false);
+        expect("answerText" in spectatorQuestionData.data).toBe(false);
+
+        for (const questionData of [
+          showmanQuestionData,
+          playerQuestionData,
+          spectatorQuestionData
+        ]) {
+          expect(questionData.timer).toBeDefined();
+          expect(questionData.questionEligiblePlayers).toEqual([
+            setup.playerUsers[0].id
+          ]);
+        }
+
+        const answeringState = await utils.getGameState(gameId);
+        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(answeringState!.answeringPlayer).toBe(setup.playerUsers[0].id);
+        expect(answeringState!.secretQuestionData).toBeNull();
+        expect(answeringState!.currentQuestion).toBeDefined();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should fallback to showing with personalized question data when no players are eligible", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 1);
+      const { showmanSocket, spectatorSockets, gameId } = setup;
+      const spectatorSocket = spectatorSockets[0];
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        const secretQuestion = await utils.findQuestionByType(
+          PackageQuestionType.SECRET,
+          gameId,
+          PackageQuestionTransferType.ANY
+        );
+        expect(secretQuestion).toBeDefined();
+
+        const questionDataPromises = [
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          ),
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            spectatorSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          )
+        ];
+
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: secretQuestion!.id
+        });
+
+        const [showmanQuestionData, spectatorQuestionData] =
+          await Promise.all(questionDataPromises);
+
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
+          "Secret answer"
+        );
+        expect("answerText" in spectatorQuestionData.data).toBe(false);
+        expect(showmanQuestionData.timer).toBeDefined();
+        expect(spectatorQuestionData.timer).toEqual(showmanQuestionData.timer);
+        expect(showmanQuestionData.questionEligiblePlayers).toEqual([]);
+        expect(spectatorQuestionData.questionEligiblePlayers).toEqual([]);
+
+        const showingState = await utils.getGameState(gameId);
+        expect(showingState!.questionState).toBe(QuestionState.SHOWING);
+        expect(showingState!.secretQuestionData).toBeNull();
+        expect(showingState!.currentQuestion).toBeDefined();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should fallback to showing when secret transfer times out after all players leave", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
+      const spectatorSocket = spectatorSockets[0];
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        const secretQuestion = await utils.findQuestionByType(
+          PackageQuestionType.SECRET,
+          gameId,
+          PackageQuestionTransferType.ANY
+        );
+        expect(secretQuestion).toBeDefined();
+
+        const pickedPromise =
+          utils.waitForEvent<SecretQuestionPickedBroadcastData>(
+            showmanSocket,
+            SocketIOGameEvents.SECRET_QUESTION_PICKED
+          );
+
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: secretQuestion!.id
+        });
+
+        await pickedPromise;
+
+        await utils.leaveGame(playerSockets[0]);
+        await utils.leaveGame(playerSockets[1]);
+        await utils.waitForActionsComplete(gameId);
+
+        const showmanQuestionDataPromise =
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          );
+        const spectatorQuestionDataPromise =
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            spectatorSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          );
+
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
+
+        const [showmanQuestionData, spectatorQuestionData] = await Promise.all([
+          showmanQuestionDataPromise,
+          spectatorQuestionDataPromise
+        ]);
+
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
+          "Secret answer"
+        );
+        expect("answerText" in spectatorQuestionData.data).toBe(false);
+        expect(showmanQuestionData.timer).toBeDefined();
+        expect(spectatorQuestionData.timer).toEqual(showmanQuestionData.timer);
+
+        const showingState = await utils.getGameState(gameId);
+        expect(showingState!.questionState).toBe(QuestionState.SHOWING);
+        expect(showingState!.secretQuestionData).toBeNull();
+        expect(showingState!.currentQuestion).toBeDefined();
       } finally {
         await utils.cleanupGameClients(setup);
       }

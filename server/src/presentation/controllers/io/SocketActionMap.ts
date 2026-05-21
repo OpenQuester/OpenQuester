@@ -34,9 +34,6 @@ import { type ChatMessageInputData } from "domain/types/socket/chat/ChatMessageI
  *   The standard path for all in-game events.
  * - **FROM_PAYLOAD** — `payload.gameId`. Used only by JoinGame where the
  *   client specifies which game to join.
- * - **FROM_SESSION_SAFE** — like FROM_SESSION but wrapped in try/catch.
- *   Returns `null` on failure instead of throwing. Used by Disconnect
- *   (socket may already be dissociated from a game).
  */
 export enum GameIdStrategy {
   FROM_SESSION = "FROM_SESSION",
@@ -79,7 +76,8 @@ export interface SocketActionEntry {
 
   /**
    * When `true` a `null` gameId is silently accepted (handler completes
-   * as a no-op). Used for Disconnect where the user may not be in a game.
+   * as a no-op). Used for idempotent leave/disconnect routes where the user
+   * may already be outside a game.
    */
   readonly allowNullGameId?: boolean;
 }
@@ -99,7 +97,8 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
   {
     event: SocketIOGameEvents.LEAVE,
     actionType: GameActionType.LEAVE,
-    gameIdStrategy: GameIdStrategy.FROM_SESSION
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    allowNullGameId: true
   },
   {
     event: SocketIOGameEvents.START,

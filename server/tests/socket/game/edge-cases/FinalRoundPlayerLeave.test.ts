@@ -2,7 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/glo
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { SYSTEM_PLAYER_ID } from "domain/constants/game";
+import { GameActionType } from "domain/enums/GameActionType";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
+import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -12,8 +15,10 @@ import {
   FinalBidSubmitInputData,
   FinalBidSubmitOutputData,
   FinalSubmitEndEventData,
-  SocketIOFinalAutoLossEventPayload
+  SocketIOFinalAutoLossEventPayload,
+  ThemeEliminateOutputData
 } from "domain/types/socket/events/FinalRoundEventData";
+import { GameLeaveBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -81,19 +86,32 @@ describe("Final Round Player Leave", () => {
         );
         const themesCountBefore = themesBefore.length;
 
-        // Set up listener for theme elimination event
-        const themeEliminatePromise = utils.waitForEvent(
+        const themeEliminatePromise = utils.waitForEvent<ThemeEliminateOutputData>(
           showmanSocket,
-          SocketIOGameEvents.THEME_ELIMINATE,
-          10000
+          SocketIOGameEvents.THEME_ELIMINATE
+        );
+        const spectatorThemeEliminatePromise = utils.waitForEvent<ThemeEliminateOutputData>(
+          setup.spectatorSockets[0],
+          SocketIOGameEvents.THEME_ELIMINATE
+        );
+        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
         );
 
-        // Turn player leaves - should trigger auto-elimination
+        // Turn player leaves - should trigger system auto-elimination.
         turnPlayerSocket.emit(SocketIOGameEvents.LEAVE);
 
-        // Should get theme elimination event
-        const eliminateData = await themeEliminatePromise;
+        const [eliminateData, spectatorEliminateData, leaveData] = await Promise.all([
+          themeEliminatePromise,
+          spectatorThemeEliminatePromise,
+          leavePromise
+        ]);
+
+        expect(leaveData.user).toBe(turnPlayerId);
         expect(eliminateData.themeId).toBeDefined();
+        expect(eliminateData.eliminatedBy).toBe(SYSTEM_PLAYER_ID);
+        expect(spectatorEliminateData).toEqual(eliminateData);
 
         // Verify a theme was eliminated
         const stateAfter = await utils.getGameState(gameId);
@@ -163,18 +181,22 @@ describe("Final Round Player Leave", () => {
         // Player 2 leaves without bidding
         const leavePlayerId = playerUsers[2].id;
 
-        // Set up listener for automatic bid = 1 (allows player to reconnect and continue)
         const autoBidPromise = utils.waitForEvent<FinalBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
+        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
+        );
 
         playerSockets[2].emit(SocketIOGameEvents.LEAVE);
 
-        // Should get automatic bid of 1 for the leaving player
-        const autoBidData = await autoBidPromise;
+        const [autoBidData, leaveData] = await Promise.all([autoBidPromise, leavePromise]);
+        expect(leaveData.user).toBe(leavePlayerId);
         expect(autoBidData.playerId).toBe(leavePlayerId);
         expect(autoBidData.bidAmount).toBe(1);
+        expect(autoBidData.isAutomatic).toBe(true);
 
         // Verify game state shows bid of 1 for leaving player
         gameState = await utils.getGameState(gameId);
@@ -239,7 +261,10 @@ describe("Final Round Player Leave", () => {
         );
 
         // Verify game state
-        await utils.expireTimer(gameId);
+        await utils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_BIDDING_EXPIRED
+        );
         await questionDataPromise;
 
         const gameState = await utils.getGameState(gameId);
@@ -326,16 +351,23 @@ describe("Final Round Player Leave", () => {
           showmanSocket,
           SocketIOGameEvents.FINAL_AUTO_LOSS
         );
+        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
+        );
 
         playerSockets[2].emit(SocketIOGameEvents.LEAVE);
 
-        // Should receive empty answer submission
-        const answerData = await answerSubmitPromise;
-        expect(answerData.playerId).toBe(leavePlayerId);
+        const [answerData, autoLossData, leaveData] = await Promise.all([
+          answerSubmitPromise,
+          autoLossPromise,
+          leavePromise
+        ]);
 
-        // Should receive auto-loss event
-        const autoLossData = await autoLossPromise;
+        expect(leaveData.user).toBe(leavePlayerId);
+        expect(answerData.playerId).toBe(leavePlayerId);
         expect(autoLossData.playerId).toBe(leavePlayerId);
+        expect(autoLossData.reason).toBe(FinalAnswerLossReason.EMPTY_ANSWER);
 
         // Verify answer was recorded in game state
         gameState = await utils.getGameState(gameId);
@@ -357,7 +389,10 @@ describe("Final Round Player Leave", () => {
         );
 
         // Now expire the timer (player 1 hasn't answered yet)
-        await utils.expireTimer(gameId);
+        await utils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_FINAL_ANSWERING_EXPIRED
+        );
 
         // Should transition to reviewing phase
         const phaseData = await phaseCompletePromise;

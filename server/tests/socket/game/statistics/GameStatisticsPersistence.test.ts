@@ -56,7 +56,7 @@ describe("Game Statistics Persistence Tests", () => {
 
   it("should record statistics to database when game ends", async () => {
     // Setup game with 1 player
-    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0);
+    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
     const { showmanSocket, playerSockets } = setup;
 
     try {
@@ -65,7 +65,7 @@ describe("Game Statistics Persistence Tests", () => {
 
       // Wait for game to finish
       const gameFinishedPromise = new Promise((resolve) => {
-        playerSockets[0].on(SocketIOGameEvents.NEXT_ROUND, () => {
+        playerSockets[0].once(SocketIOGameEvents.NEXT_ROUND, () => {
           showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
         });
 
@@ -171,63 +171,45 @@ describe("Game Statistics Persistence Tests", () => {
   it("should record statistics to database when game ends via skip question force", async () => {
     // Setup game with 1 player
     const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
-    const { showmanSocket, playerSockets } = setup;
+    const { showmanSocket, playerSockets, gameId } = setup;
 
     try {
       // Start game
       await utils.startGame(showmanSocket);
 
-      // Skip first round to get to final round
+      const nextRoundPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.NEXT_ROUND
+      );
       showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
+      await nextRoundPromise;
 
-      // Wait for game to finish via skipping all questions in final round
-      const gameFinishedPromise = new Promise((resolve) => {
-        let gameFinished = false;
-        let pendingTimeout: NodeJS.Timeout | null = null;
-
-        playerSockets[0].on(SocketIOGameEvents.GAME_FINISHED, (data) => {
-          gameFinished = true;
-          if (pendingTimeout) {
-            clearTimeout(pendingTimeout);
-            pendingTimeout = null;
-          }
-          resolve(data);
-        });
-
-        const skipAllQuestions = async () => {
-          // Stop recursion if game has finished
-          if (gameFinished) {
-            return;
-          }
-
-          try {
-            const answerShowStart = utils.waitForEvent(
-              showmanSocket,
-              SocketIOGameEvents.ANSWER_SHOW_START,
-              2000
-            );
-            // Pick question then immediately skip it
-            await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-            showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
-
-            await answerShowStart;
-            await utils.skipShowAnswer(showmanSocket);
-
-            // Continue skipping questions until all are done (only if game not finished)
-            if (!gameFinished) {
-              pendingTimeout = setTimeout(skipAllQuestions, 100);
-            }
-          } catch {
-            // If we can't pick more questions, the game should finish soon
-          }
-        };
-
-        // Start skipping questions after a short delay
-        pendingTimeout = setTimeout(skipAllQuestions, 100);
+      const gameFinishedPromise = utils.waitForEvent<boolean>(
+        playerSockets[0],
+        SocketIOGameEvents.GAME_FINISHED
+      );
+      let gameFinished = false;
+      const markedGameFinishedPromise = gameFinishedPromise.then((data) => {
+        gameFinished = true;
+        return data;
       });
 
+      while (!gameFinished) {
+        const questionIds = await utils.getAllAvailableQuestionIds(gameId);
+        if (questionIds.length === 0) {
+          break;
+        }
+
+        await utils.pickAndCompleteQuestion(
+          showmanSocket,
+          playerSockets,
+          questionIds[0],
+          false
+        );
+      }
+
       // Wait for game finish event
-      const gameFinishedData = await gameFinishedPromise;
+      const gameFinishedData = await markedGameFinishedPromise;
       expect(gameFinishedData).toBe(true);
 
       // Verify statistics were recorded to database

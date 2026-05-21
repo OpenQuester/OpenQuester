@@ -174,7 +174,10 @@ export class QuestionPickLogic {
           success: true,
           data: {
             type: questionPickType,
-            gameId: game.id
+            gameId: game.id,
+            ...(questionPickType === QuestionPickType.NORMAL && timerDto
+              ? { timer: timerDto, question }
+              : {})
           }
         };
       }

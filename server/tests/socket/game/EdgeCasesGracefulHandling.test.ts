@@ -9,6 +9,7 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { FINAL_ROUND_THEME_ELIMINATION_TIME } from "domain/constants/game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
@@ -159,7 +160,7 @@ describe("Edge Cases - Graceful Handling", () => {
   });
 
   describe("Next Round Timer Clearing", () => {
-    it("should clear active timer when progressing to next round", async () => {
+    it("should replace active timer when progressing to final round", async () => {
       const setup = await utils.setupGameTestEnvironment(
         userRepo,
         app,
@@ -179,6 +180,7 @@ describe("Edge Cases - Graceful Handling", () => {
         const stateWithTimer = await utils.getGameState(gameId);
         expect(stateWithTimer?.timer).toBeDefined();
         expect(stateWithTimer?.questionState).toBe(QuestionState.SHOWING);
+        const showingTimerStartedAt = stateWithTimer?.timer?.startedAt;
 
         // Progress to next round (skipping current round)
         const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
@@ -194,12 +196,20 @@ describe("Edge Cases - Graceful Handling", () => {
           PackageRoundType.FINAL
         );
 
-        // Verify new state has no timer (or a fresh timer if final round needs one)
-        expect(nextRoundData.gameState.timer).toBeNull();
+        // Verify final round replaces the question timer with theme elimination timer
+        expect(nextRoundData.gameState.timer).toBeDefined();
+        expect(nextRoundData.gameState.timer?.durationMs).toBe(
+          FINAL_ROUND_THEME_ELIMINATION_TIME
+        );
+        expect(nextRoundData.gameState.timer?.startedAt).not.toBe(
+          showingTimerStartedAt
+        );
 
-        // Verify the old timer was cleared from Redis
+        // Verify persisted state has the same fresh final-round timer
         const game = await utils.getGameFromGameService(gameId);
-        expect(game.gameState.timer).toBeNull();
+        expect(game.gameState.timer?.durationMs).toBe(
+          FINAL_ROUND_THEME_ELIMINATION_TIME
+        );
       } finally {
         await utils.cleanupGameClients(setup);
       }

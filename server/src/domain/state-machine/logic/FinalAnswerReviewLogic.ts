@@ -1,4 +1,6 @@
 import { Game } from "domain/entities/game/Game";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { ClientError } from "domain/errors/ClientError";
 import { TransitionResult } from "domain/state-machine/types";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
 import {
@@ -44,6 +46,8 @@ export class FinalAnswerReviewLogic {
     game: Game,
     answerData: FinalAnswerReviewInputData
   ): AnswerReviewMutationResult {
+    this.ensureExistingAnswerIsPendingReview(game, answerData.answerId);
+
     // Review the answer (mutates game state)
     const { answer, scoreChange } = FinalRoundStateManager.reviewAnswer(
       game,
@@ -69,6 +73,20 @@ export class FinalAnswerReviewLogic {
     }
 
     return result;
+  }
+
+  private static ensureExistingAnswerIsPendingReview(
+    game: Game,
+    answerId: string
+  ): void {
+    const answer = FinalRoundStateManager.getFinalRoundData(game)?.answers.find(
+      (candidate) => candidate.id === answerId
+    );
+
+    const answerAlreadyReviewed = answer?.isCorrect !== undefined;
+    if (answerAlreadyReviewed) {
+      throw new ClientError(ClientResponse.ALREADY_ANSWERED);
+    }
   }
 
   /**
