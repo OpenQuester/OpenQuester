@@ -46,9 +46,19 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     // - With timerAdditional: "timer:{timerAdditional}:{gameId}"
     // gameId is always the last segment
     const parts = key.split(":");
-    const gameId = parts[parts.length - 1];
 
-    if (!gameId || parts.length < 2) {
+    if (parts.length !== 2 || parts[0] !== TIMER_NSP) {
+      // Only the bare active timer drives gameplay; suffixed timers are saved pause/resume state.
+      this.logger.debug(`Skipping non-active timer expiration`, {
+        prefix: LogPrefix.TIMER_EXPIRATION,
+        key
+      });
+      return;
+    }
+
+    const gameId = parts[1];
+
+    if (!gameId) {
       this.logger.warn(`Invalid timer key format: ${key}`, {
         prefix: LogPrefix.TIMER_EXPIRATION,
         key
@@ -69,7 +79,30 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     }
 
     const questionState = game.gameState.questionState;
+    const skipReason = this.getExpirationSkipReason(game);
+
+    if (skipReason) {
+      this.logger.debug(`Skipping stale timer expiration`, {
+        prefix: LogPrefix.TIMER_EXPIRATION,
+        gameId,
+        key,
+        questionState,
+        reason: skipReason
+      });
+      return;
+    }
+
     const actionType = this.getTimerActionType(game);
+
+    if (!actionType) {
+      this.logger.debug(`Skipping timer expiration for unsupported question state`, {
+        prefix: LogPrefix.TIMER_EXPIRATION,
+        gameId,
+        key,
+        questionState
+      });
+      return;
+    }
 
     const action: GameAction<TimerActionPayload> = {
       id: ValueUtils.generateUUID(),
@@ -89,7 +122,19 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
     await this.actionExecutor.submitAction(action);
   }
 
-  private getTimerActionType(game: Game): GameActionType {
+  private getExpirationSkipReason(game: Game): string | null {
+    if (game.gameState.isPaused) {
+      return "game-paused";
+    }
+
+    if (!game.gameState.timer) {
+      return "no-active-timer";
+    }
+
+    return null;
+  }
+
+  private getTimerActionType(game: Game): GameActionType | null {
     const questionState = game.gameState.questionState;
 
     // Final answering shares ANSWERING question state, so phase decides its timer action.
@@ -102,6 +147,9 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
         return GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED;
       case QuestionState.SHOWING:
         return GameActionType.TIMER_QUESTION_SHOWING_EXPIRED;
+      case QuestionState.SHOWING_ANSWER:
+      case QuestionState.SECRET_TRANSFER:
+        return GameActionType.TIMER_QUESTION_SHOWING_EXPIRED;
       case QuestionState.ANSWERING:
         return GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED;
       case QuestionState.THEME_ELIMINATION:
@@ -109,7 +157,7 @@ export class TimerExpirationHandler implements RedisExpirationHandler {
       case QuestionState.BIDDING:
         return GameActionType.TIMER_BIDDING_EXPIRED;
       default:
-        return GameActionType.TIMER_QUESTION_SHOWING_EXPIRED;
+        return null;
     }
   }
 }
