@@ -4,5 +4,6 @@ declare module "socket.io" {
   interface Socket {
     userId?: number;
     gameId?: string | null;
+    mutedUntil?: string | null;
   }
 }

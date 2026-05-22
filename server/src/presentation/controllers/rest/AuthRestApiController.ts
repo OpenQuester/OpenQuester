@@ -20,6 +20,7 @@ import { type GuestLoginDTO } from "domain/types/dto/auth/GuestLoginDTO";
 import { EOauthProvider, type Oauth2LoginDTO } from "domain/types/dto/auth/Oauth2LoginDTO";
 import { type SocketAuthDTO } from "domain/types/dto/auth/SocketAuthDTO";
 import { type UserDTO } from "domain/types/dto/user/UserDTO";
+import { asUserId } from "domain/types/ids";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { type PerformanceLog } from "shared/logging/LoggerTypes";
@@ -74,20 +75,26 @@ export class AuthRestApiController {
       await this.socketUserDataService.remove(existingSocketId);
     }
 
+    const mutedUntil = await this.userService.getActiveMutedUntil(asUserId(userId));
+
     await this.socketUserDataService.set(authDTO.socketId, {
       userId: userId,
-      language: ts.parseAcceptLanguage(req.headers["accept-language"])
+      language: ts.parseAcceptLanguage(req.headers["accept-language"]),
+      mutedUntil
     });
+    await this.socketUserDataService.setUserMuteExpiration(userId, mutedUntil);
 
     const runtimeContext = {
       socketId: authDTO.socketId,
       userId,
-      gameId: null
+      gameId: null,
+      mutedUntil
     };
     const liveSocket = this.gameNamespace.sockets.get(authDTO.socketId);
     if (liveSocket) {
       liveSocket.userId = runtimeContext.userId;
       liveSocket.gameId = runtimeContext.gameId;
+      liveSocket.mutedUntil = runtimeContext.mutedUntil;
     }
     this.gameNamespace.serverSideEmit(SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT, runtimeContext);
 

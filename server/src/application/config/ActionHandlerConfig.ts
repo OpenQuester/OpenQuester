@@ -264,7 +264,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.CHAT_MESSAGE,
-    new ChatMessageUseCase(userService, socketChatRepository)
+    new ChatMessageUseCase(socketChatRepository)
   );
 
   // =====================================

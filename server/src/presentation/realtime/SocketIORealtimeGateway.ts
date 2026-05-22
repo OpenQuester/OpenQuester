@@ -82,5 +82,8 @@ export class SocketIORealtimeGateway implements RealtimeGateway {
     if (update.gameId !== undefined) {
       socket.gameId = update.gameId;
     }
+    if (update.mutedUntil !== undefined) {
+      socket.mutedUntil = update.mutedUntil;
+    }
   }
 }

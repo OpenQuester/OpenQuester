@@ -4,6 +4,7 @@ import { REDIS_LOCK_SESSIONS_CLEANUP } from "domain/constants/redis";
 import {
   SOCKET_GAME_AUTH_TTL,
   SOCKET_SESSION_PREFIX,
+  SOCKET_USER_MUTE_PREFIX,
   SOCKET_USER_PREFIX
 } from "domain/constants/socket";
 import { SocketRedisUserUpdateDTO } from "domain/types/dto/user/SocketRedisUserUpdateDTO";
@@ -16,8 +17,9 @@ import { RedisRepository } from "infrastructure/database/repositories/RedisRepos
  * Repository for socket user session data (stored in Redis).
  *
  * Key structure:
- * - socket:session:{socketId} -> HASH { id: userId, gameId: string | null }
+ * - socket:session:{socketId} -> HASH { id: userId, gameId: string | null, mutedUntil: string | null }
  * - socket:user:{userId} -> STRING socketId
+ * - socket:user:mute:{userId} -> STRING 1, expires when a global mute expires
  *
  * All lookups are O(1) without SCAN in business logic.
  */
@@ -35,6 +37,22 @@ export class SocketUserDataRepository {
     return `${SOCKET_USER_PREFIX}:${userId}`;
   }
 
+  private getUserMuteKey(userId: number): string {
+    return `${SOCKET_USER_MUTE_PREFIX}:${userId}`;
+  }
+
+  private serializeMutedUntil(mutedUntil: string | Date | null | undefined): string {
+    if (!mutedUntil) {
+      return "null";
+    }
+
+    return mutedUntil instanceof Date ? mutedUntil.toISOString() : mutedUntil;
+  }
+
+  private parseMutedUntil(value: string | null | undefined): string | null {
+    return !value || value === "null" ? null : value;
+  }
+
   /**
    * Get socket session data by socketId (O(1)).
    */
@@ -48,7 +66,8 @@ export class SocketUserDataRepository {
 
       return {
         id: asUserId(parseInt(data.id, 10)),
-        gameId: data.gameId === "null" || !data.gameId ? null : data.gameId
+        gameId: data.gameId === "null" || !data.gameId ? null : data.gameId,
+        mutedUntil: this.parseMutedUntil(data.mutedUntil)
       };
     } catch {
       return null;
@@ -103,7 +122,8 @@ export class SocketUserDataRepository {
 
       resultMap.set(socketId, {
         id: asUserId(parseInt(record.id, 10)),
-        gameId: record.gameId === "null" || !record.gameId ? null : record.gameId
+        gameId: record.gameId === "null" || !record.gameId ? null : record.gameId,
+        mutedUntil: this.parseMutedUntil(record.mutedUntil)
       });
     }
 
@@ -113,14 +133,18 @@ export class SocketUserDataRepository {
   /**
    * Create socket session and reverse lookup atomically (MULTI/EXEC).
    */
-  public async set(socketId: string, data: { userId: number; language: string }): Promise<void> {
+  public async set(
+    socketId: string,
+    data: { userId: number; language: string; mutedUntil?: string | Date | null }
+  ): Promise<void> {
     const sessionKey = this.getSessionKey(socketId);
     const userKey = this.getUserKey(data.userId);
 
     const multi = this.redisRepository.multi();
     multi.hset(sessionKey, {
       id: data.userId.toString(),
-      gameId: "null"
+      gameId: "null",
+      mutedUntil: this.serializeMutedUntil(data.mutedUntil)
     });
     multi.expire(sessionKey, SOCKET_GAME_AUTH_TTL);
     multi.set(userKey, socketId, "EX", SOCKET_GAME_AUTH_TTL);
@@ -149,6 +173,9 @@ export class SocketUserDataRepository {
     }
     if (data.gameId !== undefined) {
       updateData.gameId = data.gameId;
+    }
+    if (data.mutedUntil !== undefined) {
+      updateData.mutedUntil = this.serializeMutedUntil(data.mutedUntil);
     }
     if (Object.keys(updateData).length === 0) {
       return;
@@ -194,6 +221,32 @@ export class SocketUserDataRepository {
    */
   public async findSocketIdByUserId(userId: number): Promise<string | null> {
     return this.redisRepository.get(this.getUserKey(userId));
+  }
+
+  public async setUserMuteExpiration(
+    userId: number,
+    mutedUntil: string | Date | null
+  ): Promise<void> {
+    const key = this.getUserMuteKey(userId);
+
+    if (!mutedUntil) {
+      await this.redisRepository.del(key);
+      return;
+    }
+
+    const expiresAt = new Date(mutedUntil).getTime();
+    const ttlMs = expiresAt - Date.now();
+
+    if (!Number.isFinite(expiresAt) || ttlMs <= 0) {
+      await this.redisRepository.del(key);
+      return;
+    }
+
+    await this.redisRepository.set(key, "1", ttlMs);
+  }
+
+  public async clearUserMuteExpiration(userId: number): Promise<void> {
+    await this.redisRepository.del(this.getUserMuteKey(userId));
   }
 
   /**

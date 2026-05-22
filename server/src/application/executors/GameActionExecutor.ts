@@ -259,7 +259,8 @@ export class GameActionExecutor {
       userData: readResult.userData ??
         action.userData ?? {
           id: asUserId(action.playerId),
-          gameId: action.gameId
+          gameId: action.gameId,
+          mutedUntil: null
         }
     };
   }
@@ -397,7 +398,8 @@ export class GameActionExecutor {
 
     const userData = action.userData ?? {
       id: asUserId(action.playerId),
-      gameId: action.gameId
+      gameId: action.gameId,
+      mutedUntil: null
     };
 
     const ctx = this.buildContext(action, {

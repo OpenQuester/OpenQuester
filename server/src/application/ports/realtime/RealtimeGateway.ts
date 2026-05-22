@@ -4,6 +4,7 @@ export interface SocketRuntimeContextUpdate {
   socketId: string;
   userId?: number;
   gameId?: string | null;
+  mutedUntil?: string | null;
 }
 
 export interface RealtimeGateway {

@@ -139,7 +139,11 @@ export class SocketActionDispatcher {
    * lazily fetches the Redis session once and caches it on the live socket.
    */
   private async resolveUserId(socket: Socket): Promise<void> {
-    if (socket.userId !== undefined && socket.gameId !== undefined) {
+    if (
+      socket.userId !== undefined &&
+      socket.gameId !== undefined &&
+      socket.mutedUntil !== undefined
+    ) {
       return;
     }
 
@@ -147,6 +151,7 @@ export class SocketActionDispatcher {
     if (data?.id) {
       socket.userId = data.id;
       socket.gameId = data.gameId;
+      socket.mutedUntil = data.mutedUntil ?? null;
     }
   }
 
@@ -199,7 +204,8 @@ export class SocketActionDispatcher {
       payload,
       userData: {
         id: asUserId(socket.userId!),
-        gameId: userGameId
+        gameId: userGameId,
+        mutedUntil: socket.mutedUntil ?? null
       }
     };
   }

@@ -1,6 +1,8 @@
 import { type Express } from "express";
+import { container } from "tsyringe";
 import { Repository } from "typeorm";
 
+import { UserService } from "application/services/user/UserService";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -97,6 +99,7 @@ describe("Socket Game Chat Tests", () => {
   let cleanup: (() => Promise<void>) | undefined;
   let app: Express;
   let userRepo: Repository<User>;
+  let userService: UserService;
   let serverUrl: string;
   let showmanSocket: GameClientSocket;
   let playerSockets: GameClientSocket[];
@@ -111,6 +114,7 @@ describe("Socket Game Chat Tests", () => {
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
+    userService = container.resolve(UserService);
     cleanup = boot.cleanup;
     serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
@@ -286,12 +290,7 @@ describe("Socket Game Chat Tests", () => {
 
       // Set global mute on the user (muted for 1 hour)
       const mutedUntil = new Date(Date.now() + 3600000);
-      const user = await userRepo.findOne({ where: { id: userData.id } });
-      if (!user) {
-        throw new Error("User not found in database");
-      }
-      user.muted_until = mutedUntil;
-      await userRepo.save(user);
+      await userService.mute(userData.id, mutedUntil);
 
       // Try to send a chat message in the current game
       const errorPromise1 = utils.waitForEvent(mutedPlayerSocket, SocketIOEvents.ERROR);
@@ -329,6 +328,23 @@ describe("Socket Game Chat Tests", () => {
         // Cleanup the second game
         await utils.cleanupGameClients(setup2);
       }
+    });
+
+    it("should allow chat messages after global unmute updates active socket session", async () => {
+      const mutedPlayerSocket = playerSockets[0];
+      const userData = await utils.getSocketUserData(mutedPlayerSocket);
+      if (!userData) {
+        throw new Error("User data not found for socket");
+      }
+
+      const mutedUntil = new Date(Date.now() + 3600000);
+      await userService.mute(userData.id, mutedUntil);
+      await userService.unmute(userData.id);
+
+      const message = "This message should be accepted after unmute";
+      const chatMessage = await sendChatMessageAndWait(utils, mutedPlayerSocket, message);
+
+      expect(chatMessage.message).toBe(message);
     });
 
     it("should retrieve chat history when joining a game", async () => {

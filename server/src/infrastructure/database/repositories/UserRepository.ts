@@ -88,18 +88,18 @@ export class UserRepository {
    * can happen after the user was cached.
    */
   public async getMutedUntilUncached(id: userId): Promise<Date | null> {
-    const user = await this.repository
+    const row = await this.repository
       .createQueryBuilder("user")
-      .select(["user.id", "user.muted_until"])
+      .select("user.muted_until", "mutedUntil")
       .where("user.id = :id", { id })
       .andWhere("user.is_deleted = false")
-      .getOne();
+      .getRawOne<{ mutedUntil: Date | null }>();
 
-    if (!user) {
+    if (!row) {
       throw new ClientError(ClientResponse.USER_NOT_FOUND, 404);
     }
 
-    return user.muted_until ?? null;
+    return row.mutedUntil ?? null;
   }
 
   public async count(where: FindOptionsWhere<User>): Promise<number> {

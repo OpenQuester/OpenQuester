@@ -27,6 +27,7 @@ import { CronJobFactory } from "application/factories/CronJobFactory";
 import { GameExpirationHandler } from "application/handlers/GameExpirationHandler";
 import { GameExpirationNotificationHandler } from "application/handlers/GameExpirationNotificationHandler";
 import { TimerExpirationHandler } from "application/handlers/TimerExpirationHandler";
+import { UserMuteExpirationHandler } from "application/handlers/UserMuteExpirationHandler";
 import { GameActionHandlerRegistry } from "application/registries/GameActionHandlerRegistry";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { GameProgressionCoordinator } from "application/services/game/GameProgressionCoordinator";
@@ -193,10 +194,12 @@ export async function bootstrapContainer(context: DIBootstrapContext): Promise<v
   // Redis expiration handlers - array of handlers for Redis keyspace notifications
   // Note: These handlers are auto-resolved (proper DI) rather than manually instantiated
   const timerExpirationHandler = container.resolve(TimerExpirationHandler);
+  const userMuteExpirationHandler = container.resolve(UserMuteExpirationHandler);
   const gameExpirationHandler = container.resolve(GameExpirationHandler);
   const gameExpirationNotificationHandler = container.resolve(GameExpirationNotificationHandler);
   container.registerInstance(DI_TOKENS.RedisExpirationHandlers, [
     timerExpirationHandler,
+    userMuteExpirationHandler,
     gameExpirationNotificationHandler,
     gameExpirationHandler
   ]);

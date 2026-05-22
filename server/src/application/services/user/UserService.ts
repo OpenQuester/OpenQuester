@@ -137,10 +137,14 @@ export class UserService {
     return user;
   }
 
-  public async isGloballyMuted(userId: userId): Promise<boolean> {
+  public async getActiveMutedUntil(userId: userId): Promise<string | null> {
     const mutedUntil = await this.userRepository.getMutedUntilUncached(userId);
 
-    return !!mutedUntil && Date.now() < new Date(mutedUntil).getTime();
+    return this.toActiveMutedUntil(mutedUntil);
+  }
+
+  public async isGloballyMuted(userId: userId): Promise<boolean> {
+    return (await this.getActiveMutedUntil(userId)) !== null;
   }
 
   public async create(data: RegisterUser) {
@@ -215,10 +219,12 @@ export class UserService {
 
   public async mute(userId: userId, mutedUntil: Date) {
     await this.userRepository.mute(userId, mutedUntil);
+    await this.syncGlobalMuteRuntimeState(userId, this.toActiveMutedUntil(mutedUntil));
   }
 
   public async unmute(userId: userId) {
     await this.userRepository.unmute(userId);
+    await this.syncGlobalMuteRuntimeState(userId, null);
   }
 
   public async restore(userId: userId) {
@@ -362,6 +368,34 @@ export class UserService {
 
     // Force disconnect across all instances via Redis adapter
     this.realtimeGateway.disconnectSocket(socketId);
+  }
+
+  private toActiveMutedUntil(mutedUntil: Date | null): string | null {
+    if (!mutedUntil) {
+      return null;
+    }
+
+    const mutedUntilDate = new Date(mutedUntil);
+    return mutedUntilDate.getTime() > Date.now() ? mutedUntilDate.toISOString() : null;
+  }
+
+  private async syncGlobalMuteRuntimeState(
+    userId: userId,
+    mutedUntil: string | null
+  ): Promise<void> {
+    if (mutedUntil) {
+      await this.socketUserDataService.setUserMuteExpiration(userId, mutedUntil);
+    } else {
+      await this.socketUserDataService.clearUserMuteExpiration(userId);
+    }
+
+    const socketId = await this.socketUserDataService.findSocketIdByUserId(userId);
+    if (!socketId) {
+      return;
+    }
+
+    await this.socketUserDataService.update(socketId, { mutedUntil });
+    this.realtimeGateway.updateSocketContext({ socketId, mutedUntil });
   }
 
   // --- Private methods --- //

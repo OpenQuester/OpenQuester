@@ -480,7 +480,9 @@ export class GamePipelineService {
 
     return {
       id: asUserId(parseInt(rawSession.id, 10)),
-      gameId: rawSession.gameId === "null" || !rawSession.gameId ? null : rawSession.gameId
+      gameId: rawSession.gameId === "null" || !rawSession.gameId ? null : rawSession.gameId,
+      mutedUntil:
+        rawSession.mutedUntil === "null" || !rawSession.mutedUntil ? null : rawSession.mutedUntil
     };
   }
 }

@@ -27,7 +27,10 @@ export class SocketUserDataService {
     return this.socketUserDataRepository.getSocketDataBatch(socketIds);
   }
 
-  public async set(socketId: string, data: { userId: number; language: string }) {
+  public async set(
+    socketId: string,
+    data: { userId: number; language: string; mutedUntil?: string | Date | null }
+  ) {
     return this.socketUserDataRepository.set(socketId, data);
   }
 
@@ -52,5 +55,16 @@ export class SocketUserDataService {
    */
   public async findSocketIdByUserId(userId: number): Promise<string | null> {
     return this.socketUserDataRepository.findSocketIdByUserId(userId);
+  }
+
+  public async setUserMuteExpiration(
+    userId: number,
+    mutedUntil: string | Date | null
+  ): Promise<void> {
+    return this.socketUserDataRepository.setUserMuteExpiration(userId, mutedUntil);
+  }
+
+  public async clearUserMuteExpiration(userId: number): Promise<void> {
+    return this.socketUserDataRepository.clearUserMuteExpiration(userId);
   }
 }

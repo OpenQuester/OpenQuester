@@ -2,14 +2,12 @@ import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
 import { GAME_NAMESPACE, GAME_TTL_IN_SECONDS } from "domain/constants/game";
-import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { RoundIndexEntry } from "domain/types/dto/game/RoundIndexEntry";
 import { GameStateRoundDTO } from "domain/types/dto/game/state/GameStateRoundDTO";
 import { GameStateThemeDTO } from "domain/types/dto/game/state/GameStateThemeDTO";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
-import { PackageFileDTO } from "domain/types/dto/package/PackageFileDTO";
+import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
-import { PackageTagDTO } from "domain/types/dto/package/PackageTagDTO";
 import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
@@ -66,6 +64,7 @@ interface PackageQuestionThemeDTO {
  * Redis key: `game:package:{gameId}` → HASH
  *   - `meta` → JSON: package metadata (title, author, etc.)
  *   - `round:{order}` → JSON: round metadata with theme structure
+ *   - `roundState:{order}` → JSON: precomputed GameStateRoundDTO for gameplay
  *   - `q:{id}` → JSON: full PackageQuestionDTO
  *   - `q:{id}:theme` → JSON: { id, name } theme metadata for the question
  */
@@ -131,6 +130,9 @@ export class PackageStore {
         }))
       };
       fields[`round:${round.order}`] = JSON.stringify(roundStore);
+      fields[`roundState:${round.order}`] = JSON.stringify(
+        this.buildRoundStateFromPackageRound(round)
+      );
 
       // Store individual questions and their theme metadata
       for (const theme of round.themes) {
@@ -223,54 +225,91 @@ export class PackageStore {
    */
   public async getRound(gameId: string, roundOrder: number): Promise<GameStateRoundDTO | null> {
     const key = this.getPackageKey(gameId);
-    const results = await this.redisRepository.hmget(key, [`round:${roundOrder}`]);
-    const [raw] = results;
+    const [roundStateRaw, roundRaw] = await this.redisRepository.hmget(key, [
+      `roundState:${roundOrder}`,
+      `round:${roundOrder}`
+    ]);
 
-    if (!raw) {
+    if (roundStateRaw) {
+      return JSON.parse(roundStateRaw) as GameStateRoundDTO;
+    }
+
+    if (!roundRaw) {
       return null;
     }
 
+    return this.buildRoundFromStoredData(key, roundRaw);
+  }
+
+  private async buildRoundFromStoredData(
+    key: string,
+    raw: string
+  ): Promise<GameStateRoundDTO | null> {
     const roundData = JSON.parse(raw) as PackageRoundStoreDTO;
 
-    // Need to fetch all questions for this round to build themes with question metadata
-    const questionIds: number[] = [];
-    for (const theme of roundData.themes) {
-      questionIds.push(...theme.questionIds);
-    }
-
-    // Fetch all questions in a single HMGET
+    const questionIds = roundData.themes.flatMap((theme) => theme.questionIds);
     const questionFields = questionIds.map((id) => `q:${id}`);
     const questionResults = await this.redisRepository.hmget(key, questionFields);
 
     const questionMap = new Map<number, PackageQuestionDTO>();
     for (let i = 0; i < questionIds.length; i++) {
-      const raw = questionResults[i];
-      if (raw) {
-        questionMap.set(questionIds[i], JSON.parse(raw) as PackageQuestionDTO);
+      const questionRaw = questionResults[i];
+      if (questionRaw) {
+        questionMap.set(questionIds[i], JSON.parse(questionRaw) as PackageQuestionDTO);
       }
     }
 
-    // Build GameStateRoundDTO with full theme/question structure
+    return this.buildRoundStateFromStoredRound(roundData, questionMap);
+  }
+
+  private buildRoundStateFromPackageRound(round: PackageRoundDTO): GameStateRoundDTO {
+    return {
+      id: round.id!,
+      name: round.name,
+      type: round.type,
+      description: round.description ?? null,
+      order: round.order,
+      themes: round.themes.map((theme) => ({
+        id: theme.id!,
+        name: theme.name,
+        description: theme.description ?? null,
+        order: theme.order,
+        questions: theme.questions.map((question) => ({
+          id: question.id!,
+          order: question.order,
+          price: question.isHidden ? null : question.price,
+          questionComment: question.questionComment ?? null,
+          isPlayed: false
+        }))
+      }))
+    };
+  }
+
+  private buildRoundStateFromStoredRound(
+    roundData: PackageRoundStoreDTO,
+    questionMap: Map<number, PackageQuestionDTO>
+  ): GameStateRoundDTO {
     const themes: GameStateThemeDTO[] = roundData.themes.map((theme) => ({
       id: theme.id,
       name: theme.name,
       description: theme.description ?? null,
       order: theme.order,
       questions: theme.questionIds
-        .map((qId) => {
-          const q = questionMap.get(qId);
-          if (!q) {
+        .map((questionId) => {
+          const question = questionMap.get(questionId);
+          if (!question) {
             return null;
           }
+
           return {
-            id: q.id!,
-            order: q.order,
-            price: q.isHidden ? null : q.price,
-            questionComment: q.questionComment ?? null,
+            id: question.id!,
+            order: question.order,
+            price: question.isHidden ? null : question.price,
+            questionComment: question.questionComment ?? null,
             isPlayed: false
           };
         })
-        .filter((q): q is NonNullable<typeof q> => q !== null)
+        .filter((question): question is NonNullable<typeof question> => question !== null)
     }));
 
     return {
@@ -295,90 +334,6 @@ export class PackageStore {
     }
 
     return JSON.parse(raw) as PackageMetaDTO;
-  }
-
-  /**
-   * Reconstruct a full PackageDTO from stored hash fields.
-   * Used rarely (e.g., for package updates during lobby).
-   */
-  public async getFullPackage(gameId: string): Promise<PackageDTO | null> {
-    const key = this.getPackageKey(gameId);
-    const allFields = await this.redisRepository.hgetall(key);
-
-    if (!allFields || Object.keys(allFields).length === 0) {
-      return null;
-    }
-
-    const metaRaw = allFields["meta"];
-    if (!metaRaw) {
-      return null;
-    }
-
-    const meta = JSON.parse(metaRaw) as PackageMetaDTO;
-
-    // Collect rounds in order
-    const rounds: PackageRoundStoreDTO[] = [];
-    for (const [field, value] of Object.entries(allFields)) {
-      if (field.startsWith("round:")) {
-        rounds.push(JSON.parse(value) as PackageRoundStoreDTO);
-      }
-    }
-    rounds.sort((a, b) => a.order - b.order);
-
-    // Build question map
-    const questionMap = new Map<number, PackageQuestionDTO>();
-    for (const [field, value] of Object.entries(allFields)) {
-      if (field.startsWith("q:") && !field.includes(":theme")) {
-        const q = JSON.parse(value) as PackageQuestionDTO;
-        if (q.id) {
-          questionMap.set(q.id, q);
-        }
-      }
-    }
-
-    // Build theme map for questions
-    const themeMap = new Map<number, PackageQuestionThemeDTO>();
-    for (const [field, value] of Object.entries(allFields)) {
-      if (field.endsWith(":theme")) {
-        const match = field.match(/^q:(\d+):theme$/);
-        if (match) {
-          themeMap.set(parseInt(match[1]), JSON.parse(value) as PackageQuestionThemeDTO);
-        }
-      }
-    }
-
-    // Reconstruct full rounds with themes and questions
-    const fullRounds = rounds.map((round) => ({
-      id: round.id,
-      name: round.name,
-      order: round.order,
-      description: round.description,
-      type: round.type as PackageRoundType,
-      themes: round.themes.map(
-        (theme): PackageThemeDTO => ({
-          id: theme.id,
-          name: theme.name,
-          order: theme.order,
-          description: theme.description,
-          questions: theme.questionIds
-            .map((qId) => questionMap.get(qId))
-            .filter((q): q is PackageQuestionDTO => !!q)
-        })
-      )
-    }));
-
-    return {
-      id: meta.id,
-      title: meta.title,
-      description: meta.description,
-      author: meta.author,
-      ageRestriction: meta.ageRestriction as AgeRestriction,
-      language: meta.language,
-      logo: meta.logo as { file: PackageFileDTO } | null | undefined,
-      rounds: fullRounds,
-      tags: meta.tags as PackageTagDTO[],
-      createdAt: new Date(meta.createdAt)
-    };
   }
 
   /**

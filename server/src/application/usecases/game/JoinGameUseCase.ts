@@ -63,7 +63,13 @@ export class JoinGameUseCase
     GameStateValidator.validateGameNotFinished(game);
 
     // 3. Fetch user entity from DB (1 RT)
-    const user = await this.userService.get(userData.id);
+    const user = await this.userService.get(userData.id, {
+      select: ["id", "username"],
+      relations: ["avatar"],
+      relationSelects: {
+        avatar: ["id", "filename"]
+      }
+    });
     if (!user) {
       throw new ClientError(
         ClientResponse.USER_NOT_FOUND,

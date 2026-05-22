@@ -1,4 +1,3 @@
-import { UserService } from "application/services/user/UserService";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { SocketIOEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
@@ -10,7 +9,7 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { type ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
-import { asUserId, userId } from "domain/types/ids";
+import { asUserId } from "domain/types/ids";
 
 /**
  * Handles chat messages.
@@ -18,18 +17,14 @@ import { asUserId, userId } from "domain/types/ids";
  * Executed via direct execution (bypasses lock/queue) because chat messages
  * don't affect game state and don't need synchronization.
  *
- * Uses ctx.game for game-level mute/spectator checks.
- * Queries only the user's global mute field because this is a DB-backed
- * moderation policy and stale negative socket caches are not safe enough.
+ * Uses ctx.game for game-level mute/spectator checks and ctx.userData for
+ * server-owned global mute state captured during socket auth/admin updates.
  */
 export class ChatMessageUseCase implements GameActionHandler<
   ChatMessageInputData,
   ChatMessageBroadcastData
 > {
-  constructor(
-    private readonly userService: UserService,
-    private readonly socketChatRepository: SocketChatRepository
-  ) {}
+  constructor(private readonly socketChatRepository: SocketChatRepository) {}
 
   public async execute(
     ctx: ActionExecutionContext<ChatMessageInputData>
@@ -39,7 +34,7 @@ export class ChatMessageUseCase implements GameActionHandler<
 
     const player = game.getPlayer(userId, { fetchDisconnected: true });
 
-    await this.validateMuteState(userId, game.isPlayerMuted(userId));
+    this.validateMuteState(game.isPlayerMuted(userId), userData?.mutedUntil);
 
     // Check spectator restrictions only when someone is answering
     const isSpectator = player?.role === PlayerRole.SPECTATOR;
@@ -76,13 +71,23 @@ export class ChatMessageUseCase implements GameActionHandler<
     };
   }
 
-  private async validateMuteState(userId: userId, isGameMuted: boolean): Promise<void> {
+  private validateMuteState(isGameMuted: boolean, mutedUntil?: string | null): void {
     if (isGameMuted) {
       throw new ClientError(ClientResponse.YOU_ARE_MUTED);
     }
 
-    if (await this.userService.isGloballyMuted(userId)) {
+    if (this.isActiveGlobalMute(mutedUntil)) {
       throw new ClientError(ClientResponse.YOU_ARE_MUTED);
     }
+  }
+
+  private isActiveGlobalMute(mutedUntil?: string | null): boolean {
+    if (!mutedUntil) {
+      return false;
+    }
+
+    const mutedUntilMs = new Date(mutedUntil).getTime();
+
+    return Number.isFinite(mutedUntilMs) && mutedUntilMs > Date.now();
   }
 }
