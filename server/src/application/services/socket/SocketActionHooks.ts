@@ -3,7 +3,6 @@ import { inject, singleton } from "tsyringe";
 import { DI_TOKENS } from "shared/di/tokens";
 import { RealtimeEvents } from "application/ports/realtime/RealtimeEvent";
 import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
-import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { SocketIOQuestionService } from "application/services/socket/SocketIOQuestionService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { type Game } from "domain/entities/game/Game";
@@ -43,7 +42,6 @@ export class SocketActionHooks {
   private readonly hooks = new Map<GameActionType, AfterExecutionHook>();
 
   public constructor(
-    private readonly socketGameContextService: SocketGameContextService,
     private readonly socketIOQuestionService: SocketIOQuestionService,
     private readonly userNotificationRoomService: UserNotificationRoomService,
     private readonly packageStore: PackageStore,
@@ -180,7 +178,7 @@ export class SocketActionHooks {
     this.realtimeGateway.leaveRoom(action.socketId, action.gameId);
   }
 
-  private async afterQuestionPick({ action, result }: AfterExecutionHookContext): Promise<void> {
+  private async afterQuestionPick({ game, result }: AfterExecutionHookContext): Promise<void> {
     if (!result.data) {
       return;
     }
@@ -192,11 +190,11 @@ export class SocketActionHooks {
       return;
     }
 
-    await this.emitPersonalizedQuestionData(action.socketId, data.gameId, question, timer);
+    await this.emitPersonalizedQuestionData(game, data.gameId, question, timer);
   }
 
   private async afterSecretQuestionTransfer({
-    action,
+    game,
     result
   }: AfterExecutionHookContext): Promise<void> {
     if (!result.data) {
@@ -220,21 +218,15 @@ export class SocketActionHooks {
       return;
     }
 
-    await this.emitPersonalizedQuestionData(action.socketId, gameId, question, timer);
+    await this.emitPersonalizedQuestionData(game, gameId, question, timer);
   }
 
   private async emitPersonalizedQuestionData(
-    socketId: string,
+    game: Game,
     gameId: string,
     question: PackageQuestionDTO,
     timer: GameStateTimerDTO
   ): Promise<void> {
-    const gameContext = await this.socketGameContextService.fetchGameContext(socketId);
-    const game = gameContext.game;
-    if (!game) {
-      return;
-    }
-
     const socketIds = await this.realtimeGateway.getRoomSocketIds(gameId);
 
     const broadcastMap = await this.socketIOQuestionService.mapSocketToQuestionPayload(

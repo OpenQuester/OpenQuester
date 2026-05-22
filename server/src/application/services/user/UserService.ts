@@ -137,6 +137,12 @@ export class UserService {
     return user;
   }
 
+  public async isGloballyMuted(userId: userId): Promise<boolean> {
+    const mutedUntil = await this.userRepository.getMutedUntilUncached(userId);
+
+    return !!mutedUntil && Date.now() < new Date(mutedUntil).getTime();
+  }
+
   public async create(data: RegisterUser) {
     this.logger.trace("User creation started", {
       prefix: LogPrefix.USER,
@@ -228,12 +234,6 @@ export class UserService {
     return this.userSessionService.getUserBySession(sessionUserId, selectOptions);
   }
 
-  public async getValidatedSessionUser(input: {
-    sessionUserId: number | undefined;
-  }): Promise<User> {
-    return this.userSessionService.getValidatedSessionUser(input);
-  }
-
   public async hasPermission(input: {
     sessionUserId: number | undefined;
     permission: Permissions;
@@ -247,10 +247,6 @@ export class UserService {
     permission: Permissions;
   }): Promise<boolean> {
     return this.userSessionService.canManageTargetUser(input);
-  }
-
-  public userHasPermission(user: User, permission: Permissions): boolean {
-    return this.userSessionService.userHasPermission(user, permission);
   }
 
   /**

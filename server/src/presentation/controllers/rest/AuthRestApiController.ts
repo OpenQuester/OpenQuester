@@ -23,6 +23,7 @@ import { type UserDTO } from "domain/types/dto/user/UserDTO";
 import { type ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { type PerformanceLog } from "shared/logging/LoggerTypes";
+import { SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT } from "domain/constants/socket";
 import { RedisService } from "application/services/redis/RedisService";
 import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
 import { S3StorageService } from "application/services/storage/S3StorageService";
@@ -77,6 +78,18 @@ export class AuthRestApiController {
       userId: userId,
       language: ts.parseAcceptLanguage(req.headers["accept-language"])
     });
+
+    const runtimeContext = {
+      socketId: authDTO.socketId,
+      userId,
+      gameId: null
+    };
+    const liveSocket = this.gameNamespace.sockets.get(authDTO.socketId);
+    if (liveSocket) {
+      liveSocket.userId = runtimeContext.userId;
+      liveSocket.gameId = runtimeContext.gameId;
+    }
+    this.gameNamespace.serverSideEmit(SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT, runtimeContext);
 
     res.status(HttpStatus.OK).send();
   };

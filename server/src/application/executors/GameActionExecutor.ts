@@ -37,6 +37,7 @@ import {
   GameActionLockService
 } from "application/services/lock/GameActionLockService";
 import { GameActionQueueService } from "application/services/queue/GameActionQueueService";
+import { asUserId } from "domain/types/ids";
 
 type DrainedActionResult =
   | {
@@ -174,10 +175,7 @@ export class GameActionExecutor {
     // Fetch real game/timer/userData context without acquiring a lock.
     // Direct execution handlers read state but never mutate it, so no
     // synchronization is needed.
-    const readResult = await this.pipelineService.executePipelineReadOnly(
-      action.gameId,
-      action.socketId
-    );
+    const readResult = await this.pipelineService.executePipelineReadOnly(action.gameId);
 
     const ctx = this.buildDirectContext(action, readResult);
     const result = await this.executeAction(handler, ctx);
@@ -258,7 +256,11 @@ export class GameActionExecutor {
       currentPlayer,
       timer: readResult.timer,
       lockToken: "",
-      userData: readResult.userData
+      userData: readResult.userData ??
+        action.userData ?? {
+          id: asUserId(action.playerId),
+          gameId: action.gameId
+        }
     };
   }
 
@@ -328,7 +330,6 @@ export class GameActionExecutor {
   private async executeDrainedAction(
     rawAction: string,
     gameHash: Record<string, string>,
-    sessionHash: Record<string, string>,
     rawTimer: string | null,
     lockToken: string,
     gameId: string
@@ -394,7 +395,10 @@ export class GameActionExecutor {
       };
     }
 
-    const userData = GamePipelineService.parseUserData(sessionHash);
+    const userData = action.userData ?? {
+      id: asUserId(action.playerId),
+      gameId: action.gameId
+    };
 
     const ctx = this.buildContext(action, {
       lockAcquired: true,
@@ -499,7 +503,6 @@ export class GameActionExecutor {
             const drainedResult = await this.executeDrainedAction(
               drainResult.action,
               drainResult.gameHash,
-              drainResult.sessionHash,
               drainResult.timer,
               currentToken,
               gameId

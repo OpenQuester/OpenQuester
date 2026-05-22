@@ -1,4 +1,4 @@
 export interface SocketRedisUserUpdateDTO {
-  id: string;
-  gameId: string;
+  id?: string;
+  gameId?: string;
 }

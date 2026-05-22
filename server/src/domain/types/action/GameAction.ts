@@ -1,4 +1,5 @@
 import { GameActionType } from "domain/enums/GameActionType";
+import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 
 /**
  * Core game action interface
@@ -12,6 +13,7 @@ export interface GameAction<TPayload = unknown> {
   socketId: string;
   timestamp: Date;
   payload: TPayload;
+  userData?: SocketRedisUserData;
 }
 
 /**
@@ -25,6 +27,7 @@ export interface SerializedGameAction {
   socketId: string;
   timestamp: string;
   payload: string;
+  userData?: SocketRedisUserData;
 }
 
 /**

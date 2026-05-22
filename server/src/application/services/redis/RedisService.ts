@@ -29,10 +29,6 @@ export class RedisService {
     return this.redisRepository.unsubscribe(channel);
   }
 
-  public async publish(channel: string, message: string) {
-    return this.redisRepository.publish(channel, message);
-  }
-
   public async setLockKey(lockKey: string, expire?: number, value?: string) {
     return this.redisRepository.setLockKey(lockKey, expire, value);
   }
@@ -59,27 +55,8 @@ export class RedisService {
     return this.redisRepository.scan(pattern);
   }
 
-  public async hgetall(key: string, updateTtl?: number): Promise<Record<string, string>> {
-    return this.redisRepository.hgetall(key, updateTtl);
-  }
-
-  public async hget(key: string, field: string, updateTtl?: number): Promise<string | null> {
-    return this.redisRepository.hget(key, field, updateTtl);
-  }
-
-  /**
-   * Retrieve multiple fields from a hash in a single round trip.
-   */
-  public async hmget(key: string, fields: string[]): Promise<(string | null)[]> {
-    return this.redisRepository.hmget(key, fields);
-  }
-
   public async get(key: string, updateTtl?: number): Promise<string | null> {
     return this.redisRepository.get(key, updateTtl);
-  }
-
-  public async hset(key: string, fields: Record<string, string>, expire?: number): Promise<number> {
-    return this.redisRepository.hset(key, fields, expire);
   }
 
   /**
@@ -112,23 +89,6 @@ export class RedisService {
 
   public async zcard(key: string) {
     return this.redisRepository.zcard(key);
-  }
-
-  /**
-   * Atomically increment a key's integer value by 1.
-   * If key doesn't exist, it's set to 0 before operation.
-   * @returns The value after increment
-   */
-  public async incr(key: string): Promise<number> {
-    return this.redisRepository.incr(key);
-  }
-
-  /**
-   * Set key to value only if key does not exist.
-   * @returns 1 if key was set, 0 if key already existed
-   */
-  public async setnx(key: string, value: string): Promise<number> {
-    return this.redisRepository.setnx(key, value);
   }
 
   /**

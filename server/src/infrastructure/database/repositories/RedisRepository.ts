@@ -3,9 +3,15 @@ import { inject, singleton } from "tsyringe";
 
 import { DI_TOKENS } from "shared/di/tokens";
 import { REDIS_LOCK_KEY_EXPIRE_DEFAULT } from "domain/constants/redis";
+import {
+  DEFAULT_REDIS_SLOW_LOG_MS,
+  Environment,
+  RedisPerfLogMode
+} from "shared/config/Environment";
 import { RedisConfig } from "shared/config/RedisConfig";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
+import { LogType } from "shared/logging/LogType";
 import { RedisLogSanitizer, type RedisLogData } from "infrastructure/utils/RedisLogSanitizer";
 import { ValueUtils } from "domain/utils/ValueUtils";
 
@@ -17,10 +23,12 @@ import { ValueUtils } from "domain/utils/ValueUtils";
 export class RedisRepository {
   private _client: Redis;
   private _subClient: Redis;
+  private readonly env: Environment;
 
   constructor(@inject(DI_TOKENS.Logger) private readonly logger: ILogger) {
     this._client = RedisConfig.getClient();
     this._subClient = RedisConfig.getSubClient();
+    this.env = Environment.getInstance(this.logger);
   }
 
   /**
@@ -56,10 +64,6 @@ export class RedisRepository {
     );
   }
 
-  public async publish(channel: string, message: string) {
-    return this._client.publish(channel, message);
-  }
-
   /**
    * Sanitizes log data for Redis operations using the dedicated sanitization service
    */
@@ -84,20 +88,59 @@ export class RedisRepository {
     operation: () => Promise<T>,
     performanceLogData: RedisLogData | null = null
   ): Promise<T> {
+    const mode = this.getRedisPerfLogMode();
+
+    if (mode === RedisPerfLogMode.OFF) {
+      return operation();
+    }
+
     const sanitizedPerformanceData = performanceLogData
       ? this.sanitizeLogData(performanceLogData)
       : this.sanitizeLogData(traceLogData);
 
-    const log = this.logger.performance(operationName, {
-      prefix: LogPrefix.REDIS,
-      ...sanitizedPerformanceData
-    });
+    if (mode === RedisPerfLogMode.ALL) {
+      const log = this.logger.performance(operationName, {
+        prefix: LogPrefix.REDIS,
+        ...sanitizedPerformanceData
+      });
 
+      try {
+        return await operation();
+      } finally {
+        log.finish();
+      }
+    }
+
+    const startTime = Date.now();
     try {
       return await operation();
     } finally {
-      log.finish();
+      const durationMs = Date.now() - startTime;
+      if (this.shouldLogRedisPerformance(mode, durationMs)) {
+        this.logger.log(LogType.PERFORMANCE, `${operationName} completed`, {
+          prefix: LogPrefix.REDIS,
+          operation: operationName,
+          durationMs,
+          ...sanitizedPerformanceData
+        });
+      }
     }
+  }
+
+  private getRedisPerfLogMode(): RedisPerfLogMode {
+    return this.env.REDIS_PERF_LOG_MODE ?? RedisPerfLogMode.SLOW;
+  }
+
+  private shouldLogRedisPerformance(mode: RedisPerfLogMode, durationMs: number): boolean {
+    if (mode === RedisPerfLogMode.SLOW) {
+      return durationMs >= this.getRedisSlowLogMs();
+    }
+
+    return false;
+  }
+
+  private getRedisSlowLogMs(): number {
+    return this.env.REDIS_SLOW_LOG_MS ?? DEFAULT_REDIS_SLOW_LOG_MS;
   }
 
   /**
@@ -327,12 +370,6 @@ export class RedisRepository {
   public async sadd(key: string, members: string[]) {
     return this.executeWithLogging("Redis SADD", { key, members }, async () => {
       return this._client.sadd(key, members);
-    });
-  }
-
-  public async zadd(key: string, scoreMembers: RedisValue[]) {
-    return this.executeWithLogging("Redis ZADD", { key, scoreMembers }, async () => {
-      return this._client.zadd(key, ...scoreMembers);
     });
   }
 

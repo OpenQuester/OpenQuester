@@ -23,6 +23,14 @@ export enum EnvType {
   TEST = "test"
 }
 
+export enum RedisPerfLogMode {
+  OFF = "off",
+  SLOW = "slow",
+  ALL = "all"
+}
+
+export const DEFAULT_REDIS_SLOW_LOG_MS = 50;
+
 const ENV_PREFIX = LogPrefix.ENV;
 
 /**
@@ -48,6 +56,8 @@ export class Environment {
   public REDIS_HOST!: string;
   public REDIS_PORT!: number;
   public REDIS_DB_NUMBER!: number;
+  public REDIS_PERF_LOG_MODE!: RedisPerfLogMode;
+  public REDIS_SLOW_LOG_MS!: number;
   public SESSION_SECRET!: string;
   public SESSION_MAX_AGE!: number;
   public SOCKET_IO_ADMIN_UI_ENABLE!: boolean;
@@ -213,6 +223,45 @@ export class Environment {
     this.REDIS_HOST = this.getEnvVar("REDIS_HOST", "string", "localhost");
     this.REDIS_PORT = this.getEnvVar("REDIS_PORT", "number", 6379);
     this.REDIS_DB_NUMBER = this.getEnvVar("REDIS_DB_NUMBER", "number", 0);
+    this.REDIS_PERF_LOG_MODE = this.getRedisPerfLogMode();
+    this.REDIS_SLOW_LOG_MS = this.getRedisSlowLogMs();
+  }
+
+  private getRedisPerfLogMode(): RedisPerfLogMode {
+    const mode = this.getEnvVar(
+      "REDIS_PERF_LOG_MODE",
+      "string",
+      RedisPerfLogMode.SLOW,
+      true
+    ) as string;
+
+    if (this.isRedisPerfLogMode(mode)) {
+      return mode;
+    }
+
+    throw new ServerError(
+      TemplateUtils.text(ServerResponse.ENV_VAR_WRONG_TYPE, {
+        var: "REDIS_PERF_LOG_MODE",
+        expectedType: Object.values(RedisPerfLogMode).join(", "),
+        value: mode,
+        type: typeof mode
+      })
+    );
+  }
+
+  private isRedisPerfLogMode(mode: string): mode is RedisPerfLogMode {
+    return Object.values(RedisPerfLogMode).includes(mode as RedisPerfLogMode);
+  }
+
+  private getRedisSlowLogMs(): number {
+    const slowLogMs = this.getEnvVar(
+      "REDIS_SLOW_LOG_MS",
+      "number",
+      DEFAULT_REDIS_SLOW_LOG_MS,
+      true
+    ) as number;
+
+    return slowLogMs >= 0 ? slowLogMs : DEFAULT_REDIS_SLOW_LOG_MS;
   }
 
   private loadServer(): void {

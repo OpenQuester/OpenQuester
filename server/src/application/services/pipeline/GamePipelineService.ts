@@ -245,26 +245,18 @@ export class GamePipelineService {
    *
    * Throws {@link ClientError} GAME_NOT_FOUND if the game hash is empty.
    */
-  public async executePipelineReadOnly(
-    gameId: string,
-    socketId: string
-  ): Promise<PipelineReadResult> {
+  public async executePipelineReadOnly(gameId: string): Promise<PipelineReadResult> {
     const gKey = gameKey(gameId);
-    const sessionKey = `${SOCKET_SESSION_PREFIX}:${socketId}`;
 
     const pipeline = this.redisService.pipeline();
     // [0] Game hash
     pipeline.hgetall(gKey);
     // [1] TTL refresh
     pipeline.expire(gKey, GAME_TTL_IN_SECONDS);
-    // [2] Active timer
-    pipeline.get(timerKey(gameId));
-    // [3] Socket session data
-    pipeline.hgetall(sessionKey);
 
     const results = await pipeline.exec();
 
-    if (!results || results.length < 4) {
+    if (!results || results.length < 2) {
       throw new ServerError("Read-only pipeline returned unexpected number of results");
     }
 
@@ -277,10 +269,8 @@ export class GamePipelineService {
 
     return {
       game,
-      // [2] Active timer
-      timer: GamePipelineService.parseTimer(results[2][1] as string | null),
-      // [3] Socket session data
-      userData: GamePipelineService.parseUserData(results[3][1] as Record<string, string> | null)
+      timer: null,
+      userData: null
     };
   }
 

@@ -239,6 +239,11 @@ export class DataMutationProcessor {
           id: mutation.userId,
           gameId: mutation.gameId
         });
+        this.realtimeGateway.updateSocketContext({
+          socketId: mutation.socketId,
+          userId: Number(mutation.userId),
+          gameId: mutation.gameId === "null" ? null : mutation.gameId
+        });
       } catch (error) {
         // Session updates are best-effort: if they fail the game state is
         // still persisted. Log a warning but do not crash the action.

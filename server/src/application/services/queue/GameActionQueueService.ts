@@ -1,8 +1,10 @@
 import { singleton } from "tsyringe";
 
+import { QUEUE_ACTION_AND_TRY_LOCK_SCRIPT } from "domain/lua/actionLuaScripts";
+import { lockKey } from "domain/constants/redisKeys";
 import { GameAction, SerializedGameAction } from "domain/types/action/GameAction";
-import { GameActionLockService } from "application/services/lock/GameActionLockService";
 import { RedisService } from "application/services/redis/RedisService";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 interface QueueActionProcessorStartResult {
   shouldProcessQueue: boolean;
@@ -27,11 +29,9 @@ interface QueueActionProcessorStartResult {
 @singleton()
 export class GameActionQueueService {
   private readonly QUEUE_KEY_PREFIX = "game:action:queue";
+  private readonly DEFAULT_LOCK_TTL = 20;
 
-  constructor(
-    private readonly redisService: RedisService,
-    private readonly lockService: GameActionLockService
-  ) {
+  constructor(private readonly redisService: RedisService) {
     //
   }
 
@@ -53,13 +53,23 @@ export class GameActionQueueService {
   public async queueActionAndTryStartProcessor(
     action: GameAction
   ): Promise<QueueActionProcessorStartResult> {
-    await this.pushAction(action);
+    const queueKey = this._getQueueKey(action.gameId);
+    const token = ValueUtils.generateUUID();
+    const result = (await this.redisService.eval(
+      QUEUE_ACTION_AND_TRY_LOCK_SCRIPT,
+      2,
+      queueKey,
+      lockKey(action.gameId),
+      this.serializeAction(action),
+      token,
+      this.DEFAULT_LOCK_TTL
+    )) as [number, string];
 
-    const lock = await this.lockService.acquireLock(action.gameId);
+    const acquired = Number(result[0]) === 1;
 
     return {
-      shouldProcessQueue: lock.acquired,
-      lockToken: lock.acquired ? lock.token : ""
+      shouldProcessQueue: acquired,
+      lockToken: acquired ? token : ""
     };
   }
 
@@ -83,22 +93,6 @@ export class GameActionQueueService {
   public async getQueueLength(gameId: string): Promise<number> {
     const queueKey = this._getQueueKey(gameId);
     return this.redisService.llen(queueKey);
-  }
-
-  /**
-   * Check if queue is empty
-   */
-  public async isEmpty(gameId: string): Promise<boolean> {
-    const length = await this.getQueueLength(gameId);
-    return length === 0;
-  }
-
-  /**
-   * Clear all actions in queue for a game
-   */
-  public async clearQueue(gameId: string): Promise<void> {
-    const queueKey = this._getQueueKey(gameId);
-    await this.redisService.del(queueKey);
   }
 
   public serializeAction(action: GameAction): string {

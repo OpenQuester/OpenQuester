@@ -1,11 +1,9 @@
 import { describe, expect, it, jest } from "@jest/globals";
 
+import { lockKey } from "domain/constants/redisKeys";
 import { GameActionType } from "domain/enums/GameActionType";
+import { QUEUE_ACTION_AND_TRY_LOCK_SCRIPT } from "domain/lua/actionLuaScripts";
 import { type GameAction, type SerializedGameAction } from "domain/types/action/GameAction";
-import {
-  type GameActionLockService,
-  type LockAcquireResult
-} from "application/services/lock/GameActionLockService";
 import { GameActionQueueService } from "application/services/queue/GameActionQueueService";
 import { type RedisService } from "application/services/redis/RedisService";
 
@@ -22,18 +20,18 @@ function createAction(): GameAction<{ answer: string }> {
 }
 
 describe("GameActionQueueService", () => {
-  it("queues an action before trying to start the processor", async () => {
-    const rpush = jest.fn(async (_key: string, _value: string): Promise<number> => 1);
-    const acquireLock = jest.fn(
-      async (_gameId: string): Promise<LockAcquireResult> => ({
-        acquired: true,
-        token: "token-1"
-      })
+  it("queues an action while trying to start the processor atomically", async () => {
+    const evalRedis = jest.fn(
+      async (
+        _script: string,
+        _keyCount: number,
+        _queueKey: string,
+        _lockKey: string,
+        _serializedAction: string,
+        token: string
+      ): Promise<[number, string]> => [1, token]
     );
-    const service = new GameActionQueueService(
-      { rpush } as unknown as RedisService,
-      { acquireLock } as unknown as GameActionLockService
-    );
+    const service = new GameActionQueueService({ eval: evalRedis } as unknown as RedisService);
 
     const action = createAction();
 
@@ -41,28 +39,28 @@ describe("GameActionQueueService", () => {
 
     expect(result).toEqual({
       shouldProcessQueue: true,
-      lockToken: "token-1"
+      lockToken: expect.any(String)
     });
-    expect(rpush).toHaveBeenCalledWith("game:action:queue:GAME1", expect.any(String));
-    expect(rpush.mock.invocationCallOrder[0]).toBeLessThan(acquireLock.mock.invocationCallOrder[0]);
+    expect(evalRedis).toHaveBeenCalledWith(
+      QUEUE_ACTION_AND_TRY_LOCK_SCRIPT,
+      2,
+      "game:action:queue:GAME1",
+      lockKey("GAME1"),
+      expect.any(String),
+      result.lockToken,
+      20
+    );
 
-    const serialized = JSON.parse(rpush.mock.calls[0][1]) as SerializedGameAction;
+    const serialized = JSON.parse(evalRedis.mock.calls[0][4] as string) as SerializedGameAction;
     expect(serialized.timestamp).toBe(action.timestamp.toISOString());
     expect(serialized.payload).toBe(JSON.stringify(action.payload));
   });
 
   it("still queues an action when another processor owns the lock", async () => {
-    const rpush = jest.fn(async (_key: string, _value: string): Promise<number> => 1);
-    const acquireLock = jest.fn(
-      async (_gameId: string): Promise<LockAcquireResult> => ({
-        acquired: false,
-        token: "token-2"
-      })
+    const evalRedis = jest.fn(
+      async (): Promise<[number, string]> => [0, ""]
     );
-    const service = new GameActionQueueService(
-      { rpush } as unknown as RedisService,
-      { acquireLock } as unknown as GameActionLockService
-    );
+    const service = new GameActionQueueService({ eval: evalRedis } as unknown as RedisService);
 
     const result = await service.queueActionAndTryStartProcessor(createAction());
 
@@ -70,7 +68,6 @@ describe("GameActionQueueService", () => {
       shouldProcessQueue: false,
       lockToken: ""
     });
-    expect(rpush).toHaveBeenCalledTimes(1);
-    expect(acquireLock).toHaveBeenCalledTimes(1);
+    expect(evalRedis).toHaveBeenCalledTimes(1);
   });
 });

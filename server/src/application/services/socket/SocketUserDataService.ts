@@ -27,10 +27,7 @@ export class SocketUserDataService {
     return this.socketUserDataRepository.getSocketDataBatch(socketIds);
   }
 
-  public async set(
-    socketId: string,
-    data: { userId: number; language: string }
-  ) {
+  public async set(socketId: string, data: { userId: number; language: string }) {
     return this.socketUserDataRepository.set(socketId, data);
   }
 

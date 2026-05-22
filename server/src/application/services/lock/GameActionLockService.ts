@@ -3,7 +3,6 @@ import { singleton } from "tsyringe";
 
 import { COMPARE_AND_DELETE_SCRIPT, DRAIN_AND_REACQUIRE_SCRIPT } from "domain/lua/actionLuaScripts";
 import { lockKey } from "domain/constants/redisKeys";
-import { SOCKET_SESSION_PREFIX } from "domain/constants/socket";
 import { RedisService } from "application/services/redis/RedisService";
 
 /**
@@ -44,8 +43,6 @@ export type DrainResult =
       timer: string | null;
       /** Game hash fields as flat key-value record (from HGETALL) */
       gameHash: Record<string, string>;
-      /** Socket session hash fields as flat key-value record (from HGETALL), empty if session not found */
-      sessionHash: Record<string, string>;
     };
 
 /**
@@ -117,7 +114,7 @@ export class GameActionLockService {
    * - `lock-lost`: Token mismatch (should not happen in normal flow)
    * - `queue-empty`: No more work, lock released cleanly
    * - `action-popped`: Next action dequeued, lock refreshed with new token,
-   *   game state + timer + socket session prefetched (mirrors the IN pipeline — 1 RT)
+   *   game state + timer prefetched (mirrors the IN pipeline — 1 RT)
    *
    * @param lockKey          Fully-qualified lock Redis key
    * @param queueKey         Fully-qualified queue Redis key
@@ -149,7 +146,6 @@ export class GameActionLockService {
       newToken,
       lockTtl,
       gameTtl,
-      `${SOCKET_SESSION_PREFIX}:`
     )) as (string | number)[];
 
     const status = result[0] as number;
@@ -168,19 +164,9 @@ export class GameActionLockService {
     const rawTimer = result[3] as string;
     const timer = rawTimer === "" ? null : rawTimer;
 
-    // result[4] = sessionFieldCount (total elements in the session flat array)
-    const sessionFieldCount = parseInt(result[4] as string, 10);
-
-    // Parse session flat HGETALL array [field1, val1, ...]
-    const sessionHash: Record<string, string> = {};
-    let idx = 5;
-    for (let i = 0; i < sessionFieldCount; i += 2, idx += 2) {
-      sessionHash[result[idx] as string] = result[idx + 1] as string;
-    }
-
     // Parse game flat HGETALL array [field1, val1, ...]
     const gameHash: Record<string, string> = {};
-    for (; idx < result.length; idx += 2) {
+    for (let idx = 4; idx < result.length; idx += 2) {
       gameHash[result[idx] as string] = result[idx + 1] as string;
     }
 
@@ -189,8 +175,7 @@ export class GameActionLockService {
       token,
       action,
       timer,
-      gameHash,
-      sessionHash
+      gameHash
     };
   }
 

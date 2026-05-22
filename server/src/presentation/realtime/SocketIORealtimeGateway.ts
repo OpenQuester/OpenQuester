@@ -1,12 +1,21 @@
 import { type Namespace } from "socket.io";
 
 import { type RealtimeEvent, RealtimeEventTarget } from "application/ports/realtime/RealtimeEvent";
-import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
+import {
+  type RealtimeGateway,
+  type SocketRuntimeContextUpdate
+} from "application/ports/realtime/RealtimeGateway";
+import { SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT } from "domain/constants/socket";
 import { ServerError } from "domain/errors/ServerError";
 
 export class SocketIORealtimeGateway implements RealtimeGateway {
   constructor(private readonly namespace: Namespace) {
-    //
+    this.namespace.on(
+      SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT,
+      (update: SocketRuntimeContextUpdate) => {
+        this.applySocketContext(update);
+      }
+    );
   }
 
   public publish(event: RealtimeEvent): void {
@@ -47,6 +56,11 @@ export class SocketIORealtimeGateway implements RealtimeGateway {
     this.namespace.in(socketId).disconnectSockets(true);
   }
 
+  public updateSocketContext(update: SocketRuntimeContextUpdate): void {
+    this.applySocketContext(update);
+    this.namespace.serverSideEmit(SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT, update);
+  }
+
   public async getRoomSocketIds(roomId: string): Promise<string[]> {
     const sockets = await this.namespace.in(roomId).fetchSockets();
     return sockets.map((socket) => socket.id);
@@ -54,5 +68,19 @@ export class SocketIORealtimeGateway implements RealtimeGateway {
 
   public getOnlineSocketCount(): number {
     return this.namespace.sockets.size;
+  }
+
+  private applySocketContext(update: SocketRuntimeContextUpdate): void {
+    const socket = this.namespace.sockets.get(update.socketId);
+    if (!socket) {
+      return;
+    }
+
+    if (update.userId !== undefined) {
+      socket.userId = update.userId;
+    }
+    if (update.gameId !== undefined) {
+      socket.gameId = update.gameId;
+    }
   }
 }

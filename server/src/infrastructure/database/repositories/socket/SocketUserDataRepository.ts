@@ -150,7 +150,6 @@ export class SocketUserDataRepository {
     if (data.gameId !== undefined) {
       updateData.gameId = data.gameId;
     }
-
     if (Object.keys(updateData).length === 0) {
       return;
     }

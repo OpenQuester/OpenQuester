@@ -81,6 +81,27 @@ export class UserRepository {
     return user;
   }
 
+  /**
+   * Reads global mute state directly from DB, intentionally bypassing user cache.
+   *
+   * Moderation checks must not trust cached negative state because admin mutes
+   * can happen after the user was cached.
+   */
+  public async getMutedUntilUncached(id: userId): Promise<Date | null> {
+    const user = await this.repository
+      .createQueryBuilder("user")
+      .select(["user.id", "user.muted_until"])
+      .where("user.id = :id", { id })
+      .andWhere("user.is_deleted = false")
+      .getOne();
+
+    if (!user) {
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, 404);
+    }
+
+    return user.muted_until ?? null;
+  }
+
   public async count(where: FindOptionsWhere<User>): Promise<number> {
     return this.repository.count({ where });
   }

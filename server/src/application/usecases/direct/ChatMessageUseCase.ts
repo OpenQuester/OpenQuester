@@ -10,6 +10,7 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { type ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { SocketChatRepository } from "infrastructure/database/repositories/socket/SocketChatRepository";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
+import { asUserId, userId } from "domain/types/ids";
 
 /**
  * Handles chat messages.
@@ -18,7 +19,8 @@ import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputD
  * don't affect game state and don't need synchronization.
  *
  * Uses ctx.game for game-level mute/spectator checks.
- * Queries UserService only for the global mute check (non-common DB data).
+ * Queries only the user's global mute field because this is a DB-backed
+ * moderation policy and stale negative socket caches are not safe enough.
  */
 export class ChatMessageUseCase implements GameActionHandler<
   ChatMessageInputData,
@@ -33,24 +35,11 @@ export class ChatMessageUseCase implements GameActionHandler<
     ctx: ActionExecutionContext<ChatMessageInputData>
   ): Promise<ActionHandlerResult<ChatMessageBroadcastData>> {
     const { game, userData, action } = ctx;
-    const userId = userData!.id;
+    const userId = asUserId(userData!.id);
 
     const player = game.getPlayer(userId, { fetchDisconnected: true });
 
-    // Check global mute status
-    const user = await this.userService.getRaw(userId, {
-      select: ["id", "muted_until"],
-      relations: []
-    });
-
-    if (user.isMuted) {
-      throw new ClientError(ClientResponse.YOU_ARE_MUTED);
-    }
-
-    // Check game-level mute
-    if (game.isPlayerMuted(userId)) {
-      throw new ClientError(ClientResponse.YOU_ARE_MUTED);
-    }
+    await this.validateMuteState(userId, game.isPlayerMuted(userId));
 
     // Check spectator restrictions only when someone is answering
     const isSpectator = player?.role === PlayerRole.SPECTATOR;
@@ -85,5 +74,15 @@ export class ChatMessageUseCase implements GameActionHandler<
         )
       ]
     };
+  }
+
+  private async validateMuteState(userId: userId, isGameMuted: boolean): Promise<void> {
+    if (isGameMuted) {
+      throw new ClientError(ClientResponse.YOU_ARE_MUTED);
+    }
+
+    if (await this.userService.isGloballyMuted(userId)) {
+      throw new ClientError(ClientResponse.YOU_ARE_MUTED);
+    }
   }
 }

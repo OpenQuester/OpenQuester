@@ -19,6 +19,7 @@ import {
   type SocketActionEntry
 } from "presentation/controllers/io/SocketActionMap";
 import { MetricsService } from "application/services/metrics/MetricsService";
+import { asUserId } from "domain/types/ids";
 
 /**
  * Generic socket-event dispatcher with a single, config-driven dispatch loop.
@@ -133,18 +134,19 @@ export class SocketActionDispatcher {
   // ════════════════════════════════════════════════════════════════════════
 
   /**
-   * Ensure `socket.userId` is populated. In multi-instance deployments the
-   * HTTP auth request may land on a different instance, so the first event
-   * lazily fetches the userId from the Redis session and caches it.
+   * Ensure socket runtime context is populated. In multi-instance deployments
+   * the HTTP auth request may land on a different instance, so the first event
+   * lazily fetches the Redis session once and caches it on the live socket.
    */
   private async resolveUserId(socket: Socket): Promise<void> {
-    if (socket.userId !== undefined) {
+    if (socket.userId !== undefined && socket.gameId !== undefined) {
       return;
     }
 
     const data = await this.socketUserDataService.getSocketData(socket.id);
     if (data?.id) {
       socket.userId = data.id;
+      socket.gameId = data.gameId;
     }
   }
 
@@ -159,7 +161,15 @@ export class SocketActionDispatcher {
   ): Promise<string | null> {
     switch (entry.gameIdStrategy) {
       case GameIdStrategy.FROM_SESSION:
-        return this.socketGameContextService.getGameIdForSocket(socket.id);
+        if (socket.gameId !== undefined) {
+          return socket.gameId;
+        }
+        {
+          const gameId = await this.socketGameContextService.getGameIdForSocket(socket.id);
+          socket.gameId = gameId;
+
+          return gameId;
+        }
 
       case GameIdStrategy.FROM_PAYLOAD:
         return (payload as Record<string, unknown>)?.gameId as string | null;
@@ -176,6 +186,9 @@ export class SocketActionDispatcher {
     payload: unknown,
     gameId: string
   ): GameAction {
+    const userGameId =
+      entry.gameIdStrategy === GameIdStrategy.FROM_PAYLOAD ? (socket.gameId ?? null) : gameId;
+
     return {
       id: ValueUtils.generateUUID(),
       type: entry.actionType,
@@ -183,7 +196,11 @@ export class SocketActionDispatcher {
       playerId: socket.userId!,
       socketId: socket.id,
       timestamp: new Date(),
-      payload
+      payload,
+      userData: {
+        id: asUserId(socket.userId!),
+        gameId: userGameId
+      }
     };
   }
 

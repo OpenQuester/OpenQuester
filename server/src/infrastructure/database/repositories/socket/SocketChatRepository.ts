@@ -32,9 +32,10 @@ export class SocketChatRepository {
 
     const key = this.getGameChatKey(data.gameId, data.gameCreatedAt);
 
-    await this.redisRepository.zadd(key, [message.timestamp.getTime(), JSON.stringify(message)]);
-
-    await this.redisRepository.expire(key, GAME_CHAT_TTL);
+    const pipeline = this.redisRepository.pipeline();
+    pipeline.zadd(key, message.timestamp.getTime(), JSON.stringify(message));
+    pipeline.expire(key, GAME_CHAT_TTL);
+    await pipeline.exec();
 
     return {
       ...message,

@@ -1,11 +1,12 @@
 import { SecretQuestionService } from "application/services/question/SecretQuestionService";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
+import { DataMutationConverter } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { type SecretQuestionTransferResult } from "domain/types/question/SecretQuestionTransferTypes";
 import {
   SecretQuestionTransferBroadcastData,
-  SecretQuestionTransferInputData,
+  SecretQuestionTransferInputData
 } from "domain/types/socket/game/SecretQuestionTransferData";
 
 /**
@@ -15,13 +16,10 @@ import {
  * must perform personalized per-socket emissions (showman sees full answer,
  * players see filtered data).
  */
-export class SecretQuestionTransferUseCase
-  implements
-    GameActionHandler<
-      SecretQuestionTransferInputData,
-      SecretQuestionTransferResult
-    >
-{
+export class SecretQuestionTransferUseCase implements GameActionHandler<
+  SecretQuestionTransferInputData,
+  SecretQuestionTransferResult
+> {
   constructor(private readonly secretQuestionService: SecretQuestionService) {
     //
   }
@@ -29,19 +27,18 @@ export class SecretQuestionTransferUseCase
   public async execute(
     ctx: ActionExecutionContext<SecretQuestionTransferInputData>
   ): Promise<ActionHandlerResult<SecretQuestionTransferResult>> {
-    const result =
-      await this.secretQuestionService.handleSecretQuestionTransfer(
-        ctx.action.socketId,
-        ctx.action.payload
-      );
+    const result = await this.secretQuestionService.handleSecretQuestionTransfer(
+      ctx.game,
+      ctx.currentPlayer!,
+      ctx.action.payload
+    );
 
-    const { game, fromPlayerId, toPlayerId, questionId, timer, question } =
-      result;
+    const { game, fromPlayerId, toPlayerId, questionId, timer, question } = result;
 
     const broadcastData: SecretQuestionTransferBroadcastData = {
       fromPlayerId,
       toPlayerId,
-      questionId,
+      questionId
     };
 
     const resultData: SecretQuestionTransferResult = {
@@ -49,14 +46,17 @@ export class SecretQuestionTransferUseCase
       gameId: game.id,
       timer: timer?.value() ?? null,
       question: question ?? null,
-      roundId: game.gameState.currentRound?.id ?? null,
+      roundId: game.gameState.currentRound?.id ?? null
     };
 
     return {
       success: true,
       data: resultData,
-      mutations: [],
-      broadcastGame: game,
+      mutations: [
+        DataMutationConverter.saveGameMutation(game),
+        ...DataMutationConverter.mutationFromTimerMutations(result.timerMutations)
+      ],
+      broadcastGame: game
     };
   }
 }

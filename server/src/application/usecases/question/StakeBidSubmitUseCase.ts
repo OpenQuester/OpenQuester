@@ -5,16 +5,16 @@ import { DataMutationConverter } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import {
   StakeBidSubmitInputData,
-  StakeBidSubmitOutputData,
+  StakeBidSubmitOutputData
 } from "domain/types/socket/events/game/StakeQuestionEventData";
 
 /**
  * Handles stake bid submission.
  */
-export class StakeBidSubmitUseCase
-  implements
-    GameActionHandler<StakeBidSubmitInputData, StakeBidSubmitOutputData>
-{
+export class StakeBidSubmitUseCase implements GameActionHandler<
+  StakeBidSubmitInputData,
+  StakeBidSubmitOutputData
+> {
   constructor(private readonly stakeQuestionService: StakeQuestionService) {
     //
   }
@@ -23,7 +23,8 @@ export class StakeBidSubmitUseCase
     ctx: ActionExecutionContext<StakeBidSubmitInputData>
   ): Promise<ActionHandlerResult<StakeBidSubmitOutputData>> {
     const result = await this.stakeQuestionService.handleStakeBidSubmit(
-      ctx.action.socketId,
+      ctx.game,
+      ctx.currentPlayer!,
       ctx.action.payload
     );
 
@@ -31,11 +32,11 @@ export class StakeBidSubmitUseCase
       success: true,
       data: result.data,
       mutations: [
-        ...DataMutationConverter.mutationFromSocketBroadcasts(
-          result.broadcasts
-        ),
+        DataMutationConverter.saveGameMutation(result.game),
+        ...DataMutationConverter.mutationFromTimerMutations(result.timerMutations),
+        ...DataMutationConverter.mutationFromSocketBroadcasts(result.broadcasts)
       ],
-      broadcastGame: result.game,
+      broadcastGame: result.game
     };
   }
 }

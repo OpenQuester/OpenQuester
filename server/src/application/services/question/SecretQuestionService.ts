@@ -1,16 +1,16 @@
 import { singleton } from "tsyringe";
 
-import { GameService } from "application/services/game/GameService";
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
-import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
+import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { SecretQuestionTransferLogic } from "domain/logic/special-question/SecretQuestionTransferLogic";
 import { PhaseTransitionRouter } from "domain/state-machine/PhaseTransitionRouter";
 import { TransitionTrigger } from "domain/state-machine/types";
+import { type TimerMutation } from "domain/types/action/ActionExecutionContext";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
 import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
@@ -30,14 +30,16 @@ interface SecretQuestionTransferResult {
   question: PackageQuestionDTO;
 }
 
+export interface SecretQuestionTransferContextResult extends SecretQuestionTransferResult {
+  timerMutations: TimerMutation[];
+}
+
 /**
  * Service handling secret question type.
  */
 @singleton()
 export class SecretQuestionService {
   constructor(
-    private readonly gameService: GameService,
-    private readonly socketGameContextService: SocketGameContextService,
     private readonly phaseTransitionRouter: PhaseTransitionRouter,
     private readonly transitionResourceService: TransitionResourceService,
     private readonly packageStore: PackageStore
@@ -49,14 +51,10 @@ export class SecretQuestionService {
    * Handles secret question transfer to another player.
    */
   public async handleSecretQuestionTransfer(
-    socketId: string,
+    game: Game,
+    currentPlayer: Player,
     data: SecretQuestionTransferInputData
-  ): Promise<SecretQuestionTransferResult> {
-    // Context & Validation
-    const context = await this.socketGameContextService.fetchGameContext(socketId);
-    const game = context.game;
-    const currentPlayer = context.currentPlayer;
-
+  ): Promise<SecretQuestionTransferContextResult> {
     const secretData = game.gameState.secretQuestionData;
     SecretQuestionValidator.validateTransfer({
       game,
@@ -79,7 +77,7 @@ export class SecretQuestionService {
       await this.phaseTransitionRouter.tryTransition<SecretTransferToAnsweringPayload>({
         game,
         trigger: TransitionTrigger.USER_ACTION,
-        triggeredBy: { playerId: currentPlayer!.meta.id, isSystem: false },
+        triggeredBy: { playerId: currentPlayer.meta.id, isSystem: false },
         payload: { targetPlayerId: data.targetPlayerId },
         resources: this.transitionResourceService.fromSimpleQuestion(questionData.question)
       });
@@ -88,19 +86,20 @@ export class SecretQuestionService {
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
 
-    await this.gameService.updateGame(game);
-
-    return SecretQuestionTransferLogic.buildResult({
-      game,
-      fromPlayerId: currentPlayer!.meta.id,
-      toPlayerId: data.targetPlayerId,
-      secretData: secretData!,
-      timer:
-        transitionResult.timer !== null
-          ? GameStateTimer.fromDTO(transitionResult.timer)
-          : this._getFallbackTimer(GAME_QUESTION_ANSWER_TIME),
-      question: questionData.question
-    });
+    return {
+      ...SecretQuestionTransferLogic.buildResult({
+        game,
+        fromPlayerId: currentPlayer.meta.id,
+        toPlayerId: data.targetPlayerId,
+        secretData: secretData!,
+        timer:
+          transitionResult.timer !== null
+            ? GameStateTimer.fromDTO(transitionResult.timer)
+            : this._getFallbackTimer(GAME_QUESTION_ANSWER_TIME),
+        question: questionData.question
+      }),
+      timerMutations: transitionResult.timerMutations
+    };
   }
 
   private _getFallbackTimer(duration: number): GameStateTimer {
