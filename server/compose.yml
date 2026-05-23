@@ -140,12 +140,9 @@ services:
     restart: unless-stopped
     deploy:
       replicas: 2
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
     depends_on:
+      traefik:
+        condition: service_started
       postgres:
         condition: service_started
       oq-redis:
@@ -163,6 +160,7 @@ services:
       INFLUX_URL: "http://influxdb3:8181/?database=openquester"
       S3_ENDPOINT: "http://minio:9000"
       DB_POOL_SIZE: 8
+      STARTUP_RECOVERY_ENABLED: "false"
     labels:
       - traefik.enable=true
       - traefik.http.routers.oq-server.rule=PathPrefix(`/`)

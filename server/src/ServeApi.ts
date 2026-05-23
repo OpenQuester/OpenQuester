@@ -213,16 +213,24 @@ export class ServeApi {
   private async _processPrepareJobs() {
     const pubSub = container.resolve(RedisPubSubService);
     const gameService = container.resolve(GameService);
-    const socketUserDataService = container.resolve(SocketUserDataService);
 
-    // Clean up all games (set all players as disconnected and pause game)
-    await gameService.cleanupAllGames();
+    if (this._context.env.STARTUP_RECOVERY_ENABLED) {
+      const socketUserDataService = container.resolve(SocketUserDataService);
+
+      // Clean up all games (set all players as disconnected and pause game)
+      await gameService.cleanupAllGames();
+
+      // Clean up all authorized socket sessions
+      await socketUserDataService.cleanupAllSession();
+    } else {
+      this._context.logger.info(
+        "Startup recovery disabled; skipping game and socket session cleanup",
+        { prefix: LogPrefix.SERVE_API }
+      );
+    }
 
     // Clean up games indexes that expires while server was down (if any)
     await gameService.cleanOrphanedGames();
-
-    // Clean up all authorized socket sessions
-    await socketUserDataService.cleanupAllSession();
 
     // Init key expiration listeners
     await pubSub.initKeyExpirationHandling();

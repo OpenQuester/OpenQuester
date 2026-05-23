@@ -16,6 +16,7 @@ import { Environment, EnvType } from "shared/config/Environment";
 import { RedisConfig } from "shared/config/RedisConfig";
 import { Database } from "infrastructure/database/Database";
 import { AppDataSource } from "infrastructure/database/DataSource";
+import { TypeOrmLoggerAdapter } from "infrastructure/database/TypeOrmLoggerAdapter";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
@@ -27,6 +28,9 @@ const main = async () => {
 
   // Set loggers on static services
   setLoggers(logger);
+  AppDataSource.setOptions({
+    logger: new TypeOrmLoggerAdapter(logger)
+  });
   logger.info(`Initializing API Context`, { prefix: LogPrefix.SERVER });
   logger.info(`API version: ${process.env.npm_package_version}`, {
     prefix: LogPrefix.SERVER,

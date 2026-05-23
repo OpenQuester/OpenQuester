@@ -70,6 +70,7 @@ export class Environment {
   public LOG_ARCHIVE_ENABLED!: boolean;
   public LOG_ARCHIVE_INTERVAL_DAYS!: number;
   public LOG_ARCHIVE_RETENTION_DAYS!: number;
+  public STARTUP_RECOVERY_ENABLED!: boolean;
 
   private constructor(private readonly logger: ILogger) {
     //
@@ -267,6 +268,12 @@ export class Environment {
   private loadServer(): void {
     this.API_PORT = this.getEnvVar("API_PORT", "number", DEFAULT_API_PORT);
     this.INFLUX_URL = this.getEnvVar("INFLUX_URL", "string", "", true);
+    this.STARTUP_RECOVERY_ENABLED = this.getEnvVar(
+      "STARTUP_RECOVERY_ENABLED",
+      "boolean",
+      true,
+      true
+    );
   }
 
   private loadDB(): void {
