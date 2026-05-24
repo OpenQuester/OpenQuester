@@ -39,8 +39,16 @@ class BuildPackagesTask implements BuildTask {
       'openapi': OpenApiPackageHandler(),
     };
 
-    // Package priorities
-    final packagePriorities = <String, int>{'openapi': -1};
+    // Package priorities. Keep Flutter package builds out of the same batch:
+    // the Flutter tool uses a global startup lock, and concurrent invocations
+    // can fail while trying to update packages in CI.
+    final packagePriorities = <String, int>{
+      'openapi': -3,
+      'siq_file': -2,
+      'oq_compress': -2,
+      'oq_shared': -2,
+      'oq_editor': -1,
+    };
 
     // Discover packages
     final packages = await discoverPackages(packagesDir);

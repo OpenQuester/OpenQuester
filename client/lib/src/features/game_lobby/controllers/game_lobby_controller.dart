@@ -968,17 +968,18 @@ class GameLobbyController {
     final data = SocketIoPlayerScoreChangeEventPayload.fromJson(
       json as Map<String, dynamic>,
     );
+    final newScore = data.newScore.toInt();
 
     final player = gameData.value?.players.getById(data.playerId);
 
     gameData.value = gameData.value?.changePlayer(
       id: data.playerId,
       onChange: (player) => player.copyWith(
-        score: data.newScore,
+        score: newScore,
       ),
     );
 
-    if (player?.score == data.newScore) return;
+    if (player?.score == newScore) return;
 
     String formatScore(int? score) {
       final (formattedScore, compactFormat) = ScoreText.formatScore(score);
@@ -991,7 +992,7 @@ class GameLobbyController {
           namedArgs: {
             'username': player?.meta.username ?? '',
             'old': formatScore(player?.score),
-            'new': formatScore(data.newScore),
+            'new': formatScore(newScore),
           },
         ),
       ),
@@ -1119,9 +1120,9 @@ class GameLobbyController {
 
     gameData.value = gameData.value?.copyWith.gameState(timer: data.timer);
     final stakeData = gameData.value?.gameState.stakeQuestionData;
-    final bids = {
+    final bids = <String, int?>{
       ...?stakeData?.bids,
-      data.playerId.toString(): data.bidAmount,
+      data.playerId.toString(): data.bidAmount?.toInt(),
     };
     gameData.value = gameData.value?.copyWith.gameState.stakeQuestionData!(
       biddingPhase: !data.isPhaseComplete,
@@ -1300,9 +1301,9 @@ class GameLobbyController {
     );
     final finalRoundData = gameData.value?.gameState.finalRoundData;
     if (finalRoundData == null) return;
-    final bids = {
+    final bids = <String, int>{
       ...finalRoundData.bids,
-      data.playerId.toString(): data.bidAmount,
+      data.playerId.toString(): data.bidAmount.toInt(),
     };
     gameData.value = gameData.value!.copyWith.gameState.finalRoundData!(
       bids: bids,

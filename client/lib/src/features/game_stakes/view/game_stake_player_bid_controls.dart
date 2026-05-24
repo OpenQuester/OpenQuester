@@ -93,7 +93,7 @@ class _BidBtn extends StatelessWidget {
             StakeBidType.normal => null,
             StakeBidType.$unknown => null,
           };
-    final bid = ScoreText.formatScore(input?.bidAmount).$1;
+    final bid = ScoreText.formatScore(input?.bidAmount?.toInt()).$1;
 
     return FilledButton.tonal(
       onPressed:
