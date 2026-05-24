@@ -39,9 +39,9 @@ class BuildPackagesTask implements BuildTask {
       'openapi': OpenApiPackageHandler(),
     };
 
-    // Package priorities. Keep Flutter package builds out of the same batch:
-    // the Flutter tool uses a global startup lock, and concurrent invocations
-    // can fail while trying to update packages in CI.
+    // Package priorities for local dependencies. Package execution is
+    // sequential below because Dart and Flutter commands share global package
+    // cache/lock state in CI.
     final packagePriorities = <String, int>{
       'openapi': -3,
       'siq_file': -2,
@@ -91,10 +91,12 @@ class BuildPackagesTask implements BuildTask {
         );
       }
 
-      // Build packages at the same priority concurrently
-      final futures = packagesAtPriority.map((packageName) {
+      // Build packages sequentially. Dart and Flutter package commands share
+      // global cache/lock state, so parallel builds can fail while updating
+      // packages in CI.
+      for (final packageName in packagesAtPriority) {
         final packagePath = p.join(workingDirectory, 'packages', packageName);
-        return _buildPackage(
+        final success = await _buildPackage(
           packagePath,
           packageName,
           customHandlers[packageName],
@@ -102,14 +104,11 @@ class BuildPackagesTask implements BuildTask {
           progress,
           verbose,
         );
-      });
 
-      final results = await Future.wait(futures);
-
-      // Check if all succeeded
-      if (results.any((r) => !r)) {
-        logger.err('✗ Some packages failed to build');
-        return false;
+        if (!success) {
+          logger.err('✗ Some packages failed to build');
+          return false;
+        }
       }
     }
 
