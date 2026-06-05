@@ -1,6 +1,6 @@
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
-import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 
 /**
  * Data returned from game join operation

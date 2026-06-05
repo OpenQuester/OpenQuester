@@ -3,7 +3,9 @@ import { DataSource } from "typeorm";
 import { SnakeNamingStrategy } from "typeorm-naming-strategies";
 
 import { ServerResponse } from "domain/enums/ServerResponse";
-import { Environment } from "infrastructure/config/Environment";
+import { Environment } from "shared/config/Environment";
+import { type LogLevel, type PerformanceLog } from "shared/logging/LoggerTypes";
+import { type ILogger } from "shared/logging/ILogger";
 
 // Models
 import { File } from "infrastructure/database/models/File";
@@ -20,8 +22,11 @@ import { Permission } from "infrastructure/database/models/Permission";
 import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { User } from "infrastructure/database/models/User";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
+import { type LogMeta } from "shared/logging/LogMeta";
+import { type LogType } from "shared/logging/LogType";
+import { TypeOrmLoggerAdapter } from "infrastructure/database/TypeOrmLoggerAdapter";
 
 // Migrations imports
 import { UpdateUserModelFields_0_1_11_1723107959823 as updateUserModelFields } from "infrastructure/database/migrations/0.1.11_UpdateUserModelFields";
@@ -56,9 +61,60 @@ import { AddMutedUntilToUser_0_21_0_1767095976000 as AddMutedUntilToUser } from 
 import { AddShowAnswerDurationToPackageQuestion_0_22_0_1766934959798 as AddShowAnswerDuration } from "./migrations/0.22.0_AddShowAnswerDurationToPackageQuestion_1766934959798";
 import { AddViewSystemLogsPermission_0_23_0_1767264810999 as AddViewLogsPerm } from "./migrations/0.23.0_AddViewSystemLogsPermission_1767264810999";
 
-// Init env synchronously for migration scripts
-/* eslint-disable-next-line node/no-sync */
-const logger = PinoLogger.initSync({ pretty: true });
+function createBootstrapDataSourceLogger(): ILogger {
+  const performanceLog: PerformanceLog = {
+    finish: () => {
+      //
+    }
+  };
+
+  return {
+    info: (_msg: string, _meta: LogMeta): void => {
+      //
+    },
+    debug: (_msg: string, _meta: LogMeta): void => {
+      //
+    },
+    trace: (_msg: string, _meta: LogMeta): void => {
+      //
+    },
+    warn: (_msg: string, _meta: LogMeta): void => {
+      //
+    },
+    error: (_msg: string, _meta: LogMeta): void => {
+      //
+    },
+    audit: (_msg: string, _meta: LogMeta): void => {
+      //
+    },
+    performance: (_msg: string, _meta: LogMeta): PerformanceLog => performanceLog,
+    migration: (_msg: string, _meta: LogMeta): void => {
+      //
+    },
+    log: (_type: LogType, _msg: string, _meta: LogMeta): void => {
+      //
+    },
+    checkAccess: (_logLevel: LogLevel, _requiredLogLevel: LogLevel): boolean => false
+  };
+}
+
+const isTestEnv = process.env.NODE_ENV === "test" || process.env.ENV === "test";
+const serverEntryPath = (process.argv[1] ?? "").replace(/\\/g, "/");
+const isServerRuntime =
+  serverEntryPath === "dist/index.js" ||
+  serverEntryPath === "src/index.js" ||
+  serverEntryPath === "src/index.ts" ||
+  serverEntryPath.endsWith("/dist/index.js") ||
+  serverEntryPath.endsWith("/src/index.js") ||
+  serverEntryPath.endsWith("/src/index.ts");
+
+// Init env synchronously only for one-off TypeORM CLI/migration contexts. Server
+// runs install the async logger adapter in index.ts before the datasource opens.
+const logger =
+  isTestEnv || isServerRuntime
+    ? createBootstrapDataSourceLogger()
+    : // eslint-disable-next-line node/no-sync
+      PinoLogger.initSync({ pretty: true });
 const env = Environment.getInstance(logger);
 
 try {
@@ -69,11 +125,11 @@ try {
     message = err.message;
   }
   logger.error(ServerResponse.FAILED_TO_LOAD_ENV, {
-    prefix: LogPrefix.SERVER,
+    prefix: LogPrefix.SERVER
   });
   logger.error(`Error message: ${message}`, {
     prefix: LogPrefix.SERVER,
-    message,
+    message
   });
   // Bravely exit from process since it's migration process created by TypeORM
   process.exit(0);
@@ -89,6 +145,7 @@ export const AppDataSource = new DataSource({
   database: env.DB_NAME,
   synchronize: false,
   logging: env.DB_LOGGER,
+  logger: new TypeOrmLoggerAdapter(logger),
   entities: [
     User,
     File,
@@ -103,7 +160,7 @@ export const AppDataSource = new DataSource({
     PackageTheme,
     PackageQuestionChoiceAnswer,
     GameStatistics,
-    PlayerGameStats,
+    PlayerGameStats
   ],
   migrations: [
     createUserAndFileTables,
@@ -136,10 +193,10 @@ export const AppDataSource = new DataSource({
     AddMutePlayerPermission,
     AddMutedUntilToUser,
     AddShowAnswerDuration,
-    AddViewLogsPerm,
+    AddViewLogsPerm
   ],
   poolSize: env.DB_POOL_SIZE,
   migrationsRun: true,
   subscribers: [],
-  namingStrategy: new SnakeNamingStrategy(),
+  namingStrategy: new SnakeNamingStrategy()
 });

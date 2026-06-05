@@ -9,7 +9,7 @@ export interface GameRedisHashDTO {
   maxPlayers: string;
   startedAt: string; // Empty string if null
   finishedAt: string; // Empty string if null
-  package: string; // JSON string of PackageDTO
+  roundIndex: string; // JSON string of RoundIndexEntry[]
   roundsCount: string;
   questionsCount: string;
   gameState: string; // JSON string of GameStateDTO

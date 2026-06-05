@@ -9,5 +9,6 @@
 server/node_modules
 server/dist
 server/data
+server/logs
 server/.env
 server/.env.*

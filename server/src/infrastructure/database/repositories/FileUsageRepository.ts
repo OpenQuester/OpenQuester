@@ -1,7 +1,7 @@
 import { inject, singleton } from "tsyringe";
 import { In, type Repository } from "typeorm";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { type File } from "infrastructure/database/models/File";
 import { FileUsage } from "infrastructure/database/models/FileUsage";
 import { type Package } from "infrastructure/database/models/package/Package";
@@ -22,16 +22,14 @@ export class FileUsageRepository {
   public async getUsage(file: File) {
     return this.repository.find({
       where: { file: { id: file.id } },
-      relations: ["file", "user", "user.avatar", "package", "package.author"],
+      relations: ["file", "user", "user.avatar", "package", "package.author"]
     });
   }
 
   /**
    * Get usage records for multiple files by their filenames - optimized with IN clause
    */
-  public async getBulkUsageByFilenames(
-    filenames: string[]
-  ): Promise<FileUsage[]> {
+  public async getBulkUsageByFilenames(filenames: string[]): Promise<FileUsage[]> {
     if (filenames.length === 0) {
       return [];
     }
@@ -39,10 +37,10 @@ export class FileUsageRepository {
     return this.repository.find({
       where: {
         file: {
-          filename: In(filenames),
-        },
+          filename: In(filenames)
+        }
       },
-      relations: ["file", "user", "user.avatar", "package", "package.author"],
+      relations: ["file", "user", "user.avatar", "package", "package.author"]
     });
   }
 
@@ -51,23 +49,19 @@ export class FileUsageRepository {
     usage.import({
       file,
       user,
-      package: pack,
+      package: pack
     });
 
     return this.repository.save(usage);
   }
 
-  public async writeBulkUsage(filesData: {
-    files: File[];
-    user?: User;
-    pack?: Package;
-  }) {
+  public async writeBulkUsage(filesData: { files: File[]; user?: User; pack?: Package }) {
     const fileUsages = filesData.files.map((f) => {
       const usage = new FileUsage();
       usage.import({
         file: f,
         package: filesData.pack,
-        user: filesData.user,
+        user: filesData.user
       });
       return usage;
     });

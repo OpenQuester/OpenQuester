@@ -1,6 +1,6 @@
 import Joi from "joi";
 
-import { LogTag } from "infrastructure/logger/LogTag";
+import { LogTag } from "shared/logging/LogTag";
 
 /** Maximum characters allowed in search query (prevents regex DoS) */
 const SEARCH_MAX_LENGTH = 100;

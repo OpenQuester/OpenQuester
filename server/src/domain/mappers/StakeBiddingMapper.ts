@@ -1,8 +1,5 @@
 import { STAKE_QUESTION_BID_TIME } from "domain/constants/game";
-import {
-  BiddingContext,
-  BiddingTurn,
-} from "domain/entities/game/values/BiddingTurn";
+import { BiddingContext, BiddingTurn } from "domain/entities/game/values/BiddingTurn";
 import { PlayerScore } from "domain/entities/game/values/PlayerScore";
 import { StakeBid } from "domain/entities/game/values/StakeBid";
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -13,9 +10,9 @@ import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO
 import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import {
   StakeBidSubmitOutputData,
-  StakeBidType,
+  StakeBidType
 } from "domain/types/socket/events/game/StakeQuestionEventData";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 export interface BidValidationResult {
   isValid: boolean;
@@ -45,20 +42,10 @@ export class StakeBiddingMapper {
    * Main function to place a bid with comprehensive validation and logic
    */
   public static placeBid(params: PlaceBidParams): PlaceBidResult {
-    const {
-      playerId,
-      bid,
-      stakeData,
-      currentPlayer,
-      questionPrice,
-      allPlayers,
-    } = params;
+    const { playerId, bid, stakeData, currentPlayer, questionPrice, allPlayers } = params;
 
     // Check if any ALL_IN bids have been made previously
-    const allInPlayers = BiddingTurn.getAllInPlayersFromStakeData(
-      stakeData,
-      allPlayers
-    );
+    const allInPlayers = BiddingTurn.getAllInPlayersFromStakeData(stakeData, allPlayers);
 
     // Validate the bid (including ALL_IN restrictions)
     const validation = this.validateBidAmount({
@@ -66,24 +53,20 @@ export class StakeBiddingMapper {
       stakeData,
       currentPlayerScore: PlayerScore.create(currentPlayer.score),
       questionPrice,
-      allInPlayers,
+      allInPlayers
     });
 
     if (!validation.isValid) {
-      throw new ClientError(
-        ClientResponse.VALIDATION_ERROR,
-        HttpStatus.BAD_REQUEST,
-        {
-          error: validation.errorMessage,
-        }
-      );
+      throw new ClientError(ClientResponse.VALIDATION_ERROR, HttpStatus.BAD_REQUEST, {
+        error: validation.errorMessage
+      });
     }
 
     // Update stake data with the new bid
     const updatedStakeData = this.updateStakeDataWithBid({
       stakeData,
       playerId,
-      stakeBid: validation.stakeBid!,
+      stakeBid: validation.stakeBid!
     });
 
     // Create BiddingTurn and determine next bidder
@@ -94,24 +77,23 @@ export class StakeBiddingMapper {
 
     const biddingContext: BiddingContext = {
       stakeData: updatedStakeData,
-      allPlayers,
+      allPlayers
     };
 
     const nextBidder = currentTurn.determineNext(biddingContext);
 
     // Update currentBidderIndex to point to the next bidder (if there is one)
     if (!nextBidder.isPhaseComplete && nextBidder.nextBidderId !== null) {
-      updatedStakeData.currentBidderIndex =
-        updatedStakeData.biddingOrder.indexOf(nextBidder.nextBidderId);
+      updatedStakeData.currentBidderIndex = updatedStakeData.biddingOrder.indexOf(
+        nextBidder.nextBidderId
+      );
     }
 
     if (nextBidder.isPhaseComplete) {
       // Set the winner to the player with the highest bid
       if (updatedStakeData.highestBid !== null) {
         // Find the player who made the highest bid
-        for (const [playerIdStr, bidAmount] of Object.entries(
-          updatedStakeData.bids
-        )) {
+        for (const [playerIdStr, bidAmount] of Object.entries(updatedStakeData.bids)) {
           if (bidAmount === updatedStakeData.highestBid) {
             updatedStakeData.winnerPlayerId = parseInt(playerIdStr, 10);
             break;
@@ -130,7 +112,7 @@ export class StakeBiddingMapper {
       isPhaseComplete: nextBidder.isPhaseComplete,
       nextBidderId: nextBidder.nextBidderId,
       timer: timer || undefined,
-      updatedStakeData,
+      updatedStakeData
     };
   }
 
@@ -144,8 +126,7 @@ export class StakeBiddingMapper {
     questionPrice: number;
     allInPlayers: Set<number>;
   }): BidValidationResult {
-    const { bid, stakeData, currentPlayerScore, questionPrice, allInPlayers } =
-      params;
+    const { bid, stakeData, currentPlayerScore, questionPrice, allInPlayers } = params;
 
     // Handle special bid types
     if (ValueUtils.isString(bid)) {
@@ -154,13 +135,13 @@ export class StakeBiddingMapper {
         if (this.isFirstBidAttempt(stakeData)) {
           return {
             isValid: false,
-            errorMessage: "First bidder cannot pass - must make an opening bid",
+            errorMessage: "First bidder cannot pass - must make an opening bid"
           };
         }
 
         return {
           isValid: true,
-          stakeBid: StakeBid.pass(),
+          stakeBid: StakeBid.pass()
         };
       }
 
@@ -170,33 +151,33 @@ export class StakeBiddingMapper {
         if (this.exceedsMaxPrice(allInAmount, stakeData.maxPrice)) {
           return {
             isValid: false,
-            errorMessage: `All-in bid (${allInAmount}) exceeds maximum price (${stakeData.maxPrice})`,
+            errorMessage: `All-in bid (${allInAmount}) exceeds maximum price (${stakeData.maxPrice})`
           };
         }
 
         if (this.isBelowQuestionPrice(allInAmount, questionPrice)) {
           return {
             isValid: false,
-            errorMessage: `All-in bid (${allInAmount}) is below question price (${questionPrice})`,
+            errorMessage: `All-in bid (${allInAmount}) is below question price (${questionPrice})`
           };
         }
 
         if (this.doesNotExceedHighestBid(allInAmount, stakeData.highestBid)) {
           return {
             isValid: false,
-            errorMessage: `All-in bid (${allInAmount}) must be higher than current highest bid (${stakeData.highestBid})`,
+            errorMessage: `All-in bid (${allInAmount}) must be higher than current highest bid (${stakeData.highestBid})`
           };
         }
 
         return {
           isValid: true,
-          stakeBid: StakeBid.allIn(allInAmount),
+          stakeBid: StakeBid.allIn(allInAmount)
         };
       }
 
       return {
         isValid: false,
-        errorMessage: `Invalid bid type: ${bid}`,
+        errorMessage: `Invalid bid type: ${bid}`
       };
     }
 
@@ -207,7 +188,7 @@ export class StakeBiddingMapper {
     if (this.isBelowQuestionPrice(bidAmount, questionPrice)) {
       return {
         isValid: false,
-        errorMessage: `Bid amount (${bidAmount}) is below question price (${questionPrice})`,
+        errorMessage: `Bid amount (${bidAmount}) is below question price (${questionPrice})`
       };
     }
 
@@ -215,8 +196,7 @@ export class StakeBiddingMapper {
     if (this.hasAllInBids(allInPlayers)) {
       return {
         isValid: false,
-        errorMessage:
-          "After an all-in bid has been made, only all-in or pass bids are allowed",
+        errorMessage: "After an all-in bid has been made, only all-in or pass bids are allowed"
       };
     }
 
@@ -224,7 +204,7 @@ export class StakeBiddingMapper {
     if (!currentPlayerScore.canAfford(bidAmount)) {
       return {
         isValid: false,
-        errorMessage: `Bid amount (${bidAmount}) exceeds player score (${currentPlayerScore.getAmount()})`,
+        errorMessage: `Bid amount (${bidAmount}) exceeds player score (${currentPlayerScore.getAmount()})`
       };
     }
 
@@ -232,7 +212,7 @@ export class StakeBiddingMapper {
     if (this.exceedsMaxPrice(bidAmount, stakeData.maxPrice)) {
       return {
         isValid: false,
-        errorMessage: `Bid amount (${bidAmount}) exceeds maximum price (${stakeData.maxPrice})`,
+        errorMessage: `Bid amount (${bidAmount}) exceeds maximum price (${stakeData.maxPrice})`
       };
     }
 
@@ -240,22 +220,18 @@ export class StakeBiddingMapper {
     if (this.doesNotExceedHighestBid(bidAmount, stakeData.highestBid)) {
       return {
         isValid: false,
-        errorMessage: `Bid amount (${bidAmount}) must be higher than current highest bid (${stakeData.highestBid})`,
+        errorMessage: `Bid amount (${bidAmount}) must be higher than current highest bid (${stakeData.highestBid})`
       };
     }
 
     // Determine bid type: ALL_IN if bidding entire score
     const bidType =
-      bidAmount === currentPlayerScore.getAmount()
-        ? StakeBidType.ALL_IN
-        : StakeBidType.NORMAL;
+      bidAmount === currentPlayerScore.getAmount() ? StakeBidType.ALL_IN : StakeBidType.NORMAL;
 
     return {
       isValid: true,
       stakeBid:
-        bidType === StakeBidType.ALL_IN
-          ? StakeBid.allIn(bidAmount)
-          : StakeBid.normal(bidAmount),
+        bidType === StakeBidType.ALL_IN ? StakeBid.allIn(bidAmount) : StakeBid.normal(bidAmount)
     };
   }
 
@@ -283,51 +259,13 @@ export class StakeBiddingMapper {
       updatedStakeData.bids[playerId] = bidAmount;
 
       // Update highest bid if this is higher
-      if (
-        updatedStakeData.highestBid === null ||
-        bidAmount > updatedStakeData.highestBid
-      ) {
+      if (updatedStakeData.highestBid === null || bidAmount > updatedStakeData.highestBid) {
         updatedStakeData.highestBid = bidAmount;
         // Don't set winnerPlayerId here - only set it when bidding phase is complete
       }
     }
 
     return updatedStakeData;
-  }
-
-  /**
-   * Checks if a player's bid constitutes a true ALL_IN
-   */
-  public static checkAllInStatus(params: {
-    bidAmount: number;
-    playerScore: number;
-  }): boolean {
-    const { bidAmount, playerScore } = params;
-
-    // True ALL_IN: player is bidding their entire score
-    // NOT just because they hit the maxPrice limit
-    return bidAmount === playerScore;
-  }
-
-  /**
-   * Determines if bidding phase is complete
-   */
-  public static isBiddingPhaseComplete(
-    stakeData: StakeQuestionGameData,
-    allPlayers?: PlayerDTO[]
-  ): boolean {
-    const currentTurn = BiddingTurn.create(
-      stakeData.biddingOrder,
-      stakeData.currentBidderIndex
-    );
-
-    const biddingContext: BiddingContext = {
-      stakeData,
-      allPlayers: allPlayers || [],
-    };
-
-    const nextBidder = currentTurn.determineNext(biddingContext);
-    return nextBidder.isPhaseComplete;
   }
 
   /**
@@ -338,7 +276,7 @@ export class StakeBiddingMapper {
       durationMs: STAKE_QUESTION_BID_TIME,
       startedAt: new Date(),
       elapsedMs: 0,
-      resumedAt: null,
+      resumedAt: null
     };
   }
 
@@ -349,31 +287,22 @@ export class StakeBiddingMapper {
   /**
    * Checks if a bid amount exceeds the maximum price limit
    */
-  private static exceedsMaxPrice(
-    amount: number,
-    maxPrice: number | null
-  ): boolean {
+  private static exceedsMaxPrice(amount: number, maxPrice: number | null): boolean {
     return maxPrice !== null && amount > maxPrice;
   }
 
   /**
    * Checks if a bid amount is below the minimum question price
    */
-  private static isBelowQuestionPrice(
-    amount: number,
-    questionPrice: number
-  ): boolean {
+  private static isBelowQuestionPrice(amount: number, questionPrice: number): boolean {
     return amount < questionPrice;
   }
 
   /**
    * Checks if a bid amount does not exceed the current highest bid
-   * Once there's a highest bid, all subsequent bids must be strictly higher
+   * Once there's the highest bid, all subsequent bids must be strictly higher
    */
-  private static doesNotExceedHighestBid(
-    amount: number,
-    highestBid: number | null
-  ): boolean {
+  private static doesNotExceedHighestBid(amount: number, highestBid: number | null): boolean {
     // No highest bid yet - any bid >= question price is allowed (question price validation is handled separately)
     if (highestBid === null) {
       return false;
@@ -387,9 +316,7 @@ export class StakeBiddingMapper {
    * Checks if this is the first bid attempt (no bids made yet)
    */
   private static isFirstBidAttempt(stakeData: StakeQuestionGameData): boolean {
-    return (
-      stakeData.highestBid === null && Object.keys(stakeData.bids).length === 0
-    );
+    return stakeData.highestBid === null && Object.keys(stakeData.bids).length === 0;
   }
 
   /**

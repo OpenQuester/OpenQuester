@@ -1,4 +1,7 @@
+import { userId } from "domain/types/ids";
+
 export interface SocketRedisUserData {
-  id: number;
+  id: userId;
   gameId: string | null;
+  mutedUntil?: string | null;
 }

@@ -29,7 +29,6 @@ export interface MediaDownloadCompletionResult {
  */
 export interface MediaDownloadPlayerLeaveResult {
   broadcasts: BroadcastEvent[];
-  shouldTransitionToShowing: boolean;
 }
 
 export interface MediaDownloadPlayerLeaveResultInput {
@@ -103,7 +102,7 @@ export class MediaDownloadPlayerLeaveLogic {
     const broadcasts: BroadcastEvent[] = [];
 
     if (!completionResult.allPlayersReady) {
-      return { broadcasts, shouldTransitionToShowing: false };
+      return { broadcasts };
     }
 
     broadcasts.push({
@@ -119,7 +118,6 @@ export class MediaDownloadPlayerLeaveLogic {
 
     return {
       broadcasts,
-      shouldTransitionToShowing: true,
     };
   }
 }

@@ -1,6 +1,6 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { STAKE_QUESTION_BID_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
@@ -38,13 +38,6 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.CHOOSING;
   public readonly toPhase = GamePhase.STAKE_BIDDING;
 
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService
-  ) {
-    super(gameService, timerService);
-  }
-
   public canTransition(ctx: ChoosingToStakeBiddingCtx): boolean {
     const { game, trigger, payload } = ctx;
 
@@ -65,7 +58,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
     try {
       const { question } = QuestionPickLogic.validateQuestionPick(
         game,
-        payload.questionId
+        payload.questionData
       );
 
       if (question.type !== PackageQuestionType.STAKE) return false;
@@ -88,7 +81,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
 
     const { question, theme } = QuestionPickLogic.validateQuestionPick(
       game,
-      payload!.questionId
+      payload!.questionData
     );
 
     const eligiblePlayers = game.players.filter(
@@ -132,6 +125,7 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
     }
 
     game.setQuestionState(QuestionState.BIDDING);
+    game.gameState.answerShowData = null;
     game.gameState.stakeQuestionData = stakeData;
 
     // Mark question played and reset media download statuses
@@ -155,14 +149,23 @@ export class ChoosingToStakeBiddingHandler extends BaseTransitionHandler {
     ctx: ChoosingToStakeBiddingCtx,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    await this.gameService.clearTimer(ctx.game.id);
+    const { game } = ctx;
 
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      ctx.game,
-      STAKE_QUESTION_BID_TIME
-    );
+    const timer = new GameStateTimer(STAKE_QUESTION_BID_TIME);
+    game.gameState.timer = timer.start();
 
-    return { timer: timerEntity.value() ?? undefined };
+    return {
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: STAKE_QUESTION_BID_TIME,
+        },
+      ],
+    };
   }
 
   protected collectBroadcasts(

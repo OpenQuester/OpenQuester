@@ -1,12 +1,10 @@
 import { SCORE_ABS_LIMIT } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { PlayerScoreChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
  * Data from player score change
@@ -42,13 +40,9 @@ export class PlayerScoreChangeLogic {
    *
    * @returns The actually applied score (after clamping)
    */
-  public static applyScore(
-    game: Game,
-    targetPlayerId: number,
-    newScore: number
-  ): number {
+  public static applyScore(game: Game, targetPlayerId: number, newScore: number): number {
     const targetPlayer = game.getPlayer(targetPlayerId, {
-      fetchDisconnected: false,
+      fetchDisconnected: false
     });
 
     if (!targetPlayer) {
@@ -65,14 +59,12 @@ export class PlayerScoreChangeLogic {
   /**
    * Builds the result object with broadcasts.
    */
-  public static buildResult(
-    input: PlayerScoreChangeResultInput
-  ): PlayerScoreChangeResult {
+  public static buildResult(input: PlayerScoreChangeResultInput): PlayerScoreChangeResult {
     const { game, targetPlayerId, newScore } = input;
 
     const broadcastData: PlayerScoreChangeBroadcastData = {
       playerId: targetPlayerId,
-      newScore,
+      newScore
     };
 
     const broadcasts: SocketEventBroadcast[] = [
@@ -80,13 +72,13 @@ export class PlayerScoreChangeLogic {
         event: SocketIOGameEvents.SCORE_CHANGED,
         data: broadcastData,
         target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<PlayerScoreChangeBroadcastData>,
+        gameId: game.id
+      } satisfies SocketEventBroadcast<PlayerScoreChangeBroadcastData>
     ];
 
     return {
       data: { game, targetPlayerId, newScore },
-      broadcasts,
+      broadcasts
     };
   }
 }

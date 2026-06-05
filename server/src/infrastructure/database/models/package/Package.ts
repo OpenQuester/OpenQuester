@@ -6,7 +6,7 @@ import {
   ManyToMany,
   ManyToOne,
   OneToMany,
-  PrimaryGeneratedColumn,
+  PrimaryGeneratedColumn
 } from "typeorm";
 
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -15,12 +15,22 @@ import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { ClientError } from "domain/errors/ClientError";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
-import { PackageImport } from "domain/types/package/import/PackageImport";
+import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
 import { File } from "infrastructure/database/models/File";
 import { PackageRound } from "infrastructure/database/models/package/PackageRound";
 import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { User } from "infrastructure/database/models/User";
-import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
+
+export interface PackageImport {
+  title: string;
+  createdAt: Date;
+  language?: string | null;
+  description?: string | null;
+  ageRestriction: AgeRestriction;
+  author: User;
+  logo?: File | null;
+  tags: PackageTag[];
+}
 
 @Entity("package")
 export class Package {
@@ -35,7 +45,7 @@ export class Package {
 
   @ManyToOne(() => User, (user) => user.packages, {
     onDelete: "SET NULL",
-    nullable: true,
+    nullable: true
   })
   @JoinColumn({ name: "author" })
   author!: User;
@@ -61,7 +71,7 @@ export class Package {
   @JoinTable({
     name: "packages_tags",
     joinColumn: { name: "package", referencedColumnName: "id" },
-    inverseJoinColumn: { name: "tag", referencedColumnName: "id" },
+    inverseJoinColumn: { name: "tag", referencedColumnName: "id" }
   })
   tags!: PackageTag[];
 
@@ -84,7 +94,7 @@ export class Package {
     }
   }
 
-  public logoDTO(storage: S3StorageService, opts?: PackageDTOOptions) {
+  public logoDTO(fileUrlBuilder: IFileUrlBuilder, opts?: PackageDTOOptions) {
     const options = opts ?? { fetchIds: false };
     const dto = this.logo
       ? {
@@ -92,8 +102,8 @@ export class Package {
             id: this.logo.id,
             md5: this.logo.filename,
             type: PackageFileType.IMAGE,
-            link: storage.getUrl(this.logo.filename),
-          },
+            link: fileUrlBuilder.getUrl(this.logo.filename)
+          }
         }
       : null;
 
@@ -104,47 +114,44 @@ export class Package {
     return dto;
   }
 
-  public toSimpleDTO(storage: S3StorageService): Omit<PackageDTO, "rounds"> {
+  public toSimpleDTO(fileUrlBuilder: IFileUrlBuilder): Omit<PackageDTO, "rounds"> {
     return {
       id: this.id,
       title: this.title,
       ageRestriction: this.age_restriction,
       author: {
         id: this.author.id,
-        username: this.author.username,
+        username: this.author.username
       },
       createdAt: this.created_at,
       description: this.description,
       language: this.language,
-      logo: this.logoDTO(storage),
-      tags: this.tags.map((tag) => tag.toDTO()),
+      logo: this.logoDTO(fileUrlBuilder),
+      tags: this.tags.map((tag) => tag.toDTO())
     };
   }
 
-  public toDTO(
-    storage: S3StorageService,
-    opts?: PackageDTOOptions
-  ): PackageDTO {
+  public toDTO(fileUrlBuilder: IFileUrlBuilder, opts?: PackageDTOOptions): PackageDTO {
     const options = opts ?? { fetchIds: false };
 
-    const logoDTO = this.logoDTO(storage);
+    const logoDTO = this.logoDTO(fileUrlBuilder);
 
     if (!this.rounds) {
       throw new ClientError(ClientResponse.PACKAGE_CORRUPTED, undefined, {
         id: this.id,
-        missing: "rounds:notLoaded",
+        missing: "rounds:notLoaded"
       });
     }
     if (this.rounds.length < 1) {
       throw new ClientError(ClientResponse.PACKAGE_CORRUPTED, undefined, {
         id: this.id,
-        missing: "rounds",
+        missing: "rounds"
       });
     }
 
     const roundsDTO = this.rounds
       .sort((a, b) => a.order - b.order)
-      .map((round) => round.toDTO(storage, options));
+      .map((round) => round.toDTO(fileUrlBuilder, options));
 
     const tagsDTO = this.tags.map((tag) => tag.toDTO());
 
@@ -153,20 +160,20 @@ export class Package {
       ageRestriction: this.age_restriction,
       author: {
         id: this.author.id,
-        username: this.author.username,
+        username: this.author.username
       },
       createdAt: this.created_at,
       description: this.description,
       language: this.language,
       logo: logoDTO,
       rounds: roundsDTO,
-      tags: tagsDTO,
+      tags: tagsDTO
     };
 
     if (options.fetchIds) {
       dto = {
         id: this.id,
-        ...dto,
+        ...dto
       };
     }
 

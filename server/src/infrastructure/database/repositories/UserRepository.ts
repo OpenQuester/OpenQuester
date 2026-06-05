@@ -1,23 +1,34 @@
 import { inject, singleton } from "tsyringe";
 import { FindOptionsWhere, In, type Repository } from "typeorm";
 
-import { DI_TOKENS } from "application/di/tokens";
-import { FileUsageService } from "application/services/file/FileUsageService";
-import { UserCacheUseCase } from "application/usecases/user/UserCacheUseCase";
+import { DI_TOKENS } from "shared/di/tokens";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { UserStatus } from "domain/enums/user/UserStatus";
 import { UserType } from "domain/enums/user/UserType";
 import { ClientError } from "domain/errors/ClientError";
+import { UsersStats } from "domain/types/admin/AdminTypes";
+import { userId } from "domain/types/ids";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { SelectOptions } from "domain/types/SelectOptions";
-import { RegisterUser } from "domain/types/user/RegisterUser";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { QueryBuilder } from "infrastructure/database/QueryBuilder";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { RedisService } from "infrastructure/services/redis/RedisService";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { UserCacheStore } from "infrastructure/cache/UserCacheStore";
+import { FileUsageRepository } from "infrastructure/database/repositories/FileUsageRepository";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
+
+interface UserCreateData {
+  username: string;
+  name?: string | null;
+  email?: string | null;
+  discord_id?: string | null;
+  birthday?: Date | null;
+  avatar?: User["avatar"];
+  is_guest?: boolean;
+}
 
 /** Redis key for atomic guest username counter */
 const GUEST_USERNAME_COUNTER_KEY = "user:guest:counter";
@@ -33,16 +44,16 @@ export class UserRepository {
   constructor(
     @inject(DI_TOKENS.TypeORMUserRepository)
     private readonly repository: Repository<User>,
-    private readonly fileUsageService: FileUsageService,
-    private readonly cache: UserCacheUseCase,
-    private readonly redisService: RedisService,
+    private readonly fileUsageRepository: FileUsageRepository,
+    private readonly cache: UserCacheStore,
+    private readonly redisRepository: RedisRepository,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
   }
 
   public async get(
-    id: number,
+    id: userId,
     selectOptions: SelectOptions<User>,
     opts?: { searchDeleted: boolean }
   ): Promise<User | null> {
@@ -50,7 +61,7 @@ export class UserRepository {
     const cached = await this.cache.get(id, selectOptions);
     if (cached) {
       this.logger.trace(`User ${id} cache hit`, {
-        prefix: LogPrefix.USER,
+        prefix: LogPrefix.USER
       });
       const user = new User();
       user.import(cached);
@@ -70,55 +81,97 @@ export class UserRepository {
     return user;
   }
 
-  public async find(
-    where: FindOptionsWhere<User>,
-    selectOptions: SelectOptions<User>
-  ) {
-    const qb = await QueryBuilder.buildFindQuery<User>(
-      this.repository,
-      where,
-      selectOptions
-    );
-    return qb.getMany();
+  /**
+   * Reads global mute state directly from DB, intentionally bypassing user cache.
+   *
+   * Moderation checks must not trust cached negative state because admin mutes
+   * can happen after the user was cached.
+   */
+  public async getMutedUntilUncached(id: userId): Promise<Date | null> {
+    const row = await this.repository
+      .createQueryBuilder("user")
+      .select("user.muted_until", "mutedUntil")
+      .where("user.id = :id", { id })
+      .andWhere("user.is_deleted = false")
+      .getRawOne<{ mutedUntil: Date | null }>();
+
+    if (!row) {
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, 404);
+    }
+
+    return row.mutedUntil ?? null;
   }
 
   public async count(where: FindOptionsWhere<User>): Promise<number> {
     return this.repository.count({ where });
   }
 
-  public async findOne(
-    where: FindOptionsWhere<User>,
-    selectOptions: SelectOptions<User>
-  ) {
+  public async getStats(): Promise<UsersStats> {
+    const total = await this.count({});
+    const deleted = await this.count({ is_deleted: true });
+    const banned = await this.count({ is_banned: true });
+    const guests = await this.count({ is_guest: true });
+
+    return {
+      total,
+      deleted,
+      active: total - (deleted + banned),
+      banned,
+      guests
+    };
+  }
+
+  public async findOne(where: FindOptionsWhere<User>, selectOptions: SelectOptions<User>) {
     this.logger.trace("findOne for user with options: ", {
       where,
       selectOptions,
-      prefix: LogPrefix.USER,
+      prefix: LogPrefix.USER
     });
 
-    const qb = await QueryBuilder.buildFindQuery<User>(
-      this.repository,
-      where,
-      selectOptions
-    );
+    const qb = await QueryBuilder.buildFindQuery<User>(this.repository, where, selectOptions);
     return qb.getOne();
   }
 
-  public findByIds(
-    ids: number[],
+  public findActiveByDiscordId(
+    discordId: string,
     selectOptions: SelectOptions<User>
-  ): Promise<User[]> {
+  ): Promise<User | null> {
+    return this.findOne({ discord_id: discordId, is_deleted: false }, selectOptions);
+  }
+
+  public findActiveByIdentity(
+    input: { username: string; email: string; discordId: string },
+    selectOptions: SelectOptions<User>
+  ): Promise<User | null> {
+    return this.findOne(
+      {
+        username: input.username,
+        email: input.email,
+        discord_id: input.discordId,
+        is_deleted: false
+      },
+      selectOptions
+    );
+  }
+
+  public async existsByUsername(username: string): Promise<boolean> {
+    const existing = await this.repository.findOne({
+      select: ["id"],
+      where: { username }
+    });
+
+    return !!existing;
+  }
+
+  public findByIds(ids: number[], selectOptions: SelectOptions<User>): Promise<User[]> {
     return this.repository.find({
       where: { id: In(ids) },
       select: selectOptions.select,
-      relations: selectOptions.relations,
+      relations: selectOptions.relations
     });
   }
 
-  public async list(
-    paginationOpts: UserPaginationOpts,
-    selectOptions: SelectOptions<User>
-  ) {
+  public async list(paginationOpts: UserPaginationOpts, selectOptions: SelectOptions<User>) {
     const alias = this.repository.metadata.name.toLowerCase();
 
     const {
@@ -128,7 +181,7 @@ export class UserRepository {
       offset,
       search,
       status,
-      userType,
+      userType
     } = paginationOpts;
 
     const qbBase = this.repository.createQueryBuilder(alias);
@@ -158,10 +211,7 @@ export class UserRepository {
 
     const [idRows, total] = await qbBase
       .select([`${alias}.id`, `${alias}.${String(sortBy)}`])
-      .orderBy(
-        `${alias}.${String(sortBy)}`,
-        order.toUpperCase() as "ASC" | "DESC"
-      )
+      .orderBy(`${alias}.${String(sortBy)}`, order.toUpperCase() as "ASC" | "DESC")
       .skip(offset)
       .take(limit)
       .getManyAndCount();
@@ -176,8 +226,8 @@ export class UserRepository {
           limit,
           offset,
           hasNext: false,
-          hasPrev: offset > 0,
-        },
+          hasPrev: offset > 0
+        }
       };
     }
 
@@ -192,10 +242,7 @@ export class UserRepository {
       selectOptions.relationSelects
     );
 
-    qb.orderBy(
-      `${alias}.${String(sortBy)}`,
-      order.toUpperCase() as "ASC" | "DESC"
-    );
+    qb.orderBy(`${alias}.${String(sortBy)}`, order.toUpperCase() as "ASC" | "DESC");
 
     const users = await qb.getMany();
 
@@ -216,7 +263,7 @@ export class UserRepository {
       limit,
       offset,
       hasNext: offset + limit < total,
-      hasPrev: offset > 0,
+      hasPrev: offset > 0
     };
 
     return { data: orderedUsers, pageInfo };
@@ -248,7 +295,7 @@ export class UserRepository {
     return qb.getMany();
   }
 
-  public async create(data: RegisterUser) {
+  public async create(data: UserCreateData) {
     // If this is a guest user, generate unique username
     let username = data.username;
     if (data.is_guest) {
@@ -267,7 +314,7 @@ export class UserRepository {
 
     const existing = await this.repository.findOne({
       select: ["id"],
-      where: whereOpts,
+      where: whereOpts
     });
 
     if (existing && existing.id >= 0) {
@@ -288,13 +335,13 @@ export class UserRepository {
       updated_at: new Date(),
       is_deleted: false,
       is_banned: false,
-      is_guest: data.is_guest ?? false,
+      is_guest: data.is_guest ?? false
     });
 
     // Save new user
     user = await this.save(user);
     if (data.avatar) {
-      await this.fileUsageService.writeUsage(data.avatar, user);
+      await this.fileUsageRepository.writeUsage(data.avatar, user);
     }
     return user;
   }
@@ -308,13 +355,11 @@ export class UserRepository {
     await this.initializeGuestCounterIfNeeded();
 
     // Atomically increment and get next number
-    const nextNumber = await this.redisService.incr(GUEST_USERNAME_COUNTER_KEY);
+    const nextNumber = await this.redisRepository.incr(GUEST_USERNAME_COUNTER_KEY);
 
     // Pad with leading zeros only if number is less than 1000
     const paddedNumber =
-      nextNumber < 1000
-        ? nextNumber.toString().padStart(3, "0")
-        : nextNumber.toString();
+      nextNumber < 1000 ? nextNumber.toString().padStart(3, "0") : nextNumber.toString();
 
     return `guest_${paddedNumber}`;
   }
@@ -326,7 +371,6 @@ export class UserRepository {
    */
   private async initializeGuestCounterIfNeeded(): Promise<void> {
     // Skip if already initialized this instance
-    // TODO: Should be runned only once per instance, but better to move to Redis for only 1 init
     if (this.guestCounterInitialized) {
       return;
     }
@@ -351,7 +395,7 @@ export class UserRepository {
 
     // Atomically set counter only if it doesn't exist (SETNX)
     // This handles race condition when multiple server instances start simultaneously
-    const wasSet = await this.redisService.setnx(
+    const wasSet = await this.redisRepository.setnx(
       GUEST_USERNAME_COUNTER_KEY,
       maxNumber.toString()
     );
@@ -359,7 +403,7 @@ export class UserRepository {
     if (wasSet === 1) {
       this.logger.info(`Guest username counter initialized from DB`, {
         prefix: LogPrefix.USER,
-        maxNumber,
+        maxNumber
       });
     }
 
@@ -371,16 +415,16 @@ export class UserRepository {
     const updateResult = await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is deleted`, {
-      prefix: LogPrefix.USER,
+      prefix: LogPrefix.USER
     });
 
     return updateResult;
   }
 
-  public async ban(userId: number) {
+  public async ban(userId: userId) {
     const user = await this.get(userId, {
       select: ["id", "email", "updated_at", "is_banned"],
-      relations: [],
+      relations: []
     });
 
     if (!user) {
@@ -391,14 +435,14 @@ export class UserRepository {
     await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is banned`, {
-      prefix: LogPrefix.USER,
+      prefix: LogPrefix.USER
     });
   }
 
-  public async unban(userId: number) {
+  public async unban(userId: userId) {
     const user = await this.get(userId, {
       select: ["id", "email", "updated_at", "is_banned"],
-      relations: [],
+      relations: []
     });
 
     if (!user) {
@@ -413,14 +457,14 @@ export class UserRepository {
     await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is unbanned`, {
-      prefix: LogPrefix.USER,
+      prefix: LogPrefix.USER
     });
   }
 
-  public async mute(userId: number, mutedUntil: Date) {
+  public async mute(userId: userId, mutedUntil: Date) {
     const user = await this.get(userId, {
       select: ["id", "email", "updated_at", "muted_until"],
-      relations: [],
+      relations: []
     });
 
     if (!user) {
@@ -431,19 +475,17 @@ export class UserRepository {
     await this.update(user);
 
     this.logger.audit(
-      `User '${user.id} | ${
-        user.email
-      }' is muted until ${mutedUntil.toISOString()}`,
+      `User '${user.id} | ${user.email}' is muted until ${mutedUntil.toISOString()}`,
       {
-        prefix: LogPrefix.USER,
+        prefix: LogPrefix.USER
       }
     );
   }
 
-  public async unmute(userId: number) {
+  public async unmute(userId: userId) {
     const user = await this.get(userId, {
       select: ["id", "email", "updated_at", "muted_until"],
-      relations: [],
+      relations: []
     });
 
     if (!user) {
@@ -458,7 +500,7 @@ export class UserRepository {
     await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is unmuted`, {
-      prefix: LogPrefix.USER,
+      prefix: LogPrefix.USER
     });
   }
 
@@ -481,23 +523,23 @@ export class UserRepository {
         is_deleted: user.is_deleted,
         is_banned: user.is_banned,
         muted_until: user.muted_until ?? null,
-        updated_at: user.updated_at,
+        updated_at: user.updated_at
       }
     );
 
     this.logger.audit(`User '${user.id} | ${user.email}' is updated`, {
-      prefix: LogPrefix.USER,
+      prefix: LogPrefix.USER
     });
 
     return updateResult;
   }
 
-  public async restore(userId: number) {
+  public async restore(userId: userId) {
     const user = await this.get(
       userId,
       {
         select: ["id", "is_deleted", "email", "updated_at"],
-        relations: [],
+        relations: []
       },
       { searchDeleted: true }
     );
@@ -514,25 +556,20 @@ export class UserRepository {
     await this.update(user);
 
     this.logger.audit(`User '${user.id} | ${user.email}' is restored`, {
-      prefix: LogPrefix.USER,
+      prefix: LogPrefix.USER
     });
   }
 
   /**
    * Get permission entities by their names
    */
-  public async getPermissionsByNames(
-    permissionNames: string[]
-  ): Promise<Permission[]> {
-    const permissionRepository =
-      this.repository.manager.getRepository(Permission);
+  public async getPermissionsByNames(permissionNames: string[]): Promise<Permission[]> {
+    const permissionRepository = this.repository.manager.getRepository(Permission);
 
-    const permissions = await permissionRepository
+    return await permissionRepository
       .createQueryBuilder("permission")
       .where("permission.name IN (:...names)", { names: permissionNames })
       .getMany();
-
-    return permissions;
   }
 
   /**

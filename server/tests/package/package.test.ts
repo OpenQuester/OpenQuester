@@ -9,9 +9,9 @@ import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { Package } from "infrastructure/database/models/package/Package";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { PackageUtils } from "tests/utils/PackageUtils";
@@ -25,16 +25,13 @@ async function createPackages(
   app: Express
 ) {
   for (let i = 0; i < count; i++) {
-    const packageData = packageUtils.createTestPackageData(
-      loginData.user,
-      false
-    );
+    const packageData = packageUtils.createTestPackageData(loginData.user, false);
 
     // Create package
     await request(app)
       .post("/v1/packages")
       .send({
-        content: packageData,
+        content: packageData
       })
       .set("Cookie", loginData.cookie);
   }
@@ -61,7 +58,7 @@ async function createUserWithPermissions(
     username,
     email: `${username}@test.com`,
     is_deleted: false,
-    permissions: permissions,
+    permissions: permissions
   });
   await userRepo.save(user);
   return user;
@@ -98,7 +95,7 @@ describe("PackageRestApiController", () => {
     packageRepo = dataSource.getRepository<Package>("Package");
     permRepo = dataSource.getRepository<Permission>("Permission");
     // --- utils ---
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     packageUtils = new PackageUtils();
     testUtils = new TestUtils(app, userRepo, serverUrl);
   });
@@ -133,16 +130,13 @@ describe("PackageRestApiController", () => {
 
   it("should create package successfully", async () => {
     const loginData = await testUtils.createAndLoginUser("testuser");
-    const packageData = packageUtils.createTestPackageData(
-      loginData.user,
-      false
-    );
+    const packageData = packageUtils.createTestPackageData(loginData.user, false);
 
     // Create package
     const res = await request(app)
       .post("/v1/packages")
       .send({
-        content: packageData,
+        content: packageData
       })
       .set("Cookie", loginData.cookie);
 
@@ -155,7 +149,7 @@ describe("PackageRestApiController", () => {
     // Validate package in database
     const packageFromDB = await packageRepo.findOne({
       where: { id: response.id },
-      relations: ["author"],
+      relations: ["author"]
     });
 
     expect(packageFromDB).toBeDefined();
@@ -165,24 +159,19 @@ describe("PackageRestApiController", () => {
 
   it("should retrieve package", async () => {
     const loginData = await testUtils.createAndLoginUser("testuser");
-    const packageData = packageUtils.createTestPackageData(
-      loginData.user,
-      false
-    );
+    const packageData = packageUtils.createTestPackageData(loginData.user, false);
 
     // Create package
     const createRes = await request(app)
       .post("/v1/packages")
       .send({
-        content: packageData,
+        content: packageData
       })
       .set("Cookie", loginData.cookie);
 
     // Get package
     const id = (createRes.body as unknown as PackageUploadResponse).id;
-    const res = await request(app)
-      .get(`/v1/packages/${id}`)
-      .set("Cookie", loginData.cookie);
+    const res = await request(app).get(`/v1/packages/${id}`).set("Cookie", loginData.cookie);
 
     const result = res.body as PackageDTO;
 
@@ -202,7 +191,7 @@ describe("PackageRestApiController", () => {
       packageUtils,
       {
         user: loginData.user,
-        cookie: loginData.cookie,
+        cookie: loginData.cookie
       },
       app
     );
@@ -230,7 +219,7 @@ describe("PackageRestApiController", () => {
       packageUtils,
       {
         user: loginData.user,
-        cookie: loginData.cookie,
+        cookie: loginData.cookie
       },
       app
     );
@@ -257,16 +246,13 @@ describe("PackageRestApiController", () => {
   describe("Package Deletion", () => {
     it("should successfully delete package when user is the author", async () => {
       const loginData = await testUtils.createAndLoginUser("author");
-      const packageData = packageUtils.createTestPackageData(
-        loginData.user,
-        false
-      );
+      const packageData = packageUtils.createTestPackageData(loginData.user, false);
 
       // Create package
       const createRes = await request(app)
         .post("/v1/packages")
         .send({
-          content: packageData,
+          content: packageData
         })
         .set("Cookie", loginData.cookie);
 
@@ -298,30 +284,22 @@ describe("PackageRestApiController", () => {
     it("should successfully delete package when user has DELETE_PACKAGE permission", async () => {
       // Create author and package
       const authorData = await testUtils.createAndLoginUser("author");
-      const packageData = packageUtils.createTestPackageData(
-        authorData.user,
-        false
-      );
+      const packageData = packageUtils.createTestPackageData(authorData.user, false);
 
       const createRes = await request(app)
         .post("/v1/packages")
         .send({
-          content: packageData,
+          content: packageData
         })
         .set("Cookie", authorData.cookie);
 
       const packageId = createRes.body.id;
 
       // Create user with DELETE_PACKAGE permission
-      const deletePermission = await preparePermission(
-        permRepo,
-        Permissions.DELETE_PACKAGE
-      );
-      const privilegedUser = await createUserWithPermissions(
-        userRepo,
-        "privileged",
-        [deletePermission]
-      );
+      const deletePermission = await preparePermission(permRepo, Permissions.DELETE_PACKAGE);
+      const privilegedUser = await createUserWithPermissions(userRepo, "privileged", [
+        deletePermission
+      ]);
 
       // Login as this user using the standard test login
       const loginRes = await request(app)
@@ -349,26 +327,19 @@ describe("PackageRestApiController", () => {
     it("should reject package deletion when user lacks permission and is not author", async () => {
       // Create author and package
       const authorData = await testUtils.createAndLoginUser("author");
-      const packageData = packageUtils.createTestPackageData(
-        authorData.user,
-        false
-      );
+      const packageData = packageUtils.createTestPackageData(authorData.user, false);
 
       const createRes = await request(app)
         .post("/v1/packages")
         .send({
-          content: packageData,
+          content: packageData
         })
         .set("Cookie", authorData.cookie);
 
       const packageId = createRes.body.id;
 
       // Create user without DELETE_PACKAGE permission
-      const unprivilegedUser = await createUserWithPermissions(
-        userRepo,
-        "unprivileged",
-        []
-      );
+      const unprivilegedUser = await createUserWithPermissions(userRepo, "unprivileged", []);
       // Login as this user
       const loginRes = await request(app)
         .post("/v1/test/login")
@@ -381,9 +352,7 @@ describe("PackageRestApiController", () => {
         .set("Cookie", unprivilegedCookie);
 
       expect(deleteRes.status).toBe(403);
-      expect(deleteRes.body.error).toBe(
-        "You don't have permission to perform this action"
-      );
+      expect(deleteRes.body.error).toBe("You don't have permission to perform this action");
 
       // Verify package still exists
       const getAfterDeleteRes = await request(app)
@@ -395,15 +364,12 @@ describe("PackageRestApiController", () => {
     it("should reject package deletion when user is not authenticated", async () => {
       // Create package as authenticated user
       const authorData = await testUtils.createAndLoginUser("author");
-      const packageData = packageUtils.createTestPackageData(
-        authorData.user,
-        false
-      );
+      const packageData = packageUtils.createTestPackageData(authorData.user, false);
 
       const createRes = await request(app)
         .post("/v1/packages")
         .send({
-          content: packageData,
+          content: packageData
         })
         .set("Cookie", authorData.cookie);
 
@@ -424,15 +390,10 @@ describe("PackageRestApiController", () => {
 
     it("should return 404 when trying to delete non-existent package", async () => {
       // Create user with DELETE_PACKAGE permission
-      const deletePermission = await preparePermission(
-        permRepo,
-        Permissions.DELETE_PACKAGE
-      );
-      const privilegedUser = await createUserWithPermissions(
-        userRepo,
-        "privileged",
-        [deletePermission]
-      );
+      const deletePermission = await preparePermission(permRepo, Permissions.DELETE_PACKAGE);
+      const privilegedUser = await createUserWithPermissions(userRepo, "privileged", [
+        deletePermission
+      ]);
       // Login as this user
       const loginRes = await request(app)
         .post("/v1/test/login")
@@ -450,15 +411,10 @@ describe("PackageRestApiController", () => {
 
     it("should return 400 for invalid package ID", async () => {
       // Create user with DELETE_PACKAGE permission
-      const deletePermission = await preparePermission(
-        permRepo,
-        Permissions.DELETE_PACKAGE
-      );
-      const privilegedUser = await createUserWithPermissions(
-        userRepo,
-        "privileged",
-        [deletePermission]
-      );
+      const deletePermission = await preparePermission(permRepo, Permissions.DELETE_PACKAGE);
+      const privilegedUser = await createUserWithPermissions(userRepo, "privileged", [
+        deletePermission
+      ]);
       // Login as this user
       const loginRes = await request(app)
         .post("/v1/test/login")

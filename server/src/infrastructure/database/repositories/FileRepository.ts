@@ -1,9 +1,8 @@
 import { inject, singleton } from "tsyringe";
-import { In, type Repository } from "typeorm";
+import { type Repository } from "typeorm";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { FileSource } from "domain/enums/file/FileSource";
-import { FileDTO } from "domain/types/dto/file/FileDTO";
 import { File } from "infrastructure/database/models/File";
 
 /**
@@ -18,17 +17,13 @@ export class FileRepository {
     //
   }
 
-  public async bulkWriteFiles(files: FileDTO[]) {
-    return this.repository.insert(files);
-  }
-
   public async writeFile(path: string, filename: string, source: FileSource) {
     const existingFile = await this.repository.findOne({
       where: {
         filename,
         path,
-        source,
-      },
+        source
+      }
     });
     if (existingFile) {
       return existingFile;
@@ -39,33 +34,15 @@ export class FileRepository {
       path,
       filename,
       source,
-      created_at: new Date(),
+      created_at: new Date()
     });
 
     return this.repository.save(file);
   }
 
-  public async getFile(id: number) {
-    return this.repository.findOne({
-      where: { id },
-    });
-  }
-
   public async getFileByFilename(filename: string) {
     return this.repository.findOne({
-      where: { filename },
-    });
-  }
-
-  /**
-   * Get multiple files by their filenames using IN clause for performance
-   */
-  public async getFilesByFilenames(filenames: string[]): Promise<File[]> {
-    if (filenames.length === 0) {
-      return [];
-    }
-    return this.repository.find({
-      where: { filename: In(filenames) },
+      where: { filename }
     });
   }
 

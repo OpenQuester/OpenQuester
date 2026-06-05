@@ -6,7 +6,7 @@ import {
   TableUnique,
 } from "typeorm";
 
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class ChangePermissionValidation_0_3_0_1729181792142

@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class AddAdminPermissions_0_18_0_1754499351456

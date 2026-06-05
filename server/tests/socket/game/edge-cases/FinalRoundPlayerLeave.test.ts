@@ -1,19 +1,12 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { SYSTEM_PLAYER_ID } from "domain/constants/game";
+import { GameActionType } from "domain/enums/GameActionType";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
@@ -23,9 +16,11 @@ import {
   FinalBidSubmitOutputData,
   FinalSubmitEndEventData,
   SocketIOFinalAutoLossEventPayload,
+  ThemeEliminateOutputData
 } from "domain/types/socket/events/FinalRoundEventData";
+import { GameLeaveBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -48,7 +43,7 @@ describe("Final Round Player Leave", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new TestUtils(app, userRepo, serverUrl);
   });
 
@@ -69,7 +64,7 @@ describe("Final Round Player Leave", () => {
     it("should auto-eliminate random theme when turn player leaves during their elimination turn", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 3,
-        playerScores: [1500, 1200, 1000],
+        playerScores: [1500, 1200, 1000]
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
@@ -82,9 +77,7 @@ describe("Final Round Player Leave", () => {
         expect(finalState!.currentTurnPlayerId).toBeDefined();
 
         const turnPlayerId = finalState!.currentTurnPlayerId!;
-        const turnPlayerIndex = playerUsers.findIndex(
-          (u) => u.id === turnPlayerId
-        );
+        const turnPlayerIndex = playerUsers.findIndex((u) => u.id === turnPlayerId);
         const turnPlayerSocket = playerSockets[turnPlayerIndex];
 
         // Count themes before
@@ -93,19 +86,32 @@ describe("Final Round Player Leave", () => {
         );
         const themesCountBefore = themesBefore.length;
 
-        // Set up listener for theme elimination event
-        const themeEliminatePromise = utils.waitForEvent(
+        const themeEliminatePromise = utils.waitForEvent<ThemeEliminateOutputData>(
           showmanSocket,
-          SocketIOGameEvents.THEME_ELIMINATE,
-          10000
+          SocketIOGameEvents.THEME_ELIMINATE
+        );
+        const spectatorThemeEliminatePromise = utils.waitForEvent<ThemeEliminateOutputData>(
+          setup.spectatorSockets[0],
+          SocketIOGameEvents.THEME_ELIMINATE
+        );
+        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
         );
 
-        // Turn player leaves - should trigger auto-elimination
+        // Turn player leaves - should trigger system auto-elimination.
         turnPlayerSocket.emit(SocketIOGameEvents.LEAVE);
 
-        // Should get theme elimination event
-        const eliminateData = await themeEliminatePromise;
+        const [eliminateData, spectatorEliminateData, leaveData] = await Promise.all([
+          themeEliminatePromise,
+          spectatorThemeEliminatePromise,
+          leavePromise
+        ]);
+
+        expect(leaveData.user).toBe(turnPlayerId);
         expect(eliminateData.themeId).toBeDefined();
+        expect(eliminateData.eliminatedBy).toBe(SYSTEM_PLAYER_ID);
+        expect(spectatorEliminateData).toEqual(eliminateData);
 
         // Verify a theme was eliminated
         const stateAfter = await utils.getGameState(gameId);
@@ -120,10 +126,9 @@ describe("Final Round Player Leave", () => {
 
         // Verify turn player exists and is in game
         const gameAfter = await utils.getGameFromGameService(gameId);
-        const newTurnPlayer = gameAfter.getPlayer(
-          stateAfter!.currentTurnPlayerId!,
-          { fetchDisconnected: false }
-        );
+        const newTurnPlayer = gameAfter.getPlayer(stateAfter!.currentTurnPlayerId!, {
+          fetchDisconnected: false
+        });
         expect(newTurnPlayer).toBeDefined();
       } finally {
         await utils.cleanupGameClients(setup);
@@ -135,7 +140,7 @@ describe("Final Round Player Leave", () => {
     it("should auto-bid 1 when player leaves during bidding phase and remove from answerers list", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 3,
-        playerScores: [1500, 1200, 1000], // All players eligible to bid
+        playerScores: [1500, 1200, 1000] // All players eligible to bid
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
@@ -146,11 +151,7 @@ describe("Final Round Player Leave", () => {
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
-        await utils.completeThemeElimination(
-          playerSockets,
-          gameId,
-          playerUsers
-        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
         await phaseTransitionPromise;
 
         // Verify we're in bidding phase
@@ -158,22 +159,13 @@ describe("Final Round Player Leave", () => {
         expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.BIDDING);
         expect(gameState.questionState).toBe(QuestionState.BIDDING);
 
-        // Track bid submission events
-        const bidEvents: FinalBidSubmitOutputData[] = [];
-        showmanSocket.on(
-          SocketIOGameEvents.FINAL_BID_SUBMIT,
-          (data: FinalBidSubmitOutputData) => {
-            bidEvents.push(data);
-          }
-        );
-
         // Player 0 and Player 1 submit bids normally
         const firstBidPromise = utils.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
         playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
-          bid: 800,
+          bid: 800
         });
         await firstBidPromise;
 
@@ -182,26 +174,29 @@ describe("Final Round Player Leave", () => {
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
         playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
-          bid: 600,
+          bid: 600
         });
         await secondBidPromise;
 
         // Player 2 leaves without bidding
         const leavePlayerId = playerUsers[2].id;
 
-        // Set up listener for automatic bid = 1 (allows player to reconnect and continue)
         const autoBidPromise = utils.waitForEvent<FinalBidSubmitOutputData>(
           showmanSocket,
-          SocketIOGameEvents.FINAL_BID_SUBMIT,
-          5000
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
+        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
         );
 
         playerSockets[2].emit(SocketIOGameEvents.LEAVE);
 
-        // Should get automatic bid of 1 for the leaving player
-        const autoBidData = await autoBidPromise;
+        const [autoBidData, leaveData] = await Promise.all([autoBidPromise, leavePromise]);
+        expect(leaveData.user).toBe(leavePlayerId);
         expect(autoBidData.playerId).toBe(leavePlayerId);
         expect(autoBidData.bidAmount).toBe(1);
+        expect(autoBidData.isAutomatic).toBe(true);
 
         // Verify game state shows bid of 1 for leaving player
         gameState = await utils.getGameState(gameId);
@@ -236,7 +231,7 @@ describe("Final Round Player Leave", () => {
     it("should handle bidding timeout after player leaves with bid 1", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 3,
-        playerScores: [1500, 1200, 1000],
+        playerScores: [1500, 1200, 1000]
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
@@ -247,11 +242,7 @@ describe("Final Round Player Leave", () => {
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
-        await utils.completeThemeElimination(
-          playerSockets,
-          gameId,
-          playerUsers
-        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
         await phaseTransitionPromise;
 
         // Player 2 leaves immediately
@@ -270,7 +261,10 @@ describe("Final Round Player Leave", () => {
         );
 
         // Verify game state
-        await utils.expireTimer(gameId);
+        await utils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_BIDDING_EXPIRED
+        );
         await questionDataPromise;
 
         const gameState = await utils.getGameState(gameId);
@@ -291,33 +285,43 @@ describe("Final Round Player Leave", () => {
     it("should submit empty answer and auto-loss immediately when player leaves, then wait for timer for remaining players", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 3,
-        playerScores: [1500, 1200, 1000],
+        playerScores: [1500, 1200, 1000]
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       try {
         // Complete theme elimination
-        await utils.completeThemeElimination(
-          playerSockets,
-          gameId,
-          playerUsers
-        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
 
-        // Submit all bids
+        // Submit bids sequentially to reach answering phase
         const questionDataPromise = utils.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
+
+        const firstBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
-          bid: 800,
+          bid: 800
         } satisfies FinalBidSubmitInputData);
+        await firstBidPromise;
+
+        const secondBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
-          bid: 600,
+          bid: 600
         } satisfies FinalBidSubmitInputData);
+        await secondBidPromise;
+
         playerSockets[2].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
-          bid: 500,
+          bid: 500
         } satisfies FinalBidSubmitInputData);
+
         await questionDataPromise;
 
         // Verify we're in answering phase
@@ -330,7 +334,7 @@ describe("Final Round Player Leave", () => {
           SocketIOGameEvents.FINAL_ANSWER_SUBMIT
         );
         playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
-          answerText: "Test answer",
+          answerText: "Test answer"
         } satisfies FinalAnswerSubmitInputData);
 
         await firstAnswerPromise;
@@ -343,21 +347,27 @@ describe("Final Round Player Leave", () => {
           showmanSocket,
           SocketIOGameEvents.FINAL_ANSWER_SUBMIT
         );
-        const autoLossPromise =
-          utils.waitForEvent<SocketIOFinalAutoLossEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.FINAL_AUTO_LOSS
-          );
+        const autoLossPromise = utils.waitForEvent<SocketIOFinalAutoLossEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_AUTO_LOSS
+        );
+        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
+        );
 
         playerSockets[2].emit(SocketIOGameEvents.LEAVE);
 
-        // Should receive empty answer submission
-        const answerData = await answerSubmitPromise;
-        expect(answerData.playerId).toBe(leavePlayerId);
+        const [answerData, autoLossData, leaveData] = await Promise.all([
+          answerSubmitPromise,
+          autoLossPromise,
+          leavePromise
+        ]);
 
-        // Should receive auto-loss event
-        const autoLossData = await autoLossPromise;
+        expect(leaveData.user).toBe(leavePlayerId);
+        expect(answerData.playerId).toBe(leavePlayerId);
         expect(autoLossData.playerId).toBe(leavePlayerId);
+        expect(autoLossData.reason).toBe(FinalAnswerLossReason.EMPTY_ANSWER);
 
         // Verify answer was recorded in game state
         gameState = await utils.getGameState(gameId);
@@ -373,14 +383,16 @@ describe("Final Round Player Leave", () => {
         expect(game.hasPlayer(leavePlayerId)).toBe(false);
 
         // Setup listener before expiring timer
-        const phaseCompletePromise =
-          utils.waitForEvent<FinalSubmitEndEventData>(
-            showmanSocket,
-            SocketIOGameEvents.FINAL_SUBMIT_END
-          );
+        const phaseCompletePromise = utils.waitForEvent<FinalSubmitEndEventData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_SUBMIT_END
+        );
 
         // Now expire the timer (player 1 hasn't answered yet)
-        await utils.expireTimer(gameId);
+        await utils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_FINAL_ANSWERING_EXPIRED
+        );
 
         // Should transition to reviewing phase
         const phaseData = await phaseCompletePromise;
@@ -425,66 +437,64 @@ describe("Final Round Player Leave", () => {
     it("should handle immediate phase transition when all remaining players answered and last one leaves", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 3,
-        playerScores: [1500, 1200, 1000],
+        playerScores: [1500, 1200, 1000]
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       try {
         // Navigate to answering phase
-        await utils.completeThemeElimination(
-          playerSockets,
-          gameId,
-          playerUsers
-        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
 
         const questionDataPromise = utils.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
+
+        const firstBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
-          bid: 800,
+          bid: 800
         });
+        await firstBidPromise;
+
+        const secondBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
-          bid: 600,
+          bid: 600
         });
+        await secondBidPromise;
+
         playerSockets[2].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
-          bid: 500,
+          bid: 500
         });
         await questionDataPromise;
 
         // Players 0 and 1 submit answers
         playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
-          answerText: "Answer 1",
+          answerText: "Answer 1"
         });
-        await utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT
-        );
+        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_ANSWER_SUBMIT);
 
         playerSockets[1].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
-          answerText: "Answer 2",
+          answerText: "Answer 2"
         });
-        await utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT
-        );
+        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_ANSWER_SUBMIT);
 
         // Player 2 leaves - should trigger immediate phase transition
-        const phaseCompletePromise =
-          utils.waitForEvent<FinalSubmitEndEventData>(
-            showmanSocket,
-            SocketIOGameEvents.FINAL_SUBMIT_END,
-            2000
-          );
+        const phaseCompletePromise = utils.waitForEvent<FinalSubmitEndEventData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_SUBMIT_END
+        );
 
         playerSockets[2].emit(SocketIOGameEvents.LEAVE);
 
         // Wait for auto-loss submission
-        await utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT
-        );
+        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_ANSWER_SUBMIT);
 
         // Should immediately transition to reviewing
         const phaseData = await phaseCompletePromise;
@@ -500,29 +510,32 @@ describe("Final Round Player Leave", () => {
     it("should reject duplicate final answer submission", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 2,
-        playerScores: [1500, 1200],
+        playerScores: [1500, 1200]
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       try {
         // Complete theme elimination
-        await utils.completeThemeElimination(
-          playerSockets,
-          gameId,
-          playerUsers
-        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
 
         // Submit bids to reach answering phase
         const questionDataPromise = utils.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
+
+        const firstBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
         playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
-          bid: 800,
+          bid: 800
         });
+        await firstBidPromise;
+
         playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
-          bid: 600,
+          bid: 600
         });
         await questionDataPromise;
 
@@ -536,7 +549,7 @@ describe("Final Round Player Leave", () => {
           SocketIOGameEvents.FINAL_ANSWER_SUBMIT
         );
         playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
-          answerText: "First answer",
+          answerText: "First answer"
         } as FinalAnswerSubmitInputData);
         await firstAnswerPromise;
 
@@ -549,19 +562,13 @@ describe("Final Round Player Leave", () => {
         expect(player0Answer!.answer).toBe("First answer");
 
         // Player 0 tries to submit second answer - should fail
-        const errorPromise = new Promise<any>((resolve) => {
-          const timeout = setTimeout(() => resolve(null), 2000);
-          playerSockets[0].once(SocketIOEvents.ERROR, (error) => {
-            clearTimeout(timeout);
-            resolve(error);
-          });
-        });
+        const errorPromise = utils.waitForEvent<unknown>(playerSockets[0], SocketIOEvents.ERROR);
 
         playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
-          answerText: "Second answer - should fail",
+          answerText: "Second answer - should fail"
         } as FinalAnswerSubmitInputData);
 
-        const error = await errorPromise;
+        const error = (await errorPromise) as { message?: string };
         expect(error).toBeDefined();
         expect(error.message).toContain("already answered");
 
@@ -581,7 +588,7 @@ describe("Final Round Player Leave", () => {
     it("should not allow new player to join as PLAYER during final round", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 2,
-        playerScores: [1500, 1200],
+        playerScores: [1500, 1200]
       });
 
       const { gameId } = setup;
@@ -594,17 +601,14 @@ describe("Final Round Player Leave", () => {
         // Try to join as player
         const { socket: newPlayerSocket } = await utils.createGameClient();
 
-        const errorPromise = new Promise((resolve) => {
-          newPlayerSocket.once(SocketIOEvents.ERROR, resolve);
-          setTimeout(() => resolve(null), 3000);
-        });
+        const errorPromise = utils.waitForEvent<unknown>(newPlayerSocket, SocketIOEvents.ERROR);
 
         newPlayerSocket.emit(SocketIOGameEvents.JOIN, {
           gameId,
-          role: PlayerRole.PLAYER,
+          role: PlayerRole.PLAYER
         });
 
-        const error = await errorPromise;
+        const error = (await errorPromise) as { message?: string };
         expect(error).toBeDefined();
 
         await utils.disconnectAndCleanup(newPlayerSocket);
@@ -616,7 +620,7 @@ describe("Final Round Player Leave", () => {
     it("should allow new spectator to join during final round", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 2,
-        playerScores: [1500, 1200],
+        playerScores: [1500, 1200]
       });
 
       const { gameId } = setup;
@@ -632,9 +636,7 @@ describe("Final Round Player Leave", () => {
 
         // Verify spectator is in game
         const gameAfterJoin = await utils.getGameFromGameService(gameId);
-        const spectators = gameAfterJoin.players.filter(
-          (p) => p.role === PlayerRole.SPECTATOR
-        );
+        const spectators = gameAfterJoin.players.filter((p) => p.role === PlayerRole.SPECTATOR);
         expect(spectators.length).toBeGreaterThan(0);
 
         await utils.disconnectAndCleanup(spectatorSocket);
@@ -646,7 +648,7 @@ describe("Final Round Player Leave", () => {
     it("should allow existing player to rejoin during final round bidding", async () => {
       const setup = await utils.setupFinalRoundGame({
         playersCount: 3,
-        playerScores: [1500, 1200, 1000],
+        playerScores: [1500, 1200, 1000]
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
@@ -657,11 +659,7 @@ describe("Final Round Player Leave", () => {
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
-        await utils.completeThemeElimination(
-          playerSockets,
-          gameId,
-          playerUsers
-        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
         await phaseTransitionPromise;
 
         // Verify we're in bidding phase
@@ -673,8 +671,7 @@ describe("Final Round Player Leave", () => {
         const leavingPlayerId = playerUsers[2].id;
         const autoBidPromise = utils.waitForEvent<FinalBidSubmitOutputData>(
           showmanSocket,
-          SocketIOGameEvents.FINAL_BID_SUBMIT,
-          5000
+          SocketIOGameEvents.FINAL_BID_SUBMIT
         );
 
         playerSockets[2].emit(SocketIOGameEvents.LEAVE);
@@ -699,23 +696,17 @@ describe("Final Round Player Leave", () => {
 
         // Player should be able to rejoin as PLAYER during final round
         // (because they were an existing player, not a new one)
-        const joinPromise = utils.waitForEvent(
-          reconnectedSocket,
-          SocketIOGameEvents.GAME_DATA,
-          5000
-        );
+        const joinPromise = utils.waitForEvent(reconnectedSocket, SocketIOGameEvents.GAME_DATA);
 
         reconnectedSocket.emit(SocketIOGameEvents.JOIN, {
           gameId,
-          role: PlayerRole.PLAYER,
+          role: PlayerRole.PLAYER
         });
 
         // Should successfully join and receive game data
         const gameData = await joinPromise;
         expect(gameData).toBeDefined();
-        expect(gameData.gameState.finalRoundData?.phase).toBe(
-          FinalRoundPhase.BIDDING
-        );
+        expect(gameData.gameState.finalRoundData?.phase).toBe(FinalRoundPhase.BIDDING);
 
         // Verify player is back in the game
         const gameAfterRejoin = await utils.getGameFromGameService(gameId);

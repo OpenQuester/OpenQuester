@@ -1,14 +1,14 @@
-import { SHOW_ANSWER_DURATION_TEXT } from "domain/constants/game";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 import {
   PackageQuestionDTO,
-  PackageQuestionSubType,
+  PackageQuestionSubType
 } from "domain/types/dto/package/PackageQuestionDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { ShortUserInfo } from "domain/types/user/ShortUserInfo";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 export class PackageUtils {
   constructor() {
@@ -39,9 +39,9 @@ export class PackageUtils {
                 price: 100,
                 text: "Simple question text",
                 answerText: "Simple answer",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
-                isHidden: false,
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
+                isHidden: false
               } satisfies PackageQuestionDTO,
               {
                 type: PackageQuestionType.STAKE,
@@ -50,10 +50,10 @@ export class PackageUtils {
                 price: 200,
                 text: "Stake question text",
                 answerText: "Stake answer",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
                 maxPrice: 400,
-                isHidden: false,
+                isHidden: false
               } satisfies PackageQuestionDTO,
               {
                 type: PackageQuestionType.SECRET,
@@ -63,10 +63,10 @@ export class PackageUtils {
                 price: 300,
                 text: "Secret question text",
                 answerText: "Secret answer",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
                 allowedPrices: [100, 200, 300],
-                isHidden: false,
+                isHidden: false
               } satisfies PackageQuestionDTO,
               {
                 type: PackageQuestionType.NO_RISK,
@@ -75,10 +75,10 @@ export class PackageUtils {
                 price: 400,
                 text: "No risk question text",
                 answerText: "No risk answer",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
                 priceMultiplier: 2,
-                isHidden: false,
+                isHidden: false
               } satisfies PackageQuestionDTO,
               {
                 type: PackageQuestionType.HIDDEN,
@@ -87,9 +87,9 @@ export class PackageUtils {
                 price: 500,
                 text: "Hidden question text",
                 answerText: "Hidden answer",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
-                isHidden: true,
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
+                isHidden: true
               } satisfies PackageQuestionDTO,
               {
                 type: PackageQuestionType.CHOICE,
@@ -98,32 +98,32 @@ export class PackageUtils {
                 price: 300,
                 text: "Choice question text",
                 answerText: "Choice answer",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
-                showDelay: 3000,
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
+                showDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
                 answers: [
                   {
                     order: 0,
                     text: "Option A",
-                    file: null,
+                    file: null
                   },
                   {
                     order: 1,
                     text: "Option B",
-                    file: null,
+                    file: null
                   },
                   {
                     order: 2,
                     text: "Option C",
-                    file: null,
+                    file: null
                   },
                   {
                     order: 3,
                     text: "Option D",
-                    file: null,
-                  },
+                    file: null
+                  }
                 ],
-                isHidden: false,
+                isHidden: false
               } satisfies PackageQuestionDTO,
               {
                 type: PackageQuestionType.HIDDEN,
@@ -132,14 +132,14 @@ export class PackageUtils {
                 price: 600,
                 text: "Another hidden question text",
                 answerText: "Another hidden answer",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
-                isHidden: true,
-              } satisfies PackageQuestionDTO,
-            ] as PackageQuestionDTO[],
-          },
-        ],
-      },
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
+                isHidden: true
+              } satisfies PackageQuestionDTO
+            ] as PackageQuestionDTO[]
+          }
+        ]
+      }
     ];
 
     if (includeFinalRound) {
@@ -161,11 +161,11 @@ export class PackageUtils {
                 price: null, // Final round questions don't have a price - players bid after theme selection
                 text: "Final question text 1",
                 answerText: "Final answer 1",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
-                isHidden: false,
-              } satisfies PackageQuestionDTO,
-            ] as PackageQuestionDTO[],
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
+                isHidden: false
+              } satisfies PackageQuestionDTO
+            ] as PackageQuestionDTO[]
           },
           {
             name: "Final Theme 2",
@@ -179,11 +179,11 @@ export class PackageUtils {
                 price: null, // Final round questions don't have a price - players bid after theme selection
                 text: "Final question text 2",
                 answerText: "Final answer 2",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
-                isHidden: false,
-              } satisfies PackageQuestionDTO,
-            ] as PackageQuestionDTO[],
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
+                isHidden: false
+              } satisfies PackageQuestionDTO
+            ] as PackageQuestionDTO[]
           },
           {
             name: "Final Theme 3",
@@ -197,13 +197,13 @@ export class PackageUtils {
                 price: null, // Final round questions don't have a price - players bid after theme selection
                 text: "Final question text 3",
                 answerText: "Final answer 3",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
-                isHidden: false,
-              } satisfies PackageQuestionDTO,
-            ] as PackageQuestionDTO[],
-          },
-        ],
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
+                isHidden: false
+              } satisfies PackageQuestionDTO
+            ] as PackageQuestionDTO[]
+          }
+        ]
       });
     } else {
       // Add a second simple round instead of a final round
@@ -225,13 +225,13 @@ export class PackageUtils {
                 price: 100,
                 text: "Simple question text 2",
                 answerText: "Simple answer 2",
-                answerDelay: 5000,
-                showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
-                isHidden: false,
-              } satisfies PackageQuestionDTO,
-            ] as PackageQuestionDTO[],
-          },
-        ],
+                answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+                showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
+                isHidden: false
+              } satisfies PackageQuestionDTO
+            ] as PackageQuestionDTO[]
+          }
+        ]
       });
     }
 
@@ -244,9 +244,9 @@ export class PackageUtils {
           price: 100 + index * 50,
           text: `Additional simple question ${index + 1}`,
           answerText: `Additional answer ${index + 1}`,
-          answerDelay: 5000,
-          showAnswerDuration: SHOW_ANSWER_DURATION_TEXT,
-          isHidden: false,
+          answerDelay: TEST_TIMEOUTS.PACKAGE_QUESTION_ANSWER_DELAY_MS,
+          showAnswerDuration: TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS,
+          isHidden: false
         })) satisfies PackageQuestionDTO[])
       );
     }
@@ -259,7 +259,7 @@ export class PackageUtils {
       language: "en",
       createdAt: new Date(),
       ageRestriction: AgeRestriction.NONE,
-      rounds,
+      rounds
     };
   }
 }

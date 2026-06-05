@@ -5,16 +5,16 @@ import { LIMIT_MAX, LIMIT_MIN, OFFSET_MIN } from "domain/constants/pagination";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { PackageDTO } from "domain/types/dto/package/PackageDTO";
+import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
 import {
-  PackageQuestionDTO,
+  type PackageQuestionDTO,
   PackageQuestionSubType,
 } from "domain/types/dto/package/PackageQuestionDTO";
-import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
-import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
+import { type PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
+import { type PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
+import { type PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 
 // File schema for basic file properties

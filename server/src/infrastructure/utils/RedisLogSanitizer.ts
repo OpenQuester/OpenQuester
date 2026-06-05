@@ -1,11 +1,7 @@
 import { GameRedisHashDTO } from "domain/types/dto/game/GameRedisHashDTO";
 import { GameStateThemeDTO } from "domain/types/dto/game/state/GameStateThemeDTO";
 import { PlayerGameStatsRedisData } from "domain/types/statistics/PlayerGameStatsRedisData";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
-import {
-  gameStateDataSchema,
-  packageDataSchema,
-} from "presentation/schemes/log/redisLogSchemes";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
  * Type definitions for Redis log data structures
@@ -37,26 +33,13 @@ export class RedisLogSanitizer {
       return data;
     }
 
-    // Create a shallow copy to avoid mutating the original
     const sanitized = { ...data } as T;
 
-    // Handle HSET operations with fields containing game data
     if (this.isHSetLogData(sanitized)) {
-      // Create a copy of fields to avoid mutation
       sanitized.fields = { ...sanitized.fields };
 
-      // Handle package field truncation
-      if (this.hasPackageField(sanitized.fields)) {
-        sanitized.fields.package = this.sanitizePackageField(
-          sanitized.fields.package
-        );
-      }
-
-      // Handle gameState field truncation
       if (this.hasGameStateField(sanitized.fields)) {
-        sanitized.fields.gameState = this.sanitizeGameStateField(
-          sanitized.fields.gameState
-        );
+        sanitized.fields.gameState = this.sanitizeGameStateField(sanitized.fields.gameState);
       }
     }
 
@@ -71,45 +54,10 @@ export class RedisLogSanitizer {
   }
 
   /**
-   * Type guard to check if fields contain package data
-   */
-  private static hasPackageField(fields: any): fields is GameRedisHashDTO {
-    return fields && typeof fields === "object" && "package" in fields;
-  }
-
-  /**
    * Type guard to check if fields contain gameState data
    */
   private static hasGameStateField(fields: any): fields is GameRedisHashDTO {
     return fields && typeof fields === "object" && "gameState" in fields;
-  }
-
-  /**
-   * Sanitizes package field to show only ID
-   */
-  private static sanitizePackageField(packageField: string): string {
-    if (!ValueUtils.isString(packageField)) {
-      return packageField;
-    }
-
-    try {
-      const packageData = JSON.parse(packageField);
-      const { value: validatedPackage, error } =
-        packageDataSchema().validate(packageData);
-
-      if (!error && validatedPackage?.id) {
-        return `{id: ${validatedPackage.id}, ...}`;
-      }
-    } catch {
-      // JSON parsing failed, fall through to length check
-    }
-
-    // Fallback: truncate if too long
-    if (packageField.length > 75) {
-      return packageField.substring(0, 75) + "...";
-    }
-
-    return packageField;
   }
 
   /**
@@ -121,18 +69,15 @@ export class RedisLogSanitizer {
     }
 
     try {
-      const gameStateData = JSON.parse(gameStateField);
-      const { value: validatedGameState, error } =
-        gameStateDataSchema().validate(gameStateData);
+      const gameStateData = JSON.parse(gameStateField) as Record<string, any>;
 
-      if (!error && validatedGameState?.currentRound?.themes) {
-        return this.createGameStateSummary(gameStateData, validatedGameState);
+      if (this.hasCurrentRoundThemes(gameStateData)) {
+        return this.createGameStateSummary(gameStateData, gameStateData);
       }
     } catch {
       // JSON parsing failed, fall through to length check
     }
 
-    // Fallback: truncate if too long
     if (gameStateField.length > 150) {
       return gameStateField.substring(0, 150) + "...[TRUNCATED]";
     }
@@ -149,12 +94,10 @@ export class RedisLogSanitizer {
   ): string {
     const themes = validatedGameState.currentRound.themes;
     const totalQuestions = themes.reduce(
-      (sum: number, theme: GameStateThemeDTO) =>
-        sum + (theme.questions?.length || 0),
+      (sum: number, theme: GameStateThemeDTO) => sum + (theme.questions?.length || 0),
       0
     );
 
-    // Create a very compact summary focusing on essential info
     const roundInfo = gameStateData.currentRound
       ? `Round: ${gameStateData.currentRound.name} (${themes.length} themes, ${totalQuestions} questions)`
       : "No current round";
@@ -162,14 +105,21 @@ export class RedisLogSanitizer {
     const stateInfo = [
       gameStateData.questionState && `state: ${gameStateData.questionState}`,
       gameStateData.isPaused && "PAUSED",
-      gameStateData.answeringPlayer &&
-        `answering: ${gameStateData.answeringPlayer}`,
-      gameStateData.currentTurnPlayerId &&
-        `turn: ${gameStateData.currentTurnPlayerId}`,
+      gameStateData.answeringPlayer && `answering: ${gameStateData.answeringPlayer}`,
+      gameStateData.currentTurnPlayerId && `turn: ${gameStateData.currentTurnPlayerId}`
     ]
       .filter(Boolean)
       .join(", ");
 
     return `{${roundInfo}${stateInfo ? `, ${stateInfo}` : ""}}`;
+  }
+
+  private static hasCurrentRoundThemes(gameStateData: Record<string, any>): gameStateData is Record<
+    string,
+    any
+  > & {
+    currentRound: { themes: GameStateThemeDTO[] };
+  } {
+    return Array.isArray(gameStateData.currentRound?.themes);
   }
 }

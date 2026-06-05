@@ -3,20 +3,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
-
-import { BroadcastEvent } from "domain/types/service/ServiceResult";
-
-export interface ForceSkipResult {
-  game: Game;
-  question: PackageQuestionDTO;
-  broadcasts?: BroadcastEvent[];
-}
-
-export interface ForceSkipBuildResultInput {
-  game: Game;
-  question: PackageQuestionDTO;
-  broadcasts?: BroadcastEvent[];
-}
+import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 
 /**
  * Logic class for handling question force skip by showman.
@@ -26,68 +13,28 @@ export class QuestionForceSkipLogic {
   /**
    * Get the question to be skipped based on current game state.
    * Handles normal questions, stake questions, and secret questions.
+   * @param questionData Pre-fetched question+theme data from PackageStore
    */
-  public static getQuestionToSkip(game: Game): {
+  public static getQuestionToSkip(
+    questionData: { question: PackageQuestionDTO; theme: PackageThemeDTO } | null
+  ): {
     question: PackageQuestionDTO;
     themeId: number;
   } {
-    const gameState = game.gameState;
-    let questionData;
-
-    if (gameState.currentQuestion) {
-      // Normal question flow
-      questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        gameState.currentRound!.id,
-        gameState.currentQuestion.id!
-      );
-    } else if (gameState.stakeQuestionData) {
-      // Stake question flow
-      questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        gameState.currentRound!.id,
-        gameState.stakeQuestionData.questionId
-      );
-    } else if (gameState.secretQuestionData) {
-      // Secret question flow
-      questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        gameState.currentRound!.id,
-        gameState.secretQuestionData.questionId
-      );
-    }
-
     if (!questionData?.question || !questionData.theme.id) {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
     }
 
     return {
       question: questionData.question,
-      themeId: questionData.theme.id,
+      themeId: questionData.theme.id
     };
   }
 
   /**
    * Process the force skip: marks question as played.
    */
-  public static processForceSkip(
-    game: Game,
-    question: PackageQuestionDTO,
-    themeId: number
-  ): void {
+  public static processForceSkip(game: Game, question: PackageQuestionDTO, themeId: number): void {
     GameQuestionMapper.setQuestionPlayed(game, question.id!, themeId);
-  }
-
-  /**
-   * Build the result for force skip operation.
-   */
-  public static buildResult(input: ForceSkipBuildResultInput): ForceSkipResult {
-    const { game, question, broadcasts } = input;
-
-    return {
-      game,
-      question,
-      broadcasts,
-    };
   }
 }

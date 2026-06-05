@@ -55,26 +55,39 @@ CI requires: PostgreSQL 15, Redis 7. Env vars: `NODE_ENV=test`, `SESSION_SECRET=
 
 ## Server Architecture
 
-4-layer clean architecture — dependencies flow inward only:
+Layered clean architecture with explicit boundary rules:
 
 ```
+bootstrap/  --> wires all layers and external runtime objects
 presentation/ → application/ → domain/
-                     ↓
-              infrastructure/
+                 application → infrastructure/  (current pragmatic repository/adaptor usage)
+shared/      --> dependency-neutral config, DI tokens, logging contracts, context types
 ```
 
-- **`domain/`** — Pure logic, entities, enums, DTOs, errors, validators, state machine. No external deps.
-- **`application/`** — Services, DI (tsyringe), handlers, workers, jobs, usecases, factories.
-- **`infrastructure/`** — TypeORM (PostgreSQL), ioredis, S3/MinIO, pino logger, config.
-- **`presentation/`** — REST controllers, Socket.IO handlers/emitters, Express middleware, Joi schemes.
+- **`domain/`** — Pure logic, entities, enums, DTOs, errors, validators, state machine. No application/infrastructure/presentation imports and no external I/O.
+- **`application/`** — Use cases, orchestration services, action executors, workers, jobs, factories, and app-owned ports. No presentation imports. No Socket.IO/Express transport imports; realtime output goes through `RealtimeGateway`.
+- **`infrastructure/`** — TypeORM/PostgreSQL, Redis implementations, S3/MinIO, pino logger implementation, migrations, storage/database adapters.
+- **`presentation/`** — REST controllers, Socket.IO setup/dispatching, realtime adapters, Express middleware, Joi schemes. Must not import infrastructure directly.
+- **`shared/`** — Cross-cutting contracts/types with no layer-specific dependencies: DI tokens, config, logging contracts, Express/Socket.IO type augmentation, API/request context types.
+- **`bootstrap/`** — Composition root. It can import all layers to register DI dependencies and connect runtime objects.
 
-**Path aliases** (`tsconfig.json` + `jest.config.ts`): `domain/*`, `application/*`, `infrastructure/*`, `presentation/*`, `tests/*`
+**Path aliases** (`tsconfig.json` + `jest.config.ts`): `domain/*`, `application/*`, `infrastructure/*`, `presentation/*`, `shared/*`, `bootstrap/*`, `tests/*`
 
-### Socket Events — extend `BaseSocketEventHandler<TInput, TOutput>`: `validate()` → `execute()` → `broadcast()`. Auto-registered via `SocketEventHandlerRegistry`.
+### Boundary Rules
+
+- Domain never imports application, infrastructure, or presentation.
+- Infrastructure never imports application or presentation.
+- Presentation never imports infrastructure; delegate work to application services/use cases.
+- Application never imports presentation and must not import Socket.IO/Express transport APIs.
+- Application may currently call infrastructure repositories/adapters directly where existing code does so. Do not introduce repository interfaces just for ceremony; add app-owned ports only for clear boundary benefits.
+- Realtime output from application goes through `application/ports/realtime/RealtimeGateway`. Socket.IO-specific delivery is implemented in `presentation/realtime/SocketIORealtimeGateway.ts`.
+- Do not put TypeORM entities or transport objects on Express request objects. Use `req.auth` (`RequestAuthContext`) for request identity only.
+
+### Socket Actions — presentation receives Socket.IO events through `SocketIOInitializer`/`SocketActionDispatcher`, maps them to `GameAction`, and submits them to `GameActionExecutor`. Game action use cases return mutations/events; application publishes realtime effects through `RealtimeGateway`, not direct Socket.IO calls.
 
 ### Action Queue — `GameActionExecutor` + Redis lock per game prevents concurrent state corruption. Game state stored in Redis as serialized `GameStateDTO`.
 
-### DI — tsyringe: `@singleton()` for concrete classes; `@inject(DI_TOKENS.X)` with `Symbol.for()` tokens for interfaces (see `application/di/tokens.ts`, registrations in `application/di/bootstrap.ts`).
+### DI — tsyringe: `@singleton()` for concrete classes; `@inject(DI_TOKENS.X)` with `Symbol.for()` tokens for interfaces/ports (see `shared/di/tokens.ts`, registrations in `bootstrap/bootstrapContainer.ts`).
 
 ### REST Controllers — class-based with Express `Router`. Wrap handlers with `asyncHandler`. Validate with `RequestDataValidator` + Joi schemes (`presentation/schemes/`). Use `HttpStatus` enum.
 
@@ -83,7 +96,7 @@ presentation/ → application/ → domain/
 ### Imports
 - Path aliases, not relative paths: `import { Game } from "domain/entities/game/Game"`
 - `type` keyword for type-only imports: `import { type NextFunction } from "express"`
-- Order: external packages → internal by layer (domain → application → infrastructure → presentation)
+- Order: external packages → internal aliases grouped by layer (`shared`/`domain` → `application` → `infrastructure` → `presentation`/`bootstrap`, matching nearby code)
 - Named imports only. **No default exports. No re-exports. No `index.ts` barrel files.**
 
 ### Naming Conventions
@@ -128,6 +141,7 @@ presentation/ → application/ → domain/
 - `node/no-sync: error` — no synchronous I/O
 - `@typescript-eslint/no-unused-vars: error` — prefix unused with `_`
 - `no-implicit-globals: error` | `promise/no-callback-in-promise: warn`
+- Boundary rules restrict domain/infrastructure/presentation imports. Application transport/adaptor import ratchets may fail while staged cleanup is in progress; do not bypass them with type-only imports or eslint disables.
 
 ## Client (Flutter/Dart)
 
@@ -150,9 +164,13 @@ presentation/ → application/ → domain/
 
 | Purpose | Path |
 |---|---|
-| DI tokens | `server/src/application/di/tokens.ts` |
-| DI bootstrap | `server/src/application/di/bootstrap.ts` |
-| Server entry | `server/src/presentation/index.ts` |
+| DI tokens | `server/src/shared/di/tokens.ts` |
+| DI bootstrap | `server/src/bootstrap/bootstrapContainer.ts` |
+| Server entry | `server/src/index.ts` |
+| API server composition | `server/src/ServeApi.ts` |
+| Realtime gateway port | `server/src/application/ports/realtime/RealtimeGateway.ts` |
+| Socket.IO realtime adapter | `server/src/presentation/realtime/SocketIORealtimeGateway.ts` |
+| Socket.IO dispatcher | `server/src/presentation/controllers/io/SocketActionDispatcher.ts` |
 | Test bootstrap | `server/tests/TestApp.ts` |
 | Error hierarchy | `server/src/domain/errors/{BaseError,ClientError,ServerError,ErrorController}.ts` |
 | ESLint config | `server/eslint.config.mjs` |

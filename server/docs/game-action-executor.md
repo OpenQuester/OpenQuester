@@ -7,6 +7,8 @@ It does this with:
 
 - a **Redis lock** (so only one action can execute)
 - a **Redis queue** (so actions that arrive while locked are not lost)
+- an **IN pipeline / Lua drain prefetch** (game, timer, and socket session are loaded before handler execution)
+- an **OUT mutation processor** (handlers declare game/timer/socket/broadcast side effects instead of performing hidden writes)
 
 ---
 
@@ -28,8 +30,7 @@ It does this with:
 
 Call `submitAction(action)`.
 
-If the game is **not locked**, the action executes immediately.
-If the game **is locked**, the action is pushed to the Redis queue and will run later.
+Every game-changing action is pushed to the game queue first. The submitter then tries to become the queue processor. If it cannot acquire the lock, it returns successfully and the current processor will drain the queued action later.
 
 `GameAction` is a plain object like:
 
@@ -44,35 +45,37 @@ If the game **is locked**, the action is pushed to the Redis queue and will run 
 
 For each `gameId`:
 
-1. Try to acquire Redis lock.
-2. If lock is busy:
-   - push the action into the Redis list queue
-   - return (action will run later)
-3. If lock is acquired:
-   - execute the action
-   - release the lock
-   - drain the queue (pop next action, run it, repeat)
+1. Push the action to the Redis list queue.
+2. Try to acquire the Redis lock with an owner token.
+3. If lock is busy, return; another processor is already draining.
+4. If lock is acquired, drain the queue:
+   - atomically verify lock ownership, pop the next action, reacquire the lock with a new token, and prefetch game/timer/socket session
+   - execute the action handler with prefetched context
+   - process declared mutations (Redis save/delete/timer operations, socket-session updates, stats, disconnects, completions, broadcasts)
+   - run post-execution socket hooks
+   - repeat until the queue is empty, then release the lock
 
-So it’s basically: **one lock + one FIFO list per game**.
+So it’s basically: **one FIFO list + one token-owned lock per game**, with one processor draining the queue in order.
 
 ## Redis keys and what they store
 
 ### Lock key
 
 - Key: `game:action:lock:{gameId}`
-- Value: string `"1"`
+- Value: UUID owner token
 - TTL: 10 seconds by default
 
 Lock acquire is atomic in Redis (one command):
 
 ```text
-SET game:action:lock:{gameId} 1 EX 10 NX
+SET game:action:lock:{gameId} {token} EX 10 NX
 ```
 
 Meaning:
 
-- `NX`: only set if it doesn’t exist (so only one “winner”)
+- `NX`: only set if it doesn’t exist (so only one processor wins)
 - `EX 10`: auto-expire to avoid deadlocks if a server crashes
+- release uses compare-and-delete Lua, so only the current token owner can release the lock
 
 ### Queue key
 
@@ -91,7 +94,7 @@ Example queued item (what’s inside the Redis list):
   "id": "7b1c2f2a-9b2c-4c18-9b2c-2df2c9a3f111",
   "type": "leave",
   "gameId": "game-123",
-  "playerId": "player-9",
+  "playerId": 9,
   "socketId": "socket-abc",
   "timestamp": "2025-12-19T12:34:56.789Z",
   "payload": "{\"reason\":\"disconnect\"}"
@@ -113,11 +116,14 @@ That’s what prevents race conditions like double-scoring, double-advancing, et
 Note: the system guarantees **no overlap**, not a magical “perfect fairness” in network timing.
 Order is basically “who reached Redis first”.
 
+Important implementation detail: queued actions are not a weaker path. The drain script prefetches game state, active timer, and socket session for each queued action, then the normal handler + `DataMutationProcessor` path runs. That keeps queued behavior aligned with immediately processed behavior for broadcasts, timer mutations, game deletion, and socket-session updates.
+
 ## Common queued action scenarios
 
 - Rapid `join` / `leave` / `disconnect` spikes (mobile network reconnects are common)
 - Back-to-back `answer-submitted` clicks (spam or double tap)
 - A timer-expired action arriving while a player action is still running
+- Multiple `question-skip` / `answer-result` actions arriving together during an active question
 
 This is exactly why queuing exists: you can accept bursts safely and process them later.
 
@@ -140,7 +146,7 @@ await actionExecutor.submitAction({
   id: "uuid",
   type: "leave",
   gameId: "game-123",
-  playerId: "player-9",
+  playerId: 9,
   socketId: "socket-abc",
   timestamp: new Date(),
   payload: { reason: "disconnect" },
@@ -150,10 +156,23 @@ await actionExecutor.submitAction({
 Under the hood, the executor executes actions via a registered handler.
 Handlers are stateless and registered by `GameActionType` in `GameActionHandlerRegistry`.
 
+Handlers return `DataMutation[]`; the processor applies them in a fixed order:
+
+1. Redis game save/delete and timer mutations
+2. Socket session updates
+3. Player statistics updates
+4. Forced socket disconnects
+5. Game completion side effects
+6. Socket broadcasts
+
+`DELETE_GAME` mutations remove Redis game/package/timer/queue keys and lobby indexes in the same pipeline.
+
 ## Relevant files
 
 - `server/src/application/executors/GameActionExecutor.ts`
+- `server/src/application/executors/DataMutationProcessor.ts`
 - `server/src/application/config/ActionHandlerConfig.ts` (where handlers are registered)
-- `server/src/infrastructure/services/lock/GameActionLockService.ts`
-- `server/src/infrastructure/services/queue/GameActionQueueService.ts`
+- `server/src/application/services/pipeline/GamePipelineService.ts`
+- `server/src/application/services/lock/GameActionLockService.ts`
+- `server/src/application/services/queue/GameActionQueueService.ts`
 - `server/src/infrastructure/database/repositories/RedisRepository.ts` (lock uses `SET ... NX EX`)

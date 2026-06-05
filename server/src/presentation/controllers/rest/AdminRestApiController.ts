@@ -1,40 +1,33 @@
 import { type Express, type Request, type Response, Router } from "express";
 import Joi from "joi";
 
+import { AdminDiagnosticsService } from "application/services/admin/AdminDiagnosticsService";
 import { AdminService } from "application/services/admin/AdminService";
 import { UserService } from "application/services/user/UserService";
-import { ADMIN_PING_REDIS_SCAN_KEY } from "domain/constants/admin";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { Permissions } from "domain/enums/Permissions";
 import {
-  AdminDashboardData,
-  AdminPingData,
-  AdminSystemHealthData,
-  AdminUserListData,
+  type AdminDashboardData,
+  type AdminSystemHealthData,
+  type AdminUserListData
 } from "domain/types/admin/AdminTypes";
-import { UserMuteInputDTO } from "domain/types/dto/user/UserMuteInputDTO";
-import { UserMuteResponseDTO } from "domain/types/dto/user/UserMuteResponseDTO";
-import { UserUnmuteInputDTO } from "domain/types/dto/user/UserUnmuteInputDTO";
-import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { LogTag } from "infrastructure/logger/LogTag";
-import {
-  LogFilter,
-  LogReaderService,
-} from "infrastructure/services/log/LogReaderService";
-import { RedisService } from "infrastructure/services/redis/RedisService";
+import { type UserMuteInputDTO } from "domain/types/dto/user/UserMuteInputDTO";
+import { type UserMuteResponseDTO } from "domain/types/dto/user/UserMuteResponseDTO";
+import { type UserUnmuteInputDTO } from "domain/types/dto/user/UserUnmuteInputDTO";
+import { asUserId, type userId } from "domain/types/ids";
+import { type UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
+import { type ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { type LogFilter } from "shared/logging/LogReaderTypes";
+import { LogTag } from "shared/logging/LogTag";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { checkPermissionMiddleware } from "presentation/middleware/permission/PermissionMiddleware";
-import {
-  LogQueryParams,
-  logQueryParamsScheme,
-} from "presentation/schemes/log/logSchemes";
+import { type LogQueryParams, logQueryParamsScheme } from "presentation/schemes/log/logSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 import {
   userMuteScheme,
   userPaginationScheme,
-  userUnmuteScheme,
+  userUnmuteScheme
 } from "presentation/schemes/user/userSchemes";
 
 /**
@@ -44,10 +37,9 @@ export class AdminRestApiController {
   constructor(
     private readonly app: Express,
     private readonly userService: UserService,
-    private readonly redisService: RedisService,
     private readonly logger: ILogger,
     private readonly adminService: AdminService,
-    private readonly logReaderService: LogReaderService
+    private readonly adminDiagnosticsService: AdminDiagnosticsService
   ) {
     const router = Router();
 
@@ -136,18 +128,18 @@ export class AdminRestApiController {
   private getDashboard = async (req: Request, res: Response) => {
     this.logger.audit("Admin dashboard accessed", {
       prefix: LogPrefix.ADMIN,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
     const log = this.logger.performance("Admin dashboard query", {
       prefix: LogPrefix.ADMIN,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
     const timeframeRaw = req.query.timeframe as string | undefined;
     const timeframeDays = timeframeRaw ? parseInt(timeframeRaw, 10) : undefined;
     const data: AdminDashboardData = await this.adminService.getDashboardData({
-      timeframeDays,
+      timeframeDays
     });
 
     log.finish();
@@ -160,7 +152,7 @@ export class AdminRestApiController {
   private getUsers = async (req: Request, res: Response) => {
     const log = this.logger.performance("Admin users query", {
       prefix: LogPrefix.ADMIN,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
     const paginationQuery = new RequestDataValidator<UserPaginationOpts>(
@@ -168,9 +160,7 @@ export class AdminRestApiController {
       userPaginationScheme()
     ).validate();
 
-    const data: AdminUserListData = await this.adminService.listUsersWithStats(
-      paginationQuery
-    );
+    const data: AdminUserListData = await this.adminService.listUsersWithStats(paginationQuery);
 
     log.finish();
     return res.status(HttpStatus.OK).json(data);
@@ -182,16 +172,15 @@ export class AdminRestApiController {
   private getSystemHealth = async (req: Request, res: Response) => {
     this.logger.audit("System health check performed", {
       prefix: LogPrefix.ADMIN,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
     const log = this.logger.performance("System health query", {
       prefix: LogPrefix.ADMIN,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
-    const data: AdminSystemHealthData =
-      await this.adminService.getSystemHealth();
+    const data: AdminSystemHealthData = await this.adminService.getSystemHealth();
 
     log.finish();
     return res.status(HttpStatus.OK).json(data);
@@ -201,8 +190,8 @@ export class AdminRestApiController {
    * Ban user - security action
    */
   private banUser = async (req: Request, res: Response) => {
-    const { userId } = new RequestDataValidator<{ userId: number }>(
-      { userId: Number(req.params.id) },
+    const { userId } = new RequestDataValidator<{ userId: userId }>(
+      { userId: asUserId(Number(req.params.id)) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
@@ -211,12 +200,12 @@ export class AdminRestApiController {
     this.logger.audit("User banned", {
       prefix: LogPrefix.ADMIN,
       targetUserId: userId,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
     return res.status(HttpStatus.OK).json({
       userId,
-      isBanned: true,
+      isBanned: true
     });
   };
 
@@ -224,8 +213,8 @@ export class AdminRestApiController {
    * Unban user - security action
    */
   private unbanUser = async (req: Request, res: Response) => {
-    const { userId } = new RequestDataValidator<{ userId: number }>(
-      { userId: Number(req.params.id) },
+    const { userId } = new RequestDataValidator<{ userId: userId }>(
+      { userId: asUserId(Number(req.params.id)) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
@@ -234,18 +223,21 @@ export class AdminRestApiController {
     this.logger.audit("User unbanned", {
       prefix: LogPrefix.ADMIN,
       targetUserId: userId,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
     return res.status(HttpStatus.OK).json({
       userId,
-      isBanned: false,
+      isBanned: false
     });
   };
 
   private muteUser = async (req: Request, res: Response) => {
     const { userId, mutedUntil } = new RequestDataValidator<UserMuteInputDTO>(
-      { userId: Number(req.params.id), mutedUntil: req.body.mutedUntil },
+      {
+        userId: asUserId(Number(req.params.id)),
+        mutedUntil: req.body.mutedUntil
+      },
       userMuteScheme()
     ).validate();
 
@@ -256,13 +248,13 @@ export class AdminRestApiController {
     this.logger.audit("User muted", {
       prefix: LogPrefix.ADMIN,
       targetUserId: userId,
-      adminUserId: req.user?.id,
-      mutedUntil: mutedUntilDate.toISOString(),
+      adminUserId: req.auth?.userId,
+      mutedUntil: mutedUntilDate.toISOString()
     });
 
     const response: UserMuteResponseDTO = {
       userId,
-      mutedUntil: mutedUntilDate.toISOString(),
+      mutedUntil: mutedUntilDate.toISOString()
     };
 
     return res.status(HttpStatus.OK).json(response);
@@ -270,7 +262,7 @@ export class AdminRestApiController {
 
   private unmuteUser = async (req: Request, res: Response) => {
     const { userId } = new RequestDataValidator<UserUnmuteInputDTO>(
-      { userId: Number(req.params.id) },
+      { userId: asUserId(Number(req.params.id)) },
       userUnmuteScheme()
     ).validate();
 
@@ -279,12 +271,12 @@ export class AdminRestApiController {
     this.logger.audit("User unmuted", {
       prefix: LogPrefix.ADMIN,
       targetUserId: userId,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
     const response: UserMuteResponseDTO = {
       userId,
-      mutedUntil: null,
+      mutedUntil: null
     };
 
     return res.status(HttpStatus.OK).json(response);
@@ -294,8 +286,8 @@ export class AdminRestApiController {
    * Delete user - security action
    */
   private deleteUser = async (req: Request, res: Response) => {
-    const { userId } = new RequestDataValidator<{ userId: number }>(
-      { userId: Number(req.params.id) },
+    const { userId } = new RequestDataValidator<{ userId: userId }>(
+      { userId: asUserId(Number(req.params.id)) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
@@ -304,7 +296,7 @@ export class AdminRestApiController {
     this.logger.audit("User deleted", {
       prefix: LogPrefix.ADMIN,
       targetUserId: userId,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
     return res.status(HttpStatus.NO_CONTENT).send();
@@ -314,8 +306,8 @@ export class AdminRestApiController {
    * Restore deleted user - security action
    */
   private restoreUser = async (req: Request, res: Response) => {
-    const { userId } = new RequestDataValidator<{ userId: number }>(
-      { userId: Number(req.params.id) },
+    const { userId } = new RequestDataValidator<{ userId: userId }>(
+      { userId: asUserId(Number(req.params.id)) },
       Joi.object({ userId: Joi.number().integer().min(0).required() })
     ).validate();
 
@@ -324,46 +316,14 @@ export class AdminRestApiController {
     this.logger.audit("User restored", {
       prefix: LogPrefix.ADMIN,
       targetUserId: userId,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
     return res.status(HttpStatus.OK).json({ userId, restored: true });
   };
 
   private ping = async (_req: Request, res: Response) => {
-    const start = process.hrtime.bigint();
-    // Measure Event Loop delay (lag)
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    const end = process.hrtime.bigint();
-
-    const eventLoopLagMs = Number(end - start) / 1_000_000; // convert ns -> ms
-
-    let redisOk = false;
-    let redisResponseMs: number | null = null;
-
-    const rStart = process.hrtime.bigint();
-    try {
-      await this.redisService.scan(ADMIN_PING_REDIS_SCAN_KEY);
-
-      const rEnd = process.hrtime.bigint();
-      redisResponseMs = Number(rEnd - rStart) / 1_000_000;
-      redisOk = true;
-    } catch {
-      const rEnd = process.hrtime.bigint();
-      redisResponseMs = Number(rEnd - rStart) / 1_000_000;
-      redisOk = false;
-    }
-
-    const payload: AdminPingData = {
-      ok: true,
-      eventLoopLagMs: +eventLoopLagMs.toFixed(3),
-      redis: {
-        connected: redisOk,
-        responseMs:
-          redisResponseMs != null ? +redisResponseMs.toFixed(3) : null,
-      },
-      timestamp: new Date().toISOString(),
-    };
+    const payload = await this.adminDiagnosticsService.ping();
     return res.status(HttpStatus.OK).json(payload);
   };
 
@@ -385,7 +345,7 @@ export class AdminRestApiController {
   private getLogs = async (req: Request, res: Response) => {
     this.logger.audit("System logs accessed", {
       prefix: LogPrefix.ADMIN,
-      adminUserId: req.user?.id,
+      adminUserId: req.auth?.userId
     });
 
     // Validate query params via Joi
@@ -405,19 +365,19 @@ export class AdminRestApiController {
       until: validated.until,
       search: validated.search,
       limit: validated.limit,
-      offset: validated.offset,
+      offset: validated.offset
     };
 
     // Fetch logs using scan-based pagination
-    const result = await this.logReaderService.readLogs(filter);
+    const result = await this.adminDiagnosticsService.readLogs(filter);
 
     return res.status(HttpStatus.OK).json({
       logs: result.logs,
       pagination: {
         scanned: result.scanned,
         skipped: result.skipped,
-        matched: result.logs.length,
-      },
+        matched: result.logs.length
+      }
     });
   };
 }

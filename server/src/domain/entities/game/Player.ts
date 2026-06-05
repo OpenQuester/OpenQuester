@@ -8,7 +8,7 @@ export class Player {
   private _slot: number | null;
   private _role: PlayerRole;
   private _status: PlayerGameStatus;
-  private _restrictionData: {
+  private readonly _restrictionData: {
     muted: boolean;
     restricted: boolean;
     banned: boolean;
@@ -31,7 +31,7 @@ export class Player {
     return {
       id: this._meta.id,
       username: this._meta.username,
-      avatar: this._meta.avatar ?? null,
+      avatar: this._meta.avatar ?? null
     };
   }
 
@@ -47,7 +47,7 @@ export class Player {
       score: this._score,
       slot: this._slot,
       restrictionData: this._restrictionData,
-      mediaDownloaded: this._mediaDownloaded,
+      mediaDownloaded: this._mediaDownloaded
     };
   }
 

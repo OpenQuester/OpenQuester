@@ -1,12 +1,13 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
+import { type ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { UserService } from "application/services/user/UserService";
-import { Permission } from "infrastructure/database/models/Permission";
-import { User } from "infrastructure/database/models/User";
+import { type Permission } from "infrastructure/database/models/Permission";
+import { type User } from "infrastructure/database/models/User";
 import { PermissionRepository } from "infrastructure/database/repositories/PermissionRepository";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 
 /**
  * Service for permission management operations.
@@ -15,6 +16,7 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
 export class PermissionService {
   constructor(
     private readonly permissionRepository: PermissionRepository,
+    private readonly userRepository: UserRepository,
     private readonly userService: UserService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
@@ -40,17 +42,15 @@ export class PermissionService {
     const allPermissions = await this.getAll();
     if (allPermissions.length === 0) {
       this.logger.warn("No permissions found in database for admin bootstrap", {
-        prefix: LogPrefix.USER,
+        prefix: LogPrefix.USER
       });
       return;
     }
 
-    const allPermissionIds = new Set(
-      allPermissions.map((permission: Permission) => permission.id)
-    );
+    const allPermissionIds = new Set(allPermissions.map((permission: Permission) => permission.id));
 
     for (const email of emails) {
-      const user = await this.userService.findOne(
+      const user = await this.userRepository.findOne(
         { email, is_deleted: false },
         { select: ["id", "email"], relations: ["permissions"] }
       );
@@ -58,7 +58,7 @@ export class PermissionService {
       if (!user) {
         this.logger.warn("Admin bootstrap email not found", {
           prefix: LogPrefix.USER,
-          email,
+          email
         });
         continue;
       }
@@ -73,20 +73,15 @@ export class PermissionService {
       this.logger.audit("Granted all permissions to admin bootstrap user", {
         prefix: LogPrefix.USER,
         userId: user.id,
-        email: user.email,
+        email: user.email
       });
     }
   }
 
-  private hasAllPermissions(
-    user: User,
-    allPermissionIds: Set<number>
-  ): boolean {
+  private hasAllPermissions(user: User, allPermissionIds: Set<number>): boolean {
     return (
       user.permissions.length === allPermissionIds.size &&
-      user.permissions.every((permission: Permission) =>
-        allPermissionIds.has(permission.id)
-      )
+      user.permissions.every((permission: Permission) => allPermissionIds.has(permission.id))
     );
   }
 }

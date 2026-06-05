@@ -6,7 +6,7 @@ import {
   TableForeignKey,
 } from "typeorm";
 
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class ChangePackageModel_0_9_7_1739806266677

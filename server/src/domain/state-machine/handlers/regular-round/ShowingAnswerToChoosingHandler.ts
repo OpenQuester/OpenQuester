@@ -1,5 +1,4 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -10,7 +9,7 @@ import {
   MutationResult,
   TimerResult,
   TransitionContext,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -30,19 +29,11 @@ import { ShowingAnswerToChoosingMutationData } from "domain/types/socket/transit
  *
  * Entry points:
  * - Show answer timer expires (TimerExpirationService.handleShowAnswerExpiration)
- * - Showman skips answer display (SocketIOQuestionService.handleSkipShowAnswer)
+ * - Showman skips answer display (SkipShowAnswerUseCase)
  */
 export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.SHOWING_ANSWER;
   public readonly toPhase = GamePhase.CHOOSING;
-
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService,
-    private readonly roundHandlerFactory: RoundHandlerFactory
-  ) {
-    super(gameService, timerService);
-  }
 
   /**
    * Check if this transition should occur.
@@ -61,20 +52,12 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
     }
 
     // 2. Must be simple round in SHOWING_ANSWER state
-    if (
-      !TransitionGuards.canTransitionInRegularRound(
-        game,
-        QuestionState.SHOWING_ANSWER
-      )
-    ) {
+    if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.SHOWING_ANSWER)) {
       return false;
     }
 
     // 3. Must be timer expiration or user action
-    if (
-      trigger !== TransitionTrigger.TIMER_EXPIRED &&
-      trigger !== TransitionTrigger.USER_ACTION
-    ) {
+    if (trigger !== TransitionTrigger.TIMER_EXPIRED && trigger !== TransitionTrigger.USER_ACTION) {
       return false;
     }
 
@@ -103,8 +86,10 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
     let nextGameState: GameStateDTO | null = null;
 
     if (isRoundFinished) {
-      const roundHandler = this.roundHandlerFactory.createFromGame(game);
-      const progressionResult = await roundHandler.handleRoundProgression(game);
+      const roundHandler = RoundHandlerFactory.createFromGame(game);
+      const progressionResult = await roundHandler.handleRoundProgression(game, {
+        nextRound: ctx.resources?.nextRound ?? null,
+      });
 
       nextGameState = progressionResult.nextGameState;
     }
@@ -118,8 +103,8 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
       data: {
         isRoundFinished,
         isGameFinished: false,
-        nextGameState,
-      } satisfies ShowingAnswerToChoosingMutationData,
+        nextGameState
+      } satisfies ShowingAnswerToChoosingMutationData
     };
   }
 
@@ -127,13 +112,13 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
     ctx: TransitionContext,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    // Clear the show answer timer
-    await this.gameService.clearTimer(ctx.game.id);
-
     // Explicitly set timer to null in game state
     ctx.game.gameState.timer = null;
 
-    return { timer: undefined };
+    return {
+      timer: undefined,
+      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }]
+    };
   }
 
   protected collectBroadcasts(
@@ -143,15 +128,14 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
   ): BroadcastEvent[] {
     const { game } = ctx;
     const broadcasts: BroadcastEvent[] = [];
-    const mutationData =
-      mutationResult.data as ShowingAnswerToChoosingMutationData;
+    const mutationData = mutationResult.data as ShowingAnswerToChoosingMutationData;
     const nextGameState = mutationData.nextGameState;
 
     // 1. ANSWER_SHOW_END - signals end of answer display
     broadcasts.push({
       event: SocketIOGameEvents.ANSWER_SHOW_END,
       data: {} satisfies AnswerShowEndEventPayload,
-      room: game.id,
+      room: game.id
     });
 
     // 2. NEXT_ROUND if round progression occurred
@@ -159,9 +143,9 @@ export class ShowingAnswerToChoosingHandler extends BaseTransitionHandler {
       broadcasts.push({
         event: SocketIOGameEvents.NEXT_ROUND,
         data: {
-          gameState: nextGameState,
+          gameState: nextGameState
         } satisfies GameNextRoundEventPayload,
-        room: game.id,
+        room: game.id
       });
     }
 

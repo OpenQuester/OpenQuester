@@ -4,7 +4,7 @@ export abstract class BaseError extends Error {
   /** String literal arguments replacement */
   public textArgs: { [key: string]: any } | undefined;
 
-  constructor(
+  protected constructor(
     message?: string,
     code?: number,
     textArgs?: { [key: string]: any },

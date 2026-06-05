@@ -1,11 +1,10 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
 import {
   GamePhase,
   MutationResult,
   TimerResult,
   TransitionContext,
-  TransitionResult,
+  TransitionResult
 } from "domain/state-machine/types";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 
@@ -49,13 +48,6 @@ export abstract class BaseTransitionHandler implements TransitionHandler {
   abstract readonly fromPhase: GamePhase;
   abstract readonly toPhase: GamePhase;
 
-  constructor(
-    protected readonly gameService: GameService,
-    protected readonly timerService: SocketQuestionStateService
-  ) {
-    //
-  }
-
   abstract canTransition(ctx: TransitionContext): boolean;
 
   /**
@@ -82,7 +74,8 @@ export abstract class BaseTransitionHandler implements TransitionHandler {
       game: ctx.game,
       broadcasts,
       timer: timerResult.timer ?? null,
-      data: mutationResult.data,
+      timerMutations: timerResult.timerMutations,
+      data: mutationResult.data
     };
   }
 
@@ -102,14 +95,17 @@ export abstract class BaseTransitionHandler implements TransitionHandler {
 
   /**
    * Override to customize timer handling.
-   * Default implementation clears any existing timer.
+   * Default implementation returns a DELETE mutation for the active timer key.
+   * No Redis I/O — the OUT pipeline applies the mutations.
    */
   protected async handleTimer(
     ctx: TransitionContext,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    await this.gameService.clearTimer(ctx.game.id);
-    return { timer: undefined };
+    return {
+      timer: undefined,
+      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }]
+    };
   }
 
   /**

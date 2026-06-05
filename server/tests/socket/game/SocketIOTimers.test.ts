@@ -9,13 +9,14 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/game/QuestionAnswerResultEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -40,7 +41,7 @@ describe("SocketIOTimers", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     socketUtils = new SocketGameTestUtils(serverUrl);
     testUtils = new TestUtils(app, userRepo, serverUrl);
   });
@@ -92,10 +93,13 @@ describe("SocketIOTimers", () => {
           );
 
         // Expire the timer to trigger automatic wrong answer
-        await testUtils.expireTimer(gameId);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED
+        );
 
-        // Wait for the timer expiration event
         const answerResult = await answerResultPromise;
+        await socketUtils.waitForActionsComplete(gameId);
 
         // Verify the auto-timeout resulted in wrong answer
         expect(answerResult).toBeDefined();
@@ -104,16 +108,6 @@ describe("SocketIOTimers", () => {
           AnswerResultType.WRONG
         );
         expect(answerResult.answerResult.result).toBeLessThan(0);
-
-        const stateTransitioned = await testUtils.waitForCondition(
-          async () => {
-            const state = await socketUtils.getGameState(gameId);
-            return state!.questionState === QuestionState.SHOWING_ANSWER;
-          },
-          2000,
-          50
-        );
-        expect(stateTransitioned).toBe(true);
 
         // Verify game state left ANSWERING and answering player is cleared
         const finalState = await socketUtils.getGameState(gameId);
@@ -173,7 +167,10 @@ describe("SocketIOTimers", () => {
         );
 
         // Expire showing timer - this should trigger transition to SHOWING_ANSWER
-        await testUtils.expireTimer(gameId);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
 
         // Wait for transition to SHOWING_ANSWER
         await answerShowStartPromise;
@@ -203,7 +200,10 @@ describe("SocketIOTimers", () => {
           );
 
         // Expire SHOWING_ANSWER timer - this should trigger round progression
-        await testUtils.expireTimer(gameId);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
 
         // Wait for round progression
         const nextRound = await nextRoundPromise;
@@ -244,7 +244,10 @@ describe("SocketIOTimers", () => {
         );
 
         // Expire showing timer - this should trigger question finish and return to choosing
-        await testUtils.expireTimer(gameId);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
 
         // Verify question finish event was received
         await questionFinishPromise;

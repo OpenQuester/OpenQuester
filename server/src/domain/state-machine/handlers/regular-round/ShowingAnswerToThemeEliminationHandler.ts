@@ -1,6 +1,6 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { FINAL_ROUND_THEME_ELIMINATION_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -11,7 +11,7 @@ import {
   MutationResult,
   TimerResult,
   TransitionContext,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -30,14 +30,6 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
   public readonly fromPhase = GamePhase.SHOWING_ANSWER;
   public readonly toPhase = GamePhase.FINAL_THEME_ELIMINATION;
 
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService,
-    private readonly roundHandlerFactory: RoundHandlerFactory
-  ) {
-    super(gameService, timerService);
-  }
-
   public canTransition(ctx: TransitionContext): boolean {
     const { game, trigger } = ctx;
 
@@ -49,10 +41,7 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
       return false;
     }
 
-    if (
-      trigger !== TransitionTrigger.TIMER_EXPIRED &&
-      trigger !== TransitionTrigger.USER_ACTION
-    ) {
+    if (trigger !== TransitionTrigger.TIMER_EXPIRED && trigger !== TransitionTrigger.USER_ACTION) {
       return false;
     }
 
@@ -72,8 +61,10 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
   protected async mutate(ctx: TransitionContext): Promise<MutationResult> {
     const { game } = ctx;
 
-    const roundHandler = this.roundHandlerFactory.createFromGame(game);
-    const progressionResult = await roundHandler.handleRoundProgression(game);
+    const roundHandler = RoundHandlerFactory.createFromGame(game);
+    const progressionResult = await roundHandler.handleRoundProgression(game, {
+      nextRound: ctx.resources?.nextRound ?? null
+    });
 
     const nextGameState = progressionResult.nextGameState;
 
@@ -94,8 +85,8 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
 
     return {
       data: {
-        nextGameState,
-      } satisfies ShowingAnswerToThemeEliminationMutationData,
+        nextGameState
+      } satisfies ShowingAnswerToThemeEliminationMutationData
     };
   }
 
@@ -105,17 +96,21 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    // Clear any existing timer from the previous phase
-    await this.gameService.clearTimer(game.id);
-
     // Setup timer for theme elimination (per-player turn timer)
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      FINAL_ROUND_THEME_ELIMINATION_TIME
-    );
+    const timer = new GameStateTimer(FINAL_ROUND_THEME_ELIMINATION_TIME);
+    game.gameState.timer = timer.start();
 
     return {
-      timer: timerEntity.value() ?? undefined,
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: FINAL_ROUND_THEME_ELIMINATION_TIME
+        }
+      ]
     };
   }
 
@@ -124,25 +119,24 @@ export class ShowingAnswerToThemeEliminationHandler extends BaseTransitionHandle
     mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
-    const mutationData =
-      mutationResult.data as ShowingAnswerToThemeEliminationMutationData;
+    const mutationData = mutationResult.data as ShowingAnswerToThemeEliminationMutationData;
 
     const broadcasts: BroadcastEvent[] = [
       {
         event: SocketIOGameEvents.ANSWER_SHOW_END,
         data: {} satisfies AnswerShowEndEventPayload,
-        room: ctx.game.id,
-      },
+        room: ctx.game.id
+      }
     ];
 
     if (mutationData.nextGameState) {
       broadcasts.push({
         event: SocketIOGameEvents.NEXT_ROUND,
         data: {
-          gameState: mutationData.nextGameState,
+          gameState: mutationData.nextGameState
         } satisfies GameNextRoundEventPayload,
         room: ctx.game.id,
-        roleFilter: true, // Filter questions for players in final round
+        roleFilter: true // Filter questions for players in final round
       });
     }
 

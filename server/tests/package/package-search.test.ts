@@ -8,7 +8,7 @@ import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { Package } from "infrastructure/database/models/package/Package";
 import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -46,7 +46,7 @@ describe("Package Search API", () => {
     userRepo = dataSource.getRepository<User>("User");
     packageRepo = dataSource.getRepository<Package>("Package");
     packageTagRepo = dataSource.getRepository<PackageTag>("PackageTag");
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     packageUtils = new PackageUtils();
     testUtils = new TestUtils(app, userRepo, serverUrl);
   });

@@ -3,8 +3,8 @@ import { NextFunction, Request, Response } from "express";
 import {
   LogContextService,
   RequestContext,
-} from "infrastructure/logger/LogContext";
-import { LogTag } from "infrastructure/logger/LogTag";
+} from "shared/logging/LogContext";
+import { LogTag } from "shared/logging/LogTag";
 
 /**
  * HTTP middleware that establishes request context with correlation ID.

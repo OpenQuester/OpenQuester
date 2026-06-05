@@ -2,6 +2,7 @@ import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
+import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { StakeQuestionGameData } from "domain/types/dto/game/state/StakeQuestionGameData";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -33,6 +34,10 @@ export class StakeQuestionValidator {
 
     if (!isShowmanOverride && !isPlayer) {
       throw new ClientError(ClientResponse.INSUFFICIENT_PERMISSIONS);
+    }
+
+    if (!TransitionGuards.isStakeBiddingPhase(game)) {
+      throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
 
     if (!stakeData) {

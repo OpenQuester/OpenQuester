@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import { LogTag } from "infrastructure/logger/LogTag";
+import { LogTag } from "shared/logging/LogTag";
 
 /**
  * Structured log entry for test data generation.

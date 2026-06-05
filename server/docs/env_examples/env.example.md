@@ -78,4 +78,17 @@ S3_USE_SSL=
 S3_PORT=
 S3_ACCESS_KEY=
 S3_SECRET_KEY=
+
+# Redis performance logging.
+# Modes:
+# - slow: log only Redis operations taking REDIS_SLOW_LOG_MS or longer.
+# - all: log every Redis operation with timing.
+# - off: disable Redis performance logging.
+REDIS_PERF_LOG_MODE=slow
+REDIS_SLOW_LOG_MS=50
+
+# Startup recovery clears active Redis games/sockets.
+# Keep true for single-instance restarts; set false for replicated deployment.
+STARTUP_RECOVERY_ENABLED=true
+
 ```

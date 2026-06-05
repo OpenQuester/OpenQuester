@@ -1,25 +1,27 @@
 import { Router, type Express, type Request, type Response } from "express";
 
 import { type GameService } from "application/services/game/GameService";
+import { type UserService } from "application/services/user/UserService";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
-import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
-import { GameUpdateDTO } from "domain/types/dto/game/GameUpdateDTO";
-import { GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
+import { type GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
+import { type GameUpdateDTO } from "domain/types/dto/game/GameUpdateDTO";
+import { type GamePaginationOpts } from "domain/types/pagination/game/GamePaginationOpts";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import {
   createGameScheme,
   gameIdScheme,
   gamePaginationScheme,
-  updateGameScheme,
+  updateGameScheme
 } from "presentation/schemes/game/gameSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
 export class GameRestApiController {
   constructor(
     private readonly app: Express,
-    private readonly gameService: GameService
+    private readonly gameService: GameService,
+    private readonly userService: UserService
   ) {
     const router = Router();
 
@@ -38,7 +40,15 @@ export class GameRestApiController {
       gameIdScheme()
     ).validate();
 
-    await this.gameService.delete(req, validatedData.gameId);
+    const user = await this.userService.getUserBySession(
+      req.session.userId,
+      {
+        select: ["id"],
+        relations: []
+      }
+    );
+
+    await this.gameService.delete(user.id, validatedData.gameId);
 
     return res.status(HttpStatus.NO_CONTENT).send();
   };
@@ -74,7 +84,15 @@ export class GameRestApiController {
       throw new ClientError(ClientResponse.NO_GAME_DATA);
     }
 
-    const result = await this.gameService.create(req, gameCreateDTO);
+    const createdByUser = await this.userService.getUserBySession(
+      req.session.userId,
+      {
+        select: ["id", "username"],
+        relations: []
+      }
+    );
+
+    const result = await this.gameService.create(createdByUser, gameCreateDTO);
     return res.status(HttpStatus.OK).send(result);
   };
 
@@ -93,11 +111,15 @@ export class GameRestApiController {
       throw new ClientError(ClientResponse.NO_GAME_DATA);
     }
 
-    const result = await this.gameService.update(
-      req,
-      validatedParams.gameId,
-      updateDTO
+    const user = await this.userService.getUserBySession(
+      req.session.userId,
+      {
+        select: ["id"],
+        relations: []
+      }
     );
+
+    const result = await this.gameService.update(user.id, validatedParams.gameId, updateDTO);
     return res.status(HttpStatus.OK).send(result);
   };
 }

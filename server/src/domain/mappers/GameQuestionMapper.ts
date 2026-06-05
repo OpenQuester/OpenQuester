@@ -2,20 +2,16 @@ import { Game } from "domain/entities/game/Game";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
-import { PackageDTO } from "../types/dto/package/PackageDTO";
+import { PackageDTO } from "domain/types/dto/package/PackageDTO";
 
 export class GameQuestionMapper {
   /**
    * Retrieve DTO of question by package data, round and questionId (from DB)
    * @param pack package DTO
-   * @param roundOrder order of round in theme
+   * @param roundId id of round
    * @param questionId question id from DB
    */
-  public static getQuestionAndTheme(
-    pack: PackageDTO,
-    roundId: number,
-    questionId: number
-  ) {
+  public static getQuestionAndTheme(pack: PackageDTO, roundId: number, questionId: number) {
     const round = pack.rounds.find((round) => round.id === roundId);
     if (!round?.themes?.length) {
       return null;
@@ -32,9 +28,7 @@ export class GameQuestionMapper {
   }
 
   /** Excludes answerText, answerFiles, and answerHint */
-  public static mapToSimpleQuestion(
-    question: PackageQuestionDTO
-  ): SimplePackageQuestionDTO {
+  public static mapToSimpleQuestion(question: PackageQuestionDTO): SimplePackageQuestionDTO {
     return {
       id: question.id,
       answerDelay: question.answerDelay,
@@ -52,20 +46,12 @@ export class GameQuestionMapper {
       showAnswerDuration: question.showAnswerDuration,
       showDelay: question.showDelay,
       text: question.text,
-      transferType: question.transferType,
+      transferType: question.transferType
     };
   }
 
-  public static setQuestionPlayed(
-    game: Game,
-    questionID: number,
-    themeId: number
-  ) {
-    const question = this._getQuestionFromCurrentRound(
-      game,
-      questionID,
-      themeId
-    );
+  public static setQuestionPlayed(game: Game, questionID: number, themeId: number) {
+    const question = this._getQuestionFromCurrentRound(game, questionID, themeId);
 
     if (!question) {
       return;
@@ -74,16 +60,8 @@ export class GameQuestionMapper {
     question.isPlayed = true;
   }
 
-  public static isQuestionPlayed(
-    game: Game,
-    questionID: number,
-    themeId: number
-  ) {
-    const question = this._getQuestionFromCurrentRound(
-      game,
-      questionID,
-      themeId
-    );
+  public static isQuestionPlayed(game: Game, questionID: number, themeId: number) {
+    const question = this._getQuestionFromCurrentRound(game, questionID, themeId);
 
     return question ? question.isPlayed : undefined;
   }
@@ -106,11 +84,7 @@ export class GameQuestionMapper {
     return { played, all };
   }
 
-  private static _getQuestionFromCurrentRound(
-    game: Game,
-    questionID: number,
-    themeId: number
-  ) {
+  private static _getQuestionFromCurrentRound(game: Game, questionID: number, themeId: number) {
     const currentRound = game.gameState.currentRound;
 
     if (!currentRound) {
@@ -123,10 +97,6 @@ export class GameQuestionMapper {
       return;
     }
 
-    const question = theme.questions.find(
-      (question) => question.id === questionID
-    );
-
-    return question;
+    return theme.questions.find((question) => question.id === questionID);
   }
 }

@@ -2,13 +2,45 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpenQuester API",
-    "version": "0.22.0"
+    "version": "0.22.0",
+    "description": "REST API plus Socket.IO contract metadata for OpenQuester. Socket.IO clients authenticate an existing HTTP session with POST /v1/auth/socket, then use the /games namespace for game-flow events."
   },
   "security": [
     {
       "SessionAuth": []
     }
   ],
+  "x-socket-io": {
+    "version": "4.x",
+    "namespace": "/games",
+    "authentication": {
+      "endpoint": "POST /v1/auth/socket",
+      "requestSchema": "#/components/schemas/InputSocketIOAuth",
+      "sessionSecurity": "SessionAuth",
+      "description": "Send the connected Socket.IO socket id while authenticated by the HTTP session cookie. The server stores the socket session for later game action routing."
+    },
+    "delivery": {
+      "errors": "Socket errors are emitted to the origin socket with the standard error event and payload { \"message\": string }.",
+      "gameChangingEvents": "Client-to-server game events are serialized per game through the Redis action queue and lock.",
+      "directEvents": "Read-only events such as chat-message bypass the game mutation queue but still prefetch game/session context for validation."
+    },
+    "events": {
+      "lobby": {
+        "event": "games",
+        "payloadSchema": "#/components/schemas/GameEventSubscription",
+        "description": "Broadcast when REST game create/update/delete changes the lobby list."
+      },
+      "clientToServer": {
+        "schema": "#/components/schemas/SocketIOGameSendEvents"
+      },
+      "serverToClient": {
+        "schema": "#/components/schemas/SocketIOGameReceiveEvents"
+      },
+      "system": {
+        "schema": "#/components/schemas/SocketIOEvents"
+      }
+    }
+  },
   "paths": {
     "/v1/files/{filename}": {
       "get": {
@@ -455,101 +487,6 @@
             }
           }
         }
-      },
-      "patch": {
-        "summary": "Update user by id",
-        "tags": ["Users"],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InputUpdateUser"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Update user data successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResponseUser"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Permission denied",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PermissionDeniedResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserNotFoundResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "summary": "Delete user by id",
-        "tags": ["Users"],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "User deleted successfully"
-          },
-          "403": {
-            "description": "Permission denied",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PermissionDeniedResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "User not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UserNotFoundResponse"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/v1/users/{id}/permissions": {
@@ -649,7 +586,7 @@
           {
             "name": "sortBy",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "$ref": "#/components/schemas/UsersSortBy"
             }
@@ -657,7 +594,7 @@
           {
             "name": "order",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "$ref": "#/components/schemas/OrderDirection"
             }
@@ -923,6 +860,7 @@
     "/v1/auth/socket": {
       "post": {
         "summary": "Authorize socket.io connection",
+        "description": "Associates the authenticated HTTP session with a Socket.IO socket id. Call this after the Socket.IO connection is established and before emitting game events on the /games namespace.",
         "tags": ["Auth"],
         "requestBody": {
           "required": true,
@@ -961,6 +899,7 @@
     "/v1/games": {
       "get": {
         "summary": "Get all games",
+        "description": "Returns lobby games from Redis-backed indexes. Games deleted by REST or by empty-game cleanup are removed from these indexes before they disappear from the listing.",
         "tags": ["Games"],
         "parameters": [
           {
@@ -1127,6 +1066,7 @@
       },
       "delete": {
         "summary": "Delete game",
+        "description": "Deletes game state, package snapshot, timers, expiration warning, and lobby indexes. On success emits a lobby games event with { event: \"deleted\", data: { id } }.",
         "tags": ["Games"],
         "parameters": [
           {
@@ -1156,7 +1096,7 @@
       },
       "patch": {
         "summary": "Update game settings",
-        "description": "Update game settings. Only the showman or host can update the game. Package can only be changed before the game starts. All other fields can be changed at any time.",
+        "description": "Update game settings. Only the showman can update the game. Package can only be changed before the game starts. When packageId changes, the server loads the new package snapshot, rebuilds round/question indexes and counts, resets game state, and preserves the current password. Emits GameEventDTO with event \"changed\" to both lobby and game room.",
         "tags": ["Games"],
         "parameters": [
           {
@@ -1296,6 +1236,32 @@
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/PaginationOffset"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/UserStatus"
+            }
+          },
+          {
+            "name": "userType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/UserType"
             }
           }
         ],
@@ -1862,7 +1828,8 @@
           "view_system_health",
           "view_users_info",
           "ban_users",
-          "mute_player"
+          "mute_player",
+          "view_system_logs"
         ]
       },
       "PackageCreationInput": {
@@ -1925,6 +1892,10 @@
             "type": "boolean",
             "examples": [false]
           },
+          "isBanned": {
+            "type": "boolean",
+            "examples": [false]
+          },
           "isGuest": {
             "type": "boolean",
             "description": "Whether this is a guest user account",
@@ -1955,6 +1926,7 @@
         "required": [
           "createdAt",
           "id",
+          "isBanned",
           "isDeleted",
           "isGuest",
           "permissions",
@@ -1967,10 +1939,12 @@
         "properties": {
           "token": {
             "type": "string",
+            "maxLength": 512,
             "examples": ["HSXxyt6nrbW5Gtqw5BWfHPYk9lxDOj"]
           },
           "tokenSchema": {
             "type": ["string", "null"],
+            "maxLength": 128,
             "examples": ["Bearer"]
           },
           "oauthProvider": {
@@ -2004,6 +1978,13 @@
             "maxLength": 32,
             "description": "Rules: lowercase letters, numbers, underscores, periods only",
             "pattern": "^[a-z0-9_.]{2,32}$"
+          },
+          "name": {
+            "type": ["string", "null"],
+            "examples": ["John Doe"],
+            "minLength": 1,
+            "maxLength": 50,
+            "description": "Display name. Allows Unicode letters, numbers, and single spaces."
           },
           "email": {
             "type": ["string", "null"],
@@ -2172,7 +2153,8 @@
           },
           "packageId": {
             "type": "integer",
-            "minimum": 0,
+            "minimum": 1,
+            "description": "Existing package id used to initialize immutable game package snapshot",
             "examples": [1]
           },
           "isPrivate": {
@@ -2214,8 +2196,8 @@
           },
           "packageId": {
             "type": "integer",
-            "minimum": 0,
-            "description": "Can only be changed before game starts",
+            "minimum": 1,
+            "description": "Existing package id. Can only be changed before the game starts. Updating it replaces the game package snapshot and resets round/question state.",
             "examples": [2]
           },
           "isPrivate": {
@@ -2245,8 +2227,11 @@
         "type": "string",
         "enum": [
           "game_started_cannot_change_package",
+          "package_not_found",
+          "package_author_not_found",
           "game_password_not_allowed_for_public_game",
           "game_password_cannot_be_removed_for_private_game",
+          "cannot_set_max_players_below_current",
           "invalid_input"
         ],
         "description": "Error codes specific to game update operations"
@@ -2692,9 +2677,26 @@
       },
       "UsersSortBy": {
         "type": "string",
-        "enum": ["id", "is_deleted", "created_at", "username", "email"],
-        "examples": ["createdAt"],
-        "default": "createdAt"
+        "enum": [
+          "id",
+          "is_deleted",
+          "created_at",
+          "username",
+          "email",
+          "updated_at"
+        ],
+        "examples": ["created_at"],
+        "default": "created_at"
+      },
+      "UserStatus": {
+        "type": "string",
+        "enum": ["active", "banned", "deleted"],
+        "examples": ["active"]
+      },
+      "UserType": {
+        "type": "string",
+        "enum": ["all", "registered", "guest"],
+        "examples": ["all"]
       },
       "PackagesSortBy": {
         "type": "string",
@@ -2864,12 +2866,12 @@
       },
       "GameEventSubscription": {
         "type": "object",
+        "description": "Payload emitted on the lobby-level games Socket.IO event.",
         "discriminator": {
           "propertyName": "event",
           "mapping": {
             "created": "#/components/schemas/GameUpdateEventSubscription",
             "changed": "#/components/schemas/GameUpdateEventSubscription",
-            "started": "#/components/schemas/GameUpdateEventSubscription",
             "deleted": "#/components/schemas/GameDeleteEventSubscription"
           }
         },
@@ -2884,19 +2886,21 @@
       },
       "GameUpdateEventSubscription": {
         "type": "object",
+        "description": "Lobby games event for created or changed games.",
         "properties": {
           "event": {
             "type": "string",
-            "enum": ["created", "changed", "started"]
+            "enum": ["created", "changed"]
           },
           "data": {
             "$ref": "#/components/schemas/GameListItem"
           }
         },
-        "required": ["data", "event", "type"]
+        "required": ["data", "event"]
       },
       "GameDeleteEventSubscription": {
         "type": "object",
+        "description": "Lobby games event for deleted games.",
         "properties": {
           "event": {
             "type": "string",
@@ -2912,7 +2916,7 @@
             "required": ["id"]
           }
         },
-        "required": ["data", "event", "type"]
+        "required": ["data", "event"]
       },
       "AgeRestriction": {
         "type": "string",
@@ -3652,6 +3656,8 @@
         "properties": {
           "gameId": {
             "type": "string",
+            "minLength": 4,
+            "maxLength": 4,
             "examples": ["Q31X"]
           },
           "role": {
@@ -4150,6 +4156,7 @@
       },
       "SocketIOEvents": {
         "type": "string",
+        "description": "Socket.IO system and cross-game events. The games event carries GameEventSubscription; chat-message is direct execution; notifications carries SocketIONotificationEventPayload.",
         "enum": [
           "error",
           "disconnect",
@@ -4167,17 +4174,16 @@
       },
       "SocketIOGameSendEvents": {
         "type": "string",
+        "description": "Client-to-server game events accepted on the /games namespace. Game-changing events are processed through the per-game action queue.",
         "enum": [
           "join",
           "user-leave",
-          "game-data",
           "start",
           "question-pick",
           "question-answer",
-          "question-finish",
           "answer-submitted",
-          "next-round",
           "answer-result",
+          "next-round",
           "skip-question-force",
           "skip-show-answer",
           "game-pause",
@@ -4196,21 +4202,15 @@
           "final-bid-submit",
           "final-answer-submit",
           "final-answer-review",
-          "final-phase-complete",
-          "final-question-data",
-          "final-submit-end",
-          "final-auto-loss",
           "secret-question-transfer",
-          "stake-question-picked",
           "stake-bid-submit",
-          "stake-question-winner",
-          "media-downloaded",
-          "media-download-status"
+          "media-downloaded"
         ],
         "examples": ["join"]
       },
       "SocketIOGameReceiveEvents": {
         "type": "string",
+        "description": "Server-to-client game events emitted on the /games namespace.",
         "enum": [
           "join",
           "start",
@@ -4250,7 +4250,6 @@
           "stake-question-picked",
           "stake-bid-submit",
           "stake-question-winner",
-          "media-downloaded",
           "media-download-status",
           "notifications"
         ],
@@ -4288,7 +4287,7 @@
             "examples": [true, false]
           },
           "timer": {
-            "description": "Question timer (only present when allPlayersReady is true)",
+            "description": "Question timer when media download completes the phase, otherwise null",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/GameStateTimer"
@@ -4299,7 +4298,7 @@
             ]
           }
         },
-        "required": ["allPlayersReady", "mediaDownloaded", "playerId"]
+        "required": ["allPlayersReady", "mediaDownloaded", "playerId", "timer"]
       },
       "SocketIOGameUnskipEventPayload": {
         "type": "object",
@@ -4327,7 +4326,8 @@
               }
             ]
           }
-        }
+        },
+        "required": ["timer"]
       },
       "SocketIOGameUnpauseEventPayload": {
         "type": "object",
@@ -4343,7 +4343,8 @@
               }
             ]
           }
-        }
+        },
+        "required": ["timer"]
       },
       "SocketIOPlayerKickInput": {
         "type": "object",
@@ -4351,6 +4352,7 @@
         "properties": {
           "playerId": {
             "type": "integer",
+            "minimum": 0,
             "description": "ID of the player to kick",
             "examples": [123]
           }
@@ -4375,6 +4377,7 @@
         "properties": {
           "playerId": {
             "type": "integer",
+            "minimum": 0,
             "description": "ID of the player to restrict",
             "examples": [123]
           },
@@ -4428,23 +4431,17 @@
         "description": "Data sent to change a player's role",
         "properties": {
           "playerId": {
-            "oneOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
+            "minimum": 0,
             "description": "ID of the player whose role to change",
-            "examples": [123, null]
+            "examples": [123]
           },
           "newRole": {
             "$ref": "#/components/schemas/PlayerRole",
             "description": "The new role for the player"
           }
         },
-        "required": ["newRole", "playerId"]
+        "required": ["newRole"]
       },
       "SocketIOPlayerRoleChangeEventPayload": {
         "type": "object",
@@ -4475,11 +4472,12 @@
         "properties": {
           "playerId": {
             "type": "integer",
+            "minimum": 0,
             "description": "ID of the player whose score to change",
             "examples": [123]
           },
           "newScore": {
-            "type": "integer",
+            "type": "number",
             "description": "The new score for the player",
             "examples": [1500]
           }
@@ -4496,7 +4494,7 @@
             "examples": [123]
           },
           "newScore": {
-            "type": "integer",
+            "type": "number",
             "description": "The new score of the player",
             "examples": [1500]
           }
@@ -4509,13 +4507,15 @@
         "properties": {
           "targetSlot": {
             "type": "integer",
+            "minimum": 0,
             "description": "The target slot to change to (0-indexed)",
             "examples": [0, 1, 2]
           },
           "playerId": {
-            "type": ["integer", "null"],
+            "type": "integer",
+            "minimum": 0,
             "description": "Optional: ID of the player whose slot to change (for showman use)",
-            "examples": [123, null]
+            "examples": [123]
           }
         },
         "required": ["targetSlot"]
@@ -4550,6 +4550,7 @@
         "properties": {
           "newTurnPlayerId": {
             "type": ["integer", "null"],
+            "minimum": 0,
             "description": "ID of the player who should have the turn, or null to clear",
             "examples": [123, null]
           }
@@ -4565,7 +4566,8 @@
             "description": "ID of the player who now has the turn, or null if cleared",
             "examples": [123, null]
           }
-        }
+        },
+        "required": ["newTurnPlayerId"]
       },
       "SocketIOChatMessageContent": {
         "type": "object",
@@ -4573,6 +4575,7 @@
           "message": {
             "type": "string",
             "examples": ["Hello guys!"],
+            "minLength": 1,
             "maxLength": 255
           }
         },
@@ -4584,6 +4587,7 @@
         "properties": {
           "questionId": {
             "type": "integer",
+            "minimum": 0,
             "description": "ID of the picked question",
             "examples": [25]
           }
@@ -4627,6 +4631,7 @@
         "properties": {
           "answerText": {
             "type": ["string", "null"],
+            "maxLength": 255,
             "description": "Player's answer text",
             "examples": ["I don't know"]
           }
@@ -4696,7 +4701,7 @@
         "description": "Data sent by the showman to evaluate a player's answer",
         "properties": {
           "scoreResult": {
-            "type": "integer",
+            "type": "number",
             "description": "Score result of the answer; positive for correct, negative for incorrect, zero for skip",
             "examples": [500, -500, 0]
           },
@@ -4736,6 +4741,7 @@
         "properties": {
           "targetPlayerId": {
             "type": "integer",
+            "minimum": 0,
             "description": "ID of the player who should receive the secret question",
             "examples": [789]
           }
@@ -4770,6 +4776,7 @@
         "properties": {
           "themeId": {
             "type": "integer",
+            "minimum": 0,
             "description": "ID of the theme to eliminate",
             "examples": [5]
           }
@@ -4796,7 +4803,7 @@
             "examples": [124]
           }
         },
-        "required": ["eliminatedBy", "themeId"]
+        "required": ["eliminatedBy", "nextPlayerId", "themeId"]
       },
       "SocketIOFinalAnswerSubmitInput": {
         "type": "object",
@@ -4819,21 +4826,17 @@
             "type": "integer",
             "description": "ID of the player who submitted the answer",
             "examples": [123]
-          },
-          "answerText": {
-            "type": ["string", "null"],
-            "description": "The submitted answer text",
-            "examples": ["This is my final answer"]
           }
         },
-        "required": ["answerText", "playerId"]
+        "required": ["playerId"]
       },
       "SocketIOFinalBidSubmitInput": {
         "type": "object",
         "description": "Data sent by player to submit bid in final round",
         "properties": {
           "bid": {
-            "type": "integer",
+            "type": "number",
+            "minimum": 1,
             "description": "Player's bid amount",
             "examples": [500]
           }
@@ -4850,7 +4853,7 @@
             "examples": [123]
           },
           "bidAmount": {
-            "type": "integer",
+            "type": "number",
             "description": "The bid amount",
             "examples": [500]
           },
@@ -5278,7 +5281,7 @@
             "$ref": "#/components/schemas/StakeBidType"
           },
           "bidAmount": {
-            "type": ["integer", "null"],
+            "type": ["number", "null"],
             "minimum": 1,
             "description": "Bid amount for normal bids, null for pass/all-in bids",
             "examples": [250, null]
@@ -5296,7 +5299,7 @@
             "examples": [123]
           },
           "bidAmount": {
-            "type": ["integer", "null"],
+            "type": ["number", "null"],
             "description": "Actual bid amount (null for pass bids)",
             "examples": [250, null]
           },
@@ -5502,6 +5505,7 @@
         "required": [
           "activeUsers",
           "deletedUsers",
+          "guestsUsers",
           "recentUsers",
           "systemHealth",
           "totalUsers"
@@ -5514,6 +5518,9 @@
             "type": "integer"
           },
           "deletedUsers": {
+            "type": "integer"
+          },
+          "guestsUsers": {
             "type": "integer"
           },
           "recentUsers": {
@@ -5551,7 +5558,7 @@
           },
           "stats": {
             "type": "object",
-            "required": ["total", "active", "deleted", "banned"],
+            "required": ["total", "active", "deleted", "banned", "guests"],
             "properties": {
               "total": {
                 "type": "integer"
@@ -5563,6 +5570,9 @@
                 "type": "integer"
               },
               "banned": {
+                "type": "integer"
+              },
+              "guests": {
                 "type": "integer"
               }
             }
@@ -5607,7 +5617,7 @@
             "type": "boolean"
           },
           "responseMs": {
-            "type": "number"
+            "type": ["number", "null"]
           }
         }
       },
@@ -5755,7 +5765,7 @@
           "auth",
           "admin",
           "timer",
-          "queue",
+          "action",
           "media",
           "db",
           "redis",

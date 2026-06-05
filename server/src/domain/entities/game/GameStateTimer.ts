@@ -34,7 +34,7 @@ export class GameStateTimer {
       durationMs: this.durationMs,
       elapsedMs: 0,
       startedAt: new Date(),
-      resumedAt: null,
+      resumedAt: null
     };
 
     this._started = true;
@@ -49,26 +49,5 @@ export class GameStateTimer {
    */
   public value(): GameStateTimerDTO | null {
     return this._timer;
-  }
-
-  /**
-   * Calculates the total elapsed time in milliseconds.
-   * @returns Total elapsed time in milliseconds
-   */
-  public getElapsedTime(): number {
-    if (!this._started || !this._timer) {
-      return 0;
-    }
-
-    if (this._paused) {
-      return this._timer.elapsedMs;
-    }
-
-    const currentTime = Date.now();
-    const startTime = new Date(this._timer.startedAt).getTime();
-    return Math.min(
-      this.durationMs,
-      this._timer.elapsedMs + (currentTime - startTime)
-    );
   }
 }

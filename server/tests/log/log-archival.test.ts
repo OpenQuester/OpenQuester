@@ -2,15 +2,13 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
-import { Environment } from "infrastructure/config/Environment";
-import { ILogger } from "infrastructure/logger/ILogger";
-import type {
-  PerformanceLog,
-  LogLevel,
-} from "infrastructure/logger/PinoLogger";
-import type { LogMeta } from "infrastructure/logger/LogMeta";
-import type { LogType } from "infrastructure/logger/LogType";
-import { LogArchivalService } from "infrastructure/services/log/LogArchivalService";
+import { Environment } from "shared/config/Environment";
+import { ILogger } from "shared/logging/ILogger";
+import type { LogLevel, PerformanceLog } from "shared/logging/LoggerTypes";
+import type { LogMeta } from "shared/logging/LogMeta";
+import type { LogType } from "shared/logging/LogType";
+import { LogArchivalService } from "application/services/log/LogArchivalService";
+import { FileSystemLogArchiveStore } from "infrastructure/logging/FileSystemLogArchiveStore";
 import { setTestEnvDefaults } from "tests/utils/utils";
 
 class TestLogger extends ILogger {
@@ -50,9 +48,7 @@ const buildTimestamp = (date: Date): string => {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(
     date.getUTCDate()
-  )}-${pad(date.getUTCHours())}-${pad(date.getUTCMinutes())}-${pad(
-    date.getUTCSeconds()
-  )}`;
+  )}-${pad(date.getUTCHours())}-${pad(date.getUTCMinutes())}-${pad(date.getUTCSeconds())}`;
 };
 
 describe("LogArchivalService", () => {
@@ -60,13 +56,13 @@ describe("LogArchivalService", () => {
   const originalCwd = process.cwd();
   let tempRoot: string;
 
+  const createService = () => new LogArchivalService(logger, new FileSystemLogArchiveStore(logger));
+
   const logsDir = () => path.join(process.cwd(), "logs");
   const archivesDir = () => path.join(logsDir(), "archives");
 
   beforeAll(async () => {
-    tempRoot = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), "oq-log-archival-")
-    );
+    tempRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "oq-log-archival-"));
     process.chdir(tempRoot);
   });
 
@@ -94,7 +90,7 @@ describe("LogArchivalService", () => {
     await fs.promises.writeFile(infoPath, "info-data");
     await fs.promises.writeFile(errorPath, "error-data");
 
-    const service = new LogArchivalService(logger);
+    const service = createService();
     await service.checkAndArchive();
 
     try {
@@ -103,9 +99,7 @@ describe("LogArchivalService", () => {
       throw new Error("Archive directory was not created");
     }
     const archiveEntries = await fs.promises.readdir(archivesDir());
-    const archiveFiles = archiveEntries.filter((name) =>
-      name.endsWith(".tar.gz")
-    );
+    const archiveFiles = archiveEntries.filter((name) => name.endsWith(".tar.gz"));
     expect(archiveFiles.length).toBe(1);
 
     const infoSize = (await fs.promises.stat(infoPath)).size;
@@ -126,13 +120,11 @@ describe("LogArchivalService", () => {
     const archiveName = `logs-${buildTimestamp(recent)}.tar.gz`;
     await fs.promises.writeFile(path.join(archivesDir(), archiveName), "dummy");
 
-    const service = new LogArchivalService(logger);
+    const service = createService();
     await service.checkAndArchive();
 
     const archiveEntries = await fs.promises.readdir(archivesDir());
-    const archiveFiles = archiveEntries.filter((name) =>
-      name.endsWith(".tar.gz")
-    );
+    const archiveFiles = archiveEntries.filter((name) => name.endsWith(".tar.gz"));
     expect(archiveFiles.length).toBe(1);
 
     const infoSize = (await fs.promises.stat(infoPath)).size;
@@ -152,13 +144,11 @@ describe("LogArchivalService", () => {
     const env = Environment.getInstance(logger, { overwrite: true });
     env.load(true);
 
-    const service = new LogArchivalService(logger);
+    const service = createService();
     await service.checkAndArchive();
 
     const archiveEntries = await fs.promises.readdir(archivesDir());
-    const archiveFiles = archiveEntries.filter((name) =>
-      name.endsWith(".tar.gz")
-    );
+    const archiveFiles = archiveEntries.filter((name) => name.endsWith(".tar.gz"));
     expect(archiveFiles.length).toBe(2);
 
     const infoSize = (await fs.promises.stat(infoPath)).size;
@@ -176,7 +166,7 @@ describe("LogArchivalService", () => {
     const env = Environment.getInstance(logger, { overwrite: true });
     env.load(true);
 
-    const service = new LogArchivalService(logger);
+    const service = createService();
     await service.checkAndArchive();
 
     await expect(fs.promises.access(archivesDir())).rejects.toBeDefined();
@@ -207,31 +197,27 @@ describe("LogArchivalService", () => {
     const env = Environment.getInstance(logger, { overwrite: true });
     env.load(true);
 
-    const service = new LogArchivalService(logger);
+    const service = createService();
     await service.checkAndArchive();
 
     const archiveEntries = await fs.promises.readdir(archivesDir());
-    const archiveFiles = archiveEntries.filter((name) =>
-      name.endsWith(".tar.gz")
-    );
+    const archiveFiles = archiveEntries.filter((name) => name.endsWith(".tar.gz"));
 
-    expect(
-      archiveFiles.some((name) => name === `logs-${buildTimestamp(stale)}.tar.gz`)
-    ).toBe(false);
-    expect(
-      archiveFiles.some((name) => name === `logs-${buildTimestamp(recent)}.tar.gz`)
-    ).toBe(true);
+    expect(archiveFiles.some((name) => name === `logs-${buildTimestamp(stale)}.tar.gz`)).toBe(
+      false
+    );
+    expect(archiveFiles.some((name) => name === `logs-${buildTimestamp(recent)}.tar.gz`)).toBe(
+      true
+    );
     expect(archiveFiles.length).toBe(2);
   });
 
   it("does not create archive when no log files exist", async () => {
-    const service = new LogArchivalService(logger);
+    const service = createService();
     await service.checkAndArchive();
 
     const archiveEntries = await fs.promises.readdir(archivesDir());
-    const archiveFiles = archiveEntries.filter((name) =>
-      name.endsWith(".tar.gz")
-    );
+    const archiveFiles = archiveEntries.filter((name) => name.endsWith(".tar.gz"));
     const tempDirs = archiveEntries.filter((name) => name.startsWith("temp-"));
 
     expect(archiveFiles.length).toBe(0);

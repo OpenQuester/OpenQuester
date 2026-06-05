@@ -10,6 +10,12 @@ Common payload shapes (backend types):
 
 - `timer`: `GameStateTimerDTO` = `{ startedAt: Date, durationMs: number, elapsedMs: number }`
 - `error`: `{ message: string }` (sent to the origin socket)
+- `games`: `GameEventDTO` = `{ event: "created" | "changed" | "deleted", data }`
+
+Namespace:
+
+- Game-flow events are emitted on `/games`.
+- `POST /v1/auth/socket` associates the HTTP session with the connected socket id.
 
 ---
 
@@ -19,6 +25,7 @@ Click an event name to jump to its section.
 
 | Area        | Event                                                   | Direction |
 | ----------- | ------------------------------------------------------- | --------- |
+| Lobby       | [`games`](#games)                                       | S→C       |
 | Lobby       | [`join`](#join)                                         | C→S + S→C |
 | Lobby       | [`game-data`](#game-data)                               | S→C       |
 | Lobby       | [`user-leave`](#user-leave)                             | C→S + S→C |
@@ -38,10 +45,10 @@ Click an event name to jump to its section.
 | Question    | [`question-finish`](#question-finish)                   | S→C       |
 | Question    | [`answer-show-start`](#answer-show-start)               | S→C       |
 | Question    | [`answer-show-end`](#answer-show-end)                   | S→C       |
-| Question    | [`skip-show-answer`](#skip-show-answer)                 | C→S + S→C |
+| Question    | [`skip-show-answer`](#skip-show-answer)                 | C→S       |
 | Question    | [`question-skip`](#question-skip)                       | C→S + S→C |
 | Question    | [`question-unskip`](#question-unskip)                   | C→S + S→C |
-| Question    | [`skip-question-force`](#skip-question-force)           | C→S + S→C |
+| Question    | [`skip-question-force`](#skip-question-force)           | C→S       |
 | Secret      | [`secret-question-picked`](#secret-question-picked)     | S→C       |
 | Secret      | [`secret-question-transfer`](#secret-question-transfer) | C→S + S→C |
 | Stake       | [`stake-question-picked`](#stake-question-picked)       | S→C       |
@@ -72,6 +79,23 @@ Click an event name to jump to its section.
 
 ## Lobby / joining / leaving
 
+### `games`
+
+- Direction: **S→C** lobby broadcast
+- Payload: `GameEventDTO`
+  - `created` / `changed`: `data` is `GameListItemDTO`
+  - `deleted`: `data` is `{ id: string }`
+
+When emitted:
+
+- REST `POST /v1/games`
+- REST `PATCH /v1/games/{gameId}`
+- REST `DELETE /v1/games/{gameId}`
+
+Notes:
+
+- Empty-game cleanup from `user-leave` / `disconnect` removes Redis game state and lobby indexes. That cleanup currently relies on in-game leave/disconnect events rather than a separate lobby `games:deleted` broadcast.
+
 ### `join`
 
 - Direction: **C→S** request, **S→C** broadcast
@@ -92,6 +116,8 @@ Edge cases (server-handled):
 Notes:
 
 - Treat this as the authoritative initial snapshot for UI.
+- If a socket joins during an active regular question, it also receives the current role-filtered `question-data` event when question text is still active.
+- If a socket joins during `SHOWING_ANSWER`, `gameState.answerShowData` contains the answer reveal payload current sockets already received through `question-finish`.
 
 ### `user-leave`
 
@@ -268,6 +294,7 @@ Edge cases (server-handled):
 Notes:
 
 - The show / reveal flow is now explicit: the server may enter a **show-answer** phase (`SHOWING_ANSWER`) and emit `answer-show-start` before `question-finish`/`answer-show-end` depending on the transition. Clients should handle `answer-show-start`/`answer-show-end` consistently and not assume immediate return to `CHOOSING` on a `question-finish`.
+- During `SHOWING_ANSWER`, the same reveal payload is stored in `gameState.answerShowData` so late joiners can render the current answer display.
 
 Edge cases (server-handled):
 
@@ -289,16 +316,19 @@ Edge cases (server-handled):
 
 ### `skip-show-answer`
 
-- Direction: **C→S** request, **S→C** broadcast
+- Direction: **C→S** request
 - C→S payload: `EmptyInputData` (`{}`)
-- S→C payload: `EmptyOutputData` (`{}`)
-- Description: Allows the showman to skip the show-answer phase and immediately advance the game. Only the showman may emit this event, and it is only valid when the game is currently in the `SHOWING_ANSWER` state.
+- Description: Allows the showman to skip the show-answer phase and immediately advance the game. Only the showman may emit this event, and it is only valid when the game is currently in the `SHOWING_ANSWER` state. The server responds with the normal progression broadcasts from the phase transition, such as `answer-show-end`, `next-round`, or `game-finished`.
 
 ### `question-skip`
 
 - Direction: **C→S** request, **S→C** broadcast
 - C→S payload: `EmptyInputData` (`{}`)
 - S→C payload: `QuestionSkipBroadcastData` = `{ playerId: number }`
+
+Notes:
+
+- Concurrent skip/answer actions are serialized by the per-game queue. Each queued action is evaluated against the latest game state and emits its own valid broadcast or transition result.
 
 Edge cases (server-handled):
 
@@ -314,7 +344,7 @@ Edge cases (server-handled):
 
 ### `skip-question-force`
 
-- Direction: **C→S** request (showman), **S→C** broadcasts
+- Direction: **C→S** request (showman)
 - Payload: `EmptyInputData` (`{}`)
 
 Notes:
@@ -538,3 +568,4 @@ Notes:
 
 - Direction: **C→S**, **S→C**
 - Payload: `{ uuid, timestamp, user, message }`
+- Direct-execution event: it bypasses the game mutation queue, but the server still loads game/session context before broadcasting.

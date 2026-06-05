@@ -1,21 +1,21 @@
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import { PackageRoundDTO } from "domain/types/dto/package/PackageRoundDTO";
-import { PackageRoundImport } from "domain/types/package/import/PackageRoundImport";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
 import { Package } from "infrastructure/database/models/package/Package";
 import { PackageTheme } from "infrastructure/database/models/package/PackageTheme";
-import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
+
+export interface PackageRoundImport {
+  name: string;
+  description?: string | null;
+  package: Package;
+  order: number;
+  type: PackageRoundType;
+}
 
 @Entity("package_round")
 export class PackageRound {
@@ -41,7 +41,7 @@ export class PackageRound {
   @Column({
     type: "enum",
     enum: [...Object.values(PackageRoundType)],
-    default: "simple",
+    default: "simple"
   })
   type!: PackageRoundType;
 
@@ -53,31 +53,28 @@ export class PackageRound {
     this.type = data.type;
   }
 
-  public toDTO(
-    storage: S3StorageService,
-    opts: PackageDTOOptions
-  ): PackageRoundDTO {
+  public toDTO(fileUrlBuilder: IFileUrlBuilder, opts: PackageDTOOptions): PackageRoundDTO {
     if (this.themes.length < 1) {
       throw new ClientError(ClientResponse.PACKAGE_CORRUPTED, undefined, {
         id: this.id,
-        missing: "themes",
+        missing: "themes"
       });
     }
 
-    const themesDTO = this.themes.map((theme) => theme.toDTO(storage, opts));
+    const themesDTO = this.themes.map((theme) => theme.toDTO(fileUrlBuilder, opts));
 
     let dto: PackageRoundDTO = {
       name: this.name,
       description: this.description,
       themes: themesDTO,
       order: this.order,
-      type: this.type,
+      type: this.type
     };
 
     if (opts.fetchIds) {
       dto = {
         id: this.id,
-        ...dto,
+        ...dto
       };
     }
 

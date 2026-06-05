@@ -29,14 +29,6 @@ export class FileUsageService {
     return this.fileUsageRepository.writeUsage(file, user, pack);
   }
 
-  public async writeBulkUsage(filesData: {
-    files: File[];
-    user?: User;
-    pack?: Package;
-  }) {
-    return this.fileUsageRepository.writeBulkUsage(filesData);
-  }
-
   public async deleteUsage(file: File, user?: User, pack?: Package) {
     return this.fileUsageRepository.deleteUsage(file, user, pack);
   }

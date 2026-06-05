@@ -1,9 +1,16 @@
 import { UserStatus } from "domain/enums/user/UserStatus";
 import { UserType } from "domain/enums/user/UserType";
 import { PaginationOptsBase } from "domain/types/pagination/PaginationOpts";
-import { User } from "infrastructure/database/models/User";
 
-export interface UserPaginationOpts extends PaginationOptsBase<User> {
+export type UserSortField =
+  | "id"
+  | "is_deleted"
+  | "created_at"
+  | "username"
+  | "email"
+  | "updated_at";
+
+export interface UserPaginationOpts extends PaginationOptsBase<UserSortField> {
   search?: string;
   status?: UserStatus;
   userType?: UserType;

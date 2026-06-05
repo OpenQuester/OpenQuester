@@ -9,13 +9,14 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { FINAL_ROUND_THEME_ELIMINATION_TIME } from "domain/constants/game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -35,6 +36,8 @@ function verifyFinalRoundData(gameState: GameStateDTO) {
   }
 
   expect(gameState.questionState).toBe(QuestionState.THEME_ELIMINATION);
+  expect(gameState.timer).toBeDefined();
+  expect(gameState.timer!.durationMs).toBe(FINAL_ROUND_THEME_ELIMINATION_TIME);
 
   // Most importantly - verify final round data is present
   expect(finalData.turnOrder).toBeDefined();
@@ -102,7 +105,7 @@ describe("Final Round Transition Test", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 

@@ -6,7 +6,7 @@ export interface BiddingContext {
   allPlayers: PlayerDTO[];
 }
 
-export interface NextBidderResult {
+interface NextBidderResult {
   nextBidderId: number | null;
   isPhaseComplete: boolean;
   winnerPlayerId?: number | null;
@@ -24,15 +24,8 @@ export class BiddingTurn {
     //
   }
 
-  public static create(
-    biddingOrder: number[],
-    currentIndex: number
-  ): BiddingTurn {
+  public static create(biddingOrder: number[], currentIndex: number): BiddingTurn {
     return new BiddingTurn([...biddingOrder], currentIndex);
-  }
-
-  public getCurrentBidderId(): number {
-    return this.biddingOrder[this.currentIndex];
   }
 
   /**
@@ -56,9 +49,7 @@ export class BiddingTurn {
       return this._createCompleteResult(winnerPlayerId);
     }
 
-    const nextBidderId = this._findNextEligiblePlayer(
-      eligibilityData.eligibleForNextBid
-    );
+    const nextBidderId = this._findNextEligiblePlayer(eligibilityData.eligibleForNextBid);
 
     return nextBidderId
       ? { nextBidderId, isPhaseComplete: false }
@@ -92,21 +83,17 @@ export class BiddingTurn {
   }
 
   private _isMaxPriceReached(stakeData: StakeQuestionGameData): boolean {
-    return (
-      stakeData.maxPrice !== null && stakeData.highestBid === stakeData.maxPrice
-    );
+    return stakeData.maxPrice !== null && stakeData.highestBid === stakeData.maxPrice;
   }
 
   /**
    * Creates a result indicating the bidding phase is complete with provided winner
    */
-  private _createCompleteResult(
-    winnerPlayerId: number | null = null
-  ): NextBidderResult {
+  private _createCompleteResult(winnerPlayerId: number | null = null): NextBidderResult {
     return {
       nextBidderId: null,
       isPhaseComplete: true,
-      winnerPlayerId,
+      winnerPlayerId
     };
   }
 
@@ -123,10 +110,7 @@ export class BiddingTurn {
   } {
     const { stakeData, allPlayers } = context;
     const { passedPlayers } = stakeData;
-    const allInPlayers = BiddingTurn.getAllInPlayersFromStakeData(
-      stakeData,
-      allPlayers
-    );
+    const allInPlayers = BiddingTurn.getAllInPlayersFromStakeData(stakeData, allPlayers);
     const hasAllInBids = allInPlayers.size > 0;
 
     let playersWhoCanStillAct = 0;
@@ -151,8 +135,7 @@ export class BiddingTurn {
       if (hasAllInBids) {
         // After ALL_IN bid(s), only players who can match or exceed the ALL_IN can continue
         // Check if player can go ALL_IN with score >= current highest bid
-        const canMatchAllIn =
-          stakeData.highestBid !== null && player.score > stakeData.highestBid;
+        const canMatchAllIn = stakeData.highestBid !== null && player.score > stakeData.highestBid;
 
         if (canMatchAllIn) {
           playersWhoCanStillAct++;
@@ -228,14 +211,11 @@ export class BiddingTurn {
     // nextPlayerIndex will be 3, and the rotated order will be [4, 1, 2, 3]
     const rotatedOrder = [
       ...this.biddingOrder.slice(nextPlayerIndex),
-      ...this.biddingOrder.slice(0, nextPlayerIndex),
+      ...this.biddingOrder.slice(0, nextPlayerIndex)
     ];
 
     // Find the first eligible player in the rotated order
-    return (
-      rotatedOrder.find((playerId) => eligibleForNextBid.includes(playerId)) ??
-      null
-    );
+    return rotatedOrder.find((playerId) => eligibleForNextBid.includes(playerId)) ?? null;
   }
 
   private _hasPlayerPassed(playerId: number, passedPlayers: number[]): boolean {

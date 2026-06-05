@@ -4,7 +4,7 @@ export enum PaginationOrder {
 }
 
 export interface PaginationOptsBase<T> {
-  sortBy: keyof T;
+  sortBy: T;
   order: PaginationOrder;
   limit: number;
   offset: number;

@@ -3,10 +3,8 @@ import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -16,21 +14,13 @@ import { GameJoinResult } from "domain/types/socket/game/GameJoinResult";
 /**
  * Validation input for game join
  */
-export interface GameJoinValidationInput {
+interface GameJoinValidationInput {
   game: Game;
   userId: number;
   role: PlayerRole;
   existingPlayer: Player | null;
   targetSlot: number | null;
   password?: string;
-}
-
-/**
- * Result of game join mutation
- */
-export interface GameJoinMutationResult {
-  player: Player;
-  wasReconnecting: boolean;
 }
 
 interface GameJoinResultInput {
@@ -61,11 +51,7 @@ export class GameJoinLogic {
     // Check password for private games (skip if player is reconnecting or if user is game's creator)
     if (game.isPrivate && !existingPlayer) {
       const gamePassword = game.gameState.password;
-      if (
-        gamePassword &&
-        gamePassword !== password &&
-        userId !== game.createdBy
-      ) {
+      if (gamePassword && gamePassword !== password && userId !== game.createdBy) {
         throw new ClientError(ClientResponse.GAME_JOIN_PASSWORD_INVALID);
       }
     }
@@ -86,10 +72,10 @@ export class GameJoinLogic {
     // Prevent joining as PLAYER during final round unless reconnecting as existing player.
     // This ensures final round scoring integrity - only players who participated
     // in theme elimination and bidding phases can answer the final question.
-    const isFinalRound =
-      game.gameState.currentRound?.type === PackageRoundType.FINAL;
-    const wasNotPreviouslyPlayer =
-      !existingPlayer || existingPlayer.role !== PlayerRole.PLAYER;
+    const isFinalRound = game.gameState.currentRound?.type === PackageRoundType.FINAL;
+
+    const wasNotPreviouslyPlayer = !existingPlayer || existingPlayer.role !== PlayerRole.PLAYER;
+
     if (isFinalRound && role === PlayerRole.PLAYER && wasNotPreviouslyPlayer) {
       throw new ClientError(ClientResponse.CANNOT_JOIN_FINAL_ROUND_AS_PLAYER);
     }
@@ -101,9 +87,7 @@ export class GameJoinLogic {
 
     // Check if showman slot is taken
     const showman = game.players.find(
-      (p) =>
-        p.role === PlayerRole.SHOWMAN &&
-        p.gameStatus === PlayerGameStatus.IN_GAME
+      (p) => p.role === PlayerRole.SHOWMAN && p.gameStatus === PlayerGameStatus.IN_GAME
     );
 
     const showmanAndTaken = role === PlayerRole.SHOWMAN && !!showman;
@@ -113,20 +97,10 @@ export class GameJoinLogic {
   }
 
   /**
-   * Check if player is reconnecting (vs new join).
-   */
-  public static isReconnecting(existingPlayer: Player | null): boolean {
-    return existingPlayer !== null;
-  }
-
-  /**
    * Check if player statistics should be initialized.
    * True for new players with PLAYER role.
    */
-  public static shouldInitializeStats(
-    existingPlayer: Player | null,
-    role: PlayerRole
-  ): boolean {
+  public static shouldInitializeStats(existingPlayer: Player | null, role: PlayerRole): boolean {
     return !existingPlayer && role === PlayerRole.PLAYER;
   }
 
@@ -134,10 +108,7 @@ export class GameJoinLogic {
    * Check if player statistics leftAt should be cleared.
    * True for reconnecting players.
    */
-  public static shouldClearLeftAt(
-    existingPlayer: Player | null,
-    role: PlayerRole
-  ): boolean {
+  public static shouldClearLeftAt(existingPlayer: Player | null, role: PlayerRole): boolean {
     return existingPlayer !== null && role === PlayerRole.PLAYER;
   }
 
@@ -152,13 +123,13 @@ export class GameJoinLogic {
         event: SocketIOGameEvents.JOIN,
         data: player.toDTO(),
         target: SocketBroadcastTarget.GAME,
-        gameId: game.id,
-      } satisfies SocketEventBroadcast<PlayerDTO>,
+        gameId: game.id
+      } satisfies SocketEventBroadcast<PlayerDTO>
     ];
 
     return {
       data: { game, player },
-      broadcasts,
+      broadcasts
     };
   }
 
@@ -169,10 +140,7 @@ export class GameJoinLogic {
    *
    * @throws ClientError if slot is not available
    */
-  private static validateSlotAvailability(
-    game: Game,
-    targetSlot: number | null
-  ): void {
+  private static validateSlotAvailability(game: Game, targetSlot: number | null): void {
     // Get occupied slots
     const occupiedSlots = new Set(
       game.players
