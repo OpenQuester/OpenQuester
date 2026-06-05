@@ -1,6 +1,6 @@
 import { type NextFunction, type Request, type Response } from "express";
 
-import { MetricsService } from "infrastructure/services/metrics/MetricsService";
+import { MetricsService } from "application/services/metrics/MetricsService";
 
 /**
  * Middleware for recording HTTP request metrics to InfluxDB.
@@ -17,7 +17,7 @@ export const metricsMiddleware = (metricsService: MetricsService) => {
         {
           method: req.method,
           route,
-          statusCode: res.statusCode.toString(),
+          statusCode: res.statusCode.toString()
         },
         durationSeconds
       );
@@ -39,8 +39,7 @@ function normalizeRoute(req: Request): string {
 
   // Fallback: normalize by full path segments only. This avoids accidental
   // partial matches (for example, preserving "v1" in "/api/v1/reset").
-  const UUID_SEGMENT_REGEX =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const UUID_SEGMENT_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const NUMERIC_SEGMENT_REGEX = /^\d+$/;
   const LONG_ALNUM_SEGMENT_REGEX = /^[a-zA-Z0-9]{20,}$/;
 

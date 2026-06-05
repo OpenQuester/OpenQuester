@@ -1,25 +1,37 @@
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "typeorm";
 
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import {
   PackageQuestionDTO,
-  PackageQuestionSubType,
+  PackageQuestionSubType
 } from "domain/types/dto/package/PackageQuestionDTO";
-import { PackageQuestionImport } from "domain/types/package/import/PackageQuestionImport";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
+import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
 import { PackageAnswerFile } from "infrastructure/database/models/package/PackageAnswerFile";
 import { PackageQuestionChoiceAnswer } from "infrastructure/database/models/package/PackageQuestionChoiceAnswer";
 import { PackageQuestionFile } from "infrastructure/database/models/package/PackageQuestionFile";
 import { PackageTheme } from "infrastructure/database/models/package/PackageTheme";
-import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
+
+export interface PackageQuestionImport {
+  theme: PackageTheme;
+  order: number;
+  price: number | null; // Final round questions have null price - players bid after theme selection
+  type: PackageQuestionType;
+  isHidden: boolean;
+  text?: string | null;
+  answerHint?: string | null;
+  answerText?: string | null;
+  answerDelay?: number | null;
+  questionComment?: string | null;
+  subType?: PackageQuestionSubType | null;
+  maxPrice?: number | null;
+  allowedPrices?: number[] | null;
+  transferType?: PackageQuestionTransferType | null;
+  priceMultiplier?: number | null;
+  showDelay?: number | null;
+  showAnswerDuration: number;
+}
 
 @Entity("package_question")
 export class PackageQuestion {
@@ -30,7 +42,7 @@ export class PackageQuestion {
   order!: number;
 
   @ManyToOne(() => PackageTheme, (theme) => theme.questions, {
-    onDelete: "CASCADE",
+    onDelete: "CASCADE"
   })
   @JoinColumn({ name: "theme" })
   theme!: PackageTheme;
@@ -43,7 +55,7 @@ export class PackageQuestion {
 
   @Column({
     type: "enum",
-    enum: ["simple", "stake", "secret", "noRisk", "hidden", "choice"],
+    enum: ["simple", "stake", "secret", "noRisk", "hidden", "choice"]
   })
   type!: PackageQuestionType;
 
@@ -65,16 +77,10 @@ export class PackageQuestion {
   @Column({ type: "text", nullable: true })
   question_comment?: string | null;
 
-  @OneToMany(
-    () => PackageQuestionFile,
-    (file: PackageQuestionFile) => file.question
-  )
+  @OneToMany(() => PackageQuestionFile, (file: PackageQuestionFile) => file.question)
   questionFiles?: PackageQuestionFile[] | null;
 
-  @OneToMany(
-    () => PackageAnswerFile,
-    (file: PackageAnswerFile) => file.question
-  )
+  @OneToMany(() => PackageAnswerFile, (file: PackageAnswerFile) => file.question)
   answerFiles?: PackageAnswerFile[] | null;
 
   @Column({ type: "varchar", nullable: true })
@@ -121,23 +127,20 @@ export class PackageQuestion {
     this.show_answer_duration = data.showAnswerDuration;
   }
 
-  public toDTO(
-    storage: S3StorageService,
-    opts: PackageDTOOptions
-  ): PackageQuestionDTO {
+  public toDTO(fileUrlBuilder: IFileUrlBuilder, opts: PackageDTOOptions): PackageQuestionDTO {
     const questionFilesDTO =
       this.questionFiles && this.questionFiles.length > 0
-        ? this.questionFiles.map((file) => file.toDTO(storage, opts))
+        ? this.questionFiles.map((file) => file.toDTO(fileUrlBuilder, opts))
         : null;
 
     const answerFilesDTO =
       this.answerFiles && this.answerFiles.length > 0
-        ? this.answerFiles.map((file) => file.toDTO(storage, opts))
+        ? this.answerFiles.map((file) => file.toDTO(fileUrlBuilder, opts))
         : null;
 
     const answersDTO =
       this.answers && this.answers.length > 0
-        ? this.answers.map((answer) => answer.toDTO(storage, opts))
+        ? this.answers.map((answer) => answer.toDTO(fileUrlBuilder, opts))
         : null;
 
     let dto: PackageQuestionDTO = {
@@ -159,13 +162,13 @@ export class PackageQuestion {
       transferType: this.transfer_type,
       priceMultiplier: this.price_multiplier,
       showDelay: this.showDelay,
-      answers: answersDTO,
+      answers: answersDTO
     };
 
     if (opts.fetchIds) {
       dto = {
         id: this.id,
-        ...dto,
+        ...dto
       };
     }
 

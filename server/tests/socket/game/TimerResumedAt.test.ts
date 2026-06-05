@@ -9,12 +9,13 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -50,7 +51,7 @@ describe("Timer resumedAt Field", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
     testUtils = new TestUtils(app, userRepo, serverUrl);
   });
@@ -321,7 +322,10 @@ describe("Timer resumedAt Field", () => {
         );
 
         // Expire the answering timer
-        await testUtils.expireTimer(gameId);
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED
+        );
 
         const answerResult = await answerResultPromise;
 
@@ -348,6 +352,11 @@ describe("Timer resumedAt Field", () => {
       try {
         await utils.startGame(showmanSocket);
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+
+        const gameDataAfterPause = await utils.getGameState(gameId);
+        expect(gameDataAfterPause!.timer).toBeDefined();
+        expect(gameDataAfterPause!.timer!.elapsedMs).toBeGreaterThanOrEqual(0);
+        expect(gameDataAfterPause!.timer!.resumedAt).toBeNull();
 
         // Pause and unpause to set resumedAt
         await utils.pauseGame(showmanSocket);
@@ -378,6 +387,6 @@ describe("Timer resumedAt Field", () => {
       } finally {
         await utils.cleanupGameClients(setup);
       }
-    });
+    }, 35000);
   });
 });

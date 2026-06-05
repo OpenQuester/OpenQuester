@@ -595,10 +595,12 @@ class _SystemHealthTabState extends State<_SystemHealthTab> {
                         LocaleKeys.admin_response_time.tr(),
                         LocaleKeys.admin_redis_status.tr(),
                       ].join(' '),
-                      value: [
-                        pingData.redis.responseMs.toStringAsFixed(2),
-                        'ms',
-                      ].join(' '),
+                      value: pingData.redis.responseMs == null
+                          ? '-'
+                          : [
+                              pingData.redis.responseMs!.toStringAsFixed(2),
+                              'ms',
+                            ].join(' '),
                       isHealthy: pingData.redis.connected,
                     ),
                   ],

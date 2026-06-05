@@ -6,15 +6,17 @@ import { Server as IOServer } from "socket.io";
 import { container } from "tsyringe";
 import { DataSource } from "typeorm";
 
-import { ApiContext } from "application/context/ApiContext";
+import { ApiContext } from "shared/context/ApiContext";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
-import { Environment } from "infrastructure/config/Environment";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
+import { MetricsService } from "application/services/metrics/MetricsService";
+import { Environment } from "shared/config/Environment";
+import { RedisConfig } from "shared/config/RedisConfig";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { Database } from "infrastructure/database/Database";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { RedisPubSubService } from "infrastructure/services/redis/RedisPubSubService";
-import { ServeApi } from "presentation/ServeApi";
+import { RedisPubSubService } from "application/services/redis/RedisPubSubService";
+import { ServeApi } from "../src/ServeApi";
 import { TestRestApiController } from "tests/TestRestApiController";
 import { setTestEnvDefaults } from "tests/utils/utils";
 
@@ -44,8 +46,8 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     cors: { origin: "*" },
     adapter: createAdapter(redis, sub),
     cookie: true,
-    connectTimeout: 45000,
-    transports: ["websocket"],
+    connectTimeout: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS,
+    transports: ["websocket"]
   });
 
   // Add body parser middleware for JSON before any routes
@@ -58,7 +60,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
       secret: process.env.SESSION_SECRET || "test_secret",
       resave: false,
       saveUninitialized: false,
-      cookie: { secure: false },
+      cookie: { secure: false }
     })
   );
 
@@ -72,7 +74,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     env: Environment.getInstance(logger, { overwrite: true }),
     io,
     app,
-    logger,
+    logger
   });
 
   context.env.load(true);
@@ -82,7 +84,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   await api.init();
 
   // Provide a cleanup function for Socket.IO and HTTP server
-  // Note: Redis is NOT disconnected here as it's shared across test suites
+  // Close app-level resources and reset shared clients to keep suites isolated.
   async function cleanup() {
     // Stop cron scheduler to allow tests to exit cleanly
     const cronScheduler = container.resolve(CronSchedulerService);
@@ -93,19 +95,69 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     // timer expirations across test suites
     const pubSub = container.resolve(RedisPubSubService);
     logger.info("Unsubscribing from Redis keyspace notifications...", {
-      prefix,
+      prefix
     });
     await pubSub.unsubscribe();
 
-    await io.close();
-    if (httpServer.listening) {
-      return new Promise<void>((resolve) => {
-        httpServer.close(() => {
+    if (container.isRegistered(MetricsService, true)) {
+      const metricsService = container.resolve(MetricsService);
+      logger.info("Stopping metrics service...", { prefix });
+      await metricsService.stop();
+    }
+
+    // api.server is the HTTP server created by app.listen() inside ServeApi.init()
+    // (httpServer above was never .listen()'d, so it is not the one bound to port).
+    // Force-close lingering keep-alive connections so the port is released
+    // immediately; then close Socket.IO using the callback form — io.close()
+    // returns 'this', not a Promise, so without a callback await resolves
+    // instantly and the port stays bound for the next test suite.
+    if (api.server && api.server.listening) {
+      api.server.closeAllConnections();
+    }
+
+    await new Promise<void>((resolve) => {
+      if (api.server === undefined) {
+        resolve();
+        return;
+      }
+
+      io.close(() => {
+        logger.info("Socket.IO server closed", { prefix });
+        resolve();
+      }).catch((err) => {
+        logger.info(`Socket.IO server closed with error, ${err}`, { prefix });
+        resolve();
+      });
+    });
+
+    if (api.server && api.server.listening) {
+      await new Promise<void>((resolve, reject) => {
+        api.server.close((err) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+
           logger.info("HTTP server closed", { prefix });
           resolve();
         });
       });
     }
+
+    // Allow adapter/socket close callbacks to flush before Redis shutdown.
+    await new Promise((resolve) => setTimeout(resolve, TEST_TIMEOUTS.TEST_CLEANUP_DRAIN_MS));
+
+    try {
+      await RedisConfig.disconnect();
+    } catch (error) {
+      logger.warn("Redis disconnect during test cleanup failed", {
+        prefix,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+
+    container.clearInstances();
+    await logger.close();
   }
 
   logger.info("Test app initialized", { prefix });

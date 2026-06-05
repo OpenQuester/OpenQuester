@@ -1,5 +1,7 @@
 import { GameRedisHashDTO } from "domain/types/dto/game/GameRedisHashDTO";
-import { gameRedisDataScheme } from "presentation/schemes/game/gameSchemes";
+import { gameRedisDataScheme } from "domain/validators/schemas/GameRedisDataSchema";
+
+const GAME_REDIS_DATA_SCHEMA = gameRedisDataScheme();
 
 export class GameRedisValidator {
   /**
@@ -10,7 +12,7 @@ export class GameRedisValidator {
   public static validateRedisData(
     data: Record<string, string>
   ): GameRedisHashDTO {
-    const { value, error } = gameRedisDataScheme().validate(data, {
+    const { value, error } = GAME_REDIS_DATA_SCHEMA.validate(data, {
       allowUnknown: false,
       stripUnknown: true,
     });

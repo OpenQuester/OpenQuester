@@ -1,30 +1,30 @@
 import fs from "fs";
 import path from "path";
 import pino from "pino";
+import pretty from "pino-pretty";
 import type SonicBoom from "sonic-boom";
 
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogContextService } from "infrastructure/logger/LogContext";
-import { LogMeta } from "infrastructure/logger/LogMeta";
-import { LogType } from "infrastructure/logger/LogType";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ILogger } from "shared/logging/ILogger";
+import { LogContextService } from "shared/logging/LogContext";
+import { LogMeta } from "shared/logging/LogMeta";
+import { LOG_LEVELS, type LogLevel, type PerformanceLog } from "shared/logging/LoggerTypes";
+import { LogType } from "shared/logging/LogType";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 // Custom levels configuration for Pino
-export const customLevels = {
-  trace: 10, // LogType.VERBOSE
-  debug: 20, // LogType.DEBUG
-  info: 30, // LogType.INFO
-  warn: 40, // LogType.WARN
-  performance: 35, // LogType.PERFORMANCE (between info and warn)
-  error: 50, // LogType.ERROR
-  audit: 60, // LogType.AUDIT
-  migration: 70, // LogType.MIGRATION
-} as const;
+export const customLevels = LOG_LEVELS;
 
 export type CustomLevel = keyof typeof customLevels;
 
 // Custom logger type that extends Pino's Logger with custom level methods
 type CustomLogger = pino.Logger<CustomLevel>;
+type ClosableLogStream = pino.DestinationStream & {
+  end: () => void;
+  once: (event: "close" | "finish" | "error", listener: () => void) => unknown;
+  flushSync?: () => void;
+  closed?: boolean;
+  destroyed?: boolean;
+};
 
 // Configuration for log file paths
 export interface LoggerConfig {
@@ -33,13 +33,6 @@ export interface LoggerConfig {
   logLevel?: CustomLevel;
 }
 
-// Performance logging interface
-export interface PerformanceLog {
-  finish(additionalMeta?: object): void;
-}
-
-// Updated to use custom levels
-export type LogLevel = CustomLevel;
 // Custom log methods for our custom levels
 type LogMethod = CustomLevel;
 
@@ -52,13 +45,12 @@ const defaultLogPaths: Record<LogType, string> = {
   [LogType.AUDIT]: path.join(defaultLogDir, "audit.log"),
   [LogType.PERFORMANCE]: path.join(defaultLogDir, "performance.log"),
   [LogType.MIGRATION]: path.join(defaultLogDir, "migration.log"),
-  [LogType.VERBOSE]: path.join(defaultLogDir, "trace.log"),
+  [LogType.VERBOSE]: path.join(defaultLogDir, "trace.log")
 };
 
 /**
  * Unified log file for multi-instance support.
  * All logs are written here with full metadata for retrieval via REST API.
- * TODO: For high-volume production, consider rotating logs or using external log aggregation.
  */
 const UNIFIED_LOG_PATH = path.join(defaultLogDir, "unified.log");
 
@@ -68,13 +60,10 @@ const UNIFIED_LOG_PATH = path.join(defaultLogDir, "unified.log");
  *
  * Use direct process.env access since Environment class depends on logger
  */
-export const getUnifiedLogPath = (): string =>
-  process.env.LOG_FILE_PATH || UNIFIED_LOG_PATH;
+export const getUnifiedLogPath = (): string => process.env.LOG_FILE_PATH || UNIFIED_LOG_PATH;
 
 async function ensureLogDirs(paths: string[]): Promise<void> {
-  const uniqueDirs = [
-    ...new Set(paths.map((filePath) => path.dirname(filePath))),
-  ];
+  const uniqueDirs = [...new Set(paths.map((filePath) => path.dirname(filePath)))];
 
   for (const dir of uniqueDirs) {
     try {
@@ -85,14 +74,10 @@ async function ensureLogDirs(paths: string[]): Promise<void> {
         try {
           await fs.promises.mkdir(dir, { recursive: true });
         } catch (mkdirError) {
-          throw new Error(
-            `Failed to create log directory ${dir}: ${mkdirError}`
-          );
+          throw new Error(`Failed to create log directory ${dir}: ${mkdirError}`);
         }
       } else {
-        throw new Error(
-          `Failed to access log directory ${dir}: ${err.message}`
-        );
+        throw new Error(`Failed to access log directory ${dir}: ${err.message}`);
       }
     }
   }
@@ -126,22 +111,20 @@ class PerformanceLogImpl implements PerformanceLog {
       finishedAt: endTime,
       durationMs: elapsedMs,
       ...(this.meta ?? {}),
-      ...(additionalMeta ?? {}),
+      ...(additionalMeta ?? {})
     };
 
-    this.logger.log(
-      LogType.PERFORMANCE,
-      `${this.message} completed`,
-      mergedMeta
-    );
+    this.logger.log(LogType.PERFORMANCE, `${this.message} completed`, mergedMeta);
   }
 }
 
 export class PinoLogger implements ILogger {
   private readonly loggers: Map<LogType, CustomLogger> = new Map();
   private terminalLogger: CustomLogger | null = null;
+  private terminalStream: ClosableLogStream | null = null;
   private fileStreams: SonicBoom[] = [];
   private initialized = false;
+  private closed = false;
   private logLevel = (process.env.LOG_LEVEL as LogLevel) || "info";
 
   private constructor() {
@@ -176,17 +159,26 @@ export class PinoLogger implements ILogger {
    * Gracefully close all file logger streams.
    */
   public async close(): Promise<void> {
-    const closePromises: Promise<void>[] = [];
+    if (this.closed) {
+      return;
+    }
 
-    for (const stream of this.fileStreams) {
-      if (typeof stream.end === "function") {
-        closePromises.push(
-          new Promise<void>((resolve) => {
-            stream.end();
-            resolve();
-          })
-        );
-      }
+    this.closed = true;
+    this.terminalLogger = null;
+    this.loggers.clear();
+
+    const closePromises: Promise<void>[] = [];
+    const terminalStream = this.terminalStream;
+    this.terminalStream = null;
+    const streams = [...this.fileStreams];
+    this.fileStreams = [];
+
+    if (terminalStream) {
+      closePromises.push(this.closeStream(terminalStream, true));
+    }
+
+    for (const stream of streams) {
+      closePromises.push(this.closeStream(stream, true));
     }
 
     await Promise.all(closePromises);
@@ -203,32 +195,69 @@ export class PinoLogger implements ILogger {
       customLevels,
       useOnlyCustomLevels: true,
       formatters: {
-        level: (label: string) => ({ level: label }),
-      },
+        level: (label: string) => ({ level: label })
+      }
     };
 
-    if (config.pretty) {
+    const usePretty = config.pretty === true;
+    const useSyncPretty = usePretty && this.isTestEnv();
+
+    if (useSyncPretty) {
+      this.terminalStream = pretty({
+        ...this.getPrettyOptions(),
+        sync: true
+      }) as unknown as ClosableLogStream;
+
+      this.terminalLogger = pino(pinoOptions, this.terminalStream) as CustomLogger;
+    } else if (usePretty) {
       // Use pino-pretty for terminal output with custom level names
-      this.terminalLogger = pino({
-        ...pinoOptions,
-        transport: {
-          target: "pino-pretty",
-          options: {
-            colorize: true,
-            translateTime: "SYS:standard",
-            ignore: "pid,hostname",
-            customLevels:
-              "trace:10,debug:20,info:30,performance:35,warn:40,error:50,audit:60,migration:70",
-            useOnlyCustomProps: true,
-            customColors:
-              "trace:dim,debug:cyan,info:green,warn:yellow,error:red,audit:magenta,performance:blue,migration:brightWhite",
-          },
-        },
-      }) as CustomLogger;
+      this.terminalStream = pino.transport({
+        target: "pino-pretty",
+        options: this.getPrettyOptions()
+      }) as unknown as ClosableLogStream;
+
+      this.terminalLogger = pino(pinoOptions, this.terminalStream) as CustomLogger;
     } else {
       // Plain terminal logger
       this.terminalLogger = pino(pinoOptions) as CustomLogger;
     }
+  }
+
+  private getPrettyOptions(): Record<string, unknown> {
+    return {
+      colorize: true,
+      translateTime: "SYS:standard",
+      ignore: "pid,hostname",
+      customLevels:
+        "trace:10,debug:20,info:30,performance:35,warn:40,error:50,audit:60,migration:70",
+      useOnlyCustomProps: true,
+      customColors:
+        "trace:dim,debug:cyan,info:green,warn:yellow,error:red,audit:magenta,performance:blue,migration:brightWhite"
+    };
+  }
+
+  private isTestEnv(): boolean {
+    return process.env.NODE_ENV === "test" || process.env.ENV === "test";
+  }
+
+  private async closeStream(stream: ClosableLogStream, waitForClose = false): Promise<void> {
+    if (stream.destroyed || stream.closed) {
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      const finish = (): void => {
+        resolve();
+      };
+
+      stream.once("close", finish);
+      if (!waitForClose) {
+        stream.once("finish", finish);
+      }
+      stream.once("error", finish);
+
+      stream.end();
+    });
   }
 
   private initFileLoggers(logPaths: Record<LogType, string>): void {
@@ -238,7 +267,7 @@ export class PinoLogger implements ILogger {
         const stream = pino.destination({
           dest: filePath,
           sync: false, // Always use async for better performance
-          mkdir: true,
+          mkdir: true
         });
 
         this.fileStreams.push(stream);
@@ -249,18 +278,15 @@ export class PinoLogger implements ILogger {
             customLevels,
             useOnlyCustomLevels: true,
             formatters: {
-              level: (label: string) => ({ level: label }),
-            },
+              level: (label: string) => ({ level: label })
+            }
           },
           stream
         ) as CustomLogger;
 
         this.loggers.set(type, fileLogger);
       } catch (error) {
-        console.error(
-          `Failed to create logger for ${type} at ${filePath}:`,
-          error
-        );
+        console.error(`Failed to create logger for ${type} at ${filePath}:`, error);
       }
     }
   }
@@ -273,7 +299,7 @@ export class PinoLogger implements ILogger {
     if (!ctx) return {};
 
     const meta: Record<string, unknown> = {
-      correlationId: ctx.correlationId,
+      correlationId: ctx.correlationId
     };
 
     if (ctx.userId !== undefined) meta.userId = ctx.userId;
@@ -293,7 +319,7 @@ export class PinoLogger implements ILogger {
       [LogType.INFO]: "info",
       [LogType.AUDIT]: "audit",
       [LogType.PERFORMANCE]: "performance",
-      [LogType.MIGRATION]: "migration",
+      [LogType.MIGRATION]: "migration"
     };
 
     return levelMap[type] || "info";
@@ -377,6 +403,10 @@ export class PinoLogger implements ILogger {
   }
 
   public log(type: LogType, msg: unknown, meta: LogMeta): void {
+    if (this.closed) {
+      return;
+    }
+
     this.ensureInitialized();
 
     // Map log type to effective log level for access control
@@ -388,11 +418,10 @@ export class PinoLogger implements ILogger {
       [LogType.INFO]: "info",
       [LogType.AUDIT]: "audit",
       [LogType.PERFORMANCE]: "performance",
-      [LogType.MIGRATION]: "migration",
+      [LogType.MIGRATION]: "migration"
     };
     const messageLevel = typeToLevel[type] || "info";
-    const envLevel =
-      (process.env.LOG_LEVEL as LogLevel) || this.logLevel || "info";
+    const envLevel = (process.env.LOG_LEVEL as LogLevel) || this.logLevel || "info";
 
     // Terminal always shows only info+ (but still includes warn/error/audit/etc).
     const terminalLevel: LogLevel = "info";
@@ -403,8 +432,7 @@ export class PinoLogger implements ILogger {
     const isPerformance = type === LogType.PERFORMANCE;
     const shouldEmitToTerminal = !isPerformance;
 
-    const canWriteToFiles =
-      this.checkAccess(envLevel, messageLevel) || isPerformance;
+    const canWriteToFiles = this.checkAccess(envLevel, messageLevel) || isPerformance;
     const canWriteToTerminal =
       shouldEmitToTerminal && this.checkAccess(terminalLevel, messageLevel);
 
@@ -419,7 +447,7 @@ export class PinoLogger implements ILogger {
     // Extract prefix from meta if present, and remove it from metaObj
     let prefix: string | undefined;
     let metaObj: Record<string, unknown> | undefined = undefined;
-    if (meta && typeof meta === "object" && meta !== null) {
+    if (!!meta && typeof meta === "object") {
       const m = meta as Record<string, unknown>;
       if (typeof m.prefix === "string") {
         prefix = m.prefix;
@@ -482,9 +510,7 @@ export class PinoLogger implements ILogger {
     const allPaths = [...Object.values(mergedLogPaths)];
 
     // Ensure log directories synchronously
-    const uniqueDirs = [
-      ...new Set(allPaths.map((filePath) => path.dirname(filePath))),
-    ];
+    const uniqueDirs = [...new Set(allPaths.map((filePath) => path.dirname(filePath)))];
 
     /* eslint-disable node/no-sync */
     for (const dir of uniqueDirs) {
@@ -504,7 +530,7 @@ export class PinoLogger implements ILogger {
         const stream = pino.destination({
           dest: filePath,
           sync: true, // Synchronous for migration scripts
-          mkdir: true,
+          mkdir: true
         });
         logger.fileStreams.push(stream);
         const fileLogger = pino(
@@ -513,17 +539,14 @@ export class PinoLogger implements ILogger {
             customLevels,
             useOnlyCustomLevels: true,
             formatters: {
-              level: (label: string) => ({ level: label }),
-            },
+              level: (label: string) => ({ level: label })
+            }
           },
           stream
         ) as CustomLogger;
         logger.loggers.set(type, fileLogger);
       } catch (error) {
-        console.error(
-          `Failed to create logger for ${type} at ${filePath}:`,
-          error
-        );
+        console.error(`Failed to create logger for ${type} at ${filePath}:`, error);
       }
     }
 

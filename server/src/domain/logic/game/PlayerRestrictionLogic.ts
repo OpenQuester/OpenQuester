@@ -1,10 +1,8 @@
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -26,7 +24,7 @@ export interface RestrictionUpdateInput {
 /**
  * Result of processing player restrictions
  */
-export interface PlayerRestrictionMutationResult {
+interface PlayerRestrictionMutationResult {
   originalRole: PlayerRole;
   wasPlayer: boolean;
   shouldBan: boolean;
@@ -187,7 +185,13 @@ export class PlayerRestrictionLogic {
   public static buildRestrictResult(
     input: PlayerRestrictionResultInput
   ): PlayerRestrictionResult {
-    const { game, targetPlayer, newRole, restrictions, gameStateCleanupBroadcasts } = input;
+    const {
+      game,
+      targetPlayer,
+      newRole,
+      restrictions,
+      gameStateCleanupBroadcasts,
+    } = input;
     const playerId = targetPlayer.meta.id;
 
     const broadcasts = this.buildBaseBroadcasts(game, playerId, restrictions);

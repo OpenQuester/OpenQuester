@@ -1,19 +1,22 @@
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from "typeorm";
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from "typeorm";
 
 import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import { PackageAnswerDTO } from "domain/types/dto/package/PackageAnswerDTO";
 import { PackageFileDTO } from "domain/types/dto/package/PackageFileDTO";
-import { PackageQuestionChoiceAnswerImport } from "domain/types/package/import/PackageQuestionChoiceAnswerImport";
+import { type IFileUrlBuilder } from "domain/types/storage/IFileUrlBuilder";
 import { File } from "infrastructure/database/models/File";
 import { PackageQuestion } from "infrastructure/database/models/package/PackageQuestion";
-import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
+
+export interface PackageQuestionChoiceAnswerImport {
+  question: PackageQuestion;
+  order: number;
+  text?: string | null;
+  fileData?: {
+    file: File;
+    type: PackageFileType;
+  } | null;
+}
 
 @Entity("package_question_choice_answer")
 export class PackageQuestionChoiceAnswer {
@@ -21,7 +24,7 @@ export class PackageQuestionChoiceAnswer {
   id!: number;
 
   @ManyToOne(() => PackageQuestion, (question) => question.answers, {
-    onDelete: "CASCADE",
+    onDelete: "CASCADE"
   })
   @JoinColumn({ name: "question" })
   question!: PackageQuestion;
@@ -47,15 +50,12 @@ export class PackageQuestionChoiceAnswer {
     this.question = data.question;
   }
 
-  public toDTO(
-    storage: S3StorageService,
-    opts: PackageDTOOptions
-  ): PackageAnswerDTO {
+  public toDTO(fileUrlBuilder: IFileUrlBuilder, opts: PackageDTOOptions): PackageAnswerDTO {
     const fileDTO: PackageFileDTO | null = this.file
       ? {
           md5: this.file.filename,
           type: this.type!,
-          link: storage.getUrl(this.file.filename),
+          link: fileUrlBuilder.getUrl(this.file.filename)
         }
       : null;
 
@@ -66,13 +66,13 @@ export class PackageQuestionChoiceAnswer {
     let dto: PackageAnswerDTO = {
       text: this.text,
       file: fileDTO,
-      order: this.order,
+      order: this.order
     };
 
     if (opts.fetchIds) {
       dto = {
         id: this.id,
-        ...dto,
+        ...dto
       };
     }
 

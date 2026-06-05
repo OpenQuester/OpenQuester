@@ -1,4 +1,4 @@
-import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 
 export interface GameProgressionResult {
   success: boolean;

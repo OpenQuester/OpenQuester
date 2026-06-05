@@ -1,5 +1,5 @@
 import { ServerError } from "domain/errors/ServerError";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 export class StorageUtils {
   /**

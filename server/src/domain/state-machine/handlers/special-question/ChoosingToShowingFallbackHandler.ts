@@ -1,6 +1,6 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionPickLogic } from "domain/logic/question/QuestionPickLogic";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -28,13 +28,6 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.CHOOSING;
   public readonly toPhase = GamePhase.SHOWING;
 
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService
-  ) {
-    super(gameService, timerService);
-  }
-
   public canTransition(ctx: ChoosingToShowingFallbackCtx): boolean {
     const { game, trigger, payload } = ctx;
 
@@ -55,7 +48,7 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     try {
       const { question } = QuestionPickLogic.validateQuestionPick(
         game,
-        payload.questionId
+        payload.questionData
       );
 
       const isSpecial =
@@ -81,7 +74,7 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     const { game, payload } = ctx;
     const { question, theme } = QuestionPickLogic.validateQuestionPick(
       game,
-      payload!.questionId
+      payload!.questionData
     );
 
     const eligiblePlayers = game
@@ -98,6 +91,7 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     }
 
     // Clear any stale special-question data and proceed as a normal question
+    game.gameState.answerShowData = null;
     game.gameState.secretQuestionData = null;
     game.gameState.stakeQuestionData = null;
     game.setQuestionState(questionState);
@@ -116,15 +110,23 @@ export class ChoosingToShowingFallbackHandler extends BaseTransitionHandler {
     ctx: ChoosingToShowingFallbackCtx,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    await this.gameService.clearTimer(ctx.game.id);
+    const { game } = ctx;
 
-    // Choose timer target based on resulting question state
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      ctx.game,
-      GAME_QUESTION_ANSWER_TIME
-    );
+    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_TIME);
+    game.gameState.timer = timer.start();
 
-    return { timer: timerEntity.value() ?? undefined };
+    return {
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: GAME_QUESTION_ANSWER_TIME,
+        },
+      ],
+    };
   }
 
   protected collectBroadcasts(

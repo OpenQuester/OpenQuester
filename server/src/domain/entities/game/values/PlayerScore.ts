@@ -1,5 +1,5 @@
 import { ServerError } from "domain/errors/ServerError";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
  * Value class representing a player's score in the game

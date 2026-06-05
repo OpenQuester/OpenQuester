@@ -5,24 +5,19 @@ export enum ClientResponse {
   // User
   SOCKET_USER_NOT_AUTHENTICATED = "socket_user_not_authenticated",
   USER_NOT_FOUND = "user_not_found",
-  ALREADY_LOGGED_IN = "user_logged_in",
   USER_ALREADY_EXISTS = "user_already_exists",
   NO_USER_DATA = "no_user_data",
   BAD_DATE_FORMAT = "bad_date_format",
-  USER_DATA_CORRUPTED = "user_data_corrupted",
 
   // Auth
-  NO_REFRESH = "no_refresh",
   INVALID_SESSION = "invalid_session",
   ACCESS_DENIED = "access_denied",
   NO_PERMISSION = "no_permission",
   INSUFFICIENT_PERMISSIONS = "insufficient_permissions",
   LOGOUT_SUCCESS = "logout_success",
-  DISCORD_AUTH_FAILED = "discord_auth_failed",
   OAUTH_PROVIDER_NOT_SUPPORTED = "oauth_provider_not_supported",
   SESSION_SAVING_ERROR = "session_saving_error",
   SOCKET_LOGGED_IN = "socket_logged_in",
-  FAILED_TO_FETCH_AVATAR = "failed_to_fetch_avatar",
 
   // Validation
   VALIDATION_ERROR = "validation_error",
@@ -33,10 +28,6 @@ export enum ClientResponse {
   INVALID_INPUT = "invalid_input",
 
   // Package
-  NO_CONTENT_ROUNDS = "no_content_rounds",
-  WRONG_CONTENT = "wrong_content",
-  EMPTY_CONTENT = "empty_content",
-  CANNOT_SAVE_CONTENT = "cannot_save_content",
   PACKAGE_AUTHOR_NOT_FOUND = "package_author_not_found",
   PACKAGE_NOT_FOUND = "package_not_found",
   PACKAGE_CORRUPTED = "package_corrupted",
@@ -46,10 +37,7 @@ export enum ClientResponse {
   PACKAGE_SEARCH_QUESTIONS_MIN_MORE_MAX = "package_search_questions_min_more_max",
 
   // File
-  FILENAME_REQUIRED = "filename_required",
-  FILENAME_INVALID = "filename_invalid",
   DELETE_FROM_PACKAGE = "delete_from_package",
-  UNSUPPORTED_FILE_TYPE = "unsupported_file_type",
 
   // Game
   NO_GAME_DATA = "no_game_data",
@@ -62,8 +50,6 @@ export enum ClientResponse {
   GAME_IS_FULL = "game_is_full",
   GAME_FINISHED = "game_finished",
   SHOWMAN_IS_TAKEN = "showman_is_taken",
-  NO_SHOWMAN = "no_showman",
-  GAME_DOES_NOT_EXISTS = "game_does_not_exists",
   YOU_ARE_BANNED = "you_are_banned",
   YOU_ARE_RESTRICTED = "you_are_restricted",
   YOU_ARE_MUTED = "you_are_muted",
@@ -74,7 +60,6 @@ export enum ClientResponse {
   GAME_PASSWORD_CANNOT_BE_REMOVED_FOR_PRIVATE_GAME = "game_password_cannot_be_removed_for_private_game",
   CANNOT_SET_MAX_PLAYERS_BELOW_CURRENT = "cannot_set_max_players_below_current",
   GAME_NOT_STARTED = "game_not_started",
-  BAD_ROUND_RETRIEVAL = "bad_round_retrieval",
   ROUND_GAME_REQUIRED = "round_game_required",
   ROUND_GAME_STATE_REQUIRED = "round_game_state_required",
   ROUND_CURRENT_ROUND_REQUIRED = "round_current_round_required",
@@ -115,27 +100,21 @@ export enum ClientResponse {
 
   // Player Management
   ONLY_SHOWMAN_CAN_MANAGE_PLAYERS = "only_showman_can_manage_players",
-  CANNOT_MANAGE_SHOWMAN = "cannot_manage_showman",
-  CANNOT_MANAGE_YOURSELF = "cannot_manage_yourself",
   INVALID_ROLE_CHANGE = "invalid_role_change",
   SHOWMAN_SLOT_TAKEN = "showman_slot_taken",
   INVALID_SLOT_NUMBER = "invalid_slot_number",
   SLOT_ALREADY_OCCUPIED = "slot_already_occupied",
   CANNOT_CHANGE_TO_SAME_SLOT = "cannot_change_to_same_slot",
   ONLY_PLAYERS_CAN_CHANGE_SLOTS = "only_players_can_change_slots",
-  INVALID_SCORE_VALUE = "invalid_score_value",
 
   // Final Round
   INVALID_ROUND_TYPE = "invalid_round_type",
   INVALID_QUESTION_STATE = "invalid_question_state",
-  FINAL_ROUND_INVALID_THEME_STRUCTURE = "final_round_invalid_theme_structure",
-  FINAL_ROUND_INVALID_QUESTION_TYPE = "final_round_invalid_question_type",
   THEME_NOT_FOUND = "theme_not_found",
   THEME_ALREADY_ELIMINATED = "theme_already_eliminated",
   CANNOT_ELIMINATE_LAST_THEME = "cannot_eliminate_last_theme",
   NOT_YOUR_TURN = "not_your_turn",
   PLAYER_ALREADY_PASSED = "player_already_passed",
-  ANSWER_REQUIRED = "answer_required",
   ANSWER_NOT_FOUND = "answer_not_found",
   FINAL_ROUND_NOT_INITIALIZED = "final_round_not_initialized",
   CANNOT_JOIN_FINAL_ROUND_AS_PLAYER = "cannot_join_final_round_as_player",
@@ -148,5 +127,5 @@ export enum ClientResponse {
   CANNOT_TRANSFER_TO_SELF = "cannot_transfer_to_self",
 
   // Other
-  DELETE_REQUEST_SENT = "delete_request_sent",
+  DELETE_REQUEST_SENT = "delete_request_sent"
 }

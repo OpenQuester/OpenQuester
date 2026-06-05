@@ -4,15 +4,15 @@ import { GAME_CHAT_NSP, GAME_CHAT_TTL } from "domain/constants/game";
 import { ChatMapper } from "domain/mappers/ChatMapper";
 import { ChatMessageDTO } from "domain/types/dto/game/chat/ChatMessageDTO";
 import { ChatSaveInputData } from "domain/types/socket/chat/ChatSaveInputData";
-import { RedisService } from "infrastructure/services/redis/RedisService";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 
 /**
  * Repository for game chat messages (stored in Redis).
  */
 @singleton()
 export class SocketChatRepository {
-  constructor(private readonly redisService: RedisService) {
+  constructor(private readonly redisRepository: RedisRepository) {
     //
   }
 
@@ -20,35 +20,31 @@ export class SocketChatRepository {
     return `${GAME_CHAT_NSP}:${gameId}:${createdAt.getTime()}`;
   }
 
-  public async saveChatMessage(
-    data: ChatSaveInputData
-  ): Promise<ChatMessageDTO> {
+  public async saveChatMessage(data: ChatSaveInputData): Promise<ChatMessageDTO> {
     const messageId = ValueUtils.generateUUID();
 
     const message: Omit<ChatMessageDTO, "gameId"> = {
       message: data.message,
       uuid: messageId,
       user: data.user,
-      timestamp: new Date(),
+      timestamp: new Date()
     };
 
     const key = this.getGameChatKey(data.gameId, data.gameCreatedAt);
 
-    await this.redisService.zadd(key, [
-      message.timestamp.getTime(),
-      JSON.stringify(message),
-    ]);
-
-    await this.redisService.expire(key, GAME_CHAT_TTL);
+    const pipeline = this.redisRepository.pipeline();
+    pipeline.zadd(key, message.timestamp.getTime(), JSON.stringify(message));
+    pipeline.expire(key, GAME_CHAT_TTL);
+    await pipeline.exec();
 
     return {
       ...message,
-      gameId: data.gameId,
+      gameId: data.gameId
     };
   }
 
   public async getMessages(gameId: string, gameCreatedAt: Date, limit: number) {
-    const messages = await this.redisService.zrevrange(
+    const messages = await this.redisRepository.zrevrange(
       this.getGameChatKey(gameId, gameCreatedAt),
       0,
       limit - 1

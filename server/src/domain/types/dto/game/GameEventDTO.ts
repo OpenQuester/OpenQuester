@@ -3,8 +3,7 @@ import { GameListItemDTO } from "domain/types/dto/game/GameListItemDTO";
 export enum GameEvent {
   CREATED = "created",
   CHANGED = "changed",
-  DELETED = "deleted",
-  STARTED = "started",
+  DELETED = "deleted"
 }
 
 export interface GameEventDTO {

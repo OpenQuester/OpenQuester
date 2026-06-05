@@ -4,7 +4,7 @@ import { PackageSearchOpts } from "domain/types/pagination/package/PackageSearch
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 import { Package } from "infrastructure/database/models/package/Package";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 export class PackageSearchQueryHelper {
   constructor(private readonly repository: Repository<Package>) {
@@ -28,7 +28,7 @@ export class PackageSearchQueryHelper {
       minRounds,
       maxRounds,
       minQuestions,
-      maxQuestions,
+      maxQuestions
     } = searchOpts;
 
     // Use subquery for stats filtering to maintain proper result set and leverage indexes
@@ -36,7 +36,7 @@ export class PackageSearchQueryHelper {
       minRounds,
       maxRounds,
       minQuestions,
-      maxQuestions,
+      maxQuestions
     });
 
     // Main query with stats filter as subquery
@@ -54,14 +54,14 @@ export class PackageSearchQueryHelper {
       language,
       authorId,
       tags,
-      ageRestriction,
+      ageRestriction
     });
 
     this._applySortingAndPagination(qb, {
       sortBy,
       order,
       offset,
-      limit,
+      limit
     });
 
     const [data, total] = await qb.getManyAndCount();
@@ -81,7 +81,7 @@ export class PackageSearchQueryHelper {
       language,
       authorId,
       tags,
-      ageRestriction,
+      ageRestriction
     } = searchOpts;
 
     // Simple search without stats filtering - leverages indexes better
@@ -93,14 +93,14 @@ export class PackageSearchQueryHelper {
       language,
       authorId,
       tags,
-      ageRestriction,
+      ageRestriction
     });
 
     this._applySortingAndPagination(qb, {
       sortBy,
       order,
       offset,
-      limit,
+      limit
     });
 
     const [data, total] = await qb.getManyAndCount();
@@ -121,8 +121,7 @@ export class PackageSearchQueryHelper {
       ageRestriction?: string;
     }
   ): void {
-    const { title, description, language, authorId, tags, ageRestriction } =
-      filters;
+    const { title, description, language, authorId, tags, ageRestriction } = filters;
 
     // Text search using ILIKE with leading wildcard.
     // Note: Leading wildcard prevents GIN trigram index optimization for prefix matches,
@@ -134,7 +133,7 @@ export class PackageSearchQueryHelper {
     // Description search - no index, but nullable field
     if (description && description.length > 0) {
       qb.andWhere("package.description ILIKE :description", {
-        description: `%${description}%`,
+        description: `%${description}%`
       });
     }
 
@@ -151,7 +150,7 @@ export class PackageSearchQueryHelper {
     // Age restriction filter - leverages idx_package_age_restriction
     if (ageRestriction) {
       qb.andWhere("package.age_restriction = :ageRestriction", {
-        ageRestriction,
+        ageRestriction
       });
     }
 
@@ -236,8 +235,7 @@ export class PackageSearchQueryHelper {
     }
   ): void {
     const { sortBy, order, offset, limit } = params;
-    const sortColumn =
-      sortBy === "author" ? "author.username" : `package.${sortBy}`;
+    const sortColumn = sortBy === "author" ? "author.username" : `package.${sortBy}`;
 
     qb.orderBy(sortColumn, order.toUpperCase() as "ASC" | "DESC");
     qb.skip(offset).take(limit);

@@ -1,7 +1,7 @@
 import { inject, singleton } from "tsyringe";
 import { type Repository } from "typeorm";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { Permission } from "infrastructure/database/models/Permission";
 
 /**

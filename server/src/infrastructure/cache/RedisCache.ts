@@ -2,8 +2,8 @@ import { singleton } from "tsyringe";
 
 import { REDIS_CACHE_DEFAULT_KEY_EXPIRE } from "domain/constants/cache";
 import { ICache } from "domain/types/cache/ICache";
-import { RedisService } from "infrastructure/services/redis/RedisService";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 
 /**
  * Cache implementation using Redis.
@@ -11,7 +11,7 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
  */
 @singleton()
 export class RedisCache implements ICache {
-  constructor(private readonly redisService: RedisService) {
+  constructor(private readonly redisRepository: RedisRepository) {
     //
   }
 
@@ -20,11 +20,11 @@ export class RedisCache implements ICache {
    * @param pattern Redis key pattern, e.g. "cache:user:*:1"
    */
   public async scan(pattern: string): Promise<string[]> {
-    return this.redisService.scan(pattern);
+    return this.redisRepository.scan(pattern);
   }
 
   public async get<T>(key: string): Promise<T | null> {
-    const val = await this.redisService.get(key);
+    const val = await this.redisRepository.get(key);
 
     if (!val) {
       return null;
@@ -41,14 +41,10 @@ export class RedisCache implements ICache {
     }
   }
 
-  public async set<T>(
-    key: string,
-    value: T,
-    ttlMilliseconds?: number
-  ): Promise<void> {
+  public async set<T>(key: string, value: T, ttlMilliseconds?: number): Promise<void> {
     const serialized = JSON.stringify(value);
 
-    return this.redisService.set(
+    return this.redisRepository.set(
       key,
       serialized,
       ttlMilliseconds ?? REDIS_CACHE_DEFAULT_KEY_EXPIRE
@@ -56,6 +52,6 @@ export class RedisCache implements ICache {
   }
 
   public async delete(key: string): Promise<void> {
-    await this.redisService.del(key);
+    await this.redisRepository.del(key);
   }
 }

@@ -5,8 +5,10 @@ import { Repository } from "typeorm";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { Game } from "domain/entities/game/Game";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
+import { GameActionType } from "domain/enums/GameActionType";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload";
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import {
@@ -16,14 +18,14 @@ import {
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { User } from "infrastructure/database/models/User";
-import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 
-import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
-import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
-import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
-import { SocketGameTestLobbyUtils } from "./SocketGameTestLobbyUtils";
-import { SocketGameTestFlowUtils } from "./SocketGameTestFlowUtils";
 import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
+import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
+import { SocketGameTestFlowUtils } from "./SocketGameTestFlowUtils";
+import { SocketGameTestLobbyUtils } from "./SocketGameTestLobbyUtils";
+import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
+import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
 
 export interface GameClientSocket extends ClientSocket {
   gameId?: string;
@@ -72,7 +74,7 @@ export class SocketGameTestUtils {
     socket: GameClientSocket,
     gameId: string,
     role: PlayerRole = PlayerRole.PLAYER
-  ): Promise<string> {
+  ): Promise<void> {
     return this.lobbyUtils.joinGame(socket, gameId, role);
   }
 
@@ -312,9 +314,26 @@ export class SocketGameTestUtils {
 
   public async waitForActionsComplete(
     gameId: string,
-    timeout: number = 5000
+    timeout: number = TEST_TIMEOUTS.ACTION_QUEUE_WAIT_MS
   ): Promise<void> {
     return this.eventUtils.waitForActionsComplete(gameId, timeout);
+  }
+
+  public async waitForQueueLengthAtLeast(
+    gameId: string,
+    expectedLength: number,
+    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+  ): Promise<void> {
+    return this.eventUtils.waitForQueueLengthAtLeast(gameId, expectedLength, timeout);
+  }
+
+  public async waitForSubmittedActions(
+    gameId: string,
+    expectedCount: number,
+    actionType?: GameActionType,
+    timeout: number = TEST_TIMEOUTS.ACTION_QUEUE_WAIT_MS
+  ): Promise<void> {
+    return this.eventUtils.waitForSubmittedActions(gameId, expectedCount, actionType, timeout);
   }
 
   public async cleanupGameClients(setup: GameTestSetup): Promise<void> {
@@ -324,7 +343,7 @@ export class SocketGameTestUtils {
   public async waitForEvent<T = any>(
     socket: GameClientSocket,
     event: string,
-    timeout: number = 5000
+    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
   ): Promise<T> {
     return this.eventUtils.waitForEvent(socket, event, timeout);
   }
@@ -332,7 +351,7 @@ export class SocketGameTestUtils {
   public async waitForNoEvent(
     socket: GameClientSocket,
     event: string,
-    timeout: number = 150
+    timeout: number = TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS
   ): Promise<void> {
     return this.eventUtils.waitForNoEvent(socket, event, timeout);
   }

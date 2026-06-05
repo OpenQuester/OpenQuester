@@ -1,8 +1,12 @@
 import { Column, Entity, ManyToMany, PrimaryGeneratedColumn } from "typeorm";
-
 import { Permissions } from "domain/enums/Permissions";
-import { PermissionModel } from "domain/types/permission/PermissionModel";
 import { User } from "infrastructure/database/models/User";
+
+export interface PermissionModel {
+  id: number;
+  name: string;
+  users: User[];
+}
 
 @Entity("permission")
 export class Permission implements PermissionModel {
@@ -21,9 +25,6 @@ export class Permission implements PermissionModel {
     }
 
     const userPermissions = user.permissions.map((v) => v.name);
-    if (!userPermissions.includes(permission)) {
-      return false;
-    }
-    return true;
+    return userPermissions.includes(permission);
   }
 }

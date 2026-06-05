@@ -4,11 +4,11 @@ import {
   USER_NAME_MAX_CHARS,
   USER_NAME_MIN_CHARS,
   USER_USERNAME_MAX_CHARS,
-  USER_USERNAME_MIN_CHARS,
+  USER_USERNAME_MIN_CHARS
 } from "domain/constants/user";
 import { UserStatus } from "domain/enums/user/UserStatus";
 import { UserType } from "domain/enums/user/UserType";
-import { UpdateUserInputDTO } from "domain/types/dto/user/UpdateUserInputDTO";
+import { type UpdateUserInputDTO } from "application/types/user/UpdateUserInputDTO";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
 
 /**
@@ -34,10 +34,9 @@ const usernameScheme = Joi.string()
     return value;
   }, "Username normalization")
   .messages({
-    "username.consecutivePeriods":
-      "Username cannot contain consecutive periods",
+    "username.consecutivePeriods": "Username cannot contain consecutive periods",
     "string.pattern.name":
-      "Username can only contain lowercase letters, numbers, underscores, and periods",
+      "Username can only contain lowercase letters, numbers, underscores, and periods"
   });
 
 /**
@@ -62,13 +61,12 @@ export const nameScheme = Joi.string()
   }, "Name normalization")
   .messages({
     "name.consecutiveSpaces": "Name cannot contain consecutive spaces",
-    "string.pattern.name":
-      "Name can only contain letters, numbers, and single spaces",
+    "string.pattern.name": "Name can only contain letters, numbers, and single spaces"
   });
 
 export const userIdScheme = () =>
   Joi.object({
-    userId: Joi.number().min(0).required(),
+    userId: Joi.number().min(0).required()
   });
 
 export const userUpdateScheme = () =>
@@ -77,19 +75,12 @@ export const userUpdateScheme = () =>
     username: usernameScheme.allow(null),
     name: nameScheme.allow(null),
     avatar: Joi.string().allow(null),
-    birthday: Joi.alternatives().try(Joi.date(), Joi.string()).allow(null),
+    birthday: Joi.alternatives().try(Joi.date(), Joi.string()).allow(null)
   });
 
 export const userPaginationScheme = () =>
   Joi.object({
-    sortBy: Joi.string().valid(
-      "id",
-      "is_deleted",
-      "created_at",
-      "username",
-      "email",
-      "updated_at"
-    ),
+    sortBy: Joi.string().valid("id", "is_deleted", "created_at", "username", "email", "updated_at"),
     order: Joi.valid(...Object.values(PaginationOrder)),
     limit: Joi.number().integer().min(1).max(100).default(10),
     offset: Joi.number().integer().min(0).default(0),
@@ -99,7 +90,7 @@ export const userPaginationScheme = () =>
       .optional(),
     userType: Joi.string()
       .valid(...Object.values(UserType))
-      .optional(),
+      .optional()
   });
 
 export const userPermissionsUpdateScheme = () =>
@@ -108,16 +99,16 @@ export const userPermissionsUpdateScheme = () =>
       .items(Joi.string())
       .min(0)
       .required()
-      .description("Array of permission names to assign to the user"),
+      .description("Array of permission names to assign to the user")
   });
 
 export const userMuteScheme = () =>
   Joi.object({
     userId: Joi.number().integer().min(0).required(),
-    mutedUntil: Joi.date().iso().greater("now").required(),
+    mutedUntil: Joi.date().iso().greater("now").required()
   });
 
 export const userUnmuteScheme = () =>
   Joi.object({
-    userId: Joi.number().integer().min(0).required(),
+    userId: Joi.number().integer().min(0).required()
   });

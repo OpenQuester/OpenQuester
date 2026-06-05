@@ -1,9 +1,7 @@
 import { inject, singleton } from "tsyringe";
 import { EntityManager, In, Repository } from "typeorm";
 
-import { DI_TOKENS } from "application/di/tokens";
-import { FileService } from "application/services/file/FileService";
-import { PackageTagService } from "application/services/package/PackageTagService";
+import { DI_TOKENS } from "shared/di/tokens";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { FileSource } from "domain/enums/file/FileSource";
 import { ClientError } from "domain/errors/ClientError";
@@ -26,9 +24,10 @@ import { PackageTag } from "infrastructure/database/models/package/PackageTag";
 import { PackageTheme } from "infrastructure/database/models/package/PackageTheme";
 import { User } from "infrastructure/database/models/User";
 import { StorageUtils } from "infrastructure/utils/StorageUtils";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
-
+import { ValueUtils } from "domain/utils/ValueUtils";
 import { PackageSearchQueryHelper } from "infrastructure/database/repositories/PackageSearchQueryHelper";
+import { PackageTagRepository } from "infrastructure/database/repositories/PackageTagRepository";
+import { FileRepository } from "infrastructure/database/repositories/FileRepository";
 
 type OrderMapEntry =
   | "rounds"
@@ -47,8 +46,8 @@ export class PackageRepository {
     @inject(DI_TOKENS.Database) private readonly db: Database,
     @inject(DI_TOKENS.TypeORMPackageRepository)
     private readonly repository: Repository<Package>,
-    private readonly packageTagService: PackageTagService,
-    private readonly fileService: FileService
+    private readonly packageTagRepository: PackageTagRepository,
+    private readonly fileRepository: FileRepository
   ) {
     //
   }
@@ -57,13 +56,11 @@ export class PackageRepository {
     return this.repository.findOne({
       where: { id },
       select,
-      relations,
+      relations
     });
   }
 
-  public async search(
-    searchOpts: PackageSearchOpts
-  ): Promise<PaginatedResult<Package[]>> {
+  public async search(searchOpts: PackageSearchOpts): Promise<PaginatedResult<Package[]>> {
     const { minRounds, maxRounds, minQuestions, maxQuestions } = searchOpts;
     const searchHelper = new PackageSearchQueryHelper(this.repository);
 
@@ -80,13 +77,10 @@ export class PackageRepository {
     return searchHelper.searchWithoutStatsFiltering(searchOpts);
   }
 
-  public findByIds(
-    ids: number[],
-    selectOptions: SelectOptions<Package>
-  ): Promise<Package[]> {
+  public findByIds(ids: number[], selectOptions: SelectOptions<Package>): Promise<Package[]> {
     return this.repository.find({
       where: { id: In(ids) },
-      relations: selectOptions.relations,
+      relations: selectOptions.relations
     });
   }
 
@@ -106,13 +100,13 @@ export class PackageRepository {
     if (!result) {
       return {
         roundsCount: 0,
-        questionsCount: 0,
+        questionsCount: 0
       };
     }
 
     return {
       roundsCount: Number(result.roundCount),
-      questionsCount: Number(result.questionCount),
+      questionsCount: Number(result.questionCount)
     };
   }
 
@@ -137,12 +131,9 @@ export class PackageRepository {
       // Process Tags, fetch old and save new tags
       const tagNames = (packageData.tags || []).map((tagData) => tagData.tag);
 
-      const existingTags: PackageTag[] =
-        await this.packageTagService.getTagsByNames(tagNames);
+      const existingTags: PackageTag[] = await this.packageTagRepository.getTagsByNames(tagNames);
 
-      const existingTagMap = new Map<string, PackageTag>(
-        existingTags.map((tag) => [tag.tag, tag])
-      );
+      const existingTagMap = new Map<string, PackageTag>(existingTags.map((tag) => [tag.tag, tag]));
 
       const newTags: PackageTag[] = [];
       const tagEntities: PackageTag[] = [];
@@ -156,19 +147,21 @@ export class PackageRepository {
         tagEntities.push(tag);
       }
 
+      if (newTags.length > 0) {
+        await transaction.save(newTags);
+      }
+
       // Save logo info to DB before creating package
-      let logoFile = null;
+      let logoFile: File | null = null;
       if (packageData.logo?.file.md5) {
-        logoFile = await this.fileService.getFileByFilename(
-          packageData.logo.file.md5
-        );
+        logoFile = await this.fileRepository.getFileByFilename(packageData.logo.file.md5);
         if (!logoFile) {
           logoFile = new File();
           logoFile.import({
             filename: packageData.logo.file.md5,
             source: FileSource.S3,
             created_at: new Date(),
-            path: StorageUtils.getFilePath(packageData.logo.file.md5),
+            path: StorageUtils.getFilePath(packageData.logo.file.md5)
           });
           await transaction.save(logoFile);
           files.push(logoFile);
@@ -187,7 +180,7 @@ export class PackageRepository {
         language: packageData.language,
         logo: logoFile,
         // Saved automatically because of cascade
-        tags: tagEntities,
+        tags: tagEntities
       });
       await transaction.save(pack);
 
@@ -197,7 +190,7 @@ export class PackageRepository {
         logoUsage.import({
           file: logoFile,
           user: undefined,
-          package: pack,
+          package: pack
         });
         await transaction.save(logoUsage);
       }
@@ -219,7 +212,7 @@ export class PackageRepository {
         ["questions", new Set()],
         ["questionFiles", new Set()],
         ["answerFiles", new Set()],
-        ["answers", new Set()],
+        ["answers", new Set()]
       ]);
 
       // Create Rounds, Themes, Questions, and Associated Entities
@@ -234,7 +227,7 @@ export class PackageRepository {
         if (orders.has(roundData.order)) {
           throw new ClientError(ClientResponse.ORDER_DUPLICATED, 400, {
             name: "rounds",
-            order: roundData.order,
+            order: roundData.order
           });
         }
 
@@ -244,7 +237,7 @@ export class PackageRepository {
           name: roundData.name,
           package: pack,
           order: roundData.order,
-          type: roundData.type,
+          type: roundData.type
         });
         roundsToSave.push(round);
         orders.add(roundData.order);
@@ -260,7 +253,7 @@ export class PackageRepository {
           if (orders.has(themeData.order)) {
             throw new ClientError(ClientResponse.ORDER_DUPLICATED, 400, {
               name: "themes",
-              order: themeData.order,
+              order: themeData.order
             });
           }
 
@@ -269,7 +262,7 @@ export class PackageRepository {
             description: themeData.description,
             name: themeData.name,
             round,
-            order: themeData.order,
+            order: themeData.order
           });
           themesToSave.push(theme);
           orders.add(themeData.order);
@@ -285,7 +278,7 @@ export class PackageRepository {
             if (orders.has(questionData.order)) {
               throw new ClientError(ClientResponse.ORDER_DUPLICATED, 400, {
                 name: "questions",
-                order: questionData.order,
+                order: questionData.order
               });
             }
 
@@ -307,7 +300,7 @@ export class PackageRepository {
               transferType: questionData.transferType,
               priceMultiplier: questionData.priceMultiplier,
               showDelay: questionData.showDelay,
-              showAnswerDuration: questionData.showAnswerDuration,
+              showAnswerDuration: questionData.showAnswerDuration
             });
             questionsToSave.push(question);
             orders.add(questionData.order);
@@ -317,15 +310,13 @@ export class PackageRepository {
               const orders = ordersMap.get("questionFiles");
 
               if (!orders) {
-                throw new ClientError(
-                  "Orders map for question files not found"
-                );
+                throw new ClientError("Orders map for question files not found");
               }
 
               if (orders.has(questionFileData.order)) {
                 throw new ClientError(ClientResponse.ORDER_DUPLICATED, 400, {
                   name: "question files",
-                  order: questionFileData.order,
+                  order: questionFileData.order
                 });
               }
 
@@ -334,7 +325,7 @@ export class PackageRepository {
                 filename: questionFileData.file.md5,
                 source: FileSource.S3,
                 created_at: new Date(),
-                path: StorageUtils.getFilePath(questionFileData.file.md5),
+                path: StorageUtils.getFilePath(questionFileData.file.md5)
               });
 
               const questionFile = new PackageQuestionFile();
@@ -343,7 +334,7 @@ export class PackageRepository {
                 order: questionFileData.order,
                 type: questionFileData.file.type,
                 display_time: questionFileData.displayTime,
-                question: question,
+                question: question
               });
               orders.add(questionFileData.order);
 
@@ -354,7 +345,7 @@ export class PackageRepository {
               fileUsage.import({
                 file: fileEntity,
                 user: undefined,
-                package: pack,
+                package: pack
               });
               fileUsagesToSave.push(fileUsage);
 
@@ -373,7 +364,7 @@ export class PackageRepository {
               if (orders.has(answerFileData.order)) {
                 throw new ClientError(ClientResponse.ORDER_DUPLICATED, 400, {
                   name: "answer files",
-                  order: answerFileData.order,
+                  order: answerFileData.order
                 });
               }
 
@@ -382,7 +373,7 @@ export class PackageRepository {
                 filename: answerFileData.file.md5,
                 source: FileSource.S3,
                 created_at: new Date(),
-                path: StorageUtils.getFilePath(answerFileData.file.md5),
+                path: StorageUtils.getFilePath(answerFileData.file.md5)
               });
 
               const answerFile = new PackageAnswerFile();
@@ -391,7 +382,7 @@ export class PackageRepository {
                 order: answerFileData.order,
                 type: answerFileData.file.type,
                 display_time: answerFileData.displayTime,
-                question: question,
+                question: question
               });
               orders.add(answerFileData.order);
 
@@ -402,7 +393,7 @@ export class PackageRepository {
               fileUsage.import({
                 file: fileEntity,
                 user: undefined,
-                package: pack,
+                package: pack
               });
               fileUsagesToSave.push(fileUsage);
 
@@ -421,7 +412,7 @@ export class PackageRepository {
               if (orders.has(answerData.order)) {
                 throw new ClientError(ClientResponse.ORDER_DUPLICATED, 400, {
                   name: "answers",
-                  order: answerData.order,
+                  order: answerData.order
                 });
               }
 
@@ -433,7 +424,7 @@ export class PackageRepository {
                   filename: answerData.file.md5,
                   source: FileSource.S3,
                   created_at: new Date(),
-                  path: StorageUtils.getFilePath(answerData.file.md5),
+                  path: StorageUtils.getFilePath(answerData.file.md5)
                 });
                 file = fileEntity;
                 filesToSave.push(file);
@@ -442,7 +433,7 @@ export class PackageRepository {
                 fileUsage.import({
                   file,
                   user: undefined,
-                  package: pack,
+                  package: pack
                 });
                 fileUsagesToSave.push(fileUsage);
 
@@ -454,7 +445,7 @@ export class PackageRepository {
                 question: question,
                 order: answerData.order,
                 text: answerData.text,
-                fileData: file && type ? { file, type } : null,
+                fileData: file && type ? { file, type } : null
               });
               orders.add(answerData.order);
 
@@ -476,30 +467,265 @@ export class PackageRepository {
         ...questionFilesToSave,
         ...answerFilesToSave,
         ...fileUsagesToSave,
-        ...answersToSave,
+        ...answersToSave
       ]);
 
       return { pack, files };
     });
   }
 
-  /**
-   * Execute function within a database transaction
-   */
-  public async executeInTransaction<T>(
-    fn: (transaction: EntityManager) => Promise<T>
-  ): Promise<T> {
-    return this.db.dataSource.transaction(fn);
+  public async deletePackageData(packageId: number): Promise<{ filesDeletedFromDB: string[] }> {
+    return this.db.dataSource.transaction(async (transaction) => {
+      const packageEntity = await transaction.findOne(Package, {
+        where: { id: packageId },
+        relations: [
+          "logo",
+          "rounds",
+          "rounds.themes",
+          "rounds.themes.questions",
+          "rounds.themes.questions.questionFiles",
+          "rounds.themes.questions.questionFiles.file",
+          "rounds.themes.questions.answerFiles",
+          "rounds.themes.questions.answerFiles.file",
+          "rounds.themes.questions.answers",
+          "rounds.themes.questions.answers.file",
+          "tags"
+        ]
+      });
+
+      if (!packageEntity) {
+        throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, 404);
+      }
+
+      const allFiles = this.collectPackageFiles(packageEntity);
+      const fileUsageByFilename = await this.getFileUsageByFilename(
+        transaction,
+        allFiles.map((file) => file.filename)
+      );
+      const tagUsageCountsById = await this.getTagUsageCountsById(
+        transaction,
+        packageEntity.tags?.map((tag) => tag.id) ?? []
+      );
+      const filesToDelete = this.resolveFilesToDelete(
+        packageId,
+        allFiles,
+        fileUsageByFilename
+      );
+      const tagsToDelete = this.resolveTagsToDelete(packageEntity, tagUsageCountsById);
+      const fileIdsToDeleteUsage = this.resolveFileUsageIdsToDelete(
+        packageEntity.id,
+        filesToDelete,
+        fileUsageByFilename
+      );
+
+      if (fileIdsToDeleteUsage.length > 0) {
+        await transaction
+          .createQueryBuilder()
+          .delete()
+          .from("file_usage")
+          .where("file_id IN (:...fileIds) AND package_id = :packageId", {
+            fileIds: fileIdsToDeleteUsage,
+            packageId: packageEntity.id
+          })
+          .execute();
+      }
+
+      if (tagsToDelete.length > 0) {
+        await transaction.delete(
+          PackageTag,
+          tagsToDelete.map((tag) => tag.id)
+        );
+      }
+
+      await transaction.delete(Package, packageEntity.id);
+
+      const filesDeletedFromDB: string[] = [];
+      for (const filename of filesToDelete) {
+        const originalUsageRecords = fileUsageByFilename.get(filename) || [];
+        const nonPackageUsageRecords = originalUsageRecords.filter(
+          (record) => !record.package || record.package.id !== packageEntity.id
+        );
+
+        if (nonPackageUsageRecords.length === 0) {
+          await transaction
+            .createQueryBuilder()
+            .delete()
+            .from("file")
+            .where("filename = :filename", { filename })
+            .execute();
+
+          filesDeletedFromDB.push(filename);
+        }
+      }
+
+      return { filesDeletedFromDB };
+    });
   }
 
-  /**
-   * Delete package and related data within a transaction
-   */
-  public async deleteInTransaction(
+  private collectPackageFiles(packageEntity: Package): { filename: string; id: number }[] {
+    const allFiles: { filename: string; id: number }[] = [];
+
+    if (packageEntity.logo) {
+      allFiles.push({
+        filename: packageEntity.logo.filename,
+        id: packageEntity.logo.id
+      });
+    }
+
+    packageEntity.rounds?.forEach((round) => {
+      round.themes?.forEach((theme) => {
+        theme.questions?.forEach((question) => {
+          question.questionFiles?.forEach((questionFile) => {
+            if (questionFile.file) {
+              allFiles.push({
+                filename: questionFile.file.filename,
+                id: questionFile.file.id
+              });
+            }
+          });
+
+          question.answerFiles?.forEach((answerFile) => {
+            if (answerFile.file) {
+              allFiles.push({
+                filename: answerFile.file.filename,
+                id: answerFile.file.id
+              });
+            }
+          });
+
+          question.answers?.forEach((answer) => {
+            if (answer.file) {
+              allFiles.push({
+                filename: answer.file.filename,
+                id: answer.file.id
+              });
+            }
+          });
+        });
+      });
+    });
+
+    return allFiles;
+  }
+
+  private async getFileUsageByFilename(
     transaction: EntityManager,
-    packageEntity: Package
-  ): Promise<void> {
-    // Delete the package (CASCADE will handle related entities)
-    await transaction.delete(Package, packageEntity.id);
+    filenames: string[]
+  ): Promise<Map<string, FileUsage[]>> {
+    const usageMap = new Map<string, FileUsage[]>();
+
+    for (const filename of filenames) {
+      usageMap.set(filename, []);
+    }
+
+    if (filenames.length === 0) {
+      return usageMap;
+    }
+
+    const usageRecords = await transaction.find(FileUsage, {
+      where: {
+        file: {
+          filename: In(filenames)
+        }
+      },
+      relations: ["file", "user", "user.avatar", "package", "package.author"]
+    });
+
+    for (const usage of usageRecords) {
+      if (usage.file?.filename) {
+        const existingUsage = usageMap.get(usage.file.filename) || [];
+        existingUsage.push(usage);
+        usageMap.set(usage.file.filename, existingUsage);
+      }
+    }
+
+    return usageMap;
+  }
+
+  private async getTagUsageCountsById(
+    transaction: EntityManager,
+    tagIds: number[]
+  ): Promise<Map<number, number>> {
+    const usageMap = new Map<number, number>();
+
+    for (const tagId of tagIds) {
+      usageMap.set(tagId, 0);
+    }
+
+    if (tagIds.length === 0) {
+      return usageMap;
+    }
+
+    const results = await transaction
+      .getRepository(PackageTag)
+      .createQueryBuilder("tag")
+      .select("tag.id", "tagId")
+      .addSelect("COUNT(package.id)", "usageCount")
+      .leftJoin("tag.packages", "package")
+      .where("tag.id IN (:...tagIds)", { tagIds })
+      .groupBy("tag.id")
+      .getRawMany<{ tagId: string; usageCount: string }>();
+
+    for (const result of results) {
+      usageMap.set(parseInt(result.tagId, 10), parseInt(result.usageCount, 10));
+    }
+
+    return usageMap;
+  }
+
+  private resolveFilesToDelete(
+    packageId: number,
+    allFiles: { filename: string; id: number }[],
+    fileUsageByFilename: Map<string, FileUsage[]>
+  ): string[] {
+    const filesToDelete: string[] = [];
+
+    for (const file of allFiles) {
+      const usageRecords = fileUsageByFilename.get(file.filename) || [];
+      const usedByOtherPackages = usageRecords.some(
+        (usage) => usage.package && usage.package.id !== packageId
+      );
+      const usedByUsers = usageRecords.some((usage) => usage.user);
+
+      if (!usedByOtherPackages && !usedByUsers) {
+        filesToDelete.push(file.filename);
+      }
+    }
+
+    return filesToDelete;
+  }
+
+  private resolveTagsToDelete(
+    packageEntity: Package,
+    tagUsageCountsById: Map<number, number>
+  ): PackageTag[] {
+    const tagsToDelete: PackageTag[] = [];
+
+    for (const tag of packageEntity.tags ?? []) {
+      const tagUsageCount = tagUsageCountsById.get(tag.id) || 0;
+      if (tagUsageCount <= 1) {
+        tagsToDelete.push(tag);
+      }
+    }
+
+    return tagsToDelete;
+  }
+
+  private resolveFileUsageIdsToDelete(
+    packageId: number,
+    filesToDelete: string[],
+    fileUsageByFilename: Map<string, FileUsage[]>
+  ): number[] {
+    const fileIdsToDeleteUsage: number[] = [];
+
+    for (const filename of filesToDelete) {
+      const usageRecords = fileUsageByFilename.get(filename) || [];
+      const packageUsage = usageRecords.find((record) => record.package?.id === packageId);
+      if (packageUsage?.file) {
+        fileIdsToDeleteUsage.push(packageUsage.file.id);
+      }
+    }
+
+    return fileIdsToDeleteUsage;
   }
 }

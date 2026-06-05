@@ -29,8 +29,6 @@ class GamesListController extends ListControllerBase<GameListItem> {
         await addFirstItem(result.data);
       case GameEventSubscriptionUnionChanged():
         await updateItem(result.data);
-      case GameEventSubscriptionUnionStarted():
-        await updateItem(result.data);
       case GameEventSubscriptionUnionDeleted():
         await deleteItem(result.data.id);
         await _leaveCurrentGameOnDelete(result.data.id);

@@ -82,7 +82,13 @@ services:
       - /bin/sh
       - -c
       - |
+        attempts=0
         until influxdb3 show databases -H http://influxdb3:8181 >/dev/null 2>&1; do
+          attempts=$$((attempts + 1))
+          if [ "$$attempts" -ge 60 ]; then
+            echo "InfluxDB did not become ready after 60 seconds" >&2
+            exit 1
+          fi
           sleep 1
         done
         influxdb3 create database -H http://influxdb3:8181 openquester >/dev/null 2>&1 || true
@@ -109,7 +115,7 @@ services:
   # Reverse proxy & load balancer
   # Dashboard: http://localhost:8088/
   traefik:
-    image: traefik:v3.3
+    image: traefik:v3.6.16
     restart: unless-stopped
     container_name: traefik
     command:
@@ -117,6 +123,8 @@ services:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
+    environment:
+      - DOCKER_API_VERSION=1.44
     ports:
       - "3000:80"
       - "8088:8080"
@@ -131,13 +139,10 @@ services:
     image: openquester-server:local
     restart: unless-stopped
     deploy:
-      # replicas: 12
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 256M
+      replicas: 2
     depends_on:
+      traefik:
+        condition: service_started
       postgres:
         condition: service_started
       oq-redis:
@@ -155,6 +160,7 @@ services:
       INFLUX_URL: "http://influxdb3:8181/?database=openquester"
       S3_ENDPOINT: "http://minio:9000"
       DB_POOL_SIZE: 8
+      STARTUP_RECOVERY_ENABLED: "false"
     labels:
       - traefik.enable=true
       - traefik.http.routers.oq-server.rule=PathPrefix(`/`)

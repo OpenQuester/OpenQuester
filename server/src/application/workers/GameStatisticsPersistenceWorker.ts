@@ -1,8 +1,8 @@
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { GameStatisticsData } from "domain/types/statistics/GameStatisticsData";
 import { GameStatisticsRepository } from "infrastructure/database/repositories/statistics/GameStatisticsRepository";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Worker responsible for persisting game statistics from Redis to database

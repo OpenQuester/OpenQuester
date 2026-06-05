@@ -1,13 +1,16 @@
+import { container } from "tsyringe";
+
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
 import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 import { GameClientSocket } from "./SocketIOGameTestUtils";
 import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
@@ -44,10 +47,7 @@ export class SocketGameTestFlowUtils {
 
     const gameState = await this.stateUtils.getGameState(showmanSocket.gameId!);
 
-    if (
-      !gameState ||
-      gameState.questionState !== QuestionState.MEDIA_DOWNLOADING
-    ) {
+    if (!gameState || gameState.questionState !== QuestionState.MEDIA_DOWNLOADING) {
       // State is not MEDIA_DOWNLOADING - possible in secret and stake questions
       // since those questions has custom phase before MEDIA_DOWNLOADING
       return;
@@ -55,20 +55,14 @@ export class SocketGameTestFlowUtils {
 
     return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        showmanSocket.removeListener(
-          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-          handler
-        );
+        showmanSocket.removeListener(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, handler);
         reject(new Error("Timeout waiting for all players to be ready"));
-      }, 15000);
+      }, TEST_TIMEOUTS.SOCKET_ACTION_TIMEOUT_MS * 4);
 
       const handler = (data: MediaDownloadStatusBroadcastData) => {
-        if (data.allPlayersReady === true) {
+        if (data.allPlayersReady) {
           clearTimeout(timeout);
-          showmanSocket.removeListener(
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            handler
-          );
+          showmanSocket.removeListener(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, handler);
           resolve();
         } else if (playerIndex < playerSockets.length) {
           playerSockets[playerIndex].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
@@ -100,28 +94,19 @@ export class SocketGameTestFlowUtils {
     questionId?: number,
     playerSockets?: GameClientSocket[]
   ): Promise<void> {
-    const actualQuestionId = await this._resolveQuestionId(
-      showmanSocket,
-      questionId
-    );
+    const actualQuestionId = await this._resolveQuestionId(showmanSocket, questionId);
 
     const game = await this.stateUtils.getGame(showmanSocket.gameId!);
     if (!game || !game.gameState.currentRound) {
       return;
     }
 
-    const questionPickEvent = this._determineQuestionPickEvent(
-      game,
-      actualQuestionId
-    );
+    const questionPickEvent = await this._determineQuestionPickEvent(game, actualQuestionId);
 
-    const questionDataPromise = this.eventUtils.waitForEvent(
-      showmanSocket,
-      questionPickEvent
-    );
+    const questionDataPromise = this.eventUtils.waitForEvent(showmanSocket, questionPickEvent);
 
     showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-      questionId: actualQuestionId,
+      questionId: actualQuestionId
     });
 
     await questionDataPromise;
@@ -142,9 +127,7 @@ export class SocketGameTestFlowUtils {
       return questionId;
     }
 
-    const socketUserData = await this.userUtils.getSocketUserData(
-      showmanSocket
-    );
+    const socketUserData = await this.userUtils.getSocketUserData(showmanSocket);
     if (!socketUserData?.gameId) {
       throw new Error("Cannot determine game ID from socket");
     }
@@ -161,15 +144,13 @@ export class SocketGameTestFlowUtils {
     return this.stateUtils.getFirstAvailableQuestionId(showmanSocket.gameId!);
   }
 
-  private _determineQuestionPickEvent(
+  private async _determineQuestionPickEvent(
     game: Game,
     questionId: number
-  ): SocketIOGameEvents {
-    const { question } = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState!.currentRound!.id,
-      questionId
-    ) ?? { question: null };
+  ): Promise<SocketIOGameEvents> {
+    const packageStore = container.resolve(PackageStore);
+    const questionData = await packageStore.getQuestionWithTheme(game.id, questionId);
+    const question = questionData?.question ?? null;
 
     if (!question) {
       throw new Error("Question not found in package");
@@ -183,9 +164,7 @@ export class SocketGameTestFlowUtils {
         break;
       case PackageQuestionType.SECRET: {
         const eligiblePlayers = game.players.filter(
-          (p) =>
-            p.role === PlayerRole.PLAYER &&
-            p.gameStatus === PlayerGameStatus.IN_GAME
+          (p) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME
         ).length;
 
         if (eligiblePlayers >= 2) {
@@ -223,20 +202,15 @@ export class SocketGameTestFlowUtils {
   // ROUND PROGRESSION
   // ============================================================================
 
-  public async progressToNextRound(
-    showmanSocket: GameClientSocket
-  ): Promise<void> {
+  public async progressToNextRound(showmanSocket: GameClientSocket): Promise<void> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error("Timeout waiting for NEXT_ROUND event"));
-      }, 5000);
+      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
       const cleanup = () => {
         clearTimeout(timeout);
-        showmanSocket.removeListener(
-          SocketIOGameEvents.NEXT_ROUND,
-          onNextRound
-        );
+        showmanSocket.removeListener(SocketIOGameEvents.NEXT_ROUND, onNextRound);
       };
 
       const onNextRound = () => {
@@ -253,9 +227,7 @@ export class SocketGameTestFlowUtils {
   // SKIPPING
   // ============================================================================
 
-  public async skipQuestionForce(
-    showmanSocket: GameClientSocket
-  ): Promise<void> {
+  public async skipQuestionForce(showmanSocket: GameClientSocket): Promise<void> {
     const finishPromise = this.eventUtils.waitForEvent(
       showmanSocket,
       SocketIOGameEvents.QUESTION_FINISH
@@ -268,9 +240,7 @@ export class SocketGameTestFlowUtils {
    * Force skip question AND complete the show answer phase.
    * Use this when you want to fully complete the skip flow.
    */
-  public async skipQuestionForceComplete(
-    showmanSocket: GameClientSocket
-  ): Promise<void> {
+  public async skipQuestionForceComplete(showmanSocket: GameClientSocket): Promise<void> {
     const finishPromise = this.eventUtils.waitForEvent(
       showmanSocket,
       SocketIOGameEvents.QUESTION_FINISH
@@ -304,10 +274,8 @@ export class SocketGameTestFlowUtils {
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(
-          new Error("TURN_PLAYER_CHANGED event not received within timeout")
-        );
-      }, 5000);
+        reject(new Error("TURN_PLAYER_CHANGED event not received within timeout"));
+      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
       showmanSocket.once(SocketIOGameEvents.TURN_PLAYER_CHANGED, () => {
         clearTimeout(timeout);
@@ -315,7 +283,7 @@ export class SocketGameTestFlowUtils {
       });
 
       showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
-        newTurnPlayerId,
+        newTurnPlayerId
       });
     });
   }
@@ -347,17 +315,11 @@ export class SocketGameTestFlowUtils {
     expectedPlayerId?: number
   ): Promise<PlayerReadinessBroadcastData> {
     return new Promise((resolve) => {
-      socket.once(
-        SocketIOGameEvents.PLAYER_READY,
-        (data: PlayerReadinessBroadcastData) => {
-          if (
-            expectedPlayerId === undefined ||
-            data.playerId === expectedPlayerId
-          ) {
-            resolve(data);
-          }
+      socket.once(SocketIOGameEvents.PLAYER_READY, (data: PlayerReadinessBroadcastData) => {
+        if (expectedPlayerId === undefined || data.playerId === expectedPlayerId) {
+          resolve(data);
         }
-      );
+      });
     });
   }
 
@@ -366,17 +328,11 @@ export class SocketGameTestFlowUtils {
     expectedPlayerId?: number
   ): Promise<PlayerReadinessBroadcastData> {
     return new Promise((resolve) => {
-      socket.once(
-        SocketIOGameEvents.PLAYER_UNREADY,
-        (data: PlayerReadinessBroadcastData) => {
-          if (
-            expectedPlayerId === undefined ||
-            data.playerId === expectedPlayerId
-          ) {
-            resolve(data);
-          }
+      socket.once(SocketIOGameEvents.PLAYER_UNREADY, (data: PlayerReadinessBroadcastData) => {
+        if (expectedPlayerId === undefined || data.playerId === expectedPlayerId) {
+          resolve(data);
         }
-      );
+      });
     });
   }
 
@@ -396,9 +352,7 @@ export class SocketGameTestFlowUtils {
     scoreResult = 100,
     answeringPlayerIdx = 0
   ): Promise<void> {
-    const socketUserData = await this.userUtils.getSocketUserData(
-      showmanSocket
-    );
+    const socketUserData = await this.userUtils.getSocketUserData(showmanSocket);
     if (!socketUserData?.gameId) {
       throw new Error("Cannot determine game ID from socket");
     }
@@ -408,10 +362,7 @@ export class SocketGameTestFlowUtils {
       questionId
     );
 
-    const questionType = await this.determineQuestionType(
-      socketUserData.gameId,
-      actualQuestionId
-    );
+    const questionType = await this.determineQuestionType(socketUserData.gameId, actualQuestionId);
 
     if (questionType === PackageQuestionType.SECRET) {
       await this._handleSecretQuestionComplete(
@@ -447,10 +398,7 @@ export class SocketGameTestFlowUtils {
     }
   }
 
-  private async resolveQuestionIdForComplete(
-    gameId: string,
-    questionId?: number
-  ): Promise<number> {
+  private async resolveQuestionIdForComplete(gameId: string, questionId?: number): Promise<number> {
     if (questionId) {
       return questionId;
     }
@@ -480,10 +428,7 @@ export class SocketGameTestFlowUtils {
       for (const theme of game.gameState.currentRound.themes) {
         for (const question of theme.questions) {
           if (question.id === questionId) {
-            questionType = this.stateUtils.getQuestionTypeFromPackage(
-              game,
-              questionId
-            );
+            questionType = await this.stateUtils.getQuestionTypeFromPackage(game, questionId);
             break;
           }
         }
@@ -495,9 +440,7 @@ export class SocketGameTestFlowUtils {
     if (questionType === PackageQuestionType.SECRET) {
       const freshGame = await this.stateUtils.getGame(gameId);
       const eligiblePlayers = freshGame.players.filter(
-        (p: Player) =>
-          p.role === PlayerRole.PLAYER &&
-          p.gameStatus === PlayerGameStatus.IN_GAME
+        (p: Player) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME
       ).length;
 
       if (eligiblePlayers < 2) {
@@ -527,7 +470,7 @@ export class SocketGameTestFlowUtils {
     );
 
     showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-      questionId,
+      questionId
     });
 
     await secretPickedPromise;
@@ -537,10 +480,7 @@ export class SocketGameTestFlowUtils {
       return;
     }
 
-    await this.transferSecretQuestion(
-      showmanSocket,
-      playerSockets[answeringPlayerIdx]
-    );
+    await this.transferSecretQuestion(showmanSocket, playerSockets[answeringPlayerIdx]);
 
     await this._submitAnswerResultWithQuestionComplete(
       showmanSocket,
@@ -560,9 +500,7 @@ export class SocketGameTestFlowUtils {
     );
 
     showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
-      targetPlayerId: await this.userUtils.getPlayerUserIdFromSocket(
-        targetPlayerSocket
-      ),
+      targetPlayerId: await this.userUtils.getPlayerUserIdFromSocket(targetPlayerSocket)
     });
 
     await questionDataPromise;
@@ -583,9 +521,7 @@ export class SocketGameTestFlowUtils {
     answeringPlayerIdx: number
   ): Promise<void> {
     const freshGame = await this.stateUtils.getGame(gameId);
-    const totalPlayerCount = freshGame.players.filter(
-      (p) => p.role === PlayerRole.PLAYER
-    ).length;
+    const totalPlayerCount = freshGame.players.filter((p) => p.role === PlayerRole.PLAYER).length;
 
     // If not all player sockets provided, skip stake and recurse
     if (playerSockets.length < totalPlayerCount) {
@@ -608,7 +544,7 @@ export class SocketGameTestFlowUtils {
     );
 
     showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-      questionId,
+      questionId
     });
 
     await stakePickedPromise;
@@ -652,10 +588,7 @@ export class SocketGameTestFlowUtils {
 
       for (let i = 0; i < biddingOrder.length; i++) {
         const playerId = biddingOrder[i];
-        const playerSocket = await this.findPlayerSocket(
-          playerSockets,
-          playerId
-        );
+        const playerSocket = await this.findPlayerSocket(playerSockets, playerId);
 
         if (playerSocket) {
           const bidPromise = this.eventUtils.waitForEvent(
@@ -664,22 +597,20 @@ export class SocketGameTestFlowUtils {
           );
 
           if (i === 0) {
-            const { question } = GameQuestionMapper.getQuestionAndTheme(
-              game.package,
-              game.gameState.currentRound!.id,
-              questionId
-            ) ?? { question: null };
+            const packageStore = container.resolve(PackageStore);
+            const questionData = await packageStore.getQuestionWithTheme(gameId, questionId);
+            const question = questionData?.question ?? null;
 
             const nominalAmount = question?.price || 300;
 
             playerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
               bidType: StakeBidType.NORMAL,
-              bidAmount: nominalAmount + 10,
+              bidAmount: nominalAmount + 10
             });
           } else {
             playerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
               bidType: StakeBidType.PASS,
-              bidAmount: null,
+              bidAmount: null
             });
           }
 
@@ -740,10 +671,7 @@ export class SocketGameTestFlowUtils {
     const needsAnswer = gameState?.questionState !== QuestionState.ANSWERING;
 
     if (needsAnswer) {
-      await this.answerQuestion(
-        playerSockets[answeringPlayerIdx],
-        showmanSocket
-      );
+      await this.answerQuestion(playerSockets[answeringPlayerIdx], showmanSocket);
     }
 
     await this._submitAnswerResultWithQuestionComplete(
@@ -775,18 +703,26 @@ export class SocketGameTestFlowUtils {
     // Set up ANSWER_SHOW_START listener before emitting to catch it in the same batch
     // This may resolve immediately if SHOWING_ANSWER transition doesn't happen
     const answerShowStartPromise = this.eventUtils
-      .waitForEvent(showmanSocket, SocketIOGameEvents.ANSWER_SHOW_START, 1000)
+      .waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.ANSWER_SHOW_START,
+        TEST_TIMEOUTS.SOCKET_ACTION_TIMEOUT_MS
+      )
       .catch(() => null); // Ignore timeout - not all answers trigger SHOWING_ANSWER (therefore this will not be awaited)
 
     showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
       scoreResult,
-      answerType,
+      answerType
     });
 
     await answerResultPromise;
 
-    // Game state is saved before broadcasts, so state should be updated
-    const gameState = await this.stateUtils.getGameState(showmanSocket.gameId!);
+    const gameAfterAnswerResult = await this.stateUtils.getGame(showmanSocket.gameId!);
+    if (gameAfterAnswerResult.finishedAt) {
+      return;
+    }
+
+    const gameState = gameAfterAnswerResult.gameState;
 
     // Handle case when no eligible players remain and show answer phase is started
     if (gameState?.questionState === QuestionState.SHOWING_ANSWER) {

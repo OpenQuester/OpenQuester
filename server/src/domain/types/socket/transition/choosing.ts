@@ -1,11 +1,15 @@
 import { TransitionContext } from "domain/state-machine/types";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
+import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { PackageThemeDTO } from "domain/types/dto/package/PackageThemeDTO";
 import { PackageQuestionTransferType } from "domain/types/package/PackageQuestionTransferType";
 import { PlayerBidData } from "domain/types/socket/events/FinalRoundEventData";
 
 export type QuestionPickPayload = {
   questionId: number;
+  /** Pre-fetched question+theme data from PackageStore, passed to avoid async in canTransition */
+  questionData: { question: PackageQuestionDTO; theme: PackageThemeDTO } | null;
 };
 
 export type ChoosingToMediaDownloadingCtx =

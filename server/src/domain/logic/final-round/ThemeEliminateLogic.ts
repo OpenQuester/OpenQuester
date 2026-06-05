@@ -4,11 +4,9 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
-import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
+import { FinalRoundHandler } from "domain/handlers/round/FinalRoundHandler";
 import { TransitionResult } from "domain/state-machine/types";
 import { GameStateThemeDTO } from "domain/types/dto/game/state/GameStateThemeDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
@@ -26,7 +24,7 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 /**
  * Validation input for theme elimination
  */
-export interface ThemeEliminateValidationInput {
+interface ThemeEliminateValidationInput {
   game: Game;
   player: Player | null;
   themeId: number;
@@ -36,7 +34,7 @@ export interface ThemeEliminateValidationInput {
 /**
  * Result of theme elimination mutation
  */
-export interface ThemeEliminateMutationResult {
+interface ThemeEliminateMutationResult {
   theme: GameStateThemeDTO;
   turnOrder: number[];
   nextPlayerId: number | null;

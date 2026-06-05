@@ -1,9 +1,11 @@
 import { Game } from "domain/entities/game/Game";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { ClientError } from "domain/errors/ClientError";
 import { TransitionResult } from "domain/state-machine/types";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
 import {
   AnswerReviewData,
-  FinalAnswerReviewResult,
+  FinalAnswerReviewResult
 } from "domain/types/socket/finalround/FinalRoundResults";
 import { FinalRoundPhaseCompletionHelper } from "domain/utils/FinalRoundPhaseCompletionHelper";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
@@ -44,6 +46,8 @@ export class FinalAnswerReviewLogic {
     game: Game,
     answerData: FinalAnswerReviewInputData
   ): AnswerReviewMutationResult {
+    this.ensureExistingAnswerIsPendingReview(game, answerData.answerId);
+
     // Review the answer (mutates game state)
     const { answer, scoreChange } = FinalRoundStateManager.reviewAnswer(
       game,
@@ -61,22 +65,28 @@ export class FinalAnswerReviewLogic {
 
     const result: AnswerReviewMutationResult = {
       reviewResult,
-      isPhaseComplete,
+      isPhaseComplete
     };
 
     if (isPhaseComplete) {
-      result.allReviews =
-        FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
+      result.allReviews = FinalRoundPhaseCompletionHelper.getAllAnswerReviews(game);
     }
 
     return result;
   }
 
-  /**
-   * Check if all answers have been reviewed.
-   */
-  public static areAllAnswersReviewed(game: Game): boolean {
-    return FinalRoundStateManager.areAllAnswersReviewed(game);
+  private static ensureExistingAnswerIsPendingReview(
+    game: Game,
+    answerId: string
+  ): void {
+    const answer = FinalRoundStateManager.getFinalRoundData(game)?.answers.find(
+      (candidate) => candidate.id === answerId
+    );
+
+    const answerAlreadyReviewed = answer?.isCorrect !== undefined;
+    if (answerAlreadyReviewed) {
+      throw new ClientError(ClientResponse.ALREADY_ANSWERED);
+    }
   }
 
   /**
@@ -88,9 +98,7 @@ export class FinalAnswerReviewLogic {
     transitionResult: TransitionResult | null;
   }): FinalAnswerReviewResult {
     const { game, mutationResult, transitionResult } = input;
-    const data = transitionResult?.data as
-      | FinalReviewingToGameFinishMutationData
-      | undefined;
+    const data = transitionResult?.data as FinalReviewingToGameFinishMutationData | undefined;
 
     const isGameFinished = data?.isGameFinished ?? false;
     const questionAnswerData = data?.questionAnswerData;
@@ -100,7 +108,7 @@ export class FinalAnswerReviewLogic {
       isGameFinished,
       reviewResult: mutationResult.reviewResult,
       allReviews: mutationResult.allReviews,
-      questionAnswerData: questionAnswerData ?? undefined,
+      questionAnswerData: questionAnswerData ?? undefined
     } satisfies FinalAnswerReviewResult;
   }
 }

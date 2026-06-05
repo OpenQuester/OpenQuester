@@ -3,15 +3,13 @@ import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerRoleChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 
-export interface RoleChangeMutation {
+interface RoleChangeMutation {
   originalRole: PlayerRole;
   newSlot: number | null;
   wasPlayer: boolean;

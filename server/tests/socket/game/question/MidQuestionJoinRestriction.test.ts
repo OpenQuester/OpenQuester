@@ -14,9 +14,12 @@ import {
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
+import { type QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
@@ -46,7 +49,7 @@ describe("Mid-Question Join Restriction", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 
@@ -61,6 +64,158 @@ describe("Mid-Question Join Restriction", () => {
     } catch (err) {
       console.error("Error during teardown:", err);
     }
+  });
+
+  describe("Players joining during active question state should see current data", () => {
+    it("should send full question data to showman who rejoins during SHOWING state", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets, gameId, showmanUser } = setup;
+      let reconnectedShowmanSocket:
+        | Awaited<ReturnType<typeof utils.createSocketForExistingUser>>["socket"]
+        | null = null;
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        const initialQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        const initialQuestionData = await initialQuestionDataPromise;
+        const initialAnswerText = (initialQuestionData.data as PackageQuestionDTO).answerText;
+        expect(initialAnswerText).toBeDefined();
+
+        showmanSocket.disconnect();
+        await utils.waitForActionsComplete(gameId);
+
+        const reconnected = await utils.createSocketForExistingUser(app, showmanUser.id);
+        reconnectedShowmanSocket = reconnected.socket;
+
+        const rejoinQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          reconnectedShowmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+
+        const rejoinData = await utils.joinSpecificGameWithData(
+          reconnectedShowmanSocket,
+          gameId,
+          PlayerRole.SHOWMAN
+        );
+        const rejoinQuestionData = await rejoinQuestionDataPromise;
+
+        expect(rejoinData.gameState.questionState).toBe(QuestionState.SHOWING);
+        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(
+          initialAnswerText
+        );
+      } finally {
+        if (reconnectedShowmanSocket) {
+          await utils.disconnectAndCleanup(reconnectedShowmanSocket);
+        }
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should send full question data to showman who rejoins during ANSWERING state", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets, gameId, showmanUser, playerUsers } = setup;
+      let reconnectedShowmanSocket:
+        | Awaited<ReturnType<typeof utils.createSocketForExistingUser>>["socket"]
+        | null = null;
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        const initialQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        const initialQuestionData = await initialQuestionDataPromise;
+        const initialAnswerText = (initialQuestionData.data as PackageQuestionDTO).answerText;
+
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
+
+        const answeringState = await utils.getGameState(gameId);
+        expect(answeringState?.questionState).toBe(QuestionState.ANSWERING);
+        expect(answeringState?.answeringPlayer).toBe(playerUsers[0].id);
+
+        showmanSocket.disconnect();
+        await utils.waitForActionsComplete(gameId);
+
+        const reconnected = await utils.createSocketForExistingUser(app, showmanUser.id);
+        reconnectedShowmanSocket = reconnected.socket;
+
+        const rejoinQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          reconnectedShowmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+
+        const rejoinData = await utils.joinSpecificGameWithData(
+          reconnectedShowmanSocket,
+          gameId,
+          PlayerRole.SHOWMAN
+        );
+        const rejoinQuestionData = await rejoinQuestionDataPromise;
+
+        expect(rejoinData.gameState.questionState).toBe(QuestionState.ANSWERING);
+        expect(rejoinData.gameState.answeringPlayer).toBe(playerUsers[0].id);
+        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(
+          initialAnswerText
+        );
+      } finally {
+        if (reconnectedShowmanSocket) {
+          await utils.disconnectAndCleanup(reconnectedShowmanSocket);
+        }
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should include answer reveal data when a player joins during SHOWING_ANSWER state", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, playerSockets, gameId } = setup;
+      let lateJoinerSocket:
+        | Awaited<ReturnType<typeof utils.createGameClient>>["socket"]
+        | null = null;
+
+      try {
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+
+        const questionFinishPromise = utils.waitForEvent<QuestionFinishEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_FINISH
+        );
+
+        await utils.skipQuestion(showmanSocket);
+        const questionFinish = await questionFinishPromise;
+
+        const lateJoiner = await utils.createGameClient(app, userRepo);
+        lateJoinerSocket = lateJoiner.socket;
+
+        const joinedData = await utils.joinSpecificGameWithData(
+          lateJoinerSocket,
+          gameId,
+          PlayerRole.PLAYER
+        );
+
+        expect(joinedData.gameState.questionState).toBe(QuestionState.SHOWING_ANSWER);
+        expect(joinedData.gameState.currentQuestion).toBeNull();
+        expect(joinedData.gameState.answerShowData).toEqual(
+          expect.objectContaining({
+            answerText: questionFinish.answerText,
+            nextTurnPlayerId: questionFinish.nextTurnPlayerId
+          })
+        );
+      } finally {
+        if (lateJoinerSocket) {
+          await utils.disconnectAndCleanup(lateJoinerSocket);
+        }
+        await utils.cleanupGameClients(setup);
+      }
+    });
   });
 
   describe("Players joining during question should not be able to answer", () => {
@@ -96,22 +251,15 @@ describe("Mid-Question Join Restriction", () => {
           await joinPromise;
 
           // Attempt to answer - should be rejected
-          const errorPromise = new Promise<string>((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              reject(
-                new Error("No error received - player was able to answer")
-              );
-            }, 3000);
-
-            lateJoinerSocket.once(SocketIOEvents.ERROR, (error: any) => {
-              clearTimeout(timeout);
-              resolve(error.message);
-            });
-          });
+          const errorPromise = utils.waitForEvent<{ message: string }>(
+            lateJoinerSocket,
+            SocketIOEvents.ERROR
+          );
 
           lateJoinerSocket.emit(SocketIOGameEvents.QUESTION_ANSWER, {});
 
-          const errorMessage = await errorPromise;
+          const errorData = await errorPromise;
+          const errorMessage = errorData.message;
 
           // Expect specific error for mid-question join
           expect(errorMessage.toLowerCase()).toContain("cannot answer");
@@ -219,8 +367,7 @@ describe("Mid-Question Join Restriction", () => {
           // Should still be able to answer (was in eligible list)
           const answerPromise = utils.waitForEvent(
             showmanSocket,
-            SocketIOGameEvents.QUESTION_ANSWER,
-            3000
+            SocketIOGameEvents.QUESTION_ANSWER
           );
 
           reconnectedSocket.emit(SocketIOGameEvents.QUESTION_ANSWER, {});
@@ -333,8 +480,7 @@ describe("Mid-Question Join Restriction", () => {
         // Change spectator to player mid-question
         const roleChangePromise = utils.waitForEvent(
           spectatorSockets[0],
-          SocketIOGameEvents.PLAYER_ROLE_CHANGE,
-          3000
+          SocketIOGameEvents.PLAYER_ROLE_CHANGE
         );
 
         showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
@@ -360,24 +506,15 @@ describe("Mid-Question Join Restriction", () => {
         ).toBe(false);
 
         // Attempt to answer - should be rejected because not in eligible list
-        const errorPromise = new Promise<string>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(
-              new Error(
-                "No error received - spectator-turned-player was able to answer"
-              )
-            );
-          }, 3000);
-
-          spectatorSockets[0].once(SocketIOEvents.ERROR, (error: any) => {
-            clearTimeout(timeout);
-            resolve(error.message);
-          });
-        });
+        const errorPromise = utils.waitForEvent<{ message: string }>(
+          spectatorSockets[0],
+          SocketIOEvents.ERROR
+        );
 
         spectatorSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER, {});
 
-        const errorMessage = await errorPromise;
+        const errorData = await errorPromise;
+        const errorMessage = errorData.message;
 
         expect(errorMessage.toLowerCase()).toContain("cannot answer");
         expect(errorMessage.toLowerCase()).toContain(
@@ -420,16 +557,10 @@ describe("Mid-Question Join Restriction", () => {
         const spectatorUserId = spectatorData?.id;
 
         // Attempt to change spectator to player during final round - should fail
-        const errorPromise = new Promise<string>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("No error received - role change was allowed"));
-          }, 3000);
-
-          spectatorSockets[0].once(SocketIOEvents.ERROR, (error: any) => {
-            clearTimeout(timeout);
-            resolve(error.message);
-          });
-        });
+        const errorPromise = utils.waitForEvent<{ message: string }>(
+          spectatorSockets[0],
+          SocketIOEvents.ERROR
+        );
 
         // Spectator tries to change their own role to player
         spectatorSockets[0].emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
@@ -437,7 +568,8 @@ describe("Mid-Question Join Restriction", () => {
           newRole: PlayerRole.PLAYER,
         });
 
-        const errorMessage = await errorPromise;
+        const errorData = await errorPromise;
+        const errorMessage = errorData.message;
         expect(errorMessage.toLowerCase()).toContain("cannot");
         expect(errorMessage.toLowerCase()).toContain("final");
       } finally {
@@ -475,23 +607,18 @@ describe("Mid-Question Join Restriction", () => {
         const spectatorUserId = spectatorData?.id;
 
         // Showman attempts to change spectator to player - should fail
-        const errorPromise = new Promise<string>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("No error received - role change was allowed"));
-          }, 3000);
-
-          showmanSocket.once(SocketIOEvents.ERROR, (error: any) => {
-            clearTimeout(timeout);
-            resolve(error.message);
-          });
-        });
+        const errorPromise = utils.waitForEvent<{ message: string }>(
+          showmanSocket,
+          SocketIOEvents.ERROR
+        );
 
         showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           playerId: spectatorUserId,
           newRole: PlayerRole.PLAYER,
         });
 
-        const errorMessage = await errorPromise;
+        const errorData = await errorPromise;
+        const errorMessage = errorData.message;
         expect(errorMessage.toLowerCase()).toContain("cannot");
         expect(errorMessage.toLowerCase()).toContain("final");
       } finally {

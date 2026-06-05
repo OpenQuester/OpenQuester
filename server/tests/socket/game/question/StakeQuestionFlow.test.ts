@@ -9,12 +9,14 @@ import {
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { GameActionType } from "domain/enums/GameActionType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import {
   SocketIOEvents,
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import {
   StakeBidSubmitInputData,
@@ -24,7 +26,7 @@ import {
 import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
 import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import {
   GameTestSetup,
@@ -32,6 +34,7 @@ import {
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
+import { TestUtils } from "tests/utils/TestUtils";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 
 describe("Stake Question Flow Tests", () => {
@@ -41,6 +44,7 @@ describe("Stake Question Flow Tests", () => {
   let userRepo: Repository<User>;
   let serverUrl: string;
   let utils: SocketGameTestUtils;
+  let testUtils: TestUtils;
   let logger: ILogger;
 
   /**
@@ -124,8 +128,9 @@ describe("Stake Question Flow Tests", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
+    testUtils = new TestUtils(app, userRepo, serverUrl);
   });
 
   beforeEach(async () => {
@@ -252,6 +257,55 @@ describe("Stake Question Flow Tests", () => {
         const gameState = await utils.getGameState(gameId);
         expect(gameState?.questionState).toBe(QuestionState.BIDDING);
         expect(gameState?.stakeQuestionData).toBeDefined();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should fallback to showing with role-filtered question data when no players can bid", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 1);
+      const { showmanSocket, spectatorSockets, gameId } = setup;
+      const spectatorSocket = spectatorSockets[0];
+
+      try {
+        await utils.startGame(showmanSocket);
+
+        const stakeQuestionId = await utils.getQuestionIdByType(
+          gameId,
+          PackageQuestionType.STAKE
+        );
+
+        const questionDataPromises = [
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          ),
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            spectatorSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          )
+        ];
+
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestionId,
+        });
+
+        const [showmanQuestionData, spectatorQuestionData] =
+          await Promise.all(questionDataPromises);
+
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
+          "Stake answer"
+        );
+        expect("answerText" in spectatorQuestionData.data).toBe(false);
+        expect(showmanQuestionData.timer).toBeDefined();
+        expect(spectatorQuestionData.timer).toEqual(showmanQuestionData.timer);
+        expect(showmanQuestionData.questionEligiblePlayers).toEqual([]);
+        expect(spectatorQuestionData.questionEligiblePlayers).toEqual([]);
+
+        const showingState = await utils.getGameState(gameId);
+        expect(showingState!.questionState).toBe(QuestionState.SHOWING);
+        expect(showingState!.stakeQuestionData).toBeNull();
+        expect(showingState!.currentQuestion).toBeDefined();
       } finally {
         await utils.cleanupGameClients(setup);
       }
@@ -776,9 +830,14 @@ describe("Stake Question Flow Tests", () => {
           SocketIOGameEvents.STAKE_QUESTION_WINNER
         );
 
-        const questionDataPromise =
+        const showmanQuestionDataPromise =
           utils.waitForEvent<GameQuestionDataEventPayload>(
             showmanSocket,
+            SocketIOGameEvents.QUESTION_DATA
+          );
+        const playerQuestionDataPromise =
+          utils.waitForEvent<GameQuestionDataEventPayload>(
+            playerSockets[0],
             SocketIOGameEvents.QUESTION_DATA
           );
 
@@ -900,18 +959,112 @@ describe("Stake Question Flow Tests", () => {
         );
         expect(winnerData.finalBid).toBe(350);
 
-        // Question data should be sent separately
-        const questionData = await questionDataPromise;
-        expect(questionData.data).toBeDefined();
-        expect(questionData.data.text).toContain("Stake question");
+        // Question data should be sent separately and filtered by role.
+        const [showmanQuestionData, playerQuestionData] = await Promise.all([
+          showmanQuestionDataPromise,
+          playerQuestionDataPromise
+        ]);
+        expect(showmanQuestionData.data).toBeDefined();
+        expect(showmanQuestionData.data.text).toContain("Stake question");
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
+          "Stake answer"
+        );
+        expect("answerText" in playerQuestionData.data).toBe(false);
 
         // Verify answer timer is included in question data event
-        expect(questionData.timer).toBeDefined();
-        expect(questionData.timer.durationMs).toBeGreaterThan(0);
+        expect(showmanQuestionData.timer).toBeDefined();
+        expect(showmanQuestionData.timer.durationMs).toBeGreaterThan(0);
+        expect(playerQuestionData.timer).toEqual(showmanQuestionData.timer);
 
         // Verify game state updated
         const gameState = await utils.getGameState(setup.gameId);
         expect(gameState?.questionState).toBe(QuestionState.ANSWERING);
+      });
+
+      it("should complete bidding on timer expiration with role-filtered question data", async () => {
+        const { setup, cleanup } = await _prepare({
+          playerCount: 2,
+          playerScores: [500, 300],
+          shouldPickQuestion: true,
+          pickerIndex: 0,
+        });
+
+        try {
+          const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+
+          const firstTimeoutBidPromise =
+            utils.waitForEvent<StakeBidSubmitOutputData>(
+              showmanSocket,
+              SocketIOGameEvents.STAKE_BID_SUBMIT
+            );
+
+          await testUtils.expireTimerAndWaitForAction(
+            gameId,
+            GameActionType.TIMER_BIDDING_EXPIRED
+          );
+
+          const firstTimeoutBid = await firstTimeoutBidPromise;
+          expect(firstTimeoutBid.playerId).toBe(playerUsers[0].id);
+          expect(firstTimeoutBid.bidType).toBe(StakeBidType.NORMAL);
+          expect(firstTimeoutBid.bidAmount).toBe(200);
+          expect(firstTimeoutBid.isPhaseComplete).toBe(false);
+          expect(firstTimeoutBid.nextBidderId).toBe(playerUsers[1].id);
+          expect(firstTimeoutBid.timer).toBeDefined();
+
+          const secondTimeoutBidPromise =
+            utils.waitForEvent<StakeBidSubmitOutputData>(
+              showmanSocket,
+              SocketIOGameEvents.STAKE_BID_SUBMIT
+            );
+          const winnerPromise = utils.waitForEvent<StakeQuestionWinnerEventData>(
+            showmanSocket,
+            SocketIOGameEvents.STAKE_QUESTION_WINNER
+          );
+          const showmanQuestionDataPromise =
+            utils.waitForEvent<GameQuestionDataEventPayload>(
+              showmanSocket,
+              SocketIOGameEvents.QUESTION_DATA
+            );
+          const playerQuestionDataPromise =
+            utils.waitForEvent<GameQuestionDataEventPayload>(
+              playerSockets[1],
+              SocketIOGameEvents.QUESTION_DATA
+            );
+
+          await testUtils.expireTimerAndWaitForAction(
+            gameId,
+            GameActionType.TIMER_BIDDING_EXPIRED
+          );
+
+          const secondTimeoutBid = await secondTimeoutBidPromise;
+          expect(secondTimeoutBid.playerId).toBe(playerUsers[1].id);
+          expect(secondTimeoutBid.bidType).toBe(StakeBidType.PASS);
+          expect(secondTimeoutBid.bidAmount).toBeNull();
+          expect(secondTimeoutBid.isPhaseComplete).toBe(true);
+          expect(secondTimeoutBid.nextBidderId).toBeNull();
+          expect(secondTimeoutBid.timer).toBeUndefined();
+
+          const winnerData = await winnerPromise;
+          expect(winnerData.winnerPlayerId).toBe(playerUsers[0].id);
+          expect(winnerData.finalBid).toBe(200);
+
+          const [showmanQuestionData, playerQuestionData] = await Promise.all([
+            showmanQuestionDataPromise,
+            playerQuestionDataPromise
+          ]);
+          expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
+            "Stake answer"
+          );
+          expect("answerText" in playerQuestionData.data).toBe(false);
+          expect(showmanQuestionData.timer.durationMs).toBeGreaterThan(0);
+          expect(playerQuestionData.timer).toEqual(showmanQuestionData.timer);
+
+          const answeringState = await utils.getGameState(gameId);
+          expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+          expect(answeringState!.answeringPlayer).toBe(playerUsers[0].id);
+        } finally {
+          await cleanup();
+        }
       });
 
       it("should reject first bidder attempt to pass", async () => {

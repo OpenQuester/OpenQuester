@@ -1,5 +1,4 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -28,19 +27,12 @@ import { FinalAnsweringToReviewingMutationData } from "domain/types/socket/trans
  *
  * Entry points that can trigger this:
  * - User submits answer (FinalRoundService.handleFinalAnswerSubmit)
- * - Player leaves during answering (PlayerLeaveService.handleAnsweringPlayerLeave)
+ * - Player leaves during answering (AnsweringLeaveStrategy)
  * - Answering timer expires (TimerExpirationService.handleFinalRoundAnsweringExpiration)
  */
 export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.FINAL_ANSWERING;
   public readonly toPhase = GamePhase.FINAL_REVIEWING;
-
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService
-  ) {
-    super(gameService, timerService);
-  }
 
   /**
    * Strict check for transition eligibility.
@@ -99,13 +91,13 @@ export class FinalAnsweringToReviewingHandler extends BaseTransitionHandler {
     ctx: TransitionContext,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    // Clear the answering timer (no timer for reviewing phase)
-    await this.gameService.clearTimer(ctx.game.id);
-
     // Explicitly set timer to null in game state
     ctx.game.gameState.timer = null;
 
-    return {};
+    return {
+      timer: undefined,
+      timerMutations: [{ op: "delete", key: timerKey(ctx.game.id) }],
+    };
   }
 
   protected collectBroadcasts(

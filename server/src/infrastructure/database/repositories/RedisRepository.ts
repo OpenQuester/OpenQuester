@@ -1,16 +1,19 @@
 import Redis, { Callback, RedisKey, RedisValue } from "ioredis";
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { REDIS_LOCK_KEY_EXPIRE_DEFAULT } from "domain/constants/redis";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
 import {
-  RedisLogSanitizer,
-  type RedisLogData,
-} from "infrastructure/utils/RedisLogSanitizer";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+  DEFAULT_REDIS_SLOW_LOG_MS,
+  Environment,
+  RedisPerfLogMode
+} from "shared/config/Environment";
+import { RedisConfig } from "shared/config/RedisConfig";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { LogType } from "shared/logging/LogType";
+import { RedisLogSanitizer, type RedisLogData } from "infrastructure/utils/RedisLogSanitizer";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
  * Repository for Redis operations.
@@ -20,10 +23,12 @@ import { ValueUtils } from "infrastructure/utils/ValueUtils";
 export class RedisRepository {
   private _client: Redis;
   private _subClient: Redis;
+  private readonly env: Environment;
 
   constructor(@inject(DI_TOKENS.Logger) private readonly logger: ILogger) {
     this._client = RedisConfig.getClient();
     this._subClient = RedisConfig.getSubClient();
+    this.env = Environment.getInstance(this.logger);
   }
 
   /**
@@ -37,17 +42,11 @@ export class RedisRepository {
     }
   }
 
-  public on(
-    event: string,
-    callback: (channel: string, message: string) => void
-  ) {
+  public on(event: string, callback: (channel: string, message: string) => void) {
     return this._subClient.on(event, callback);
   }
 
-  public off(
-    event: string,
-    callback: (channel: string, message: string) => void
-  ) {
+  public off(event: string, callback: (channel: string, message: string) => void) {
     return this._subClient.off(event, callback);
   }
 
@@ -55,18 +54,14 @@ export class RedisRepository {
     await this._subClient.unsubscribe(channel);
   }
 
-  public async setLockKey(lockValue: string, expire?: number) {
+  public async setLockKey(lockKey: string, expire?: number, value?: string) {
     return this._client.set(
-      lockValue,
-      "1",
+      lockKey,
+      value ?? "1",
       "EX",
       expire ?? REDIS_LOCK_KEY_EXPIRE_DEFAULT,
       "NX"
     );
-  }
-
-  public async publish(channel: string, message: string) {
-    return this._client.publish(channel, message);
   }
 
   /**
@@ -84,6 +79,7 @@ export class RedisRepository {
    * @param operationName The name of the Redis operation (e.g., "Redis GET")
    * @param traceLogData Object containing data to log
    * @param operation The async Redis operation to execute
+   * @param performanceLogData
    * @returns The result of the Redis operation
    */
   private async executeWithLogging<T>(
@@ -92,25 +88,64 @@ export class RedisRepository {
     operation: () => Promise<T>,
     performanceLogData: RedisLogData | null = null
   ): Promise<T> {
+    const mode = this.getRedisPerfLogMode();
+
+    if (mode === RedisPerfLogMode.OFF) {
+      return operation();
+    }
+
     const sanitizedPerformanceData = performanceLogData
       ? this.sanitizeLogData(performanceLogData)
       : this.sanitizeLogData(traceLogData);
 
-    const log = this.logger.performance(operationName, {
-      prefix: LogPrefix.REDIS,
-      ...sanitizedPerformanceData,
-    });
+    if (mode === RedisPerfLogMode.ALL) {
+      const log = this.logger.performance(operationName, {
+        prefix: LogPrefix.REDIS,
+        ...sanitizedPerformanceData
+      });
 
-    try {
-      const result = await operation();
-      return result;
-    } finally {
-      log.finish();
+      try {
+        return await operation();
+      } finally {
+        log.finish();
+      }
     }
+
+    const startTime = Date.now();
+    try {
+      return await operation();
+    } finally {
+      const durationMs = Date.now() - startTime;
+      if (this.shouldLogRedisPerformance(mode, durationMs)) {
+        this.logger.log(LogType.PERFORMANCE, `${operationName} completed`, {
+          prefix: LogPrefix.REDIS,
+          operation: operationName,
+          durationMs,
+          ...sanitizedPerformanceData
+        });
+      }
+    }
+  }
+
+  private getRedisPerfLogMode(): RedisPerfLogMode {
+    return this.env.REDIS_PERF_LOG_MODE ?? RedisPerfLogMode.SLOW;
+  }
+
+  private shouldLogRedisPerformance(mode: RedisPerfLogMode, durationMs: number): boolean {
+    if (mode === RedisPerfLogMode.SLOW) {
+      return durationMs >= this.getRedisSlowLogMs();
+    }
+
+    return false;
+  }
+
+  private getRedisSlowLogMs(): number {
+    return this.env.REDIS_SLOW_LOG_MS ?? DEFAULT_REDIS_SLOW_LOG_MS;
   }
 
   /**
    * @param key storing key. Example of key with namespace: "cache:users:1"
+   * @param value
    * @param expire expire time in milliseconds
    */
   public async set(key: string, value: string, expire?: number): Promise<void> {
@@ -138,13 +173,7 @@ export class RedisRepository {
       const keys: string[] = [];
       let cursor = "0";
       do {
-        const reply = await this._client.scan(
-          cursor.toString(),
-          "MATCH",
-          pattern,
-          "COUNT",
-          100
-        );
+        const reply = await this._client.scan(cursor.toString(), "MATCH", pattern, "COUNT", 100);
         cursor = reply[0]?.toString() ?? "0";
 
         const keysReply = reply[1];
@@ -163,58 +192,13 @@ export class RedisRepository {
    * Deletes multiple keys from Redis.
    */
   public async delMultiple(keys: string[]): Promise<number> {
-    return this.executeWithLogging(
-      "Redis DEL multiple",
-      { keys: keys.length },
-      async () => {
-        if (keys.length === 0) return 0;
-        return this._client.unlink(...keys);
-      }
-    );
-  }
-
-  /**
-   * Cleanup Redis keys by pattern
-   *
-   * @param keyPattern Key pattern to cleanup, for example `game:*`
-   * @param logEntity Log entity for correct logs, for example "game"
-   */
-  public async cleanupKeys(
-    keyPattern: string,
-    logEntity: string
-  ): Promise<void> {
-    const log = this.logger.performance(`Redis cleanup`, {
-      prefix: LogPrefix.REDIS,
-      keyPattern,
-      logEntity,
+    return this.executeWithLogging("Redis DEL multiple", { keys: keys.length }, async () => {
+      if (keys.length === 0) return 0;
+      return this._client.unlink(...keys);
     });
-
-    try {
-      const keys = await this.scan(keyPattern);
-      if (keys.length > 0) {
-        await this.delMultiple(keys);
-
-        this.logger.info(`Redis keys cleaned up`, {
-          prefix: LogPrefix.REDIS,
-          entity: logEntity,
-          count: keys.length,
-        });
-      }
-    } catch (err: any) {
-      this.logger.error(`Redis cleanup failed`, {
-        prefix: LogPrefix.REDIS,
-        entity: logEntity,
-        error: err.message,
-      });
-    } finally {
-      log.finish();
-    }
   }
 
-  public async hgetall(
-    key: string,
-    updateTtl?: number
-  ): Promise<Record<string, string>> {
+  public async hgetall(key: string, updateTtl?: number): Promise<Record<string, string>> {
     return this.executeWithLogging(
       "Redis HGETALL",
       { key, updateTtl: updateTtl ?? null },
@@ -228,11 +212,7 @@ export class RedisRepository {
     );
   }
 
-  public async hget(
-    key: string,
-    field: string,
-    updateTtl?: number
-  ): Promise<string | null> {
+  public async hget(key: string, field: string, updateTtl?: number): Promise<string | null> {
     return this.executeWithLogging(
       "Redis HGET",
       { key, field, updateTtl: updateTtl ?? null },
@@ -246,27 +226,28 @@ export class RedisRepository {
     );
   }
 
-  public async get(key: string, updateTtl?: number): Promise<string | null> {
-    return this.executeWithLogging(
-      "Redis GET",
-      { key, updateTtl: updateTtl ?? null },
-      async () => {
-        const value = await this._client.get(key);
-
-        if (updateTtl && value !== null && !ValueUtils.isEmpty(value)) {
-          await this.expire(key, updateTtl);
-        }
-
-        return value;
-      }
-    );
+  /**
+   * Retrieve multiple fields from a hash in a single round trip.
+   */
+  public async hmget(key: string, fields: string[]): Promise<(string | null)[]> {
+    return this.executeWithLogging("Redis HMGET", { key, fields }, async () => {
+      return this._client.hmget(key, ...fields);
+    });
   }
 
-  public async hset(
-    key: string,
-    fields: Record<string, string>,
-    expire?: number
-  ): Promise<number> {
+  public async get(key: string, updateTtl?: number): Promise<string | null> {
+    return this.executeWithLogging("Redis GET", { key, updateTtl: updateTtl ?? null }, async () => {
+      const value = await this._client.get(key);
+
+      if (updateTtl && value !== null && !ValueUtils.isEmpty(value)) {
+        await this.expire(key, updateTtl);
+      }
+
+      return value;
+    });
+  }
+
+  public async hset(key: string, fields: Record<string, string>, expire?: number): Promise<number> {
     return this.executeWithLogging(
       "Redis HSET",
       { key, fields, expire },
@@ -330,12 +311,6 @@ export class RedisRepository {
     });
   }
 
-  public async lpop(key: string): Promise<string | null> {
-    return this.executeWithLogging("Redis LPOP", { key }, async () => {
-      return this._client.lpop(key);
-    });
-  }
-
   public async lindex(key: string, index: number): Promise<string | null> {
     return this.executeWithLogging("Redis LINDEX", { key, index }, async () => {
       return this._client.lindex(key, index);
@@ -360,11 +335,7 @@ export class RedisRepository {
     });
   }
 
-  public async zunionstore(
-    destination: string,
-    numKeys: number | string,
-    keys: string[]
-  ) {
+  public async zunionstore(destination: string, numKeys: number | string, keys: string[]) {
     return this.executeWithLogging(
       "Redis ZUNIONSTORE",
       { destination, numKeys, keys },
@@ -374,25 +345,13 @@ export class RedisRepository {
     );
   }
 
-  public async zremrangebyscore(
-    key: string,
-    min: number | string,
-    max: number | string
-  ) {
-    return this.executeWithLogging(
-      "Redis ZREMRANGEBYSCORE",
-      { key, min, max },
-      async () => {
-        return this._client.zremrangebyscore(key, min, max);
-      }
-    );
+  public async zremrangebyscore(key: string, min: number | string, max: number | string) {
+    return this.executeWithLogging("Redis ZREMRANGEBYSCORE", { key, min, max }, async () => {
+      return this._client.zremrangebyscore(key, min, max);
+    });
   }
 
-  public async zinterstore(
-    destination: string,
-    numKeys: number,
-    keys: (RedisKey | RedisValue)[]
-  ) {
+  public async zinterstore(destination: string, numKeys: number, keys: (RedisKey | RedisValue)[]) {
     return this.executeWithLogging(
       "Redis ZINTERSTORE",
       { destination, numKeys, keys },
@@ -403,29 +362,15 @@ export class RedisRepository {
   }
 
   public async zrangebylex(key: string, min: string, max: string) {
-    return this.executeWithLogging(
-      "Redis ZRANGEBYLEX",
-      { key, min, max },
-      async () => {
-        return this._client.zrangebylex(key, min, max);
-      }
-    );
+    return this.executeWithLogging("Redis ZRANGEBYLEX", { key, min, max }, async () => {
+      return this._client.zrangebylex(key, min, max);
+    });
   }
 
   public async sadd(key: string, members: string[]) {
     return this.executeWithLogging("Redis SADD", { key, members }, async () => {
       return this._client.sadd(key, members);
     });
-  }
-
-  public async zadd(key: string, scoreMembers: RedisValue[]) {
-    return this.executeWithLogging(
-      "Redis ZADD",
-      { key, scoreMembers },
-      async () => {
-        return this._client.zadd(key, ...scoreMembers);
-      }
-    );
   }
 
   public async zcard(key: string) {
@@ -435,23 +380,15 @@ export class RedisRepository {
   }
 
   public async zrevrange(key: string, start: number, stop: number) {
-    return this.executeWithLogging(
-      "Redis ZREVRANGE",
-      { key, start, stop },
-      async () => {
-        return this._client.zrevrange(key, start, stop);
-      }
-    );
+    return this.executeWithLogging("Redis ZREVRANGE", { key, start, stop }, async () => {
+      return this._client.zrevrange(key, start, stop);
+    });
   }
 
   public async zrange(key: string, start: number, stop: number) {
-    return this.executeWithLogging(
-      "Redis ZRANGE",
-      { key, start, stop },
-      async () => {
-        return this._client.zrange(key, start, stop);
-      }
-    );
+    return this.executeWithLogging("Redis ZRANGE", { key, start, stop }, async () => {
+      return this._client.zrange(key, start, stop);
+    });
   }
 
   /**
@@ -475,31 +412,31 @@ export class RedisRepository {
     });
   }
 
-  public async zScanMatch(
-    key: string,
-    cursor: number | string,
-    pattern: string
-  ) {
-    return this.executeWithLogging(
-      "Redis ZSCAN MATCH",
-      { key, cursor, pattern },
-      async () => {
-        return this._client.zscan(key, cursor, "MATCH", pattern);
-      }
-    );
+  /**
+   * Execute a Lua script on the Redis server.
+   * @param script The Lua script to execute
+   * @param numkeys Number of keys in the script
+   * @param args Keys followed by arguments
+   */
+  public async eval(
+    script: string,
+    numkeys: number,
+    ...args: (string | number)[]
+  ): Promise<unknown> {
+    return this.executeWithLogging("Redis EVAL", { numkeys, argsCount: args.length }, async () => {
+      return this._client.eval(script, numkeys, ...args);
+    });
   }
 
-  public async zScanCount(
-    key: string,
-    cursor: number | string,
-    count: number | string
-  ) {
-    return this.executeWithLogging(
-      "Redis ZSCAN COUNT",
-      { key, cursor, count },
-      async () => {
-        return this._client.zscan(key, cursor, "COUNT", count);
-      }
-    );
+  public async zScanMatch(key: string, cursor: number | string, pattern: string) {
+    return this.executeWithLogging("Redis ZSCAN MATCH", { key, cursor, pattern }, async () => {
+      return this._client.zscan(key, cursor, "MATCH", pattern);
+    });
+  }
+
+  public async zScanCount(key: string, cursor: number | string, count: number | string) {
+    return this.executeWithLogging("Redis ZSCAN COUNT", { key, cursor, count }, async () => {
+      return this._client.zscan(key, cursor, "COUNT", count);
+    });
   }
 }

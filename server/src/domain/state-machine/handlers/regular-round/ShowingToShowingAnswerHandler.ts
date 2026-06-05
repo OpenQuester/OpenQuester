@@ -1,6 +1,6 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
@@ -32,13 +32,6 @@ import { ShowingToShowingAnswerMutationData } from "domain/types/socket/transiti
 export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.SHOWING;
   public readonly toPhase = GamePhase.SHOWING_ANSWER;
-
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService
-  ) {
-    super(gameService, timerService);
-  }
 
   /**
    * Only allow transition in regular round showing state when one of the
@@ -77,23 +70,15 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
 
     let question: PackageQuestionDTO | null = null;
     const currentQuestion = game.gameState.currentQuestion;
+    const questionData = ctx.resources?.questionWithTheme ?? null;
 
-    // TODO: Similar structure found among other files, can be moved to mapper
-    if (currentQuestion) {
-      const questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        game.gameState.currentRound!.id,
-        currentQuestion.id!
+    if (currentQuestion && questionData) {
+      question = questionData.question;
+      GameQuestionMapper.setQuestionPlayed(
+        game,
+        question.id!,
+        questionData.theme.id!
       );
-
-      if (questionData) {
-        question = questionData.question;
-        GameQuestionMapper.setQuestionPlayed(
-          game,
-          question.id!,
-          questionData.theme.id!
-        );
-      }
     }
 
     game.setQuestionState(QuestionState.SHOWING_ANSWER);
@@ -101,6 +86,11 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
     game.gameState.answeredPlayers = null;
     game.gameState.skippedPlayers = null;
     game.gameState.answeringPlayer = null;
+    game.gameState.answerShowData = {
+      answerFiles: question?.answerFiles ?? null,
+      answerText: question?.answerText ?? null,
+      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+    };
 
     return {
       data: {
@@ -118,40 +108,40 @@ export class ShowingToShowingAnswerHandler extends BaseTransitionHandler {
       mutationResult.data as ShowingToShowingAnswerMutationData;
     const question = mutationData.question;
 
-    await this.gameService.clearTimer(game.id);
-
     // Calculate duration based on answer files (media stacking) or fallback default
     const duration = ShowAnswerLogic.calculateShowAnswerDuration(question);
 
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      duration
-    );
+    const timer = new GameStateTimer(duration);
+    game.gameState.timer = timer.start();
 
     return {
-      timer: timerEntity.value() ?? undefined,
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: duration,
+        },
+      ],
     };
   }
 
   protected collectBroadcasts(
     ctx: TransitionContext,
-    mutationResult: MutationResult,
+    _mutationResult: MutationResult,
     _timerResult: TimerResult
   ): BroadcastEvent[] {
-    const mutationData =
-      mutationResult.data as ShowingToShowingAnswerMutationData;
     const { game } = ctx;
-    const question = mutationData.question;
 
     const broadcasts: BroadcastEvent[] = [];
+    const answerShowData =
+      game.gameState.answerShowData as QuestionFinishEventPayload;
 
     broadcasts.push({
       event: SocketIOGameEvents.QUESTION_FINISH,
-      data: {
-        answerFiles: question?.answerFiles ?? null,
-        answerText: question?.answerText ?? null,
-        nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-      } satisfies QuestionFinishEventPayload,
+      data: answerShowData,
       room: game.id,
     });
 

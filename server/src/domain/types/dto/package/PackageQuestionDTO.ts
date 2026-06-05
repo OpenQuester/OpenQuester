@@ -7,8 +7,7 @@ import { PackageQuestionTransferType } from "domain/types/package/PackageQuestio
 export enum PackageQuestionSubType {
   SIMPLE = "simple",
   CUSTOM_PRICE = "customPrice",
-  EMPTY = "empty",
-  FOR_EVERYONE = "forEveryone",
+  FOR_EVERYONE = "forEveryone"
 }
 
 export interface PackageQuestionDTO {

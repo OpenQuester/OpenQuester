@@ -28,7 +28,6 @@ export interface FinalBiddingPlayerLeaveMutationResult {
  */
 export interface FinalBiddingPlayerLeaveResult {
   broadcasts: BroadcastEvent[];
-  mutationResult: FinalBiddingPlayerLeaveMutationResult | null;
 }
 
 export interface FinalBiddingPlayerLeaveResultInput {
@@ -115,7 +114,7 @@ export class FinalBiddingPlayerLeaveLogic {
     const broadcasts: BroadcastEvent[] = [];
 
     if (!mutationResult) {
-      return { broadcasts, mutationResult: null };
+      return { broadcasts };
     }
 
     // Emit auto-bid event
@@ -134,6 +133,6 @@ export class FinalBiddingPlayerLeaveLogic {
       broadcasts.push(...transitionResult.broadcasts);
     }
 
-    return { broadcasts, mutationResult };
+    return { broadcasts };
   }
 }

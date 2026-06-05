@@ -1,4 +1,4 @@
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { MigrationInterface, QueryRunner, TableColumn } from "typeorm";
 

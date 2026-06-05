@@ -3,8 +3,8 @@ import fs from "fs";
 import path from "path";
 import Swagger from "swagger-ui-express";
 
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 
 const SWAGGER_PREFIX = LogPrefix.SWAGGER;

@@ -3,20 +3,17 @@ import { ChainableCommander } from "ioredis";
 import { GAME_INDEX_CREATED_AT_KEY, GAME_INDEX_PREFIX } from "domain/constants/game";
 import { REDIS_LOCK_GAMES_CLEANUP_ORPHANED } from "domain/constants/redis";
 import { GameIndexesInputDTO } from "domain/types/dto/game/GameIndexesInputDTO";
-import {
-  PaginationOptsBase,
-  PaginationOrder,
-} from "domain/types/pagination/PaginationOpts";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { RedisService } from "infrastructure/services/redis/RedisService";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { PaginationOptsBase, PaginationOrder } from "domain/types/pagination/PaginationOpts";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { ValueUtils } from "domain/utils/ValueUtils";
+import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
 
 export class GameIndexManager {
   private readonly TEMP_KEY_TTL = 30; // seconds
 
   constructor(
-    private readonly redisService: RedisService,
+    private readonly redisRepository: RedisRepository,
     private readonly logger: ILogger
   ) {
     //
@@ -27,19 +24,11 @@ export class GameIndexManager {
     gameData: GameIndexesInputDTO
   ): ChainableCommander {
     // Add all index operations to the same pipeline
-    pipeline.zadd(
-      this._createdAtIndexKey,
-      gameData.createdAt.getTime(),
-      gameData.id
-    );
+    pipeline.zadd(this._createdAtIndexKey, gameData.createdAt.getTime(), gameData.id);
 
     pipeline.sadd(this._privacyIndexKey(gameData.isPrivate), gameData.id);
 
-    pipeline.zadd(
-      this._titleIndexKey,
-      0,
-      `${gameData.title.toLowerCase()}:${gameData.id}`
-    );
+    pipeline.zadd(this._titleIndexKey, 0, `${gameData.title.toLowerCase()}:${gameData.id}`);
 
     return pipeline;
   }
@@ -54,33 +43,33 @@ export class GameIndexManager {
     pipeline.sadd(this._privacyIndexKey(next.isPrivate), next.id);
 
     // Title index
-    pipeline.zrem(
-      this._titleIndexKey,
-      `${previous.title.toLowerCase()}:${previous.id}`
-    );
-    pipeline.zadd(
-      this._titleIndexKey,
-      0,
-      `${next.title.toLowerCase()}:${next.id}`
-    );
+    pipeline.zrem(this._titleIndexKey, `${previous.title.toLowerCase()}:${previous.id}`);
+    pipeline.zadd(this._titleIndexKey, 0, `${next.title.toLowerCase()}:${next.id}`);
 
     return pipeline;
   }
 
-  public async removeGameFromIndexes(
+  public removeGameFromIndexesPipeline(
+    pipeline: ChainableCommander,
     gameId: string,
     gameData: GameIndexesInputDTO
-  ) {
+  ): ChainableCommander {
+    pipeline.zrem(this._createdAtIndexKey, gameId);
+    pipeline.srem(this._privacyIndexKey(gameData.isPrivate), gameId);
+    pipeline.zrem(this._titleIndexKey, `${gameData.title.toLowerCase()}:${gameId}`);
+
+    return pipeline;
+  }
+
+  public async removeGameFromIndexes(gameId: string, gameData: GameIndexesInputDTO) {
     this.logger.debug("Removing game from indexes", {
       prefix: LogPrefix.GAME_INDEX,
-      gameId,
+      gameId
     });
     return Promise.all([
-      this.redisService.zrem(this._createdAtIndexKey, [gameId]),
-      this.redisService.srem(this._privacyIndexKey(gameData.isPrivate), gameId),
-      this.redisService.zrem(this._titleIndexKey, [
-        `${gameData.title.toLowerCase()}:${gameId}`,
-      ]),
+      this.redisRepository.zrem(this._createdAtIndexKey, [gameId]),
+      this.redisRepository.srem(this._privacyIndexKey(gameData.isPrivate), gameId),
+      this.redisRepository.zrem(this._titleIndexKey, [`${gameData.title.toLowerCase()}:${gameId}`])
     ]);
   }
 
@@ -89,20 +78,18 @@ export class GameIndexManager {
    * and should be used only on key expiration
    */
   public async removeGameFromAllIndexes(gameId: string): Promise<void> {
-    const createdAtPromise = this.redisService.zrem(this._createdAtIndexKey, [
-      gameId,
-    ]);
+    const createdAtPromise = this.redisRepository.zrem(this._createdAtIndexKey, [gameId]);
 
     const privacyPromises = [
-      this.redisService.srem(this._privacyIndexKey(true), gameId),
-      this.redisService.srem(this._privacyIndexKey(false), gameId),
+      this.redisRepository.srem(this._privacyIndexKey(true), gameId),
+      this.redisRepository.srem(this._privacyIndexKey(false), gameId)
     ];
 
     // Use SCAN to find matching entries
     const titlePromise = (async () => {
       let cursor = "0";
       do {
-        const [nextCursor, members] = await this.redisService.zScanMatch(
+        const [nextCursor, members] = await this.redisRepository.zScanMatch(
           this._titleIndexKey,
           cursor,
           `*:${gameId}`
@@ -112,11 +99,9 @@ export class GameIndexManager {
         if (members.length > 0) {
           // Extract member names (e.g., "title:gameId")
           // Members are [member1, score1, member2, score2, ...]
-          const toRemove = members.filter(
-            (_: unknown, index: number) => index % 2 === 0
-          );
+          const toRemove = members.filter((_: unknown, index: number) => index % 2 === 0);
           if (toRemove.length > 0) {
-            await this.redisService.zrem(this._titleIndexKey, toRemove);
+            await this.redisRepository.zrem(this._titleIndexKey, toRemove);
           }
         }
       } while (cursor !== "0");
@@ -131,9 +116,7 @@ export class GameIndexManager {
    * Cleans up all related indexes using removeGameFromAllIndexes.
    */
   public async cleanOrphanedGameIndexes(): Promise<void> {
-    const acquired = await this.redisService.setLockKey(
-      REDIS_LOCK_GAMES_CLEANUP_ORPHANED
-    );
+    const acquired = await this.redisRepository.setLockKey(REDIS_LOCK_GAMES_CLEANUP_ORPHANED);
 
     if (!acquired) {
       return; // Another instance acquired the lock
@@ -144,7 +127,7 @@ export class GameIndexManager {
 
     // Scan createdAt index in chunks
     do {
-      const [nextCursor, members] = await this.redisService.zScanCount(
+      const [nextCursor, members] = await this.redisRepository.zScanCount(
         this._createdAtIndexKey,
         cursor,
         100
@@ -154,12 +137,10 @@ export class GameIndexManager {
       if (members.length === 0) continue;
 
       // Extract gameIds (members are [gameId, score, ...])
-      const gameIds = members.filter(
-        (_: unknown, index: number) => index % 2 === 0
-      );
+      const gameIds = members.filter((_: unknown, index: number) => index % 2 === 0);
 
       // Pipeline TTL checks for efficiency
-      const pipeline = this.redisService.pipeline();
+      const pipeline = this.redisRepository.pipeline();
       for (const gameId of gameIds) {
         pipeline.ttl(`game:${gameId}`);
       }
@@ -174,7 +155,7 @@ export class GameIndexManager {
         const ttlResult = ttlResults[index];
         if (ttlResult[1] === null) {
           this.logger.error(`TTL command failed for game:${gameId}`, {
-            prefix: LogPrefix.GAME_INDEX,
+            prefix: LogPrefix.GAME_INDEX
           });
           return;
         }
@@ -189,16 +170,13 @@ export class GameIndexManager {
     // Clean up orphaned gameIds
     if (orphanedGameIds.length > 0) {
       this.logger.info(`Found ${orphanedGameIds.length} orphaned gameIds`, {
-        prefix: LogPrefix.GAME_INDEX,
+        prefix: LogPrefix.GAME_INDEX
       });
       const cleanupPromises = orphanedGameIds.map((gameId: string) =>
-        this.removeGameFromAllIndexes(gameId).catch((err) => {
-          this.logger.error(
-            `Failed to clean indexes for game ${gameId}: ${err}`,
-            {
-              prefix: LogPrefix.GAME_INDEX,
-            }
-          );
+        this.removeGameFromAllIndexes(gameId).catch((err: unknown) => {
+          this.logger.error(`Failed to clean indexes for game ${gameId}: ${err}`, {
+            prefix: LogPrefix.GAME_INDEX
+          });
         })
       );
       await Promise.all(cleanupPromises);
@@ -220,14 +198,14 @@ export class GameIndexManager {
       await this._buildCompositeIndex(tempKey, {
         createdAt: {
           max: filters.createdAtMax,
-          min: filters.createdAtMin,
+          min: filters.createdAtMin
         },
         isPrivate: filters.isPrivate,
-        titlePrefix: filters.titlePrefix,
+        titlePrefix: filters.titlePrefix
       });
       return this._paginateResults<T>(tempKey, pagination);
     } finally {
-      await this.redisService.expire(tempKey, this.TEMP_KEY_TTL);
+      await this.redisRepository.expire(tempKey, this.TEMP_KEY_TTL);
     }
   }
 
@@ -254,10 +232,10 @@ export class GameIndexManager {
       return [];
     }
 
-    await this.redisService.zinterstore(tempKey, indexKeys.length, [
+    await this.redisRepository.zinterstore(tempKey, indexKeys.length, [
       ...indexKeys,
       "WEIGHTS",
-      ...indexKeys.map((_, i) => (i === 0 ? 1 : 0)),
+      ...indexKeys.map((_, i) => (i === 0 ? 1 : 0))
     ]);
   }
 
@@ -276,17 +254,14 @@ export class GameIndexManager {
 
   private async _applyDefaultFilter(tempKey: string, indexKeys: string[]) {
     indexKeys.push(this._createdAtIndexKey);
-    return this.redisService.zinterstore(tempKey, indexKeys.length, [
+    return this.redisRepository.zinterstore(tempKey, indexKeys.length, [
       ...indexKeys,
       "WEIGHTS",
-      ...indexKeys.map((_, i) => (i === 0 ? 1 : 0)),
+      ...indexKeys.map((_, i) => (i === 0 ? 1 : 0))
     ]);
   }
 
-  private async _applyPrivacyFilter(
-    filters: { isPrivate?: boolean },
-    indexKeys: string[]
-  ) {
+  private async _applyPrivacyFilter(filters: { isPrivate?: boolean }, indexKeys: string[]) {
     if (ValueUtils.isBoolean(filters.isPrivate)) {
       indexKeys.push(this._privacyIndexKey(filters.isPrivate));
     }
@@ -298,10 +273,7 @@ export class GameIndexManager {
     indexKeys: string[]
   ) {
     if (filters.titlePrefix) {
-      const titleKey = await this._prepareTitleFilter(
-        filters.titlePrefix,
-        tempKey
-      );
+      const titleKey = await this._prepareTitleFilter(filters.titlePrefix, tempKey);
       if (titleKey) indexKeys.push(titleKey);
     }
   }
@@ -313,29 +285,15 @@ export class GameIndexManager {
   ) {
     if (filters.createdAt.max || filters.createdAt.min) {
       const createdAtIndexKeyToUse = `${tempKey}:createdAt`;
-      await this.redisService.zunionstore(createdAtIndexKeyToUse, 1, [
-        this._createdAtIndexKey,
-      ]);
+      await this.redisRepository.zunionstore(createdAtIndexKeyToUse, 1, [this._createdAtIndexKey]);
 
-      await this.redisService.expire(createdAtIndexKeyToUse, this.TEMP_KEY_TTL);
+      await this.redisRepository.expire(createdAtIndexKeyToUse, this.TEMP_KEY_TTL);
 
-      const minScore = filters.createdAt.min
-        ? filters.createdAt.min.getTime()
-        : "-inf";
-      const maxScore = filters.createdAt.max
-        ? filters.createdAt.max.getTime()
-        : "+inf";
+      const minScore = filters.createdAt.min ? filters.createdAt.min.getTime() : "-inf";
+      const maxScore = filters.createdAt.max ? filters.createdAt.max.getTime() : "+inf";
 
-      await this.redisService.zremrangebyscore(
-        createdAtIndexKeyToUse,
-        "-inf",
-        minScore
-      );
-      await this.redisService.zremrangebyscore(
-        createdAtIndexKeyToUse,
-        maxScore,
-        "+inf"
-      );
+      await this.redisRepository.zremrangebyscore(createdAtIndexKeyToUse, "-inf", minScore);
+      await this.redisRepository.zremrangebyscore(createdAtIndexKeyToUse, maxScore, "+inf");
 
       indexKeys.push(createdAtIndexKeyToUse);
     }
@@ -343,7 +301,7 @@ export class GameIndexManager {
 
   private async _prepareTitleFilter(prefix: string, tempKey: string) {
     const normalizedPrefix = prefix.toLowerCase();
-    const titleMatches = await this.redisService.zrangebylex(
+    const titleMatches = await this.redisRepository.zrangebylex(
       this._titleIndexKey,
       `[${normalizedPrefix}`,
       `[${normalizedPrefix}\xff`
@@ -351,33 +309,30 @@ export class GameIndexManager {
 
     if (titleMatches.length > 0) {
       const titleFilterKey = `${tempKey}:title`;
-      await this.redisService.sadd(
+      await this.redisRepository.sadd(
         titleFilterKey,
         titleMatches.map((m) => m.split(":")[1])
       );
-      await this.redisService.expire(titleFilterKey, this.TEMP_KEY_TTL);
+      await this.redisRepository.expire(titleFilterKey, this.TEMP_KEY_TTL);
       return titleFilterKey;
     }
     return null;
   }
 
-  private async _paginateResults<T>(
-    tempKey: string,
-    pagination: PaginationOptsBase<T>
-  ) {
+  private async _paginateResults<T>(tempKey: string, pagination: PaginationOptsBase<T>) {
     const [ids, total] = await Promise.all([
       pagination.order === PaginationOrder.DESC
-        ? this.redisService.zrevrange(
+        ? this.redisRepository.zrevrange(
             tempKey,
             pagination.offset,
             pagination.offset + pagination.limit - 1
           )
-        : this.redisService.zrange(
+        : this.redisRepository.zrange(
             tempKey,
             pagination.offset,
             pagination.offset + pagination.limit - 1
           ),
-      this.redisService.zcard(tempKey),
+      this.redisRepository.zcard(tempKey)
     ]);
 
     return { ids, total };

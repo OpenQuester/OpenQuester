@@ -5,15 +5,7 @@ import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
-import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-
-export interface AnsweringExpirationMutation {
-  answerResult: GameStateAnsweredPlayerData;
-  nextState: QuestionState;
-  scoreResult: number;
-}
 
 /**
  * Logic class for handling answering timer expiration.
@@ -31,29 +23,6 @@ export class AnsweringExpirationLogic {
   }
 
   /**
-   * Process wrong answer due to timeout.
-   */
-  public static processWrongAnswer(
-    game: Game,
-    question: PackageQuestionDTO
-  ): AnsweringExpirationMutation {
-    const nextState = QuestionState.SHOWING;
-    const scoreResult = question.price !== null ? -question.price : 0;
-
-    const answerResult = game.handleQuestionAnswer(
-      scoreResult,
-      AnswerResultType.WRONG,
-      nextState
-    );
-
-    return {
-      answerResult,
-      nextState,
-      scoreResult,
-    };
-  }
-
-  /**
    * Build broadcast for answer result.
    */
   public static buildBroadcast(
@@ -65,9 +34,9 @@ export class AnsweringExpirationLogic {
       event: SocketIOGameEvents.ANSWER_RESULT,
       data: QuestionAnswerResultLogic.buildSocketPayload({
         answerResult,
-        timer,
+        timer
       }),
-      room: gameId,
+      room: gameId
     };
   }
 }

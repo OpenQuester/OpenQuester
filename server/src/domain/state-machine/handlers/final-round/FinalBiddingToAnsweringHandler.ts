@@ -1,11 +1,8 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
-import { Game } from "domain/entities/game/Game";
+import { GAME_FINAL_ANSWER_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -13,15 +10,13 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionContext,
+  TransitionContext
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
-import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   FinalPhaseCompleteEventData,
-  FinalQuestionEventData,
+  FinalQuestionEventData
 } from "domain/types/socket/events/FinalRoundEventData";
 import { FinalRoundStateManager } from "domain/utils/FinalRoundStateManager";
 import { FinalRoundValidator } from "domain/validators/FinalRoundValidator";
@@ -38,7 +33,7 @@ import { ClientResponse } from "domain/enums/ClientResponse";
  *
  * Entry points that can trigger this:
  * - User submits bid (FinalRoundService.handleFinalBidSubmit)
- * - Player leaves during bidding (PlayerLeaveService.handleFinalBiddingPlayerLeave)
+ * - Player leaves during bidding (FinalBiddingLeaveStrategy)
  * - Bidding timer expires (TimerExpirationService.handleBiddingExpiration)
  *
  * All three entry points now use this single handler through PhaseTransitionRouter.
@@ -46,14 +41,6 @@ import { ClientResponse } from "domain/enums/ClientResponse";
 export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.FINAL_BIDDING;
   public readonly toPhase = GamePhase.FINAL_ANSWERING;
-
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService,
-    private readonly roundHandlerFactory: RoundHandlerFactory
-  ) {
-    super(gameService, timerService);
-  }
 
   /**
    * Strict check for transition eligibility.
@@ -97,8 +84,7 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     // Transition to answering phase
     FinalRoundStateManager.transitionToPhase(game, FinalRoundPhase.ANSWERING);
 
-    // Get question data for the remaining theme
-    const questionData = this._getQuestionData(game);
+    const questionData = ctx.resources?.finalRoundQuestionData ?? null;
 
     if (!questionData) {
       throw new ClientError(ClientResponse.QUESTION_NOT_FOUND);
@@ -109,8 +95,8 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
 
     return {
       data: {
-        questionData,
-      } satisfies FinalBiddingToAnsweringMutationData,
+        questionData
+      } satisfies FinalBiddingToAnsweringMutationData
     };
   }
 
@@ -118,14 +104,23 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     ctx: TransitionContext,
     _mutationResult: MutationResult
   ): Promise<TimerResult> {
-    // Clear the bidding timer
-    await this.gameService.clearTimer(ctx.game.id);
+    const { game } = ctx;
 
     // Setup the answering timer (75 seconds for final round)
-    const timerEntity = await this.timerService.setupFinalAnswerTimer(ctx.game);
+    const timer = new GameStateTimer(GAME_FINAL_ANSWER_TIME);
+    game.gameState.timer = timer.start();
 
     return {
-      timer: timerEntity.value() ?? undefined,
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: GAME_FINAL_ANSWER_TIME
+        }
+      ]
     };
   }
 
@@ -135,8 +130,7 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     timerResult: TimerResult
   ): BroadcastEvent[] {
     const broadcasts: BroadcastEvent[] = [];
-    const mutationData =
-      mutationResult.data as FinalBiddingToAnsweringMutationData;
+    const mutationData = mutationResult.data as FinalBiddingToAnsweringMutationData;
 
     const questionData = mutationData.questionData;
 
@@ -144,9 +138,9 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
     broadcasts.push({
       event: SocketIOGameEvents.FINAL_QUESTION_DATA,
       data: {
-        questionData,
+        questionData
       } satisfies FinalQuestionEventData,
-      room: ctx.game.id,
+      room: ctx.game.id
     });
 
     // 2. Emit phase complete event
@@ -155,51 +149,12 @@ export class FinalBiddingToAnsweringHandler extends BaseTransitionHandler {
       data: {
         phase: FinalRoundPhase.BIDDING,
         nextPhase: FinalRoundPhase.ANSWERING,
-        timer: timerResult.timer,
+        timer: timerResult.timer
       } satisfies FinalPhaseCompleteEventData,
-      room: ctx.game.id,
+      room: ctx.game.id
     });
 
     return broadcasts;
   }
 
-  /**
-   * Get the question data for the remaining (non-eliminated) theme.
-   * Returns full question data (excluding answer info) from the package.
-   */
-  private _getQuestionData(game: Game): FinalRoundQuestionData | undefined {
-    const handler = this.roundHandlerFactory.create(
-      PackageRoundType.FINAL
-    ) as FinalRoundHandler;
-
-    const remainingTheme = handler.getRemainingTheme(game);
-
-    if (!remainingTheme?.questions?.[0]) {
-      return undefined;
-    }
-
-    const questionId = remainingTheme.questions[0].id;
-
-    // Get full question data from package (with text and files)
-    const questionAndTheme = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState.currentRound!.id,
-      questionId
-    );
-
-    if (!questionAndTheme) {
-      return undefined;
-    }
-
-    // Convert to SimplePackageQuestionDTO (excludes answer info)
-    const simpleQuestion = GameQuestionMapper.mapToSimpleQuestion(
-      questionAndTheme.question
-    );
-
-    return {
-      themeId: remainingTheme.id,
-      themeName: remainingTheme.name,
-      question: simpleQuestion,
-    };
-  }
 }
