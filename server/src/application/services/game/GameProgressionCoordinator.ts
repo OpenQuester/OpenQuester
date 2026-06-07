@@ -1,13 +1,13 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { GameEventBroadcastService } from "application/services/game/GameEventBroadcastService";
 import { GameLifecycleService } from "application/services/game/GameLifecycleService";
-import { SocketEventBroadcast } from "domain/handlers/socket/BaseSocketEventHandler";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { GameProgressionContext } from "domain/types/game/GameProgressionContext";
 import { GameProgressionResult } from "domain/types/game/GameProgressionResult";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Service responsible for coordinating game progression operations.

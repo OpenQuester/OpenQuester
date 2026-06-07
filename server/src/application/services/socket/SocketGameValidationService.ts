@@ -10,8 +10,6 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { ShowmanAction } from "domain/types/game/ShowmanAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
-import { GameStateValidator } from "domain/validators/GameStateValidator";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
 
 /**
  * Validation service for socket game operations.
@@ -21,10 +19,7 @@ export class SocketGameValidationService {
   /**
    * Validates that the player has showman role and throws error based on action
    */
-  public validateShowmanRole(
-    currentPlayer: Player | null,
-    action: ShowmanAction
-  ): void {
+  public validateShowmanRole(currentPlayer: Player | null, action: ShowmanAction): void {
     if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
       switch (action) {
         case ShowmanAction.START:
@@ -42,49 +37,6 @@ export class SocketGameValidationService {
           throw new ClientError(ClientResponse.ONLY_SHOWMAN_CAN_MANAGE_PLAYERS);
       }
     }
-  }
-
-  /**
-   * Validates that player is showman and game is in progress
-   */
-  public validateGamePause(player: Player | null, game: Game): void {
-    this.validateShowmanRole(player, ShowmanAction.PAUSE);
-    GameStateValidator.validateGameInProgress(game);
-  }
-
-  /**
-   * Validates that player is showman and game is in progress
-   */
-  public validateGameUnpause(player: Player | null, game: Game): void {
-    this.validateShowmanRole(player, ShowmanAction.UNPAUSE);
-    GameStateValidator.validateGameNotFinished(game);
-    GameStateValidator.validateGameStarted(game);
-  }
-
-  /**
-   * Validates that player can set ready state
-   */
-  public validatePlayerReadyState(player: Player | null, game: Game): void {
-    // Only players (not showman or spectators) can set ready state
-    if (!player || player.role !== PlayerRole.PLAYER) {
-      throw new ClientError(ClientResponse.ONLY_PLAYERS_CAN_SET_READY);
-    }
-
-    // Cannot set ready state on a finished game
-    GameStateValidator.validateGameNotFinished(game);
-
-    // Can only set ready state before game starts
-    if (ValueUtils.isValidDate(game.startedAt)) {
-      throw new ClientError(ClientResponse.GAME_ALREADY_STARTED);
-    }
-  }
-
-  /**
-   * Validates that player is showman and game is in progress
-   */
-  public validateNextRound(player: Player | null, game: Game): void {
-    this.validateShowmanRole(player, ShowmanAction.NEXT_ROUND);
-    GameStateValidator.validateGameInProgress(game);
   }
 
   /**
@@ -121,9 +73,7 @@ export class SocketGameValidationService {
         break;
       case QuestionAction.FORCE_SKIP:
         if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
-          throw new ClientError(
-            ClientResponse.ONLY_SHOWMAN_SKIP_QUESTION_FORCE
-          );
+          throw new ClientError(ClientResponse.ONLY_SHOWMAN_SKIP_QUESTION_FORCE);
         }
         break;
       case QuestionAction.PICK:
@@ -146,27 +96,6 @@ export class SocketGameValidationService {
   }
 
   /**
-   * Validates conditions for question answering
-   */
-  public validateQuestionAnswering(game: Game, currentPlayerId: number): void {
-    if (!game.gameState.currentQuestion) {
-      throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
-    }
-
-    if (!ValueUtils.isBad(game.gameState.answeringPlayer)) {
-      throw new ClientError(ClientResponse.SOMEONE_ALREADY_ANSWERING);
-    }
-
-    const isAnswered = !!game.gameState.answeredPlayers?.find(
-      (answerResult) => answerResult.player === currentPlayerId
-    );
-
-    if (isAnswered) {
-      throw new ClientError(ClientResponse.ALREADY_ANSWERED);
-    }
-  }
-
-  /**
    * Validates that current round is set
    */
   public validateCurrentRound(game: Game): void {
@@ -176,42 +105,9 @@ export class SocketGameValidationService {
   }
 
   /**
-   * Validates question availability for picking
-   */
-  public validateQuestionPicking(game: Game): void {
-    this.validateCurrentRound(game);
-
-    if (game.gameState.currentQuestion) {
-      throw new ClientError(ClientResponse.QUESTION_ALREADY_PICKED);
-    }
-  }
-
-  /**
-   * Validates question skipping conditions
-   */
-  public validateQuestionSkipping(game: Game): void {
-    this.validateCurrentRound(game);
-
-    if (!game.gameState.currentQuestion) {
-      throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
-    }
-  }
-
-  public validateQuestionUnskipping(game: Game): void {
-    this.validateCurrentRound(game);
-
-    if (!game.gameState.currentQuestion) {
-      throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
-    }
-  }
-
-  /**
    * Validates conditions for final round answer submission
    */
-  public validateFinalAnswerSubmission(
-    game: Game,
-    currentPlayer: Player | null
-  ): void {
+  public validateFinalAnswerSubmission(game: Game, currentPlayer: Player | null): void {
     if (!currentPlayer) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
@@ -221,9 +117,7 @@ export class SocketGameValidationService {
     }
 
     if (!game.isPlayerEligibleToAnswer(currentPlayer.meta.id)) {
-      throw new ClientError(
-        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
-      );
+      throw new ClientError(ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION);
     }
 
     this.validateCurrentRound(game);
@@ -304,11 +198,7 @@ export class SocketGameValidationService {
   /**
    * Validates self-role change
    */
-  private validateSelfRoleChange(
-    currentPlayer: Player,
-    newRole: PlayerRole,
-    game: Game
-  ): void {
+  private validateSelfRoleChange(currentPlayer: Player, newRole: PlayerRole, game: Game): void {
     // Check if restricted player is trying to change to non-spectator role
     if (currentPlayer.isRestricted && newRole !== PlayerRole.SPECTATOR) {
       throw new ClientError(ClientResponse.YOU_ARE_RESTRICTED);
@@ -348,34 +238,6 @@ export class SocketGameValidationService {
   }
 
   /**
-   * Validates player score change
-   */
-  public validatePlayerScoreChange(currentPlayer: Player | null): void {
-    this.validateShowmanRole(currentPlayer, ShowmanAction.CHANGE_SCORE);
-  }
-
-  /**
-   * Validates turn player change
-   */
-  public validateTurnPlayerChange(
-    currentPlayer: Player,
-    game: Game,
-    newTurnPlayerId: number | null
-  ): void {
-    this.validateShowmanRole(currentPlayer, ShowmanAction.CHANGE_TURN_PLAYER);
-    GameStateValidator.validateGameNotFinished(game);
-
-    if (newTurnPlayerId !== null) {
-      const targetPlayer = game.getPlayer(newTurnPlayerId, {
-        fetchDisconnected: false,
-      });
-      if (!targetPlayer || targetPlayer.role !== PlayerRole.PLAYER) {
-        throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
-      }
-    }
-  }
-
-  /**
    * Validates player slot change
    */
   public validatePlayerSlotChange(
@@ -385,8 +247,7 @@ export class SocketGameValidationService {
     targetPlayer: Player
   ): void {
     const isShowmanChange =
-      targetPlayer.meta.id !== undefined &&
-      targetPlayer.meta.id !== currentPlayer.meta.id;
+      targetPlayer.meta.id !== undefined && targetPlayer.meta.id !== currentPlayer.meta.id;
 
     if (isShowmanChange) {
       this.validatePlayerManagement(currentPlayer);

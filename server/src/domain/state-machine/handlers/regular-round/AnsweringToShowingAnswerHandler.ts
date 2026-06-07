@@ -1,5 +1,5 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionAnswerResultLogic } from "domain/logic/question/QuestionAnswerResultLogic";
 import { ShowAnswerLogic } from "domain/logic/question/ShowAnswerLogic";
@@ -11,7 +11,7 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
@@ -22,7 +22,7 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import {
   AnsweringToShowingAnswerCtx,
-  AnsweringToShowingAnswerMutationData,
+  AnsweringToShowingAnswerMutationData
 } from "domain/types/socket/transition/answering";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 
@@ -34,19 +34,12 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
  * - All players are exhausted (everyone answered wrong)
  *
  * Entry points:
- * - Showman marks answer as correct (SocketIOQuestionService.handleAnswerResult)
+ * - Showman marks answer as correct (AnswerResultUseCase)
  * - All players exhausted after wrong answer
  */
 export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.ANSWERING;
   public readonly toPhase = GamePhase.SHOWING_ANSWER;
-
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService
-  ) {
-    super(gameService, timerService);
-  }
 
   /**
    * Check if this transition should occur.
@@ -65,20 +58,12 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     }
 
     // 2. Must be simple round in ANSWERING state
-    if (
-      !TransitionGuards.canTransitionInRegularRound(
-        game,
-        QuestionState.ANSWERING
-      )
-    ) {
+    if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.ANSWERING)) {
       return false;
     }
 
     // 3. Either CORRECT answer OR all players will be exhausted after this answer
-    if (
-      trigger === TransitionTrigger.USER_ACTION ||
-      trigger === TransitionTrigger.PLAYER_LEFT
-    ) {
+    if (trigger === TransitionTrigger.USER_ACTION || trigger === TransitionTrigger.PLAYER_LEFT) {
       const answerType = payload?.answerType;
 
       // Correct answer always goes to SHOWING_ANSWER
@@ -89,8 +74,7 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
       // Wrong/Skip answer goes to SHOWING_ANSWER only if all players WILL BE exhausted
       // (including the current answering player who will be added to exhausted list)
       const allExhausted =
-        (answerType === AnswerResultType.WRONG ||
-          answerType === AnswerResultType.SKIP) &&
+        (answerType === AnswerResultType.WRONG || answerType === AnswerResultType.SKIP) &&
         game.willAllPlayersBeExhausted();
 
       // Stake and secret always go to SHOWING_ANSWER on wrong/skip answers
@@ -105,14 +89,7 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     }
 
     // Timer expiration (wrong answer) + all will be exhausted
-    if (
-      trigger === TransitionTrigger.TIMER_EXPIRED &&
-      game.willAllPlayersBeExhausted()
-    ) {
-      return true;
-    }
-
-    return false;
+    return trigger === TransitionTrigger.TIMER_EXPIRED && game.willAllPlayersBeExhausted();
   }
 
   protected override validate(ctx: AnsweringToShowingAnswerCtx): void {
@@ -120,9 +97,7 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
   }
 
   /** This called only on correct answers, keeps null-check guards just in case */
-  protected async mutate(
-    ctx: AnsweringToShowingAnswerCtx
-  ): Promise<MutationResult> {
+  protected async mutate(ctx: AnsweringToShowingAnswerCtx): Promise<MutationResult> {
     const { game, payload } = ctx;
     const answerType = payload?.answerType ?? AnswerResultType.WRONG;
     const isCorrect = answerType === AnswerResultType.CORRECT;
@@ -130,8 +105,7 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     // Get score result from payload or default
     // When timer expires with no payload, use negative question price as penalty
     const currentQuestionPrice = game.gameState.currentQuestion?.price ?? 0;
-    const scoreResult =
-      payload?.scoreResult ?? (isCorrect ? 0 : -currentQuestionPrice);
+    const scoreResult = payload?.scoreResult ?? (isCorrect ? 0 : -currentQuestionPrice);
 
     const playerAnswerResult = game.handleQuestionAnswer(
       scoreResult,
@@ -142,24 +116,13 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     // Get question data for the answer display
     let question: PackageQuestionDTO | null = null;
     const currentQuestion = game.gameState.currentQuestion;
+    const questionData = ctx.resources?.questionWithTheme ?? null;
 
-    if (currentQuestion) {
-      const questionData = GameQuestionMapper.getQuestionAndTheme(
-        game.package,
-        game.gameState.currentRound!.id,
-        currentQuestion.id!
-      );
+    if (currentQuestion && questionData) {
+      question = questionData.question;
 
-      if (questionData) {
-        question = questionData.question;
-
-        // Mark question as played
-        GameQuestionMapper.setQuestionPlayed(
-          game,
-          question.id!,
-          questionData.theme.id!
-        );
-      }
+      // Mark question as played
+      GameQuestionMapper.setQuestionPlayed(game, question.id!, questionData.theme.id!);
     }
 
     // Update turn player for correct answers in all rounds
@@ -171,13 +134,19 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     game.gameState.currentQuestion = null;
     game.gameState.stakeQuestionData = null;
     game.gameState.secretQuestionData = null;
+    game.gameState.answerShowData = {
+      answerFiles: question?.answerFiles ?? null,
+      answerText: question?.answerText ?? null,
+      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
+      answerResult: playerAnswerResult
+    };
 
     return {
       data: {
         playerAnswerResult,
         question,
-        isCorrect,
-      } satisfies AnsweringToShowingAnswerMutationData,
+        isCorrect
+      } satisfies AnsweringToShowingAnswerMutationData
     };
   }
 
@@ -186,24 +155,26 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     mutationResult: MutationResult
   ): Promise<TimerResult> {
     const { game } = ctx;
-    const mutationData =
-      mutationResult.data as AnsweringToShowingAnswerMutationData;
+    const mutationData = mutationResult.data as AnsweringToShowingAnswerMutationData;
     const question = mutationData.question;
-
-    // Clear the answering timer
-    await this.gameService.clearTimer(game.id);
 
     // Calculate duration based on answer files (media stacking) or fallback default
     const duration = ShowAnswerLogic.calculateShowAnswerDuration(question);
 
-    // Setup show answer timer
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      duration
-    );
+    const timer = new GameStateTimer(duration);
+    game.gameState.timer = timer.start();
 
     return {
-      timer: timerEntity.value() ?? undefined,
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: duration
+        }
+      ]
     };
   }
 
@@ -212,12 +183,10 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
     mutationResult: MutationResult,
     timerResult: TimerResult
   ): BroadcastEvent[] {
-    const mutationData =
-      mutationResult.data as AnsweringToShowingAnswerMutationData;
+    const mutationData = mutationResult.data as AnsweringToShowingAnswerMutationData;
     const { game } = ctx;
 
     const playerAnswerResult = mutationData.playerAnswerResult;
-    const question = mutationData.question;
 
     const broadcasts: BroadcastEvent[] = [];
 
@@ -226,30 +195,26 @@ export class AnsweringToShowingAnswerHandler extends BaseTransitionHandler {
       event: SocketIOGameEvents.ANSWER_RESULT,
       data: QuestionAnswerResultLogic.buildSocketPayload({
         answerResult: playerAnswerResult,
-        timer: timerResult.timer ?? null,
+        timer: timerResult.timer ?? null
       }),
-      room: game.id,
+      room: game.id
     });
 
     // 2. QUESTION_FINISH - with answer data
-    const questionFinishPayload: QuestionFinishWithAnswerEventPayload = {
-      answerFiles: question?.answerFiles ?? null,
-      answerText: question?.answerText ?? null,
-      nextTurnPlayerId: game.gameState.currentTurnPlayerId ?? null,
-      answerResult: playerAnswerResult,
-    };
+    const questionFinishPayload =
+      game.gameState.answerShowData as QuestionFinishWithAnswerEventPayload;
 
     broadcasts.push({
       event: SocketIOGameEvents.QUESTION_FINISH,
       data: questionFinishPayload,
-      room: game.id,
+      room: game.id
     });
 
     // 3. ANSWER_SHOW_START - signals UI to show answer
     broadcasts.push({
       event: SocketIOGameEvents.ANSWER_SHOW_START,
       data: {} satisfies AnswerShowStartEventPayload,
-      room: game.id,
+      room: game.id
     });
 
     return broadcasts;

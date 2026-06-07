@@ -1,7 +1,5 @@
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 
 /**
@@ -26,24 +24,4 @@ export function convertBroadcasts(
     gameId: gameId ?? b.room,
     useRoleBasedBroadcast: b.roleFilter,
   }));
-}
-
-/**
- * Convert a single BroadcastEvent to SocketEventBroadcast.
- *
- * @param broadcast - Single BroadcastEvent from service layer
- * @param gameId - Game ID (defaults to broadcast's room if not provided)
- * @returns SocketEventBroadcast for handler layer
- */
-export function convertBroadcast(
-  broadcast: BroadcastEvent,
-  gameId?: string
-): SocketEventBroadcast {
-  return {
-    event: broadcast.event,
-    data: broadcast.data,
-    target: SocketBroadcastTarget.GAME,
-    gameId: gameId ?? broadcast.room,
-    useRoleBasedBroadcast: broadcast.roleFilter,
-  };
 }

@@ -92,7 +92,7 @@ jobs:
       - run: echo "${{ vars.ENV_FILE_CONTENT }}" > .env
       - run: flutter pub get
       - run: bash ./scripts/init_project.sh
-      - run: ./oqhelper pre_run
+      - run: ./oqhelper pre_run -v
       - run: dart analyze --fatal-infos lib/
       - run: ./oqhelper format_exception
       - run: ./oqhelper format --all-packages --fatal-infos --verbose --ignore-packages openapi

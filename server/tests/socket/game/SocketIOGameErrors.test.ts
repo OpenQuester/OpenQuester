@@ -9,9 +9,9 @@ import {
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { GameJoinData } from "domain/types/socket/game/GameJoinData";
+import { GameJoinInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
@@ -34,7 +34,7 @@ describe("Socket Game Error Tests", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   }, 10000);
 
@@ -74,7 +74,7 @@ describe("Socket Game Error Tests", () => {
           {
             gameId: "XXXX",
             role: PlayerRole.PLAYER,
-          } as GameJoinData,
+          } as GameJoinInputData,
           () => {
             // Error will be handled by the error event listener
           }
@@ -105,7 +105,7 @@ describe("Socket Game Error Tests", () => {
           {
             gameId: setup.gameId,
             role: PlayerRole.PLAYER,
-          } as GameJoinData,
+          } as GameJoinInputData,
           () => {
             // Error will be handled by the error event listener
           }

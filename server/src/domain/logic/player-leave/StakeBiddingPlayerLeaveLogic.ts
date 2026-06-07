@@ -1,11 +1,10 @@
 import { DEFAULT_QUESTION_PRICE } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   StakeBidSubmitOutputData,
-  StakeBidType,
+  StakeBidType
 } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
 
@@ -33,7 +32,6 @@ export interface StakeBiddingPlayerLeaveMutationResult {
  */
 export interface StakeBiddingPlayerLeaveResult {
   broadcasts: BroadcastEvent[];
-  mutationResult: StakeBiddingPlayerLeaveMutationResult | null;
 }
 
 export interface StakeBiddingPlayerLeaveResultInput {
@@ -62,10 +60,7 @@ export class StakeBiddingPlayerLeaveLogic {
    * - Player must be in the bidding order
    * - Player must not have already passed
    */
-  public static validate(
-    game: Game,
-    userId: number
-  ): StakeBiddingPlayerLeaveValidation {
+  public static validate(game: Game, userId: number): StakeBiddingPlayerLeaveValidation {
     const stakeData = game.gameState.stakeQuestionData;
 
     if (!stakeData || !stakeData.biddingPhase) {
@@ -85,10 +80,14 @@ export class StakeBiddingPlayerLeaveLogic {
 
   /**
    * Process auto-pass for leaving player and determine bidding outcome.
+   * @param game Game entity
+   * @param userId Leaving player ID
+   * @param questionPrice The price of the stake question
    */
   public static processAutoPass(
     game: Game,
-    userId: number
+    userId: number,
+    questionPrice: number
   ): StakeBiddingPlayerLeaveMutationResult {
     const stakeData = game.gameState.stakeQuestionData!;
 
@@ -121,13 +120,7 @@ export class StakeBiddingPlayerLeaveLogic {
 
         // If they haven't bid yet, they get minimum bid (question price)
         if (stakeData.bids[winnerId] === undefined) {
-          const questionData = GameQuestionMapper.getQuestionAndTheme(
-            game.package,
-            game.gameState.currentRound!.id,
-            stakeData.questionId
-          );
-          stakeData.bids[winnerId] =
-            questionData?.question.price || DEFAULT_QUESTION_PRICE;
+          stakeData.bids[winnerId] = questionPrice || DEFAULT_QUESTION_PRICE;
           stakeData.highestBid = stakeData.bids[winnerId];
         }
         winningBid = stakeData.highestBid;
@@ -156,8 +149,7 @@ export class StakeBiddingPlayerLeaveLogic {
       );
 
       if (nextBidderId !== null) {
-        stakeData.currentBidderIndex =
-          stakeData.biddingOrder.indexOf(nextBidderId);
+        stakeData.currentBidderIndex = stakeData.biddingOrder.indexOf(nextBidderId);
       }
     }
 
@@ -169,7 +161,7 @@ export class StakeBiddingPlayerLeaveLogic {
       winningBid,
       isBiddingComplete,
       nextBidderId,
-      questionSkipped,
+      questionSkipped
     };
   }
 
@@ -191,7 +183,7 @@ export class StakeBiddingPlayerLeaveLogic {
     const broadcasts: BroadcastEvent[] = [];
 
     if (!mutationResult) {
-      return { broadcasts, mutationResult: null };
+      return { broadcasts };
     }
 
     // Emit the auto-pass bid event
@@ -202,9 +194,9 @@ export class StakeBiddingPlayerLeaveLogic {
         bidAmount: null,
         bidType: StakeBidType.PASS,
         isPhaseComplete: mutationResult.isBiddingComplete,
-        nextBidderId: mutationResult.nextBidderId,
+        nextBidderId: mutationResult.nextBidderId
       } satisfies StakeBidSubmitOutputData,
-      room: game.id,
+      room: game.id
     });
 
     // Emit winner event if there's a winner
@@ -213,13 +205,13 @@ export class StakeBiddingPlayerLeaveLogic {
         event: SocketIOGameEvents.STAKE_QUESTION_WINNER,
         data: {
           winnerPlayerId: mutationResult.winnerId,
-          finalBid: mutationResult.winningBid,
+          finalBid: mutationResult.winningBid
         } satisfies StakeQuestionWinnerEventData,
-        room: game.id,
+        room: game.id
       });
     }
 
-    return { broadcasts, mutationResult };
+    return { broadcasts };
   }
 
   /**

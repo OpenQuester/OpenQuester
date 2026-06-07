@@ -8,7 +8,7 @@ import { QuestionAction } from "domain/types/game/QuestionAction";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { SpecialRegularQuestionUtils } from "domain/utils/QuestionUtils";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 export interface QuestionActionContext {
   readonly game: Game;
@@ -27,10 +27,7 @@ export class QuestionActionValidator {
   public static validateAnswerAction(context: QuestionActionContext): void {
     this._validateBasicRequirements(context);
     this._validateQuestionAction(context);
-    this._validateQuestionAnswering(
-      context.game,
-      context.currentPlayer!.meta.id
-    );
+    this._validateQuestionAnswering(context.game, context.currentPlayer!.meta.id);
   }
 
   /**
@@ -44,14 +41,11 @@ export class QuestionActionValidator {
     const { game, currentPlayer } = context;
 
     if (!game.isPlayerEligibleToAnswer(currentPlayer!.meta.id)) {
-      throw new ClientError(
-        ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION
-      );
+      throw new ClientError(ClientResponse.YOU_CANNOT_PARTICIPATE_IN_CURRENT_QUESTION);
     }
 
     // Check if current question is a special question type (noRisk, secret, stake)
-    const isSpecialQuestion =
-      SpecialRegularQuestionUtils.isSingleAnswererQuestion(game);
+    const isSpecialQuestion = SpecialRegularQuestionUtils.isSingleAnswererQuestion(game);
 
     if (isSpecialQuestion) {
       // Special questions: different rules based on phase
@@ -111,16 +105,12 @@ export class QuestionActionValidator {
   /**
    * Validates basic requirements and ability to perform answer result action
    */
-  public static validateAnswerResultAction(
-    context: QuestionActionContext
-  ): void {
+  public static validateAnswerResultAction(context: QuestionActionContext): void {
     this._validateBasicRequirements(context);
     this._validateQuestionAction(context);
   }
 
-  private static _validateBasicRequirements(
-    context: QuestionActionContext
-  ): void {
+  private static _validateBasicRequirements(context: QuestionActionContext): void {
     if (!context.currentPlayer) {
       throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
     }
@@ -158,9 +148,7 @@ export class QuestionActionValidator {
         break;
       case QuestionAction.FORCE_SKIP:
         if (currentPlayer?.role !== PlayerRole.SHOWMAN) {
-          throw new ClientError(
-            ClientResponse.ONLY_SHOWMAN_SKIP_QUESTION_FORCE
-          );
+          throw new ClientError(ClientResponse.ONLY_SHOWMAN_SKIP_QUESTION_FORCE);
         }
         break;
       case QuestionAction.PICK:
@@ -181,10 +169,7 @@ export class QuestionActionValidator {
     }
   }
 
-  private static _validateQuestionAnswering(
-    game: Game,
-    currentPlayerId: number
-  ): void {
+  private static _validateQuestionAnswering(game: Game, currentPlayerId: number): void {
     if (!game.gameState.currentQuestion) {
       throw new ClientError(ClientResponse.QUESTION_NOT_PICKED);
     }
@@ -192,9 +177,7 @@ export class QuestionActionValidator {
     // Check if player is eligible to answer (was present when question started)
     // This prevents players who joined mid-question from answering
     if (!game.isPlayerEligibleToAnswer(currentPlayerId)) {
-      throw new ClientError(
-        ClientResponse.YOU_CANNOT_ANSWER_RIGHT_AFTER_BECOMING_PLAYER
-      );
+      throw new ClientError(ClientResponse.YOU_CANNOT_ANSWER_RIGHT_AFTER_BECOMING_PLAYER);
     }
 
     // For secret questions where a specific player is designated to answer,
@@ -249,10 +232,7 @@ export class QuestionActionValidator {
     }
   }
 
-  private static _validatePlayerHasSkipped(
-    game: Game,
-    currentPlayer: Player
-  ): void {
+  private static _validatePlayerHasSkipped(game: Game, currentPlayer: Player): void {
     if (!game.hasPlayerSkipped(currentPlayer.meta.id)) {
       throw new ClientError(ClientResponse.PLAYER_NOT_SKIPPED);
     }

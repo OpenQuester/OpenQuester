@@ -1,62 +1,96 @@
 import Joi from "joi";
 
 import {
+  FINAL_ROUND_ANSWER_MAX_LENGTH,
   GAME_ID_CHARACTERS_LENGTH,
-  STAKE_QUESTION_MIN_BID,
+  STAKE_QUESTION_MIN_BID
 } from "domain/constants/game";
+import { ClientResponse } from "domain/enums/ClientResponse";
+import { ClientError } from "domain/errors/ClientError";
+import {
+  ActionExecutionContext,
+  AuthenticatedActionContext
+} from "domain/types/action/ActionExecutionContext";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
 import { FinalAnswerReviewInputData } from "domain/types/socket/events/FinalAnswerReviewData";
 import {
   FinalAnswerSubmitInputData,
   FinalBidSubmitInputData,
-  ThemeEliminateInputData,
+  ThemeEliminateInputData
 } from "domain/types/socket/events/FinalRoundEventData";
 import {
   StakeBidSubmitInputData,
-  StakeBidType,
+  StakeBidType
 } from "domain/types/socket/events/game/StakeQuestionEventData";
 import {
+  GameJoinInputData,
   PlayerKickInputData,
   PlayerRestrictionInputData,
   PlayerRoleChangeInputData,
   PlayerScoreChangeInputData,
   PlayerSlotChangeInputData,
   QuestionPickInputData,
-  TurnPlayerChangeInputData,
+  TurnPlayerChangeInputData
 } from "domain/types/socket/events/SocketEventInterfaces";
-import {
-  AnswerResultData,
-  AnswerResultType,
-} from "domain/types/socket/game/AnswerResultData";
+import { AnswerResultData, AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { AnswerSubmittedData } from "domain/types/socket/game/AnswerSubmittedData";
-import { GameJoinData } from "domain/types/socket/game/GameJoinData";
 import { SecretQuestionTransferInputData } from "domain/types/socket/game/SecretQuestionTransferData";
-import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
+import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
+import { SchemaValidator } from "domain/validators/SchemaValidator";
 
 export class GameValidator {
-  public static validateJoinInput(data: GameJoinData) {
+  /**
+   * Validates that the socket user is authenticated.
+   *
+   * @throws ClientError(SOCKET_USER_NOT_AUTHENTICATED) if the user is not authenticated.
+   */
+  public static validateSocketAuthenticated(
+    userData: SocketRedisUserData | null
+  ): asserts userData is SocketRedisUserData {
+    if (!userData) {
+      throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
+    }
+  }
+
+  /**
+   * Type guard that narrows {@link ActionExecutionContext} to
+   * {@link AuthenticatedActionContext}.
+   *
+   * Validates that player is authenticated (socket auth + in-game)
+   *
+   * @throws ClientError(SOCKET_USER_NOT_AUTHENTICATED) if either field is null,
+   *   so callers never have to write the null-check + throw themselves.
+   */
+  public static validatePlayerAuthenticated<T>(
+    ctx: ActionExecutionContext<T>
+  ): asserts ctx is AuthenticatedActionContext<T> {
+    if (!ctx.userData) {
+      throw new ClientError(ClientResponse.SOCKET_USER_NOT_AUTHENTICATED);
+    }
+    if (!ctx.currentPlayer || !ctx.userData.gameId) {
+      throw new ClientError(ClientResponse.PLAYER_NOT_FOUND);
+    }
+  }
+
+  public static validateJoinInput(data: GameJoinInputData) {
     const schema = Joi.object({
       gameId: Joi.string().length(GAME_ID_CHARACTERS_LENGTH).required(),
       role: Joi.valid(...Object.values(PlayerRole)).required(),
-      targetSlot: Joi.number()
-        .integer()
-        .min(0)
-        .allow(null)
-        .optional()
-        .default(null),
+      targetSlot: Joi.number().integer().min(0).allow(null).optional().default(null),
       password: Joi.string()
         .max(16)
         .pattern(/^[A-Za-z0-9_-]+$/)
-        .optional(),
+        .allow(null)
+        .optional()
     });
 
-    return this._validate<GameJoinData>(data, schema);
+    return this._validate<GameJoinInputData>(data, schema);
   }
 
   public static validateChatMessage(data: ChatMessageInputData) {
     const schema = Joi.object<ChatMessageInputData>({
-      message: Joi.string().required().min(1).max(255),
+      message: Joi.string().required().min(1).max(255)
     });
 
     return this._validate<ChatMessageInputData>(data, schema);
@@ -64,17 +98,15 @@ export class GameValidator {
 
   public static validatePickQuestion(data: QuestionPickInputData) {
     const schema = Joi.object<QuestionPickInputData>({
-      questionId: Joi.number().min(0).required(),
+      questionId: Joi.number().min(0).required()
     });
 
     return this._validate<QuestionPickInputData>(data, schema);
   }
 
-  public static validateSecretQuestionTransfer(
-    data: SecretQuestionTransferInputData
-  ) {
+  public static validateSecretQuestionTransfer(data: SecretQuestionTransferInputData) {
     const schema = Joi.object<SecretQuestionTransferInputData>({
-      targetPlayerId: Joi.number().min(0).required(),
+      targetPlayerId: Joi.number().min(0).required()
     });
 
     return this._validate<SecretQuestionTransferInputData>(data, schema);
@@ -82,7 +114,7 @@ export class GameValidator {
 
   public static validateAnswerSubmitted(data: AnswerSubmittedData) {
     const schema = Joi.object<AnswerSubmittedData>({
-      answerText: Joi.string().max(255).allow(null),
+      answerText: Joi.string().max(255).allow(null)
     });
 
     return this._validate<AnswerSubmittedData>(data, schema);
@@ -91,7 +123,7 @@ export class GameValidator {
   public static validateAnswerResult(data: AnswerResultData) {
     const schema = Joi.object<AnswerResultData>({
       scoreResult: Joi.number().required(),
-      answerType: Joi.valid(...Object.values(AnswerResultType)).required(),
+      answerType: Joi.valid(...Object.values(AnswerResultType)).required()
     });
 
     return this._validate<AnswerResultData>(data, schema);
@@ -99,7 +131,7 @@ export class GameValidator {
 
   public static validateThemeElimination(data: ThemeEliminateInputData) {
     const schema = Joi.object<ThemeEliminateInputData>({
-      themeId: Joi.number().min(0).required(),
+      themeId: Joi.number().min(0).required()
     });
 
     return this._validate<ThemeEliminateInputData>(data, schema);
@@ -107,7 +139,7 @@ export class GameValidator {
 
   public static validateBid(data: FinalBidSubmitInputData) {
     const schema = Joi.object<FinalBidSubmitInputData>({
-      bid: Joi.number().min(1).required(),
+      bid: Joi.number().min(1).required()
     });
 
     return this._validate<FinalBidSubmitInputData>(data, schema);
@@ -121,8 +153,8 @@ export class GameValidator {
       bidAmount: Joi.when("bidType", {
         is: StakeBidType.NORMAL,
         then: Joi.number().min(STAKE_QUESTION_MIN_BID).required(),
-        otherwise: Joi.valid(null).required(),
-      }),
+        otherwise: Joi.valid(null).required()
+      })
     });
 
     return this._validate<StakeBidSubmitInputData>(data, schema);
@@ -130,7 +162,7 @@ export class GameValidator {
 
   public static validateFinalAnswerSubmit(data: FinalAnswerSubmitInputData) {
     const schema = Joi.object<FinalAnswerSubmitInputData>({
-      answerText: Joi.string().max(255).allow("", null),
+      answerText: Joi.string().max(FINAL_ROUND_ANSWER_MAX_LENGTH).allow("", null)
     });
 
     return this._validate<FinalAnswerSubmitInputData>(data, schema);
@@ -139,7 +171,7 @@ export class GameValidator {
   public static validateFinalAnswerReview(data: FinalAnswerReviewInputData) {
     const schema = Joi.object<FinalAnswerReviewInputData>({
       answerId: Joi.string().required(),
-      isCorrect: Joi.boolean().required(),
+      isCorrect: Joi.boolean().required()
     });
 
     return this._validate<FinalAnswerReviewInputData>(data, schema);
@@ -148,7 +180,7 @@ export class GameValidator {
   public static validatePlayerRoleChange(data: PlayerRoleChangeInputData) {
     const schema = Joi.object<PlayerRoleChangeInputData>({
       playerId: Joi.number().min(0),
-      newRole: Joi.valid(...Object.values(PlayerRole)).required(),
+      newRole: Joi.valid(...Object.values(PlayerRole)).required()
     });
 
     return this._validate<PlayerRoleChangeInputData>(data, schema);
@@ -159,7 +191,7 @@ export class GameValidator {
       playerId: Joi.number().min(0).required(),
       muted: Joi.boolean().required(),
       restricted: Joi.boolean().required(),
-      banned: Joi.boolean().required(),
+      banned: Joi.boolean().required()
     });
 
     return this._validate<PlayerRestrictionInputData>(data, schema);
@@ -167,7 +199,7 @@ export class GameValidator {
 
   public static validatePlayerKick(data: PlayerKickInputData) {
     const schema = Joi.object<PlayerKickInputData>({
-      playerId: Joi.number().min(0).required(),
+      playerId: Joi.number().min(0).required()
     });
 
     return this._validate<PlayerKickInputData>(data, schema);
@@ -176,7 +208,7 @@ export class GameValidator {
   public static validatePlayerScoreChange(data: PlayerScoreChangeInputData) {
     const schema = Joi.object<PlayerScoreChangeInputData>({
       playerId: Joi.number().min(0).required(),
-      newScore: Joi.number().required(),
+      newScore: Joi.number().required()
     });
 
     return this._validate<PlayerScoreChangeInputData>(data, schema);
@@ -184,7 +216,7 @@ export class GameValidator {
 
   public static validateTurnPlayerChange(data: TurnPlayerChangeInputData) {
     const schema = Joi.object<TurnPlayerChangeInputData>({
-      newTurnPlayerId: Joi.number().min(0).allow(null).required(),
+      newTurnPlayerId: Joi.number().min(0).allow(null).required()
     });
 
     return this._validate<TurnPlayerChangeInputData>(data, schema);
@@ -193,13 +225,13 @@ export class GameValidator {
   public static validatePlayerSlotChange(data: PlayerSlotChangeInputData) {
     const schema = Joi.object<PlayerSlotChangeInputData>({
       targetSlot: Joi.number().min(0).required(),
-      playerId: Joi.number().min(0),
+      playerId: Joi.number().min(0)
     });
 
     return this._validate<PlayerSlotChangeInputData>(data, schema);
   }
 
   private static _validate<T>(data: T, schema: Joi.ObjectSchema<T>) {
-    return new RequestDataValidator<T>(data, schema).validate();
+    return new SchemaValidator<T>(data, schema).validate();
   }
 }

@@ -1,6 +1,6 @@
-import { AnswerReviewData } from "../finalround/FinalRoundResults";
-import { QuestionAnswerData } from "../finalround/QuestionAnswerData";
-import { FinalRoundQuestionData } from "../../finalround/FinalRoundInterfaces";
+import { AnswerReviewData } from "domain/types/socket/finalround/FinalRoundResults";
+import { QuestionAnswerData } from "domain/types/socket/finalround/QuestionAnswerData";
+import { FinalRoundQuestionData } from "domain/types/finalround/FinalRoundInterfaces";
 
 export type FinalAnsweringToReviewingMutationData = {
   allReviews: AnswerReviewData[];

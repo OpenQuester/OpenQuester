@@ -1,9 +1,9 @@
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ServerError } from "domain/errors/ServerError";
 import type { S3Context } from "domain/types/file/S3Context";
-import { Environment } from "infrastructure/config/Environment";
-import { TemplateUtils } from "infrastructure/utils/TemplateUtils";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { Environment } from "shared/config/Environment";
+import { TemplateUtils } from "domain/utils/TemplateUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 export class StorageContextBuilder {
   public static buildS3Context(env: Environment): S3Context {
@@ -21,19 +21,14 @@ export class StorageContextBuilder {
           false,
           true
         ),
-        ignoredCleanupFolder: env.getEnvVar(
-          "IGNORE_S3_FILES_CLEANUP_FOLDER",
-          "string",
-          "",
-          true
-        ),
+        ignoredCleanupFolder: env.getEnvVar("IGNORE_S3_FILES_CLEANUP_FOLDER", "string", "", true)
       };
     } catch (err: unknown) {
       let text: string;
       if (err && ValueUtils.isError(err)) {
         const error = err as Error;
         text = TemplateUtils.text(ServerResponse.BAD_S3_INIT_WITH_MESSAGE, {
-          message: error.message,
+          message: error.message
         });
       } else {
         text = ServerResponse.BAD_S3_INIT;

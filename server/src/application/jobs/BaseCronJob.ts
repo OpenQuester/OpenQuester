@@ -1,6 +1,6 @@
 import { ICronJob } from "domain/types/cron/ICronJob";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Abstract base class for cron job implementations
@@ -11,7 +11,7 @@ export abstract class BaseCronJob implements ICronJob {
   public abstract readonly cronExpression: string;
   public abstract readonly enabled: boolean;
 
-  constructor(protected readonly logger: ILogger) {
+  protected constructor(protected readonly logger: ILogger) {
     //
   }
 
@@ -24,7 +24,7 @@ export abstract class BaseCronJob implements ICronJob {
     try {
       this.logger.info(`Starting cron job: ${this.name}`, {
         prefix: LogPrefix.CRON,
-        job: this.name,
+        job: this.name
       });
 
       await this.run();
@@ -33,7 +33,7 @@ export abstract class BaseCronJob implements ICronJob {
       this.logger.info(`Completed cron job: ${this.name}`, {
         prefix: LogPrefix.CRON,
         job: this.name,
-        durationMs: duration,
+        durationMs: duration
       });
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -42,7 +42,7 @@ export abstract class BaseCronJob implements ICronJob {
         job: this.name,
         durationMs: duration,
         error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
+        stack: error instanceof Error ? error.stack : undefined
       });
     }
   }

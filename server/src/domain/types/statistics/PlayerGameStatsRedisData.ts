@@ -47,9 +47,6 @@ export interface PlayerGameStatsRedisUpdate {
   /** Current player score */
   currentScore?: string | number;
 
-  /** Player's current score (alias for compatibility) */
-  score?: string | number;
-
   /** Total number of questions the player has answered */
   questionsAnswered?: string | number;
 

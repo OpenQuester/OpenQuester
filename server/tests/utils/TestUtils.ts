@@ -3,18 +3,21 @@ import { container } from "tsyringe";
 import { GameService } from "application/services/game/GameService";
 import { GAME_EXPIRATION_WARNING_NAMESPACE } from "domain/constants/game";
 import { Game } from "domain/entities/game/Game";
+import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
+import { GameJoinOutputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { type Express } from "express";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
+import { RedisConfig } from "shared/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { Repository } from "typeorm";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import {
   GameClientSocket,
   GameTestSetup,
-  SocketGameTestUtils,
+  SocketGameTestUtils
 } from "../socket/game/utils/SocketIOGameTestUtils";
 
 export interface FinalRoundGameSetup {
@@ -47,9 +50,7 @@ export class TestUtils {
   /**
    * Setup a game in final round state with specific player scores
    */
-  public async setupFinalRoundGame(
-    options: FinalRoundGameOptions
-  ): Promise<FinalRoundGameSetup> {
+  public async setupFinalRoundGame(options: FinalRoundGameOptions): Promise<FinalRoundGameSetup> {
     // Create game environment with final round
     const gameSetup = await this.socketGameTestUtils.setupGameTestEnvironment(
       this.userRepo,
@@ -74,7 +75,7 @@ export class TestUtils {
       playerSockets: gameSetup.playerSockets,
       spectatorSockets: gameSetup.spectatorSockets,
       showmanUser: gameSetup.showmanUser,
-      playerUsers: gameSetup.playerUsers,
+      playerUsers: gameSetup.playerUsers
     };
   }
 
@@ -123,9 +124,7 @@ export class TestUtils {
 
         if (playerUsers) {
           // Match by user ID if user objects are provided
-          const userIndex = playerUsers.findIndex(
-            (user) => user.id === currentTurnPlayerId
-          );
+          const userIndex = playerUsers.findIndex((user) => user.id === currentTurnPlayerId);
           if (userIndex !== -1) {
             foundPlayerSocket = playerSockets[userIndex];
           }
@@ -138,12 +137,12 @@ export class TestUtils {
       const eliminationPromise = this.waitForEvent(
         currentPlayerSocket,
         SocketIOGameEvents.THEME_ELIMINATE,
-        5000
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
       );
 
       // Eliminate theme with the correct player
       currentPlayerSocket.emit(SocketIOGameEvents.THEME_ELIMINATE, {
-        themeId: themeToEliminate.id,
+        themeId: themeToEliminate.id
       });
 
       // Wait for the elimination event to be received before continuing
@@ -174,7 +173,7 @@ export class TestUtils {
   /**
    * Wait for specified time
    */
-  public async wait(ms: number): Promise<void> {
+  private async wait(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
@@ -189,8 +188,8 @@ export class TestUtils {
    */
   public async waitForCondition(
     condition: () => Promise<boolean> | boolean,
-    timeoutMs: number = 1000,
-    intervalMs: number = 200
+    timeoutMs: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+    intervalMs: number = TEST_TIMEOUTS.ACTION_QUEUE_POLL_INTERVAL_MS
   ): Promise<boolean> {
     const startTime = Date.now();
     while (Date.now() - startTime < timeoutMs) {
@@ -206,7 +205,7 @@ export class TestUtils {
   public async waitForEvent<T = any>(
     socket: GameClientSocket,
     event: string,
-    timeout: number = 5000
+    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
   ): Promise<T> {
     return this.socketGameTestUtils.waitForEvent(socket, event, timeout);
   }
@@ -218,20 +217,32 @@ export class TestUtils {
    *
    * @param gameId - The game ID for the timer
    * @param keyPattern - Optional pattern for specific timer types (e.g., "media-download")
-   * @param waitMs - Time to wait after expiration for event processing (default: 150ms)
    */
-  public async expireTimer(
-    gameId: string,
-    keyPattern: string = "",
-    waitMs: number = 150
-  ): Promise<void> {
+  public async expireTimer(gameId: string, keyPattern: string = ""): Promise<void> {
     const redisClient = RedisConfig.getClient();
-    const timerKey = keyPattern
-      ? `timer:${keyPattern}:${gameId}`
-      : `timer:${gameId}`;
+    const timerKey = keyPattern ? `timer:${keyPattern}:${gameId}` : `timer:${gameId}`;
     await redisClient.pexpire(timerKey, 50);
-    // Wait for expiration to be processed by Redis keyspace notifications
-    await this.wait(waitMs);
+  }
+
+  /**
+   * Expire a timer and wait until Redis keyspace handling submits the game action.
+   * Prefer this in socket-flow tests so timer assertions are event/action-driven.
+   */
+  public async expireTimerAndWaitForAction(
+    gameId: string,
+    actionType?: GameActionType,
+    keyPattern: string = "",
+    timeout: number = TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
+  ): Promise<void> {
+    const timerActionSubmitted = this.socketGameTestUtils.waitForSubmittedActions(
+      gameId,
+      1,
+      actionType,
+      timeout
+    );
+
+    await this.expireTimer(gameId, keyPattern);
+    await timerActionSubmitted;
   }
 
   /**
@@ -242,7 +253,7 @@ export class TestUtils {
    */
   public async expireGameExpirationWarning(
     gameId: string,
-    waitMs: number = 150
+    waitMs: number = TEST_TIMEOUTS.REDIS_EXPIRY_WAIT_MS
   ): Promise<void> {
     const redisClient = RedisConfig.getClient();
     const warningKey = `${GAME_EXPIRATION_WARNING_NAMESPACE}:${gameId}`;
@@ -250,38 +261,8 @@ export class TestUtils {
     await this.wait(waitMs);
   }
 
-  /**
-   * Emit event and wait for response
-   */
-  private async emitAndWait(
-    socket: GameClientSocket,
-    event: string,
-    data: any
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error(`Event ${event} timed out`));
-      }, 5000);
-
-      socket.emit(event, data, (response: any) => {
-        clearTimeout(timeout);
-        if (response?.error) {
-          reject(new Error(response.error));
-        } else {
-          resolve(response);
-        }
-      });
-    });
-  }
-
-  public async createAndLoginUser(
-    username: string
-  ): Promise<{ user: User; cookie: string }> {
-    return this.socketGameTestUtils.createAndLoginUser(
-      this.userRepo,
-      this.app,
-      username
-    );
+  public async createAndLoginUser(username: string): Promise<{ user: User; cookie: string }> {
+    return this.socketGameTestUtils.createAndLoginUser(this.userRepo, this.app, username);
   }
 
   /**
@@ -293,11 +274,9 @@ export class TestUtils {
   ): Promise<void> {
     // Progress through regular rounds using the existing utility
     const game = await this.gameService.getGameEntity(gameId);
-    const packageRounds = game.package?.rounds ?? [];
+    const packageRounds = game.roundIndex;
     const roundsSorted = [...packageRounds].sort((a, b) => a.order - b.order);
-    const finalRoundIndex = roundsSorted.findIndex(
-      (r) => r.type === PackageRoundType.FINAL
-    );
+    const finalRoundIndex = roundsSorted.findIndex((r) => r.type === PackageRoundType.FINAL);
 
     if (finalRoundIndex === -1) {
       throw new Error("No final round found in package");
@@ -311,17 +290,13 @@ export class TestUtils {
       // Verify we have the expected final round themes
       const themes = gameState.currentRound?.themes || [];
       const finalThemeNames = themes.map((t) => t.name);
-      const expectedFinalThemes = themes.some((t) =>
-        t.name.includes("Final Theme")
-      );
+      const expectedFinalThemes = themes.some((t) => t.name.includes("Final Theme"));
 
       if (expectedFinalThemes && themes.length === 3) {
         return;
       } else {
         throw new Error(
-          `Expected 3 final round themes but got ${
-            themes.length
-          }: ${finalThemeNames.join(", ")}`
+          `Expected 3 final round themes but got ${themes.length}: ${finalThemeNames.join(", ")}`
         );
       }
     }
@@ -336,10 +311,7 @@ export class TestUtils {
 
     // Progress through rounds until we reach the final round
     for (let i = 0; i < finalRoundIndex; i++) {
-      const nextRoundPromise = this.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.NEXT_ROUND
-      );
+      const nextRoundPromise = this.waitForEvent(showmanSocket, SocketIOGameEvents.NEXT_ROUND);
       await this.socketGameTestUtils.progressToNextRound(showmanSocket);
 
       // Wait for round transition to complete
@@ -361,18 +333,14 @@ export class TestUtils {
       // Verify we have the expected final round themes
       const themes = finalGameState.currentRound?.themes || [];
       const finalThemeNames = themes.map((t) => t.name);
-      const expectedFinalThemes = themes.some((t) =>
-        t.name.includes("Final Theme")
-      );
+      const expectedFinalThemes = themes.some((t) => t.name.includes("Final Theme"));
 
       if (expectedFinalThemes && themes.length === 3) {
         // Success!
         return;
       } else {
         throw new Error(
-          `Expected 3 final round themes but got ${
-            themes.length
-          }: ${finalThemeNames.join(", ")}`
+          `Expected 3 final round themes but got ${themes.length}: ${finalThemeNames.join(", ")}`
         );
       }
     } else {
@@ -385,10 +353,7 @@ export class TestUtils {
   /**
    * Set player scores
    */
-  private async setPlayerScores(
-    gameId: string,
-    scores: number[]
-  ): Promise<void> {
+  private async setPlayerScores(gameId: string, scores: number[]): Promise<void> {
     const game = await this.gameService.getGameEntity(gameId);
     const players = game.players.filter((p) => p.role === PlayerRole.PLAYER);
 
@@ -399,70 +364,8 @@ export class TestUtils {
     await this.gameService.updateGame(game);
   }
 
-  /**
-   * Start theme elimination phase
-   */
-  public async startThemeElimination(
-    gameId: string,
-    showmanSocket: GameClientSocket
-  ): Promise<void> {
-    // First complete theme elimination to get to bidding phase
-    const gameState = await this.getGameState(gameId);
-    const themes = gameState.currentRound?.themes || [];
-
-    // Eliminate all themes except one
-    for (let i = 0; i < themes.length - 1; i++) {
-      const themeToEliminate = themes[i];
-      await this.emitAndWait(
-        showmanSocket,
-        SocketIOGameEvents.THEME_ELIMINATE,
-        {
-          themeId: themeToEliminate.id,
-        }
-      );
-    }
-  }
-
-  /**
-   * Place a bid for a player
-   */
-  public async placeBid(
-    gameId: string,
-    socket: GameClientSocket,
-    bid: number
-  ): Promise<void> {
-    await this.emitAndWait(socket, SocketIOGameEvents.FINAL_BID_SUBMIT, {
-      gameId,
-      bid,
-    });
-  }
-
   private _isFinalRound(gameState: GameStateDTO): boolean {
     return gameState.currentRound?.type === PackageRoundType.FINAL;
-  }
-
-  /**
-   * Forward method to SocketGameTestUtils for setting current turn player
-   */
-  public async setCurrentTurnPlayer(
-    showmanSocket: GameClientSocket,
-    playerId: number
-  ): Promise<void> {
-    return this.socketGameTestUtils.setCurrentTurnPlayer(
-      showmanSocket,
-      playerId
-    );
-  }
-
-  /**
-   * Forward method to SocketGameTestUtils for setting player score
-   */
-  public async setPlayerScore(
-    gameId: string,
-    playerId: number,
-    score: number
-  ): Promise<void> {
-    return this.socketGameTestUtils.setPlayerScore(gameId, playerId, score);
   }
 
   /**
@@ -477,16 +380,6 @@ export class TestUtils {
    */
   public async getGameFromGameService(gameId: string): Promise<Game> {
     return this.socketGameTestUtils.getGameFromGameService(gameId);
-  }
-
-  /**
-   * Forward method to SocketGameTestUtils for answering question
-   */
-  public async answerQuestion(
-    playerSocket: GameClientSocket,
-    showmanSocket: GameClientSocket
-  ): Promise<void> {
-    return this.socketGameTestUtils.answerQuestion(playerSocket, showmanSocket);
   }
 
   /**
@@ -507,21 +400,22 @@ export class TestUtils {
   public async createSocketForExistingUser(
     userId: number
   ): Promise<{ socket: GameClientSocket; cookie: string }> {
-    return this.socketGameTestUtils.createSocketForExistingUser(
-      this.app,
-      userId
-    );
+    return this.socketGameTestUtils.createSocketForExistingUser(this.app, userId);
   }
 
   /**
    * Forward method to SocketGameTestUtils for joining game
    */
-  public async joinGame(
+  public async joinGame(socket: GameClientSocket, gameId: string, role: PlayerRole): Promise<void> {
+    return this.socketGameTestUtils.joinGame(socket, gameId, role);
+  }
+
+  public async joinGameWithData(
     socket: GameClientSocket,
     gameId: string,
     role: PlayerRole
-  ): Promise<string> {
-    return this.socketGameTestUtils.joinGame(socket, gameId, role);
+  ): Promise<GameJoinOutputData> {
+    return this.socketGameTestUtils.joinSpecificGameWithData(socket, gameId, role);
   }
 
   /**

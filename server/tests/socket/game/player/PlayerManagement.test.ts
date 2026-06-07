@@ -22,11 +22,12 @@ import {
   TurnPlayerChangeBroadcastData,
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 describe("SocketIOGameLobby", () => {
   let testEnv: TestEnvironment;
@@ -43,7 +44,7 @@ describe("SocketIOGameLobby", () => {
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 
@@ -75,7 +76,7 @@ describe("SocketIOGameLobby", () => {
             reject(
               new Error("SCORE_CHANGED event not received within timeout")
             );
-          }, 5000);
+          }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
           setup.showmanSocket.once(
             SocketIOGameEvents.SCORE_CHANGED,
@@ -118,7 +119,7 @@ describe("SocketIOGameLobby", () => {
             reject(
               new Error("PLAYER_ROLE_CHANGE event not received within timeout")
             );
-          }, 5000);
+          }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
           setup.showmanSocket.once(
             SocketIOGameEvents.PLAYER_ROLE_CHANGE,
@@ -168,7 +169,7 @@ describe("SocketIOGameLobby", () => {
             reject(
               new Error("TURN_PLAYER_CHANGED event not received within timeout")
             );
-          }, 5000);
+          }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
           setup.showmanSocket.once(
             SocketIOGameEvents.TURN_PLAYER_CHANGED,
@@ -209,7 +210,7 @@ describe("SocketIOGameLobby", () => {
             reject(
               new Error("PLAYER_SLOT_CHANGE event not received within timeout")
             );
-          }, 5000);
+          }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
           setup.showmanSocket.once(
             SocketIOGameEvents.PLAYER_SLOT_CHANGE,
@@ -251,7 +252,7 @@ describe("SocketIOGameLobby", () => {
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Expected error for non-showman changing score"));
-        }, 3000);
+        }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
         setup.playerSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
           clearTimeout(timeout);
@@ -281,7 +282,7 @@ describe("SocketIOGameLobby", () => {
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Expected error for non-showman changing role"));
-        }, 3000);
+        }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
         setup.playerSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
           clearTimeout(timeout);
@@ -310,7 +311,7 @@ describe("SocketIOGameLobby", () => {
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Expected error for non-showman changing turn"));
-        }, 3000);
+        }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
         setup.playerSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
           clearTimeout(timeout);
@@ -346,7 +347,7 @@ describe("SocketIOGameLobby", () => {
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
           reject(new Error("Expected error for slot conflict not received"));
-        }, 3000);
+        }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
 
         setup.playerSockets[1].on(SocketIOEvents.ERROR, (error: any) => {
           clearTimeout(timeout);
@@ -410,8 +411,7 @@ describe("SocketIOGameLobby", () => {
       // Wait for PLAYER_SLOT_CHANGE event
       const slotChangeEventPromise = utils.waitForEvent(
         setup.showmanSocket,
-        SocketIOGameEvents.PLAYER_SLOT_CHANGE,
-        2000
+        SocketIOGameEvents.PLAYER_SLOT_CHANGE
       );
 
       // Showman changes player's slot
@@ -450,8 +450,7 @@ describe("SocketIOGameLobby", () => {
       // Try to change another player's slot from a player socket (should fail)
       const errorPromise = utils.waitForEvent(
         setup.playerSockets[0],
-        SocketIOEvents.ERROR,
-        2000
+        SocketIOEvents.ERROR
       );
 
       setup.playerSockets[0].emit(SocketIOGameEvents.PLAYER_SLOT_CHANGE, {
@@ -486,8 +485,7 @@ describe("SocketIOGameLobby", () => {
       // Try to change to occupied slot (should fail)
       const errorPromise = utils.waitForEvent(
         setup.showmanSocket,
-        SocketIOEvents.ERROR,
-        2000
+        SocketIOEvents.ERROR
       );
 
       setup.showmanSocket.emit(SocketIOGameEvents.PLAYER_SLOT_CHANGE, {

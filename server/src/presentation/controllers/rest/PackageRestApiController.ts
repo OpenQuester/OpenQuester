@@ -1,14 +1,13 @@
 import { Router, type Express, type Request, type Response } from "express";
 
 import { PackageService } from "application/services/package/PackageService";
-import { UserService } from "application/services/user/UserService";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
-import { PackageDTO } from "domain/types/dto/package/PackageDTO";
-import { PackageInputDTO } from "domain/types/dto/package/PackageInputDTO";
-import { PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { type PackageDTO } from "domain/types/dto/package/PackageDTO";
+import { type PackageInputDTO } from "domain/types/dto/package/PackageInputDTO";
+import { type PackageSearchOpts } from "domain/types/pagination/package/PackageSearchOpts";
+import { type ILogger } from "shared/logging/ILogger";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { checkPackDeletePermissionMiddleware } from "presentation/middleware/permission/PackagePermissionMiddleware";
 import {
@@ -22,7 +21,6 @@ export class PackageRestApiController {
   constructor(
     private readonly app: Express,
     private readonly packageService: PackageService,
-    private readonly userService: UserService,
     private readonly logger: ILogger
   ) {
     const router = Router();
@@ -36,7 +34,6 @@ export class PackageRestApiController {
       "/:id",
       checkPackDeletePermissionMiddleware(
         this.packageService,
-        this.userService,
         this.logger
       ),
       asyncHandler(this.deletePackage)
@@ -44,23 +41,15 @@ export class PackageRestApiController {
   }
 
   private uploadPackage = async (req: Request, res: Response) => {
-    // Check if user is a guest - guests cannot upload packages
-    if (req.user?.is_guest) {
-      throw new ClientError(
-        ClientResponse.CANNOT_UPLOAD_PACKAGE_AS_GUEST,
-        HttpStatus.FORBIDDEN
-      );
-    }
-
     // Validate and get data that can be safely saved in DB
     const validatedData = new RequestDataValidator<{
       content: PackageDTO;
     }>(req.body, uploadPackageScheme()).validate();
 
-    const data = await this.packageService.uploadPackage(
-      req,
-      validatedData.content
-    );
+    const data = await this.packageService.uploadPackageForSession({
+      sessionUserId: req.session.userId,
+      packageData: validatedData.content
+    });
     return res.status(HttpStatus.OK).send(data);
   };
 

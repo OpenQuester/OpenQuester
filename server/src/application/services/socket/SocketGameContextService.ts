@@ -4,10 +4,9 @@ import { GameService } from "application/services/game/GameService";
 import { GAME_TTL_IN_SECONDS } from "domain/constants/game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { ClientError } from "domain/errors/ClientError";
-import { ActionContext } from "domain/types/action/ActionContext";
 import { GameContext } from "domain/types/socket/game/GameContext";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
-import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
 
 /**
  * Service responsible for fetching and validating socket game context.
@@ -30,23 +29,6 @@ export class SocketGameContextService {
     return userData?.gameId ?? null;
   }
 
-  public async loadGameAndPlayer(ctx: ActionContext) {
-    const game = await this.gameService.getGameEntity(
-      ctx.gameId,
-      GAME_TTL_IN_SECONDS
-    );
-
-    if (!game) {
-      throw new ClientError(ClientResponse.GAME_NOT_FOUND);
-    }
-
-    const currentPlayer = game.getPlayer(ctx.playerId, {
-      fetchDisconnected: false,
-    });
-
-    return { game, currentPlayer };
-  }
-
   public async fetchGameContext(socketId: string): Promise<GameContext> {
     const userSession = await this.fetchUserSocketData(socketId);
 
@@ -54,24 +36,19 @@ export class SocketGameContextService {
       throw new ClientError(ClientResponse.NOT_IN_GAME);
     }
 
-    const game = await this.gameService.getGameEntity(
-      userSession.gameId,
-      GAME_TTL_IN_SECONDS
-    );
+    const game = await this.gameService.getGameEntity(userSession.gameId, GAME_TTL_IN_SECONDS);
 
     const currentPlayer = game.getPlayer(userSession.id, {
-      fetchDisconnected: false,
+      fetchDisconnected: false
     });
 
-    return new GameContext(userSession, game, currentPlayer);
+    return new GameContext(game, currentPlayer);
   }
 
   /**
    * Throws an error if the user is not authenticated or does not have socket data.
    */
-  public async fetchUserSocketData(
-    socketId: string
-  ): Promise<SocketRedisUserData> {
+  public async fetchUserSocketData(socketId: string): Promise<SocketRedisUserData> {
     const userData = await this.socketUserDataService.getSocketData(socketId);
 
     if (!userData) {
@@ -87,9 +64,7 @@ export class SocketGameContextService {
   public async fetchUserSocketDataBatch(
     socketIds: string[]
   ): Promise<Map<string, SocketRedisUserData>> {
-    const userDataMap = await this.socketUserDataService.getSocketDataBatch(
-      socketIds
-    );
+    const userDataMap = await this.socketUserDataService.getSocketDataBatch(socketIds);
 
     const result = new Map<string, SocketRedisUserData>();
 

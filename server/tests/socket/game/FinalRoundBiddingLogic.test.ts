@@ -2,20 +2,19 @@ import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
+import { SYSTEM_PLAYER_ID } from "domain/constants/game";
+import { GameActionType } from "domain/enums/GameActionType";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import {
   FinalBidSubmitOutputData,
   FinalPhaseCompleteEventData,
   FinalQuestionEventData,
-  ThemeEliminateOutputData,
+  ThemeEliminateOutputData
 } from "domain/types/socket/events/FinalRoundEventData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -38,7 +37,7 @@ describe("Final Round Bidding Logic", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new TestUtils(app, userRepo, serverUrl);
   });
 
@@ -53,7 +52,7 @@ describe("Final Round Bidding Logic", () => {
     it("should transition to bidding phase and start timer after theme elimination", async () => {
       const setupResult = await utils.setupFinalRoundGame({
         playersCount: 2,
-        playerScores: [1500, 1200], // Both players have scores > 1
+        playerScores: [1500, 1200] // Both players have scores > 1
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
@@ -88,29 +87,125 @@ describe("Final Round Bidding Logic", () => {
       expect(phaseCompleteEvent!.timer!.durationMs).toBe(45000); // 45 seconds
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
+    });
+
+    it("should auto-eliminate the last theme on timer expiration and enter bidding", async () => {
+      const setupResult = await utils.setupFinalRoundGame({
+        playersCount: 3,
+        playerScores: [1500, 1200, 1000]
+      });
+
+      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setupResult;
+      const spectatorSocket = spectatorSockets[0];
+
+      try {
+        let gameState = await utils.getGameState(gameId);
+        let activeThemes =
+          gameState.currentRound?.themes?.filter(
+            (theme) => !theme.questions?.some((question) => question.isPlayed)
+          ) ?? [];
+
+        while (activeThemes.length > 2) {
+          const [themeToEliminate] = activeThemes;
+          const eliminationPromise = utils.waitForEvent<ThemeEliminateOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.THEME_ELIMINATE
+          );
+
+          showmanSocket.emit(SocketIOGameEvents.THEME_ELIMINATE, {
+            themeId: themeToEliminate.id
+          });
+          await eliminationPromise;
+
+          gameState = await utils.getGameState(gameId);
+          activeThemes =
+            gameState.currentRound?.themes?.filter(
+              (theme) => !theme.questions?.some((question) => question.isPlayed)
+            ) ?? [];
+        }
+
+        const remainingThemeIds = activeThemes.map((theme) => theme.id);
+        const themeEliminatePromises = [
+          utils.waitForEvent<ThemeEliminateOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.THEME_ELIMINATE
+          ),
+          utils.waitForEvent<ThemeEliminateOutputData>(
+            playerSockets[0],
+            SocketIOGameEvents.THEME_ELIMINATE
+          ),
+          utils.waitForEvent<ThemeEliminateOutputData>(
+            spectatorSocket,
+            SocketIOGameEvents.THEME_ELIMINATE
+          )
+        ];
+        const phaseCompletePromises = [
+          utils.waitForEvent<FinalPhaseCompleteEventData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_PHASE_COMPLETE
+          ),
+          utils.waitForEvent<FinalPhaseCompleteEventData>(
+            playerSockets[0],
+            SocketIOGameEvents.FINAL_PHASE_COMPLETE
+          ),
+          utils.waitForEvent<FinalPhaseCompleteEventData>(
+            spectatorSocket,
+            SocketIOGameEvents.FINAL_PHASE_COMPLETE
+          )
+        ];
+
+        await utils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_THEME_ELIMINATION_EXPIRED
+        );
+
+        const timeoutEliminations = await Promise.all(themeEliminatePromises);
+        const phaseCompletions = await Promise.all(phaseCompletePromises);
+
+        for (const elimination of timeoutEliminations) {
+          expect(remainingThemeIds).toContain(elimination.themeId);
+          expect(elimination.eliminatedBy).toBe(SYSTEM_PLAYER_ID);
+          expect(elimination.nextPlayerId).toBeNull();
+        }
+
+        for (const phaseComplete of phaseCompletions) {
+          expect(phaseComplete.phase).toBe(FinalRoundPhase.THEME_ELIMINATION);
+          expect(phaseComplete.nextPhase).toBe(FinalRoundPhase.BIDDING);
+          expect(phaseComplete.timer).toBeDefined();
+          expect(phaseComplete.timer!.durationMs).toBe(45000);
+        }
+
+        const finalGameState = await utils.getGameState(gameId);
+        const eliminatedThemeIds = finalGameState.finalRoundData?.eliminatedThemes ?? [];
+        const activeThemeIds = remainingThemeIds.filter(
+          (themeId) => !eliminatedThemeIds.includes(themeId)
+        );
+
+        expect(finalGameState.finalRoundData?.phase).toBe(FinalRoundPhase.BIDDING);
+        expect(finalGameState.questionState).toBe(QuestionState.BIDDING);
+        expect(finalGameState.timer?.durationMs).toBe(45000);
+        expect(activeThemeIds).toHaveLength(1);
+      } finally {
+        await utils.cleanupGameClients(setupResult);
+      }
     });
 
     it("should automatically bid 1 for players with score <= 1", async () => {
       const setupResult = await utils.setupFinalRoundGame({
         playersCount: 4,
-        playerScores: [1500, 1, 0, -500], // One normal score, three low scores
+        playerScores: [1500, 1, 0, -500] // One normal score, three low scores
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
       const automaticBidEvents: FinalBidSubmitOutputData[] = [];
 
       // Listen for automatic bid events
-      showmanSocket.on(
-        SocketIOGameEvents.FINAL_BID_SUBMIT,
-        (data: FinalBidSubmitOutputData) => {
-          if (data.isAutomatic) {
-            automaticBidEvents.push(data);
-          }
+      showmanSocket.on(SocketIOGameEvents.FINAL_BID_SUBMIT, (data: FinalBidSubmitOutputData) => {
+        if (data.isAutomatic) {
+          automaticBidEvents.push(data);
         }
-      );
+      });
 
       // Complete theme elimination and transition to bidding
       const phaseTransitionPromise = utils.waitForEvent(
@@ -134,27 +229,22 @@ describe("Final Round Bidding Logic", () => {
       expect(Object.keys(gameState.finalRoundData?.bids || {})).toHaveLength(3);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
 
     it("should transition to question phase when all remaining players submit bids", async () => {
       const setupResult = await utils.setupFinalRoundGame({
         playersCount: 3,
-        playerScores: [1500, 1, 1200], // Two players need to bid manually, one auto-bids
+        playerScores: [1500, 1, 1200] // Two players need to bid manually, one auto-bids
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
       let questionDataEvent: FinalQuestionEventData | null = null;
 
       // Listen for question data event on showman socket (broadcasts go to all sockets)
-      showmanSocket.on(
-        SocketIOGameEvents.FINAL_QUESTION_DATA,
-        (data: FinalQuestionEventData) => {
-          questionDataEvent = data;
-        }
-      );
+      showmanSocket.on(SocketIOGameEvents.FINAL_QUESTION_DATA, (data: FinalQuestionEventData) => {
+        questionDataEvent = data;
+      });
 
       // Set up promise to wait for question data before theme elimination
       const questionDataPromise = utils.waitForEvent(
@@ -197,15 +287,126 @@ describe("Final Round Bidding Logic", () => {
       expect(gameState.questionState).toBe(QuestionState.ANSWERING);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
+    });
+
+    it("should broadcast timeout auto-bids before revealing final question", async () => {
+      const setupResult = await utils.setupFinalRoundGame({
+        playersCount: 3,
+        playerScores: [1500, 1200, 1000]
+      });
+
+      const {
+        showmanSocket,
+        playerSockets,
+        spectatorSockets,
+        gameId,
+        playerUsers
+      } = setupResult;
+      const spectatorSocket = spectatorSockets[0];
+      const showmanAutoBids: FinalBidSubmitOutputData[] = [];
+      const playerAutoBids: FinalBidSubmitOutputData[] = [];
+      const spectatorAutoBids: FinalBidSubmitOutputData[] = [];
+
+      try {
+        const biddingPhasePromise = utils.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.FINAL_PHASE_COMPLETE
+        );
+        await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
+        await biddingPhasePromise;
+
+        const manualBidPromise = utils.waitForEvent<FinalBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_BID_SUBMIT
+        );
+        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 700 });
+        const manualBid = await manualBidPromise;
+        expect(manualBid).toEqual({
+          playerId: playerUsers[0].id,
+          bidAmount: 700
+        });
+
+        const recordAutoBid =
+          (events: FinalBidSubmitOutputData[]) =>
+          (data: FinalBidSubmitOutputData): void => {
+            if (data.isAutomatic) {
+              events.push(data);
+            }
+          };
+
+        showmanSocket.on(
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          recordAutoBid(showmanAutoBids)
+        );
+        playerSockets[1].on(
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          recordAutoBid(playerAutoBids)
+        );
+        spectatorSocket.on(
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          recordAutoBid(spectatorAutoBids)
+        );
+
+        const questionDataPromises = [
+          utils.waitForEvent<FinalQuestionEventData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_QUESTION_DATA
+          ),
+          utils.waitForEvent<FinalQuestionEventData>(
+            playerSockets[1],
+            SocketIOGameEvents.FINAL_QUESTION_DATA
+          ),
+          utils.waitForEvent<FinalQuestionEventData>(
+            spectatorSocket,
+            SocketIOGameEvents.FINAL_QUESTION_DATA
+          )
+        ];
+        const phaseCompletePromise = utils.waitForEvent<FinalPhaseCompleteEventData>(
+          showmanSocket,
+          SocketIOGameEvents.FINAL_PHASE_COMPLETE
+        );
+
+        await utils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_BIDDING_EXPIRED
+        );
+
+        const questionEvents = await Promise.all(questionDataPromises);
+        const phaseComplete = await phaseCompletePromise;
+
+        const expectedTimeoutBids = [
+          { playerId: playerUsers[1].id, bidAmount: 1, isAutomatic: true },
+          { playerId: playerUsers[2].id, bidAmount: 1, isAutomatic: true }
+        ];
+
+        expect(showmanAutoBids).toEqual(expectedTimeoutBids);
+        expect(playerAutoBids).toEqual(expectedTimeoutBids);
+        expect(spectatorAutoBids).toEqual(expectedTimeoutBids);
+
+        for (const questionEvent of questionEvents) {
+          expect(questionEvent.questionData).toBeDefined();
+          expect(questionEvent.questionData.question).toBeDefined();
+        }
+
+        expect(phaseComplete.phase).toBe(FinalRoundPhase.BIDDING);
+        expect(phaseComplete.nextPhase).toBe(FinalRoundPhase.ANSWERING);
+        expect(phaseComplete.timer).toBeDefined();
+
+        const gameState = await utils.getGameState(gameId);
+        expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.ANSWERING);
+        expect(gameState.finalRoundData?.bids[playerUsers[0].id]).toBe(700);
+        expect(gameState.finalRoundData?.bids[playerUsers[1].id]).toBe(1);
+        expect(gameState.finalRoundData?.bids[playerUsers[2].id]).toBe(1);
+      } finally {
+        await utils.cleanupGameClients(setupResult);
+      }
     });
 
     it("should immediately transition to question phase when all players have score <= 1", async () => {
       const setupResult = await utils.setupFinalRoundGame({
         playersCount: 3,
-        playerScores: [1, 0, -100], // All players have low scores
+        playerScores: [1, 0, -100] // All players have low scores
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
@@ -214,14 +415,11 @@ describe("Final Round Bidding Logic", () => {
       let questionDataEvent: FinalQuestionEventData | null = null;
 
       // Listen for automatic bid events
-      showmanSocket.on(
-        SocketIOGameEvents.FINAL_BID_SUBMIT,
-        (data: FinalBidSubmitOutputData) => {
-          if (data.isAutomatic) {
-            automaticBidEvents.push(data);
-          }
+      showmanSocket.on(SocketIOGameEvents.FINAL_BID_SUBMIT, (data: FinalBidSubmitOutputData) => {
+        if (data.isAutomatic) {
+          automaticBidEvents.push(data);
         }
-      );
+      });
 
       // Listen for phase complete events
       showmanSocket.on(
@@ -232,12 +430,9 @@ describe("Final Round Bidding Logic", () => {
       );
 
       // Listen for question data event
-      showmanSocket.on(
-        SocketIOGameEvents.FINAL_QUESTION_DATA,
-        (data: FinalQuestionEventData) => {
-          questionDataEvent = data;
-        }
-      );
+      showmanSocket.on(SocketIOGameEvents.FINAL_QUESTION_DATA, (data: FinalQuestionEventData) => {
+        questionDataEvent = data;
+      });
 
       // Set up promises to wait for all expected events
       const questionDataPromise = utils.waitForEvent(
@@ -260,9 +455,7 @@ describe("Final Round Bidding Logic", () => {
 
       // Verify both phase transitions occurred
       expect(phaseCompleteEvents).toHaveLength(2);
-      expect(phaseCompleteEvents[0].phase).toBe(
-        FinalRoundPhase.THEME_ELIMINATION
-      );
+      expect(phaseCompleteEvents[0].phase).toBe(FinalRoundPhase.THEME_ELIMINATION);
       expect(phaseCompleteEvents[0].nextPhase).toBe(FinalRoundPhase.BIDDING);
       expect(phaseCompleteEvents[1].phase).toBe(FinalRoundPhase.BIDDING);
       expect(phaseCompleteEvents[1].nextPhase).toBe(FinalRoundPhase.ANSWERING);
@@ -274,32 +467,25 @@ describe("Final Round Bidding Logic", () => {
       // Verify game state
       const gameState = await utils.getGameState(gameId);
       expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.ANSWERING);
-      expect(Object.values(gameState.finalRoundData?.bids || {})).toEqual([
-        1, 1, 1,
-      ]);
+      expect(Object.values(gameState.finalRoundData?.bids || {})).toEqual([1, 1, 1]);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
 
     it("should allow showman to eliminate themes on behalf of current turn player", async () => {
       const setupResult = await utils.setupFinalRoundGame({
         playersCount: 2,
-        playerScores: [1500, 1200], // Both players have scores > 1
+        playerScores: [1500, 1200] // Both players have scores > 1
       });
 
       const { showmanSocket, playerSockets, gameId } = setupResult;
       const eliminationEvents: ThemeEliminateOutputData[] = [];
 
       // Listen for theme elimination events
-      showmanSocket.on(
-        SocketIOGameEvents.THEME_ELIMINATE,
-        (data: ThemeEliminateOutputData) => {
-          eliminationEvents.push(data);
-        }
-      );
+      showmanSocket.on(SocketIOGameEvents.THEME_ELIMINATE, (data: ThemeEliminateOutputData) => {
+        eliminationEvents.push(data);
+      });
 
       // Get initial game state to find available themes
       const initialGameState = await utils.getGameState(gameId);
@@ -312,7 +498,7 @@ describe("Final Round Bidding Logic", () => {
       );
       // Showman eliminates first theme (acting on behalf of current turn player)
       showmanSocket.emit(SocketIOGameEvents.THEME_ELIMINATE, {
-        themeId: availableThemes[0].id,
+        themeId: availableThemes[0].id
       });
 
       await themeEliminatePromise;
@@ -330,7 +516,7 @@ describe("Final Round Bidding Logic", () => {
 
       // Showman eliminates second theme (acting on behalf of next turn player)
       showmanSocket.emit(SocketIOGameEvents.THEME_ELIMINATE, {
-        themeId: availableThemes[1].id,
+        themeId: availableThemes[1].id
       });
       await themeEliminatePromise2;
 
@@ -346,29 +532,22 @@ describe("Final Round Bidding Logic", () => {
         );
 
         showmanSocket.emit(SocketIOGameEvents.THEME_ELIMINATE, {
-          themeId: availableThemes[i].id,
+          themeId: availableThemes[i].id
         });
         await themeEliminatePromise;
       }
 
       // Verify final state
       const finalGameState = await utils.getGameState(gameId);
-      expect(finalGameState.finalRoundData?.phase).toBe(
-        FinalRoundPhase.BIDDING
-      );
+      expect(finalGameState.finalRoundData?.phase).toBe(FinalRoundPhase.BIDDING);
 
       // Verify only one theme remains (not eliminated)
-      const eliminatedThemeIds =
-        finalGameState.finalRoundData?.eliminatedThemes || [];
-      const remainingThemes = availableThemes.filter(
-        (t) => !eliminatedThemeIds.includes(t.id)
-      );
+      const eliminatedThemeIds = finalGameState.finalRoundData?.eliminatedThemes || [];
+      const remainingThemes = availableThemes.filter((t) => !eliminatedThemeIds.includes(t.id));
       expect(remainingThemes).toHaveLength(1);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
   });
 
@@ -376,7 +555,7 @@ describe("Final Round Bidding Logic", () => {
     it("should reject a bid that is higher than the player's score", async () => {
       const setupResult = await utils.setupFinalRoundGame({
         playersCount: 1,
-        playerScores: [500],
+        playerScores: [500]
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
@@ -390,10 +569,7 @@ describe("Final Round Bidding Logic", () => {
       await phaseTransitionPromise;
 
       // Player tries to bid more than they have
-      const bidPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.FINAL_BID_SUBMIT
-      );
+      const bidPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_BID_SUBMIT);
 
       playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 501 });
       await bidPromise;
@@ -406,18 +582,16 @@ describe("Final Round Bidding Logic", () => {
       expect(actualBid === undefined || actualBid <= 500).toBe(true);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
 
     it("should reject a bid of zero or a negative number", async () => {
       const setupResult = await utils.setupFinalRoundGame({
         playersCount: 1,
-        playerScores: [500],
+        playerScores: [500]
       });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
+      const { playerSockets, gameId, playerUsers } = setupResult;
 
       const phaseTransitionPromise = utils.waitForEvent(
         playerSockets[0],
@@ -427,10 +601,7 @@ describe("Final Round Bidding Logic", () => {
 
       await phaseTransitionPromise;
 
-      const errorPromise = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOEvents.ERROR
-      );
+      const errorPromise = utils.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
 
       // Player tries to bid zero
       playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 0 });
@@ -444,10 +615,7 @@ describe("Final Round Bidding Logic", () => {
       expect(actualBid === undefined || actualBid >= 1).toBe(true);
 
       // Player tries to bid a negative number
-      const errorPromise2 = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOEvents.ERROR
-      );
+      const errorPromise2 = utils.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
 
       playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: -100 });
       await errorPromise2;
@@ -458,15 +626,13 @@ describe("Final Round Bidding Logic", () => {
       expect(actualBid === undefined || actualBid >= 1).toBe(true);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
 
     it("should not allow a player to bid twice", async () => {
       const setupResult = await utils.setupFinalRoundGame({
         playersCount: 1,
-        playerScores: [500],
+        playerScores: [500]
       });
 
       const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
@@ -494,10 +660,7 @@ describe("Final Round Bidding Logic", () => {
       expect(gameState.finalRoundData?.bids[playerDBId]).toBe(100);
 
       // Player tries to submit another bid
-      const errorPromise = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOEvents.ERROR
-      );
+      const errorPromise = utils.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
 
       playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, { bid: 200 });
       await errorPromise;
@@ -507,9 +670,7 @@ describe("Final Round Bidding Logic", () => {
       expect(gameState.finalRoundData?.bids[playerDBId]).toBe(100);
 
       // Clean up
-      showmanSocket.disconnect();
-      playerSockets.forEach((socket) => socket.disconnect());
-      setupResult.spectatorSockets[0].disconnect();
+      await utils.cleanupGameClients(setupResult);
     });
   });
 });

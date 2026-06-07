@@ -3,16 +3,15 @@ import { Player } from "domain/entities/game/Player";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { AnswerSubmittedBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 export interface AnswerSubmittedResult {
   data: AnswerSubmittedBroadcastData;
   broadcasts: SocketEventBroadcast[];
+  game: Game;
 }
 
 export interface AnswerSubmittedBuildResultInput {
@@ -53,6 +52,6 @@ export class AnswerSubmittedLogic {
       } satisfies SocketEventBroadcast<AnswerSubmittedBroadcastData>,
     ];
 
-    return { data: broadcastData, broadcasts };
+    return { data: broadcastData, broadcasts, game };
   }
 }

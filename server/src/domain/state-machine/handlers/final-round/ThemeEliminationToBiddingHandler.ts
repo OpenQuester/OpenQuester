@@ -1,11 +1,11 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { FINAL_ROUND_BID_TIME } from "domain/constants/game";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { Game } from "domain/entities/game/Game";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { RoundHandlerFactory } from "domain/factories/RoundHandlerFactory";
-import { FinalRoundHandler } from "domain/handlers/socket/round/FinalRoundHandler";
+import { FinalRoundHandler } from "domain/handlers/round/FinalRoundHandler";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -13,7 +13,7 @@ import {
   getGamePhase,
   MutationResult,
   TimerResult,
-  TransitionContext,
+  TransitionContext
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
@@ -31,19 +31,11 @@ import { ServerError } from "domain/errors/ServerError";
  * Entry points that can trigger this:
  * - User eliminates a theme (FinalRoundService.handleThemeEliminate)
  * - Theme elimination timer expires (TimerExpirationService.handleThemeEliminationExpiration)
- * - Player leaves during theme elimination (PlayerLeaveService)
+ * - Player leaves during theme elimination (TurnPlayerLeaveStrategy)
  */
 export class ThemeEliminationToBiddingHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.FINAL_THEME_ELIMINATION;
   public readonly toPhase = GamePhase.FINAL_BIDDING;
-
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService,
-    private readonly roundHandlerFactory: RoundHandlerFactory
-  ) {
-    super(gameService, timerService);
-  }
 
   /**
    * Strict check for transition eligibility.
@@ -89,7 +81,7 @@ export class ThemeEliminationToBiddingHandler extends BaseTransitionHandler {
     FinalRoundStateManager.transitionToPhase(game, FinalRoundPhase.BIDDING);
 
     return {
-      data: {},
+      data: {}
     };
   }
 
@@ -99,17 +91,21 @@ export class ThemeEliminationToBiddingHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    // Clear the theme elimination timer
-    await this.gameService.clearTimer(game.id);
-
     // Setup the bidding timer
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      FINAL_ROUND_BID_TIME
-    );
+    const timer = new GameStateTimer(FINAL_ROUND_BID_TIME);
+    game.gameState.timer = timer.start();
 
     return {
-      timer: timerEntity.value() ?? undefined,
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: FINAL_ROUND_BID_TIME
+        }
+      ]
     };
   }
 
@@ -126,9 +122,9 @@ export class ThemeEliminationToBiddingHandler extends BaseTransitionHandler {
       data: {
         phase: FinalRoundPhase.THEME_ELIMINATION,
         nextPhase: FinalRoundPhase.BIDDING,
-        timer: timerResult.timer,
+        timer: timerResult.timer
       } satisfies FinalPhaseCompleteEventData,
-      room: ctx.game.id,
+      room: ctx.game.id
     });
 
     return broadcasts;
@@ -138,7 +134,7 @@ export class ThemeEliminationToBiddingHandler extends BaseTransitionHandler {
    * Gets the FinalRoundHandler from factory.
    */
   private _getFinalRoundHandler(game: Game): FinalRoundHandler {
-    const handler = this.roundHandlerFactory.createFromGame(game);
+    const handler = RoundHandlerFactory.createFromGame(game);
     if (!(handler instanceof FinalRoundHandler)) {
       throw new ServerError("Expected FinalRoundHandler for final round");
     }

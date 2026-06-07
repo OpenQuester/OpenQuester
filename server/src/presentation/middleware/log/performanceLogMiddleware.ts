@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Performance logging middleware to track request timing and performance metrics

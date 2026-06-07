@@ -1,10 +1,10 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { GameStatisticsCollectorService } from "application/services/statistics/GameStatisticsCollectorService";
 import { GameCompletionResult } from "domain/types/game/GameCompletionResult";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Service responsible for handling game lifecycle operations.

@@ -1,7 +1,6 @@
-import { GameService } from "application/services/game/GameService";
-import { SocketQuestionStateService } from "application/services/socket/SocketQuestionStateService";
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
-import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
+import { timerKey } from "domain/constants/redisKeys";
+import { GameStateTimer } from "domain/entities/game/GameStateTimer";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -12,7 +11,6 @@ import {
   TransitionTrigger,
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
-import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
 import {
   SecretTransferToAnsweringCtx,
@@ -32,13 +30,6 @@ import { GameStateValidator } from "domain/validators/GameStateValidator";
 export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
   public readonly fromPhase = GamePhase.SECRET_QUESTION_TRANSFER;
   public readonly toPhase = GamePhase.ANSWERING;
-
-  constructor(
-    gameService: GameService,
-    timerService: SocketQuestionStateService
-  ) {
-    super(gameService, timerService);
-  }
 
   /**
    * Check if this transition should occur.
@@ -95,18 +86,8 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
     const targetPlayerId = payload!.targetPlayerId;
     const fromPlayerId = secretData.pickerPlayerId;
 
-    // Get question data
-    let questionData: SimplePackageQuestionDTO | null = null;
-    const questionResult = GameQuestionMapper.getQuestionAndTheme(
-      game.package,
-      game.gameState.currentRound!.id,
-      secretData.questionId
-    );
-
-    if (questionResult) {
-      questionData = GameQuestionMapper.mapToSimpleQuestion(
-        questionResult.question
-      );
+    const questionData = ctx.resources?.simpleQuestion ?? null;
+    if (questionData) {
       game.gameState.currentQuestion = questionData;
     }
 
@@ -131,17 +112,21 @@ export class SecretTransferToAnsweringHandler extends BaseTransitionHandler {
   ): Promise<TimerResult> {
     const { game } = ctx;
 
-    // Clear any existing timer
-    await this.gameService.clearTimer(game.id);
-
     // Setup answering timer
-    const timerEntity = await this.timerService.setupQuestionTimer(
-      game,
-      GAME_QUESTION_ANSWER_TIME
-    );
+    const timer = new GameStateTimer(GAME_QUESTION_ANSWER_TIME);
+    game.gameState.timer = timer.start();
 
     return {
-      timer: timerEntity.value() ?? undefined,
+      timer: timer.value() ?? undefined,
+      timerMutations: [
+        { op: "delete", key: timerKey(game.id) },
+        {
+          op: "set",
+          key: timerKey(game.id),
+          value: JSON.stringify(timer.value()!),
+          pxTtl: GAME_QUESTION_ANSWER_TIME,
+        },
+      ],
     };
   }
 

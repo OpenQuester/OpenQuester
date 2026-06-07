@@ -1,10 +1,10 @@
-import { Router, type Express, type Request, type Response } from "express";
+import { type Express, type Request, type Response, Router } from "express";
 import Joi from "joi";
-import https, { RequestOptions } from "node:https";
-import { Namespace } from "socket.io";
+import https, { type RequestOptions } from "node:https";
+import { type Namespace } from "socket.io";
 
 import { FileService } from "application/services/file/FileService";
-import { TranslateService as ts } from "application/services/text/TranslateService";
+import { TranslateService as ts } from "domain/utils/TranslateService";
 import { UserService } from "application/services/user/UserService";
 import { getDiscordCDNLink } from "domain/constants/discord";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
@@ -14,28 +14,22 @@ import { HttpStatus } from "domain/enums/HttpStatus";
 import { ServerResponse } from "domain/enums/ServerResponse";
 import { ClientError } from "domain/errors/ClientError";
 import { ServerError } from "domain/errors/ServerError";
-import { DiscordProfile } from "domain/types/discord/DiscordProfile";
-import { DiscordProfileDTO } from "domain/types/dto/auth/DiscordProfileDTO";
-import { GuestLoginDTO } from "domain/types/dto/auth/GuestLoginDTO";
-import {
-  EOauthProvider,
-  Oauth2LoginDTO,
-} from "domain/types/dto/auth/Oauth2LoginDTO";
-import { SocketAuthDTO } from "domain/types/dto/auth/SocketAuthDTO";
-import { UserDTO } from "domain/types/dto/user/UserDTO";
-import { RegisterUser } from "domain/types/user/RegisterUser";
-import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { PerformanceLog } from "infrastructure/logger/PinoLogger";
-import { RedisService } from "infrastructure/services/redis/RedisService";
-import { SocketUserDataService } from "infrastructure/services/socket/SocketUserDataService";
-import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
+import { type DiscordProfile } from "domain/types/discord/DiscordProfile";
+import { type DiscordProfileDTO } from "domain/types/dto/auth/DiscordProfileDTO";
+import { type GuestLoginDTO } from "domain/types/dto/auth/GuestLoginDTO";
+import { EOauthProvider, type Oauth2LoginDTO } from "domain/types/dto/auth/Oauth2LoginDTO";
+import { type SocketAuthDTO } from "domain/types/dto/auth/SocketAuthDTO";
+import { type UserDTO } from "domain/types/dto/user/UserDTO";
+import { asUserId } from "domain/types/ids";
+import { type ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { type PerformanceLog } from "shared/logging/LoggerTypes";
+import { SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT } from "domain/constants/socket";
+import { RedisService } from "application/services/redis/RedisService";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
+import { S3StorageService } from "application/services/storage/S3StorageService";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
-import {
-  guestLoginScheme,
-  socketAuthScheme,
-} from "presentation/schemes/auth/authSchemes";
+import { guestLoginScheme, socketAuthScheme } from "presentation/schemes/auth/authSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 
 export class AuthRestApiController {
@@ -60,24 +54,18 @@ export class AuthRestApiController {
   }
 
   private socketAuth = async (req: Request, res: Response) => {
-    const authDTO = new RequestDataValidator<SocketAuthDTO>(
-      req.body,
-      socketAuthScheme
-    ).validate();
+    const authDTO = new RequestDataValidator<SocketAuthDTO>(req.body, socketAuthScheme).validate();
 
-    const existingData = await this.socketUserDataService.getSocketData(
-      authDTO.socketId
-    );
+    const existingData = await this.socketUserDataService.getSocketData(authDTO.socketId);
 
     if (existingData && existingData.id) {
       throw new ClientError(ClientResponse.SOCKET_LOGGED_IN);
     }
 
-    const userId = req.user!.id; // Null safety approved by auth middleware
+    const userId = req.auth!.userId; // Null safety approved by auth middleware
 
     // Check if user already has an active socket connection (prevent duplicate connections)
-    const existingSocketId =
-      await this.socketUserDataService.findSocketIdByUserId(userId);
+    const existingSocketId = await this.socketUserDataService.findSocketIdByUserId(userId);
 
     if (existingSocketId && existingSocketId !== authDTO.socketId) {
       // Force disconnect the existing socket (works across instances via Redis adapter)
@@ -87,10 +75,28 @@ export class AuthRestApiController {
       await this.socketUserDataService.remove(existingSocketId);
     }
 
+    const mutedUntil = await this.userService.getActiveMutedUntil(asUserId(userId));
+
     await this.socketUserDataService.set(authDTO.socketId, {
       userId: userId,
-      language: ts.parseHeaders(req.headers),
+      language: ts.parseAcceptLanguage(req.headers["accept-language"]),
+      mutedUntil
     });
+    await this.socketUserDataService.setUserMuteExpiration(userId, mutedUntil);
+
+    const runtimeContext = {
+      socketId: authDTO.socketId,
+      userId,
+      gameId: null,
+      mutedUntil
+    };
+    const liveSocket = this.gameNamespace.sockets.get(authDTO.socketId);
+    if (liveSocket) {
+      liveSocket.userId = runtimeContext.userId;
+      liveSocket.gameId = runtimeContext.gameId;
+      liveSocket.mutedUntil = runtimeContext.mutedUntil;
+    }
+    this.gameNamespace.serverSideEmit(SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT, runtimeContext);
 
     res.status(HttpStatus.OK).send();
   };
@@ -100,7 +106,7 @@ export class AuthRestApiController {
    */
   private handleOauthLogin = async (req: Request, res: Response) => {
     const log = this.logger.performance(`OAuth login`, {
-      prefix: LogPrefix.AUTH,
+      prefix: LogPrefix.AUTH
     });
 
     const authDTO = new RequestDataValidator<Oauth2LoginDTO>(
@@ -108,7 +114,7 @@ export class AuthRestApiController {
       Joi.object({
         oauthProvider: Joi.valid(...Object.values(EOauthProvider)).required(),
         tokenSchema: Joi.string().max(128).allow(null),
-        token: Joi.string().max(512).required(),
+        token: Joi.string().max(512).required()
       })
     ).validate();
 
@@ -122,15 +128,15 @@ export class AuthRestApiController {
           successMessage: `User logged in via ${authDTO.oauthProvider}`,
           auditData: {
             email: userData?.email,
-            provider: authDTO.oauthProvider,
+            provider: authDTO.oauthProvider
           },
-          performanceLog: log,
+          performanceLog: log
         });
         break;
       default:
         this.logger.warn(`Unsupported OAuth provider attempted`, {
           prefix: LogPrefix.AUTH,
-          provider: authDTO.oauthProvider,
+          provider: authDTO.oauthProvider
         });
         throw new ClientError(ClientResponse.OAUTH_PROVIDER_NOT_SUPPORTED);
     }
@@ -141,7 +147,7 @@ export class AuthRestApiController {
    */
   private logout = async (req: Request, res: Response) => {
     const log = this.logger.performance(`User logout`, {
-      prefix: LogPrefix.AUTH,
+      prefix: LogPrefix.AUTH
     });
     const sessionId = req.sessionID;
     const userId = req.session.userId;
@@ -151,17 +157,13 @@ export class AuthRestApiController {
         this.logger.error(`Session destroy failed`, {
           prefix: LogPrefix.AUTH,
           userId,
-          error: String(err),
+          error: String(err)
         });
         log.finish();
-        throw new ServerError(
-          ServerResponse.UNABLE_TO_DESTROY_SESSION,
-          HttpStatus.INTERNAL,
-          {
-            id: req.session.id,
-            userId: req.session.userId,
-          }
-        );
+        throw new ServerError(ServerResponse.UNABLE_TO_DESTROY_SESSION, HttpStatus.INTERNAL, {
+          id: req.session.id,
+          userId: req.session.userId
+        });
       }
 
       await this.redisService.del(`session:${sessionId}`);
@@ -171,11 +173,11 @@ export class AuthRestApiController {
 
       this.logger.audit(`User logged out`, {
         prefix: LogPrefix.AUTH,
-        userId,
+        userId
       });
 
       res.status(HttpStatus.OK).json({
-        message: await ts.localize(ClientResponse.LOGOUT_SUCCESS, req.headers),
+        message: await ts.localize(ClientResponse.LOGOUT_SUCCESS, req.headers["accept-language"])
       });
     });
   };
@@ -189,8 +191,8 @@ export class AuthRestApiController {
         headers: {
           authorization: authData.tokenSchema
             ? `${authData.tokenSchema} ${authData.token}`
-            : authData.token,
-        },
+            : authData.token
+        }
       };
 
       const request = https.request(options, (response) => {
@@ -220,27 +222,21 @@ export class AuthRestApiController {
         id: Joi.string().required(),
         username: Joi.string().required(),
         email: Joi.string().email().allow(null),
-        avatar: Joi.string().allow(null),
+        avatar: Joi.string().allow(null)
       })
     ).validate();
 
-    let user = await this.userService.findOne(
-      { discord_id: profile.id, is_deleted: false },
-      {
-        select: USER_SELECT_FIELDS,
-        relations: USER_RELATIONS,
-        relationSelects: {
-          avatar: ["id", "filename"],
-          permissions: ["id", "name"],
-        },
+    let user = await this.userService.findActiveByDiscordId(profile.id, {
+      select: USER_SELECT_FIELDS,
+      relations: USER_RELATIONS,
+      relationSelects: {
+        avatar: ["id", "filename"],
+        permissions: ["id", "name"]
       }
-    );
+    });
 
     if (!user) {
-      user = new User();
-      user.discord_id = profile.id;
-      user.username = profile.username;
-      user.email = profile.email ?? null;
+      let avatar = null;
       if (profile.avatar) {
         const avatarFileName = await this.storage.putFileFromDiscord(
           getDiscordCDNLink(profile.id, profile.avatar),
@@ -248,40 +244,36 @@ export class AuthRestApiController {
         );
 
         if (avatarFileName) {
-          const file = await this.fileService.writeFile(
+          avatar = await this.fileService.writeFile(
             getDiscordCDNLink(profile.id, profile.avatar),
             avatarFileName,
             FileSource.DISCORD
           );
-
-          user.avatar = file;
         }
       }
 
-      const registerData: RegisterUser = {
-        username: user.username,
-        email: user.email,
-        discord_id: user.discord_id,
-        birthday: user.birthday,
-        avatar: user.avatar,
-      };
-
-      user = await this.userService.create(registerData);
+      user = await this.userService.create({
+        username: profile.username,
+        email: profile.email ?? null,
+        discord_id: profile.id,
+        birthday: null,
+        avatar
+      });
     }
 
-    return user.toDTO();
+    return this.userService.toDTO(user);
   }
 
   private handleGuestLogin = async (req: Request, res: Response) => {
     const clientIp = req.ip;
     const log = this.logger.performance(`Guest login`, {
-      prefix: LogPrefix.AUTH,
+      prefix: LogPrefix.AUTH
     });
 
     this.logger.trace("Guest login attempt started", {
       prefix: LogPrefix.AUTH,
       clientIp,
-      userAgent: req.get("User-Agent"),
+      userAgent: req.get("User-Agent")
     });
 
     const guestData = new RequestDataValidator<GuestLoginDTO>(
@@ -289,25 +281,23 @@ export class AuthRestApiController {
       guestLoginScheme
     ).validate();
 
-    const registerData: RegisterUser = {
+    const createdUser = await this.userService.create({
       username: guestData.username, // This will be replaced with auto-generated username
       name: guestData.username, // Store as display name
       email: null,
       discord_id: null,
       birthday: null,
       avatar: null,
-      is_guest: true,
-    };
-
-    const createdUser = await this.userService.create(registerData);
-    const userData = createdUser.toDTO();
+      is_guest: true
+    });
+    const userData = this.userService.toDTO(createdUser);
 
     this.saveUserSession(req, res, userData, {
       successMessage: "Guest user logged in",
       auditData: {
-        username: userData?.username,
+        username: userData?.username
       },
-      performanceLog: log,
+      performanceLog: log
     });
   };
 
@@ -334,7 +324,7 @@ export class AuthRestApiController {
         this.logger.error(`Session save error: ${err}`, {
           prefix: LogPrefix.AUTH,
           userId: userData?.id,
-          clientIp,
+          clientIp
         });
         options.performanceLog?.finish();
         throw new ClientError(ClientResponse.SESSION_SAVING_ERROR);
@@ -348,7 +338,7 @@ export class AuthRestApiController {
         ...options.auditData,
         clientIp,
         userAgent: req.get("User-Agent"),
-        loginTime: new Date(),
+        loginTime: new Date()
       });
 
       res.status(HttpStatus.OK).json(userData);

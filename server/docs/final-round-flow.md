@@ -505,7 +505,7 @@ Players answer the final question with a text-based response. When the answering
 ### Question Phase Rules
 
 - **Timer**: 75 seconds for answering
-- **Answer Format**: Text-based (max 255 characters)
+- **Answer Format**: Text-based (max 500 characters)
 - **Participation**: Only players who submitted bids can answer
 - **Submission**: One answer per player
 - **Auto-Loss**: Empty answers are treated as auto-loss
@@ -633,7 +633,7 @@ Send when player submits their answer.
 
 ```typescript
 interface FinalAnswerSubmitInputData {
-  answerText: string; // Max 255 characters, empty string allowed (auto-loss)
+  answerText: string; // Max 500 characters, empty string allowed (auto-loss)
 }
 ```
 
@@ -644,7 +644,7 @@ interface FinalAnswerSubmitInputData {
 
 // When player submits answer
 const handleAnswerSubmit = (answerText: string) => {
-  if (answerText.length <= 255) {
+  if (answerText.length <= 500) {
     socket.emit("final-answer-submit", { answerText });
   }
 };
@@ -674,7 +674,7 @@ interface AnsweringState {
 
 // Answer validation
 const validateAnswer = (answer: string) => {
-  return answer.length <= 255; // Empty answers are allowed (auto-loss)
+  return answer.length <= 500; // Empty answers are allowed (auto-loss)
 };
 
 // Timer expiration handling
@@ -700,7 +700,7 @@ const renderAnswerInput = (state: AnsweringState) => {
       <textarea
         value={state.myAnswer}
         onChange={(e) => setMyAnswer(e.target.value)}
-        maxLength={255}
+        maxLength={500}
         placeholder="Enter your answer..."
         disabled={state.timeRemaining <= 0}
       />
@@ -711,7 +711,7 @@ const renderAnswerInput = (state: AnsweringState) => {
         Submit Answer
       </button>
       <p>Time remaining: {state.timeRemaining}s</p>
-      <p>Characters: {state.myAnswer.length}/255</p>
+      <p>Characters: {state.myAnswer.length}/500</p>
     </div>
   );
 };

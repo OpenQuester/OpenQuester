@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 
 export class MakeAuthorNullable_1742725198044 implements MigrationInterface {

@@ -13,13 +13,13 @@ Every request/socket event automatically gets a `correlationId` via `LogContextS
 ```
 HTTP Request / Socket Event
         ↓
-correlationMiddleware / BaseSocketEventHandler
+correlationMiddleware / SocketActionDispatcher
         ↓
 LogContextService.runAsync() creates context
         ↓
 All logs auto-include: correlationId, tags, gameId, userId
         ↓
-Written to logs/unified.log (all instances)
+Written to the configured runtime log destination
         ↓
 GET /v1/admin/api/system/logs (filter by correlationId, tags, etc.)
 ```

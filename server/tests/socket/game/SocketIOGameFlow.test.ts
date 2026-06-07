@@ -16,7 +16,7 @@ import {
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -39,7 +39,7 @@ describe("Socket Game Flow Tests", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 
@@ -168,6 +168,44 @@ describe("Socket Game Flow Tests", () => {
       }).finally(async () => {
         await utils.cleanupGameClients(setup);
       });
+    });
+
+    it("should no-op when leaving after already leaving the game", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const { playerSockets, showmanSocket } = setup;
+
+      try {
+        await utils.leaveGame(playerSockets[0]);
+
+        const playerSessionAfterLeave = await utils.getSocketUserData(playerSockets[0]);
+        expect(playerSessionAfterLeave?.gameId).toBeNull();
+
+        const noShowmanLeavePromise = utils.waitForNoEvent(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
+        );
+        const noPlayerLeavePromise = utils.waitForNoEvent(
+          playerSockets[0],
+          SocketIOGameEvents.LEAVE
+        );
+        const noPlayerErrorPromise = utils.waitForNoEvent(
+          playerSockets[0],
+          SocketIOEvents.ERROR
+        );
+
+        playerSockets[0].emit(SocketIOGameEvents.LEAVE);
+
+        await Promise.all([
+          noShowmanLeavePromise,
+          noPlayerLeavePromise,
+          noPlayerErrorPromise,
+        ]);
+
+        const playerSessionAfterNoop = await utils.getSocketUserData(playerSockets[0]);
+        expect(playerSessionAfterNoop?.gameId).toBeNull();
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
     });
   });
 

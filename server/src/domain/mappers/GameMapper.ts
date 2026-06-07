@@ -3,6 +3,7 @@ import { Player } from "domain/entities/game/Player";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { GameRedisHashDTO } from "domain/types/dto/game/GameRedisHashDTO";
 import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
+import { asUserId } from "domain/types/ids";
 
 export class GameMapper {
   /**
@@ -18,13 +19,13 @@ export class GameMapper {
       isPrivate: game.isPrivate ? "1" : "0",
       ageRestriction: game.ageRestriction,
       maxPlayers: game.maxPlayers.toString(),
-      package: JSON.stringify(game.package),
+      roundIndex: JSON.stringify(game.roundIndex),
       startedAt: game.startedAt ? game.startedAt.getTime().toString() : "",
       finishedAt: game.finishedAt ? game.finishedAt.getTime().toString() : "",
       roundsCount: game.roundsCount.toString(),
       questionsCount: game.questionsCount.toString(),
       players: JSON.stringify(game.players.map((p) => p.toDTO())),
-      gameState: JSON.stringify(game.gameState),
+      gameState: JSON.stringify(game.gameState)
     };
   }
 
@@ -36,18 +37,18 @@ export class GameMapper {
     return new Game({
       id: data.id,
       title: data.title,
-      createdBy: parseInt(data.createdBy),
+      createdBy: asUserId(parseInt(data.createdBy)),
       createdAt: new Date(parseInt(data.createdAt)),
       isPrivate: data.isPrivate === "1",
       ageRestriction: data.ageRestriction as AgeRestriction,
       maxPlayers: parseInt(data.maxPlayers),
       startedAt: data.startedAt ? new Date(parseInt(data.startedAt)) : null,
       finishedAt: data.finishedAt ? new Date(parseInt(data.finishedAt)) : null,
-      package: JSON.parse(data.package),
+      roundIndex: JSON.parse(data.roundIndex),
       roundsCount: parseInt(data.roundsCount),
       questionsCount: parseInt(data.questionsCount),
       players: JSON.parse(data.players).map((p: PlayerDTO) => new Player(p)),
-      gameState: JSON.parse(data.gameState),
+      gameState: JSON.parse(data.gameState)
     });
   }
 }

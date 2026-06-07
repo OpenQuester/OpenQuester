@@ -1,6 +1,6 @@
 import Joi from "joi";
 
-import { GuestLoginDTO } from "domain/types/dto/auth/GuestLoginDTO";
+import { type GuestLoginDTO } from "domain/types/dto/auth/GuestLoginDTO";
 import { nameScheme } from "../user/userSchemes";
 
 export const socketAuthScheme = Joi.object({

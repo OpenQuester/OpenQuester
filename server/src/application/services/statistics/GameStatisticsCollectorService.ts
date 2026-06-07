@@ -1,13 +1,13 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { StatisticsWorkerFactory } from "application/factories/StatisticsWorkerFactory";
 import { GameStatisticsService } from "application/services/statistics/GameStatisticsService";
 import { Game } from "domain/entities/game/Game";
 import { GameMode } from "domain/enums/GameMode";
 import { GameStatisticsData } from "domain/types/statistics/GameStatisticsData";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Service responsible for collecting game statistics during gameplay.

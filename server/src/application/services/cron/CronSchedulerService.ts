@@ -1,13 +1,10 @@
 import * as cron from "node-cron";
 
-import {
-  REDIS_LOCK_CRON_JOB,
-  REDIS_LOCK_CRON_JOB_TTL_DEFAULT,
-} from "domain/constants/redis";
+import { REDIS_LOCK_CRON_JOB, REDIS_LOCK_CRON_JOB_TTL_DEFAULT } from "domain/constants/redis";
 import { ICronJob } from "domain/types/cron/ICronJob";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { RedisService } from "infrastructure/services/redis/RedisService";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { RedisService } from "application/services/redis/RedisService";
 
 /**
  * Service for managing and scheduling cron jobs
@@ -32,21 +29,21 @@ export class CronSchedulerService {
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
       this.logger.warn("CronSchedulerService already initialized", {
-        prefix: LogPrefix.CRON_SCHEDULER,
+        prefix: LogPrefix.CRON_SCHEDULER
       });
       return;
     }
 
     this.logger.info("Initializing cron scheduler", {
       prefix: LogPrefix.CRON_SCHEDULER,
-      totalJobs: this.jobs.length,
+      totalJobs: this.jobs.length
     });
 
     for (const job of this.jobs) {
       if (!job.enabled) {
         this.logger.info(`Skipping disabled cron job: ${job.name}`, {
           prefix: LogPrefix.CRON_SCHEDULER,
-          job: job.name,
+          job: job.name
         });
         continue;
       }
@@ -57,7 +54,7 @@ export class CronSchedulerService {
         this.logger.error(`Failed to schedule cron job: ${job.name}`, {
           prefix: LogPrefix.CRON_SCHEDULER,
           job: job.name,
-          error: error instanceof Error ? error.message : String(error),
+          error: error instanceof Error ? error.message : String(error)
         });
       }
     }
@@ -66,16 +63,14 @@ export class CronSchedulerService {
 
     this.logger.info("Cron scheduler initialized successfully", {
       prefix: LogPrefix.CRON_SCHEDULER,
-      scheduledJobs: this.scheduledTasks.size,
+      scheduledJobs: this.scheduledTasks.size
     });
 
     this.runStartupJobs();
   }
 
   private runStartupJobs(): void {
-    const startupJobs = this.jobs.filter(
-      (job) => job.enabled && job.runOnStartup
-    );
+    const startupJobs = this.jobs.filter((job) => job.enabled && job.runOnStartup);
 
     if (startupJobs.length === 0) {
       return;
@@ -83,7 +78,7 @@ export class CronSchedulerService {
 
     this.logger.info("Running startup cron jobs", {
       prefix: LogPrefix.CRON_SCHEDULER,
-      jobs: startupJobs.map((job) => job.name),
+      jobs: startupJobs.map((job) => job.name)
     });
 
     for (const job of startupJobs) {
@@ -100,16 +95,14 @@ export class CronSchedulerService {
     if (this.scheduledTasks.has(job.name)) {
       this.logger.warn(`Cron job already scheduled: ${job.name}`, {
         prefix: LogPrefix.CRON_SCHEDULER,
-        job: job.name,
+        job: job.name
       });
       return;
     }
 
     // Validate cron expression
     if (!cron.validate(job.cronExpression)) {
-      throw new Error(
-        `Invalid cron expression for job ${job.name}: ${job.cronExpression}`
-      );
+      throw new Error(`Invalid cron expression for job ${job.name}: ${job.cronExpression}`);
     }
 
     const task = cron.schedule(
@@ -121,7 +114,7 @@ export class CronSchedulerService {
         });
       },
       {
-        timezone: "UTC", // Ensure all jobs run in UTC
+        timezone: "UTC" // Ensure all jobs run in UTC
       }
     );
 
@@ -132,7 +125,7 @@ export class CronSchedulerService {
       prefix: LogPrefix.CRON_SCHEDULER,
       job: job.name,
       cronExpression: job.cronExpression,
-      timezone: "UTC",
+      timezone: "UTC"
     });
   }
 
@@ -148,34 +141,31 @@ export class CronSchedulerService {
       const acquired = await this.redisService.setLockKey(lockKey, lockTtl);
 
       if (acquired !== "OK") {
-        this.logger.debug(
-          `Cron job skipped (lock held by another instance): ${job.name}`,
-          {
-            prefix: LogPrefix.CRON_SCHEDULER,
-            job: job.name,
-            lockKey,
-          }
-        );
+        this.logger.debug(`Cron job skipped (lock held by another instance): ${job.name}`, {
+          prefix: LogPrefix.CRON_SCHEDULER,
+          job: job.name,
+          lockKey
+        });
         return;
       }
 
       this.logger.info(`Executing cron job: ${job.name}`, {
         prefix: LogPrefix.CRON_SCHEDULER,
         job: job.name,
-        lockTtl,
+        lockTtl
       });
 
       await job.execute();
 
       this.logger.info(`Cron job completed: ${job.name}`, {
         prefix: LogPrefix.CRON_SCHEDULER,
-        job: job.name,
+        job: job.name
       });
     } catch (error) {
       this.logger.error(`Cron job execution failed: ${job.name}`, {
         prefix: LogPrefix.CRON_SCHEDULER,
         job: job.name,
-        error: error instanceof Error ? error.message : String(error),
+        error: error instanceof Error ? error.message : String(error)
       });
     }
   }
@@ -186,14 +176,14 @@ export class CronSchedulerService {
   public async stopAll(): Promise<void> {
     this.logger.info("Stopping all cron jobs", {
       prefix: LogPrefix.CRON_SCHEDULER,
-      totalJobs: this.scheduledTasks.size,
+      totalJobs: this.scheduledTasks.size
     });
 
     for (const [jobName, task] of this.scheduledTasks.entries()) {
       await task.stop();
       this.logger.debug(`Stopped cron job: ${jobName}`, {
         prefix: LogPrefix.CRON_SCHEDULER,
-        job: jobName,
+        job: jobName
       });
     }
 
@@ -201,7 +191,7 @@ export class CronSchedulerService {
     this.isInitialized = false;
 
     this.logger.info("All cron jobs stopped", {
-      prefix: LogPrefix.CRON_SCHEDULER,
+      prefix: LogPrefix.CRON_SCHEDULER
     });
   }
 }

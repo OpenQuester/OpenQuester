@@ -4,7 +4,7 @@ import { HttpStatus } from "domain/enums/HttpStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { GameUpdateDTO } from "domain/types/dto/game/GameUpdateDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
  * Validator for game update operations.
@@ -29,10 +29,7 @@ export class GameUpdateValidator {
    * 1) Public games cannot accept password field
    * 2) Private games cannot remove password via null
    */
-  public static validatePasswordUpdate(
-    updateData: GameUpdateDTO,
-    currentIsPrivate: boolean
-  ): void {
+  public static validatePasswordUpdate(updateData: GameUpdateDTO, currentIsPrivate: boolean): void {
     const targetIsPrivate = ValueUtils.isBoolean(updateData.isPrivate)
       ? updateData.isPrivate
       : currentIsPrivate;
@@ -66,10 +63,7 @@ export class GameUpdateValidator {
   /**
    * Validates that package can only be changed before game starts.
    */
-  public static validatePackageUpdate(
-    updateData: GameUpdateDTO,
-    game: Game
-  ): void {
+  public static validatePackageUpdate(updateData: GameUpdateDTO, game: Game): void {
     if (!ValueUtils.isNumber(updateData.packageId)) {
       return;
     }
@@ -86,10 +80,7 @@ export class GameUpdateValidator {
   /**
    * Validates that maxPlayers is not reduced below current player count.
    */
-  public static validateMaxPlayersUpdate(
-    updateData: GameUpdateDTO,
-    game: Game
-  ): void {
+  public static validateMaxPlayersUpdate(updateData: GameUpdateDTO, game: Game): void {
     if (!ValueUtils.isNumber(updateData.maxPlayers)) {
       return;
     }
@@ -101,7 +92,7 @@ export class GameUpdateValidator {
         HttpStatus.BAD_REQUEST,
         {
           maxPlayers: updateData.maxPlayers,
-          playersCount: inGamePlayersCount,
+          playersCount: inGamePlayersCount
         }
       );
     }

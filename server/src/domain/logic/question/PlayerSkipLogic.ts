@@ -1,10 +1,8 @@
 import { Game } from "domain/entities/game/Game";
 import { Player } from "domain/entities/game/Player";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { GameStateAnsweredPlayerData } from "domain/types/dto/game/state/GameStateDTO";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";

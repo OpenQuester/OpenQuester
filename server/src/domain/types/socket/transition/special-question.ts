@@ -1,4 +1,5 @@
 import { TransitionContext } from "domain/state-machine/types";
+import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
 
 // ============================================================================
@@ -42,4 +43,5 @@ export interface StakeBiddingToAnsweringMutationData {
   winnerPlayerId: number;
   finalBid: number | null;
   questionData: SimplePackageQuestionDTO | null;
+  fullQuestionData?: PackageQuestionDTO | null;
 }

@@ -1,9 +1,8 @@
+import { MIN_TIMER_TTL_MS } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import {
-  SocketBroadcastTarget,
-  SocketEventBroadcast,
-} from "domain/handlers/socket/BaseSocketEventHandler";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
+import { type SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { GamePauseBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 
@@ -47,7 +46,7 @@ export class GamePauseLogic {
    */
   public static calculateRemainingTime(timer: GameStateTimerDTO): number {
     const remainingMs = timer.durationMs - (timer.elapsedMs || 0);
-    return Math.max(remainingMs, 1); // Minimum 1ms to avoid Redis errors
+    return Math.max(remainingMs, MIN_TIMER_TTL_MS); // Minimum 1ms to avoid Redis errors
   }
 
   /**

@@ -4,12 +4,11 @@ export enum SocketIOEvents {
   CONNECTION = "connection",
   GAMES = "games",
   CHAT_MESSAGE = "chat-message",
-  NOTIFICATIONS = "notifications",
+  NOTIFICATIONS = "notifications"
 }
 
 export enum SocketIOUserEvents {
-  USER_CHANGE = "user-change",
-  USER_UPDATED = "user-updated",
+  USER_CHANGE = "user-change"
 }
 
 export enum SocketIOGameEvents {
@@ -66,5 +65,5 @@ export enum SocketIOGameEvents {
 
   // Media Download Events
   MEDIA_DOWNLOADED = "media-downloaded",
-  MEDIA_DOWNLOAD_STATUS = "media-download-status",
+  MEDIA_DOWNLOAD_STATUS = "media-download-status"
 }

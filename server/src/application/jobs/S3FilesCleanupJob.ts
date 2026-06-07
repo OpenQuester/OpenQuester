@@ -1,9 +1,9 @@
 import { BaseCronJob } from "application/jobs/BaseCronJob";
 import { FileService } from "application/services/file/FileService";
 import { CRON_EXP_2_AM_DAILY } from "domain/constants/cron";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { S3StorageService } from "infrastructure/services/storage/S3StorageService";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { S3StorageService } from "application/services/storage/S3StorageService";
 
 /**
  * Daily cleanup job for orphaned S3 files
@@ -44,10 +44,10 @@ export class S3FilesCleanupJob extends BaseCronJob {
    */
   protected async run(): Promise<void> {
     const log = this.logger.performance("S3 Files Cleanup Job", {
-      prefix: LogPrefix.S3_CLEANUP,
+      prefix: LogPrefix.S3_CLEANUP
     });
     this.logger.info("Starting S3 files cleanup process", {
-      prefix: LogPrefix.S3_CLEANUP,
+      prefix: LogPrefix.S3_CLEANUP
     });
 
     const BATCH_SIZE = 1000;
@@ -60,9 +60,7 @@ export class S3FilesCleanupJob extends BaseCronJob {
 
     try {
       // Process S3 files in batches
-      for await (const s3Batch of this.s3Service.listS3FilesInBatches(
-        BATCH_SIZE
-      )) {
+      for await (const s3Batch of this.s3Service.listS3FilesInBatches(BATCH_SIZE)) {
         batchNumber++;
         totalS3Files += s3Batch.length;
 
@@ -81,15 +79,11 @@ export class S3FilesCleanupJob extends BaseCronJob {
         const filenames = filteredBatch.map((file) => file.filename);
 
         // Check which filenames exist in database
-        const existingFilenames = await this.fileService.getExistingFilenames(
-          filenames
-        );
+        const existingFilenames = await this.fileService.getExistingFilenames(filenames);
         const existingSet = new Set(existingFilenames);
 
         // Find orphaned files in this batch
-        const batchOrphaned = filteredBatch.filter(
-          (file) => !existingSet.has(file.filename)
-        );
+        const batchOrphaned = filteredBatch.filter((file) => !existingSet.has(file.filename));
 
         // Delete orphaned files immediately if any found
         if (batchOrphaned.length > 0) {
@@ -102,17 +96,14 @@ export class S3FilesCleanupJob extends BaseCronJob {
             {
               prefix: LogPrefix.S3_CLEANUP,
               batchNumber,
-              deletedCount: batchOrphaned.length,
+              deletedCount: batchOrphaned.length
             }
           );
         } else {
-          this.logger.debug(
-            `Batch ${batchNumber} processed: no orphaned files`,
-            {
-              prefix: LogPrefix.S3_CLEANUP,
-              batchNumber,
-            }
-          );
+          this.logger.debug(`Batch ${batchNumber} processed: no orphaned files`, {
+            prefix: LogPrefix.S3_CLEANUP,
+            batchNumber
+          });
         }
       }
 
@@ -124,28 +115,25 @@ export class S3FilesCleanupJob extends BaseCronJob {
         totalProcessed: totalS3Files - totalIgnored,
         totalOrphaned,
         ignoredFolder: ignoredFolder || "none",
-        batchesProcessed: batchNumber,
+        batchesProcessed: batchNumber
       });
 
       if (totalOrphaned === 0) {
         this.logger.info("No orphaned files found in S3", {
-          prefix: LogPrefix.S3_CLEANUP,
+          prefix: LogPrefix.S3_CLEANUP
         });
         return;
       }
 
-      this.logger.info(
-        `Successfully cleaned up ${totalOrphaned} orphaned files from S3`,
-        {
-          prefix: LogPrefix.S3_CLEANUP,
-          deletedCount: totalOrphaned,
-        }
-      );
+      this.logger.info(`Successfully cleaned up ${totalOrphaned} orphaned files from S3`, {
+        prefix: LogPrefix.S3_CLEANUP,
+        deletedCount: totalOrphaned
+      });
     } catch (error) {
       this.logger.error("S3 cleanup process failed", {
         prefix: LogPrefix.S3_CLEANUP,
         error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
+        stack: error instanceof Error ? error.stack : undefined
       });
       throw error; // Re-throw to trigger the error handling in BaseCronJob
     } finally {

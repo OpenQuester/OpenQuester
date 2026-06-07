@@ -1,22 +1,15 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import request from "supertest";
 import { Repository } from "typeorm";
 
+import { UpdateUserInputDTO } from "application/types/user/UpdateUserInputDTO";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOUserEvents } from "domain/enums/SocketIOEvents";
-import { UpdateUserInputDTO } from "domain/types/dto/user/UpdateUserInputDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { UserChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -40,7 +33,7 @@ describe("User Notification Rooms Tests", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 
@@ -70,10 +63,7 @@ describe("User Notification Rooms Tests", () => {
         );
 
         const updateData: UpdateUserInputDTO = { username: "updatedself" };
-        const { cookie: player2Cookie } = await utils.loginExistingUser(
-          app,
-          playerUsers[1].id
-        );
+        const { cookie: player2Cookie } = await utils.loginExistingUser(app, playerUsers[1].id);
 
         await request(app)
           .patch("/v1/me")
@@ -93,18 +83,8 @@ describe("User Notification Rooms Tests", () => {
     });
 
     it("should not notify players in a different game when a user updates themself", async () => {
-      const game1Setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0
-      );
-      const game2Setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0
-      );
+      const game1Setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const game2Setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       try {
         await utils.startGame(game1Setup.showmanSocket);
         await utils.startGame(game2Setup.showmanSocket);
@@ -150,10 +130,7 @@ describe("User Notification Rooms Tests", () => {
         );
 
         const updateData: UpdateUserInputDTO = { username: "updatedmass" };
-        const { cookie: player1Cookie } = await utils.loginExistingUser(
-          app,
-          playerUsers[0].id
-        );
+        const { cookie: player1Cookie } = await utils.loginExistingUser(app, playerUsers[0].id);
 
         await request(app)
           .patch("/v1/me")
@@ -189,13 +166,10 @@ describe("User Notification Rooms Tests", () => {
         );
 
         const updateData: UpdateUserInputDTO = {
-          username: "updatedafterleave",
+          username: "updatedafterleave"
         };
 
-        const { cookie: player2Cookie } = await utils.loginExistingUser(
-          app,
-          playerUsers[1].id
-        );
+        const { cookie: player2Cookie } = await utils.loginExistingUser(app, playerUsers[1].id);
 
         await request(app)
           .patch("/v1/me")
@@ -217,16 +191,9 @@ describe("User Notification Rooms Tests", () => {
       try {
         await utils.startGame(showmanSocket);
 
-        const { socket: newPlayerSocket } = await utils.createGameClient(
-          app,
-          userRepo
-        );
+        const { socket: newPlayerSocket } = await utils.createGameClient(app, userRepo);
 
-        await utils.joinSpecificGame(
-          newPlayerSocket,
-          setup.gameId,
-          PlayerRole.PLAYER
-        );
+        await utils.joinSpecificGame(newPlayerSocket, setup.gameId, PlayerRole.PLAYER);
 
         const userChangePromise = utils.waitForEvent(
           newPlayerSocket,
@@ -234,7 +201,7 @@ describe("User Notification Rooms Tests", () => {
         );
 
         const updateData: UpdateUserInputDTO = {
-          username: "originalplayerupdated",
+          username: "originalplayerupdated"
         };
 
         const { cookie: originalPlayerCookie } = await utils.loginExistingUser(

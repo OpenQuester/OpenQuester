@@ -1,11 +1,11 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "application/di/tokens";
+import { DI_TOKENS } from "shared/di/tokens";
 import { PlayerGameStatsService } from "application/services/statistics/PlayerGameStatsService";
 import { GameStatisticsPersistenceWorker } from "application/workers/GameStatisticsPersistenceWorker";
 import { GameStatisticsData } from "domain/types/statistics/GameStatisticsData";
 import { GameStatisticsRepository } from "infrastructure/database/repositories/statistics/GameStatisticsRepository";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 
 /**
  * Factory for creating statistics-related workers.

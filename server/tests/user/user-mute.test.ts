@@ -4,10 +4,10 @@ import { DataSource, Repository } from "typeorm";
 
 import { USER_CACHE_KEY } from "domain/constants/cache";
 import { Permissions } from "domain/enums/Permissions";
-import { RedisConfig } from "infrastructure/config/RedisConfig";
+import { RedisConfig } from "shared/config/RedisConfig";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -25,15 +25,12 @@ async function preparePermission(
   return perm;
 }
 
-async function createAdminUser(
-  userRepo: Repository<User>,
-  permissions: Permission[]
-) {
+async function createAdminUser(userRepo: Repository<User>, permissions: Permission[]) {
   const user = userRepo.create({
     username: "adminuser",
     email: "admin@example.com",
     is_deleted: false,
-    permissions: permissions,
+    permissions: permissions
   });
   await userRepo.save(user);
   return user;
@@ -48,7 +45,7 @@ async function createTargetUser(
     username,
     email,
     is_deleted: false,
-    permissions: [],
+    permissions: []
   });
   await userRepo.save(user);
   return user;
@@ -105,10 +102,7 @@ describe("User Mute Functionality", () => {
   describe("Mute Endpoints", () => {
     it("should mute user with mute_player permission", async () => {
       // Create mute permission
-      const mutePerm = await preparePermission(
-        permRepo,
-        Permissions.MUTE_PLAYER
-      );
+      const mutePerm = await preparePermission(permRepo, Permissions.MUTE_PLAYER);
 
       // Create admin user with mute permission
       const adminUser = await createAdminUser(userRepo, [mutePerm]);
@@ -117,9 +111,7 @@ describe("User Mute Functionality", () => {
       const targetUser = await createTargetUser(userRepo);
 
       // Login as admin
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: adminUser.id });
+      const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
@@ -138,21 +130,16 @@ describe("User Mute Functionality", () => {
 
       // Verify in database
       const mutedUser = await userRepo.findOne({
-        where: { id: targetUser.id },
+        where: { id: targetUser.id }
       });
       expect(mutedUser).toBeDefined();
       expect(mutedUser!.muted_until).toBeDefined();
-      expect(new Date(mutedUser!.muted_until!).getTime()).toBeGreaterThan(
-        Date.now()
-      );
+      expect(new Date(mutedUser!.muted_until!).getTime()).toBeGreaterThan(Date.now());
     });
 
     it("should unmute user with mute_player permission", async () => {
       // Create mute permission
-      const mutePerm = await preparePermission(
-        permRepo,
-        Permissions.MUTE_PLAYER
-      );
+      const mutePerm = await preparePermission(permRepo, Permissions.MUTE_PLAYER);
 
       // Create admin user with mute permission
       const adminUser = await createAdminUser(userRepo, [mutePerm]);
@@ -163,14 +150,12 @@ describe("User Mute Functionality", () => {
         email: "muted@example.com",
         is_deleted: false,
         permissions: [],
-        muted_until: new Date(Date.now() + 3600000), // Muted for 1 hour
+        muted_until: new Date(Date.now() + 3600000) // Muted for 1 hour
       });
       await userRepo.save(targetUser);
 
       // Login as admin
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: adminUser.id });
+      const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
@@ -186,7 +171,7 @@ describe("User Mute Functionality", () => {
 
       // Verify in database
       const unmutedUser = await userRepo.findOne({
-        where: { id: targetUser.id },
+        where: { id: targetUser.id }
       });
       expect(unmutedUser).toBeDefined();
       expect(unmutedUser!.muted_until).toBeNull();
@@ -194,19 +179,13 @@ describe("User Mute Functionality", () => {
 
     it("should require mute_player permission to mute", async () => {
       // Create user without mute permission
-      const user = await createTargetUser(
-        userRepo,
-        "nonadmin",
-        "nonadmin@example.com"
-      );
+      const user = await createTargetUser(userRepo, "nonadmin", "nonadmin@example.com");
 
       // Create target user
       const targetUser = await createTargetUser(userRepo);
 
       // Login as user without mute permission
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: user.id });
+      const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
@@ -223,11 +202,7 @@ describe("User Mute Functionality", () => {
 
     it("should require mute_player permission to unmute", async () => {
       // Create user without mute permission
-      const user = await createTargetUser(
-        userRepo,
-        "nonadmin",
-        "nonadmin@example.com"
-      );
+      const user = await createTargetUser(userRepo, "nonadmin", "nonadmin@example.com");
 
       // Create target user with existing mute
       const targetUser = userRepo.create({
@@ -235,14 +210,12 @@ describe("User Mute Functionality", () => {
         email: "muted@example.com",
         is_deleted: false,
         permissions: [],
-        muted_until: new Date(Date.now() + 3600000),
+        muted_until: new Date(Date.now() + 3600000)
       });
       await userRepo.save(targetUser);
 
       // Login as user without mute permission
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: user.id });
+      const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
@@ -257,18 +230,13 @@ describe("User Mute Functionality", () => {
 
     it("should return 404 for non-existent user when muting", async () => {
       // Create mute permission
-      const mutePerm = await preparePermission(
-        permRepo,
-        Permissions.MUTE_PLAYER
-      );
+      const mutePerm = await preparePermission(permRepo, Permissions.MUTE_PLAYER);
 
       // Create admin user
       const adminUser = await createAdminUser(userRepo, [mutePerm]);
 
       // Login as admin
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: adminUser.id });
+      const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
@@ -285,10 +253,7 @@ describe("User Mute Functionality", () => {
 
     it("should validate mutedUntil date format", async () => {
       // Create mute permission
-      const mutePerm = await preparePermission(
-        permRepo,
-        Permissions.MUTE_PLAYER
-      );
+      const mutePerm = await preparePermission(permRepo, Permissions.MUTE_PLAYER);
 
       // Create admin user
       const adminUser = await createAdminUser(userRepo, [mutePerm]);
@@ -297,9 +262,7 @@ describe("User Mute Functionality", () => {
       const targetUser = await createTargetUser(userRepo);
 
       // Login as admin
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: adminUser.id });
+      const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
@@ -323,14 +286,12 @@ describe("User Mute Functionality", () => {
         email: "muted@example.com",
         is_deleted: false,
         permissions: [],
-        muted_until: mutedUntil,
+        muted_until: mutedUntil
       });
       await userRepo.save(user);
 
       // Login as this user
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: user.id });
+      const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
@@ -340,10 +301,7 @@ describe("User Mute Functionality", () => {
 
       expect(meRes.status).toBe(200);
       expect(meRes.body.mutedUntil).toBeDefined();
-      expect(new Date(meRes.body.mutedUntil).getTime()).toBeCloseTo(
-        mutedUntil.getTime(),
-        -2
-      ); // Allow 10ms difference
+      expect(new Date(meRes.body.mutedUntil).getTime()).toBeCloseTo(mutedUntil.getTime(), -2); // Allow 10ms difference
     });
 
     it("should have null mutedUntil for non-muted users", async () => {
@@ -351,9 +309,7 @@ describe("User Mute Functionality", () => {
       const user = await createTargetUser(userRepo);
 
       // Login as this user
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: user.id });
+      const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];

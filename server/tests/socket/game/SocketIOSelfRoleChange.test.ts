@@ -17,7 +17,7 @@ import { PlayerDTO } from "domain/types/dto/game/player/PlayerDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerRoleChangeBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
@@ -39,7 +39,7 @@ describe("Socket IO Self Role Change", () => {
     const boot = await bootstrapTestApp(testEnv.getDatabase());
     app = boot.app;
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
     userRepo = testEnv.getDatabase().getRepository(User);
   });

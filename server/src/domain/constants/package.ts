@@ -1,6 +1,12 @@
-import { Package } from "infrastructure/database/models/package/Package";
+export type PackageSelectField =
+  | "id"
+  | "title"
+  | "description"
+  | "age_restriction"
+  | "created_at"
+  | "language";
 
-export const PACKAGE_SELECT_FIELDS: Array<keyof Package> = [
+export const PACKAGE_SELECT_FIELDS: PackageSelectField[] = [
   "id",
   "title",
   "description",

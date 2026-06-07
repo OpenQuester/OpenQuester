@@ -3,10 +3,10 @@ import {
   GamePhase,
   TransitionContext,
   TransitionResult,
-  getGamePhase,
+  getGamePhase
 } from "domain/state-machine/types";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
+import { ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Routes transition requests to the correct handler based on current phase
@@ -22,10 +22,12 @@ import { LogPrefix } from "infrastructure/logger/LogPrefix";
  */
 export class PhaseTransitionRouter {
   /** Handlers grouped by their fromPhase for efficient lookup */
-  private readonly handlersByPhase: Map<GamePhase, TransitionHandler[]> =
-    new Map();
+  private readonly handlersByPhase: Map<GamePhase, TransitionHandler[]> = new Map();
 
-  constructor(private readonly logger: ILogger, handlers: TransitionHandler[]) {
+  constructor(
+    private readonly logger: ILogger,
+    handlers: TransitionHandler[]
+  ) {
     this.registerHandlers(handlers);
   }
 
@@ -44,7 +46,7 @@ export class PhaseTransitionRouter {
 
     if (handlers.length === 0) {
       this.logger.error(`No handlers registered for phase ${currentPhase}`, {
-        prefix: LogPrefix.STATE_MACHINE,
+        prefix: LogPrefix.STATE_MACHINE
       });
       return null;
     }
@@ -61,21 +63,18 @@ export class PhaseTransitionRouter {
           prefix: LogPrefix.STATE_MACHINE,
           gameId: ctx.game.id,
           trigger: ctx.trigger,
-          triggeredBy: ctx.triggeredBy,
+          triggeredBy: ctx.triggeredBy
         }
       );
 
       try {
         const result = await handler.execute(ctx);
 
-        this.logger.trace(
-          `Transition completed: ${handler.fromPhase} -> ${handler.toPhase}`,
-          {
-            prefix: LogPrefix.STATE_MACHINE,
-            gameId: ctx.game.id,
-            broadcastCount: result.broadcasts.length,
-          }
-        );
+        this.logger.trace(`Transition completed: ${handler.fromPhase} -> ${handler.toPhase}`, {
+          prefix: LogPrefix.STATE_MACHINE,
+          gameId: ctx.game.id,
+          broadcastCount: result.broadcasts.length
+        });
 
         return result;
       } catch (error) {
@@ -84,7 +83,7 @@ export class PhaseTransitionRouter {
           {
             prefix: LogPrefix.STATE_MACHINE,
             gameId: ctx.game.id,
-            error,
+            error
           }
         );
         throw error;
@@ -96,24 +95,11 @@ export class PhaseTransitionRouter {
       {
         prefix: LogPrefix.STATE_MACHINE,
         gameId: ctx.game.id,
-        trigger: ctx.trigger,
+        trigger: ctx.trigger
       }
     );
 
     return null;
-  }
-
-  /**
-   * Check if any transition is possible from current phase without executing it.
-   * Useful for pre-checking before performing actions.
-   */
-  public canTransition<
-    TPayload extends Record<string, unknown> = Record<string, unknown>
-  >(ctx: TransitionContext<TPayload>): boolean {
-    const currentPhase = getGamePhase(ctx.game);
-    const handlers = this.handlersByPhase.get(currentPhase) || [];
-
-    return handlers.some((handler) => handler.canTransition(ctx));
   }
 
   /**
@@ -125,15 +111,13 @@ export class PhaseTransitionRouter {
       existing.push(handler);
       this.handlersByPhase.set(handler.fromPhase, existing);
 
-      this.logger.debug(
-        `Registered handler: ${handler.fromPhase} -> ${handler.toPhase}`,
-        { prefix: LogPrefix.STATE_MACHINE }
-      );
+      this.logger.debug(`Registered handler: ${handler.fromPhase} -> ${handler.toPhase}`, {
+        prefix: LogPrefix.STATE_MACHINE
+      });
     }
 
-    this.logger.debug(
-      `PhaseTransitionRouter initialized with ${handlers.length} handlers`,
-      { prefix: LogPrefix.STATE_MACHINE }
-    );
+    this.logger.debug(`PhaseTransitionRouter initialized with ${handlers.length} handlers`, {
+      prefix: LogPrefix.STATE_MACHINE
+    });
   }
 }

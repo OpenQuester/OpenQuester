@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
@@ -14,7 +7,7 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
 import { GameStatistics } from "infrastructure/database/models/statistics/GameStatistics";
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
@@ -42,7 +35,7 @@ describe("Game Statistics Persistence Tests", () => {
     gameStatsRepo = testEnv.getDatabase().getRepository(GameStatistics);
     playerGameStatsRepo = testEnv.getDatabase().getRepository(PlayerGameStats);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 
@@ -63,7 +56,7 @@ describe("Game Statistics Persistence Tests", () => {
 
   it("should record statistics to database when game ends", async () => {
     // Setup game with 1 player
-    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0);
+    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
     const { showmanSocket, playerSockets } = setup;
 
     try {
@@ -72,7 +65,7 @@ describe("Game Statistics Persistence Tests", () => {
 
       // Wait for game to finish
       const gameFinishedPromise = new Promise((resolve) => {
-        playerSockets[0].on(SocketIOGameEvents.NEXT_ROUND, () => {
+        playerSockets[0].once(SocketIOGameEvents.NEXT_ROUND, () => {
           showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
         });
 
@@ -129,19 +122,16 @@ describe("Game Statistics Persistence Tests", () => {
             // First need to pick a question to have a valid questionId for answer-result
             let finalQuestionId: number = 0;
 
-            showmanSocket.once(
-              SocketIOGameEvents.QUESTION_DATA,
-              (questionData) => {
-                finalQuestionId = questionData.id;
+            showmanSocket.once(SocketIOGameEvents.QUESTION_DATA, (questionData) => {
+              finalQuestionId = questionData.id;
 
-                // Then emit answer-result to end the game
-                showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-                  questionId: finalQuestionId,
-                  answerType: AnswerResultType.CORRECT,
-                  scoreResult: 100,
-                });
-              }
-            );
+              // Then emit answer-result to end the game
+              showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+                questionId: finalQuestionId,
+                answerType: AnswerResultType.CORRECT,
+                scoreResult: 100
+              });
+            });
 
             // Pick a question in final round to get valid questionId
             await utils.pickQuestion(showmanSocket, undefined, playerSockets);
@@ -180,70 +170,46 @@ describe("Game Statistics Persistence Tests", () => {
 
   it("should record statistics to database when game ends via skip question force", async () => {
     // Setup game with 1 player
-    const setup = await utils.setupGameTestEnvironment(
-      userRepo,
-      _app,
-      1,
-      0,
-      false
-    );
-    const { showmanSocket, playerSockets } = setup;
+    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
+    const { showmanSocket, playerSockets, gameId } = setup;
 
     try {
       // Start game
       await utils.startGame(showmanSocket);
 
-      // Skip first round to get to final round
+      const nextRoundPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.NEXT_ROUND
+      );
       showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
+      await nextRoundPromise;
 
-      // Wait for game to finish via skipping all questions in final round
-      const gameFinishedPromise = new Promise((resolve) => {
-        let gameFinished = false;
-        let pendingTimeout: NodeJS.Timeout | null = null;
-
-        playerSockets[0].on(SocketIOGameEvents.GAME_FINISHED, (data) => {
-          gameFinished = true;
-          if (pendingTimeout) {
-            clearTimeout(pendingTimeout);
-            pendingTimeout = null;
-          }
-          resolve(data);
-        });
-
-        const skipAllQuestions = async () => {
-          // Stop recursion if game has finished
-          if (gameFinished) {
-            return;
-          }
-
-          try {
-            const answerShowStart = utils.waitForEvent(
-              showmanSocket,
-              SocketIOGameEvents.ANSWER_SHOW_START,
-              2000
-            );
-            // Pick question then immediately skip it
-            await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-            showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
-
-            await answerShowStart;
-            await utils.skipShowAnswer(showmanSocket);
-
-            // Continue skipping questions until all are done (only if game not finished)
-            if (!gameFinished) {
-              pendingTimeout = setTimeout(skipAllQuestions, 100);
-            }
-          } catch {
-            // If we can't pick more questions, the game should finish soon
-          }
-        };
-
-        // Start skipping questions after a short delay
-        pendingTimeout = setTimeout(skipAllQuestions, 100);
+      const gameFinishedPromise = utils.waitForEvent<boolean>(
+        playerSockets[0],
+        SocketIOGameEvents.GAME_FINISHED
+      );
+      let gameFinished = false;
+      const markedGameFinishedPromise = gameFinishedPromise.then((data) => {
+        gameFinished = true;
+        return data;
       });
 
+      while (!gameFinished) {
+        const questionIds = await utils.getAllAvailableQuestionIds(gameId);
+        if (questionIds.length === 0) {
+          break;
+        }
+
+        await utils.pickAndCompleteQuestion(
+          showmanSocket,
+          playerSockets,
+          questionIds[0],
+          false
+        );
+      }
+
       // Wait for game finish event
-      const gameFinishedData = await gameFinishedPromise;
+      const gameFinishedData = await markedGameFinishedPromise;
       expect(gameFinishedData).toBe(true);
 
       // Verify statistics were recorded to database

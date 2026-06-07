@@ -1,35 +1,35 @@
 import { type Express, type Request, type Response, Router } from "express";
 
 import { FileService } from "application/services/file/FileService";
-import { TranslateService as ts } from "application/services/text/TranslateService";
+import { type UpdateUserDTO } from "application/types/user/UpdateUserDTO";
+import { type UpdateUserInputDTO } from "application/types/user/UpdateUserInputDTO";
+import { TranslateService as ts } from "domain/utils/TranslateService";
 import { type UserService } from "application/services/user/UserService";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { Permissions } from "domain/enums/Permissions";
 import { ClientError } from "domain/errors/ClientError";
-import { UpdateUserDTO } from "domain/types/dto/user/UpdateUserDTO";
-import { UpdateUserInputDTO } from "domain/types/dto/user/UpdateUserInputDTO";
-import { UserDTO } from "domain/types/dto/user/UserDTO";
-import { UserInputDTO } from "domain/types/dto/user/UserInputDTO";
-import { UserPermissionsUpdateDTO } from "domain/types/dto/user/UserPermissionsUpdateDTO";
+import { type UserDTO } from "domain/types/dto/user/UserDTO";
+import { type UserInputDTO } from "domain/types/dto/user/UserInputDTO";
+import { type UserPermissionsUpdateDTO } from "domain/types/dto/user/UserPermissionsUpdateDTO";
+import { asUserId } from "domain/types/ids";
 import { PaginationOrder } from "domain/types/pagination/PaginationOpts";
-import { File } from "infrastructure/database/models/File";
-import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
-import { LogPrefix } from "infrastructure/logger/LogPrefix";
-import { ValueUtils } from "infrastructure/utils/ValueUtils";
+import { type UserSortField } from "domain/types/pagination/user/UserPaginationOpts";
+import { type ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
+import { ValueUtils } from "domain/utils/ValueUtils";
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import {
   checkPermissionMiddleware,
-  checkPermissionWithId,
+  checkPermissionWithId
 } from "presentation/middleware/permission/PermissionMiddleware";
 import { PaginationSchema } from "presentation/schemes/pagination/PaginationSchema";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
 import {
   userIdScheme,
   userPermissionsUpdateScheme,
-  userUpdateScheme,
+  userUpdateScheme
 } from "presentation/schemes/user/userSchemes";
 
 /**
@@ -72,7 +72,7 @@ export class UserRestApiController {
   }
 
   private getUser = async (req: Request, res: Response) => {
-    const id: number = this._getUserId(req);
+    const id = this._getUserId(req);
 
     const validatedData = new RequestDataValidator<UserInputDTO>(
       { userId: id },
@@ -81,8 +81,8 @@ export class UserRestApiController {
 
     let user: UserDTO;
 
-    if (req.user && validatedData.userId === req.user.id) {
-      user = req.user.toDTO();
+    if (req.auth && validatedData.userId === req.auth.userId) {
+      user = await this.userService.get(validatedData.userId);
     } else {
       user = await this.userService.get(validatedData.userId);
     }
@@ -92,17 +92,14 @@ export class UserRestApiController {
     }
 
     return res.status(HttpStatus.NOT_FOUND).send({
-      message: await ts.localize(ClientResponse.USER_NOT_FOUND, req.headers),
+      message: await ts.localize(ClientResponse.USER_NOT_FOUND, req.headers["accept-language"])
     });
   };
 
   private updateUser = async (req: Request, res: Response) => {
     const id = req.session.userId;
     if (!id) {
-      throw new ClientError(
-        ClientResponse.USER_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     const userInputDTO = new RequestDataValidator<UpdateUserInputDTO>(
@@ -114,25 +111,23 @@ export class UserRestApiController {
       throw new ClientError(ClientResponse.NO_USER_DATA);
     }
 
-    const user = await this.userService.getRaw(id, {
+    const user = await this.userService.getRaw(asUserId(id), {
       select: USER_SELECT_FIELDS,
       relations: USER_RELATIONS,
       relationSelects: {
         avatar: ["id", "filename"],
-        permissions: ["id", "name"],
-      },
+        permissions: ["id", "name"]
+      }
     });
 
     if (!user) {
       throw new ClientError(ClientResponse.USER_NOT_FOUND);
     }
 
-    let avatarFile: File | null = null;
+    let avatarFile = null;
 
     if (userInputDTO.avatar) {
-      avatarFile = await this.fileService.getFileByFilename(
-        userInputDTO.avatar
-      );
+      avatarFile = await this.fileService.getFileByFilename(userInputDTO.avatar);
 
       if (ValueUtils.isBad(avatarFile)) {
         throw new ClientError(ClientResponse.NO_AVATAR);
@@ -143,7 +138,7 @@ export class UserRestApiController {
       email: userInputDTO.email,
       username: userInputDTO.username,
       name: userInputDTO.name,
-      birthday: userInputDTO.birthday,
+      birthday: userInputDTO.birthday
     };
 
     if (avatarFile) {
@@ -158,14 +153,11 @@ export class UserRestApiController {
   private deleteUser = async (req: Request, res: Response) => {
     const id = req.session.userId;
     if (!id) {
-      throw new ClientError(
-        ClientResponse.USER_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     const validatedData = new RequestDataValidator<UserInputDTO>(
-      { userId: id },
+      { userId: asUserId(id) },
       userIdScheme()
     ).validate();
 
@@ -175,21 +167,14 @@ export class UserRestApiController {
   };
 
   private listUsers = async (req: Request, res: Response) => {
-    const paginationOpts = await new PaginationSchema<User>({
+    const paginationOpts = await new PaginationSchema<UserSortField>({
       data: {
-        sortBy: req.query.sortBy as keyof User,
+        sortBy: req.query.sortBy as UserSortField,
         order: req.query.order as PaginationOrder,
         limit: Number(req.query.limit),
-        offset: Number(req.query.offset),
+        offset: Number(req.query.offset)
       },
-      possibleSortByFields: [
-        "id",
-        "is_deleted",
-        "created_at",
-        "username",
-        "email",
-        "updated_at",
-      ],
+      possibleSortByFields: ["id", "is_deleted", "created_at", "username", "email", "updated_at"]
     }).validate();
 
     const result = await this.userService.list(paginationOpts);
@@ -199,12 +184,12 @@ export class UserRestApiController {
     }
 
     return res.status(HttpStatus.NOT_FOUND).send({
-      message: await ts.localize(ClientResponse.USER_NOT_FOUND, req.headers),
+      message: await ts.localize(ClientResponse.USER_NOT_FOUND, req.headers["accept-language"])
     });
   };
 
   private updateUserPermissions = async (req: Request, res: Response) => {
-    const userId = Number(req.params.id);
+    const userId = asUserId(Number(req.params.id));
 
     // Validate user ID
     const validatedUserData = new RequestDataValidator<UserInputDTO>(
@@ -213,18 +198,17 @@ export class UserRestApiController {
     ).validate();
 
     // Validate permissions update data
-    const validatedPermissionsData =
-      new RequestDataValidator<UserPermissionsUpdateDTO>(
-        req.body,
-        userPermissionsUpdateScheme()
-      ).validate();
+    const validatedPermissionsData = new RequestDataValidator<UserPermissionsUpdateDTO>(
+      req.body,
+      userPermissionsUpdateScheme()
+    ).validate();
 
     this.logger.info("User permissions update request received", {
       prefix: LogPrefix.USER,
       targetUserId: validatedUserData.userId,
-      requestorUserId: req.user?.id,
+      requestorUserId: req.auth?.userId,
       permissionsCount: validatedPermissionsData.permissions.length,
-      newPermissions: validatedPermissionsData.permissions,
+      newPermissions: validatedPermissionsData.permissions
     });
 
     // Delegate business logic to service
@@ -236,28 +220,25 @@ export class UserRestApiController {
     this.logger.audit("User permissions update completed successfully", {
       prefix: LogPrefix.USER,
       targetUserId: validatedUserData.userId,
-      requestorUserId: req.user?.id,
+      requestorUserId: req.auth?.userId
     });
 
     // Return success response with user data
     return res.status(HttpStatus.OK).send({
       message: "User permissions updated successfully",
-      data: updatedUser,
+      data: updatedUser
     });
   };
 
   private _getUserId(req: Request) {
     if (req.params && req.params.id) {
-      return Number(req.params.id);
+      return asUserId(Number(req.params.id));
     } else {
       const id = req.session.userId;
       if (!id) {
-        throw new ClientError(
-          ClientResponse.USER_NOT_FOUND,
-          HttpStatus.NOT_FOUND
-        );
+        throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
       }
-      return id;
+      return asUserId(id);
     }
   }
 }

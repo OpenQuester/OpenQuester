@@ -2,8 +2,8 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: {
-    index: "src/presentation/index.ts",
-    DataSource: "src/infrastructure/database/DataSource.ts",
+    index: "src/index.ts",
+    DataSource: "src/infrastructure/database/DataSource.ts"
   },
   outDir: "dist",
   clean: true,
@@ -14,10 +14,10 @@ export default defineConfig({
     "minio/**/*",
     "test/**/*",
     "tests/**/*",
-    ".history/**/*",
+    ".history/**/*"
   ],
   minify: false,
   sourcemap: true,
   target: "node18",
-  platform: "node",
+  platform: "node"
 });

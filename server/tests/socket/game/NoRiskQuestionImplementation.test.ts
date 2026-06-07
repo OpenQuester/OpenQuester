@@ -13,7 +13,7 @@ import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "infrastructure/logger/ILogger";
+import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { bootstrapTestApp } from "tests/TestApp";
@@ -36,7 +36,7 @@ describe("NoRisk Question Implementation", () => {
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.PORT || 3000}`;
+    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 
