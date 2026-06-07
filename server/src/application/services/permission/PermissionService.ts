@@ -1,13 +1,12 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "shared/di/tokens";
-import { type ILogger } from "shared/logging/ILogger";
-import { LogPrefix } from "shared/logging/LogPrefix";
-import { UserService } from "application/services/user/UserService";
 import { type Permission } from "infrastructure/database/models/Permission";
 import { type User } from "infrastructure/database/models/User";
 import { PermissionRepository } from "infrastructure/database/repositories/PermissionRepository";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
+import { DI_TOKENS } from "shared/di/tokens";
+import { type ILogger } from "shared/logging/ILogger";
+import { LogPrefix } from "shared/logging/LogPrefix";
 
 /**
  * Service for permission management operations.
@@ -17,7 +16,6 @@ export class PermissionService {
   constructor(
     private readonly permissionRepository: PermissionRepository,
     private readonly userRepository: UserRepository,
-    private readonly userService: UserService,
     @inject(DI_TOKENS.Logger) private readonly logger: ILogger
   ) {
     //
@@ -68,7 +66,7 @@ export class PermissionService {
       }
 
       user.permissions = allPermissions;
-      await this.userService.save(user);
+      await this.userRepository.save(user);
 
       this.logger.audit("Granted all permissions to admin bootstrap user", {
         prefix: LogPrefix.USER,
