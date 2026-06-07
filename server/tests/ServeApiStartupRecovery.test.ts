@@ -1,5 +1,8 @@
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
+
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { GameService } from "application/services/game/GameService";
+import { PermissionService } from "application/services/permission/PermissionService";
 import { RedisPubSubService } from "application/services/redis/RedisPubSubService";
 import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
 import { container } from "bootstrap/bootstrapContainer";
@@ -46,7 +49,7 @@ class TestLogger extends ILogger {
 
 interface StartupJobContext {
   _context: {
-    env: Pick<Environment, "STARTUP_RECOVERY_ENABLED">;
+    env: Pick<Environment, "ADMIN_EMAILS" | "STARTUP_RECOVERY_ENABLED">;
     logger: ILogger;
   };
 }
@@ -56,7 +59,7 @@ interface StartupJobRunner {
 }
 
 const runStartupJobs = (
-  env: Pick<Environment, "STARTUP_RECOVERY_ENABLED">,
+  env: Pick<Environment, "ADMIN_EMAILS" | "STARTUP_RECOVERY_ENABLED">,
   logger: ILogger
 ): Promise<void> => {
   const runner = ServeApi.prototype as unknown as StartupJobRunner;
@@ -65,17 +68,20 @@ const runStartupJobs = (
 
 const registerStartupJobMocks = () => {
   const gameService = {
-    cleanupAllGames: jest.fn<Promise<void>, []>().mockResolvedValue(undefined),
-    cleanOrphanedGames: jest.fn<Promise<void>, []>().mockResolvedValue(undefined)
+    cleanupAllGames: jest.fn(async (): Promise<void> => undefined),
+    cleanOrphanedGames: jest.fn(async (): Promise<void> => undefined)
   };
   const socketUserDataService = {
-    cleanupAllSession: jest.fn<Promise<void>, []>().mockResolvedValue(undefined)
+    cleanupAllSession: jest.fn(async (): Promise<void> => undefined)
   };
   const pubSub = {
-    initKeyExpirationHandling: jest.fn<Promise<void>, []>().mockResolvedValue(undefined)
+    initKeyExpirationHandling: jest.fn(async (): Promise<void> => undefined)
+  };
+  const permissionService = {
+    grantAllPermissionsByEmails: jest.fn(async (_emails: string[]): Promise<void> => undefined)
   };
   const cronScheduler = {
-    initialize: jest.fn<Promise<void>, []>().mockResolvedValue(undefined)
+    initialize: jest.fn(async (): Promise<void> => undefined)
   };
 
   container.registerInstance(GameService, gameService as unknown as GameService);
@@ -84,12 +90,17 @@ const registerStartupJobMocks = () => {
     socketUserDataService as unknown as SocketUserDataService
   );
   container.registerInstance(RedisPubSubService, pubSub as unknown as RedisPubSubService);
+  container.registerInstance(
+    PermissionService,
+    permissionService as unknown as PermissionService
+  );
   container.registerInstance(CronSchedulerService, cronScheduler as unknown as CronSchedulerService);
 
   return {
     gameService,
     socketUserDataService,
     pubSub,
+    permissionService,
     cronScheduler
   };
 };
@@ -103,12 +114,14 @@ describe("ServeApi startup recovery", () => {
 
   it("skips destructive game and session cleanup when startup recovery is disabled", async () => {
     const mocks = registerStartupJobMocks();
+    const adminEmails = ["admin@example.com"];
 
-    await runStartupJobs({ STARTUP_RECOVERY_ENABLED: false }, logger);
+    await runStartupJobs({ ADMIN_EMAILS: adminEmails, STARTUP_RECOVERY_ENABLED: false }, logger);
 
     expect(mocks.gameService.cleanupAllGames).not.toHaveBeenCalled();
     expect(mocks.socketUserDataService.cleanupAllSession).not.toHaveBeenCalled();
     expect(mocks.gameService.cleanOrphanedGames).toHaveBeenCalledTimes(1);
+    expect(mocks.permissionService.grantAllPermissionsByEmails).toHaveBeenCalledWith(adminEmails);
     expect(mocks.pubSub.initKeyExpirationHandling).toHaveBeenCalledTimes(1);
     expect(mocks.cronScheduler.initialize).toHaveBeenCalledTimes(1);
   });
