@@ -63,6 +63,7 @@ export class Environment {
   public SOCKET_IO_ADMIN_UI_ENABLE!: boolean;
   public SOCKET_IO_ADMIN_UI_USERNAME!: string;
   public SOCKET_IO_ADMIN_UI_PASSWORD!: string;
+  public ADMIN_EMAILS!: string[];
   public INFLUX_URL!: string;
   public LOG_LEVEL!: LogLevel;
   public CRON_S3_CLEANUP_EXPRESSION!: string;
@@ -216,6 +217,20 @@ export class Environment {
       "string",
       "admin"
     );
+    const adminEmails = this.getEnvVar(
+      "ADMIN_EMAILS",
+      "string",
+      "",
+      true
+    ) as string | undefined;
+    this.ADMIN_EMAILS = [
+      ...new Set(
+        (adminEmails ?? "")
+          .split(",")
+          .map((email: string) => email.trim().toLowerCase())
+          .filter((email: string) => email.length > 0)
+      ),
+    ];
   }
 
   private loadRedis(): void {

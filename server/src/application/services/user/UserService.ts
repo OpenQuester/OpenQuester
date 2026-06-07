@@ -1,12 +1,14 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "shared/di/tokens";
-import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
+import { type RealtimeGateway } from "application/ports/realtime/RealtimeGateway";
 import { FileUsageService } from "application/services/file/FileUsageService";
 import { GamePipelineService } from "application/services/pipeline/GamePipelineService";
+import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
 import { UserNotificationRoomService } from "application/services/socket/UserNotificationRoomService";
 import { UserSessionService } from "application/services/user/UserSessionService";
+import { RegisterUser } from "application/types/user/RegisterUser";
+import { UpdateUserDTO } from "application/types/user/UpdateUserDTO";
 import { USER_RELATIONS, USER_SELECT_FIELDS } from "domain/constants/user";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { GameActionType } from "domain/enums/GameActionType";
@@ -14,22 +16,20 @@ import { HttpStatus } from "domain/enums/HttpStatus";
 import { Permissions } from "domain/enums/Permissions";
 import { ClientError } from "domain/errors/ClientError";
 import { type GameAction } from "domain/types/action/GameAction";
-import { UpdateUserDTO } from "application/types/user/UpdateUserDTO";
 import { UsersStats } from "domain/types/admin/AdminTypes";
 import { UserDTO } from "domain/types/dto/user/UserDTO";
 import { userId } from "domain/types/ids";
 import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { UserPaginationOpts } from "domain/types/pagination/user/UserPaginationOpts";
 import { SelectOptions } from "domain/types/SelectOptions";
-import { RegisterUser } from "application/types/user/RegisterUser";
+import { ValueUtils } from "domain/utils/ValueUtils";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
+import { S3FileUrlBuilder } from "infrastructure/storage/S3FileUrlBuilder";
+import { DI_TOKENS } from "shared/di/tokens";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
-import { S3FileUrlBuilder } from "infrastructure/storage/S3FileUrlBuilder";
-import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
-import { ValueUtils } from "domain/utils/ValueUtils";
 
 /**
  * Service for user management operations.

@@ -12,6 +12,8 @@ SOCKET_IO_CORS_ORIGINS=
 SOCKET_IO_ADMIN_UI_ENABLE=
 SOCKET_IO_ADMIN_UI_USERNAME=
 SOCKET_IO_ADMIN_UI_PASSWORD=
+# Comma-separated list of admin emails that should receive all permissions on startup
+ADMIN_EMAILS=
 
 # Domain (full) to which cookie will be assigned
 API_DOMAIN=

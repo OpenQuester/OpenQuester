@@ -219,7 +219,7 @@ cp server/docs/new-doc.md websites/docs/content/docs/technical/
 
 ### Hugo build fails
 
-- Check Hugo version: `hugo version` (should be >= 0.146.0 extended)
+- Check Hugo version: `hugo version` (should be >= 0.158.0 extended)
 - Verify theme is present: `websites/docs/themes/hugo-book/`
 - Check for markdown syntax errors in content files
 

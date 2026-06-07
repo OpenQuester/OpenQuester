@@ -14,6 +14,7 @@ import { FileStorageService } from "application/services/file/FileStorageService
 import { GameActionBroadcastService } from "application/services/broadcast/GameActionBroadcastService";
 import { GameService } from "application/services/game/GameService";
 import { PackageService } from "application/services/package/PackageService";
+import { PermissionService } from "application/services/permission/PermissionService";
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { UserService } from "application/services/user/UserService";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
@@ -213,6 +214,7 @@ export class ServeApi {
   private async _processPrepareJobs() {
     const pubSub = container.resolve(RedisPubSubService);
     const gameService = container.resolve(GameService);
+    const permissionService = container.resolve(PermissionService);
 
     if (this._context.env.STARTUP_RECOVERY_ENABLED) {
       const socketUserDataService = container.resolve(SocketUserDataService);
@@ -231,6 +233,8 @@ export class ServeApi {
 
     // Clean up games indexes that expires while server was down (if any)
     await gameService.cleanOrphanedGames();
+
+    await permissionService.grantAllPermissionsByEmails(this._context.env.ADMIN_EMAILS);
 
     // Init key expiration listeners
     await pubSub.initKeyExpirationHandling();
