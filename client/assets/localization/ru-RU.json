@@ -26,6 +26,18 @@
     "one": "{} вопрос",
     "other": "{} вопросов"
   },
+  "package_text_questions": {
+    "one": "{} текстовый вопрос",
+    "other": "{} текстовых вопросов"
+  },
+  "package_media_questions": {
+    "one": "{} медиа вопрос",
+    "other": "{} медиа вопросов"
+  },
+  "package_mixed_questions": {
+    "one": "{} смешанный вопрос",
+    "other": "{} смешанных вопросов"
+  },
   "game_tile_tooltips": {
     "players": "Игроки играют/максимум",
     "rounds": "Раунды сыграно/всего",
@@ -56,6 +68,7 @@
   },
   "username": "Имя пользователя",
   "start_game": "Начать игру",
+  "start_game_forcefully": "Начать игру принудительно",
   "select": "Выбрать",
   "game_name": "Название игры",
   "age_restriction": "Возрастное ограничение",
@@ -89,7 +102,10 @@
   "user_leave_the_game": "Игрок {} покинул игру",
   "user_joined_the_game": "Игрок {} присоединился к игре",
   "showman": "Ведущий",
+  "player": "Игрок",
+  "spectator": "Зритель",
   "join_game": "Присоединиться к игре",
+  "join_as": "Присоединиться как",
   "leave_game_confirmation": "Вы уверены, что хотите выйти?",
   "yes": "Да",
   "no": "Нет",
@@ -137,7 +153,6 @@
   "spectators": "Зрители",
   "players": "Игроки",
   "you_are_spectator": "Вы зритель",
-  "game_lobby_hint": "Выберите роль и нажмите «Готов», чтобы начать игру",
   "create_game_hint": "Настройте игру и пригласите игроков",
   "email": "Email",
   "member_since": "Участник с",

@@ -210,6 +210,7 @@ class _AnswerReviewCard extends WatchingWidget {
                       onPressed: () => _reviewAnswer(context, isCorrect: true),
                       style: FilledButton.styleFrom(
                         backgroundColor: extraColors.success,
+                        foregroundColor: contrastOnColor(extraColors.success),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,

@@ -26,6 +26,18 @@
     "one": "{} question",
     "other": "{} questions"
   },
+  "package_text_questions": {
+    "one": "{} text question",
+    "other": "{} text questions"
+  },
+  "package_media_questions": {
+    "one": "{} media question",
+    "other": "{} media questions"
+  },
+  "package_mixed_questions": {
+    "one": "{} mixed question",
+    "other": "{} mixed questions"
+  },
   "game_tile_tooltips": {
     "players": "Players playing/maximum",
     "rounds": "Rounds played/total",
@@ -55,7 +67,8 @@
     "login_description_guest": "You can also play as a guest, but you will not be able to upload packages."
   },
   "username": "Username",
-  "start_game": "Start Game",
+  "start_game": "Start game",
+  "start_game_forcefully": "Start game forcefully",
   "select": "Select",
   "game_name": "Game name",
   "age_restriction": "Age restriction",
@@ -89,7 +102,10 @@
   "user_leave_the_game": "User {} leave the game",
   "user_joined_the_game": "User {} joined the game",
   "showman": "Showman",
+  "player": "Player",
+  "spectator": "Spectator",
   "join_game": "Join game",
+  "join_as": "Join as",
   "leave_game_confirmation": "Are you sure you want to leave?",
   "yes": "Yes",
   "no": "No",
@@ -137,7 +153,6 @@
   "spectators": "Spectators",
   "players": "Players",
   "you_are_spectator": "You are spectator",
-  "game_lobby_hint": "Select your role and press 'Ready' to start game",
   "create_game_hint": "Set up your game and invite players to join",
   "email": "Email",
   "member_since": "Member Since",

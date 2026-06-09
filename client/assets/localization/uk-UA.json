@@ -26,6 +26,18 @@
     "one": "{} питання",
     "other": "{} питань"
   },
+  "package_text_questions": {
+    "one": "{} текстове питання",
+    "other": "{} текстових питань"
+  },
+  "package_media_questions": {
+    "one": "{} медіа питання",
+    "other": "{} медіа питань"
+  },
+  "package_mixed_questions": {
+    "one": "{} змішане питання",
+    "other": "{} змішаних питань"
+  },
   "game_tile_tooltips": {
     "players": "Гравців у грі/максимум",
     "rounds": "Раундів зіграно/усього",
@@ -56,6 +68,7 @@
   },
   "username": "Ім'я користувача",
   "start_game": "Почати гру",
+  "start_game_forcefully": "Почати гру примусово",
   "select": "Вибрати",
   "game_name": "Назва гри",
   "age_restriction": "Вікове обмеження",
@@ -89,7 +102,10 @@
   "user_leave_the_game": "Гравець {} покинув гру",
   "user_joined_the_game": "Гравець {} приєднався до гри",
   "showman": "Ведучий",
+  "player": "Гравець",
+  "spectator": "Глядач",
   "join_game": "Приєднатися до гри",
+  "join_as": "Приєднатися як",
   "leave_game_confirmation": "Ви впевнені, що хочете вийти?",
   "yes": "Так",
   "no": "Ні",
@@ -137,7 +153,6 @@
   "spectators": "Глядачі",
   "players": "Гравці",
   "you_are_spectator": "Ви глядач",
-  "game_lobby_hint": "Виберіть роль і натисніть «Готовий», щоб почати гру",
   "create_game_hint": "Налаштуйте гру та запросіть гравців",
   "email": "Email",
   "member_since": "Учасник з",
