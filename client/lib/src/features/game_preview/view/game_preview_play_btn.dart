@@ -6,19 +6,18 @@ class GamePreviewPlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FadeInAnimationWidget(
-      child: LoadingButtonBuilder(
-        onPressed: () async {
-          await const ProfileDialog().showIfUnauthorized(context);
-          await getIt<GamePreviewController>().onPressPlay();
-        },
-        onError: handleError,
-        child: const Icon(Icons.play_arrow),
-        builder: (context, child, onPressed) => FilledButton(
-          onPressed: onPressed,
-          child: child,
-        ).withTooltip(msg: LocaleKeys.join_game.tr()),
-      ),
+    return LoadingButtonBuilder(
+      onPressed: () async {
+        await const ProfileDialog().showIfUnauthorized(context);
+        await getIt<GamePreviewController>().onPressPlay();
+      },
+      onError: handleError,
+      child: Text(LocaleKeys.join_game.tr()),
+      builder: (context, child, onPressed) => FilledButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.play_arrow_rounded),
+        label: child,
+      ).withTooltip(msg: LocaleKeys.join_game.tr()),
     );
   }
 }

@@ -36,8 +36,14 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
   @override
   Widget build(BuildContext context) {
     final showChat = watchValue((GameLobbyController e) => e.showChat);
+    final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final lobbyEditorMode = watchValue(
+      (GameLobbyController e) => e.lobbyEditorMode,
+    );
     final chatWideModeOn = GameLobbyStyles.desktopChat(context);
     final showDesktopChat = chatWideModeOn && showChat;
+    final gameStarted = gameData?.gameStarted ?? false;
+    final showAppBarTitle = !(lobbyEditorMode && !gameStarted);
     final settings = watchPropertyValue<SettingsController, AppSettings>(
       (e) => e.settings,
     );
@@ -61,9 +67,8 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
           enabled: settings.limitDesktopWidth,
           maxWidth: UiModeUtils.extraLarge,
           child: Scaffold(
-            extendBody: true,
             appBar: AppBar(
-              title: const GameLobbyTitle(),
+              title: showAppBarTitle ? const GameLobbyTitle() : null,
               leading: IconButton(
                 onPressed: _onExit,
                 icon: const Icon(Icons.exit_to_app),
@@ -76,9 +81,12 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               scrolledUnderElevation: 0,
               notificationPredicate: (_) => false,
             ),
-            floatingActionButton: const LobbyActionButton(),
-            floatingActionButtonLocation:
-                FloatingActionButtonLocation.centerFloat,
+            bottomNavigationBar: gameData != null && !gameStarted
+                ? const SafeArea(
+                    top: false,
+                    child: LobbyActionButton(),
+                  )
+                : null,
             body: SafeArea(
               bottom: false,
               child: Stack(
@@ -117,16 +125,30 @@ class _BodyBuilder extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final lobbyEditorMode = watchValue(
+      (GameLobbyController e) => e.lobbyEditorMode,
+    );
+    final showSpectatorStatus =
+        !lobbyEditorMode && (gameData?.me.isSpectator ?? false);
 
     return Column(
       children: [
-        if (gameData?.me.isSpectator ?? false)
-          Text(
-            LocaleKeys.you_are_spectator.tr(),
-            style: context.textTheme.bodySmall?.copyWith(
-              color: context.theme.colorScheme.onSurfaceVariant,
+        if (!lobbyEditorMode)
+          SizedBox(
+            height: 32,
+            child: Center(
+              child: AnimatedOpacity(
+                opacity: showSpectatorStatus ? 1 : 0,
+                duration: Durations.short2,
+                child: Text(
+                  LocaleKeys.you_are_spectator.tr(),
+                  style: context.textTheme.bodySmall?.copyWith(
+                    color: context.theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             ),
-          ).paddingAll(8),
+          ),
         GameStateBuilder(
           builder: (state) {
             Widget body;

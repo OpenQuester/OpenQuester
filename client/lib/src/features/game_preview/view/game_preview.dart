@@ -71,10 +71,7 @@ class _GamePreviewScreenState extends State<GamePreviewScreen> {
             child: GameListItemWidget(
               item: game,
               onTap: null,
-              bottom: !showList
-                  ? null
-                  : GamePreviewBottom(packageId: game.package.id),
-              trailing: !showList ? null : const GamePreviewPlayButton(),
+              bottom: !showList ? null : GamePreviewBottom(game: game),
             ),
           ).flexible(),
       ],

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
 class GameLobbyStyles {
-  static const Size players = Size(180, 90);
-  static const Size playersInEditor = Size(240, 90);
+  static const Size players = Size(220, 96);
+  static const Size playersInEditor = Size(280, 88);
   static const Size playersMobile = Size.square(80);
   static const double desktopChatWidth = 350;
 
