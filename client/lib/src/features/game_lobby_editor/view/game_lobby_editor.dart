@@ -93,8 +93,11 @@ class _RoleList extends StatelessWidget {
   final bool compactPlayers;
 
   static const _showmanAreaHeight = 116.0;
-  static const _playersAreaFlex = 3;
-  static const _spectatorsAreaFlex = 2;
+  static const _playersAreaWeight = 3;
+  static const _spectatorsAreaWeight = 2;
+  static const _roleSectionDividerHeight = 22.0;
+  static const _minimumScrollableRoleAreaHeight = 110.0;
+  static const _compactSpectatorsMaxHeight = 96.0;
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +114,9 @@ class _RoleList extends StatelessWidget {
       PlayerRole.spectator,
       compactPlayers: compactPlayers,
       scrollablePlayers: true,
+      maxUnboundedPlayersHeight: compactPlayers
+          ? _compactSpectatorsMaxHeight
+          : null,
     );
 
     return LayoutBuilder(
@@ -133,24 +139,67 @@ class _RoleList extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (showHeading) const _RoleListHeader().paddingBottom(14),
-            SizedBox(
-              height: _showmanAreaHeight,
-              child: showmanGroup,
-            ),
-            const _RoleSectionDivider(),
             Expanded(
-              flex: _playersAreaFlex,
-              child: playersGroup,
-            ),
-            const _RoleSectionDivider(),
-            Expanded(
-              flex: _spectatorsAreaFlex,
-              child: spectatorsGroup,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final roleAreaHeights = _roleAreaHeights(
+                    constraints.maxHeight,
+                  );
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        height: _showmanAreaHeight,
+                        child: showmanGroup,
+                      ),
+                      const _RoleSectionDivider(),
+                      SizedBox(
+                        height: roleAreaHeights.players,
+                        child: playersGroup,
+                      ),
+                      const _RoleSectionDivider(),
+                      SizedBox(
+                        height: roleAreaHeights.spectators,
+                        child: spectatorsGroup,
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
           ],
         );
       },
     );
+  }
+
+  ({double players, double spectators}) _roleAreaHeights(
+    double availableHeight,
+  ) {
+    const fixedHeight = _showmanAreaHeight + (_roleSectionDividerHeight * 2);
+    final flexibleHeight = availableHeight > fixedHeight
+        ? availableHeight - fixedHeight
+        : 0.0;
+    const totalWeight = _playersAreaWeight + _spectatorsAreaWeight;
+    var playersHeight = flexibleHeight * _playersAreaWeight / totalWeight;
+    var spectatorsHeight = flexibleHeight - playersHeight;
+    final canPreserveMinimums =
+        flexibleHeight >= _minimumScrollableRoleAreaHeight * 2;
+
+    if (canPreserveMinimums &&
+        spectatorsHeight < _minimumScrollableRoleAreaHeight) {
+      spectatorsHeight = _minimumScrollableRoleAreaHeight;
+      playersHeight = flexibleHeight - spectatorsHeight;
+    }
+
+    if (canPreserveMinimums &&
+        playersHeight < _minimumScrollableRoleAreaHeight) {
+      playersHeight = _minimumScrollableRoleAreaHeight;
+      spectatorsHeight = flexibleHeight - playersHeight;
+    }
+
+    return (players: playersHeight, spectators: spectatorsHeight);
   }
 }
 
@@ -357,7 +406,7 @@ class _RoleSectionDivider extends StatelessWidget {
 }
 
 class _LobbyPanel extends StatelessWidget {
-  const _LobbyPanel({required this.child});
+  const _LobbyPanel({required this.child, super.key});
 
   final Widget child;
 
@@ -441,10 +490,19 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-class _LobbyPackageOverview extends WatchingWidget {
+class _LobbyPackageOverview extends WatchingStatefulWidget {
   const _LobbyPackageOverview({this.scrollable = false});
 
   final bool scrollable;
+
+  @override
+  State<_LobbyPackageOverview> createState() => _LobbyPackageOverviewState();
+}
+
+class _LobbyPackageOverviewState extends State<_LobbyPackageOverview> {
+  int? _packageId;
+  Future<OqPackage>? _packageFuture;
+  OqPackage? _package;
 
   @override
   Widget build(BuildContext context) {
@@ -453,35 +511,58 @@ class _LobbyPackageOverview extends WatchingWidget {
 
     if (packageId == null) return const SizedBox.shrink();
 
-    return FutureBuilder(
-      future: getIt<PackageController>().getPackage(packageId),
+    _syncPackage(packageId);
+
+    return FutureBuilder<OqPackage>(
+      future: _packageFuture,
+      initialData: _package,
       builder: (context, snapshot) {
-        final package = snapshot.data;
+        final package = snapshot.data ?? _package;
+
+        if (package != null) {
+          _package = package;
+          return _LobbyPanel(
+            key: const Key('lobby_package_overview_panel'),
+            child: widget.scrollable
+                ? _FadingScrollView(
+                    child: PackagePublicOverview(package: package),
+                  )
+                : PackagePublicOverview(package: package),
+          );
+        }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const LinearProgressIndicator();
+          return const SizedBox.shrink();
         }
 
         if (snapshot.hasError) {
-          return Text(
-            LocaleKeys.something_went_wrong.tr(),
-            style: context.textTheme.bodyMedium?.copyWith(
-              color: context.theme.colorScheme.error,
+          return _LobbyPanel(
+            key: const Key('lobby_package_overview_panel'),
+            child: Text(
+              LocaleKeys.something_went_wrong.tr(),
+              style: context.textTheme.bodyMedium?.copyWith(
+                color: context.theme.colorScheme.error,
+              ),
             ),
           );
         }
 
-        if (package == null) return const SizedBox.shrink();
-
-        return _LobbyPanel(
-          child: scrollable
-              ? _FadingScrollView(
-                  child: PackagePublicOverview(package: package),
-                )
-              : PackagePublicOverview(package: package),
-        );
+        return const SizedBox.shrink();
       },
     );
+  }
+
+  void _syncPackage(int packageId) {
+    final packageController = getIt<PackageController>();
+
+    if (_packageId == packageId) {
+      _package ??= packageController.getCachedPackage(packageId);
+      return;
+    }
+
+    _packageId = packageId;
+    _package = packageController.getCachedPackage(packageId);
+    _packageFuture = packageController.getPackage(packageId);
   }
 }
 
@@ -491,12 +572,14 @@ class _RoleGroup extends WatchingWidget {
     required this.compactPlayers,
     this.showDisconnected = true,
     this.scrollablePlayers = false,
+    this.maxUnboundedPlayersHeight,
   });
 
   final PlayerRole role;
   final bool showDisconnected;
   final bool compactPlayers;
   final bool scrollablePlayers;
+  final double? maxUnboundedPlayersHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -550,8 +633,10 @@ class _RoleGroup extends WatchingWidget {
               final boundedArea = constraints.hasBoundedHeight;
               final shouldScrollPlayers = boundedArea || scrollablePlayers;
               final playersWrap = _RolePlayersWrap(
-                scrollable: shouldScrollPlayers,
+                allowScrolling:
+                    shouldScrollPlayers && role != PlayerRole.showman,
                 twoColumn: compactPlayers && role != PlayerRole.showman,
+                maxUnboundedHeight: maxUnboundedPlayersHeight,
                 children: [
                   if (canShowDropTarget)
                     _PlayerDragTarget(
@@ -627,7 +712,7 @@ class _WaitingPlayerChip extends WatchingWidget {
       isMe: isMe,
       ready: ready,
       showReady: showReady,
-      onTap: canEdit
+      onTap: !feedback && canEdit
           ? () => PlayerEditBtn.showEditMenu(context: context, player: player)
           : null,
     );
@@ -636,9 +721,14 @@ class _WaitingPlayerChip extends WatchingWidget {
 
     return Draggable<PlayerData>(
       data: player,
-      feedback: Material(
-        type: MaterialType.transparency,
-        child: pill(feedback: true),
+      feedback: RepaintBoundary(
+        child: SizedBox(
+          width: _RolePlayersWrapContent._maxNaturalTileWidth,
+          child: Material(
+            type: MaterialType.transparency,
+            child: pill(feedback: true),
+          ),
+        ),
       ),
       childWhenDragging: Opacity(opacity: .45, child: pill()),
       child: MouseRegion(
@@ -893,31 +983,124 @@ class _Player extends WatchingWidget {
       height: GameLobbyStyles.playersInEditor.height,
     );
 
-    final child = GameLobbyPlayer(
-      player: player,
-      settings: const PlayerTileSettings.empty(),
-      constraints: playerBoxConstraints,
-      playerTextStyle: GameLobbyStyles.playerTextStyleDesktop(context),
-      actionButton:
-          playerAvailableToChange && gameData?.me.meta.id != player.meta.id
-          ? PlayerEditBtn(player: player)
-          : null,
-      customIcon: playerAvailableToChange
-          ? const Icon(Icons.drag_handle, size: 28)
-          : null,
-    );
+    Widget child() {
+      return GameLobbyPlayer(
+        player: player,
+        settings: const PlayerTileSettings.empty(),
+        constraints: playerBoxConstraints,
+        playerTextStyle: GameLobbyStyles.playerTextStyleDesktop(context),
+        actionButton:
+            playerAvailableToChange && gameData?.me.meta.id != player.meta.id
+            ? PlayerEditBtn(player: player)
+            : null,
+        customIcon: playerAvailableToChange
+            ? const Icon(Icons.drag_handle, size: 28)
+            : null,
+      );
+    }
 
-    if (!playerAvailableToChange) return child;
+    if (!playerAvailableToChange) return child();
 
     return Draggable<PlayerData>(
       data: player,
-      feedback: Opacity(
-        opacity: .7,
-        child: child,
+      feedback: _PlayerDragFeedback(player: player),
+      childWhenDragging: Opacity(
+        opacity: .45,
+        child: child(),
       ),
       child: MouseRegion(
         cursor: SystemMouseCursors.grab,
-        child: child,
+        child: child(),
+      ),
+    );
+  }
+}
+
+class _PlayerDragFeedback extends StatelessWidget {
+  const _PlayerDragFeedback({required this.player});
+
+  final PlayerData player;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = context.theme.colorScheme;
+    final foreground = colorScheme.onSurface;
+    final username = player.meta.username;
+    final initial = username.characters.isEmpty
+        ? '?'
+        : username.characters.first.toUpperCase();
+
+    final subtitle = switch (player.role) {
+      PlayerRole.showman => LocaleKeys.showman.tr(),
+      PlayerRole.player => player.score.toString(),
+      PlayerRole.spectator => LocaleKeys.spectator.tr(),
+      PlayerRole.$unknown => '',
+    };
+
+    return RepaintBoundary(
+      child: Material(
+        color: Colors.transparent,
+        child: SizedBox.fromSize(
+          size: GameLobbyStyles.playersInEditor,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest,
+              borderRadius: GameLobbyStyles.playerTileRadius.circular,
+              border: Border.all(
+                color: colorScheme.primary.withValues(alpha: .45),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .18),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              spacing: 10,
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
+                  child: Text(initial),
+                ),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 2,
+                    children: [
+                      Text(
+                        username,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.textTheme.bodyMedium?.copyWith(
+                          color: foreground,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (subtitle.isNotEmpty)
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.textTheme.labelSmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.drag_handle,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ).paddingAll(12),
+          ),
+        ),
       ),
     );
   }
@@ -1017,13 +1200,15 @@ bool _playerCanMoveToRole({
 class _RolePlayersWrap extends StatelessWidget {
   const _RolePlayersWrap({
     required this.children,
-    required this.scrollable,
+    required this.allowScrolling,
     required this.twoColumn,
+    this.maxUnboundedHeight,
   });
 
   final List<Widget> children;
-  final bool scrollable;
+  final bool allowScrolling;
   final bool twoColumn;
+  final double? maxUnboundedHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -1031,10 +1216,12 @@ class _RolePlayersWrap extends StatelessWidget {
       twoColumn: twoColumn,
       children: children,
     );
-    if (!scrollable) return content;
+    if (!allowScrolling || children.length <= 1) return content;
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (!_contentUsesMultipleRows(constraints)) return content;
+
         final scrollView = _FadingScrollView(
           bottomPadding: 8,
           child: content,
@@ -1043,11 +1230,23 @@ class _RolePlayersWrap extends StatelessWidget {
         if (constraints.hasBoundedHeight) return scrollView;
 
         return ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 220),
+          constraints: BoxConstraints(maxHeight: maxUnboundedHeight ?? 220),
           child: scrollView,
         );
       },
     );
+  }
+
+  bool _contentUsesMultipleRows(BoxConstraints constraints) {
+    if (!twoColumn) return children.length > 1;
+    if (!constraints.hasBoundedWidth) return children.length > 1;
+
+    final canUseTwoColumns =
+        constraints.maxWidth >=
+        (_RolePlayersWrapContent._minTwoColumnTileWidth * 2) +
+            _RolePlayersWrapContent._spacing;
+    final columns = canUseTwoColumns ? 2 : 1;
+    return children.length > columns;
   }
 }
 
@@ -1177,11 +1376,16 @@ bool _playerSeatsFull(
   if (gameData == null || gameList == null) return false;
   if (gameData.me.role == PlayerRole.player) return false;
 
-  final playerCount = gameData.players
-      .where((player) => player.role == PlayerRole.player)
-      .length;
+  final connectedPlayerCount = gameData.players.where(
+    (player) {
+      final isPlayer = player.role == PlayerRole.player;
+      final isConnected = player.status != PlayerDataStatus.disconnected;
 
-  return playerCount >= gameList.maxPlayers;
+      return isPlayer && isConnected;
+    },
+  ).length;
+
+  return connectedPlayerCount >= gameList.maxPlayers;
 }
 
 String _roleLabel(PlayerRole role) {

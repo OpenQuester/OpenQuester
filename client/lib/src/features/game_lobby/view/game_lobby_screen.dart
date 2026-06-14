@@ -43,6 +43,12 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
     final chatWideModeOn = GameLobbyStyles.desktopChat(context);
     final showDesktopChat = chatWideModeOn && showChat;
     final gameStarted = gameData?.gameStarted ?? false;
+    final pregameLobbyVisible = gameData != null && !gameStarted;
+    final useMobileActionButton = !UiModeUtils.wideModeOn(context);
+    final showLobbyActionButton = shouldShowLobbyActionButton(gameData);
+    final showFloatingActionButton =
+        useMobileActionButton && showLobbyActionButton;
+    final showBottomActionArea = pregameLobbyVisible && !useMobileActionButton;
     final showAppBarTitle = !(lobbyEditorMode && !gameStarted);
     final settings = watchPropertyValue<SettingsController, AppSettings>(
       (e) => e.settings,
@@ -81,12 +87,15 @@ class _GameLobbyScreenState extends State<GameLobbyScreen> {
               scrolledUnderElevation: 0,
               notificationPredicate: (_) => false,
             ),
-            bottomNavigationBar: gameData != null && !gameStarted
-                ? const SafeArea(
-                    top: false,
-                    child: LobbyActionButton(),
-                  )
+            bottomNavigationBar: showBottomActionArea
+                ? const LobbyActionButton()
                 : null,
+            floatingActionButton: showFloatingActionButton
+                ? const LobbyActionButton(floating: true)
+                : null,
+            floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+            floatingActionButtonAnimator:
+                FloatingActionButtonAnimator.noAnimation,
             body: SafeArea(
               bottom: false,
               child: Stack(

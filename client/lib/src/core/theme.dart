@@ -26,7 +26,33 @@ class AppTheme {
     const silverDark = Color(0xFF5F6670);
     const bronze = Color(0xFFCD7F32);
     const bronzeDark = Color(0xFF7A4A1D);
-    final useDarkVariants = theme.brightness == Brightness.light;
+    const lightExtraColors = ExtraColors(
+      success: successDark,
+      successDark: successDark,
+      warning: warningDark,
+      warningDark: warningDark,
+      gold: goldDark,
+      goldDark: goldDark,
+      silver: silverDark,
+      silverDark: silverDark,
+      bronze: bronzeDark,
+      bronzeDark: bronzeDark,
+    );
+    const darkExtraColors = ExtraColors(
+      success: success,
+      successDark: successDark,
+      warning: warning,
+      warningDark: warningDark,
+      gold: gold,
+      goldDark: goldDark,
+      silver: silver,
+      silverDark: silverDark,
+      bronze: bronze,
+      bronzeDark: bronzeDark,
+    );
+    final extraColors = theme.brightness == Brightness.light
+        ? lightExtraColors
+        : darkExtraColors;
 
     final colorScheme = theme.colorScheme.copyWith(
       surface: pureDarkColor,
@@ -53,20 +79,7 @@ class AppTheme {
       expansionTileTheme: expansionTileTheme(colorScheme),
       cardColor: pureDarkColor,
       colorScheme: colorScheme,
-      extensions: [
-        ExtraColors(
-          success: useDarkVariants ? successDark : success,
-          successDark: successDark,
-          warning: useDarkVariants ? warningDark : warning,
-          warningDark: warningDark,
-          gold: useDarkVariants ? goldDark : gold,
-          goldDark: goldDark,
-          silver: useDarkVariants ? silverDark : silver,
-          silverDark: silverDark,
-          bronze: useDarkVariants ? bronzeDark : bronze,
-          bronzeDark: bronzeDark,
-        ),
-      ],
+      extensions: [extraColors],
     );
   }
 

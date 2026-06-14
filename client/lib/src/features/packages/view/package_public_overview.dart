@@ -43,36 +43,57 @@ class _PackageHeader extends StatelessWidget {
         _Badge(text: ageRestriction.$1, color: ageRestriction.$2),
     ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: 8,
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final inlineBadges = constraints.maxWidth >= 720;
+        final title = Text(
+          package.title,
+          maxLines: inlineBadges ? 1 : 2,
+          overflow: TextOverflow.ellipsis,
+          style: context.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        );
+        final badgesWrap = Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: badges,
+        );
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: 8,
           children: [
-            Flexible(
-              child: Text(
-                package.title,
-                maxLines: 1,
+            if (inlineBadges)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: title),
+                  if (badges.isNotEmpty) const SizedBox(width: 8),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * .44,
+                    ),
+                    child: badgesWrap,
+                  ),
+                ],
+              )
+            else ...[
+              title,
+              if (badges.isNotEmpty) badgesWrap,
+            ],
+            if (description != null)
+              Text(
+                description,
+                maxLines: 7,
                 overflow: TextOverflow.ellipsis,
-                style: context.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
+                style: context.textTheme.bodyMedium?.copyWith(
+                  color: context.theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-            ),
-            if (badges.isNotEmpty) const SizedBox(width: 8),
-            for (final badge in badges) badge.paddingRight(6),
           ],
-        ),
-        if (description != null)
-          Text(
-            description,
-            maxLines: 7,
-            overflow: TextOverflow.ellipsis,
-            style: context.textTheme.bodyMedium?.copyWith(
-              color: context.theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-      ],
+        );
+      },
     );
   }
 }

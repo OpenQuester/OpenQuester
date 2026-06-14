@@ -21,9 +21,14 @@ const Key _playersBottomFadeKey = ValueKey(
 const Key _spectatorsBottomFadeKey = ValueKey(
   'lobby-visual-spectators-bottom-fade',
 );
+const Key _packagePanelKey = ValueKey('lobby-visual-package-panel');
 const Key _currentPlayerCardKey = ValueKey('lobby-visual-current-player-card');
 const Key _currentPlayerDragIconKey = ValueKey(
   'lobby-visual-current-player-drag-icon',
+);
+const Key _actionBottomAreaKey = ValueKey('lobby-visual-action-bottom-area');
+const Key _actionFloatingAreaKey = ValueKey(
+  'lobby-visual-action-floating-area',
 );
 
 void main() {
@@ -40,14 +45,22 @@ void main() {
   });
 
   const matrix = [
-    _VisualCase('light_standard', 390, 844),
-    _VisualCase('light_standard', 820, 1180),
-    _VisualCase('light_standard', 1280, 720),
-    _VisualCase('light_standard', 1920, 1080),
-    _VisualCase('dark_standard', 390, 844),
-    _VisualCase('dark_standard', 820, 1180),
-    _VisualCase('dark_standard', 1280, 720),
-    _VisualCase('dark_standard', 1920, 1080),
+    _VisualCase(_VisualState.populated, 'light_standard', 390, 844),
+    _VisualCase(_VisualState.populated, 'light_standard', 820, 1180),
+    _VisualCase(_VisualState.populated, 'light_standard', 1280, 720),
+    _VisualCase(_VisualState.populated, 'light_standard', 1920, 1080),
+    _VisualCase(_VisualState.populated, 'dark_standard', 390, 844),
+    _VisualCase(_VisualState.populated, 'dark_standard', 820, 1180),
+    _VisualCase(_VisualState.populated, 'dark_standard', 1280, 720),
+    _VisualCase(_VisualState.populated, 'dark_standard', 1920, 1080),
+    _VisualCase(_VisualState.empty, 'light_standard', 390, 844),
+    _VisualCase(_VisualState.empty, 'light_standard', 1280, 720),
+    _VisualCase(_VisualState.empty, 'dark_standard', 390, 844),
+    _VisualCase(_VisualState.empty, 'dark_standard', 1280, 720),
+    _VisualCase(_VisualState.chatOpen, 'light_standard', 1280, 720),
+    _VisualCase(_VisualState.chatOpen, 'light_standard', 1920, 1080),
+    _VisualCase(_VisualState.chatOpen, 'dark_standard', 1280, 720),
+    _VisualCase(_VisualState.chatOpen, 'dark_standard', 1920, 1080),
   ];
 
   testWidgets('capture lobby visual matrix', (tester) async {
@@ -61,10 +74,7 @@ void main() {
 
         final captureKey = GlobalKey();
         await tester.pumpWidget(
-          _LocalizedVisualApp(
-            captureKey: captureKey,
-            dark: visualCase.dark,
-          ),
+          _LocalizedVisualApp(captureKey: captureKey, visualCase: visualCase),
         );
         for (var attempt = 0; attempt < 30; attempt += 1) {
           await tester.pump(const Duration(milliseconds: 100));
@@ -109,17 +119,19 @@ void main() {
             showmanHeight + playersHeight + spectatorsHeight,
             lessThan(rolePanelHeight),
           );
-          final currentPlayerCardRect = tester.getRect(
-            find.byKey(_currentPlayerCardKey),
-          );
-          final currentPlayerDragIconRect = tester.getRect(
-            find.byKey(_currentPlayerDragIconKey),
-          );
+          if (visualCase.state == _VisualState.populated) {
+            final currentPlayerCardRect = tester.getRect(
+              find.byKey(_currentPlayerCardKey),
+            );
+            final currentPlayerDragIconRect = tester.getRect(
+              find.byKey(_currentPlayerDragIconKey),
+            );
 
-          expect(
-            currentPlayerCardRect.right - currentPlayerDragIconRect.right,
-            inInclusiveRange(8, 14),
-          );
+            expect(
+              currentPlayerCardRect.right - currentPlayerDragIconRect.right,
+              inInclusiveRange(8, 14),
+            );
+          }
           if (visualCase.height <= 720) {
             final packageBottomFadeHeight = tester
                 .renderObject<RenderBox>(find.byKey(_packageBottomFadeKey))
@@ -130,7 +142,44 @@ void main() {
           }
           expect(find.byKey(_showmanBottomFadeKey), findsNothing);
           expect(find.byKey(_playersBottomFadeKey), findsNothing);
-          expect(find.byKey(_spectatorsBottomFadeKey), findsOneWidget);
+          expect(
+            find.byKey(_spectatorsBottomFadeKey),
+            visualCase.state == _VisualState.empty
+                ? findsNothing
+                : findsOneWidget,
+          );
+        }
+        if (visualCase.state == _VisualState.populated &&
+            visualCase.width == 390) {
+          final packagePanelTop = tester
+              .getTopLeft(find.byKey(_packagePanelKey))
+              .dy;
+
+          expect(packagePanelTop, lessThanOrEqualTo(708));
+        }
+        final mobileActionLayout = visualCase.width <= UiModeUtils.medium;
+        final showActionButton = visualCase.state != _VisualState.empty;
+        final showBottomActionArea = !mobileActionLayout;
+        final showFloatingActionArea = mobileActionLayout && showActionButton;
+
+        expect(
+          find.byKey(_actionBottomAreaKey),
+          showBottomActionArea ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.byKey(_actionFloatingAreaKey),
+          showFloatingActionArea ? findsOneWidget : findsNothing,
+        );
+        if (showFloatingActionArea) {
+          final actionFloatingFinder = find.byKey(_actionFloatingAreaKey);
+          final actionFloatingRect = tester.getRect(actionFloatingFinder);
+          final mobileContentRect = tester.getRect(find.byType(ListView).first);
+
+          expect(
+            visualCase.width - actionFloatingRect.right,
+            inInclusiveRange(12, 32),
+          );
+          expect(mobileContentRect.bottom, greaterThan(actionFloatingRect.top));
         }
 
         final boundary =
@@ -154,34 +203,54 @@ void main() {
   });
 }
 
-class _VisualCase {
-  const _VisualCase(this.theme, this.width, this.height);
+enum _VisualState { populated, empty, chatOpen }
 
+class _VisualCase {
+  const _VisualCase(this.state, this.theme, this.width, this.height);
+
+  final _VisualState state;
   final String theme;
   final int width;
   final int height;
 
   bool get dark => theme.startsWith('dark');
+  bool get showChat => state == _VisualState.chatOpen;
+
+  _LobbyScenario get scenario {
+    return switch (state) {
+      _VisualState.populated => _LobbyScenario.populated,
+      _VisualState.empty => _LobbyScenario.empty,
+      _VisualState.chatOpen => _LobbyScenario.populated,
+    };
+  }
+
+  String get stateName {
+    return switch (state) {
+      _VisualState.populated => 'populated',
+      _VisualState.empty => 'empty',
+      _VisualState.chatOpen => 'chat_open',
+    };
+  }
 
   String fileName(int index) {
     return 'step_${(index + 1).toString().padLeft(2, '0')}_'
-        '${theme}_${width}x$height.png';
+        '${stateName}_${theme}_${width}x$height.png';
   }
 }
 
 class _LocalizedVisualApp extends StatelessWidget {
   const _LocalizedVisualApp({
     required this.captureKey,
-    required this.dark,
+    required this.visualCase,
   });
 
   final GlobalKey captureKey;
-  final bool dark;
+  final _VisualCase visualCase;
 
   @override
   Widget build(BuildContext context) {
     getIt<SettingsController>().settings = AppSettings(
-      themeMode: dark ? AppThemeMode.dark : AppThemeMode.light,
+      themeMode: visualCase.dark ? AppThemeMode.dark : AppThemeMode.light,
     );
 
     return EasyLocalization(
@@ -193,16 +262,16 @@ class _LocalizedVisualApp extends StatelessWidget {
         builder: (context) => MaterialApp(
           theme: AppTheme.build(Colors.indigo, Brightness.light),
           darkTheme: AppTheme.build(Colors.indigo, Brightness.dark),
-          themeMode: dark ? ThemeMode.dark : ThemeMode.light,
+          themeMode: visualCase.dark ? ThemeMode.dark : ThemeMode.light,
           locale: context.locale,
           localizationsDelegates: context.localizationDelegates,
           supportedLocales: context.supportedLocales,
           debugShowCheckedModeBanner: false,
           home: RepaintBoundary(
             key: captureKey,
-            child: const AnimationConfigurationClass.synchronized(
+            child: AnimationConfigurationClass.synchronized(
               duration: Durations.short2,
-              child: _LobbyVisualScreen(),
+              child: _LobbyVisualScreen(visualCase: visualCase),
             ),
           ),
         ),
@@ -212,11 +281,24 @@ class _LocalizedVisualApp extends StatelessWidget {
 }
 
 class _LobbyVisualScreen extends StatelessWidget {
-  const _LobbyVisualScreen();
+  const _LobbyVisualScreen({required this.visualCase});
+
+  final _VisualCase visualCase;
 
   @override
   Widget build(BuildContext context) {
     final package = _package();
+    final scenario = visualCase.scenario;
+    final showActionButton = scenario.currentRole != PlayerRole.spectator;
+    final useMobileActionButton = visualCase.width <= UiModeUtils.medium;
+    final showFloatingActionButton = useMobileActionButton && showActionButton;
+    final showBottomActionArea = !useMobileActionButton;
+    final actionButtonLabel = scenario.currentRole == PlayerRole.showman
+        ? LocaleKeys.start_game.tr()
+        : LocaleKeys.game_lobby_editor_ready.tr();
+    final actionButtonIcon = scenario.currentRole == PlayerRole.showman
+        ? Icons.play_arrow_rounded
+        : Icons.check_circle_outline;
 
     return Scaffold(
       appBar: AppBar(
@@ -228,25 +310,23 @@ class _LobbyVisualScreen extends StatelessWidget {
           SizedBox(width: 16),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FilledButton.icon(
-              onPressed: () {},
-              style: const ButtonStyle(
-                minimumSize: WidgetStatePropertyAll(Size(240, 54)),
-                padding: WidgetStatePropertyAll(
-                  EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                ),
-              ),
-              icon: const Icon(Icons.check_circle_outline),
-              label: Text(LocaleKeys.game_lobby_editor_ready.tr()),
-            ),
-          ],
-        ).paddingAll(16),
-      ),
+      bottomNavigationBar: showBottomActionArea
+          ? _VisualLobbyActionButton(
+              showButton: showActionButton,
+              icon: actionButtonIcon,
+              label: actionButtonLabel,
+            )
+          : null,
+      floatingActionButton: showFloatingActionButton
+          ? _VisualLobbyActionButton(
+              showButton: showActionButton,
+              icon: actionButtonIcon,
+              label: actionButtonLabel,
+              floating: true,
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButtonAnimator: FloatingActionButtonAnimator.noAnimation,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -255,21 +335,23 @@ class _LobbyVisualScreen extends StatelessWidget {
             final roleContent = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _RolePanelHeader(),
+                _RolePanelHeader(scenario: scenario),
                 const SizedBox(height: 16),
                 if (wide)
                   Expanded(
                     child: _RoleBoard(
-                      players: _players(),
-                      currentRole: PlayerRole.player,
-                      currentPlayerName: 'Ari With A Long Nickname',
+                      players: scenario.players,
+                      currentRole: scenario.currentRole,
+                      currentPlayerName: scenario.currentPlayerName,
+                      maxPlayers: scenario.maxPlayers,
                     ),
                   )
                 else
                   _RoleBoard(
-                    players: _players(),
-                    currentRole: PlayerRole.player,
-                    currentPlayerName: 'Ari With A Long Nickname',
+                    players: scenario.players,
+                    currentRole: scenario.currentRole,
+                    currentPlayerName: scenario.currentPlayerName,
+                    maxPlayers: scenario.maxPlayers,
                   ),
               ],
             );
@@ -278,6 +360,7 @@ class _LobbyVisualScreen extends StatelessWidget {
               child: roleContent,
             );
             final packagePanel = _SurfacePanel(
+              key: _packagePanelKey,
               child: wide
                   ? _MockFadingScrollView(
                       bottomFadeKey: _packageBottomFadeKey,
@@ -307,8 +390,18 @@ class _LobbyVisualScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         spacing: 24,
                         children: [
-                          SizedBox(width: 440, child: rolePanel),
-                          Expanded(child: packagePanel),
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              spacing: 24,
+                              children: [
+                                SizedBox(width: 440, child: rolePanel),
+                                Expanded(child: packagePanel),
+                              ],
+                            ),
+                          ),
+                          if (visualCase.showChat)
+                            const _MockChatPanel().withWidth(350),
                         ],
                       ),
                     ),
@@ -349,11 +442,110 @@ class _LobbyVisualScreen extends StatelessWidget {
   }
 }
 
-class _RolePanelHeader extends StatelessWidget {
-  const _RolePanelHeader();
+class _VisualLobbyActionButton extends StatelessWidget {
+  const _VisualLobbyActionButton({
+    required this.showButton,
+    required this.icon,
+    required this.label,
+    this.floating = false,
+  });
+
+  final bool showButton;
+  final IconData icon;
+  final String label;
+  final bool floating;
+
+  static const double _buttonHeight = 54;
 
   @override
   Widget build(BuildContext context) {
+    final actionButton = showButton
+        ? _VisualLobbyActionButtonContent(
+            icon: icon,
+            label: label,
+            floating: floating,
+          )
+        : null;
+
+    if (floating) {
+      if (actionButton == null) return const SizedBox.shrink();
+
+      return Padding(
+        key: _actionFloatingAreaKey,
+        padding: 16.horizontal,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: actionButton,
+        ),
+      );
+    }
+
+    return Material(
+      key: _actionBottomAreaKey,
+      type: MaterialType.transparency,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: 16.all,
+          child: SizedBox(
+            height: _buttonHeight,
+            width: double.infinity,
+            child: Center(child: actionButton ?? const SizedBox.shrink()),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VisualLobbyActionButtonContent extends StatelessWidget {
+  const _VisualLobbyActionButtonContent({
+    required this.icon,
+    required this.label,
+    required this.floating,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool floating;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = FilledButton.icon(
+      onPressed: () {},
+      style: ButtonStyle(
+        minimumSize: const WidgetStatePropertyAll(
+          Size(240, _VisualLobbyActionButton._buttonHeight),
+        ),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        ),
+        elevation: WidgetStatePropertyAll(floating ? 6 : 0),
+        shadowColor: WidgetStatePropertyAll(
+          context.theme.colorScheme.shadow.withValues(alpha: .24),
+        ),
+      ),
+      icon: Icon(icon),
+      label: Text(label),
+    );
+
+    return button;
+  }
+}
+
+class _RolePanelHeader extends StatelessWidget {
+  const _RolePanelHeader({required this.scenario});
+
+  final _LobbyScenario scenario;
+
+  @override
+  Widget build(BuildContext context) {
+    final players = scenario.players.where(
+      (player) => player.role == PlayerRole.player,
+    );
+    final playerCount = players.length;
+    final readyCount = players.where((player) => player.ready).length;
+
     return Row(
       spacing: 12,
       children: [
@@ -365,11 +557,14 @@ class _RolePanelHeader extends StatelessWidget {
             ),
           ),
         ),
-        _StatusChip(
-          icon: Icons.check_circle_outline,
-          color: ExtraColors.of(context).success,
-          text: '1/2 ${LocaleKeys.game_lobby_editor_ready.tr()}',
-        ),
+        if (playerCount > 0)
+          _StatusChip(
+            icon: Icons.check_circle_outline,
+            color: ExtraColors.of(context).success,
+            text:
+                '$readyCount/$playerCount '
+                '${LocaleKeys.game_lobby_editor_ready.tr()}',
+          ),
       ],
     );
   }
@@ -454,23 +649,157 @@ class _SurfacePanel extends StatelessWidget {
   }
 }
 
+class _MockChatPanel extends StatelessWidget {
+  const _MockChatPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = context.theme.colorScheme;
+
+    return SafeArea(
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        color: colorScheme.surfaceContainer,
+        child: Column(
+          children: [
+            Row(
+              spacing: 8,
+              children: [
+                const Icon(Icons.chat_bubble_outline, size: 18),
+                Text(
+                  'Chat',
+                  style: context.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ).paddingAll(16),
+            Divider(height: 1, color: colorScheme.outlineVariant),
+            Expanded(
+              child: ListView(
+                padding: 16.all,
+                children: const [
+                  _MockChatBubble(author: 'Mira', text: 'Ready when you are.'),
+                  _MockChatBubble(
+                    author: 'Dan',
+                    text: 'Can I stay as player two?',
+                    sentByMe: true,
+                  ),
+                  _MockChatBubble(
+                    author: 'System',
+                    text: 'Ari joined as player.',
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              height: 44,
+              margin: 12.all,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: 8.circular,
+                border: Border.all(
+                  color: colorScheme.outline.withValues(alpha: .18),
+                ),
+              ),
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Message',
+                style: context.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MockChatBubble extends StatelessWidget {
+  const _MockChatBubble({
+    required this.author,
+    required this.text,
+    this.sentByMe = false,
+  });
+
+  final String author;
+  final String text;
+  final bool sentByMe;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = context.theme.colorScheme;
+    final background = sentByMe
+        ? colorScheme.primaryContainer
+        : colorScheme.surfaceContainerHighest;
+    final foreground = sentByMe
+        ? colorScheme.onPrimaryContainer
+        : colorScheme.onSurface;
+
+    return Align(
+      alignment: sentByMe
+          ? AlignmentDirectional.centerEnd
+          : AlignmentDirectional.centerStart,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 250),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: background,
+            borderRadius: 8.circular,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 4,
+            children: [
+              Text(
+                author,
+                style: context.textTheme.labelSmall?.copyWith(
+                  color: foreground.withValues(alpha: .72),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                text,
+                style: context.textTheme.bodyMedium?.copyWith(
+                  color: foreground,
+                ),
+              ),
+            ],
+          ).paddingAll(10),
+        ),
+      ),
+    ).paddingBottom(10);
+  }
+}
+
 class _RoleBoard extends StatelessWidget {
   const _RoleBoard({
     required this.players,
     required this.currentRole,
     required this.currentPlayerName,
+    required this.maxPlayers,
   });
 
   final List<_LobbyPlayer> players;
   final PlayerRole currentRole;
   final String currentPlayerName;
+  final int maxPlayers;
 
   static const _showmanAreaHeight = 116.0;
+  static const _playersAreaWeight = 3;
+  static const _spectatorsAreaWeight = 2;
+  static const _roleSectionDividerHeight = 22.0;
+  static const _minimumScrollableRoleAreaHeight = 110.0;
+  static const _compactSpectatorsMaxHeight = 96.0;
 
   @override
   Widget build(BuildContext context) {
     final playerSeatsFull =
-        players.where((player) => player.role == PlayerRole.player).length >= 3;
+        players.where((player) => player.role == PlayerRole.player).length >=
+        maxPlayers;
     final options = buildJoinRoleSwitchOptions(
       currentRole: currentRole,
       showmanTaken: players.any((player) => player.role == PlayerRole.showman),
@@ -517,6 +846,7 @@ class _RoleBoard extends StatelessWidget {
       players: spectators,
       currentPlayerName: currentPlayerName,
       scrollablePlayers: true,
+      maxUnboundedPlayersHeight: _compactSpectatorsMaxHeight,
     );
 
     return LayoutBuilder(
@@ -534,18 +864,51 @@ class _RoleBoard extends StatelessWidget {
           );
         }
 
+        final roleAreaHeights = _roleAreaHeights(constraints.maxHeight);
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(height: _showmanAreaHeight, child: showmanGroup),
             const _RoleSectionDivider(),
-            Expanded(flex: 3, child: playersGroup),
+            SizedBox(height: roleAreaHeights.players, child: playersGroup),
             const _RoleSectionDivider(),
-            Expanded(flex: 2, child: spectatorsGroup),
+            SizedBox(
+              height: roleAreaHeights.spectators,
+              child: spectatorsGroup,
+            ),
           ],
         );
       },
     );
+  }
+
+  ({double players, double spectators}) _roleAreaHeights(
+    double availableHeight,
+  ) {
+    const fixedHeight = _showmanAreaHeight + (_roleSectionDividerHeight * 2);
+    final flexibleHeight = availableHeight > fixedHeight
+        ? availableHeight - fixedHeight
+        : 0.0;
+    const totalWeight = _playersAreaWeight + _spectatorsAreaWeight;
+    var playersHeight = flexibleHeight * _playersAreaWeight / totalWeight;
+    var spectatorsHeight = flexibleHeight - playersHeight;
+    final canPreserveMinimums =
+        flexibleHeight >= _minimumScrollableRoleAreaHeight * 2;
+
+    if (canPreserveMinimums &&
+        spectatorsHeight < _minimumScrollableRoleAreaHeight) {
+      spectatorsHeight = _minimumScrollableRoleAreaHeight;
+      playersHeight = flexibleHeight - spectatorsHeight;
+    }
+
+    if (canPreserveMinimums &&
+        playersHeight < _minimumScrollableRoleAreaHeight) {
+      playersHeight = _minimumScrollableRoleAreaHeight;
+      spectatorsHeight = flexibleHeight - playersHeight;
+    }
+
+    return (players: playersHeight, spectators: spectatorsHeight);
   }
 }
 
@@ -568,6 +931,7 @@ class _RoleGroup extends StatelessWidget {
     required this.players,
     required this.currentPlayerName,
     this.scrollablePlayers = false,
+    this.maxUnboundedPlayersHeight,
     super.key,
   });
 
@@ -577,6 +941,7 @@ class _RoleGroup extends StatelessWidget {
   final Iterable<_LobbyPlayer> players;
   final String currentPlayerName;
   final bool scrollablePlayers;
+  final double? maxUnboundedPlayersHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -594,6 +959,7 @@ class _RoleGroup extends StatelessWidget {
             scrollable: boundedArea || scrollablePlayers,
             spacing: 8,
             twoColumn: role != PlayerRole.showman,
+            maxUnboundedHeight: maxUnboundedPlayersHeight,
             bottomFadeKey: switch (role) {
               PlayerRole.showman => _showmanBottomFadeKey,
               PlayerRole.player => _playersBottomFadeKey,
@@ -642,6 +1008,7 @@ class _MockRolePlayersWrap extends StatelessWidget {
     required this.spacing,
     required this.scrollable,
     required this.twoColumn,
+    this.maxUnboundedHeight,
     this.bottomFadeKey,
   });
 
@@ -649,6 +1016,7 @@ class _MockRolePlayersWrap extends StatelessWidget {
   final double spacing;
   final bool scrollable;
   final bool twoColumn;
+  final double? maxUnboundedHeight;
   final Key? bottomFadeKey;
 
   @override
@@ -696,7 +1064,7 @@ class _MockRolePlayersWrap extends StatelessWidget {
         if (constraints.hasBoundedHeight) return scrollView;
 
         return ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 220),
+          constraints: BoxConstraints(maxHeight: maxUnboundedHeight ?? 220),
           child: scrollView,
         );
       },
@@ -1004,6 +1372,52 @@ class _PlayerChip extends StatelessWidget {
   }
 }
 
+enum _LobbyScenario {
+  populated(
+    players: [
+      _LobbyPlayer(name: 'Mira', role: PlayerRole.showman),
+      _LobbyPlayer(name: 'Ari With A Long Nickname', role: PlayerRole.player),
+      _LobbyPlayer(
+        name: 'Dan Ready Player',
+        role: PlayerRole.player,
+        ready: true,
+      ),
+      _LobbyPlayer(name: 'Noa Spectator Longname', role: PlayerRole.spectator),
+      _LobbyPlayer(name: 'Eli', role: PlayerRole.spectator),
+      _LobbyPlayer(name: 'Kai', role: PlayerRole.spectator),
+      _LobbyPlayer(name: 'Uma', role: PlayerRole.spectator),
+      _LobbyPlayer(name: 'Ira', role: PlayerRole.spectator),
+      _LobbyPlayer(name: 'Max', role: PlayerRole.spectator),
+      _LobbyPlayer(name: 'Sol', role: PlayerRole.spectator),
+      _LobbyPlayer(name: 'Bea', role: PlayerRole.spectator),
+      _LobbyPlayer(name: 'Lev', role: PlayerRole.spectator),
+    ],
+    currentRole: PlayerRole.player,
+    currentPlayerName: 'Ari With A Long Nickname',
+    maxPlayers: 3,
+  ),
+  empty(
+    players: [
+      _LobbyPlayer(name: 'Mira', role: PlayerRole.spectator),
+    ],
+    currentRole: PlayerRole.spectator,
+    currentPlayerName: 'Mira',
+    maxPlayers: 3,
+  );
+
+  const _LobbyScenario({
+    required this.players,
+    required this.currentRole,
+    required this.currentPlayerName,
+    required this.maxPlayers,
+  });
+
+  final List<_LobbyPlayer> players;
+  final PlayerRole currentRole;
+  final String currentPlayerName;
+  final int maxPlayers;
+}
+
 class _LobbyPlayer {
   const _LobbyPlayer({
     required this.name,
@@ -1060,27 +1474,6 @@ Future<void> _loadVisualFonts() async {
     'MaterialIcons',
     '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
   );
-}
-
-List<_LobbyPlayer> _players() {
-  return const [
-    _LobbyPlayer(name: 'Mira', role: PlayerRole.showman),
-    _LobbyPlayer(name: 'Ari With A Long Nickname', role: PlayerRole.player),
-    _LobbyPlayer(
-      name: 'Dan Ready Player',
-      role: PlayerRole.player,
-      ready: true,
-    ),
-    _LobbyPlayer(name: 'Noa Spectator Longname', role: PlayerRole.spectator),
-    _LobbyPlayer(name: 'Eli', role: PlayerRole.spectator),
-    _LobbyPlayer(name: 'Kai', role: PlayerRole.spectator),
-    _LobbyPlayer(name: 'Uma', role: PlayerRole.spectator),
-    _LobbyPlayer(name: 'Ira', role: PlayerRole.spectator),
-    _LobbyPlayer(name: 'Max', role: PlayerRole.spectator),
-    _LobbyPlayer(name: 'Sol', role: PlayerRole.spectator),
-    _LobbyPlayer(name: 'Bea', role: PlayerRole.spectator),
-    _LobbyPlayer(name: 'Lev', role: PlayerRole.spectator),
-  ];
 }
 
 OqPackage _package() {
