@@ -1,6 +1,8 @@
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
+import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
 import {
@@ -13,7 +15,7 @@ import {
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
-import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
+import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 /**
@@ -49,6 +51,11 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
       return true;
     }
 
+    if (trigger === TransitionTrigger.CONDITION_MET) {
+      const questionFiles = ctx.resources?.questionWithTheme?.question.questionFiles;
+      return (questionFiles?.length ?? 0) === 0;
+    }
+
     if (
       trigger === TransitionTrigger.USER_ACTION ||
       trigger === TransitionTrigger.PLAYER_LEFT
@@ -66,7 +73,10 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   protected async mutate(ctx: TransitionContext): Promise<MutationResult> {
     const { game, trigger } = ctx;
 
-    if (trigger === TransitionTrigger.TIMER_EXPIRED) {
+    if (
+      trigger === TransitionTrigger.TIMER_EXPIRED ||
+      trigger === TransitionTrigger.CONDITION_MET
+    ) {
       MediaDownloadLogic.forceAllPlayersReady(game);
     }
 
@@ -103,14 +113,31 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
   }
 
   /**
-   * No broadcasts here: MediaDownloadedUseCase builds MEDIA_DOWNLOAD_STATUS
-   * using service result data to keep personalized payload intact.
+   * Reveals question data only after the media-download gate opens.
    */
   protected collectBroadcasts(
-    _ctx: TransitionContext,
+    ctx: TransitionContext,
     _mutationResult: MutationResult,
-    _timerResult: TimerResult
+    timerResult: TimerResult
   ): BroadcastEvent[] {
-    return [];
+    const question = ctx.resources?.questionWithTheme?.question;
+    const timer = timerResult.timer;
+
+    if (!question || !timer) {
+      return [];
+    }
+
+    return [
+      {
+        event: SocketIOGameEvents.QUESTION_DATA,
+        data: {
+          data: question,
+          timer,
+          questionEligiblePlayers: ctx.game.getQuestionEligiblePlayers()
+        } satisfies GameQuestionDataEventPayload,
+        room: ctx.game.id,
+        roleFilter: true
+      }
+    ];
   }
 }

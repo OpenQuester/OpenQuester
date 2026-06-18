@@ -259,7 +259,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.MEDIA_DOWNLOADED,
-    new MediaDownloadedUseCase(phaseTransitionRouter)
+    new MediaDownloadedUseCase(phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(

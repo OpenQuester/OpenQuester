@@ -1,6 +1,5 @@
 import { inject, singleton } from "tsyringe";
 
-import { DI_TOKENS } from "shared/di/tokens";
 import { GameService } from "application/services/game/GameService";
 import { TransitionResourceService } from "application/services/game/TransitionResourceService";
 import { StakeQuestionService } from "application/services/question/StakeQuestionService";
@@ -46,6 +45,7 @@ import {
 } from "domain/types/socket/transition/answering";
 import { SecretTransferToAnsweringPayload } from "domain/types/socket/transition/special-question";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { DI_TOKENS } from "shared/di/tokens";
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 
@@ -82,7 +82,9 @@ export class TimerExpirationService {
     const transitionResult = await this.phaseTransitionRouter.tryTransition({
       game,
       trigger: TransitionTrigger.TIMER_EXPIRED,
-      triggeredBy: { isSystem: true }
+      triggeredBy: { isSystem: true },
+      // TODO: This is extra Redis fetch. Media download expiration is not that common, so it's fine for now, but should be fixed
+      resources: await this.transitionResourceService.getCurrentQuestionWithTheme(game)
     });
 
     if (!transitionResult) {
@@ -106,7 +108,8 @@ export class TimerExpirationService {
             timer
           } satisfies MediaDownloadStatusBroadcastData,
           room: gameId
-        }
+        },
+        ...transitionResult.broadcasts
       ],
       timerMutations: transitionResult.timerMutations
     };

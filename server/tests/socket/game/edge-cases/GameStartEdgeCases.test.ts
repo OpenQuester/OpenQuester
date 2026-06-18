@@ -13,14 +13,65 @@ import {
   SocketIOEvents,
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
+import { type QuestionPickMediaPreloadEventPayload } from "domain/types/socket/events/game/QuestionPickMediaPreloadEventPayload";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
-import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import {
+  type GameClientSocket,
+  SocketGameTestUtils
+} from "tests/socket/game/utils/SocketIOGameTestUtils";
+
+async function pickNoFileQuestionAndWaitForReveal(
+  utils: SocketGameTestUtils,
+  showmanSocket: GameClientSocket,
+  gameId: string
+): Promise<GameQuestionDataEventPayload> {
+  const questionId = await utils.getQuestionIdByType(
+    gameId,
+    PackageQuestionType.NO_RISK
+  );
+  const events: SocketIOGameEvents[] = [];
+  const preloadPromise = utils
+    .waitForEvent<QuestionPickMediaPreloadEventPayload>(
+      showmanSocket,
+      SocketIOGameEvents.QUESTION_PICK
+    )
+    .then((data) => {
+      events.push(SocketIOGameEvents.QUESTION_PICK);
+      return data;
+    });
+  const questionDataPromise = utils
+    .waitForEvent<GameQuestionDataEventPayload>(
+      showmanSocket,
+      SocketIOGameEvents.QUESTION_DATA
+    )
+    .then((data) => {
+      events.push(SocketIOGameEvents.QUESTION_DATA);
+      return data;
+    });
+
+  showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
+
+  const [preload, questionData] = await Promise.all([
+    preloadPromise,
+    questionDataPromise
+  ]);
+
+  expect(events).toEqual([
+    SocketIOGameEvents.QUESTION_PICK,
+    SocketIOGameEvents.QUESTION_DATA
+  ]);
+  expect(preload.questionFiles).toEqual([]);
+
+  return questionData;
+}
 
 /**
  * Edge case tests for game start scenarios:
@@ -170,16 +221,11 @@ describe("Game Start Edge Cases", () => {
         const gameStateBefore = await utils.getGameState(gameId);
         expect(gameStateBefore!.currentTurnPlayerId).toBeNull();
 
-        // Showman should be able to pick a question
-        const questionDataPromise = utils.waitForEvent(
+        const questionData = await pickNoFileQuestionAndWaitForReveal(
+          utils,
           showmanSocket,
-          SocketIOGameEvents.QUESTION_DATA
+          gameId
         );
-
-        const questionId = await utils.getFirstAvailableQuestionId(gameId);
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-
-        const questionData = await questionDataPromise;
         expect(questionData).toBeDefined();
 
         // Verify question was picked
@@ -216,16 +262,11 @@ describe("Game Start Edge Cases", () => {
         const gameStateAfterLeave = await utils.getGameState(gameId);
         expect(gameStateAfterLeave!.currentTurnPlayerId).toBeNull();
 
-        // Showman should still be able to pick questions
-        const questionDataPromise = utils.waitForEvent(
+        const questionData = await pickNoFileQuestionAndWaitForReveal(
+          utils,
           showmanSocket,
-          SocketIOGameEvents.QUESTION_DATA
+          gameId
         );
-
-        const questionId = await utils.getFirstAvailableQuestionId(gameId);
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-
-        const questionData = await questionDataPromise;
         expect(questionData).toBeDefined();
       } finally {
         await utils.cleanupGameClients(setup);
@@ -260,16 +301,11 @@ describe("Game Start Edge Cases", () => {
         const gameStateAfter = await utils.getGameState(gameId);
         expect(gameStateAfter!.currentTurnPlayerId).toBeNull();
 
-        // Showman should still be able to pick questions
-        const questionDataPromise = utils.waitForEvent(
+        const questionData = await pickNoFileQuestionAndWaitForReveal(
+          utils,
           showmanSocket,
-          SocketIOGameEvents.QUESTION_DATA
+          gameId
         );
-
-        const questionId = await utils.getFirstAvailableQuestionId(gameId);
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-
-        const questionData = await questionDataPromise;
         expect(questionData).toBeDefined();
       } finally {
         await utils.cleanupGameClients(setup);

@@ -116,7 +116,8 @@ Edge cases (server-handled):
 Notes:
 
 - Treat this as the authoritative initial snapshot for UI.
-- If a socket joins during an active regular question, it also receives the current role-filtered `question-data` event when question text is still active.
+- If a socket joins during `MEDIA_DOWNLOADING`, it receives the current `question-pick` preload event.
+- If a socket joins after the media-download gate has opened, it receives the current role-filtered `question-data` event while question text is still active.
 - If a socket joins during `SHOWING_ANSWER`, `gameState.answerShowData` contains the answer reveal payload current sockets already received through `question-finish`.
 
 ### `user-leave`
@@ -218,8 +219,10 @@ Edge cases (server-handled):
 Server broadcasts (depends on question type):
 
 - Normal question:
-  - emits `question-data` to each socket (role-based question payload)
-  - starts `MEDIA_DOWNLOADING` timer (clients must send `media-downloaded`)
+  - emits `question-pick` with `{ questionId, questionFiles, timer }` so clients can preload media
+  - starts `MEDIA_DOWNLOADING` timer when media files exist
+  - emits `question-data` to each socket (role-based question payload) only after all active players report media downloaded or the media-download timer expires
+  - if `questionFiles` is empty, emits `question-pick` with an empty array and then immediately emits `question-data`
 - Secret question:
   - emits `secret-question-picked`
   - later, after `secret-question-transfer`, emits `question-data` to each socket

@@ -15,17 +15,20 @@ import {
 } from "domain/state-machine/types";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
-import { DataMutationConverter } from "domain/types/action/DataMutation";
+import {
+  DataMutationConverter,
+  type DataMutation
+} from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
+import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { QuestionAction } from "domain/types/game/QuestionAction";
 import { type QuestionPickResult } from "domain/types/question/QuestionPickTypes";
+import { type QuestionPickMediaPreloadEventPayload } from "domain/types/socket/events/game/QuestionPickMediaPreloadEventPayload";
 import { StakeBidSubmitOutputData } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { QuestionPickInputData } from "domain/types/socket/events/SocketEventInterfaces";
-import {
-  type QuestionPickPayload,
-} from "domain/types/socket/transition/choosing";
+import { type QuestionPickPayload } from "domain/types/socket/transition/choosing";
 import { type StakeBiddingToAnsweringPayload } from "domain/types/socket/transition/special-question";
 import { QuestionActionValidator } from "domain/validators/QuestionActionValidator";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
@@ -37,9 +40,8 @@ import { PackageStore } from "infrastructure/database/repositories/PackageStore"
  * IN pipeline. Still requires PackageStore read (1 RT, unavoidable) and
  * PhaseTransitionRouter calls for timer management (1-2 RT, unavoidable).
  *
- * For NORMAL questions, returns empty broadcasts because the socket handler's
- * `afterBroadcast` must perform personalized per-socket emissions (showman sees
- * full answer, players see filtered data).
+ * For NORMAL questions, emits a preload `question-pick` first. The full
+ * `question-data` reveal is emitted only when the media-download gate opens.
  *
  * SECRET and STAKE questions emit events that are identical for all players.
  */
@@ -92,6 +94,25 @@ export class QuestionPickUseCase
       throw new ClientError(ClientResponse.INVALID_QUESTION_STATE);
     }
 
+    const initialTransitionResult = transitionResult;
+    const preloadMutations = this._buildNormalQuestionPreloadMutations(
+      game,
+      questionData.question,
+      initialTransitionResult
+    );
+
+    if (
+      initialTransitionResult.toPhase === GamePhase.MEDIA_DOWNLOADING &&
+      (questionData.question.questionFiles?.length ?? 0) === 0
+    ) {
+      transitionResult = await this._autoAdvanceMediaDownloadWhenNoFiles(
+        game,
+        currentPlayer!,
+        initialTransitionResult,
+        transitionResources
+      );
+    }
+
     // Auto-advance if stake bidding is immediately resolved
     if (
       transitionResult.toPhase === GamePhase.STAKE_BIDDING &&
@@ -123,6 +144,7 @@ export class QuestionPickUseCase
         ...DataMutationConverter.mutationFromTimerMutations(
           transitionResult.timerMutations
         ),
+        ...preloadMutations,
         ...DataMutationConverter.mutationFromServiceBroadcasts(
           transitionResult.broadcasts,
           game.id
@@ -130,6 +152,66 @@ export class QuestionPickUseCase
       ],
       broadcastGame: game,
     };
+  }
+
+  private _buildNormalQuestionPreloadMutations(
+    game: Game,
+    question: PackageQuestionDTO,
+    transitionResult: TransitionResult
+  ): DataMutation[] {
+    if (
+      transitionResult.toPhase !== GamePhase.MEDIA_DOWNLOADING ||
+      !transitionResult.timer ||
+      !question.id
+    ) {
+      return [];
+    }
+
+    return [
+      DataMutationConverter.gameBroadcastMutation(
+        game.id,
+        SocketIOGameEvents.QUESTION_PICK,
+        {
+          questionId: question.id,
+          questionFiles: question.questionFiles ?? [],
+          timer: transitionResult.timer
+        } satisfies QuestionPickMediaPreloadEventPayload
+      )
+    ];
+  }
+
+  private async _autoAdvanceMediaDownloadWhenNoFiles(
+    game: Game,
+    currentPlayer: Player,
+    transitionResult: TransitionResult,
+    transitionResources?: TransitionResources
+  ): Promise<TransitionResult> {
+    const autoFinishTransition = await this.phaseTransitionRouter.tryTransition({
+      game,
+      trigger: TransitionTrigger.CONDITION_MET,
+      triggeredBy: {
+        playerId: currentPlayer.meta.id,
+        isSystem: true
+      },
+      ...(transitionResources ? { resources: transitionResources } : {})
+    });
+
+    if (!autoFinishTransition) {
+      return transitionResult;
+    }
+
+    return {
+      ...autoFinishTransition,
+      success: true,
+      broadcasts: [
+        ...transitionResult.broadcasts,
+        ...autoFinishTransition.broadcasts
+      ],
+      timerMutations: [
+        ...(transitionResult.timerMutations ?? []),
+        ...(autoFinishTransition.timerMutations ?? [])
+      ]
+    } satisfies TransitionResult;
   }
 
   /**

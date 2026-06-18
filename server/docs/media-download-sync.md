@@ -13,7 +13,7 @@ This feature ensures fair gameplay by tracking when players have downloaded medi
        │  1. Showman picks question        │                                   │
        │ ─────────────────────────────────>│                                   │
        │                                   │                                   │
-       │  2. QUESTION_DATA event           │  2. QUESTION_DATA event           │
+       │  2. QUESTION_PICK preload         │  2. QUESTION_PICK preload         │
        │ <─────────────────────────────────┤──────────────────────────────────>│
        │    (mediaDownloaded: false)       │    (mediaDownloaded: false)       │
        │                                   │                                   │
@@ -40,7 +40,9 @@ This feature ensures fair gameplay by tracking when players have downloaded medi
        │  UI: ✓ Player 1                   │                                   │  UI: ✓ Player 1
        │      ✓ Player 2                   │                                   │      ✓ Player 2
        │                                   │                                   │
-       │  8. Start media playback          │                                   │  8. Start media playback
+       │  8. QUESTION_DATA event           │  8. QUESTION_DATA event           │
+       │ <─────────────────────────────────┤──────────────────────────────────>│
+       │  9. Start media playback          │                                   │  9. Start media playback
        │     ▶️                            │                                   │     ▶️
        │                                   │                                   │
 
@@ -64,10 +66,12 @@ Legend:
 
 3. **Event Flow**
    - When a question is picked, all players' `mediaDownloaded` status is reset to `false`
+   - Server broadcasts `QUESTION_PICK` with media metadata before revealing question text
    - Client downloads/loads media and sends `MEDIA_DOWNLOADED` event
    - Server broadcasts `MEDIA_DOWNLOAD_STATUS` to all clients with `allPlayersReady` flag
    - All clients update their UI to show which players have downloaded media
-   - When `allPlayersReady` is `true`, clients start media playback synchronously
+   - When `allPlayersReady` is `true` or the media-download timer expires, server broadcasts role-filtered `QUESTION_DATA` and clients start media playback synchronously
+   - If a question has no media files, server still broadcasts `QUESTION_PICK` with empty file fields and then immediately broadcasts `QUESTION_DATA`
 
 ### Frontend (Client)
 
@@ -160,9 +164,7 @@ MediaDownloadLogic.resetAllPlayerStatus(game);
 
 ## Future Enhancements
 
-The current implementation provides visual feedback but doesn't enforce waiting. Potential enhancements:
+Potential enhancements:
 
-1. **Timeout Implementation**: Add a 10-second timeout after which the question proceeds regardless of download status
-2. **Content Hiding**: Don't show question content until all players are ready (or timeout)
-3. **Progress Indicators**: Show download progress percentage instead of just status
-4. **Skip Option**: Allow showman to skip waiting for specific players
+1. **Progress Indicators**: Show download progress percentage instead of just status
+2. **Skip Option**: Allow showman to skip waiting for specific players

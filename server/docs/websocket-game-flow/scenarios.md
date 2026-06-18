@@ -156,6 +156,7 @@ Server behavior:
 Events:
 
 - `media-download-status` with a non-null `timer`
+- `question-data`
 
 Server behavior:
 
@@ -165,6 +166,7 @@ Server behavior:
 Events:
 
 - `media-download-status` with `playerId = SYSTEM_PLAYER_ID` and a `timer`
+- `question-data`
 
 ### <a id="showing-timeout"></a> Showing timer expires (question was not answered)
 
@@ -319,7 +321,7 @@ Server behavior:
 
 Events:
 
-- `question-data` (normal question)
+- `question-pick` followed by `question-data` (normal question)
 
 ---
 

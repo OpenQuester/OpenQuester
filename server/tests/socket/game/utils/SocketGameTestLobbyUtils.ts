@@ -40,7 +40,8 @@ export class SocketGameTestLobbyUtils {
     playerCount: number,
     spectatorCount: number,
     includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0
+    additionalSimpleQuestions: number = 0,
+    includeMediaQuestionFiles: boolean = false
   ): Promise<GameTestSetup> {
     // Create showman
     const {
@@ -51,7 +52,8 @@ export class SocketGameTestLobbyUtils {
       app,
       userRepo,
       includeFinalRound,
-      additionalSimpleQuestions
+      additionalSimpleQuestions,
+      includeMediaQuestionFiles
     );
 
     // Create players
@@ -86,7 +88,8 @@ export class SocketGameTestLobbyUtils {
     app: Express,
     userRepo: Repository<User>,
     includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0
+    additionalSimpleQuestions: number = 0,
+    includeMediaQuestionFiles: boolean = false
   ): Promise<{
     socket: GameClientSocket;
     gameId: string;
@@ -102,7 +105,8 @@ export class SocketGameTestLobbyUtils {
         username: user.username
       },
       includeFinalRound,
-      additionalSimpleQuestions
+      additionalSimpleQuestions,
+      includeMediaQuestionFiles
     );
 
     const packageRes = await request(app)

@@ -28,6 +28,7 @@ export class MediaDownloadLeaveStrategy implements IPlayerLeaveStrategy {
       game,
       trigger: TransitionTrigger.PLAYER_LEFT,
       triggeredBy: { playerId: userId, isSystem: false },
+      resources: input.transitionResources,
     });
 
     const result: PlayerLeaveStrategyResult = {
@@ -44,6 +45,7 @@ export class MediaDownloadLeaveStrategy implements IPlayerLeaveStrategy {
       });
 
       result.broadcasts.push(...logicResult.broadcasts);
+      result.broadcasts.push(...transitionResult.broadcasts);
       result.mutations.push(
         ...DataMutationConverter.mutationFromTimerMutations(
           transitionResult.timerMutations

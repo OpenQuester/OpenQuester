@@ -11,10 +11,11 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { type GameAction, type GameActionResult } from "domain/types/action/GameAction";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
-import { type QuestionPickResult, QuestionPickType } from "domain/types/question/QuestionPickTypes";
 import { type SecretQuestionTransferResult } from "domain/types/question/SecretQuestionTransferTypes";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
+import { type QuestionPickMediaPreloadEventPayload } from "domain/types/socket/events/game/QuestionPickMediaPreloadEventPayload";
 import {
   type GameJoinOutputData,
   type GameLeaveBroadcastData
@@ -50,7 +51,6 @@ export class SocketActionHooks {
   ) {
     this.hooks.set(GameActionType.JOIN, this.afterJoinGame.bind(this));
     this.hooks.set(GameActionType.LEAVE, this.afterLeaveGame.bind(this));
-    this.hooks.set(GameActionType.QUESTION_PICK, this.afterQuestionPick.bind(this));
     this.hooks.set(
       GameActionType.SECRET_QUESTION_TRANSFER,
       this.afterSecretQuestionTransfer.bind(this)
@@ -135,6 +135,17 @@ export class SocketActionHooks {
       return;
     }
 
+    if (game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING) {
+      this.realtimeGateway.publish(
+        RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.QUESTION_PICK, {
+          questionId: currentQuestion.id,
+          questionFiles: questionWithTheme.question.questionFiles ?? [],
+          timer
+        } satisfies QuestionPickMediaPreloadEventPayload)
+      );
+      return;
+    }
+
     const joinedPlayer = game.getPlayer(action.playerId, {
       fetchDisconnected: false
     });
@@ -176,21 +187,6 @@ export class SocketActionHooks {
     }
 
     this.realtimeGateway.leaveRoom(action.socketId, action.gameId);
-  }
-
-  private async afterQuestionPick({ game, result }: AfterExecutionHookContext): Promise<void> {
-    if (!result.data) {
-      return;
-    }
-
-    const data = result.data as QuestionPickResult;
-    const { type, question, timer } = data;
-
-    if (type !== QuestionPickType.NORMAL || !question || !timer) {
-      return;
-    }
-
-    await this.emitPersonalizedQuestionData(game, data.gameId, question, timer);
   }
 
   private async afterSecretQuestionTransfer({

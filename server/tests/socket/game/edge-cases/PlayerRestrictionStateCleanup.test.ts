@@ -12,12 +12,38 @@ import { Repository } from "typeorm";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
+import { type QuestionPickMediaPreloadEventPayload } from "domain/types/socket/events/game/QuestionPickMediaPreloadEventPayload";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
-import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import {
+  type GameClientSocket,
+  SocketGameTestUtils
+} from "tests/socket/game/utils/SocketIOGameTestUtils";
+
+async function pickMediaQuestionAndWaitForGate(
+  utils: SocketGameTestUtils,
+  showmanSocket: GameClientSocket,
+  observerSocket: GameClientSocket,
+  questionId: number
+): Promise<void> {
+  const preloadPromise = utils.waitForEvent<QuestionPickMediaPreloadEventPayload>(
+    observerSocket,
+    SocketIOGameEvents.QUESTION_PICK,
+    2000
+  );
+  const noQuestionDataPromise = utils.waitForNoEvent(
+    observerSocket,
+    SocketIOGameEvents.QUESTION_DATA
+  );
+
+  showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
+
+  const [preload] = await Promise.all([preloadPromise, noQuestionDataPromise]);
+  expect(preload.questionFiles).not.toHaveLength(0);
+}
 
 /**
  * Tests for Edge Case 1: Restrict during their turn
@@ -267,20 +293,18 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
 
   describe("Restriction During Media Download", () => {
     it("should transition to SHOWING when restricting the last non-ready player during media download", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        // Pick question to trigger MEDIA_DOWNLOADING state
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-
-        await utils.waitForEvent(
+        await pickMediaQuestionAndWaitForGate(
+          utils,
+          showmanSocket,
           playerSockets[0],
-          SocketIOGameEvents.QUESTION_DATA,
-          2000
+          questionId
         );
 
         const mediaDownloadState = await utils.getGameState(gameId);
@@ -329,20 +353,18 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
     });
 
     it("should NOT transition when restricting a player but other players still not ready", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, true, 0, true);
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        // Pick question
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-
-        await utils.waitForEvent(
+        await pickMediaQuestionAndWaitForGate(
+          utils,
+          showmanSocket,
           playerSockets[0],
-          SocketIOGameEvents.QUESTION_DATA,
-          2000
+          questionId
         );
 
         // Player 0 downloads media

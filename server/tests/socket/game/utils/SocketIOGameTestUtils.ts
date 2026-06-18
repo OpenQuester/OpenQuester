@@ -184,7 +184,8 @@ export class SocketGameTestUtils {
     playerCount: number,
     spectatorCount: number,
     includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0
+    additionalSimpleQuestions: number = 0,
+    includeMediaQuestionFiles: boolean = false
   ): Promise<GameTestSetup> {
     return this.lobbyUtils.setupGameTestEnvironment(
       userRepo,
@@ -192,7 +193,8 @@ export class SocketGameTestUtils {
       playerCount,
       spectatorCount,
       includeFinalRound,
-      additionalSimpleQuestions
+      additionalSimpleQuestions,
+      includeMediaQuestionFiles
     );
   }
 
@@ -200,13 +202,15 @@ export class SocketGameTestUtils {
     app: Express,
     userRepo: Repository<User>,
     includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0
+    additionalSimpleQuestions: number = 0,
+    includeMediaQuestionFiles: boolean = false
   ): Promise<{ socket: ClientSocket; gameId: string; user: User }> {
     return this.lobbyUtils.createGameWithShowman(
       app,
       userRepo,
       includeFinalRound,
-      additionalSimpleQuestions
+      additionalSimpleQuestions,
+      includeMediaQuestionFiles
     );
   }
 

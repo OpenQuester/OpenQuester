@@ -17,6 +17,7 @@ import { DEFAULT_QUESTION_PRICE } from "domain/constants/timer";
 import { Game } from "domain/entities/game/Game";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { type TransitionResources } from "domain/state-machine/types";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 
 export interface PlayerLeaveRequestOptions {
@@ -95,6 +96,10 @@ export class PlayerLeaveService {
   ): Promise<TransitionResources | undefined> {
     const validation = AnsweringPlayerLeaveLogic.validate(game, userId);
     const questionType = game.gameState.currentQuestion?.type ?? PackageQuestionType.SIMPLE;
+
+    if (game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING) {
+      return this.transitionResourceService.getCurrentQuestionWithTheme(game);
+    }
 
     const stakeData = game.gameState.stakeQuestionData;
     if (stakeData?.biddingPhase) {
