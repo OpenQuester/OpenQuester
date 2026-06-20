@@ -59,6 +59,7 @@ export 'src/features/game_final_round/controllers/game_lobby_player_theme_contro
 export 'src/features/game_final_round/view/game_final_round.dart';
 export 'src/features/game_finished/view/game_finished_screen.dart';
 export 'src/features/game_lobby/controllers/game_lobby_controller.dart';
+export 'src/features/game_lobby/data/game_invite_link.dart';
 export 'src/features/game_lobby/data/join_role_option.dart';
 export 'src/features/game_lobby/data/player_answer_state.dart';
 export 'src/features/game_lobby/view/game_lobby_action_button.dart';
@@ -72,6 +73,7 @@ export 'src/features/game_lobby/view/game_lobby_theme.dart';
 export 'src/features/game_lobby/view/game_lobby_themes.dart';
 export 'src/features/game_lobby/view/game_lobby_title.dart';
 export 'src/features/game_lobby/view/game_state_builder.dart';
+export 'src/features/game_lobby/view/lobby_layout_resolver.dart';
 export 'src/features/game_lobby_editor/controllers/game_lobby_editor_controller.dart';
 export 'src/features/game_lobby_editor/view/game_lobby_editor.dart';
 export 'src/features/game_lobby_editor/view/game_lobby_editor_players.dart';

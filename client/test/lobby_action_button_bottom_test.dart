@@ -36,18 +36,85 @@ void main() {
       ft.findsNothing,
     );
     ft.expect(bottomArea.type, MaterialType.transparency);
+    ft.expect(
+      tester.getSize(ft.find.byKey(actionAreaKey)).height,
+      ft.lessThan(120),
+    );
     ft.expect(_filledButton(), ft.findsOneWidget);
 
-    controller.gameData.value = _gameData(PlayerRole.spectator);
-    await tester.pump();
-
-    ft.expect(ft.find.byKey(actionAreaKey), ft.findsOneWidget);
-    final spectatorBottomArea = tester.widget<Material>(
-      ft.find.byKey(actionAreaKey),
+    controller.gameData.value = _gameData(
+      PlayerRole.showman,
+      includePlayer: false,
+      readyPlayers: const [],
     );
-    ft.expect(spectatorBottomArea.type, MaterialType.transparency);
-    ft.expect(_filledButton(), ft.findsNothing);
+    await tester.pumpAndSettle();
+    final zeroPlayerHelper = ft.find.text(
+      'No players have joined yet',
+      skipOffstage: false,
+    );
+    await _pumpUntilFound(tester, zeroPlayerHelper);
+
+    ft.expect(zeroPlayerHelper, ft.findsOneWidget);
+    ft.expect(
+      ft.find.text('No players have joined yet.', skipOffstage: false),
+      ft.findsNothing,
+    );
+
+    final startButton = tester.widget<FilledButton>(_filledButton());
+    final startLabelStyle = startButton.style?.textStyle?.resolve({});
+    ft.expect(startLabelStyle?.fontSize, ft.greaterThanOrEqualTo(18));
+    ft.expect(startLabelStyle?.fontWeight, FontWeight.w400);
+
+    controller.gameData.value = _gameData(
+      PlayerRole.showman,
+      readyPlayers: const [],
+    );
+    await tester.pumpAndSettle();
+    final notReadyHelper = ft.find.text(
+      '1 player is not ready',
+      skipOffstage: false,
+    );
+    await _pumpUntilFound(tester, notReadyHelper);
+
+    ft.expect(notReadyHelper, ft.findsOneWidget);
+    ft.expect(
+      ft.find.text('1 player is not ready.', skipOffstage: false),
+      ft.findsNothing,
+    );
+
     await _disposeTestApp(tester);
+  });
+
+  ft.test('keeps bottom action visible for side overlay chat', () {
+    final compactOverlay = LobbyLayoutResolver.resolve(
+      availableWidth: 393,
+      chatOpen: true,
+    );
+    final mediumOverlay = LobbyLayoutResolver.resolve(
+      availableWidth: 768,
+      chatOpen: true,
+    );
+
+    ft.expect(compactOverlay.chatPresentation, LobbyChatPresentation.overlay);
+    ft.expect(mediumOverlay.chatPresentation, LobbyChatPresentation.overlay);
+    ft.expect(
+      shouldShowLobbyBottomActionArea(
+        pregameLobbyVisible: true,
+        showLobbyActionButton: true,
+        layout: compactOverlay,
+      ),
+      ft.isFalse,
+    );
+    ft.expect(
+      shouldShowLobbyBottomActionArea(
+        pregameLobbyVisible: true,
+        showLobbyActionButton: true,
+        layout: mediumOverlay,
+      ),
+      ft.isTrue,
+    );
+    ft.expect(shouldDimLobbyBottomActionArea(compactOverlay), ft.isFalse);
+    ft.expect(shouldDimLobbyBottomActionArea(mediumOverlay), ft.isTrue);
   });
 }
 
@@ -56,6 +123,8 @@ ft.Finder _filledButton() {
 }
 
 Future<void> _pumpTestApp(ft.WidgetTester tester, Widget child) async {
+  await tester.binding.setSurfaceSize(null);
+  tester.view.resetDevicePixelRatio();
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump();
   await tester.pumpWidget(_TestApp(child: child));
@@ -76,6 +145,8 @@ Future<void> _pumpUntilFound(
     await tester.pump(const Duration(milliseconds: 100));
     if (finder.evaluate().isNotEmpty) return;
   }
+
+  ft.fail('Expected to find widget before timeout.');
 }
 
 class _TestApp extends StatelessWidget {
@@ -129,17 +200,22 @@ ResponseUser _user() {
   );
 }
 
-SocketIoGameJoinEventPayload _gameData(PlayerRole currentUserRole) {
+SocketIoGameJoinEventPayload _gameData(
+  PlayerRole currentUserRole, {
+  bool includePlayer = true,
+  List<int> readyPlayers = const [3],
+}) {
   return SocketIoGameJoinEventPayload(
     meta: const SocketIoGameJoinMeta(title: 'Friday Quiz'),
     players: [
       _player(id: 1, name: 'Mira', role: currentUserRole),
       _player(id: 2, name: 'Dana', role: PlayerRole.showman),
-      _player(id: 3, name: 'Dan', role: PlayerRole.player, slot: 0),
+      if (includePlayer)
+        _player(id: 3, name: 'Dan', role: PlayerRole.player, slot: 0),
     ],
-    gameState: const GameState(
+    gameState: GameState(
       isPaused: false,
-      readyPlayers: [3],
+      readyPlayers: readyPlayers,
     ),
     chatMessages: const [],
   );

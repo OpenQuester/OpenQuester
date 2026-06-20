@@ -37,7 +37,7 @@ void main() {
     {
       final enabledInkWellsBeforeDrag = _enabledInkWellCount(tester);
       final sourcePlayer = find.text('Dan');
-      final spectatorGroup = find.text('Spectators');
+      final spectatorGroup = find.textContaining('Spectators');
 
       expect(sourcePlayer, findsOneWidget);
       expect(spectatorGroup, findsOneWidget);

@@ -12,14 +12,17 @@ void main() {
   });
 
   ft.group('startGameButtonLocaleKey', () {
-    ft.test('uses forceful label when at least one player is not ready', () {
-      final localeKey = startGameButtonLocaleKey(
-        playerCount: 2,
-        readyPlayerCount: 1,
-      );
+    ft.test(
+      'uses start-anyway label when at least one player is not ready',
+      () {
+        final localeKey = startGameButtonLocaleKey(
+          playerCount: 2,
+          readyPlayerCount: 1,
+        );
 
-      ft.expect(localeKey, LocaleKeys.start_game_forcefully);
-    });
+        ft.expect(localeKey, LocaleKeys.start_game_anyway);
+      },
+    );
 
     ft.test('uses normal label when all players are ready', () {
       final localeKey = startGameButtonLocaleKey(

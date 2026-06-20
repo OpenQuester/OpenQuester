@@ -36,7 +36,7 @@ void main() {
       await tester.pumpWidget(const _TestApp(child: GameLobbyEditor()));
       await tester.pumpAndSettle();
 
-      expect(find.text('Join as Player'), findsOneWidget);
+      expect(find.text('Switch to Player'), findsOneWidget);
     },
   );
 }

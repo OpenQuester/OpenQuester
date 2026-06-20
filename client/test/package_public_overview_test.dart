@@ -80,13 +80,63 @@ void main() {
     expect(find.text('Pick the image'), findsNothing);
     expect(find.text('Secret answer'), findsNothing);
     expect(find.text('100'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+  });
+
+  testWidgets('uses singular count labels for one-item metadata', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en', 'US')],
+        path: 'assets/localization',
+        fallbackLocale: const Locale('en', 'US'),
+        startLocale: const Locale('en', 'US'),
+        child: Builder(
+          builder: (context) => MaterialApp(
+            locale: context.locale,
+            localizationsDelegates: context.localizationDelegates,
+            supportedLocales: context.supportedLocales,
+            home: const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    expect(
+      packageOverviewCountLabel(PackageOverviewCountKind.round, 1),
+      '1 round',
+    );
+    expect(
+      packageOverviewCountLabel(PackageOverviewCountKind.theme, 1),
+      '1 theme',
+    );
+    expect(
+      packageOverviewCountLabel(PackageOverviewCountKind.question, 1),
+      '1 question',
+    );
+    expect(
+      packageOverviewCountLabel(PackageOverviewCountKind.textQuestion, 1),
+      '1 text question',
+    );
+    expect(
+      packageOverviewCountLabel(PackageOverviewCountKind.mediaQuestion, 2),
+      '2 media questions',
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
   });
 }
 
-OqPackage _package() {
+OqPackage _package({String title = 'Knowledge Pack'}) {
   return OqPackage(
     id: 1,
-    title: 'Knowledge Pack',
+    title: title,
     createdAt: DateTime(2026),
     author: const ShortUserInfo(id: 2, username: 'Author'),
     ageRestriction: AgeRestriction.a16,

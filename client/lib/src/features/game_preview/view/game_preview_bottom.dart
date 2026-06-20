@@ -19,7 +19,6 @@ class GamePreviewBottom extends StatelessWidget {
             padding: 16.all,
             shrinkWrap: true,
             children: [
-              const GamePreviewPlayButton().paddingBottom(16),
               if (snapshot.connectionState == ConnectionState.waiting)
                 const LinearProgressIndicator().paddingBottom(16),
               if (snapshot.hasError)

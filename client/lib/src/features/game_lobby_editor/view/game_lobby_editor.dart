@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
@@ -21,30 +23,41 @@ class GameLobbyEditor extends WatchingWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final desktopWaitingRoom = constraints.maxWidth >= UiModeUtils.large;
+        final layout =
+            LobbyLayoutScope.maybeOf(context) ??
+            LobbyLayoutResolver.resolve(
+              availableWidth: constraints.maxWidth,
+              chatOpen: false,
+            );
+        final desktopWaitingRoom = layout.usesTwoMainColumns;
 
         if (desktopWaitingRoom) {
           return Column(
             children: [
               const _WaitingRoomHeader().paddingOnly(
-                left: 24,
-                right: 24,
+                left: layout.pagePadding,
+                right: layout.pagePadding,
                 top: 16,
                 bottom: 12,
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                  padding: EdgeInsets.fromLTRB(
+                    layout.pagePadding,
+                    0,
+                    layout.pagePadding,
+                    16,
+                  ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    spacing: 24,
+                    spacing: layout.gap,
                     children: [
                       const _LobbyPanel(
                         child: _RoleList(
                           showHeading: true,
                           compactPlayers: true,
                         ),
-                      ).withWidth(440),
+                      ).withWidth(layout.participantPanelWidth),
                       const Expanded(
                         child: _LobbyPackageOverview(scrollable: true),
                       ),
@@ -59,14 +72,19 @@ class GameLobbyEditor extends WatchingWidget {
         return Column(
           children: [
             const _WaitingRoomHeader().paddingOnly(
-              left: 16,
-              right: 16,
+              left: layout.pagePadding,
+              right: layout.pagePadding,
               top: 16,
               bottom: 12,
             ),
             Expanded(
               child: ListView(
-                padding: 16.horizontal + 16.bottom,
+                key: const PageStorageKey<String>('lobby_waiting_room_scroll'),
+                padding:
+                    EdgeInsets.symmetric(horizontal: layout.pagePadding) +
+                    EdgeInsets.only(
+                      bottom: 24 + MediaQuery.viewPaddingOf(context).bottom,
+                    ),
                 children: const [
                   _LobbyPanel(
                     child: _RoleList(
@@ -92,12 +110,9 @@ class _RoleList extends StatelessWidget {
   final bool showHeading;
   final bool compactPlayers;
 
-  static const _showmanAreaHeight = 116.0;
-  static const _playersAreaWeight = 3;
-  static const _spectatorsAreaWeight = 2;
-  static const _roleSectionDividerHeight = 22.0;
-  static const _minimumScrollableRoleAreaHeight = 110.0;
-  static const _compactSpectatorsMaxHeight = 96.0;
+  static const _compactPlayerRowHeight = 50.0;
+  static const double _compactSpectatorsMaxHeight =
+      (_compactPlayerRowHeight * 2) + _RolePlayersWrapContent._spacing;
 
   @override
   Widget build(BuildContext context) {
@@ -105,101 +120,55 @@ class _RoleList extends StatelessWidget {
       PlayerRole.showman,
       showDisconnected: false,
       compactPlayers: compactPlayers,
+      fixedPlayersHeight: compactPlayers ? _compactPlayerRowHeight : null,
     );
     final playersGroup = _RoleGroup(
       PlayerRole.player,
+      showDisconnected: false,
       compactPlayers: compactPlayers,
     );
     final spectatorsGroup = _RoleGroup(
       PlayerRole.spectator,
+      showDisconnected: false,
       compactPlayers: compactPlayers,
       scrollablePlayers: true,
       maxUnboundedPlayersHeight: compactPlayers
           ? _compactSpectatorsMaxHeight
           : null,
+      fixedPlayersHeight: compactPlayers ? _compactSpectatorsMaxHeight : null,
+    );
+
+    final contentChildren = <Widget>[
+      if (showHeading) const _RoleListHeader().paddingBottom(14),
+      showmanGroup,
+      const _RoleSectionDivider(),
+      playersGroup,
+      const _RoleSectionDivider(),
+      spectatorsGroup,
+    ];
+
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: contentChildren,
     );
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (!constraints.hasBoundedHeight) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (showHeading) const _RoleListHeader().paddingBottom(14),
-              showmanGroup,
-              const _RoleSectionDivider(),
-              playersGroup,
-              const _RoleSectionDivider(),
-              spectatorsGroup,
-            ],
-          );
-        }
+        if (!constraints.hasBoundedHeight || !compactPlayers) return content;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (showHeading) const _RoleListHeader().paddingBottom(14),
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final roleAreaHeights = _roleAreaHeights(
-                    constraints.maxHeight,
-                  );
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        height: _showmanAreaHeight,
-                        child: showmanGroup,
-                      ),
-                      const _RoleSectionDivider(),
-                      SizedBox(
-                        height: roleAreaHeights.players,
-                        child: playersGroup,
-                      ),
-                      const _RoleSectionDivider(),
-                      SizedBox(
-                        height: roleAreaHeights.spectators,
-                        child: spectatorsGroup,
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
+            showmanGroup,
+            const _RoleSectionDivider(),
+            Expanded(child: playersGroup),
+            const _RoleSectionDivider(),
+            spectatorsGroup,
           ],
         );
       },
     );
-  }
-
-  ({double players, double spectators}) _roleAreaHeights(
-    double availableHeight,
-  ) {
-    const fixedHeight = _showmanAreaHeight + (_roleSectionDividerHeight * 2);
-    final flexibleHeight = availableHeight > fixedHeight
-        ? availableHeight - fixedHeight
-        : 0.0;
-    const totalWeight = _playersAreaWeight + _spectatorsAreaWeight;
-    var playersHeight = flexibleHeight * _playersAreaWeight / totalWeight;
-    var spectatorsHeight = flexibleHeight - playersHeight;
-    final canPreserveMinimums =
-        flexibleHeight >= _minimumScrollableRoleAreaHeight * 2;
-
-    if (canPreserveMinimums &&
-        spectatorsHeight < _minimumScrollableRoleAreaHeight) {
-      spectatorsHeight = _minimumScrollableRoleAreaHeight;
-      playersHeight = flexibleHeight - spectatorsHeight;
-    }
-
-    if (canPreserveMinimums &&
-        playersHeight < _minimumScrollableRoleAreaHeight) {
-      playersHeight = _minimumScrollableRoleAreaHeight;
-      spectatorsHeight = flexibleHeight - playersHeight;
-    }
-
-    return (players: playersHeight, spectators: spectatorsHeight);
   }
 }
 
@@ -350,7 +319,7 @@ class _RoleListHeader extends WatchingWidget {
           children: [
             Expanded(
               child: Text(
-                LocaleKeys.players.tr(),
+                LocaleKeys.participants.tr(),
                 style: context.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                 ),
@@ -371,7 +340,9 @@ class _ReadySummaryChip extends WatchingWidget {
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
     final players =
-        gameData?.players.where((player) => player.role == PlayerRole.player) ??
+        gameData?.players.where(
+          (player) => player.role == PlayerRole.player && player.isActive,
+        ) ??
         [];
     final playerCount = players.length;
 
@@ -387,7 +358,7 @@ class _ReadySummaryChip extends WatchingWidget {
 
     return _StatusChip(
       icon: Icons.check_circle_outline,
-      color: ExtraColors.of(context).success,
+      color: readyCount == playerCount ? ExtraColors.of(context).success : null,
       text:
           '$readyCount/$playerCount ${LocaleKeys.game_lobby_editor_ready.tr()}',
     );
@@ -417,7 +388,7 @@ class _LobbyPanel extends StatelessWidget {
         color: context.theme.colorScheme.surfaceContainerLow,
         borderRadius: 8.circular,
         border: Border.all(
-          color: context.theme.colorScheme.outline.withValues(alpha: .14),
+          color: context.theme.colorScheme.outlineVariant,
         ),
       ),
       child: child.paddingAll(16),
@@ -428,6 +399,9 @@ class _LobbyPanel extends StatelessWidget {
 class _WaitingRoomHeader extends WatchingWidget {
   const _WaitingRoomHeader();
 
+  static const _minimumInlineTitleWidth = 140.0;
+  static const _titleActionGap = 12.0;
+
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
@@ -436,15 +410,114 @@ class _WaitingRoomHeader extends WatchingWidget {
 
     if (title == null) return const SizedBox.shrink();
 
-    return SizedBox(
-      width: double.infinity,
-      child: Text(
-        title,
-        style: context.textTheme.headlineSmall?.copyWith(
-          fontWeight: FontWeight.w700,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final scaledMinimumTitleWidth = _minimumInlineTitleWidth * textScale;
+        final inlineAction =
+            constraints.maxWidth >=
+            _CopyInviteLinkButton.minWidth +
+                _titleActionGap +
+                scaledMinimumTitleWidth;
+        final titleWidget = Tooltip(
+          message: title,
+          child: Semantics(
+            header: true,
+            label: title,
+            child: Text(
+              title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: context.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        );
+        const action = _CopyInviteLinkButton();
+
+        if (inlineAction) {
+          return Row(
+            spacing: _titleActionGap,
+            children: [
+              Expanded(child: titleWidget),
+              action,
+            ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: 12,
+          children: [
+            titleWidget,
+            const Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: action,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CopyInviteLinkButton extends StatefulWidget {
+  const _CopyInviteLinkButton();
+
+  static const minWidth = 168.0;
+
+  @override
+  State<_CopyInviteLinkButton> createState() => _CopyInviteLinkButtonState();
+}
+
+class _CopyInviteLinkButtonState extends State<_CopyInviteLinkButton> {
+  static const _copiedDuration = Duration(seconds: 3);
+
+  Timer? _resetTimer;
+  bool _copied = false;
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _copied
+        ? LocaleKeys.link_copied_short.tr()
+        : LocaleKeys.copy_invite_link.tr();
+
+    return Semantics(
+      liveRegion: true,
+      label: label,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          minWidth: _CopyInviteLinkButton.minWidth,
+        ),
+        child: FilledButton.tonalIcon(
+          onPressed: _copyInviteLink,
+          icon: Icon(_copied ? Icons.check : Icons.link),
+          label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       ),
     );
+  }
+
+  Future<void> _copyInviteLink() async {
+    final copied = await copyGameInviteLinkToClipboard(
+      context,
+      gameId: getIt<GameLobbyController>().gameId,
+    );
+    if (!copied || !mounted) return;
+
+    _resetTimer?.cancel();
+    setState(() => _copied = true);
+    _resetTimer = Timer(_copiedDuration, () {
+      if (!mounted) return;
+      setState(() => _copied = false);
+    });
   }
 }
 
@@ -456,7 +529,7 @@ class _StatusChip extends StatelessWidget {
   });
 
   final IconData icon;
-  final Color color;
+  final Color? color;
   final String text;
 
   @override
@@ -464,23 +537,31 @@ class _StatusChip extends StatelessWidget {
     final backgroundAlpha = context.theme.brightness == Brightness.light
         ? .16
         : .12;
+    final colorScheme = context.theme.colorScheme;
+    final foreground = color ?? colorScheme.onSurfaceVariant;
+    final background = color == null
+        ? colorScheme.surfaceContainerHighest
+        : color!.withValues(alpha: backgroundAlpha);
+    final borderColor = color == null
+        ? colorScheme.outlineVariant
+        : color!.withValues(alpha: .34);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: backgroundAlpha),
+        color: background,
         borderRadius: 999.circular,
-        border: Border.all(color: color.withValues(alpha: .34)),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: 5,
         children: [
-          Icon(icon, size: 14, color: color),
+          Icon(icon, size: 14, color: foreground),
           Text(
             text,
             style: context.textTheme.labelSmall?.copyWith(
-              color: color,
+              color: foreground,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -573,6 +654,7 @@ class _RoleGroup extends WatchingWidget {
     this.showDisconnected = true,
     this.scrollablePlayers = false,
     this.maxUnboundedPlayersHeight,
+    this.fixedPlayersHeight,
   });
 
   final PlayerRole role;
@@ -580,6 +662,7 @@ class _RoleGroup extends WatchingWidget {
   final bool compactPlayers;
   final bool scrollablePlayers;
   final double? maxUnboundedPlayersHeight;
+  final double? fixedPlayersHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -637,6 +720,8 @@ class _RoleGroup extends WatchingWidget {
                     shouldScrollPlayers && role != PlayerRole.showman,
                 twoColumn: compactPlayers && role != PlayerRole.showman,
                 maxUnboundedHeight: maxUnboundedPlayersHeight,
+                visibleRowsBeforeScroll:
+                    compactPlayers && role == PlayerRole.spectator ? 2 : null,
                 children: [
                   if (canShowDropTarget)
                     _PlayerDragTarget(
@@ -649,6 +734,9 @@ class _RoleGroup extends WatchingWidget {
                         : _Player(player),
                 ],
               );
+              final playersArea = fixedPlayersHeight == null
+                  ? playersWrap
+                  : SizedBox(height: fixedPlayersHeight, child: playersWrap);
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -658,10 +746,12 @@ class _RoleGroup extends WatchingWidget {
                     role: role,
                     joinOption: gameStarted ? null : joinOption,
                   ),
-                  if (boundedArea)
-                    Expanded(child: playersWrap)
+                  if (fixedPlayersHeight != null)
+                    playersArea
+                  else if (boundedArea)
+                    Expanded(child: playersArea)
                   else
-                    playersWrap,
+                    playersArea,
                 ],
               );
             },
@@ -787,77 +877,90 @@ class _WaitingPlayerPill extends StatelessWidget {
         ? successColor.withValues(alpha: .65)
         : colorScheme.outline.withValues(alpha: .24);
 
-    return Material(
-      color: feedback
-          ? colorScheme.surfaceContainerHighest
-          : isMe
-          ? colorScheme.primary.withValues(alpha: .08)
-          : colorScheme.surfaceContainer,
-      borderRadius: borderRadius,
-      child: InkWell(
-        borderRadius: borderRadius,
-        onTap: onTap,
-        onSecondaryTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 50),
-          padding: const EdgeInsetsDirectional.only(
-            start: 9,
-            top: 7,
-            end: 10,
-            bottom: 7,
-          ),
-          decoration: BoxDecoration(
+    return Tooltip(
+      message: username,
+      child: Semantics(
+        label: username,
+        selected: isMe,
+        child: Material(
+          color: feedback
+              ? colorScheme.surfaceContainerHighest
+              : isMe
+              ? colorScheme.primary.withValues(alpha: .08)
+              : colorScheme.surfaceContainer,
+          borderRadius: borderRadius,
+          child: InkWell(
             borderRadius: borderRadius,
-            border: Border.all(
-              color: borderColor,
-              width: isMe ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            spacing: 6,
-            children: [
-              ImageWidget(
-                url: player.meta.avatar,
-                avatarRadius: 18,
-                placeholder: Text(
-                  initial,
-                  style: context.textTheme.labelLarge?.copyWith(
-                    color: colorScheme.onPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
+            onTap: onTap,
+            onSecondaryTap: onTap,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 50),
+              padding: const EdgeInsetsDirectional.only(
+                start: 9,
+                top: 7,
+                end: 6,
+                bottom: 7,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: borderRadius,
+                border: Border.all(
+                  color: borderColor,
+                  width: isMe ? 1.5 : 1,
                 ),
               ),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 2,
-                  children: [
-                    Text(
-                      username,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.textTheme.bodyMedium?.copyWith(
-                        fontWeight: isMe ? FontWeight.w700 : null,
+              child: Row(
+                spacing: 6,
+                children: [
+                  ImageWidget(
+                    url: player.meta.avatar,
+                    avatarRadius: 18,
+                    placeholder: Text(
+                      initial,
+                      style: context.textTheme.labelLarge?.copyWith(
+                        color: colorScheme.onPrimary,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    if (showReady)
-                      _InlineReadyStatus(ready: ready)
-                    else if (player.isShowman)
-                      _InlineRoleStatus(text: LocaleKeys.showman.tr()),
-                  ],
-                ),
-              ),
-              if (canChange)
-                SizedBox.square(
-                  dimension: 16,
-                  child: Icon(
-                    Icons.drag_indicator,
-                    size: 16,
-                    color: colorScheme.onSurfaceVariant,
                   ),
-                ),
-            ],
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 2,
+                      children: [
+                        Text(
+                          username,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.textTheme.bodyMedium?.copyWith(
+                            fontWeight: isMe ? FontWeight.w700 : null,
+                          ),
+                        ),
+                        if (showReady)
+                          _InlineReadyStatus(ready: ready)
+                        else if (player.isShowman)
+                          _InlineRoleStatus(text: LocaleKeys.showman.tr()),
+                      ],
+                    ),
+                  ),
+                  if (canChange)
+                    Tooltip(
+                      message: LocaleKeys.drag_to_change_role.tr(),
+                      child: Semantics(
+                        label: LocaleKeys.drag_to_change_role.tr(),
+                        child: SizedBox.square(
+                          dimension: 40,
+                          child: Icon(
+                            Icons.drag_indicator,
+                            size: 18,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -889,6 +992,7 @@ class _InlineReadyStatus extends StatelessWidget {
           ready
               ? LocaleKeys.game_lobby_editor_ready.tr()
               : LocaleKeys.game_lobby_editor_not_ready.tr(),
+          maxLines: 1,
           style: context.textTheme.labelSmall?.copyWith(color: color),
         ),
       ],
@@ -946,6 +1050,9 @@ class _RoleJoinButton extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final gameData = watchValue((GameLobbyController e) => e.gameData);
+    final labelPrefix = gameData?.me.role == PlayerRole.$unknown
+        ? LocaleKeys.join_as.tr()
+        : LocaleKeys.switch_to.tr();
 
     return OutlinedButton.icon(
       onPressed: gameData == null ? null : () => _changeRole(gameData.me),
@@ -959,7 +1066,7 @@ class _RoleJoinButton extends WatchingWidget {
       ),
       icon: Icon(_roleIcon(role), size: 18),
       label: Text(
-        '${LocaleKeys.join_as.tr()} ${_roleLabel(role)}',
+        '$labelPrefix ${_roleLabel(role)}',
         overflow: TextOverflow.ellipsis,
       ),
     );
@@ -994,7 +1101,13 @@ class _Player extends WatchingWidget {
             ? PlayerEditBtn(player: player)
             : null,
         customIcon: playerAvailableToChange
-            ? const Icon(Icons.drag_handle, size: 28)
+            ? Tooltip(
+                message: LocaleKeys.drag_to_change_role.tr(),
+                child: Semantics(
+                  label: LocaleKeys.drag_to_change_role.tr(),
+                  child: const Icon(Icons.drag_handle, size: 28),
+                ),
+              )
             : null,
       );
     }
@@ -1203,12 +1316,14 @@ class _RolePlayersWrap extends StatelessWidget {
     required this.allowScrolling,
     required this.twoColumn,
     this.maxUnboundedHeight,
+    this.visibleRowsBeforeScroll,
   });
 
   final List<Widget> children;
   final bool allowScrolling;
   final bool twoColumn;
   final double? maxUnboundedHeight;
+  final int? visibleRowsBeforeScroll;
 
   @override
   Widget build(BuildContext context) {
@@ -1220,7 +1335,7 @@ class _RolePlayersWrap extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (!_contentUsesMultipleRows(constraints)) return content;
+        if (!_contentExceedsVisibleRows(constraints)) return content;
 
         final scrollView = _FadingScrollView(
           bottomPadding: 8,
@@ -1237,16 +1352,22 @@ class _RolePlayersWrap extends StatelessWidget {
     );
   }
 
-  bool _contentUsesMultipleRows(BoxConstraints constraints) {
-    if (!twoColumn) return children.length > 1;
-    if (!constraints.hasBoundedWidth) return children.length > 1;
+  bool _contentExceedsVisibleRows(BoxConstraints constraints) {
+    final columns = _columnCount(constraints);
+    final visibleRows = visibleRowsBeforeScroll;
 
+    if (visibleRows != null) return children.length > columns * visibleRows;
+
+    return children.length > columns;
+  }
+
+  int _columnCount(BoxConstraints constraints) {
+    if (!twoColumn || !constraints.hasBoundedWidth) return 1;
     final canUseTwoColumns =
         constraints.maxWidth >=
         (_RolePlayersWrapContent._minTwoColumnTileWidth * 2) +
             _RolePlayersWrapContent._spacing;
-    final columns = canUseTwoColumns ? 2 : 1;
-    return children.length > columns;
+    return canUseTwoColumns ? 2 : 1;
   }
 }
 
@@ -1261,7 +1382,7 @@ class _RolePlayersWrapContent extends StatelessWidget {
 
   static const _spacing = 8.0;
   static const _maxNaturalTileWidth = 260.0;
-  static const _minTwoColumnTileWidth = 156.0;
+  static const _minTwoColumnTileWidth = 280.0;
 
   @override
   Widget build(BuildContext context) {
@@ -1282,10 +1403,10 @@ class _RolePlayersWrapContent extends StatelessWidget {
           children: [
             for (final child in children)
               if (tileWidth == null)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: _maxNaturalTileWidth,
-                  ),
+                SizedBox(
+                  width: constraints.hasBoundedWidth
+                      ? availableWidth
+                      : _maxNaturalTileWidth,
                   child: child,
                 )
               else
@@ -1314,12 +1435,18 @@ class _RoleTitle extends WatchingWidget {
     };
 
     int getPlayerCount() {
-      return gameData?.players.where((e) => e.role == role).length ?? 0;
+      return gameData?.players
+              .where((e) => e.role == role && e.isActive)
+              .length ??
+          0;
     }
 
-    final count = role == PlayerRole.player
-        ? '(${getPlayerCount()} / ${gameList?.maxPlayers ?? ''})'
-        : null;
+    final count = switch (role) {
+      PlayerRole.player =>
+        '(${getPlayerCount()} / ${gameList?.maxPlayers ?? ''})',
+      PlayerRole.spectator => '(${getPlayerCount()})',
+      _ => null,
+    };
 
     return Text(
       [roleName, count].nonNulls.join(' '),

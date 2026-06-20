@@ -19,7 +19,13 @@ class PackagePublicOverview extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 8,
-            children: rounds.map(_RoundOverview.new).toList(),
+            children: [
+              for (final round in rounds)
+                _RoundOverview(
+                  round,
+                  key: ValueKey('${round.order}:${round.name}'),
+                ),
+            ],
           ),
       ],
     );
@@ -37,21 +43,39 @@ class _PackageHeader extends StatelessWidget {
     final ageRestriction = package.ageRestriction.format(context);
     final description = _trimDescription(package.description);
     final badges = [
-      _Badge(text: LocaleKeys.rounds.plural(package.rounds.length)),
-      _Badge(text: LocaleKeys.questions.plural(totalQuestions)),
+      _Badge(
+        text: packageOverviewCountLabel(
+          PackageOverviewCountKind.round,
+          package.rounds.length,
+        ),
+      ),
+      _Badge(
+        text: packageOverviewCountLabel(
+          PackageOverviewCountKind.question,
+          totalQuestions,
+        ),
+      ),
       if (ageRestriction != null)
         _Badge(text: ageRestriction.$1, color: ageRestriction.$2),
     ];
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final inlineBadges = constraints.maxWidth >= 720;
-        final title = Text(
-          package.title,
-          maxLines: inlineBadges ? 1 : 2,
-          overflow: TextOverflow.ellipsis,
-          style: context.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w600,
+        final inlineBadges = constraints.maxWidth >= 900;
+        final title = Tooltip(
+          message: package.title,
+          child: Semantics(
+            label: package.title,
+            header: true,
+            child: Text(
+              key: const Key('package_public_overview_title'),
+              package.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: context.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         );
         final badgesWrap = Wrap(
@@ -98,87 +122,189 @@ class _PackageHeader extends StatelessWidget {
   }
 }
 
-class _RoundOverview extends StatelessWidget {
-  const _RoundOverview(this.round);
+class _RoundOverview extends StatefulWidget {
+  const _RoundOverview(this.round, {super.key});
 
   final PackageRound round;
 
   @override
+  State<_RoundOverview> createState() => _RoundOverviewState();
+}
+
+class _RoundOverviewState extends State<_RoundOverview> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    final themes = round.sortedThemes();
-    final questionCount = _roundQuestionCount(round);
-    final questionTypeCounts = _questionTypeCounts(round);
+    final themes = widget.round.sortedThemes();
+    final questionCount = _roundQuestionCount(widget.round);
+    final questionTypeCounts = _questionTypeCounts(widget.round);
     final badges = [
       _Badge(
-        text: _roundTypeLabel(round.type),
-        color: _roundTypeColor(context, round.type),
+        text: _roundTypeLabel(widget.round.type),
+        color: _roundTypeColor(context, widget.round.type),
       ),
       _Badge(
-        text: LocaleKeys.themes_count.tr(args: [themes.length.toString()]),
+        text: packageOverviewCountLabel(
+          PackageOverviewCountKind.theme,
+          themes.length,
+        ),
       ),
-      _Badge(text: LocaleKeys.questions.plural(questionCount)),
+      _Badge(
+        text: packageOverviewCountLabel(
+          PackageOverviewCountKind.question,
+          questionCount,
+        ),
+      ),
       if (questionTypeCounts.textQuestions > 0)
         _Badge(
-          text: LocaleKeys.package_text_questions.plural(
+          text: packageOverviewCountLabel(
+            PackageOverviewCountKind.textQuestion,
             questionTypeCounts.textQuestions,
           ),
         ),
       if (questionTypeCounts.mediaQuestions > 0)
         _Badge(
-          text: LocaleKeys.package_media_questions.plural(
+          text: packageOverviewCountLabel(
+            PackageOverviewCountKind.mediaQuestion,
             questionTypeCounts.mediaQuestions,
           ),
         ),
       if (questionTypeCounts.mixedQuestions > 0)
         _Badge(
-          text: LocaleKeys.package_mixed_questions.plural(
+          text: packageOverviewCountLabel(
+            PackageOverviewCountKind.mixedQuestion,
             questionTypeCounts.mixedQuestions,
           ),
         ),
     ];
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
+    return Semantics(
+      button: true,
+      expanded: _expanded,
+      label: widget.round.name,
+      child: Material(
         color: context.theme.colorScheme.surfaceContainer,
-        borderRadius: 8.circular,
-        border: Border.all(
-          color: context.theme.colorScheme.outline.withValues(alpha: .12),
+        shape: RoundedRectangleBorder(
+          borderRadius: 8.circular,
+          side: BorderSide(color: context.theme.colorScheme.outlineVariant),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InkWell(
+              borderRadius: _headerBorderRadius,
+              customBorder: RoundedRectangleBorder(
+                borderRadius: _headerBorderRadius,
+              ),
+              onTap: _toggleExpanded,
+              child: Padding(
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 12, 12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 8,
+                        children: [
+                          Tooltip(
+                            message: widget.round.name,
+                            child: Text(
+                              widget.round.name,
+                              style: context.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: badges,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Tooltip(
+                      message: _expanded
+                          ? LocaleKeys.close.tr()
+                          : LocaleKeys.select.tr(),
+                      child: AnimatedRotation(
+                        turns: _expanded ? .5 : 0,
+                        duration: Durations.short3,
+                        child: const SizedBox.square(
+                          dimension: 40,
+                          child: Center(
+                            child: Icon(Icons.keyboard_arrow_down),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_expanded && themes.isNotEmpty)
+              Divider(
+                height: 1,
+                color: context.theme.colorScheme.outlineVariant,
+              ).paddingSymmetric(horizontal: 16),
+            AnimatedSize(
+              duration: Durations.short3,
+              alignment: Alignment.topCenter,
+              child: _expanded
+                  ? _RoundThemes(themes: themes)
+                  : const SizedBox(width: double.infinity),
+            ),
+          ],
         ),
       ),
-      child: ExpansionTile(
-        title: Text(
-          round.name,
-          style: context.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        subtitle: Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: badges,
-          ).paddingTop(8),
-        ),
-        children: [
-          if (themes.isEmpty)
-            const SizedBox.shrink()
-          else
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final theme in themes)
-                    Chip(
-                      label: Text(theme.name),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                ],
-              ).paddingOnly(left: 16, right: 16, bottom: 12),
-            ),
-        ],
+    );
+  }
+
+  BorderRadius get _headerBorderRadius {
+    const radius = Radius.circular(8);
+    return _expanded
+        ? const BorderRadius.vertical(top: radius)
+        : const BorderRadius.all(radius);
+  }
+
+  void _toggleExpanded() => setState(() => _expanded = !_expanded);
+}
+
+class _RoundThemes extends StatelessWidget {
+  const _RoundThemes({required this.themes});
+
+  final List<PackageTheme> themes;
+
+  @override
+  Widget build(BuildContext context) {
+    if (themes.isEmpty) return const SizedBox.shrink();
+
+    return Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxChipWidth = (constraints.maxWidth - 32)
+              .clamp(120, 280)
+              .toDouble();
+
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final theme in themes)
+                Chip(
+                  label: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxChipWidth),
+                    child: Text(theme.name, softWrap: true),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ).paddingOnly(left: 16, top: 10, right: 16, bottom: 12);
+        },
       ),
     );
   }
@@ -196,7 +322,9 @@ class _Badge extends StatelessWidget {
     final background =
         color?.withValues(alpha: .12) ??
         context.theme.colorScheme.surfaceContainerHighest;
-    final borderColor = color?.withValues(alpha: .34) ?? Colors.transparent;
+    final borderColor =
+        color?.withValues(alpha: .34) ??
+        context.theme.colorScheme.outlineVariant;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -231,6 +359,29 @@ class _QuestionTypeCounts {
 }
 
 enum _QuestionContentType { text, media, mixed }
+
+enum PackageOverviewCountKind {
+  round,
+  theme,
+  question,
+  textQuestion,
+  mediaQuestion,
+  mixedQuestion,
+}
+
+String packageOverviewCountLabel(PackageOverviewCountKind kind, int count) {
+  return switch (kind) {
+    PackageOverviewCountKind.round => LocaleKeys.rounds.plural(count),
+    PackageOverviewCountKind.theme => LocaleKeys.package_themes.plural(count),
+    PackageOverviewCountKind.question => LocaleKeys.questions.plural(count),
+    PackageOverviewCountKind.textQuestion =>
+      LocaleKeys.package_text_questions.plural(count),
+    PackageOverviewCountKind.mediaQuestion =>
+      LocaleKeys.package_media_questions.plural(count),
+    PackageOverviewCountKind.mixedQuestion =>
+      LocaleKeys.package_mixed_questions.plural(count),
+  };
+}
 
 String? _trimDescription(String? description) {
   if (description.isEmptyOrNull) return null;

@@ -6,7 +6,7 @@ class LobbyActionButton extends WatchingWidget {
 
   final bool floating;
 
-  static const double _buttonHeight = 54;
+  static const double _buttonHeight = 60;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +53,12 @@ class _LobbyActionButtonContent extends StatelessWidget {
         .toList();
     final readyPlayerCount =
         readyPlayers?.where(playerIds.contains).length ?? 0;
+    final helperText = imShowman
+        ? startGameButtonHelperText(
+            playerCount: playerIds.length,
+            readyPlayerCount: readyPlayerCount,
+          )
+        : null;
     final buttonIcon = imShowman
         ? Icons.play_arrow_rounded
         : imReady
@@ -66,6 +72,11 @@ class _LobbyActionButtonContent extends StatelessWidget {
         : imReady
         ? LocaleKeys.game_lobby_editor_not_ready.tr()
         : LocaleKeys.game_lobby_editor_ready.tr();
+    final baseButtonTextStyle = context.textTheme.labelLarge;
+    final buttonTextStyle = baseButtonTextStyle?.copyWith(
+      fontSize: (baseButtonTextStyle.fontSize ?? 14) * 1.35,
+      fontWeight: FontWeight.w400,
+    );
 
     final button = FilledButton.icon(
       onPressed: () {
@@ -81,18 +92,38 @@ class _LobbyActionButtonContent extends StatelessWidget {
           Size(240, LobbyActionButton._buttonHeight),
         ),
         padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         ),
+        textStyle: WidgetStatePropertyAll(buttonTextStyle),
         elevation: WidgetStatePropertyAll(floating ? 6 : 0),
         shadowColor: WidgetStatePropertyAll(
           context.theme.colorScheme.shadow.withValues(alpha: .24),
         ),
       ),
-      icon: Icon(buttonIcon),
-      label: Text(buttonLabel),
+      icon: Icon(buttonIcon, size: 24),
+      label: Text(
+        buttonLabel,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
 
-    return button;
+    if (helperText == null) return button;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 6,
+      children: [
+        Text(
+          helperText,
+          textAlign: TextAlign.center,
+          style: context.textTheme.bodySmall?.copyWith(
+            color: context.theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        button,
+      ],
+    );
   }
 }
 
@@ -103,20 +134,57 @@ class _LobbyActionBottomArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      key: const Key('lobby_action_button_bottom_area'),
-      type: MaterialType.transparency,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: 16.all,
-          child: SizedBox(
-            height: LobbyActionButton._buttonHeight,
-            width: double.infinity,
-            child: Center(child: child ?? const SizedBox.shrink()),
+    final layout = LobbyLayoutScope.maybeOf(context);
+    final pagePadding =
+        layout?.pagePadding ?? LobbyLayoutResolver.compactPagePadding;
+    final trailingChatSpace = layout?.usesPersistentChat ?? false
+        ? layout!.reservedChatWidth
+        : 0.0;
+    final maxButtonWidth = layout?.usesTwoMainColumns ?? false
+        ? LobbyLayoutResolver.mobileActionMaxWidth
+        : double.infinity;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Material(
+          key: const Key('lobby_action_button_bottom_area'),
+          type: MaterialType.transparency,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                pagePadding,
+                LobbyLayoutResolver.bottomActionVerticalPadding,
+                pagePadding,
+                LobbyLayoutResolver.bottomActionVerticalPadding,
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: LobbyActionButton._buttonHeight,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Align(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: maxButtonWidth),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: child ?? const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (trailingChatSpace > 0)
+                      SizedBox(width: trailingChatSpace),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -155,6 +223,19 @@ String startGameButtonLocaleKey({
   final hasNotReadyPlayers = playerCount > 0 && readyPlayerCount < playerCount;
 
   return hasNotReadyPlayers
-      ? LocaleKeys.start_game_forcefully
+      ? LocaleKeys.start_game_anyway
       : LocaleKeys.start_game;
+}
+
+@visibleForTesting
+String? startGameButtonHelperText({
+  required int playerCount,
+  required int readyPlayerCount,
+}) {
+  if (playerCount == 0) return LocaleKeys.no_players_joined_yet.tr();
+
+  final notReadyPlayerCount = playerCount - readyPlayerCount;
+  if (notReadyPlayerCount <= 0) return null;
+
+  return LocaleKeys.players_not_ready.plural(notReadyPlayerCount);
 }

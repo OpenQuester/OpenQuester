@@ -22,6 +22,10 @@
     "one": "{} раунд",
     "other": "{} раундів"
   },
+  "package_themes": {
+    "one": "{} тема",
+    "other": "{} тем"
+  },
   "questions": {
     "one": "{} питання",
     "other": "{} питань"
@@ -68,7 +72,12 @@
   },
   "username": "Ім'я користувача",
   "start_game": "Почати гру",
-  "start_game_forcefully": "Почати гру примусово",
+  "start_game_anyway": "Усе одно почати",
+  "no_players_joined_yet": "Гравці ще не приєдналися",
+  "players_not_ready": {
+    "one": "{} гравець не готовий",
+    "other": "{} гравців не готові"
+  },
   "select": "Вибрати",
   "game_name": "Назва гри",
   "age_restriction": "Вікове обмеження",
@@ -106,7 +115,10 @@
   "spectator": "Глядач",
   "join_game": "Приєднатися до гри",
   "join_as": "Приєднатися як",
+  "switch_to": "Перемкнутися на",
   "leave_game_confirmation": "Ви впевнені, що хочете вийти?",
+  "leave_game": "Покинути гру",
+  "more_actions": "Більше дій",
   "yes": "Так",
   "no": "Ні",
   "openquester": "OpenQuester",
@@ -136,10 +148,19 @@
   "skip_question": "Пропустити питання",
   "share_game_tooltip": "Копіює посилання на гру",
   "copy_game_link": "Скопіювати посилання на гру",
+  "copy_invite_link": "Скопіювати посилання-запрошення",
   "link_copied": "Посилання скопійовано в буфер обміну",
+  "link_copied_short": "Посилання скопійовано",
+  "invite_link_copied": "Посилання-запрошення скопійовано",
+  "invite_link_copy_failed": "Не вдалося скопіювати посилання-запрошення",
+  "open_chat": "Відкрити чат",
+  "close_chat": "Закрити чат",
+  "chat": "Чат",
   "chat_message": "Повідомлення в чаті",
+  "send": "Надіслати",
   "not_your_turn_to_pick": "Зараз не ваш хід вибирати",
   "drag_or_tap_to": "Перетягніть або натисніть, щоб {}",
+  "drag_to_change_role": "Перетягніть, щоб змінити роль",
   "release_to": "Відпустіть, щоб {}",
   "game_lobby_editor": {
     "set_as_showman": "призначити ведучим",
@@ -151,6 +172,7 @@
     "close_player_editor": "Закрити редактор гравця"
   },
   "spectators": "Глядачі",
+  "participants": "Учасники",
   "players": "Гравці",
   "you_are_spectator": "Ви глядач",
   "create_game_hint": "Налаштуйте гру та запросіть гравців",
