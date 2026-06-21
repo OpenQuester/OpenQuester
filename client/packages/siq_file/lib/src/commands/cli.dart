@@ -3,7 +3,6 @@ import 'package:args/command_runner.dart';
 import 'package:cli_completion/cli_completion.dart';
 import 'package:mason_logger/mason_logger.dart';
 import 'package:siq_file/src/commands/commands.dart';
-import 'package:siq_file/src/version.dart';
 
 class SiqFileCommandRunner extends CompletionCommandRunner<int> {
   SiqFileCommandRunner({Logger? logger})
@@ -86,7 +85,6 @@ class SiqFileCommandRunner extends CompletionCommandRunner<int> {
 
     int? exitCode = ExitCode.unavailable.code;
     if (topLevelResults['version'] == true) {
-      _logger.info(packageVersion);
       exitCode = ExitCode.success.code;
     } else {
       exitCode = await super.runCommand(topLevelResults);

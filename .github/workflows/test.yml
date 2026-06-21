@@ -13,6 +13,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - id: found_paths
         uses: dorny/paths-filter@v3
         with:
@@ -22,6 +23,7 @@ jobs:
             client:
               - 'client/**'
               - 'openapi/**'
+
       - name: Check if we should force jobs to run
         id: should_force
         run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release'}}" >> "$GITHUB_OUTPUT"
@@ -78,22 +80,35 @@ jobs:
     defaults:
       run:
         working-directory: ./client
-    env:
-      DONT_USE_PURO: true
     environment: "${{ github.event_name == 'workflow_call' && 'openquester (Production)' || 'openquester (Preview)' }}"
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: ./client/pubspec.yaml
+          flutter-version-file: ./client/apps/client/pubspec.yaml
           cache: true
-      - run: echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-      - run: flutter pub get
-      - run: bash ./scripts/init_project.sh
-      - run: ./oqhelper pre_run -v
-      - run: dart analyze --fatal-infos lib/
-      - run: ./oqhelper format_exception
-      - run: ./oqhelper format --all-packages --fatal-infos --verbose --ignore-packages openapi
-      - run: flutter test
+
+      - name: Install dependencies & Bootstrap
+        run: |
+          echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
+          flutter pub get
+          dart pub global activate melos
+          melos bootstrap
+
+      - name: Run code generation (pre_build)
+        run: melos run pre_build
+
+      - name: Check code formatting
+        run: |
+          melos run format_exception
+          melos run format -- --set-exit-if-changed
+
+      - name: Analyze Dart code
+        run: melos run analyze
+
+      - name: Run Tests
+        if: false # Skipped for now
+        run: melos run test

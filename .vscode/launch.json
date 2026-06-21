@@ -6,14 +6,14 @@
   "configurations": [
     {
       "name": "client",
-      "cwd": "client",
+      "cwd": "client/apps/client",
       "request": "launch",
       "type": "dart",
-      "program": "lib/main.dart",
+      "program": "lib/main.dart"
     },
     {
       "name": "client (web)",
-      "cwd": "client",
+      "cwd": "client/apps/client",
       "request": "launch",
       "type": "dart",
       "flutterMode": "debug",
@@ -22,12 +22,12 @@
         "-d",
         "chrome",
         "--web-port",
-        "10000",
+        "10000"
       ]
     },
     {
       "name": "client (web wasm)",
-      "cwd": "client",
+      "cwd": "client/apps/client",
       "request": "launch",
       "type": "dart",
       "flutterMode": "debug",
@@ -42,30 +42,19 @@
     },
     {
       "name": "client (profile mode)",
-      "cwd": "client",
+      "cwd": "client/apps/client",
       "request": "launch",
       "type": "dart",
       "flutterMode": "profile",
-      "program": "lib/main.dart",
-    },
-    {
-      "name": "oqhelper pre_build",
-      "cwd": "client",
-      "request": "launch",
-      "type": "dart",
-      "program": "packages/project_helper/bin/oqhelper.dart",
-      "args": [
-        "pre_build",
-        "-v"
-      ]
+      "program": "lib/main.dart"
     },
     {
       "name": "client (release mode)",
-      "cwd": "client",
+      "cwd": "client/apps/client",
       "request": "launch",
       "type": "dart",
       "flutterMode": "release",
-      "program": "lib/main.dart",
+      "program": "lib/main.dart"
     },
     {
       "type": "node",
