@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
+// ignore: implementation_imports
 import 'package:flutter_web_auth_2/src/server.dart';
 import 'package:oauth2_client/access_token_response.dart';
 import 'package:oauth2_client/interfaces.dart';

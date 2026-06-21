@@ -235,14 +235,13 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
     } else {
       // Default behavior: open preview dialog
       if (widget.mediaFile != null) {
-        await MediaPreviewDialog.show(
-          context,
-          UiMediaFile(
+        await MediaPreviewDialog(
+          mediaFile: UiMediaFile(
             reference: widget.mediaFile!,
             type: widget.type,
             order: 0,
           ),
-        );
+        ).show(context);
       }
     }
   }
