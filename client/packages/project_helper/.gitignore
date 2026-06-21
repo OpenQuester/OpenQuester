@@ -1,8 +1,0 @@
-# Dart
-.dart_tool/
-.packages
-build/
-
-# Compiled executables
-bin/oqhelper
-bin/oqhelper.exe

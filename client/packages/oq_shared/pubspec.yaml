@@ -4,32 +4,33 @@ version: 0.0.1
 publish_to: none
 
 environment:
-  sdk: ^3.9.2
-  flutter: ">=3.38.0"
+  sdk: ^3.11.0
+  flutter: ^3.44.0
+
+resolution: workspace
 
 dependencies:
   flutter:
     sdk: flutter
-  cached_network_image: 3.4.1
-  flutter_avif: 3.1.0
-  flutter_cache_manager: 3.4.1
-  cached_network_image_platform_interface: 4.1.1
-  nb_utils: 7.1.8
-  animate_do: 4.2.0
-  universal_io: 2.3.1
-  file_picker: 10.3.7
-  auto_route: 10.3.0
-  dio: 5.9.0
-  path_provider: 2.1.5
-  video_player: 2.10.1
+  cached_network_image: ^3.4.1
+  flutter_cache_manager: ^3.4.1
+  cached_network_image_platform_interface: ^4.1.1
+  nb_utils: ^7.3.5
+  animate_do: ^5.1.0
+  universal_io: ^2.3.1
+  file_picker: ^11.0.2
+  auto_route: ^11.1.0
+  dio: ^5.9.2
+  path_provider: ^2.1.6
+  video_player: ^2.11.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  very_good_analysis: 10.0.0
-  build_runner: 2.10.4
-  freezed: 3.2.3
-  json_serializable: 6.11.2
+  very_good_analysis: ^10.3.0
+  build_runner: ^2.15.0
+  freezed: ^3.2.5
+  json_serializable: ^6.14.0
 
 flutter:
   uses-material-design: true

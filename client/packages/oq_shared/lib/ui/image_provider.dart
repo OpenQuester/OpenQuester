@@ -4,7 +4,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cached_network_image_platform_interface/cached_network_image_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_avif/flutter_avif.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 /// Maximum height of the loaded image the image will be
@@ -19,9 +18,6 @@ Future<ImageProvider> getImageProvider(
     imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet,
     maxHeight: maxCachedImageSize,
     maxWidth: maxCachedImageSize,
-  );
-  final avifProvider = CachedNetworkAvifImageProvider(
-    url,
   );
 
   final stream = DefaultCacheManager().getImageFile(
@@ -38,12 +34,7 @@ Future<ImageProvider> getImageProvider(
         throw StateError('$url is empty and cannot be loaded as an image.');
       }
 
-      final fType = isAvifFile(bytes.sublist(0, 16));
-
-      if (fType == AvifFileType.unknown) {
-        return defaultProvider;
-      }
-      return avifProvider;
+      return defaultProvider;
     }
   }
   return defaultProvider;

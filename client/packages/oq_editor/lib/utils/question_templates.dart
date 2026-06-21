@@ -27,7 +27,7 @@ class QuestionTemplates {
   }) async {
     try {
       // Pick question file(s) - allow selecting 1 or 2 files
-      final questionResult = await FilePicker.platform.pickFiles(
+      final questionResult = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: MediaTypeDetector.allExtensions,
         dialogTitle: translations.selectQuestionFile,
@@ -109,7 +109,7 @@ class QuestionTemplates {
         if (answerFile == null) {
           if (!context.mounted) return null;
 
-          final answerResult = await FilePicker.platform.pickFiles(
+          final answerResult = await FilePicker.pickFiles(
             type: FileType.custom,
             allowedExtensions: MediaTypeDetector.allExtensions,
             dialogTitle: translations.selectAnswerFile,

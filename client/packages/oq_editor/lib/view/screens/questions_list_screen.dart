@@ -165,7 +165,7 @@ class QuestionsListScreen extends WatchingWidget {
                 : ReorderableListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: questions.length,
-                    onReorder: (oldIndex, newIndex) {
+                    onReorderItem: (oldIndex, newIndex) {
                       controller.reorderQuestions(
                         roundIndex,
                         themeIndex,
