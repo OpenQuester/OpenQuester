@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
-import 'package:fvp/fvp.dart' as fvp;
 import 'package:openquester/common_imports.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -21,24 +20,25 @@ class AppInit {
 
     await configureDependencies();
 
-    // Init fvp plugin for video_player to support hardware decoding
-    fvp.registerWith(
-      options: {
-        'platforms': ['windows', 'macos', 'linux'],
-        'video.decoders': [
-          // Hardware decoders
-          'videotoolbox', // Apple
-          'mediacodec', // Android
-          'VDPAU', // Linux Nvidia
-          'NVDEC', // Linux/Win Nvidia
-          'D3D12', // Windows DX12
-          'D3D11', // Windows DX11
-          //
-          'dav1d', // Software AV1
-          'FFmpeg:hwcontext=vaapi:copy=1:sw_fallback=1', // Hardware + software
-        ],
-      },
-    );
+    // Commented out for now, because build error
+    // // Init fvp plugin for video_player to support hardware decoding
+    // fvp.registerWith(
+    //   options: {
+    //     'platforms': ['windows', 'macos', 'linux'],
+    //     'video.decoders': [
+    //       // Hardware decoders
+    //       'videotoolbox', // Apple
+    //       'mediacodec', // Android
+    //       'VDPAU', // Linux Nvidia
+    //       'NVDEC', // Linux/Win Nvidia
+    //       'D3D12', // Windows DX12
+    //       'D3D11', // Windows DX11
+    //       //
+    //       'dav1d', // Software AV1
+    //       'FFmpeg:hwcontext=vaapi:copy=1:sw_fallback=1', // Hardware + software
+    //     ],
+    //   },
+    // );
 
     logger.i(await getInitInfo());
   }

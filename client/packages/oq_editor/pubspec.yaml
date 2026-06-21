@@ -34,14 +34,13 @@ dependencies:
   archive: ^4.0.9
   video_player: ^2.11.1
   video_player_win: ^3.2.2
-  fvp: ^0.37.2
   path_provider: ^2.1.6
   path: ^1.9.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-    
+
   auto_route_generator: ^10.5.0
   very_good_analysis: ^10.3.0
   build_runner: ^2.15.0
