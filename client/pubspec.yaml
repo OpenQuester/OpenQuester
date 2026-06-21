@@ -20,24 +20,24 @@ melos:
     pre_run:
       description: Full build pipeline - generates API, builds packages, runs pre-run tasks, indexes, and formats
       run: |
-        melos run pre_build && \
-        melos run gen_indexes && \
-        melos run format && \
+        melos run pre_build
+        melos run gen_indexes
+        melos run format
         notify-send -u normal "Build Complete" "pre_run finished successfully" 2>/dev/null || true
 
     pre_build:
       description: Pre-run tasks generating files, workers, and localization
       run: |
-        melos run gen_api && \
-        melos run gen_files && \
-        melos run gen_workers && \
+        melos run gen_api
+        melos run gen_files
+        melos run gen_workers
         melos run gen_locale
 
     pre_build_package:
       description: Build pipeline for individual packages (skips API generation)
       run: |
-        melos run pre_build && \
-        melos run gen_indexes && \
+        melos run pre_build
+        melos run gen_indexes
         melos run format
 
     # =============================================================================

@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_DIR="${1:-$SCRIPT_DIR/../build/linux/x64/release/bundle}"
 OUTPUT_DIR="${2:-$SCRIPT_DIR/../build/linux/appimage}"
 
+echo "Script directory: $SCRIPT_DIR"
 echo "Building OpenQuester AppImage..."
 echo "Build directory: $BUILD_DIR"
 echo "Output directory: $OUTPUT_DIR"
@@ -49,7 +50,7 @@ ln -sf usr/share/applications/com.asion.openquester.desktop "$APPDIR/com.asion.o
 cp "$SCRIPT_DIR/com.asion.openquester.metainfo.xml" "$APPDIR/usr/share/metainfo/"
 
 # Copy icons
-cp "$SCRIPT_DIR/../../assets/icon/icon.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/com.asion.openquester.svg"
+cp "$SCRIPT_DIR/../../../../assets/icon/icon.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/com.asion.openquester.svg"
 cp "$SCRIPT_DIR/../web/icons/icon-512.png" "$APPDIR/usr/share/icons/hicolor/512x512/apps/com.asion.openquester.png"
 cp "$SCRIPT_DIR/../web/icons/icon-192.png" "$APPDIR/usr/share/icons/hicolor/192x192/apps/com.asion.openquester.png"
 
