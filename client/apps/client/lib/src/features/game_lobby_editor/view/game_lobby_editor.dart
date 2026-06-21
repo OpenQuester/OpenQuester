@@ -8,19 +8,6 @@ class GameLobbyEditor extends WatchingWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gameData = watchValue((GameLobbyController e) => e.gameData);
-    final gameStarted = gameData?.gameStarted ?? false;
-
-    if (gameStarted) {
-      return ListView(
-        padding: 16.all + screenBottomInset(context).bottom,
-        children: const [
-          _RoleList(showHeading: false, compactPlayers: false),
-          _ClosePlayerEditButton(),
-        ],
-      );
-    }
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final layout =

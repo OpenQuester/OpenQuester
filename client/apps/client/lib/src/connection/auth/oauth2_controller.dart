@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
+import 'package:flutter_web_auth_2/src/server.dart';
 import 'package:oauth2_client/access_token_response.dart';
 import 'package:oauth2_client/interfaces.dart';
 import 'package:oauth2_client/oauth2_client.dart';
@@ -41,7 +42,7 @@ class Oauth2Controller {
       uri = href.replace(path: '/auth.html').toString();
     } else if (isDesktopPlatform) {
       uri = 'http://localhost:10000';
-      scheme = Platform.isMacOS ? 'http' : uri;
+      scheme = uri;
     } else {
       scheme = 'com.asion.openquester';
       uri = '$scheme:/';
@@ -58,15 +59,24 @@ class IoWebAuth implements BaseWebAuth {
     required String redirectUrl,
     Map<String, dynamic>? opts,
   }) async {
-    final preferEphemeral = (opts?['preferEphemeral'] == true);
+    final preferEphemeral = (opts?['preferEphemeral'] ?? true) as bool;
+    final options = FlutterWebAuth2Options(
+      preferEphemeral: preferEphemeral,
+      useWebview: isDesktopPlatform ? false : null,
+    );
+
+    if (Platform.isMacOS) {
+      return FlutterWebAuth2ServerPlugin().authenticate(
+        url: url,
+        callbackUrlScheme: callbackUrlScheme,
+        options: options.toJson(),
+      );
+    }
 
     return FlutterWebAuth2.authenticate(
       callbackUrlScheme: callbackUrlScheme,
       url: url,
-      options: FlutterWebAuth2Options(
-        preferEphemeral: preferEphemeral,
-        useWebview: isDesktopPlatform ? false : null,
-      ),
+      options: options,
     );
   }
 }
