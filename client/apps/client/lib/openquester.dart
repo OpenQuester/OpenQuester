@@ -3,7 +3,6 @@
 library;
 
 export 'common_imports.dart';
-export 'generated/assets.gen.dart';
 export 'main.dart';
 export 'src/connection/api/api.dart';
 export 'src/connection/auth/oauth2_controller.dart';
@@ -23,11 +22,13 @@ export 'src/core/controllers/time_controller.dart';
 export 'src/core/controllers/toast_controller.dart';
 export 'src/core/controllers/upload_controller.dart';
 export 'src/core/env.dart';
+export 'src/core/get_it.config.dart';
 export 'src/core/get_it.dart';
 export 'src/core/localization.dart';
 export 'src/core/logging/logger.dart';
 export 'src/core/logging/talker_lib.dart';
 export 'src/core/router.dart';
+export 'src/core/router.gr.dart';
 export 'src/core/services/package_service.dart';
 export 'src/core/theme.dart';
 export 'src/core/ui/components/one_field_dialog.dart';
