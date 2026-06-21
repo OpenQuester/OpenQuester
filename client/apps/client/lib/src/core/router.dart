@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:openquester/common_imports.dart';
+import 'package:openquester/src/core/router.gr.dart';
 import 'package:oq_editor/router/router.dart';
 
 @AutoRouterConfig(

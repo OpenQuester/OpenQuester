@@ -33,13 +33,6 @@ melos:
         - melos run gen_workers
         - melos run gen_locale
 
-    pre_build_package:
-      description: Build pipeline for individual packages (skips API generation)
-      steps:
-        - melos run pre_build
-        - melos run gen_indexes
-        - melos run format
-
     # =============================================================================
     # CODE GENERATION
     # =============================================================================

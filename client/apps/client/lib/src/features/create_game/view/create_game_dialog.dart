@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
+import 'package:openquester/src/core/router.gr.dart';
 
 @RoutePage(deferredLoading: false)
 class CreateGameDialog extends WatchingWidget {
