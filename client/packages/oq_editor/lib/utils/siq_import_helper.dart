@@ -71,7 +71,7 @@ class SiqImportHelper {
   /// Returns the file bytes and extension or null if cancelled
   static Future<({Uint8List bytes, String extension})?>
   pickPackageFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['oq', 'siq'], // Allow both extensions
       withData: true, // Ensure bytes are loaded (important for web)

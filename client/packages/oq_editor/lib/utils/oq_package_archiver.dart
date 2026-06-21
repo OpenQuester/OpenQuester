@@ -188,7 +188,7 @@ class OqPackageArchiver {
         '${sanitizedTitle}_${DateTime.now().millisecondsSinceEpoch}.oq';
 
     // Use file_picker to save file
-    await FilePicker.platform.saveFile(
+    await FilePicker.saveFile(
       fileName: fileName,
       bytes: archiveBytes,
       allowedExtensions: ['oq'],
