@@ -110,13 +110,13 @@ melos run pre_build
 Generates API client, localization keys, build_runner outputs, indexes, workers, and formats code.
 
 ```bash
-melos run pre_build
+melos run pre_run
 ```
 
-#### Pre-run Tasks
+#### Pre-build Tasks
 
 ```bash
-melos run pre_run
+melos run pre_build
 ```
 
 #### Generate API Client

@@ -87,7 +87,7 @@ jobs:
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
           dart pub global activate melos
           melos bootstrap
-          melos run pre_run
+          melos run pre_build
 
       - name: Build Web
         working-directory: ./client/apps/client
@@ -186,7 +186,7 @@ jobs:
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
           dart pub global activate melos
           melos bootstrap
-          melos run pre_run
+          melos run pre_build
 
       - name: Build and create bundle
         working-directory: ./client/apps/client

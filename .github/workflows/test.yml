@@ -100,8 +100,8 @@ jobs:
           dart pub global activate melos
           melos bootstrap
 
-      - name: Run code generation (pre_run)
-        run: melos run pre_run
+      - name: Run code generation (pre_build)
+        run: melos run pre_build
 
       - name: Check code formatting
         run: dart format --output=none --set-exit-if-changed .
