@@ -15,12 +15,10 @@ on:
         required: true
       PLAY_STORE_SERVICE_ACCOUNT_JSON:
         required: false
-
     inputs:
       DEPLOY_PROD:
         type: boolean
         default: false
-
   push:
     branches:
       - main
@@ -79,24 +77,28 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: ./client/pubspec.yaml
+          # Updated to point to the workspace app pubspec
+          flutter-version-file: ./client/apps/client/pubspec.yaml
           cache: true
 
-      - name: Install dependencies
+      - name: Install dependencies & Melos Bootstrap
         run: |
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
           bash ./scripts/init_project.sh
-          ./oqhelper pre_run
+          dart pub global activate melos
+          melos bootstrap
+          melos run pre_run
 
       - name: Build Web
+        working-directory: ./client/apps/client
         run: flutter build web --no-web-resources-cdn --build-number $GITHUB_RUN_NUMBER --wasm
 
       - name: Publish Web Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: web-app
-          path: ./client/build/web/
+          path: ./client/apps/client/build/web/
 
       - name: Publish to Cloudflare Pages (Preview)
         if: inputs.DEPLOY_PROD == false
@@ -105,7 +107,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          command: pages deploy ./client/build/web/ --project-name=openquester-dev --branch ${{ github.ref_name }}
+          command: pages deploy ./client/apps/client/build/web/ --project-name=openquester-dev --branch ${{ github.ref_name }}
 
       - name: Purge Cloudflare cache
         if: inputs.DEPLOY_PROD == false
@@ -116,14 +118,15 @@ jobs:
             --data '{ "purge_everything": true }'
 
       - name: Decode and setup Android keystore
+        working-directory: ./client/apps/client
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
 
       - name: Build Android APKs
-        run: |
-          flutter build apk --release --build-number $GITHUB_RUN_NUMBER
+        working-directory: ./client/apps/client
+        run: flutter build apk --release --build-number $GITHUB_RUN_NUMBER
         env:
           ANDROID_KEYSTORE_PATH: ${{ vars.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEY_ALIAS_NAME: ${{ vars.ANDROID_KEY_ALIAS_NAME }}
@@ -134,12 +137,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: android-app
-          path: ./client/build/app/outputs/flutter-apk/*.apk
+          path: ./client/apps/client/build/app/outputs/flutter-apk/*.apk
 
       - name: Build Android Bundle (AAB)
         if: github.ref == 'refs/heads/main'
-        run: |
-          flutter build appbundle --release --build-number $GITHUB_RUN_NUMBER
+        working-directory: ./client/apps/client
+        run: flutter build appbundle --release --build-number $GITHUB_RUN_NUMBER
         env:
           ANDROID_KEYSTORE_PATH: ${{ vars.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEY_ALIAS_NAME: ${{ vars.ANDROID_KEY_ALIAS_NAME }}
@@ -152,7 +155,7 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
           packageName: com.asion.openquester
-          releaseFiles: ./client/build/app/outputs/bundle/release/*.aab
+          releaseFiles: ./client/apps/client/build/app/outputs/bundle/release/*.aab
           track: internal
           status: draft
           inAppUpdatePriority: 3
@@ -175,26 +178,29 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: ./client/pubspec.yaml
+          flutter-version-file: ./client/apps/client/pubspec.yaml
           cache: true
 
-      - name: Install dependencies
+      - name: Install dependencies & Melos Bootstrap
         run: |
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
           ./scripts/init_project.bat
-          ./oqhelper.exe pre_run
+          dart pub global activate melos
+          melos bootstrap
+          melos run pre_run
 
       - name: Build and create bundle
+        working-directory: ./client/apps/client
         run: |
-          flutter build windows --release --build-number ${{ github.run_number	}}
+          flutter build windows --release --build-number ${{ github.run_number }}
           dart run inno_bundle:build --release --no-app
 
       - name: Publish Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-app
-          path: ./client/build/windows/x64/installer/Release/*-Installer.exe
+          path: ./client/apps/client/build/windows/x64/installer/Release/*-Installer.exe
 
   build_linux:
     name: Build client (Linux)
@@ -216,10 +222,10 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: ./client/pubspec.yaml
+          flutter-version-file: ./client/apps/client/pubspec.yaml
           cache: true
 
-      - name: Install dependencies
+      - name: Install dependencies & Melos Bootstrap
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -231,24 +237,28 @@ jobs:
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
           bash ./scripts/init_project.sh
-          ./oqhelper pre_build
+          dart pub global activate melos
+          melos bootstrap
+          melos run pre_build
 
       - name: Build Linux application
+        working-directory: ./client/apps/client
         run: flutter build linux --release --build-number ${{ github.run_number }}
 
       - name: Create tar.gz archive
+        working-directory: ./client/apps/client
         run: |
-          cd build/linux/x64/release
-          tar -czf openquester-linux-x64.tar.gz bundle/
-          mv openquester-linux-x64.tar.gz ../../../../
+          # Compress into the github workspace root to avoid path traversal nightmares
+          tar -czf $GITHUB_WORKSPACE/openquester-linux-x64.tar.gz -C build/linux/x64/release bundle/
 
       - name: Publish Linux tar.gz
         uses: actions/upload-artifact@v4
         with:
           name: linux-tar-gz
-          path: ./client/openquester-linux-x64.tar.gz
+          path: openquester-linux-x64.tar.gz
 
       - name: Build AppImage
+        working-directory: ./client/apps/client
         run: |
           chmod +x linux/build-appimage.sh
           linux/build-appimage.sh build/linux/x64/release/bundle build/linux/appimage
@@ -257,9 +267,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: ./client/build/linux/appimage/OpenQuester-x86_64.AppImage
+          path: ./client/apps/client/build/linux/appimage/OpenQuester-x86_64.AppImage
 
       - name: Build Linux application for Flatpak
+        working-directory: ./client/apps/client
         run: flutter build linux --release --build-number ${{ github.run_number }} --dart-define=BUILD_TYPE=flatpak
 
       - name: Install Flatpak and dependencies
@@ -269,6 +280,7 @@ jobs:
           flatpak install --user -y flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
 
       - name: Build Flatpak
+        working-directory: ./client/apps/client
         run: |
           cd linux
           flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build-flatpak com.asion.openquester.yml
@@ -278,4 +290,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-flatpak
-          path: ./client/linux/openquester.flatpak
+          path: ./client/apps/client/linux/openquester.flatpak

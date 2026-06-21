@@ -13,6 +13,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
       - id: found_paths
         uses: dorny/paths-filter@v3
         with:
@@ -22,6 +23,7 @@ jobs:
             client:
               - 'client/**'
               - 'openapi/**'
+      
       - name: Check if we should force jobs to run
         id: should_force
         run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release'}}" >> "$GITHUB_OUTPUT"
@@ -83,17 +85,30 @@ jobs:
     environment: "${{ github.event_name == 'workflow_call' && 'openquester (Production)' || 'openquester (Preview)' }}"
     steps:
       - uses: actions/checkout@v4
+      
       - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version-file: ./client/pubspec.yaml
+          flutter-version-file: ./client/apps/client/pubspec.yaml
           cache: true
-      - run: echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-      - run: flutter pub get
-      - run: bash ./scripts/init_project.sh
-      - run: ./oqhelper pre_run -v
-      - run: dart analyze --fatal-infos lib/
-      - run: ./oqhelper format_exception
-      - run: ./oqhelper format --all-packages --fatal-infos --verbose --ignore-packages openapi
-      - run: dart test
+      
+      - name: Install dependencies & Bootstrap
+        run: |
+          echo "${{ vars.ENV_FILE_CONTENT }}" > .env
+          flutter pub get
+          bash ./scripts/init_project.sh
+          dart pub global activate melos
+          melos bootstrap
+      
+      - name: Run code generation (pre_run)
+        run: melos run pre_run
+      
+      - name: Check code formatting
+        run: dart format --output=none --set-exit-if-changed .
+      
+      - name: Analyze Dart code
+        run: dart analyze --fatal-infos .
+      
+      - name: Run Tests
+        run: dart test

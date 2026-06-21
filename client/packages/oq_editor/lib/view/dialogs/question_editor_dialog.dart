@@ -1025,7 +1025,7 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   /// Add media file (stores file reference, not bytes, for memory efficiency)
   Future<void> _addMediaFile({required bool isQuestionMedia}) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: MediaTypeDetector.allExtensions,
       );

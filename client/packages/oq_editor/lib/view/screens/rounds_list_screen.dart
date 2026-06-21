@@ -71,7 +71,7 @@ class RoundsListScreen extends WatchingWidget {
                 : ReorderableListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: rounds.length,
-                    onReorder: controller.reorderRounds,
+                    onReorderItem: controller.reorderRounds,
                     itemBuilder: (context, index) {
                       final round = rounds[index];
                       return _RoundCard(

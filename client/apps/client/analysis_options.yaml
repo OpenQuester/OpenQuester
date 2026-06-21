@@ -13,7 +13,9 @@ analyzer:
     flutter_style_todos: ignore
     document_ignores: ignore
     unnecessary_library_directive: ignore
-    invalid_annotation_target: ignore
+    one_member_abstracts: ignore
+    use_setters_to_change_properties: ignore
+    avoid_positional_boolean_parameters: ignore
     avoid_types_on_closure_parameters: ignore
   exclude:
     - "**/*_generated.dart"
