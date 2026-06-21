@@ -1,5 +1,7 @@
 # * Docker compose setup for development
 
+x-influxdb3-image: &influxdb3_image influxdb:3-core@sha256:2757db64af5f331bbfb0e25d6731c8cf65c5a515d027c8bc5a48b258fa008c8b
+
 services:
   postgres:
     image: postgres:16.3-alpine
@@ -55,7 +57,8 @@ services:
       - ./data/redis:/bitnami/redis/data
 
   influxdb3:
-    image: influxdb:3-core
+    # Pinned to the image verified locally as InfluxDB 3.8.0.
+    image: *influxdb3_image
     restart: unless-stopped
     container_name: influxdb3
     user: "0:0"
@@ -72,12 +75,19 @@ services:
       - influxdb3_data:/var/lib/influxdb3/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "influxdb3", "show", "databases", "-H", "http://localhost:8181"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
 
   influxdb3-init:
-    image: influxdb:3-core
+    image: *influxdb3_image
     restart: "no"
     depends_on:
-      - influxdb3
+      influxdb3:
+        condition: service_healthy
     command:
       - /bin/sh
       - -c
@@ -109,8 +119,10 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
-      - influxdb3
-      - influxdb3-init
+      influxdb3:
+        condition: service_healthy
+      influxdb3-init:
+        condition: service_completed_successfully
 
   # Reverse proxy & load balancer
   # Dashboard: http://localhost:8088/
