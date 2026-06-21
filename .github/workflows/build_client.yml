@@ -85,7 +85,6 @@ jobs:
         run: |
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-          bash ./scripts/init_project.sh
           dart pub global activate melos
           melos bootstrap
           melos run pre_run
@@ -185,7 +184,6 @@ jobs:
         run: |
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-          ./scripts/init_project.bat
           dart pub global activate melos
           melos bootstrap
           melos run pre_run
@@ -236,7 +234,6 @@ jobs:
             desktop-file-utils appstream
           flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > .env
-          bash ./scripts/init_project.sh
           dart pub global activate melos
           melos bootstrap
           melos run pre_build
