@@ -77,9 +77,13 @@ melos:
     # CODE QUALITY
     # =============================================================================
 
-    format:
-      description: Format Dart code according to style guide across the monorepo
-      run: melos exec -- "dart format ."
+    analyze:
+      description: Analyze Dart code for all packages
+      run: melos exec -- "dart analyze --fatal-infos ."
+
+    test:
+      description: Run tests for all packages
+      run: melos exec -- "dart test"
 
     fix:
       description: Apply automated fixes for linting issues

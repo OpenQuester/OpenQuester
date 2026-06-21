@@ -84,7 +84,7 @@ jobs:
       - name: Install dependencies & Melos Bootstrap
         run: |
           flutter pub get
-          echo "${{ vars.ENV_FILE_CONTENT }}" > .env
+          echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
           dart pub global activate melos
           melos bootstrap
           melos run pre_build
@@ -183,7 +183,7 @@ jobs:
       - name: Install dependencies & Melos Bootstrap
         run: |
           flutter pub get
-          echo "${{ vars.ENV_FILE_CONTENT }}" > .env
+          echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
           dart pub global activate melos
           melos bootstrap
           melos run pre_build
@@ -233,7 +233,7 @@ jobs:
             libwebkit2gtk-4.1-dev libsecret-1-dev \
             desktop-file-utils appstream
           flutter pub get
-          echo "${{ vars.ENV_FILE_CONTENT }}" > .env
+          echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
           dart pub global activate melos
           melos bootstrap
           melos run pre_build
