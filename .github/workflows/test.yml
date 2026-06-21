@@ -104,7 +104,9 @@ jobs:
         run: melos run pre_build
 
       - name: Check code formatting
-        run: melos format --output=none --set-exit-if-changed .
+        run: |
+          melos run format_exception
+          melos run format
 
       - name: Analyze Dart code
         run: melos run analyze
