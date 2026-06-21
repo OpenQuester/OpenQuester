@@ -2,6 +2,7 @@
   "paths": [
     "apps/client/lib/src/core/router.gr.dart",
     "apps/client/lib/generated/locale_keys.g.dart",
-    "apps/client/lib/generated/assets.gen.dart"
+    "apps/client/lib/generated/assets.gen.dart",
+    "packages/openapi/lib"
   ]
 }

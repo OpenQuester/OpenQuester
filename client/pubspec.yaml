@@ -95,6 +95,10 @@ melos:
       description: Apply automated fixes for linting issues
       run: melos exec -- "dart fix --apply"
 
+    format:
+      description: Run dart format on all packages
+      run: melos exec -- "dart format lib"
+
     format_exception:
       description: Run dart format on files that are exceptions to the standard formatting rules
       run: dart run scripts/run_format_exception.dart

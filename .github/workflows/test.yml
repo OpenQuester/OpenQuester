@@ -106,7 +106,7 @@ jobs:
       - name: Check code formatting
         run: |
           melos run format_exception
-          melos run format
+          melos run format -- --set-exit-if-changed
 
       - name: Analyze Dart code
         run: melos run analyze
