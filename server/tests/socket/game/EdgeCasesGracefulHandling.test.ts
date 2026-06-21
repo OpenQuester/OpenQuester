@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
@@ -116,7 +109,7 @@ describe("Edge Cases - Graceful Handling", () => {
         // Record initial score
         const gameBefore = await utils.getGameFromGameService(gameId);
         const playerBefore = gameBefore.getPlayer(playerUsers[0].id, {
-          fetchDisconnected: true,
+          fetchDisconnected: true
         });
         const initialScore = playerBefore?.score ?? 0;
 
@@ -134,18 +127,14 @@ describe("Edge Cases - Graceful Handling", () => {
         expect(answerResult).toBeDefined();
         expect(answerResult.answerResult).toBeDefined();
         expect(answerResult.answerResult.result).toBe(0); // SKIP = 0 points
-        expect(answerResult.answerResult.answerType).toBe(
-          AnswerResultType.SKIP
-        );
+        expect(answerResult.answerResult.answerType).toBe(AnswerResultType.SKIP);
 
         // Verify player is now disconnected
         const gameAfter = await utils.getGameFromGameService(gameId);
         const disconnectedPlayer = gameAfter.getPlayer(playerUsers[0].id, {
-          fetchDisconnected: true,
+          fetchDisconnected: true
         });
-        expect(disconnectedPlayer?.gameStatus).toBe(
-          PlayerGameStatus.DISCONNECTED
-        );
+        expect(disconnectedPlayer?.gameStatus).toBe(PlayerGameStatus.DISCONNECTED);
 
         // Verify score is unchanged (SKIP = 0 points change)
         expect(disconnectedPlayer?.score).toBe(initialScore);
@@ -161,13 +150,9 @@ describe("Edge Cases - Graceful Handling", () => {
 
   describe("Next Round Timer Clearing", () => {
     it("should replace active timer when progressing to final round", async () => {
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0,
-        true // include final round
-      );
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeFinalRound: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
@@ -192,24 +177,16 @@ describe("Edge Cases - Graceful Handling", () => {
         const nextRoundData = await nextRoundPromise;
 
         // Verify we're in next round
-        expect(nextRoundData.gameState.currentRound?.type).toBe(
-          PackageRoundType.FINAL
-        );
+        expect(nextRoundData.gameState.currentRound?.type).toBe(PackageRoundType.FINAL);
 
         // Verify final round replaces the question timer with theme elimination timer
         expect(nextRoundData.gameState.timer).toBeDefined();
-        expect(nextRoundData.gameState.timer?.durationMs).toBe(
-          FINAL_ROUND_THEME_ELIMINATION_TIME
-        );
-        expect(nextRoundData.gameState.timer?.startedAt).not.toBe(
-          showingTimerStartedAt
-        );
+        expect(nextRoundData.gameState.timer?.durationMs).toBe(FINAL_ROUND_THEME_ELIMINATION_TIME);
+        expect(nextRoundData.gameState.timer?.startedAt).not.toBe(showingTimerStartedAt);
 
         // Verify persisted state has the same fresh final-round timer
         const game = await utils.getGameFromGameService(gameId);
-        expect(game.gameState.timer?.durationMs).toBe(
-          FINAL_ROUND_THEME_ELIMINATION_TIME
-        );
+        expect(game.gameState.timer?.durationMs).toBe(FINAL_ROUND_THEME_ELIMINATION_TIME);
       } finally {
         await utils.cleanupGameClients(setup);
       }
@@ -220,13 +197,9 @@ describe("Edge Cases - Graceful Handling", () => {
     it("should use showman in turn order when no eligible players exist", async () => {
       // This test creates a game, starts it, has all players leave before final round,
       // then verifies showman gets turn order
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0,
-        true // include final round
-      );
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeFinalRound: true
+      });
       const { showmanSocket, playerSockets, gameId, showmanUser } = setup;
 
       try {
@@ -251,9 +224,7 @@ describe("Edge Cases - Graceful Handling", () => {
         const nextRoundData = await nextRoundPromise;
 
         // Verify we're in final round
-        expect(nextRoundData.gameState.currentRound?.type).toBe(
-          PackageRoundType.FINAL
-        );
+        expect(nextRoundData.gameState.currentRound?.type).toBe(PackageRoundType.FINAL);
 
         // Verify showman is in turn order (fallback when no players)
         const finalRoundData = nextRoundData.gameState.finalRoundData;
@@ -263,22 +234,16 @@ describe("Edge Cases - Graceful Handling", () => {
         expect(finalRoundData!.turnOrder[0]).toBe(showmanUser.id);
 
         // Verify current turn player is showman
-        expect(nextRoundData.gameState.currentTurnPlayerId).toBe(
-          showmanUser.id
-        );
+        expect(nextRoundData.gameState.currentTurnPlayerId).toBe(showmanUser.id);
       } finally {
         await utils.cleanupGameClients(setup);
       }
     });
 
     it("should use single player in turn order when only one player exists", async () => {
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0,
-        true
-      );
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeFinalRound: true
+      });
       const { showmanSocket, playerUsers } = setup;
 
       try {
@@ -297,9 +262,7 @@ describe("Edge Cases - Graceful Handling", () => {
         const finalRoundData = nextRoundData.gameState.finalRoundData;
         expect(finalRoundData!.turnOrder.length).toBe(1);
         expect(finalRoundData!.turnOrder[0]).toBe(playerUsers[0].id);
-        expect(nextRoundData.gameState.currentTurnPlayerId).toBe(
-          playerUsers[0].id
-        );
+        expect(nextRoundData.gameState.currentTurnPlayerId).toBe(playerUsers[0].id);
       } finally {
         await utils.cleanupGameClients(setup);
       }
@@ -323,10 +286,7 @@ describe("Edge Cases - Graceful Handling", () => {
         expect(pausedState?.isPaused).toBe(true);
 
         // Player 0 disconnects while paused
-        const leavePromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
+        const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
         playerSockets[0].disconnect();
         await leavePromise;
 

@@ -1,18 +1,8 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { User } from "infrastructure/database/models/User";
@@ -58,13 +48,9 @@ describe("Socket Game Flow Tests", () => {
 
   it("should set currentTurnPlayerId to the player with the lowest score on simple round start", async () => {
     // Setup a game with 3 players and two simple rounds (no final round)
-    const setup = await utils.setupGameTestEnvironment(
-      userRepo,
-      app,
-      3,
-      0,
-      false
-    );
+    const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, {
+      includeFinalRound: false
+    });
     const { showmanSocket } = setup;
 
     // Start the game
@@ -180,26 +166,16 @@ describe("Socket Game Flow Tests", () => {
         const playerSessionAfterLeave = await utils.getSocketUserData(playerSockets[0]);
         expect(playerSessionAfterLeave?.gameId).toBeNull();
 
-        const noShowmanLeavePromise = utils.waitForNoEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
+        const noShowmanLeavePromise = utils.waitForNoEvent(showmanSocket, SocketIOGameEvents.LEAVE);
         const noPlayerLeavePromise = utils.waitForNoEvent(
           playerSockets[0],
           SocketIOGameEvents.LEAVE
         );
-        const noPlayerErrorPromise = utils.waitForNoEvent(
-          playerSockets[0],
-          SocketIOEvents.ERROR
-        );
+        const noPlayerErrorPromise = utils.waitForNoEvent(playerSockets[0], SocketIOEvents.ERROR);
 
         playerSockets[0].emit(SocketIOGameEvents.LEAVE);
 
-        await Promise.all([
-          noShowmanLeavePromise,
-          noPlayerLeavePromise,
-          noPlayerErrorPromise,
-        ]);
+        await Promise.all([noShowmanLeavePromise, noPlayerLeavePromise, noPlayerErrorPromise]);
 
         const playerSessionAfterNoop = await utils.getSocketUserData(playerSockets[0]);
         expect(playerSessionAfterNoop?.gameId).toBeNull();

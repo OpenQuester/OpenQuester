@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
@@ -13,38 +6,13 @@ import { SYSTEM_PLAYER_ID } from "domain/constants/game";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
-import { type QuestionPickMediaPreloadEventPayload } from "domain/types/socket/events/game/QuestionPickMediaPreloadEventPayload";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
-import {
-  type GameClientSocket,
-  SocketGameTestUtils
-} from "tests/socket/game/utils/SocketIOGameTestUtils";
-
-async function pickMediaQuestionAndWaitForGate(
-  utils: SocketGameTestUtils,
-  showmanSocket: GameClientSocket,
-  observerSocket: GameClientSocket,
-  questionId: number
-): Promise<void> {
-  const preloadPromise = utils.waitForEvent<QuestionPickMediaPreloadEventPayload>(
-    observerSocket,
-    SocketIOGameEvents.QUESTION_PICK,
-    2000
-  );
-  const noQuestionDataPromise = utils.waitForNoEvent(
-    observerSocket,
-    SocketIOGameEvents.QUESTION_DATA
-  );
-
-  showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-
-  const [preload] = await Promise.all([preloadPromise, noQuestionDataPromise]);
-  expect(preload.questionFiles).not.toHaveLength(0);
-}
+import { pickMediaQuestionAndWaitForGate } from "tests/socket/game/utils/MediaDownloadGateTestUtils";
+import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 /**
  * Tests for Edge Case: Player Leave During Media Download
@@ -89,43 +57,36 @@ describe("Media Download Player Leave Edge Cases", () => {
 
   describe("Last Non-Ready Player Leaves", () => {
     it("should transition to SHOWING when last non-ready player leaves during media download", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickMediaQuestionAndWaitForGate(
-          utils,
-          showmanSocket,
-          playerSockets[0],
-          questionId
-        );
+        await pickMediaQuestionAndWaitForGate(utils, showmanSocket, playerSockets[0], questionId);
 
         const mediaDownloadState = await utils.getGameState(gameId);
-        expect(mediaDownloadState!.questionState).toBe(
-          QuestionState.MEDIA_DOWNLOADING
-        );
+        expect(mediaDownloadState!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
 
         // Player 0 downloads media
-        const status1Promise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            playerSockets[1],
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          playerSockets[1],
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
         playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         const status1 = await status1Promise;
         expect(status1.allPlayersReady).toBe(false);
 
         // Wait for media download status after leave (indicating all ready)
-        const finalStatusPromise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const finalStatusPromise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
 
         // Player 1 leaves (who hasn't downloaded yet)
         playerSockets[1].emit(SocketIOGameEvents.LEAVE);
@@ -146,37 +107,32 @@ describe("Media Download Player Leave Edge Cases", () => {
     });
 
     it("should transition to SHOWING when last non-ready player disconnects during media download", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickMediaQuestionAndWaitForGate(
-          utils,
-          showmanSocket,
-          playerSockets[0],
-          questionId
-        );
+        await pickMediaQuestionAndWaitForGate(utils, showmanSocket, playerSockets[0], questionId);
 
         // Player 0 downloads media
-        const status1Promise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
         playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         await status1Promise;
 
         // Wait for final status
-        const finalStatusPromise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const finalStatusPromise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
 
         // Player 1 disconnects (simulating connection drop)
         playerSockets[1].disconnect();
@@ -195,41 +151,36 @@ describe("Media Download Player Leave Edge Cases", () => {
     });
 
     it("should transition to SHOWING when last non-ready player is kicked during media download", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickMediaQuestionAndWaitForGate(
-          utils,
-          showmanSocket,
-          playerSockets[0],
-          questionId
-        );
+        await pickMediaQuestionAndWaitForGate(utils, showmanSocket, playerSockets[0], questionId);
 
         // Player 0 downloads media
-        const status1Promise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
         playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         await status1Promise;
 
         // Wait for final status after kick
-        const finalStatusPromise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const finalStatusPromise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
 
         // Showman kicks player 1 (who hasn't downloaded)
         showmanSocket.emit(SocketIOGameEvents.PLAYER_KICKED, {
-          playerId: playerUsers[1].id,
+          playerId: playerUsers[1].id
         });
 
         // Should receive status indicating all remaining players are ready
@@ -248,94 +199,75 @@ describe("Media Download Player Leave Edge Cases", () => {
 
   describe("Non-Ready Player Leaves But Others Not Ready", () => {
     it("should remain in MEDIA_DOWNLOADING when a non-ready player leaves but others are also not ready", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickMediaQuestionAndWaitForGate(
-          utils,
-          showmanSocket,
-          playerSockets[0],
-          questionId
-        );
+        await pickMediaQuestionAndWaitForGate(utils, showmanSocket, playerSockets[0], questionId);
 
         // Player 0 downloads media
-        const status1Promise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
         playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         await status1Promise;
 
         // Player 1 leaves (who hasn't downloaded)
-        const leavePromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
+        const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
         playerSockets[1].emit(SocketIOGameEvents.LEAVE);
         await leavePromise;
 
         // Player 2 still hasn't downloaded, so should remain in MEDIA_DOWNLOADING
         const gameStateAfter = await utils.getGameState(gameId);
-        expect(gameStateAfter!.questionState).toBe(
-          QuestionState.MEDIA_DOWNLOADING
-        );
+        expect(gameStateAfter!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
       } finally {
         await utils.cleanupGameClients(setup);
       }
     });
 
     it("should transition to SHOWING only when all remaining players are ready after leave", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickMediaQuestionAndWaitForGate(
-          utils,
-          showmanSocket,
-          playerSockets[0],
-          questionId
-        );
+        await pickMediaQuestionAndWaitForGate(utils, showmanSocket, playerSockets[0], questionId);
 
         // Player 0 downloads media
-        const statusPromise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const statusPromise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
         playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         await statusPromise;
 
         // Player 1 leaves (who hasn't downloaded)
-        const leavePromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
+        const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
         playerSockets[1].emit(SocketIOGameEvents.LEAVE);
         await leavePromise;
 
         // Still in MEDIA_DOWNLOADING
         const gameStateMid = await utils.getGameState(gameId);
-        expect(gameStateMid!.questionState).toBe(
-          QuestionState.MEDIA_DOWNLOADING
-        );
+        expect(gameStateMid!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
 
         // Player 2 downloads - should trigger transition
-        const finalStatusPromise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const finalStatusPromise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
         playerSockets[2].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         const finalStatus = await finalStatusPromise;
 
@@ -353,43 +285,34 @@ describe("Media Download Player Leave Edge Cases", () => {
 
   describe("Ready Player Leaves", () => {
     it("should not transition to SHOWING if a ready player leaves but others are not ready", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickMediaQuestionAndWaitForGate(
-          utils,
-          showmanSocket,
-          playerSockets[0],
-          questionId
-        );
+        await pickMediaQuestionAndWaitForGate(utils, showmanSocket, playerSockets[0], questionId);
 
         // Player 0 downloads media
-        const status1Promise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
         playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         await status1Promise;
 
         // Player 0 (who HAS downloaded) leaves
-        const leavePromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
+        const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
         playerSockets[0].emit(SocketIOGameEvents.LEAVE);
         await leavePromise;
 
         // Player 1 still hasn't downloaded
         const gameStateAfter = await utils.getGameState(gameId);
-        expect(gameStateAfter!.questionState).toBe(
-          QuestionState.MEDIA_DOWNLOADING
-        );
+        expect(gameStateAfter!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
       } finally {
         await utils.cleanupGameClients(setup);
       }
@@ -398,32 +321,23 @@ describe("Media Download Player Leave Edge Cases", () => {
 
   describe("All Players Leave During Media Download", () => {
     it("should transition to SHOWING when all players leave during media download", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickMediaQuestionAndWaitForGate(
-          utils,
-          showmanSocket,
-          playerSockets[0],
-          questionId
-        );
+        await pickMediaQuestionAndWaitForGate(utils, showmanSocket, playerSockets[0], questionId);
 
         // Both players leave
-        const leave1Promise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
+        const leave1Promise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
         playerSockets[0].emit(SocketIOGameEvents.LEAVE);
         await leave1Promise;
 
-        const leave2Promise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
+        const leave2Promise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
         playerSockets[1].emit(SocketIOGameEvents.LEAVE);
         await leave2Promise;
 
@@ -443,24 +357,19 @@ describe("Media Download Player Leave Edge Cases", () => {
 
   describe("Single Player Leave During Media Download", () => {
     it("should transition to SHOWING when the only player leaves (no players left to wait for)", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickMediaQuestionAndWaitForGate(
-          utils,
-          showmanSocket,
-          playerSockets[0],
-          questionId
-        );
+        await pickMediaQuestionAndWaitForGate(utils, showmanSocket, playerSockets[0], questionId);
 
         const gameStateBefore = await utils.getGameState(gameId);
-        expect(gameStateBefore!.questionState).toBe(
-          QuestionState.MEDIA_DOWNLOADING
-        );
+        expect(gameStateBefore!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
 
         // Only player leaves
         playerSockets[0].emit(SocketIOGameEvents.LEAVE);

@@ -1,49 +1,20 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { type SimplePackageQuestionDTO } from "domain/types/dto/package/SimplePackageQuestionDTO";
+import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
-import { type QuestionPickMediaPreloadEventPayload } from "domain/types/socket/events/game/QuestionPickMediaPreloadEventPayload";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
-import {
-  type GameClientSocket,
-  SocketGameTestUtils
-} from "tests/socket/game/utils/SocketIOGameTestUtils";
-
-async function pickMediaQuestionAndWaitForGate(
-  utils: SocketGameTestUtils,
-  showmanSocket: GameClientSocket,
-  observerSocket: GameClientSocket,
-  questionId: number
-): Promise<void> {
-  const preloadPromise = utils.waitForEvent<QuestionPickMediaPreloadEventPayload>(
-    observerSocket,
-    SocketIOGameEvents.QUESTION_PICK,
-    2000
-  );
-  const noQuestionDataPromise = utils.waitForNoEvent(
-    observerSocket,
-    SocketIOGameEvents.QUESTION_DATA
-  );
-
-  showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-
-  const [preload] = await Promise.all([preloadPromise, noQuestionDataPromise]);
-  expect(preload.questionFiles).not.toHaveLength(0);
-}
+import { pickMediaQuestionAndWaitForGate } from "tests/socket/game/utils/MediaDownloadGateTestUtils";
+import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 /**
  * Tests for Edge Case 1: Restrict during their turn
@@ -108,7 +79,7 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
         // Get answering player's score before restriction
         const gameBefore = await utils.getGameFromGameService(gameId);
         const answeringPlayerBefore = gameBefore.getPlayer(playerUsers[0].id, {
-          fetchDisconnected: false,
+          fetchDisconnected: false
         });
         const scoreBefore = answeringPlayerBefore!.score;
 
@@ -123,7 +94,7 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
           playerId: playerUsers[0].id,
           muted: false,
           restricted: true,
-          banned: false,
+          banned: false
         });
 
         // Should receive automatic answer result with 0 points
@@ -141,7 +112,7 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
         // Verify score is unchanged (0 points for skip)
         const gameAfter = await utils.getGameFromGameService(gameId);
         const restrictedPlayer = gameAfter.getPlayer(playerUsers[0].id, {
-          fetchDisconnected: false,
+          fetchDisconnected: false
         });
         expect(restrictedPlayer).toBeDefined();
         expect(restrictedPlayer!.score).toBe(scoreBefore);
@@ -175,23 +146,18 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
           playerId: playerUsers[0].id,
           muted: false,
           restricted: true,
-          banned: false,
+          banned: false
         });
 
         await answerResultPromise;
 
         // Verify game returned to SHOWING state
         const stateAfterRestriction = await utils.getGameState(gameId);
-        expect(stateAfterRestriction!.questionState).toBe(
-          QuestionState.SHOWING
-        );
+        expect(stateAfterRestriction!.questionState).toBe(QuestionState.SHOWING);
         expect(stateAfterRestriction!.answeringPlayer).toBeNull();
 
         // Player 1 should be able to answer
-        const answerPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.QUESTION_ANSWER
-        );
+        const answerPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_ANSWER);
         playerSockets[1].emit(SocketIOGameEvents.QUESTION_ANSWER);
         await answerPromise;
 
@@ -218,9 +184,7 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
         const turnPlayerId = gameStateBefore!.currentTurnPlayerId!;
 
         // Find the socket for the turn player
-        const turnPlayerIndex = playerUsers.findIndex(
-          (u) => u.id === turnPlayerId
-        );
+        const turnPlayerIndex = playerUsers.findIndex((u) => u.id === turnPlayerId);
         expect(turnPlayerIndex).toBeGreaterThanOrEqual(0);
 
         // Wait for both PLAYER_RESTRICTED and TURN_PLAYER_CHANGED events
@@ -234,7 +198,7 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
           playerId: turnPlayerId,
           muted: false,
           restricted: true,
-          banned: false,
+          banned: false
         });
 
         await restrictionPromise;
@@ -267,7 +231,7 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
           playerId: turnPlayerId,
           muted: false,
           restricted: true,
-          banned: false,
+          banned: false
         });
 
         await restrictionPromise;
@@ -278,9 +242,7 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
         expect(gameStateAfter!.currentTurnPlayerId).toBeNull();
 
         // Verify showman can assign turn to remaining player
-        const otherPlayerId = playerUsers.find(
-          (u) => u.id !== turnPlayerId
-        )!.id;
+        const otherPlayerId = playerUsers.find((u) => u.id !== turnPlayerId)!.id;
         await utils.setCurrentTurnPlayer(showmanSocket, otherPlayerId);
 
         const gameStateWithTurn = await utils.getGameState(gameId);
@@ -293,50 +255,43 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
 
   describe("Restriction During Media Download", () => {
     it("should transition to SHOWING when restricting the last non-ready player during media download", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickMediaQuestionAndWaitForGate(
-          utils,
-          showmanSocket,
-          playerSockets[0],
-          questionId
-        );
+        await pickMediaQuestionAndWaitForGate(utils, showmanSocket, playerSockets[0], questionId);
 
         const mediaDownloadState = await utils.getGameState(gameId);
-        expect(mediaDownloadState!.questionState).toBe(
-          QuestionState.MEDIA_DOWNLOADING
-        );
+        expect(mediaDownloadState!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
 
         // Player 0 downloads media
-        const status1Promise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            playerSockets[1],
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          playerSockets[1],
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
         playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         const status1 = await status1Promise;
         expect(status1.allPlayersReady).toBe(false);
 
         // Set up listener for final status (should come after restriction)
-        const finalStatusPromise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const finalStatusPromise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
 
         // Restrict player 1 (who hasn't downloaded yet)
         showmanSocket.emit(SocketIOGameEvents.PLAYER_RESTRICTED, {
           playerId: playerUsers[1].id,
           muted: false,
           restricted: true,
-          banned: false,
+          banned: false
         });
 
         // Should receive status indicating all remaining players are ready
@@ -353,27 +308,23 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
     });
 
     it("should NOT transition when restricting a player but other players still not ready", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickMediaQuestionAndWaitForGate(
-          utils,
-          showmanSocket,
-          playerSockets[0],
-          questionId
-        );
+        await pickMediaQuestionAndWaitForGate(utils, showmanSocket, playerSockets[0], questionId);
 
         // Player 0 downloads media
-        const status1Promise =
-          utils.waitForEvent<MediaDownloadStatusBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-            2000
-          );
+        const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
         playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
         await status1Promise;
 
@@ -387,16 +338,86 @@ describe("Player Restriction State Cleanup Edge Cases", () => {
           playerId: playerUsers[1].id,
           muted: false,
           restricted: true,
-          banned: false,
+          banned: false
         });
 
         await restrictionPromise;
 
         // Player 2 still hasn't downloaded, so should remain in MEDIA_DOWNLOADING
         const gameStateAfter = await utils.getGameState(gameId);
-        expect(gameStateAfter!.questionState).toBe(
-          QuestionState.MEDIA_DOWNLOADING
+        expect(gameStateAfter!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
+      } finally {
+        await utils.cleanupGameClients(setup);
+      }
+    });
+
+    it("should preserve role filtering when banning the last non-ready player during media download", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
+      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+
+      try {
+        await utils.startGame(showmanSocket);
+        const questionId = await utils.getFirstAvailableQuestionId(gameId);
+
+        const showmanQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA,
+          2000
         );
+        const playerQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_DATA,
+          2000
+        );
+
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
+
+        const [showmanQuestionData, playerQuestionData] = await Promise.all([
+          showmanQuestionDataPromise,
+          playerQuestionDataPromise
+        ]);
+
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBeDefined();
+        expect("answerText" in (playerQuestionData.data as SimplePackageQuestionDTO)).toBe(false);
+
+        const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
+        playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+        await status1Promise;
+
+        const mediaReadyPromise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          2000
+        );
+        const noShowmanQuestionDataPromise = utils.waitForNoEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const noPlayerQuestionDataPromise = utils.waitForNoEvent(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_DATA
+        );
+
+        showmanSocket.emit(SocketIOGameEvents.PLAYER_RESTRICTED, {
+          playerId: playerUsers[1].id,
+          muted: false,
+          restricted: false,
+          banned: true
+        });
+
+        const [mediaReady] = await Promise.all([
+          mediaReadyPromise,
+          noShowmanQuestionDataPromise,
+          noPlayerQuestionDataPromise
+        ]);
+
+        expect(mediaReady.allPlayersReady).toBe(true);
       } finally {
         await utils.cleanupGameClients(setup);
       }

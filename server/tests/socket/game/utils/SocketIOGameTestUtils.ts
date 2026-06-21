@@ -13,7 +13,7 @@ import { ErrorEventPayload } from "domain/types/socket/events/ErrorEventPayload"
 import { GameStartEventPayload } from "domain/types/socket/events/game/GameStartEventPayload";
 import {
   GameJoinOutputData,
-  PlayerReadinessBroadcastData,
+  PlayerReadinessBroadcastData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
@@ -41,6 +41,12 @@ export interface GameTestSetup {
   playerUsers: User[];
 }
 
+export interface GameTestPackageOptions {
+  includeFinalRound?: boolean;
+  additionalSimpleQuestions?: number;
+  includeMediaQuestionFiles?: boolean;
+}
+
 export class SocketGameTestUtils {
   private serverUrl: string;
 
@@ -57,15 +63,8 @@ export class SocketGameTestUtils {
     this.eventUtils = new SocketGameTestEventUtils();
     this.userUtils = new SocketGameTestUserUtils(this.serverUrl);
     this.stateUtils = new SocketGameTestStateUtils();
-    this.lobbyUtils = new SocketGameTestLobbyUtils(
-      this.userUtils,
-      this.eventUtils
-    );
-    this.flowUtils = new SocketGameTestFlowUtils(
-      this.stateUtils,
-      this.eventUtils,
-      this.userUtils
-    );
+    this.lobbyUtils = new SocketGameTestLobbyUtils(this.userUtils, this.eventUtils);
+    this.flowUtils = new SocketGameTestFlowUtils(this.stateUtils, this.eventUtils, this.userUtils);
   }
 
   // --- Lobby / Setup Delegates ---
@@ -92,12 +91,7 @@ export class SocketGameTestUtils {
     role: PlayerRole,
     password?: string
   ): Promise<GameJoinOutputData> {
-    return this.lobbyUtils.joinSpecificGameWithData(
-      socket,
-      gameId,
-      role,
-      password
-    );
+    return this.lobbyUtils.joinSpecificGameWithData(socket, gameId, role, password);
   }
 
   public async joinGameWithPasswordExpectError(
@@ -106,12 +100,7 @@ export class SocketGameTestUtils {
     role: PlayerRole,
     password?: string
   ): Promise<ErrorEventPayload> {
-    return this.lobbyUtils.joinGameWithPasswordExpectError(
-      socket,
-      gameId,
-      role,
-      password
-    );
+    return this.lobbyUtils.joinGameWithPasswordExpectError(socket, gameId, role, password);
   }
 
   public async joinGameWithSlot(
@@ -129,12 +118,7 @@ export class SocketGameTestUtils {
     role: PlayerRole,
     targetSlot: number | null
   ): Promise<any> {
-    return this.lobbyUtils.joinGameWithSlotAndData(
-      socket,
-      gameId,
-      role,
-      targetSlot
-    );
+    return this.lobbyUtils.joinGameWithSlotAndData(socket, gameId, role, targetSlot);
   }
 
   public async leaveGame(socket: GameClientSocket): Promise<void> {
@@ -153,10 +137,7 @@ export class SocketGameTestUtils {
     return this.userUtils.createAndLoginUser(userRepo, app, username);
   }
 
-  public async loginExistingUser(
-    app: Express,
-    userId: number
-  ): Promise<{ cookie: string }> {
+  public async loginExistingUser(app: Express, userId: number): Promise<{ cookie: string }> {
     return this.userUtils.loginExistingUser(app, userId);
   }
 
@@ -183,48 +164,30 @@ export class SocketGameTestUtils {
     app: Express,
     playerCount: number,
     spectatorCount: number,
-    includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0,
-    includeMediaQuestionFiles: boolean = false
+    packageOptions: GameTestPackageOptions = {}
   ): Promise<GameTestSetup> {
     return this.lobbyUtils.setupGameTestEnvironment(
       userRepo,
       app,
       playerCount,
       spectatorCount,
-      includeFinalRound,
-      additionalSimpleQuestions,
-      includeMediaQuestionFiles
+      packageOptions
     );
   }
 
   async createGameWithShowman(
     app: Express,
     userRepo: Repository<User>,
-    includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0,
-    includeMediaQuestionFiles: boolean = false
+    packageOptions: GameTestPackageOptions = {}
   ): Promise<{ socket: ClientSocket; gameId: string; user: User }> {
-    return this.lobbyUtils.createGameWithShowman(
-      app,
-      userRepo,
-      includeFinalRound,
-      additionalSimpleQuestions,
-      includeMediaQuestionFiles
-    );
+    return this.lobbyUtils.createGameWithShowman(app, userRepo, packageOptions);
   }
 
-  public async deleteGame(
-    app: Express,
-    gameId: string,
-    cookie: string[]
-  ): Promise<void> {
+  public async deleteGame(app: Express, gameId: string, cookie: string[]): Promise<void> {
     return this.lobbyUtils.deleteGame(app, gameId, cookie);
   }
 
-  public async getSocketUserData(
-    socket: GameClientSocket
-  ): Promise<SocketRedisUserData | null> {
+  public async getSocketUserData(socket: GameClientSocket): Promise<SocketRedisUserData | null> {
     return this.userUtils.getSocketUserData(socket);
   }
 
@@ -244,9 +207,7 @@ export class SocketGameTestUtils {
 
   // --- Flow Delegates ---
 
-  public async startGame(
-    showmanSocket: GameClientSocket
-  ): Promise<GameStartEventPayload> {
+  public async startGame(showmanSocket: GameClientSocket): Promise<GameStartEventPayload> {
     return this.lobbyUtils.startGame(showmanSocket);
   }
 
@@ -272,9 +233,7 @@ export class SocketGameTestUtils {
     return this.flowUtils.answerQuestion(playerSocket, showmanSocket);
   }
 
-  public async progressToNextRound(
-    showmanSocket: GameClientSocket
-  ): Promise<void> {
+  public async progressToNextRound(showmanSocket: GameClientSocket): Promise<void> {
     return this.flowUtils.progressToNextRound(showmanSocket);
   }
 
@@ -368,11 +327,7 @@ export class SocketGameTestUtils {
     return this.stateUtils.updateGame(game);
   }
 
-  public async setPlayerScore(
-    gameId: string,
-    playerId: number,
-    score: number
-  ): Promise<void> {
+  public async setPlayerScore(gameId: string, playerId: number, score: number): Promise<void> {
     return this.stateUtils.setPlayerScore(gameId, playerId, score);
   }
 
@@ -407,11 +362,7 @@ export class SocketGameTestUtils {
     gameId: string,
     secretTransferType?: PackageQuestionTransferType
   ): Promise<GameStateQuestionDTO | null> {
-    return this.stateUtils.findQuestionByType(
-      questionType,
-      gameId,
-      secretTransferType
-    );
+    return this.stateUtils.findQuestionByType(questionType, gameId, secretTransferType);
   }
 
   public async findAllQuestionsByType(
@@ -419,11 +370,7 @@ export class SocketGameTestUtils {
     questionType: PackageQuestionType,
     gameId: string
   ): Promise<GameStateQuestionDTO[]> {
-    return this.stateUtils.findAllQuestionsByType(
-      gameState,
-      questionType,
-      gameId
-    );
+    return this.stateUtils.findAllQuestionsByType(gameState, questionType, gameId);
   }
 
   public async getCurrentRoundQuestionCount(gameId: string): Promise<number> {

@@ -731,7 +731,9 @@ describe("Game Lock and Queue Mechanics", () => {
     });
 
     it("should drain queued skip/unskip toggles in FIFO order without finishing question", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } = setup;
 
       let showmanSkipEvents: EventCollector<
@@ -957,7 +959,9 @@ describe("Game Lock and Queue Mechanics", () => {
 
   describe("Queued Media Download", () => {
     it("should drain media download confirmations in FIFO order through the showing transition", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } = setup;
 
       let showmanStatusEvents: EventCollector<MediaDownloadStatusBroadcastData> | null = null;
@@ -1053,7 +1057,9 @@ describe("Game Lock and Queue Mechanics", () => {
 
   describe("Timer Expiration Queue Drain", () => {
     it("should process a queued media download timer expiration before the drain-trigger action", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } = setup;
 
       let showmanDrainEvents: EventCollector<

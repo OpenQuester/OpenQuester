@@ -56,7 +56,9 @@ describe("Game Statistics Persistence Tests", () => {
 
   it("should record statistics to database when game ends", async () => {
     // Setup game with 1 player
-    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
+    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, {
+      includeFinalRound: false
+    });
     const { showmanSocket, playerSockets } = setup;
 
     try {
@@ -170,17 +172,16 @@ describe("Game Statistics Persistence Tests", () => {
 
   it("should record statistics to database when game ends via skip question force", async () => {
     // Setup game with 1 player
-    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
+    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, {
+      includeFinalRound: false
+    });
     const { showmanSocket, playerSockets, gameId } = setup;
 
     try {
       // Start game
       await utils.startGame(showmanSocket);
 
-      const nextRoundPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.NEXT_ROUND
-      );
+      const nextRoundPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.NEXT_ROUND);
       showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
       await nextRoundPromise;
 
@@ -200,12 +201,7 @@ describe("Game Statistics Persistence Tests", () => {
           break;
         }
 
-        await utils.pickAndCompleteQuestion(
-          showmanSocket,
-          playerSockets,
-          questionIds[0],
-          false
-        );
+        await utils.pickAndCompleteQuestion(showmanSocket, playerSockets, questionIds[0], false);
       }
 
       // Wait for game finish event

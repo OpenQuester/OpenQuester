@@ -1,7 +1,6 @@
 import { GAME_QUESTION_ANSWER_TIME } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameStateTimer } from "domain/entities/game/GameStateTimer";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { MediaDownloadLogic } from "domain/logic/question/MediaDownloadLogic";
 import { TransitionGuards } from "domain/state-machine/guards/TransitionGuards";
 import { BaseTransitionHandler } from "domain/state-machine/handlers/TransitionHandler";
@@ -11,11 +10,10 @@ import {
   MutationResult,
   TimerResult,
   TransitionContext,
-  TransitionTrigger,
+  TransitionTrigger
 } from "domain/state-machine/types";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { BroadcastEvent } from "domain/types/service/ServiceResult";
-import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 
 /**
@@ -38,12 +36,7 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
 
     if (getGamePhase(game) !== this.fromPhase) return false;
 
-    if (
-      !TransitionGuards.canTransitionInRegularRound(
-        game,
-        QuestionState.MEDIA_DOWNLOADING
-      )
-    ) {
+    if (!TransitionGuards.canTransitionInRegularRound(game, QuestionState.MEDIA_DOWNLOADING)) {
       return false;
     }
 
@@ -56,10 +49,7 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
       return (questionFiles?.length ?? 0) === 0;
     }
 
-    if (
-      trigger === TransitionTrigger.USER_ACTION ||
-      trigger === TransitionTrigger.PLAYER_LEFT
-    ) {
+    if (trigger === TransitionTrigger.USER_ACTION || trigger === TransitionTrigger.PLAYER_LEFT) {
       return MediaDownloadLogic.areAllPlayersReady(game);
     }
 
@@ -84,8 +74,8 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
 
     return {
       data: {
-        allPlayersReady: MediaDownloadLogic.areAllPlayersReady(game),
-      },
+        allPlayersReady: MediaDownloadLogic.areAllPlayersReady(game)
+      }
     };
   }
 
@@ -106,38 +96,18 @@ export class MediaDownloadingToShowingHandler extends BaseTransitionHandler {
           op: "set",
           key: timerKey(game.id),
           value: JSON.stringify(timer.value()!),
-          pxTtl: GAME_QUESTION_ANSWER_TIME,
-        },
-      ],
+          pxTtl: GAME_QUESTION_ANSWER_TIME
+        }
+      ]
     };
   }
 
-  /**
-   * Reveals question data only after the media-download gate opens.
-   */
+  /** Question data is sent when the question is picked; this transition only opens the media gate. */
   protected collectBroadcasts(
-    ctx: TransitionContext,
+    _ctx: TransitionContext,
     _mutationResult: MutationResult,
-    timerResult: TimerResult
+    _timerResult: TimerResult
   ): BroadcastEvent[] {
-    const question = ctx.resources?.questionWithTheme?.question;
-    const timer = timerResult.timer;
-
-    if (!question || !timer) {
-      return [];
-    }
-
-    return [
-      {
-        event: SocketIOGameEvents.QUESTION_DATA,
-        data: {
-          data: question,
-          timer,
-          questionEligiblePlayers: ctx.game.getQuestionEligiblePlayers()
-        } satisfies GameQuestionDataEventPayload,
-        room: ctx.game.id,
-        roleFilter: true
-      }
-    ];
+    return [];
   }
 }

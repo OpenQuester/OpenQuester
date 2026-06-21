@@ -57,7 +57,7 @@ export class TestUtils {
       this.app,
       options.playersCount,
       1, // 1 spectator
-      true // include final round
+      { includeFinalRound: true }
     );
 
     // Start the game

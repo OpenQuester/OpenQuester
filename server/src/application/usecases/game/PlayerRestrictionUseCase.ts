@@ -17,6 +17,7 @@ import {
   type PlayerRestrictionBroadcastData,
   type PlayerRestrictionInputData
 } from "domain/types/socket/events/SocketEventInterfaces";
+import { SocketEventBroadcast } from "domain/types/socket/SocketEventBroadcast";
 import { GameValidator } from "domain/validators/GameValidator";
 
 /**
@@ -56,8 +57,8 @@ export class PlayerRestrictionUseCase implements GameActionHandler<
     });
 
     const mutations: DataMutation[] = [];
-    // TODO: Fix broadcasts and align them to one unified interface. Currently have BroadcastEvent[] and SocketEventBroadcast[]
-    let broadcasts;
+    let serviceBroadcastMutations: DataMutation[] = [];
+    let broadcasts: SocketEventBroadcast<unknown>[] = [];
 
     if (mutation.shouldBan) {
       const leaveResult = await this.playerLeaveService.processLeave(game, targetPlayerId, {
@@ -72,7 +73,11 @@ export class PlayerRestrictionUseCase implements GameActionHandler<
         restrictions: payload
       });
 
-      broadcasts = [...leaveResult.broadcasts, ...banResult.broadcasts];
+      serviceBroadcastMutations = DataMutationConverter.mutationFromServiceBroadcasts(
+        leaveResult.broadcasts,
+        game.id
+      );
+      broadcasts = banResult.broadcasts;
 
       mutations.push({
         type: DataMutationType.DISCONNECT_SOCKET,
@@ -114,6 +119,7 @@ export class PlayerRestrictionUseCase implements GameActionHandler<
     }
 
     mutations.push(DataMutationConverter.saveGameMutation(game));
+    mutations.push(...serviceBroadcastMutations);
     mutations.push(...DataMutationConverter.mutationFromSocketBroadcasts(broadcasts));
 
     const broadcastData: PlayerRestrictionBroadcastData = {

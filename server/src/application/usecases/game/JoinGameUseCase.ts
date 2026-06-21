@@ -5,24 +5,22 @@ import { type Game } from "domain/entities/game/Game";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { DataMutationType } from "domain/enums/DataMutationType";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
-import { PlayerRole } from "domain/types/game/PlayerRole";
-import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { HttpStatus } from "domain/enums/HttpStatus";
+import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { ClientError } from "domain/errors/ClientError";
-import { SocketBroadcastTarget } from "domain/enums/SocketBroadcastTarget";
 import { GameJoinLogic } from "domain/logic/game/GameJoinLogic";
 import { type ActionExecutionContext } from "domain/types/action/ActionExecutionContext";
 import { type ActionHandlerResult } from "domain/types/action/ActionHandlerResult";
-import {
-  DataMutationConverter,
-  type BroadcastMutation,
-} from "domain/types/action/DataMutation";
+import { DataMutationConverter, type BroadcastMutation } from "domain/types/action/DataMutation";
 import { type GameActionHandler } from "domain/types/action/GameActionHandler";
 import { type GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
+import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PlayerRole } from "domain/types/game/PlayerRole";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import {
   type GameJoinInputData,
-  type GameJoinOutputData,
+  type GameJoinOutputData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameStateValidator } from "domain/validators/GameStateValidator";
 import { GameValidator } from "domain/validators/GameValidator";
@@ -32,9 +30,7 @@ import { GameValidator } from "domain/validators/GameValidator";
  *
  * Total RT cost inside the Redis lock: 2 (user DB read + chat read).
  */
-export class JoinGameUseCase
-  implements GameActionHandler<GameJoinInputData, GameJoinOutputData>
-{
+export class JoinGameUseCase implements GameActionHandler<GameJoinInputData, GameJoinOutputData> {
   constructor(
     private readonly userService: UserService,
     private readonly socketIOChatService: SocketIOChatService
@@ -71,10 +67,7 @@ export class JoinGameUseCase
       }
     });
     if (!user) {
-      throw new ClientError(
-        ClientResponse.USER_NOT_FOUND,
-        HttpStatus.NOT_FOUND
-      );
+      throw new ClientError(ClientResponse.USER_NOT_FOUND, HttpStatus.NOT_FOUND);
     }
 
     // 4. Check reconnect state and run domain validation (0 RT)
@@ -88,7 +81,7 @@ export class JoinGameUseCase
       role: payload.role,
       existingPlayer,
       targetSlot: payload.targetSlot,
-      password: payload.password ?? undefined,
+      password: payload.password ?? undefined
     });
 
     // 5. Mutate in-memory game state (0 RT)
@@ -110,7 +103,7 @@ export class JoinGameUseCase
       meta: { title: game.title },
       players: game.players.map((p) => p.toDTO()),
       gameState: this.buildJoinVisibleGameState(game, player.role),
-      chatMessages,
+      chatMessages
     };
 
     // 8. Build broadcasts
@@ -121,7 +114,7 @@ export class JoinGameUseCase
       event: SocketIOGameEvents.GAME_DATA,
       data: gameJoinData,
       target: SocketBroadcastTarget.SOCKET,
-      socketId,
+      socketId
     };
 
     // 9. Declare all side-effects as mutations
@@ -135,37 +128,25 @@ export class JoinGameUseCase
         DataMutationConverter.saveGameMutation(game),
 
         // Broadcast JOIN to all players in the room
-        ...DataMutationConverter.mutationFromSocketBroadcasts(
-          joinResult.broadcasts
-        ),
+        ...DataMutationConverter.mutationFromSocketBroadcasts(joinResult.broadcasts),
 
         // Send full game snapshot to the joining socket
         gameDataBroadcast,
 
         // Save gameId for socket session
-        DataMutationConverter.updateSocketSession(
-          socketId,
-          user.id,
-          payload.gameId
-        ),
+        DataMutationConverter.updateSocketSession(socketId, user.id, payload.gameId),
 
         // Player statistics: init session for new players, clear leftAt for
         // reconnecting players.
         ...(GameJoinLogic.shouldInitializeStats(existingPlayer, payload.role)
-          ? [
-              DataMutationConverter.initPlayerStatsSession(
-                payload.gameId,
-                user.id,
-                new Date()
-              ),
-            ]
+          ? [DataMutationConverter.initPlayerStatsSession(payload.gameId, user.id, new Date())]
           : []),
 
         ...(GameJoinLogic.shouldClearLeftAt(existingPlayer, payload.role)
           ? [DataMutationConverter.clearPlayerLeftAt(payload.gameId, user.id)]
-          : []),
+          : [])
       ],
-      broadcastGame: game,
+      broadcastGame: game
     };
   }
 
@@ -173,15 +154,24 @@ export class JoinGameUseCase
     const gameState = game.gameState;
     const currentRound = this.buildJoinVisibleCurrentRound(gameState, joinedRole);
     const finalRoundData = this.buildJoinVisibleFinalRoundData(gameState);
+    const currentQuestion =
+      gameState.questionState === QuestionState.MEDIA_DOWNLOADING
+        ? null
+        : gameState.currentQuestion;
 
-    if (currentRound === gameState.currentRound && finalRoundData === gameState.finalRoundData) {
+    if (
+      currentRound === gameState.currentRound &&
+      finalRoundData === gameState.finalRoundData &&
+      currentQuestion === gameState.currentQuestion
+    ) {
       return gameState;
     }
 
     return {
       ...gameState,
       currentRound,
-      finalRoundData,
+      currentQuestion,
+      finalRoundData
     };
   }
 
@@ -200,14 +190,12 @@ export class JoinGameUseCase
       ...currentRound,
       themes: currentRound.themes.map((theme) => ({
         ...theme,
-        questions: [],
-      })),
+        questions: []
+      }))
     };
   }
 
-  private buildJoinVisibleFinalRoundData(
-    gameState: GameStateDTO
-  ): GameStateDTO["finalRoundData"] {
+  private buildJoinVisibleFinalRoundData(gameState: GameStateDTO): GameStateDTO["finalRoundData"] {
     const finalRoundData = gameState.finalRoundData;
 
     if (finalRoundData?.phase !== FinalRoundPhase.ANSWERING) {
@@ -219,8 +207,8 @@ export class JoinGameUseCase
       // Submitted final answers stay private until review reveals all answers.
       answers: finalRoundData.answers.map((answer) => ({
         ...answer,
-        answer: "",
-      })),
+        answer: ""
+      }))
     };
   }
 }

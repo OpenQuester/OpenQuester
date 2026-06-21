@@ -6,9 +6,9 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
-import { type QuestionPickMediaPreloadEventPayload } from "domain/types/socket/events/game/QuestionPickMediaPreloadEventPayload";
 import { RedisConfig } from "shared/config/RedisConfig";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
@@ -22,33 +22,26 @@ import {
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { TestUtils } from "tests/utils/TestUtils";
 
-async function pickQuestionAndExpectPreload(
+async function pickQuestionAndExpectMediaData(
   utils: SocketGameTestUtils,
   pickerSocket: GameClientSocket,
   observerSocket: GameClientSocket,
   questionId: number
-): Promise<QuestionPickMediaPreloadEventPayload> {
-  const preloadPromise = utils.waitForEvent<QuestionPickMediaPreloadEventPayload>(
-    observerSocket,
-    SocketIOGameEvents.QUESTION_PICK
-  );
-  const noQuestionDataBeforeGatePromise = utils.waitForNoEvent(
+): Promise<GameQuestionDataEventPayload> {
+  const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
     observerSocket,
     SocketIOGameEvents.QUESTION_DATA
   );
 
   pickerSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
 
-  const [preloadData] = await Promise.all([
-    preloadPromise,
-    noQuestionDataBeforeGatePromise
-  ]);
+  const questionData = await questionDataPromise;
 
-  expect(preloadData.questionId).toBe(questionId);
-  expect(preloadData.questionFiles).not.toHaveLength(0);
-  expect(preloadData.timer).toBeDefined();
+  expect(questionData.data.id).toBe(questionId);
+  expect(questionData.data.questionFiles).not.toHaveLength(0);
+  expect(questionData.timer).toBeDefined();
 
-  return preloadData;
+  return questionData;
 }
 
 async function pickQuestionWithoutFilesAndExpectImmediateReveal(
@@ -56,53 +49,28 @@ async function pickQuestionWithoutFilesAndExpectImmediateReveal(
   pickerSocket: GameClientSocket,
   observerSocket: GameClientSocket,
   questionId: number
-): Promise<{
-  preload: QuestionPickMediaPreloadEventPayload;
-  reveal: GameQuestionDataEventPayload;
-}> {
-  const events: SocketIOGameEvents[] = [];
-  const preloadPromise = utils
-    .waitForEvent<QuestionPickMediaPreloadEventPayload>(
-      observerSocket,
-      SocketIOGameEvents.QUESTION_PICK
-    )
-    .then((data) => {
-      events.push(SocketIOGameEvents.QUESTION_PICK);
-      return data;
-    });
-  const revealPromise = utils
-    .waitForEvent<GameQuestionDataEventPayload>(
-      observerSocket,
-      SocketIOGameEvents.QUESTION_DATA
-    )
-    .then((data) => {
-      events.push(SocketIOGameEvents.QUESTION_DATA);
-      return data;
-    });
+): Promise<GameQuestionDataEventPayload> {
+  const revealPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+    observerSocket,
+    SocketIOGameEvents.QUESTION_DATA
+  );
 
   pickerSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
 
-  const [preload, reveal] = await Promise.all([preloadPromise, revealPromise]);
+  const reveal = await revealPromise;
 
-  expect(events).toEqual([
-    SocketIOGameEvents.QUESTION_PICK,
-    SocketIOGameEvents.QUESTION_DATA
-  ]);
-  expect(preload.questionId).toBe(questionId);
-  expect(preload.questionFiles).toEqual([]);
-  expect(preload.timer).toBeDefined();
+  expect(reveal.data.id).toBe(questionId);
+  expect(reveal.data.questionFiles ?? []).toEqual([]);
+  expect(reveal.timer).toBeDefined();
 
-  return { preload, reveal };
+  return reveal;
 }
 
 function waitForQuestionReveal(
   utils: SocketGameTestUtils,
   socket: GameClientSocket
-): Promise<GameQuestionDataEventPayload> {
-  return utils.waitForEvent<GameQuestionDataEventPayload>(
-    socket,
-    SocketIOGameEvents.QUESTION_DATA
-  );
+): Promise<void> {
+  return utils.waitForNoEvent(socket, SocketIOGameEvents.QUESTION_DATA);
 }
 
 describe("Media Download Flow Tests", () => {
@@ -143,19 +111,18 @@ describe("Media Download Flow Tests", () => {
 
   describe("Single Player Media Download", () => {
     it("should emit empty question-pick before immediate reveal when question has no files", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
       const playerSocket = playerSockets[0];
 
       try {
         await utils.startGame(showmanSocket);
 
-        const questionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.NO_RISK
-        );
+        const questionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.NO_RISK);
 
-        const { reveal } = await pickQuestionWithoutFilesAndExpectImmediateReveal(
+        const reveal = await pickQuestionWithoutFilesAndExpectImmediateReveal(
           utils,
           showmanSocket,
           playerSocket,
@@ -172,7 +139,9 @@ describe("Media Download Flow Tests", () => {
     });
 
     it("should transition to SHOWING state when single player downloads media", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
       const playerSocket = playerSockets[0];
 
@@ -181,7 +150,7 @@ describe("Media Download Flow Tests", () => {
 
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSocket, questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSocket, questionId);
 
         const gameStateBefore = await utils.getGameState(gameId);
         expect(gameStateBefore!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
@@ -209,7 +178,9 @@ describe("Media Download Flow Tests", () => {
     });
 
     it("should use MEDIA_DOWNLOADING state before transition", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
       const playerSocket = playerSockets[0];
 
@@ -217,7 +188,7 @@ describe("Media Download Flow Tests", () => {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSocket, questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSocket, questionId);
 
         const gameState = await utils.getGameState(gameId);
         expect(gameState!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
@@ -229,14 +200,16 @@ describe("Media Download Flow Tests", () => {
 
   describe("Multiple Players Media Download", () => {
     it("should wait for all players to download before transitioning to SHOWING", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const gameStateBefore = await utils.getGameState(gameId);
         expect(gameStateBefore!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
@@ -288,14 +261,16 @@ describe("Media Download Flow Tests", () => {
     });
 
     it("should broadcast status updates to all clients when each player downloads", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const showmanStatusPromise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
           showmanSocket,
@@ -321,14 +296,16 @@ describe("Media Download Flow Tests", () => {
     });
 
     it("should handle out-of-order download confirmations correctly", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const status3Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
           showmanSocket,
@@ -374,14 +351,16 @@ describe("Media Download Flow Tests", () => {
      * 3. State transitions to SHOWING (verified via waitForCondition)
      */
     it("should force all players ready and transition to SHOWING on timeout", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const gameStateBefore = await utils.getGameState(gameId);
         expect(gameStateBefore!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
@@ -409,12 +388,10 @@ describe("Media Download Flow Tests", () => {
         // Wait for state to transition to SHOWING
         // The state should transition after the MEDIA_DOWNLOAD_STATUS event is received
         // Allow extra time for Redis state propagation
-        const stateTransitioned = await testUtils.waitForCondition(
-          async () => {
-            const state = await utils.getGameState(gameId);
-            return state!.questionState === QuestionState.SHOWING;
-          }
-        );
+        const stateTransitioned = await testUtils.waitForCondition(async () => {
+          const state = await utils.getGameState(gameId);
+          return state!.questionState === QuestionState.SHOWING;
+        });
         expect(stateTransitioned).toBe(true);
       } finally {
         await utils.cleanupGameClients(setup);
@@ -422,14 +399,16 @@ describe("Media Download Flow Tests", () => {
     });
 
     it("should handle timeout when some players downloaded and others did not", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
           playerSockets[0],
@@ -460,12 +439,10 @@ describe("Media Download Flow Tests", () => {
         // Wait for state to transition to SHOWING
         // The state should transition after the MEDIA_DOWNLOAD_STATUS event is received
         // Allow extra time for Redis state propagation
-        const stateTransitioned = await testUtils.waitForCondition(
-          async () => {
-            const state = await utils.getGameState(gameId);
-            return state!.questionState === QuestionState.SHOWING;
-          }
-        );
+        const stateTransitioned = await testUtils.waitForCondition(async () => {
+          const state = await utils.getGameState(gameId);
+          return state!.questionState === QuestionState.SHOWING;
+        });
         expect(stateTransitioned).toBe(true);
       } finally {
         await utils.cleanupGameClients(setup);
@@ -473,14 +450,16 @@ describe("Media Download Flow Tests", () => {
     });
 
     it("should not send timeout event if all players downloaded before timeout", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
           playerSockets[0],
@@ -515,8 +494,10 @@ describe("Media Download Flow Tests", () => {
   });
 
   describe("Edge Cases", () => {
-    it("should send preload without question data to player joining during media download", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true, 0, true);
+    it("should send question data to player joining during media download without exposing it in game data", async () => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
       let lateSocket: GameClientSocket | undefined;
 
@@ -524,24 +505,25 @@ describe("Media Download Flow Tests", () => {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const lateClient = await utils.createGameClient(app, userRepo);
         lateSocket = lateClient.socket;
-        const preloadPromise = utils.waitForEvent<QuestionPickMediaPreloadEventPayload>(
-          lateSocket,
-          SocketIOGameEvents.QUESTION_PICK
-        );
-        const noQuestionDataPromise = utils.waitForNoEvent(
+        const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
           lateSocket,
           SocketIOGameEvents.QUESTION_DATA
         );
 
-        await utils.joinGame(lateSocket, gameId);
+        const joinedGameData = await utils.joinSpecificGameWithData(
+          lateSocket,
+          gameId,
+          PlayerRole.PLAYER
+        );
 
-        const [preload] = await Promise.all([preloadPromise, noQuestionDataPromise]);
-        expect(preload.questionId).toBe(questionId);
-        expect(preload.questionFiles).not.toHaveLength(0);
+        const questionData = await questionDataPromise;
+        expect(joinedGameData.gameState.currentQuestion).toBeNull();
+        expect(questionData.data.id).toBe(questionId);
+        expect(questionData.data.questionFiles).not.toHaveLength(0);
       } finally {
         if (lateSocket) {
           await utils.disconnectAndCleanup(lateSocket);
@@ -551,14 +533,16 @@ describe("Media Download Flow Tests", () => {
     });
 
     it("should handle duplicate MEDIA_DOWNLOADED events from same player", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const status1Promise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
           playerSockets[0],
@@ -587,7 +571,9 @@ describe("Media Download Flow Tests", () => {
     });
 
     it("should not process MEDIA_DOWNLOADED when not in MEDIA_DOWNLOADING state", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
@@ -606,14 +592,16 @@ describe("Media Download Flow Tests", () => {
     });
 
     it("should handle spectators not affecting media download state", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const statusPromise = utils.waitForEvent<MediaDownloadStatusBroadcastData>(
           playerSockets[0],
@@ -639,14 +627,16 @@ describe("Media Download Flow Tests", () => {
 
   describe("Timer Integration", () => {
     it("should start question timer only after all players downloaded media", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const gameStateDownloading = await utils.getGameState(gameId);
         expect(gameStateDownloading!.timer).toBeDefined();
@@ -680,14 +670,16 @@ describe("Media Download Flow Tests", () => {
     });
 
     it("should have different timer durations for MEDIA_DOWNLOADING and SHOWING", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true, 0, true);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeMediaQuestionFiles: true
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         await utils.startGame(showmanSocket);
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
 
-        await pickQuestionAndExpectPreload(utils, showmanSocket, playerSockets[0], questionId);
+        await pickQuestionAndExpectMediaData(utils, showmanSocket, playerSockets[0], questionId);
 
         const gameStateDownloading = await utils.getGameState(gameId);
         const downloadingTimerDuration = gameStateDownloading!.timer?.durationMs;

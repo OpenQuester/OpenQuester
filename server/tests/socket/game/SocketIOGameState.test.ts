@@ -1,18 +1,8 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameJoinInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
@@ -72,18 +62,13 @@ describe("Socket Game State Tests", () => {
           reject(new Error("Test timeout"));
         }, 5000);
 
-        playerSockets[0].on(
-          SocketIOGameEvents.NEXT_ROUND,
-          (data: GameNextRoundEventPayload) => {
-            clearTimeout(timeout);
-            expect(data.gameState).toBeDefined();
-            expect(data.gameState.currentRound).toBeDefined();
-            expect(data.gameState.currentRound?.order).toBe(
-              orderBeforeSkip + 1
-            );
-            resolve();
-          }
-        );
+        playerSockets[0].on(SocketIOGameEvents.NEXT_ROUND, (data: GameNextRoundEventPayload) => {
+          clearTimeout(timeout);
+          expect(data.gameState).toBeDefined();
+          expect(data.gameState.currentRound).toBeDefined();
+          expect(data.gameState.currentRound?.order).toBe(orderBeforeSkip + 1);
+          resolve();
+        });
 
         // Progress to next round
         showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
@@ -93,7 +78,9 @@ describe("Socket Game State Tests", () => {
     });
 
     it("should handle game finish", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, false);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeFinalRound: false
+      });
       const { showmanSocket, playerSockets } = setup;
 
       // Start game
@@ -123,23 +110,16 @@ describe("Socket Game State Tests", () => {
     });
 
     it("should handle game finish via all questions played", async () => {
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0,
-        false
-      );
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeFinalRound: false
+      });
       const { showmanSocket, playerSockets, gameId } = setup;
 
       try {
         // Start game
         await utils.startGame(showmanSocket);
 
-        const nextRoundPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.NEXT_ROUND
-        );
+        const nextRoundPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.NEXT_ROUND);
         showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
         await nextRoundPromise;
 
@@ -178,13 +158,9 @@ describe("Socket Game State Tests", () => {
 
     it("should handle game finish via all questions played (last question skipped)", async () => {
       // Setup game WITHOUT final round so completion of regular questions finishes the game
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0,
-        false
-      );
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, {
+        includeFinalRound: false
+      });
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       try {
@@ -225,10 +201,7 @@ describe("Socket Game State Tests", () => {
         }
 
         // Setup listener for next round BEFORE playing the last question
-        const nextRoundPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.NEXT_ROUND
-        );
+        const nextRoundPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.NEXT_ROUND);
 
         // Play the last question of Round 1
         await utils.pickAndCompleteQuestion(
@@ -297,10 +270,7 @@ describe("Socket Game State Tests", () => {
       const { gameId } = setup;
 
       // Create a new player that joins mid-game
-      const { socket: lateJoinSocket } = await utils.createGameClient(
-        app,
-        userRepo
-      );
+      const { socket: lateJoinSocket } = await utils.createGameClient(app, userRepo);
 
       await new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
@@ -318,7 +288,7 @@ describe("Socket Game State Tests", () => {
         lateJoinSocket.emit(SocketIOGameEvents.JOIN, {
           gameId,
           role: PlayerRole.PLAYER,
-          targetSlot: null,
+          targetSlot: null
         } satisfies GameJoinInputData);
       }).finally(async () => {
         await utils.disconnectAndCleanup(lateJoinSocket);
@@ -343,14 +313,11 @@ describe("Socket Game State Tests", () => {
         // Listen for pause event
         playerSockets[0].once(SocketIOGameEvents.GAME_PAUSE, () => {
           // Listen for unpause event after pause
-          playerSockets[0].once(
-            SocketIOGameEvents.GAME_UNPAUSE,
-            (data: any) => {
-              clearTimeout(timeout);
-              expect(data.timer).toBeDefined();
-              resolve();
-            }
-          );
+          playerSockets[0].once(SocketIOGameEvents.GAME_UNPAUSE, (data: any) => {
+            clearTimeout(timeout);
+            expect(data.timer).toBeDefined();
+            resolve();
+          });
 
           // Unpause game after pause
           showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});

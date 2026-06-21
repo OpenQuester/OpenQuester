@@ -1,18 +1,8 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -106,9 +96,7 @@ describe("Mid-Question Join Restriction", () => {
         const rejoinQuestionData = await rejoinQuestionDataPromise;
 
         expect(rejoinData.gameState.questionState).toBe(QuestionState.SHOWING);
-        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(
-          initialAnswerText
-        );
+        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(initialAnswerText);
       } finally {
         if (reconnectedShowmanSocket) {
           await utils.disconnectAndCleanup(reconnectedShowmanSocket);
@@ -162,9 +150,7 @@ describe("Mid-Question Join Restriction", () => {
 
         expect(rejoinData.gameState.questionState).toBe(QuestionState.ANSWERING);
         expect(rejoinData.gameState.answeringPlayer).toBe(playerUsers[0].id);
-        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(
-          initialAnswerText
-        );
+        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(initialAnswerText);
       } finally {
         if (reconnectedShowmanSocket) {
           await utils.disconnectAndCleanup(reconnectedShowmanSocket);
@@ -176,9 +162,8 @@ describe("Mid-Question Join Restriction", () => {
     it("should include answer reveal data when a player joins during SHOWING_ANSWER state", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets, gameId } = setup;
-      let lateJoinerSocket:
-        | Awaited<ReturnType<typeof utils.createGameClient>>["socket"]
-        | null = null;
+      let lateJoinerSocket: Awaited<ReturnType<typeof utils.createGameClient>>["socket"] | null =
+        null;
 
       try {
         await utils.startGame(showmanSocket);
@@ -234,16 +219,10 @@ describe("Mid-Question Join Restriction", () => {
         expect(gameState?.questionState).toBe(QuestionState.SHOWING);
 
         // Create new player who joins mid-question
-        const { socket: lateJoinerSocket } = await utils.createGameClient(
-          app,
-          userRepo
-        );
+        const { socket: lateJoinerSocket } = await utils.createGameClient(app, userRepo);
 
         try {
-          const joinPromise = utils.waitForEvent(
-            showmanSocket,
-            SocketIOGameEvents.JOIN
-          );
+          const joinPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.JOIN);
           // Join the game as player during SHOWING state
           await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
 
@@ -292,10 +271,7 @@ describe("Mid-Question Join Restriction", () => {
         expect(gameState?.questionState).toBe(QuestionState.ANSWERING);
 
         // Create new player who joins mid-question
-        const { socket: lateJoinerSocket } = await utils.createGameClient(
-          app,
-          userRepo
-        );
+        const { socket: lateJoinerSocket } = await utils.createGameClient(app, userRepo);
 
         try {
           // Join the game as player during ANSWERING state
@@ -307,16 +283,13 @@ describe("Mid-Question Join Restriction", () => {
           // Verify the player cannot answer by checking questionEligiblePlayers
           const updatedState = await utils.getGameState(gameId);
           const game = await utils.getGameFromGameService(gameId);
-          const lateJoinerId = (await utils.getSocketUserData(lateJoinerSocket))
-            ?.id;
+          const lateJoinerId = (await utils.getSocketUserData(lateJoinerSocket))?.id;
 
           expect(updatedState?.questionState).toBe(QuestionState.ANSWERING);
 
           // The late joiner should not be in the eligible players list
           expect(game.gameState.questionEligiblePlayers).toBeDefined();
-          expect(
-            game.gameState.questionEligiblePlayers?.includes(lateJoinerId!)
-          ).toBe(false);
+          expect(game.gameState.questionEligiblePlayers?.includes(lateJoinerId!)).toBe(false);
         } finally {
           await utils.disconnectAndCleanup(lateJoinerSocket);
         }
@@ -342,9 +315,7 @@ describe("Mid-Question Join Restriction", () => {
         expect(gameState?.questionState).toBe(QuestionState.SHOWING);
 
         const game = await utils.getGameFromGameService(gameId);
-        expect(
-          game.gameState.questionEligiblePlayers?.includes(playerUsers[0].id)
-        ).toBe(true);
+        expect(game.gameState.questionEligiblePlayers?.includes(playerUsers[0].id)).toBe(true);
 
         // Simulate disconnect
         const originalPlayerId = playerUsers[0].id;
@@ -354,8 +325,10 @@ describe("Mid-Question Join Restriction", () => {
         await utils.waitForActionsComplete(gameId);
 
         // Reconnect with same user
-        const { socket: reconnectedSocket } =
-          await utils.createSocketForExistingUser(app, originalPlayerId);
+        const { socket: reconnectedSocket } = await utils.createSocketForExistingUser(
+          app,
+          originalPlayerId
+        );
 
         try {
           // Rejoin the game
@@ -396,8 +369,7 @@ describe("Mid-Question Join Restriction", () => {
         app,
         2, // 2 players needed to avoid auto-advance to ANSWERING
         0,
-        true,
-        1 // Include additional simple question
+        { includeFinalRound: true, additionalSimpleQuestions: 1 }
       );
       const { showmanSocket, playerSockets, gameId } = setup;
 
@@ -407,8 +379,10 @@ describe("Mid-Question Join Restriction", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Late joiner joins during question
-        const { socket: lateJoinerSocket, user: lateJoinerUser } =
-          await utils.createGameClient(app, userRepo);
+        const { socket: lateJoinerSocket, user: lateJoinerUser } = await utils.createGameClient(
+          app,
+          userRepo
+        );
 
         try {
           await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
@@ -416,9 +390,7 @@ describe("Mid-Question Join Restriction", () => {
 
           // Verify late joiner is NOT eligible for this question
           const game = await utils.getGameFromGameService(gameId);
-          expect(
-            game.gameState.questionEligiblePlayers?.includes(lateJoinerUser.id)
-          ).toBe(false);
+          expect(game.gameState.questionEligiblePlayers?.includes(lateJoinerUser.id)).toBe(false);
 
           // Complete the question (force skip)
           await utils.skipQuestion(showmanSocket);
@@ -441,9 +413,7 @@ describe("Mid-Question Join Restriction", () => {
           // Verify late joiner IS eligible for new question
           const gameNewQuestion = await utils.getGameFromGameService(gameId);
           expect(
-            gameNewQuestion.gameState.questionEligiblePlayers?.includes(
-              lateJoinerUser.id
-            )
+            gameNewQuestion.gameState.questionEligiblePlayers?.includes(lateJoinerUser.id)
           ).toBe(true);
         } finally {
           await utils.disconnectAndCleanup(lateJoinerSocket);
@@ -466,16 +436,12 @@ describe("Mid-Question Join Restriction", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Get spectator's user ID
-        const spectatorData = await utils.getSocketUserData(
-          spectatorSockets[0]
-        );
+        const spectatorData = await utils.getSocketUserData(spectatorSockets[0]);
         const spectatorUserId = spectatorData?.id;
 
         // Verify spectator is NOT in eligible list (was spectator at question start)
         const game = await utils.getGameFromGameService(gameId);
-        expect(
-          game.gameState.questionEligiblePlayers?.includes(spectatorUserId!)
-        ).toBe(false);
+        expect(game.gameState.questionEligiblePlayers?.includes(spectatorUserId!)).toBe(false);
 
         // Change spectator to player mid-question
         const roleChangePromise = utils.waitForEvent(
@@ -485,7 +451,7 @@ describe("Mid-Question Join Restriction", () => {
 
         showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           playerId: spectatorUserId,
-          newRole: PlayerRole.PLAYER,
+          newRole: PlayerRole.PLAYER
         });
 
         await roleChangePromise;
@@ -494,15 +460,13 @@ describe("Mid-Question Join Restriction", () => {
         // Verify the role was actually changed
         const gameAfterRoleChange = await utils.getGameFromGameService(gameId);
         const changedPlayer = gameAfterRoleChange.getPlayer(spectatorUserId!, {
-          fetchDisconnected: false,
+          fetchDisconnected: false
         });
         expect(changedPlayer?.role).toBe(PlayerRole.PLAYER);
 
         // Verify player is still NOT in eligible list (even after role change)
         expect(
-          gameAfterRoleChange.gameState.questionEligiblePlayers?.includes(
-            spectatorUserId!
-          )
+          gameAfterRoleChange.gameState.questionEligiblePlayers?.includes(spectatorUserId!)
         ).toBe(false);
 
         // Attempt to answer - should be rejected because not in eligible list
@@ -529,13 +493,9 @@ describe("Mid-Question Join Restriction", () => {
   describe("Final round restrictions", () => {
     it("should not allow role change to PLAYER during final round", async () => {
       // Setup: 2 players + 1 spectator, need final round
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        2,
-        1,
-        true // include final round
-      );
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1, {
+        includeFinalRound: true
+      });
       const { showmanSocket, spectatorSockets, gameId } = setup;
 
       try {
@@ -551,9 +511,7 @@ describe("Mid-Question Join Restriction", () => {
         expect(gameState?.currentRound?.type).toBe("final");
 
         // Get spectator's user ID
-        const spectatorData = await utils.getSocketUserData(
-          spectatorSockets[0]
-        );
+        const spectatorData = await utils.getSocketUserData(spectatorSockets[0]);
         const spectatorUserId = spectatorData?.id;
 
         // Attempt to change spectator to player during final round - should fail
@@ -565,7 +523,7 @@ describe("Mid-Question Join Restriction", () => {
         // Spectator tries to change their own role to player
         spectatorSockets[0].emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           playerId: spectatorUserId,
-          newRole: PlayerRole.PLAYER,
+          newRole: PlayerRole.PLAYER
         });
 
         const errorData = await errorPromise;
@@ -579,13 +537,9 @@ describe("Mid-Question Join Restriction", () => {
 
     it("should not allow showman to change spectator to player during final round", async () => {
       // Setup: 2 players + 1 spectator, need final round
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        2,
-        1,
-        true // include final round
-      );
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1, {
+        includeFinalRound: true
+      });
       const { showmanSocket, spectatorSockets, gameId } = setup;
 
       try {
@@ -601,9 +555,7 @@ describe("Mid-Question Join Restriction", () => {
         expect(gameState?.currentRound?.type).toBe("final");
 
         // Get spectator's user ID
-        const spectatorData = await utils.getSocketUserData(
-          spectatorSockets[0]
-        );
+        const spectatorData = await utils.getSocketUserData(spectatorSockets[0]);
         const spectatorUserId = spectatorData?.id;
 
         // Showman attempts to change spectator to player - should fail
@@ -614,7 +566,7 @@ describe("Mid-Question Join Restriction", () => {
 
         showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           playerId: spectatorUserId,
-          newRole: PlayerRole.PLAYER,
+          newRole: PlayerRole.PLAYER
         });
 
         const errorData = await errorPromise;

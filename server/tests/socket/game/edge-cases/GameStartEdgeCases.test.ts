@@ -1,22 +1,11 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
-import { type QuestionPickMediaPreloadEventPayload } from "domain/types/socket/events/game/QuestionPickMediaPreloadEventPayload";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
@@ -33,42 +22,17 @@ async function pickNoFileQuestionAndWaitForReveal(
   showmanSocket: GameClientSocket,
   gameId: string
 ): Promise<GameQuestionDataEventPayload> {
-  const questionId = await utils.getQuestionIdByType(
-    gameId,
-    PackageQuestionType.NO_RISK
+  const questionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.NO_RISK);
+  const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+    showmanSocket,
+    SocketIOGameEvents.QUESTION_DATA
   );
-  const events: SocketIOGameEvents[] = [];
-  const preloadPromise = utils
-    .waitForEvent<QuestionPickMediaPreloadEventPayload>(
-      showmanSocket,
-      SocketIOGameEvents.QUESTION_PICK
-    )
-    .then((data) => {
-      events.push(SocketIOGameEvents.QUESTION_PICK);
-      return data;
-    });
-  const questionDataPromise = utils
-    .waitForEvent<GameQuestionDataEventPayload>(
-      showmanSocket,
-      SocketIOGameEvents.QUESTION_DATA
-    )
-    .then((data) => {
-      events.push(SocketIOGameEvents.QUESTION_DATA);
-      return data;
-    });
 
   showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
 
-  const [preload, questionData] = await Promise.all([
-    preloadPromise,
-    questionDataPromise
-  ]);
+  const questionData = await questionDataPromise;
 
-  expect(events).toEqual([
-    SocketIOGameEvents.QUESTION_PICK,
-    SocketIOGameEvents.QUESTION_DATA
-  ]);
-  expect(preload.questionFiles).toEqual([]);
+  expect(questionData.data.questionFiles ?? []).toEqual([]);
 
   return questionData;
 }
@@ -221,11 +185,7 @@ describe("Game Start Edge Cases", () => {
         const gameStateBefore = await utils.getGameState(gameId);
         expect(gameStateBefore!.currentTurnPlayerId).toBeNull();
 
-        const questionData = await pickNoFileQuestionAndWaitForReveal(
-          utils,
-          showmanSocket,
-          gameId
-        );
+        const questionData = await pickNoFileQuestionAndWaitForReveal(utils, showmanSocket, gameId);
         expect(questionData).toBeDefined();
 
         // Verify question was picked
@@ -246,15 +206,10 @@ describe("Game Start Edge Cases", () => {
 
         // Verify currentTurnPlayerId is set
         const gameStateBefore = await utils.getGameState(gameId);
-        expect(gameStateBefore!.currentTurnPlayerId).toBe(
-          setup.playerUsers[0].id
-        );
+        expect(gameStateBefore!.currentTurnPlayerId).toBe(setup.playerUsers[0].id);
 
         // Player leaves
-        const leavePromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
+        const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
         playerSockets[0].emit(SocketIOGameEvents.LEAVE);
         await leavePromise;
 
@@ -262,11 +217,7 @@ describe("Game Start Edge Cases", () => {
         const gameStateAfterLeave = await utils.getGameState(gameId);
         expect(gameStateAfterLeave!.currentTurnPlayerId).toBeNull();
 
-        const questionData = await pickNoFileQuestionAndWaitForReveal(
-          utils,
-          showmanSocket,
-          gameId
-        );
+        const questionData = await pickNoFileQuestionAndWaitForReveal(utils, showmanSocket, gameId);
         expect(questionData).toBeDefined();
       } finally {
         await utils.cleanupGameClients(setup);
@@ -292,7 +243,7 @@ describe("Game Start Edge Cases", () => {
         );
 
         showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
-          newTurnPlayerId: null,
+          newTurnPlayerId: null
         });
 
         await turnChangePromise;
@@ -301,11 +252,7 @@ describe("Game Start Edge Cases", () => {
         const gameStateAfter = await utils.getGameState(gameId);
         expect(gameStateAfter!.currentTurnPlayerId).toBeNull();
 
-        const questionData = await pickNoFileQuestionAndWaitForReveal(
-          utils,
-          showmanSocket,
-          gameId
-        );
+        const questionData = await pickNoFileQuestionAndWaitForReveal(utils, showmanSocket, gameId);
         expect(questionData).toBeDefined();
       } finally {
         await utils.cleanupGameClients(setup);
@@ -325,9 +272,7 @@ describe("Game Start Edge Cases", () => {
         const currentTurnPlayerId = gameState!.currentTurnPlayerId!;
 
         // Find the player who is NOT the current turn player
-        const notTurnPlayerIndex = playerUsers.findIndex(
-          (u) => u.id !== currentTurnPlayerId
-        );
+        const notTurnPlayerIndex = playerUsers.findIndex((u) => u.id !== currentTurnPlayerId);
         expect(notTurnPlayerIndex).toBeGreaterThanOrEqual(0);
 
         const notTurnPlayerSocket = playerSockets[notTurnPlayerIndex];
@@ -347,7 +292,7 @@ describe("Game Start Edge Cases", () => {
           });
 
           notTurnPlayerSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-            questionId,
+            questionId
           });
         });
       } finally {
@@ -359,8 +304,7 @@ describe("Game Start Edge Cases", () => {
   describe("Start While Joining - Queue System Protection", () => {
     it("should handle concurrent join and start operations safely", async () => {
       // Setup game with showman only
-      const { socket: showmanSocket, gameId } =
-        await utils.createGameWithShowman(app, userRepo);
+      const { socket: showmanSocket, gameId } = await utils.createGameWithShowman(app, userRepo);
 
       try {
         // Create multiple players to join
@@ -384,11 +328,7 @@ describe("Game Start Edge Cases", () => {
         expect(game.startedAt).not.toBeNull();
 
         // Cleanup player sockets
-        await Promise.all(
-          playerClients.map((client) =>
-            utils.disconnectAndCleanup(client.socket)
-          )
-        );
+        await Promise.all(playerClients.map((client) => utils.disconnectAndCleanup(client.socket)));
       } finally {
         await utils.disconnectAndCleanup(showmanSocket);
       }

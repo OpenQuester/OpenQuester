@@ -102,13 +102,8 @@ export class SocketGameTestFlowUtils {
     }
 
     const questionPickEvent = await this._determineQuestionPickEvent(game, actualQuestionId);
-    const needsMediaDownloadReveal = questionPickEvent === SocketIOGameEvents.QUESTION_PICK;
 
     const questionDataPromise = this.eventUtils.waitForEvent(showmanSocket, questionPickEvent);
-    const revealPromise =
-      needsMediaDownloadReveal && playerSockets && playerSockets.length > 0
-        ? this.eventUtils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_DATA)
-        : null;
 
     showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
       questionId: actualQuestionId
@@ -118,10 +113,6 @@ export class SocketGameTestFlowUtils {
 
     if (playerSockets && playerSockets.length > 0) {
       await this.waitForMediaDownload(showmanSocket, playerSockets);
-    }
-
-    if (revealPromise) {
-      await revealPromise;
     }
   }
 
@@ -165,7 +156,7 @@ export class SocketGameTestFlowUtils {
       throw new Error("Question not found in package");
     }
 
-    let event: SocketIOGameEvents = SocketIOGameEvents.QUESTION_PICK;
+    let event: SocketIOGameEvents = SocketIOGameEvents.QUESTION_DATA;
 
     switch (question.type) {
       case PackageQuestionType.STAKE:
@@ -182,7 +173,7 @@ export class SocketGameTestFlowUtils {
         break;
       }
       default:
-        event = SocketIOGameEvents.QUESTION_PICK;
+        event = SocketIOGameEvents.QUESTION_DATA;
         break;
     }
 

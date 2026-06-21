@@ -21,7 +21,11 @@ import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
-import { GameClientSocket, GameTestSetup } from "./SocketIOGameTestUtils";
+import {
+  type GameClientSocket,
+  type GameTestPackageOptions,
+  type GameTestSetup
+} from "./SocketIOGameTestUtils";
 
 export class SocketGameTestLobbyUtils {
   private packageUtils: PackageUtils;
@@ -39,22 +43,14 @@ export class SocketGameTestLobbyUtils {
     app: Express,
     playerCount: number,
     spectatorCount: number,
-    includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0,
-    includeMediaQuestionFiles: boolean = false
+    packageOptions: GameTestPackageOptions = {}
   ): Promise<GameTestSetup> {
     // Create showman
     const {
       socket: showmanSocket,
       gameId,
       user: showmanUser
-    } = await this.createGameWithShowman(
-      app,
-      userRepo,
-      includeFinalRound,
-      additionalSimpleQuestions,
-      includeMediaQuestionFiles
-    );
+    } = await this.createGameWithShowman(app, userRepo, packageOptions);
 
     // Create players
     const playerSockets: GameClientSocket[] = [];
@@ -87,9 +83,7 @@ export class SocketGameTestLobbyUtils {
   async createGameWithShowman(
     app: Express,
     userRepo: Repository<User>,
-    includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0,
-    includeMediaQuestionFiles: boolean = false
+    packageOptions: GameTestPackageOptions = {}
   ): Promise<{
     socket: GameClientSocket;
     gameId: string;
@@ -104,9 +98,9 @@ export class SocketGameTestLobbyUtils {
         id: user.id,
         username: user.username
       },
-      includeFinalRound,
-      additionalSimpleQuestions,
-      includeMediaQuestionFiles
+      packageOptions.includeFinalRound ?? true,
+      packageOptions.additionalSimpleQuestions ?? 0,
+      packageOptions.includeMediaQuestionFiles ?? false
     );
 
     const packageRes = await request(app)
@@ -343,11 +337,7 @@ export class SocketGameTestLobbyUtils {
     try {
       await this.eventUtils.waitForActionsComplete(setup.gameId);
 
-      const sockets = [
-        setup.showmanSocket,
-        ...setup.playerSockets,
-        ...setup.spectatorSockets
-      ];
+      const sockets = [setup.showmanSocket, ...setup.playerSockets, ...setup.spectatorSockets];
       const socketsWithServerGameSession = await this.getSocketsWithServerGameSession(
         setup.gameId,
         sockets

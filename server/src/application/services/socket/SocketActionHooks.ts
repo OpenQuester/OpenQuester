@@ -11,11 +11,9 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameQuestionMapper } from "domain/mappers/GameQuestionMapper";
 import { type GameAction, type GameActionResult } from "domain/types/action/GameAction";
 import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
-import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { type SecretQuestionTransferResult } from "domain/types/question/SecretQuestionTransferTypes";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
-import { type QuestionPickMediaPreloadEventPayload } from "domain/types/socket/events/game/QuestionPickMediaPreloadEventPayload";
 import {
   type GameJoinOutputData,
   type GameLeaveBroadcastData
@@ -132,17 +130,6 @@ export class SocketActionHooks {
     );
 
     if (!questionWithTheme) {
-      return;
-    }
-
-    if (game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING) {
-      this.realtimeGateway.publish(
-        RealtimeEvents.toSocket(action.socketId, SocketIOGameEvents.QUESTION_PICK, {
-          questionId: currentQuestion.id,
-          questionFiles: questionWithTheme.question.questionFiles ?? [],
-          timer
-        } satisfies QuestionPickMediaPreloadEventPayload)
-      );
       return;
     }
 
