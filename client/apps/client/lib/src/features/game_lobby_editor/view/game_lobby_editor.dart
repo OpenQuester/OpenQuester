@@ -143,8 +143,7 @@ class _RoleList extends StatelessWidget {
       builder: (context, constraints) {
         if (!constraints.hasBoundedHeight || !compactPlayers) return content;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        return ListView(
           children: [
             if (showHeading) const _RoleListHeader().paddingBottom(14),
             showmanGroup,

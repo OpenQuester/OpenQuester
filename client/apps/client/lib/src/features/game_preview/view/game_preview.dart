@@ -78,6 +78,10 @@ class _GamePreviewScreenState extends State<GamePreviewScreen> {
       ],
     );
 
-    return AdaptiveDialog(allowBottomSheet: false, builder: (_) => child);
+    return AdaptiveDialog(
+      allowBottomSheet: false,
+      useScrollView: false,
+      builder: (_) => SafeArea(bottom: false, child: child),
+    );
   }
 }

@@ -16,7 +16,7 @@ class GamePreviewBottom extends StatelessWidget {
         return AnimatedSize(
           duration: animationConfiguration.duration,
           child: ListView(
-            padding: 16.all,
+            padding: 16.all + screenBottomInset(context).bottom,
             shrinkWrap: true,
             children: [
               if (snapshot.connectionState == ConnectionState.waiting)
