@@ -22,6 +22,13 @@ export class ApiContext {
   }
 
   /**
+   * HTTP server
+   */
+  public get httpServer() {
+    return this._ctx.httpServer;
+  }
+
+  /**
    * socket.io server
    */
   public get io() {

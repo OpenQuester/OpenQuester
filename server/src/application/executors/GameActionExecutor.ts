@@ -71,6 +71,9 @@ type DrainedActionResult =
  */
 @singleton()
 export class GameActionExecutor {
+  private activeOperations = 0;
+  private readonly idleWaiters: Array<() => void> = [];
+
   constructor(
     private readonly handlerRegistry: GameActionHandlerRegistry,
     private readonly broadcastService: GameActionBroadcastService,
@@ -93,6 +96,22 @@ export class GameActionExecutor {
    * @returns Result indicating success/queued status
    */
   public async submitAction(action: GameAction): Promise<GameActionResult> {
+    this.beginOperation();
+
+    try {
+      return await this.submitQueuedAction(action);
+    } finally {
+      this.finishOperation();
+    }
+  }
+
+  public async waitForIdle(): Promise<void> {
+    while (this.activeOperations > 0) {
+      await new Promise<void>((resolve) => this.idleWaiters.push(resolve));
+    }
+  }
+
+  private async submitQueuedAction(action: GameAction): Promise<GameActionResult> {
     // Ensure log context has game and action tags
     LogContextService.setGameId(action.gameId);
     LogContextService.addTag(LogTag.ACTION);
@@ -150,6 +169,16 @@ export class GameActionExecutor {
    * mutations are ignored.
    */
   public async submitDirectAction(action: GameAction): Promise<GameActionResult> {
+    this.beginOperation();
+
+    try {
+      return await this.submitDirectActionInternal(action);
+    } finally {
+      this.finishOperation();
+    }
+  }
+
+  private async submitDirectActionInternal(action: GameAction): Promise<GameActionResult> {
     LogContextService.addTag(LogTag.ACTION);
 
     const handler = this.handlerRegistry.get(action.type);
@@ -189,6 +218,23 @@ export class GameActionExecutor {
       data: result.data,
       error: result.error
     };
+  }
+
+  private beginOperation(): void {
+    this.activeOperations += 1;
+  }
+
+  private finishOperation(): void {
+    this.activeOperations -= 1;
+
+    if (this.activeOperations > 0) {
+      return;
+    }
+
+    const waiters = this.idleWaiters.splice(0);
+    for (const resolve of waiters) {
+      resolve();
+    }
   }
 
   /**

@@ -23,6 +23,10 @@ import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { MetricsService } from "application/services/metrics/MetricsService";
 import { ServeApi } from "./ServeApi";
 
+const FORCE_SHUTDOWN_TIMEOUT_MS = 5000;
+const LOGGER_CLOSE_TIMEOUT_MS = 1000;
+let shutdownInProgress = false;
+
 const main = async () => {
   const logger = await PinoLogger.init({ pretty: true });
 
@@ -62,7 +66,8 @@ const main = async () => {
   await RedisConfig.initConfig();
   await RedisConfig.waitForConnection();
 
-  const io = new IOServer(createServer(app), {
+  const httpServer = createServer(app);
+  const io = new IOServer(httpServer, {
     cors: {
       origin: (origin, callback) => {
         if (allOriginsAllowed || !origin) {
@@ -97,6 +102,7 @@ const main = async () => {
     env: Environment.getInstance(logger, { overwrite: true }),
     io,
     app,
+    httpServer,
     logger
   });
 
@@ -119,20 +125,25 @@ const main = async () => {
 
   context.env.load(false);
 
-  ["SIGINT", "SIGTERM", "uncaughtException", "unhandledRejection"].forEach((signal) => {
-    process.on(
-      signal,
-      async (error) => await gracefulShutdown(context, api?.server, logger, error)
-    );
+  process.on("SIGINT", () => {
+    void gracefulShutdown(context, context.httpServer, logger);
+  });
+  process.on("SIGTERM", () => {
+    void gracefulShutdown(context, context.httpServer, logger);
+  });
+  process.on("uncaughtException", (error) => {
+    void gracefulShutdown(context, context.httpServer, logger, error);
+  });
+  process.on("unhandledRejection", (reason) => {
+    void gracefulShutdown(context, context.httpServer, logger, reason);
   });
 
   const api = new ServeApi(context);
 
-  await api.init();
-
-  if (!api || !api.server) {
-    logger.error(`API serve error`, { prefix: LogPrefix.SERVE_API });
-    await gracefulShutdown(context, api?.server, logger);
+  try {
+    await api.init();
+  } catch (error) {
+    await gracefulShutdown(context, context.httpServer, logger, error);
   }
 };
 
@@ -142,53 +153,109 @@ async function gracefulShutdown(
   logger: PinoLogger,
   error?: unknown
 ) {
-  if (error instanceof Error) {
-    await ErrorController.resolveError(error, logger);
-    logger.warn("Server closed due to error", {
+  if (shutdownInProgress) {
+    logger.debug("Shutdown already in progress", { prefix: LogPrefix.SERVER });
+    return;
+  }
+  shutdownInProgress = true;
+
+  let exitCode = 0;
+  const forceShutdownTimer = setTimeout(() => {
+    process.stderr.write("Graceful shutdown timed out; forcing exit\n");
+    process.exit(1);
+  }, FORCE_SHUTDOWN_TIMEOUT_MS);
+  forceShutdownTimer.unref();
+
+  try {
+    if (error !== undefined) {
+      await ErrorController.resolveError(error, logger);
+      logger.warn("Server closed due to error", {
+        prefix: LogPrefix.SERVER,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      exitCode = 1;
+    }
+
+    if (!server) {
+      logger.warn("Server not initiated", { prefix: LogPrefix.SERVER });
+      exitCode = 1;
+      return;
+    }
+
+    // Stop cron jobs
+    try {
+      const cronScheduler = container.resolve(CronSchedulerService);
+      logger.info("Stopping cron scheduler...", {
+        prefix: LogPrefix.CRON_SCHEDULER
+      });
+      await cronScheduler.stopAll();
+    } catch (cronError) {
+      logger.warn("Failed to stop cron scheduler", {
+        prefix: LogPrefix.CRON_SCHEDULER,
+        error: cronError instanceof Error ? cronError.message : String(cronError)
+      });
+    }
+
+    // Stop metrics collection
+    try {
+      await container.resolve(MetricsService).stop();
+    } catch {
+      // Ignore
+    }
+
+    await ctx.io.close();
+    await closeHttpServer(server);
+    await ctx.db.disconnect();
+    await RedisConfig.disconnect();
+    logger.info("Server closed gracefully", { prefix: LogPrefix.SERVER });
+  } catch (shutdownError) {
+    exitCode = 1;
+    logger.error("Server shutdown failed", {
       prefix: LogPrefix.SERVER,
-      error: error.message
+      error: shutdownError instanceof Error ? shutdownError.message : String(shutdownError)
     });
-    await logger.close();
-    process.exit(1);
+  } finally {
+    clearTimeout(forceShutdownTimer);
+    await closeLogger(logger);
+    process.exit(exitCode);
   }
-  if (!server) {
-    logger.warn("Server not initiated", { prefix: LogPrefix.SERVER });
-    await logger.close();
-    return process.exit(1);
-  }
-  setTimeout(async () => {
-    await logger.close();
-    process.exit(1);
-  }, 5000);
+}
 
-  // Stop cron jobs
-  try {
-    const cronScheduler = container.resolve(CronSchedulerService);
-    logger.info("Stopping cron scheduler...", {
-      prefix: LogPrefix.CRON_SCHEDULER
-    });
-    await cronScheduler.stopAll();
-  } catch (error) {
-    logger.warn("Failed to stop cron scheduler", {
-      prefix: LogPrefix.CRON_SCHEDULER,
-      error: error instanceof Error ? error.message : String(error)
-    });
+async function closeHttpServer(server: Server): Promise<void> {
+  if (!server.listening) {
+    return;
   }
 
-  // Stop metrics collection
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+    server.closeAllConnections();
+  });
+}
+
+async function closeLogger(logger: PinoLogger): Promise<void> {
+  let timeout: NodeJS.Timeout | undefined;
+
   try {
-    await container.resolve(MetricsService).stop();
+    await Promise.race([
+      logger.close(),
+      new Promise<void>((resolve) => {
+        timeout = setTimeout(resolve, LOGGER_CLOSE_TIMEOUT_MS);
+        timeout.unref();
+      })
+    ]);
   } catch {
-    // Ignore
+    // Process is exiting; there is no reliable logger left to report this.
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
   }
-
-  server.close();
-  await ctx.db.disconnect();
-  await ctx.io.close();
-  await RedisConfig.disconnect();
-  logger.info("Server closed gracefully", { prefix: LogPrefix.SERVER });
-  await logger.close();
-  process.exit(0);
 }
 
 function setLoggers(logger: ILogger) {

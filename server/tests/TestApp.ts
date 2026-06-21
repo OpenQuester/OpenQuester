@@ -1,11 +1,12 @@
 import { createAdapter } from "@socket.io/redis-adapter";
 import express from "express";
 import session from "express-session";
-import { createServer } from "http";
+import { createServer, type Server as HTTPServer } from "http";
 import { Server as IOServer } from "socket.io";
 import { container } from "tsyringe";
 import { DataSource } from "typeorm";
 
+import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { ApiContext } from "shared/context/ApiContext";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { MetricsService } from "application/services/metrics/MetricsService";
@@ -17,10 +18,18 @@ import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { RedisPubSubService } from "application/services/redis/RedisPubSubService";
 import { ServeApi } from "../src/ServeApi";
+import { SocketActionDispatcher } from "presentation/controllers/io/SocketActionDispatcher";
 import { TestRestApiController } from "tests/TestRestApiController";
 import { setTestEnvDefaults } from "tests/utils/utils";
 
-export async function bootstrapTestApp(testDataSource: DataSource) {
+interface BootstrapTestAppOptions {
+  apiPort?: number;
+}
+
+export async function bootstrapTestApp(
+  testDataSource: DataSource,
+  options: BootstrapTestAppOptions = {}
+) {
   const logger = await PinoLogger.init({ pretty: true });
   const prefix = LogPrefix.TEST;
 
@@ -30,7 +39,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   const app = express();
 
   logger.info("Setting up test environment...", { prefix });
-  setTestEnvDefaults();
+  setTestEnvDefaults({ apiPort: options.apiPort });
 
   // Connect to Redis
   logger.info("Connecting to Redis...", { prefix });
@@ -74,6 +83,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     env: Environment.getInstance(logger, { overwrite: true }),
     io,
     app,
+    httpServer,
     logger
   });
 
@@ -81,85 +91,158 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
 
   logger.info("Initializing API server...", { prefix });
   const api = new ServeApi(context);
-  await api.init();
+  let isCleanedUp = false;
 
   // Provide a cleanup function for Socket.IO and HTTP server
   // Close app-level resources and reset shared clients to keep suites isolated.
   async function cleanup() {
+    if (isCleanedUp) {
+      return;
+    }
+
+    isCleanedUp = true;
+    const errors: Error[] = [];
+
+    const runCleanupStep = async (
+      label: string,
+      action: () => Promise<void>
+    ): Promise<void> => {
+      try {
+        await action();
+      } catch (error) {
+        const cleanupError = toCleanupError(label, error);
+        logger.error(cleanupError.message, {
+          prefix,
+          error: cleanupError.message
+        });
+        errors.push(cleanupError);
+      }
+    };
+
     // Stop cron scheduler to allow tests to exit cleanly
-    const cronScheduler = container.resolve(CronSchedulerService);
-    logger.info("Stopping cron scheduler...", { prefix });
-    await cronScheduler.stopAll();
+    await runCleanupStep("Cron scheduler stop", async () => {
+      const cronScheduler = container.resolve(CronSchedulerService);
+      logger.info("Stopping cron scheduler...", { prefix });
+      await cronScheduler.stopAll();
+    });
 
     // Unsubscribe from Redis keyspace notifications to prevent duplicate
     // timer expirations across test suites
-    const pubSub = container.resolve(RedisPubSubService);
-    logger.info("Unsubscribing from Redis keyspace notifications...", {
-      prefix
+    await runCleanupStep("Redis pub/sub unsubscribe", async () => {
+      const pubSub = container.resolve(RedisPubSubService);
+      logger.info("Unsubscribing from Redis keyspace notifications...", {
+        prefix
+      });
+      await pubSub.unsubscribe();
     });
-    await pubSub.unsubscribe();
 
-    if (container.isRegistered(MetricsService, true)) {
-      const metricsService = container.resolve(MetricsService);
-      logger.info("Stopping metrics service...", { prefix });
-      await metricsService.stop();
-    }
-
-    // api.server is the HTTP server created by app.listen() inside ServeApi.init()
-    // (httpServer above was never .listen()'d, so it is not the one bound to port).
-    // Force-close lingering keep-alive connections so the port is released
-    // immediately; then close Socket.IO using the callback form — io.close()
-    // returns 'this', not a Promise, so without a callback await resolves
-    // instantly and the port stays bound for the next test suite.
-    if (api.server && api.server.listening) {
-      api.server.closeAllConnections();
-    }
-
-    await new Promise<void>((resolve) => {
-      if (api.server === undefined) {
-        resolve();
-        return;
+    await runCleanupStep("Metrics service stop", async () => {
+      if (container.isRegistered(MetricsService, true)) {
+        const metricsService = container.resolve(MetricsService);
+        logger.info("Stopping metrics service...", { prefix });
+        await metricsService.stop();
       }
-
-      io.close(() => {
-        logger.info("Socket.IO server closed", { prefix });
-        resolve();
-      }).catch((err) => {
-        logger.info(`Socket.IO server closed with error, ${err}`, { prefix });
-        resolve();
-      });
     });
 
-    if (api.server && api.server.listening) {
-      await new Promise<void>((resolve, reject) => {
-        api.server.close((err) => {
-          if (err) {
-            reject(err);
-            return;
-          }
+    await runCleanupStep("Socket.IO close", async () => {
+      await io.close();
+      logger.info("Socket.IO server closed", { prefix });
+    });
 
-          logger.info("HTTP server closed", { prefix });
-          resolve();
-        });
-      });
-    }
+    await runCleanupStep("Socket action dispatcher idle", async () => {
+      if (container.isRegistered(SocketActionDispatcher, true)) {
+        const dispatcher = container.resolve(SocketActionDispatcher);
+        await dispatcher.waitForIdle();
+      }
+    });
 
-    // Allow adapter/socket close callbacks to flush before Redis shutdown.
-    await new Promise((resolve) => setTimeout(resolve, TEST_TIMEOUTS.TEST_CLEANUP_DRAIN_MS));
+    await runCleanupStep("Game action executor idle", async () => {
+      const actionExecutor = container.resolve(GameActionExecutor);
+      await actionExecutor.waitForIdle();
+    });
 
-    try {
+    await runCleanupStep("HTTP server close", async () => {
+      await closeHttpServer(api.server);
+      if (!api.server.listening) {
+        logger.info("HTTP server closed", { prefix });
+      }
+    });
+
+    await runCleanupStep("Redis disconnect", async () => {
       await RedisConfig.disconnect();
-    } catch (error) {
-      logger.warn("Redis disconnect during test cleanup failed", {
-        prefix,
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
+    });
 
     container.clearInstances();
-    await logger.close();
+
+    await runCleanupStep("Logger close", async () => {
+      await logger.close();
+    });
+
+    throwIfCleanupFailed("Test app cleanup failed", errors);
+  }
+
+  try {
+    await api.init();
+  } catch (error) {
+    try {
+      await cleanup();
+    } catch (cleanupError) {
+      throw combineErrors("Test app startup failed", [
+        toCleanupError("Startup", error),
+        toCleanupError("Startup cleanup", cleanupError)
+      ]);
+    }
+    throw error;
   }
 
   logger.info("Test app initialized", { prefix });
-  return { app, httpServer, dataSource: testDataSource, cleanup };
+  return {
+    app,
+    httpServer,
+    serverUrl: api.serverUrl,
+    database: db,
+    dataSource: testDataSource,
+    cleanup
+  };
+}
+
+async function closeHttpServer(server: HTTPServer): Promise<void> {
+  if (!server.listening) {
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+    server.closeAllConnections();
+  });
+}
+
+function toCleanupError(label: string, error: unknown): Error {
+  if (error instanceof Error) {
+    return new Error(`${label} failed: ${error.message}`, { cause: error });
+  }
+
+  return new Error(`${label} failed: ${String(error)}`);
+}
+
+function combineErrors(message: string, errors: Error[]): Error {
+  if (errors.length === 1) {
+    return errors[0];
+  }
+
+  return new AggregateError(errors, message);
+}
+
+function throwIfCleanupFailed(message: string, errors: Error[]): void {
+  if (errors.length === 0) {
+    return;
+  }
+
+  throw combineErrors(message, errors);
 }

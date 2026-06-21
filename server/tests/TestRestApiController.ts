@@ -5,6 +5,10 @@ export class TestRestApiController {
     const router = Router();
     this.app.use("/v1/test", router);
 
+    router.get("/health", (_req: Request, res: Response) => {
+      res.status(200).json({ ok: true });
+    });
+
     // Login as a user by ID, set session
     router.post("/login", async (req: Request, res: Response) => {
       if (!req.session) {

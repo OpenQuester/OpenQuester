@@ -1,5 +1,6 @@
 import { type Express } from "express";
 import { type Server as HTTPServer } from "http";
+import { type AddressInfo } from "net";
 import Redis from "ioredis";
 import { type Server as IOServer } from "socket.io";
 
@@ -57,17 +58,19 @@ export class ServeApi {
   private readonly _db: Database;
   private readonly _redis: Redis;
   /** HTTP Server */
-  private _server!: HTTPServer;
+  private readonly _server: HTTPServer;
+  private _serverUrl: string | undefined;
 
   constructor(private readonly _context: ApiContext) {
     this._db = this._context.db;
     this._app = this._context.app;
+    this._server = this._context.httpServer;
     this._io = this._context.io;
     this._redis = RedisConfig.getClient();
     this._port = this._context.env.API_PORT;
   }
 
-  public async init() {
+  public async init(): Promise<void> {
     const initStartTime = Date.now();
     this._context.logger.trace("API initialization started", {
       prefix: LogPrefix.SERVE_API
@@ -99,22 +102,16 @@ export class ServeApi {
       // Middlewares
       await new MiddlewareController(this._context, this._redis, metricsService).initialize();
 
-      // Initialize server listening
-      this._server = this._app.listen(this._port, () => {
-        this._context.logger.info(`App listening on port: ${this._port}`, {
-          prefix: LogPrefix.SERVE_API,
-          port: this._port
-        });
-      });
-      this._io.listen(this._server);
-
-      metricsService.start();
-
       await this._processPrepareJobs();
 
       // Attach API controllers
       this._attachControllers();
       this._app.use(errorMiddleware(this._context.logger));
+
+      metricsService.start();
+
+      // Initialize server listening after middleware and routes are installed.
+      await this._listen();
 
       log.finish();
     } catch (err: unknown) {
@@ -129,12 +126,21 @@ export class ServeApi {
         prefix: LogPrefix.SERVE_API,
         errorMessage: error.message
       });
+      throw err;
     }
   }
 
   // Get API server instance
-  public get server() {
+  public get server(): HTTPServer {
     return this._server;
+  }
+
+  public get serverUrl(): string {
+    if (!this._serverUrl) {
+      this._serverUrl = this._createServerUrl();
+    }
+
+    return this._serverUrl;
   }
 
   /**
@@ -208,6 +214,7 @@ export class ServeApi {
       this._context.logger
     );
 
+    container.registerInstance(SocketActionDispatcher, dispatcher);
     new SocketIOInitializer(deps.io, dispatcher, this._context.logger);
   }
 
@@ -242,5 +249,64 @@ export class ServeApi {
     // Initialize cron scheduler
     const cronScheduler = container.resolve(CronSchedulerService);
     await cronScheduler.initialize();
+  }
+
+  private async _listen(): Promise<void> {
+    if (this._server.listening) {
+      this._serverUrl = this._createServerUrl();
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: Error): void => {
+        this._server.off("listening", onListening);
+        reject(error);
+      };
+      const onListening = (): void => {
+        this._server.off("error", onError);
+        this._serverUrl = this._createServerUrl();
+        this._context.logger.info(`App listening at ${this._serverUrl}`, {
+          prefix: LogPrefix.SERVE_API,
+          port: this._getServerPort()
+        });
+        resolve();
+      };
+
+      this._server.once("error", onError);
+      this._server.once("listening", onListening);
+      this._server.listen(this._port);
+    });
+  }
+
+  private _createServerUrl(): string {
+    const address = this._server.address();
+    if (address === null) {
+      throw new Error("HTTP server is not listening");
+    }
+    if (typeof address === "string") {
+      throw new Error(`HTTP server is listening on unsupported pipe address: ${address}`);
+    }
+
+    return `http://${this._normalizeClientHost(address)}:${address.port}`;
+  }
+
+  private _getServerPort(): number {
+    const address = this._server.address();
+    if (address === null || typeof address === "string") {
+      return this._port;
+    }
+
+    return address.port;
+  }
+
+  private _normalizeClientHost(address: AddressInfo): string {
+    if (address.address === "::" || address.address === "0.0.0.0") {
+      return "127.0.0.1";
+    }
+    if (address.family === "IPv6") {
+      return `[${address.address}]`;
+    }
+
+    return address.address;
   }
 }
