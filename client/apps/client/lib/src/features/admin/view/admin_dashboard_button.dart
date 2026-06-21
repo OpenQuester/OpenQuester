@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
-import 'package:openquester/src/core/router.gr.dart';
 
 class AdminDashboardButton extends WatchingWidget {
   const AdminDashboardButton({

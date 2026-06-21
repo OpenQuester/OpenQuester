@@ -58,6 +58,7 @@ export 'src/features/game_final_round/controllers/game_lobby_player_theme_contro
 export 'src/features/game_final_round/view/game_final_round.dart';
 export 'src/features/game_finished/view/game_finished_screen.dart';
 export 'src/features/game_lobby/controllers/game_lobby_controller.dart';
+export 'src/features/game_lobby/data/game_invite_link.dart';
 export 'src/features/game_lobby/data/join_role_option.dart';
 export 'src/features/game_lobby/data/player_answer_state.dart';
 export 'src/features/game_lobby/view/game_lobby_action_button.dart';
