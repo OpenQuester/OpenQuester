@@ -39,7 +39,9 @@ class GameLobbyStyles {
 
   static BoxConstraints playerTileConstrains(BuildContext context) =>
       BoxConstraints.loose(
-        playersOnLeft(context) ? players : playersMobile,
+        UiModeUtils.wideModeOn(context, UiModeUtils.large)
+            ? players
+            : playersMobile,
       );
 
   static double get playerTileRadius => 12;

@@ -225,7 +225,7 @@ class _BodyBuilder extends WatchingWidget {
 
     return Column(
       children: [
-        if (!lobbyEditorMode)
+        if (!lobbyEditorMode && showSpectatorStatus)
           SizedBox(
             height: 32,
             child: Center(
@@ -335,7 +335,9 @@ class _BodyLayoutBuilder extends WatchingWidget {
         children: [
           if (!lobbyEditorMode)
             playersList(axis: Axis.vertical)
-                .withWidth(GameLobbyStyles.players.width)
+                .withWidth(
+                  GameLobbyStyles.playerTileConstrains(context).maxWidth,
+                )
                 .paddingSymmetric(horizontal: 8)
                 .paddingTop(16)
                 .paddingLeft(16),
