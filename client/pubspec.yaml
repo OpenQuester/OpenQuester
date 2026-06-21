@@ -28,6 +28,7 @@ melos:
     pre_build:
       description: Pre-run tasks generating files, workers, and localization
       run: |
+        melos run gen_api && \
         melos run gen_files && \
         melos run gen_workers && \
         melos run gen_locale
@@ -65,6 +66,11 @@ melos:
         else
           echo "Skipping index generation: no index_generator config found in pubspec.yaml"
         fi
+
+    gen_api:
+      description: Generate API client code from OpenAPI specs
+      run: |
+        melos exec --scope="openapi" -- "dart run swagger_parser"
 
     gen_workers:
       description: Generate JS and WASM web workers
