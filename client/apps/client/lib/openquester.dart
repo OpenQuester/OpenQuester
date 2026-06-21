@@ -3,6 +3,7 @@
 library;
 
 export 'common_imports.dart';
+export 'generated/assets.gen.dart';
 export 'main.dart';
 export 'src/connection/api/api.dart';
 export 'src/connection/auth/oauth2_controller.dart';
