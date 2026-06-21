@@ -69,7 +69,9 @@ melos:
 
     gen_api:
       description: Generate API client code from OpenAPI specs
-      run: melos exec --scope="openapi" -- "dart run swagger_parser"
+      steps:
+        - melos exec --scope="openapi" -- "dart run swagger_parser"
+        - melos exec --scope="openapi" -- "dart run build_runner build -d"
 
     gen_workers:
       description: Generate JS and WASM web workers

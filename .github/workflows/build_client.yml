@@ -60,8 +60,6 @@ jobs:
     defaults:
       run:
         working-directory: ./client
-    env:
-      DONT_USE_PURO: true
     environment: ${{ inputs.DEPLOY_PROD && 'openquester (Production)' || 'openquester (Preview)' }}
     steps:
       - uses: actions/checkout@v4
@@ -168,8 +166,6 @@ jobs:
     defaults:
       run:
         working-directory: ./client
-    env:
-      DONT_USE_PURO: true
     steps:
       - uses: actions/checkout@v4
 
@@ -211,8 +207,6 @@ jobs:
     defaults:
       run:
         working-directory: ./client
-    env:
-      DONT_USE_PURO: true
     steps:
       - uses: actions/checkout@v4
 

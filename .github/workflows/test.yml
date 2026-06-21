@@ -80,8 +80,6 @@ jobs:
     defaults:
       run:
         working-directory: ./client
-    env:
-      DONT_USE_PURO: true
     environment: "${{ github.event_name == 'workflow_call' && 'openquester (Production)' || 'openquester (Preview)' }}"
     steps:
       - uses: actions/checkout@v4
