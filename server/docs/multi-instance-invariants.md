@@ -173,12 +173,34 @@ Shutdown must not delete active games, clear game action queues, clear game time
 
 HTTP listen failure must not run shared startup preparation, start distributed subscribers, start cron jobs, or mutate shared game state. Bind the local HTTP server before starting those steps.
 
+`STARTUP_RECOVERY_ENABLED=true` is the historical single-instance restart
+recovery mode. It is valid only when exactly one server runtime exists, that
+runtime owns all live sockets, and a restart means the whole server runtime was
+unavailable. In that deployment, startup may globally mark players disconnected,
+pause games, reset active timers to paused full-duration timers, and clear socket
+session lookup keys so the showman can safely resume play.
+
+Replicated deployments must explicitly set `STARTUP_RECOVERY_ENABLED=false`.
 Ordinary replicated-instance startup must not clear active Redis games, timers,
-socket sessions, or user-to-socket lookup keys. `STARTUP_RECOVERY_ENABLED=true`
-means destructive cluster-wide cold-start recovery: the operator guarantees that
-no other server instance is serving active games or sockets. The existing
-distributed recovery locks prevent duplicate execution; they do not make this
-mode safe while another live instance is serving traffic.
+socket sessions, or user-to-socket lookup keys, because another live instance may
+still own the sockets and timer subscriptions for those games. The existing Redis
+recovery locks prevent duplicate execution; they are not a cluster liveness
+detector and do not make global recovery safe while another server instance is
+serving traffic.
+
+The current single-instance restart recovery also clears socket session keys.
+That preserves the existing product behavior after a full server restart. Any
+redesign that preserves or transfers reconnect/session ownership across
+instances belongs in a separate protocol and recovery phase.
+
+## Future Distributed Recovery
+
+The current flag does not solve full-cluster downtime for replicated
+deployments. A future distributed recovery design will need durable absolute
+timer deadlines or timer generations, idempotent reconciliation of overdue
+timers, reconciliation routed through each game's Redis action queue,
+per-instance socket ownership, instance leases or heartbeats, and cleanup only
+for sockets owned by a confirmed-dead instance.
 
 ## Review Checklist
 

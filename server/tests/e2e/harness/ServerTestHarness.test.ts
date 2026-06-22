@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it } from "@jest/globals";
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { createServer, type Server as HTTPServer } from "http";
 import { io as createSocket, type Socket as ClientSocket } from "socket.io-client";
 
+import { Environment } from "shared/config/Environment";
 import {
   disconnectSocket,
   waitForSocketConnection
@@ -196,6 +197,7 @@ describe("ServerTestHarness", () => {
     const currentHarness = harness;
     harness = undefined;
     await currentHarness?.stop();
+    jest.restoreAllMocks();
   });
 
   it("starts a real HTTP and root Socket.IO server on the actual bound port", async () => {
@@ -260,6 +262,15 @@ describe("ServerTestHarness", () => {
     } finally {
       await closeServer(occupied.server);
     }
+  });
+
+  it("fails startInitializing immediately when initialization fails before HTTP listen", async () => {
+    const startupFailure = new Error("session config failed before HTTP listen");
+    jest.spyOn(Environment.prototype, "loadSessionConfig").mockRejectedValue(startupFailure);
+
+    await expect(ServerTestHarness.startInitializing({ apiPort: 0 })).rejects.toThrow(
+      "session config failed before HTTP listen"
+    );
   });
 
   it("runs repeated lifecycle cycles in one Jest process", async () => {

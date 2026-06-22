@@ -47,7 +47,7 @@ export async function waitForSocketConnection(
       reject(
         new Error(
           `Socket.IO connection failed for client="${context.client}" ` +
-            `(socketId="${socket.id ?? "unknown"}", serverUrl="${context.serverUrl}")`,
+            buildSocketContext(socket, context, `timeoutMs=${context.timeoutMs}`),
           { cause: error }
         )
       );
@@ -62,7 +62,12 @@ export async function waitForSocketEvent(
   socket: Socket,
   context: SocketEventWaitContext
 ): Promise<unknown[]> {
-  await waitForSocketConnection(socket, context);
+  if (!socket.connected) {
+    throw new Error(
+      `Cannot wait for Socket.IO event "${context.event}" because client is not connected ` +
+        buildSocketContext(socket, context)
+    );
+  }
 
   return new Promise<unknown[]>((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -87,8 +92,7 @@ export async function waitForSocketEvent(
       reject(
         new Error(
           `Socket.IO connect_error while waiting for event "${context.event}" ` +
-            `(client="${context.client}", socketId="${socket.id ?? "unknown"}", ` +
-            `serverUrl="${context.serverUrl}")`,
+            buildSocketContext(socket, context),
           { cause: error }
         )
       );
@@ -99,9 +103,7 @@ export async function waitForSocketEvent(
       reject(
         new Error(
           `Socket.IO client disconnected while waiting for event "${context.event}" ` +
-            `(client="${context.client}", socketId="${socket.id ?? "unknown"}", ` +
-            `reason="${reason}", connected=${socket.connected}, ` +
-            `serverUrl="${context.serverUrl}")`
+            buildSocketContext(socket, context, `reason="${reason}"`)
         )
       );
     };
@@ -165,8 +167,20 @@ function buildSocketTimeoutError(
 ): Error {
   return new Error(
     `Timed out after ${context.timeoutMs}ms waiting for ${operation} "${context.event}" ` +
-      `(client="${context.client}", socketId="${context.socket.id ?? "unknown"}", ` +
-      `connected=${context.socket.connected}, serverUrl="${context.serverUrl}")`
+      buildSocketContext(context.socket, context)
+  );
+}
+
+function buildSocketContext(
+  socket: Socket,
+  context: SocketWaitContext,
+  extra?: string
+): string {
+  const extraPart = extra ? `${extra}, ` : "";
+  return (
+    `(client="${context.client}", namespace="${context.namespace ?? "unknown"}", ` +
+    `socketId="${socket.id ?? "unknown"}", ${extraPart}` +
+    `connected=${socket.connected}, serverUrl="${context.serverUrl}")`
   );
 }
 

@@ -286,7 +286,7 @@ export class Environment {
     this.STARTUP_RECOVERY_ENABLED = this.getEnvVar(
       "STARTUP_RECOVERY_ENABLED",
       "boolean",
-      false,
+      true,
       true
     );
   }

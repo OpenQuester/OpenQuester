@@ -72,13 +72,40 @@ describe("SocketTestWait", () => {
       waitForSocketEvent(socket, {
         client: "timeout-client",
         event: "never-emitted",
+        namespace: "/",
         serverUrl: harness.serverUrl,
         timeoutMs: shortTimeoutMs
       })
     ).rejects.toThrow(
       `Timed out after ${shortTimeoutMs}ms waiting for Socket.IO event "never-emitted" ` +
-        `(client="timeout-client", socketId="${requireSocketId(socket)}", ` +
+        `(client="timeout-client", namespace="/", socketId="${requireSocketId(socket)}", ` +
         `connected=true, serverUrl="${harness.serverUrl}")`
+    );
+  });
+
+  it("rejects event waits when the client is not already connected", async () => {
+    harness = await ServerTestHarness.start({ apiPort: 0 });
+    const socket = createSocket(harness.serverUrl, {
+      autoConnect: false,
+      forceNew: true,
+      reconnection: false,
+      timeout: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS,
+      transports: ["websocket"]
+    });
+    sockets.push({ socket, namespace: "/" });
+
+    await expect(
+      waitForSocketEvent(socket, {
+        client: "not-connected-client",
+        event: "question-data",
+        namespace: "/",
+        serverUrl: harness.serverUrl,
+        timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+      })
+    ).rejects.toThrow(
+      `Cannot wait for Socket.IO event "question-data" because client is not connected ` +
+        `(client="not-connected-client", namespace="/", socketId="unknown", ` +
+        `connected=false, serverUrl="${harness.serverUrl}")`
     );
   });
 
@@ -96,6 +123,7 @@ describe("SocketTestWait", () => {
     const eventWait = waitForSocketEvent(socket, {
       client: "disconnect-client",
       event: "question-data",
+      namespace: "/",
       serverUrl: harness.serverUrl,
       timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
     });
@@ -104,8 +132,8 @@ describe("SocketTestWait", () => {
 
     await expect(eventWait).rejects.toThrow(
       `Socket.IO client disconnected while waiting for event "question-data" ` +
-        `(client="disconnect-client", socketId="${socketId}", reason="io client disconnect", ` +
-        `connected=false, serverUrl="${harness.serverUrl}")`
+        `(client="disconnect-client", namespace="/", socketId="${socketId}", ` +
+        `reason="io client disconnect", connected=false, serverUrl="${harness.serverUrl}")`
     );
   });
 

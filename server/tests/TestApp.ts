@@ -19,6 +19,7 @@ import { setTestEnvDefaults } from "tests/utils/utils";
 
 interface BootstrapTestAppOptions {
   apiPort?: number;
+  startupRecoveryEnabled?: boolean;
   /**
    * Caller-owned logger. ServerTestHarness passes one logger shared with
    * TestEnvironment, while legacy callers get a bootstrap-owned logger.
@@ -76,7 +77,10 @@ export async function createTestAppRuntime(
   const app = express();
 
   logger.info("Setting up test environment...", { prefix });
-  setTestEnvDefaults({ apiPort: options.apiPort });
+  setTestEnvDefaults({
+    apiPort: options.apiPort,
+    startupRecoveryEnabled: options.startupRecoveryEnabled
+  });
 
   // Connect to Redis
   logger.info("Connecting to Redis...", { prefix });

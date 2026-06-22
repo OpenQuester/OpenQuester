@@ -10,6 +10,7 @@ import { TestEnvironment } from "tests/TestEnvironment";
 
 interface ServerTestHarnessOptions {
   apiPort?: number;
+  startupRecoveryEnabled?: boolean;
 }
 
 type TestAppBootstrap = Awaited<ReturnType<typeof bootstrapTestApp>>;
@@ -18,6 +19,7 @@ interface EnvSnapshot {
   apiPort: string | undefined;
   dbName: string | undefined;
   redisDbNumber: string | undefined;
+  startupRecoveryEnabled: string | undefined;
 }
 
 interface ConnectedSocketDiagnostic {
@@ -90,7 +92,11 @@ export class ServerTestHarness {
         logger
       });
       const initPromise = testApp.api.init();
-      await waitForHttpListening(testApp, TEST_HARNESS_HTTP_LISTEN_TIMEOUT_MS);
+      await waitForHttpListeningOrStartupFailure(
+        testApp,
+        initPromise,
+        TEST_HARNESS_HTTP_LISTEN_TIMEOUT_MS
+      );
       started = true;
       return new ServerTestHarness(testEnvironment, testApp, envSnapshot, initPromise);
     } catch (error) {
@@ -267,6 +273,24 @@ async function waitForHttpListening(
   });
 }
 
+async function waitForHttpListeningOrStartupFailure(
+  testApp: TestAppBootstrap,
+  initPromise: Promise<void>,
+  timeoutMs: number
+): Promise<void> {
+  let listeningSettled = false;
+  const listening = waitForHttpListening(testApp, timeoutMs).then(() => {
+    listeningSettled = true;
+  });
+  const startupFailure = initPromise.catch((error: unknown) => {
+    if (!listeningSettled) {
+      throw error;
+    }
+  });
+
+  await Promise.race([listening, startupFailure]);
+}
+
 function isServerSocketConnected(socket: ServerSocket): boolean {
   return socket.connected;
 }
@@ -314,7 +338,8 @@ function captureEnv(): EnvSnapshot {
   return {
     apiPort: process.env.API_PORT,
     dbName: process.env.DB_NAME,
-    redisDbNumber: process.env.REDIS_DB_NUMBER
+    redisDbNumber: process.env.REDIS_DB_NUMBER,
+    startupRecoveryEnabled: process.env.STARTUP_RECOVERY_ENABLED
   };
 }
 
@@ -322,6 +347,7 @@ function restoreEnv(snapshot: EnvSnapshot): void {
   restoreEnvValue("API_PORT", snapshot.apiPort);
   restoreEnvValue("DB_NAME", snapshot.dbName);
   restoreEnvValue("REDIS_DB_NUMBER", snapshot.redisDbNumber);
+  restoreEnvValue("STARTUP_RECOVERY_ENABLED", snapshot.startupRecoveryEnabled);
 }
 
 function restoreEnvValue(key: string, value: string | undefined): void {

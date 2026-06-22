@@ -29,6 +29,7 @@ import { LogPrefix } from "shared/logging/LogPrefix";
 import { MetricsService } from "application/services/metrics/MetricsService";
 import { RedisPubSubService } from "application/services/redis/RedisPubSubService";
 import { RedisService } from "application/services/redis/RedisService";
+import { SingleInstanceRestartRecoveryService } from "application/services/recovery/SingleInstanceRestartRecoveryService";
 import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
 import { S3StorageService } from "application/services/storage/S3StorageService";
 import { SocketIOInitializer } from "presentation/controllers/io/SocketIOInitializer";
@@ -88,7 +89,6 @@ export class ServeApi {
   // correctness remains Redis/PostgreSQL-backed and adapter-aware.
   private _initPromise: Promise<void> | undefined;
   private _shutdownPromise: Promise<void> | undefined;
-  private _cleanupPromise: Promise<void> | undefined;
   private _shutdownRequested = false;
   private _admissionMiddlewareInstalled = false;
   private _socketAdmissionInstalled = false;
@@ -216,15 +216,6 @@ export class ServeApi {
         });
       }
 
-      try {
-        await this._cleanup();
-      } catch (rollbackError) {
-        throw new AggregateError(
-          [toLifecycleError("ServeApi startup", err), toLifecycleError("ServeApi rollback", rollbackError)],
-          "ServeApi startup failed"
-        );
-      }
-
       throw err;
     }
   }
@@ -238,7 +229,7 @@ export class ServeApi {
     this._shutdownRequested = true;
     this._markReadinessRejected(new Error(SOCKET_ADMISSION_NOT_READY_ERROR));
     if (!this._shutdownPromise) {
-      this._shutdownPromise = this._cleanup();
+      this._shutdownPromise = this._shutdownAfterInitSettles();
     }
 
     return this._shutdownPromise;
@@ -334,30 +325,10 @@ export class ServeApi {
   private async _runStartupPreparation(): Promise<void> {
     const gameService = container.resolve(GameService);
     const permissionService = container.resolve(PermissionService);
+    const restartRecoveryService = container.resolve(SingleInstanceRestartRecoveryService);
 
-    if (this._context.env.STARTUP_RECOVERY_ENABLED) {
-      const socketUserDataService = container.resolve(SocketUserDataService);
-
-      this._assertStartupCanContinue("exclusive cold-start recovery");
-      this._context.logger.warn(
-        "STARTUP_RECOVERY_ENABLED=true: running exclusive cold-start recovery; " +
-          "all games and socket sessions are affected. The operator must guarantee " +
-          "that no other server instance is serving active games or sockets.",
-        { prefix: LogPrefix.SERVE_API }
-      );
-
-      // Clean up all games (set all players as disconnected and pause game)
-      await gameService.cleanupAllGames();
-
-      this._assertStartupCanContinue("exclusive cold-start socket session cleanup");
-      // Clean up all authorized socket sessions
-      await socketUserDataService.cleanupAllSession();
-    } else {
-      this._context.logger.info(
-        "Startup recovery disabled; skipping game and socket session cleanup",
-        { prefix: LogPrefix.SERVE_API }
-      );
-    }
+    this._assertStartupCanContinue("single-instance restart recovery");
+    await restartRecoveryService.recoverIfEnabled();
 
     this._assertStartupCanContinue("orphaned game index cleanup");
     // Clean up games indexes that expires while server was down (if any)
@@ -522,15 +493,16 @@ export class ServeApi {
     });
   }
 
-  private _cleanup(): Promise<void> {
-    this._shutdownRequested = true;
-    this._markReadinessRejected(new Error(SOCKET_ADMISSION_NOT_READY_ERROR));
-
-    if (!this._cleanupPromise) {
-      this._cleanupPromise = this._cleanupInternal();
+  private async _shutdownAfterInitSettles(): Promise<void> {
+    if (this._initPromise) {
+      try {
+        await this._initPromise;
+      } catch {
+        // Startup failure has already been logged by init(); shutdown owns cleanup.
+      }
     }
 
-    return this._cleanupPromise;
+    await this._cleanupInternal();
   }
 
   private async _cleanupInternal(): Promise<void> {

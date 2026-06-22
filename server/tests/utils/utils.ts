@@ -24,6 +24,7 @@ import { User } from "infrastructure/database/models/User";
 
 interface TestEnvDefaultsOptions {
   apiPort?: number;
+  startupRecoveryEnabled?: boolean;
 }
 
 export function setTestEnvDefaults(options: TestEnvDefaultsOptions = {}) {
@@ -62,6 +63,7 @@ export function setTestEnvDefaults(options: TestEnvDefaultsOptions = {}) {
   // Disable InfluxDB metrics in tests — no InfluxDB instance available
   process.env.INFLUX_URL = "";
   process.env.TEST_DB_NAME_PREFIX = TEST_TIMEOUTS.TEST_DB_NAME_PREFIX;
+  process.env.STARTUP_RECOVERY_ENABLED = String(options.startupRecoveryEnabled ?? false);
 }
 
 export function createTestAppDataSource() {

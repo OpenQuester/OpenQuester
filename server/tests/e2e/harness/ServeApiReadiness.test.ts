@@ -186,7 +186,6 @@ const waitForSocketConnectError = async (
 describe("ServeApi readiness admission", () => {
   let harness: ServerTestHarness | undefined;
   const sockets: Array<{ socket: ClientSocket; namespace: string }> = [];
-  let startupRecoveryEnv: string | undefined;
 
   afterEach(async () => {
     for (const { socket, namespace } of sockets.splice(0)) {
@@ -201,12 +200,6 @@ describe("ServeApi readiness admission", () => {
     const currentHarness = harness;
     harness = undefined;
     await currentHarness?.stop();
-
-    if (startupRecoveryEnv === undefined) {
-      delete process.env.STARTUP_RECOVERY_ENABLED;
-    } else {
-      process.env.STARTUP_RECOVERY_ENABLED = startupRecoveryEnv;
-    }
 
     jest.restoreAllMocks();
   });
@@ -310,6 +303,20 @@ describe("ServeApi readiness admission", () => {
     const secondShutdown = harness.api.shutdown();
     expect(secondShutdown).toBe(firstShutdown);
 
+    let shutdownSettled = false;
+    void firstShutdown.finally(() => {
+      shutdownSettled = true;
+    });
+
+    await expect(fetchJson(`${harness.serverUrl}/health/ready`)).resolves.toMatchObject({
+      status: serviceUnavailableStatus,
+      body: { status: "not_ready" }
+    });
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+    expect(shutdownSettled).toBe(false);
+
     releasePermission.resolve();
     await expect(harness.initPromise).rejects.toThrow("shutdown");
     await withTimeout(firstShutdown, httpTimeoutMs, "ServeApi shutdown during initialization");
@@ -375,31 +382,40 @@ describe("ServeApi readiness admission", () => {
     await expect(firstShutdown).resolves.toBeUndefined();
   });
 
-  it("keeps exclusive cold-start recovery before readiness", async () => {
-    startupRecoveryEnv = process.env.STARTUP_RECOVERY_ENABLED;
-    process.env.STARTUP_RECOVERY_ENABLED = "true";
-
+  it("keeps single-instance restart recovery before readiness", async () => {
     const cleanupEntered = createDeferred();
     const releaseCleanup = createDeferred();
     const events: string[] = [];
 
     jest
-      .spyOn(GameService.prototype, "cleanupAllGames")
-      .mockImplementation(async (): Promise<void> => {
+      .spyOn(GameService.prototype, "recoverAllGamesAfterSingleInstanceRestart")
+      .mockImplementation(async () => {
         events.push("cleanup-start");
         cleanupEntered.resolve();
         await releaseCleanup.promise;
         events.push("cleanup-end");
+        return {
+          status: "completed" as const,
+          recoveredGames: 0,
+          recoveredTimers: 0
+        };
       });
     const sessionCleanupSpy = jest
-      .spyOn(SocketUserDataService.prototype, "cleanupAllSession")
-      .mockResolvedValue(undefined);
+      .spyOn(SocketUserDataService.prototype, "clearAllSocketSessionsAfterSingleInstanceRestart")
+      .mockResolvedValue({
+        status: "completed",
+        removedSocketSessions: 0,
+        removedUserSocketLookups: 0
+      });
 
-    harness = await ServerTestHarness.startInitializing({ apiPort: 0 });
+    harness = await ServerTestHarness.startInitializing({
+      apiPort: 0,
+      startupRecoveryEnabled: true
+    });
     await withTimeout(
       cleanupEntered.promise,
       httpTimeoutMs,
-      "exclusive cold-start recovery cleanup to pause"
+      "single-instance restart recovery cleanup to pause"
     );
 
     await expect(fetchJson(`${harness.serverUrl}/health/ready`)).resolves.toMatchObject({

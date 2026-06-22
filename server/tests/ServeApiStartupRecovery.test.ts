@@ -1,24 +1,22 @@
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 
-import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
-import { GameService } from "application/services/game/GameService";
-import { PermissionService } from "application/services/permission/PermissionService";
-import { RedisPubSubService } from "application/services/redis/RedisPubSubService";
-import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
-import { container } from "bootstrap/bootstrapContainer";
+import { SingleInstanceRestartRecoveryService } from "application/services/recovery/SingleInstanceRestartRecoveryService";
+import { type GameService } from "application/services/game/GameService";
+import { type SocketUserDataService } from "application/services/socket/SocketUserDataService";
+import { type SingleInstanceRestartRecoveryResult } from "domain/types/recovery/SingleInstanceRestartRecoveryResult";
 import { Environment } from "shared/config/Environment";
 import { ILogger } from "shared/logging/ILogger";
 import type { LogLevel, PerformanceLog } from "shared/logging/LoggerTypes";
 import type { LogMeta } from "shared/logging/LogMeta";
 import type { LogType } from "shared/logging/LogType";
 import { setTestEnvDefaults } from "tests/utils/utils";
-import { ServeApi } from "../src/ServeApi";
 
 class TestLogger extends ILogger {
+  public readonly infos: string[] = [];
   public readonly warnings: string[] = [];
 
-  info(_msg: string, _meta: LogMeta): void {
-    // no-op
+  info(msg: string, _meta: LogMeta): void {
+    this.infos.push(msg);
   }
   debug(_msg: string, _meta: LogMeta): void {
     // no-op
@@ -49,100 +47,78 @@ class TestLogger extends ILogger {
   }
 }
 
-interface StartupJobContext {
-  _context: {
-    env: Pick<Environment, "ADMIN_EMAILS" | "STARTUP_RECOVERY_ENABLED">;
-    logger: ILogger;
-  };
-  _assertStartupCanContinue(stage: string): void;
-}
+const originalEnv = { ...process.env };
 
-interface StartupJobRunner {
-  _runStartupPreparation(this: StartupJobContext): Promise<void>;
-}
-
-const runStartupJobs = (
-  env: Pick<Environment, "ADMIN_EMAILS" | "STARTUP_RECOVERY_ENABLED">,
-  logger: ILogger
-): Promise<void> => {
-  const runner = ServeApi.prototype as unknown as StartupJobRunner;
-  return runner._runStartupPreparation.call({
-    _context: { env, logger },
-    _assertStartupCanContinue: (_stage: string): void => undefined
-  });
+const restoreProcessEnv = (): void => {
+  process.env = { ...originalEnv };
 };
 
-const registerStartupJobMocks = () => {
+const setMinimalProductionLikeEnv = (): void => {
+  process.env.ENV = "dev";
+  process.env.DB_PASS = "postgres";
+  process.env.DB_LOGGER = "false";
+  process.env.LOG_LEVEL = "error";
+  process.env.INFLUX_URL = "";
+  delete process.env.STARTUP_RECOVERY_ENABLED;
+};
+
+const createService = (
+  startupRecoveryEnabled: boolean,
+  logger: TestLogger
+): {
+  service: SingleInstanceRestartRecoveryService;
+  gameService: Pick<GameService, "recoverAllGamesAfterSingleInstanceRestart">;
+  socketUserDataService: Pick<
+    SocketUserDataService,
+    "clearAllSocketSessionsAfterSingleInstanceRestart"
+  >;
+} => {
+  const env = { STARTUP_RECOVERY_ENABLED: startupRecoveryEnabled } as Pick<
+    Environment,
+    "STARTUP_RECOVERY_ENABLED"
+  >;
   const gameService = {
-    cleanupAllGames: jest.fn(async (): Promise<void> => undefined),
-    cleanOrphanedGames: jest.fn(async (): Promise<void> => undefined)
+    recoverAllGamesAfterSingleInstanceRestart: jest.fn(async () =>
+      Promise.resolve({
+        status: "completed" as const,
+        recoveredGames: 2,
+        recoveredTimers: 1
+      })
+    )
   };
   const socketUserDataService = {
-    cleanupAllSession: jest.fn(async (): Promise<void> => undefined)
+    clearAllSocketSessionsAfterSingleInstanceRestart: jest.fn(async () =>
+      Promise.resolve({
+        status: "completed" as const,
+        removedSocketSessions: 3,
+        removedUserSocketLookups: 2
+      })
+    )
   };
-  const pubSub = {
-    initKeyExpirationHandling: jest.fn(async (): Promise<void> => undefined)
-  };
-  const permissionService = {
-    grantAllPermissionsByEmails: jest.fn(async (_emails: string[]): Promise<void> => undefined)
-  };
-  const cronScheduler = {
-    initialize: jest.fn(async (): Promise<void> => undefined)
-  };
-
-  container.registerInstance(GameService, gameService as unknown as GameService);
-  container.registerInstance(
-    SocketUserDataService,
-    socketUserDataService as unknown as SocketUserDataService
-  );
-  container.registerInstance(RedisPubSubService, pubSub as unknown as RedisPubSubService);
-  container.registerInstance(
-    PermissionService,
-    permissionService as unknown as PermissionService
-  );
-  container.registerInstance(CronSchedulerService, cronScheduler as unknown as CronSchedulerService);
 
   return {
+    service: new SingleInstanceRestartRecoveryService(
+      env as Environment,
+      gameService as unknown as GameService,
+      socketUserDataService as unknown as SocketUserDataService,
+      logger
+    ),
     gameService,
-    socketUserDataService,
-    pubSub,
-    permissionService,
-    cronScheduler
+    socketUserDataService
   };
 };
 
-describe("ServeApi startup recovery", () => {
+describe("single-instance restart recovery startup configuration", () => {
   const logger = new TestLogger();
 
   afterEach(() => {
-    container.reset();
-    delete process.env.STARTUP_RECOVERY_ENABLED;
+    restoreProcessEnv();
+    logger.infos.length = 0;
     logger.warnings.length = 0;
   });
 
-  it("keeps exclusive cold-start recovery disabled when the environment variable is absent", async () => {
-    setTestEnvDefaults();
-    delete process.env.STARTUP_RECOVERY_ENABLED;
-
-    const env = Environment.getInstance(logger, { overwrite: true });
-    env.load(true);
-
-    expect(env.STARTUP_RECOVERY_ENABLED).toBe(false);
-  });
-
-  it("keeps exclusive cold-start recovery disabled when explicitly set to false", async () => {
-    setTestEnvDefaults();
-    process.env.STARTUP_RECOVERY_ENABLED = "false";
-
-    const env = Environment.getInstance(logger, { overwrite: true });
-    env.load(true);
-
-    expect(env.STARTUP_RECOVERY_ENABLED).toBe(false);
-  });
-
-  it("enables exclusive cold-start recovery only when explicitly set to true", async () => {
-    setTestEnvDefaults();
-    process.env.STARTUP_RECOVERY_ENABLED = "true";
+  it("keeps production single-instance restart recovery enabled by default", () => {
+    setMinimalProductionLikeEnv();
 
     const env = Environment.getInstance(logger, { overwrite: true });
     env.load(true);
@@ -150,31 +126,99 @@ describe("ServeApi startup recovery", () => {
     expect(env.STARTUP_RECOVERY_ENABLED).toBe(true);
   });
 
-  it("skips destructive game and session cleanup when exclusive cold-start recovery is disabled", async () => {
-    const mocks = registerStartupJobMocks();
-    const adminEmails = ["admin@example.com"];
+  it("keeps test runtime startup recovery disabled by explicit default", () => {
+    setTestEnvDefaults();
 
-    await runStartupJobs({ ADMIN_EMAILS: adminEmails, STARTUP_RECOVERY_ENABLED: false }, logger);
+    const env = Environment.getInstance(logger, { overwrite: true });
+    env.load(true);
 
-    expect(mocks.gameService.cleanupAllGames).not.toHaveBeenCalled();
-    expect(mocks.socketUserDataService.cleanupAllSession).not.toHaveBeenCalled();
-    expect(mocks.gameService.cleanOrphanedGames).toHaveBeenCalledTimes(1);
-    expect(mocks.permissionService.grantAllPermissionsByEmails).toHaveBeenCalledWith(adminEmails);
-    expect(mocks.pubSub.initKeyExpirationHandling).not.toHaveBeenCalled();
-    expect(mocks.cronScheduler.initialize).not.toHaveBeenCalled();
+    expect(env.STARTUP_RECOVERY_ENABLED).toBe(false);
   });
 
-  it("runs destructive cleanup and warning for explicit exclusive cold-start recovery", async () => {
-    const mocks = registerStartupJobMocks();
-    const adminEmails = ["admin@example.com"];
+  it("allows recovery tests to opt into single-instance restart recovery explicitly", () => {
+    setTestEnvDefaults({ startupRecoveryEnabled: true });
 
-    await runStartupJobs({ ADMIN_EMAILS: adminEmails, STARTUP_RECOVERY_ENABLED: true }, logger);
+    const env = Environment.getInstance(logger, { overwrite: true });
+    env.load(true);
 
-    expect(mocks.gameService.cleanupAllGames).toHaveBeenCalledTimes(1);
-    expect(mocks.socketUserDataService.cleanupAllSession).toHaveBeenCalledTimes(1);
-    expect(mocks.gameService.cleanOrphanedGames).toHaveBeenCalledTimes(1);
-    expect(mocks.permissionService.grantAllPermissionsByEmails).toHaveBeenCalledWith(adminEmails);
-    expect(logger.warnings.join("\n")).toContain("exclusive cold-start recovery");
-    expect(logger.warnings.join("\n")).toContain("all games and socket sessions");
+    expect(env.STARTUP_RECOVERY_ENABLED).toBe(true);
+  });
+});
+
+describe("SingleInstanceRestartRecoveryService", () => {
+  let logger: TestLogger;
+
+  beforeEach(() => {
+    logger = new TestLogger();
+  });
+
+  it("skips destructive game and session cleanup when disabled", async () => {
+    const { service, gameService, socketUserDataService } = createService(false, logger);
+
+    const result = await service.recoverIfEnabled();
+
+    expect(result).toEqual({
+      status: "disabled"
+    } satisfies SingleInstanceRestartRecoveryResult);
+    expect(gameService.recoverAllGamesAfterSingleInstanceRestart).not.toHaveBeenCalled();
+    expect(
+      socketUserDataService.clearAllSocketSessionsAfterSingleInstanceRestart
+    ).not.toHaveBeenCalled();
+    expect(logger.infos.join("\n")).toContain("single-instance restart recovery disabled");
+    expect(logger.warnings).toHaveLength(0);
+  });
+
+  it("runs game and socket cleanup once when enabled for single-instance restart recovery", async () => {
+    const { service, gameService, socketUserDataService } = createService(true, logger);
+
+    const result = await service.recoverIfEnabled();
+
+    expect(gameService.recoverAllGamesAfterSingleInstanceRestart).toHaveBeenCalledTimes(1);
+    expect(
+      socketUserDataService.clearAllSocketSessionsAfterSingleInstanceRestart
+    ).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      status: "completed",
+      gameRecovery: {
+        status: "completed",
+        recoveredGames: 2,
+        recoveredTimers: 1
+      },
+      socketSessionCleanup: {
+        status: "completed",
+        removedSocketSessions: 3,
+        removedUserSocketLookups: 2
+      }
+    } satisfies SingleInstanceRestartRecoveryResult);
+    expect(logger.warnings.join("\n")).toContain("single-instance restart recovery");
+    expect(logger.warnings.join("\n")).toContain("all games, timers, and socket sessions");
+    expect(logger.warnings.join("\n")).toContain("invalid for multiple live server instances");
+  });
+
+  it("rejects startup when enabled game recovery cannot acquire the recovery lock", async () => {
+    const { service, gameService, socketUserDataService } = createService(true, logger);
+    jest
+      .spyOn(gameService, "recoverAllGamesAfterSingleInstanceRestart")
+      .mockResolvedValue({ status: "lock-not-acquired" });
+
+    await expect(service.recoverIfEnabled()).rejects.toThrow(
+      "single-instance restart game recovery did not execute because the recovery lock was not acquired"
+    );
+    expect(
+      socketUserDataService.clearAllSocketSessionsAfterSingleInstanceRestart
+    ).not.toHaveBeenCalled();
+    expect(logger.infos.join("\n")).not.toContain("completed");
+  });
+
+  it("rejects startup when enabled socket-session cleanup cannot acquire the recovery lock", async () => {
+    const { service, socketUserDataService } = createService(true, logger);
+    jest
+      .spyOn(socketUserDataService, "clearAllSocketSessionsAfterSingleInstanceRestart")
+      .mockResolvedValue({ status: "lock-not-acquired" });
+
+    await expect(service.recoverIfEnabled()).rejects.toThrow(
+      "single-instance restart socket-session cleanup did not execute because the recovery lock was not acquired"
+    );
+    expect(logger.infos.join("\n")).not.toContain("completed");
   });
 });
