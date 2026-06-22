@@ -38,6 +38,11 @@ Process-local state is valid when it owns only local resources or is a correctne
 
 Do not coordinate process startup or shutdown through Redis. Each instance starts and stops its own resources.
 
+Startup readiness is process-local. An instance may bind its HTTP port before
+shared startup preparation completes, but it must not serve application HTTP
+routes or admit Socket.IO connections until its own lifecycle state is ready.
+Readiness must not be stored in Redis or inferred from cluster-wide sockets.
+
 Good:
 
 ```ts
@@ -167,6 +172,13 @@ Shutdown closes only resources owned by the current process:
 Shutdown must not delete active games, clear game action queues, clear game timers, invalidate sockets connected to other instances, unsubscribe another instance, or wait for global queues to become empty.
 
 HTTP listen failure must not run shared startup preparation, start distributed subscribers, start cron jobs, or mutate shared game state. Bind the local HTTP server before starting those steps.
+
+Ordinary replicated-instance startup must not clear active Redis games, timers,
+socket sessions, or user-to-socket lookup keys. `STARTUP_RECOVERY_ENABLED=true`
+means destructive cluster-wide cold-start recovery: the operator guarantees that
+no other server instance is serving active games or sockets. The existing
+distributed recovery locks prevent duplicate execution; they do not make this
+mode safe while another live instance is serving traffic.
 
 ## Review Checklist
 

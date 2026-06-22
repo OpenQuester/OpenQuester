@@ -4,6 +4,7 @@ interface SocketWaitContext {
   client: string;
   serverUrl: string;
   timeoutMs: number;
+  namespace?: string;
 }
 
 interface SocketEventWaitContext extends SocketWaitContext {
@@ -73,6 +74,7 @@ export async function waitForSocketEvent(
       clearTimeout(timeout);
       socket.off(context.event, onEvent);
       socket.off("connect_error", onConnectError);
+      socket.off("disconnect", onDisconnect);
     };
 
     const onEvent = (...args: unknown[]): void => {
@@ -92,8 +94,21 @@ export async function waitForSocketEvent(
       );
     };
 
+    const onDisconnect = (reason: string): void => {
+      cleanup();
+      reject(
+        new Error(
+          `Socket.IO client disconnected while waiting for event "${context.event}" ` +
+            `(client="${context.client}", socketId="${socket.id ?? "unknown"}", ` +
+            `reason="${reason}", connected=${socket.connected}, ` +
+            `serverUrl="${context.serverUrl}")`
+        )
+      );
+    };
+
     socket.once(context.event, onEvent);
     socket.once("connect_error", onConnectError);
+    socket.once("disconnect", onDisconnect);
   });
 }
 
@@ -103,14 +118,19 @@ export async function disconnectSocket(
 ): Promise<void> {
   if (!socket.connected) {
     socket.disconnect();
+    if (socket.connected) {
+      throw buildSocketDisconnectStateError(socket, context);
+    }
     return;
   }
 
   const disconnected = waitForSocketDisconnectEvent(socket, context);
-  const engineClosed = waitForEngineClose(socket, context);
-
   socket.disconnect();
-  await Promise.all([disconnected, engineClosed]);
+  await disconnected;
+
+  if (socket.connected) {
+    throw buildSocketDisconnectStateError(socket, context);
+  }
 }
 
 async function waitForSocketDisconnectEvent(
@@ -132,37 +152,10 @@ async function waitForSocketDisconnectEvent(
 
     const timeout = setTimeout(() => {
       cleanup();
-      reject(buildSocketTimeoutError("Socket.IO event", { ...context, event, socket }));
+      reject(buildSocketDisconnectTimeoutError(socket, context));
     }, context.timeoutMs);
 
     socket.once(event, onDisconnect);
-  });
-}
-
-async function waitForEngineClose(socket: Socket, context: SocketWaitContext): Promise<void> {
-  if (socket.io.engine.readyState === "closed") {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const event = "engine close";
-
-    const cleanup = (): void => {
-      clearTimeout(timeout);
-      socket.io.engine.off("close", onClose);
-    };
-
-    const onClose = (): void => {
-      cleanup();
-      resolve();
-    };
-
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(buildSocketTimeoutError("Socket.IO event", { ...context, event, socket }));
-    }, context.timeoutMs);
-
-    socket.io.engine.once("close", onClose);
   });
 }
 
@@ -174,5 +167,23 @@ function buildSocketTimeoutError(
     `Timed out after ${context.timeoutMs}ms waiting for ${operation} "${context.event}" ` +
       `(client="${context.client}", socketId="${context.socket.id ?? "unknown"}", ` +
       `connected=${context.socket.connected}, serverUrl="${context.serverUrl}")`
+  );
+}
+
+function buildSocketDisconnectStateError(socket: Socket, context: SocketWaitContext): Error {
+  return new Error(
+    `Socket.IO client remained connected after disconnect ` +
+      `(client="${context.client}", namespace="${context.namespace ?? "unknown"}", ` +
+      `socketId="${socket.id ?? "unknown"}", connected=${socket.connected}, ` +
+      `serverUrl="${context.serverUrl}", timeoutMs=${context.timeoutMs})`
+  );
+}
+
+function buildSocketDisconnectTimeoutError(socket: Socket, context: SocketWaitContext): Error {
+  return new Error(
+    `Timed out after ${context.timeoutMs}ms waiting for Socket.IO socket disconnect ` +
+      `(client="${context.client}", namespace="${context.namespace ?? "unknown"}", ` +
+      `socketId="${socket.id ?? "unknown"}", connected=${socket.connected}, ` +
+      `serverUrl="${context.serverUrl}")`
   );
 }

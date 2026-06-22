@@ -9,7 +9,7 @@ import {
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
-const healthPath = "/v1/test/health";
+const healthPath = "/health/live";
 const httpTimeoutMs = 2000;
 
 const connectRootSocket = async (
@@ -17,6 +17,7 @@ const connectRootSocket = async (
   client: string
 ): Promise<ClientSocket> => {
   const socket = createSocket(serverUrl, {
+    forceNew: true,
     reconnection: false,
     timeout: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS,
     transports: ["websocket"]
@@ -209,7 +210,7 @@ describe("ServerTestHarness", () => {
 
     await expect(fetchJson(`${harness.serverUrl}${healthPath}`)).resolves.toEqual({
       status: 200,
-      body: { ok: true }
+      body: { status: "live" }
     });
 
     const socket = await connectRootSocket(harness.serverUrl, "lifecycle-smoke");
@@ -222,6 +223,7 @@ describe("ServerTestHarness", () => {
     );
     await disconnectSocket(socket, {
       client: "lifecycle-smoke",
+      namespace: "/",
       serverUrl: harness.serverUrl,
       timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
     });
@@ -252,7 +254,7 @@ describe("ServerTestHarness", () => {
       harness = await ServerTestHarness.start({ apiPort: 0 });
       await expect(fetchJson(`${harness.serverUrl}${healthPath}`)).resolves.toEqual({
         status: 200,
-        body: { ok: true }
+        body: { status: "live" }
       });
       await harness.stop();
     } finally {
@@ -265,7 +267,7 @@ describe("ServerTestHarness", () => {
       harness = await ServerTestHarness.start({ apiPort: 0 });
       await expect(fetchJson(`${harness.serverUrl}${healthPath}`)).resolves.toEqual({
         status: 200,
-        body: { ok: true }
+        body: { status: "live" }
       });
 
       const socket = await connectRootSocket(harness.serverUrl, `cycle-${cycle}`);
@@ -278,6 +280,7 @@ describe("ServerTestHarness", () => {
       );
       await disconnectSocket(socket, {
         client: `cycle-${cycle}`,
+        namespace: "/",
         serverUrl: harness.serverUrl,
         timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
       });

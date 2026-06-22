@@ -15,6 +15,8 @@ import { setTestEnvDefaults } from "tests/utils/utils";
 import { ServeApi } from "../src/ServeApi";
 
 class TestLogger extends ILogger {
+  public readonly warnings: string[] = [];
+
   info(_msg: string, _meta: LogMeta): void {
     // no-op
   }
@@ -24,8 +26,8 @@ class TestLogger extends ILogger {
   trace(_msg: string, _meta: LogMeta): void {
     // no-op
   }
-  warn(_msg: string, _meta: LogMeta): void {
-    // no-op
+  warn(msg: string, _meta: LogMeta): void {
+    this.warnings.push(msg);
   }
   error(_msg: string, _meta: LogMeta): void {
     // no-op
@@ -52,6 +54,7 @@ interface StartupJobContext {
     env: Pick<Environment, "ADMIN_EMAILS" | "STARTUP_RECOVERY_ENABLED">;
     logger: ILogger;
   };
+  _assertStartupCanContinue(stage: string): void;
 }
 
 interface StartupJobRunner {
@@ -63,7 +66,10 @@ const runStartupJobs = (
   logger: ILogger
 ): Promise<void> => {
   const runner = ServeApi.prototype as unknown as StartupJobRunner;
-  return runner._runStartupPreparation.call({ _context: { env, logger } });
+  return runner._runStartupPreparation.call({
+    _context: { env, logger },
+    _assertStartupCanContinue: (_stage: string): void => undefined
+  });
 };
 
 const registerStartupJobMocks = () => {
@@ -110,9 +116,41 @@ describe("ServeApi startup recovery", () => {
 
   afterEach(() => {
     container.reset();
+    delete process.env.STARTUP_RECOVERY_ENABLED;
+    logger.warnings.length = 0;
   });
 
-  it("skips destructive game and session cleanup when startup recovery is disabled", async () => {
+  it("keeps exclusive cold-start recovery disabled when the environment variable is absent", async () => {
+    setTestEnvDefaults();
+    delete process.env.STARTUP_RECOVERY_ENABLED;
+
+    const env = Environment.getInstance(logger, { overwrite: true });
+    env.load(true);
+
+    expect(env.STARTUP_RECOVERY_ENABLED).toBe(false);
+  });
+
+  it("keeps exclusive cold-start recovery disabled when explicitly set to false", async () => {
+    setTestEnvDefaults();
+    process.env.STARTUP_RECOVERY_ENABLED = "false";
+
+    const env = Environment.getInstance(logger, { overwrite: true });
+    env.load(true);
+
+    expect(env.STARTUP_RECOVERY_ENABLED).toBe(false);
+  });
+
+  it("enables exclusive cold-start recovery only when explicitly set to true", async () => {
+    setTestEnvDefaults();
+    process.env.STARTUP_RECOVERY_ENABLED = "true";
+
+    const env = Environment.getInstance(logger, { overwrite: true });
+    env.load(true);
+
+    expect(env.STARTUP_RECOVERY_ENABLED).toBe(true);
+  });
+
+  it("skips destructive game and session cleanup when exclusive cold-start recovery is disabled", async () => {
     const mocks = registerStartupJobMocks();
     const adminEmails = ["admin@example.com"];
 
@@ -126,23 +164,17 @@ describe("ServeApi startup recovery", () => {
     expect(mocks.cronScheduler.initialize).not.toHaveBeenCalled();
   });
 
-  it("runs startup recovery by default for single-instance deployments", async () => {
-    setTestEnvDefaults();
-    delete process.env.STARTUP_RECOVERY_ENABLED;
+  it("runs destructive cleanup and warning for explicit exclusive cold-start recovery", async () => {
+    const mocks = registerStartupJobMocks();
+    const adminEmails = ["admin@example.com"];
 
-    const env = Environment.getInstance(logger, { overwrite: true });
-    env.load(true);
+    await runStartupJobs({ ADMIN_EMAILS: adminEmails, STARTUP_RECOVERY_ENABLED: true }, logger);
 
-    expect(env.STARTUP_RECOVERY_ENABLED).toBe(true);
-  });
-
-  it("reads explicit startup recovery disablement from environment", async () => {
-    setTestEnvDefaults();
-    process.env.STARTUP_RECOVERY_ENABLED = "false";
-
-    const env = Environment.getInstance(logger, { overwrite: true });
-    env.load(true);
-
-    expect(env.STARTUP_RECOVERY_ENABLED).toBe(false);
+    expect(mocks.gameService.cleanupAllGames).toHaveBeenCalledTimes(1);
+    expect(mocks.socketUserDataService.cleanupAllSession).toHaveBeenCalledTimes(1);
+    expect(mocks.gameService.cleanOrphanedGames).toHaveBeenCalledTimes(1);
+    expect(mocks.permissionService.grantAllPermissionsByEmails).toHaveBeenCalledWith(adminEmails);
+    expect(logger.warnings.join("\n")).toContain("exclusive cold-start recovery");
+    expect(logger.warnings.join("\n")).toContain("all games and socket sessions");
   });
 });

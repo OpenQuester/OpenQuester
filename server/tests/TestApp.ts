@@ -30,6 +30,7 @@ interface TestAppBootstrapResult {
   app: Express;
   httpServer: HTTPServer;
   io: IOServer;
+  api: ServeApi;
   serverUrl: string;
   database: Database;
   dataSource: DataSource;
@@ -40,6 +41,31 @@ export async function bootstrapTestApp(
   testDataSource: DataSource,
   options: BootstrapTestAppOptions = {}
 ): Promise<TestAppBootstrapResult> {
+  const testApp = await createTestAppRuntime(testDataSource, options);
+
+  try {
+    await testApp.api.init();
+  } catch (error) {
+    try {
+      await testApp.cleanup();
+    } catch (cleanupError) {
+      throw combineErrors("Test app startup failed", [
+        toCleanupError("Startup", error),
+        toCleanupError("Startup cleanup", cleanupError)
+      ]);
+    }
+    throw error;
+  }
+
+  testApp.logger.info("Test app initialized", { prefix: LogPrefix.TEST });
+
+  return testApp;
+}
+
+export async function createTestAppRuntime(
+  testDataSource: DataSource,
+  options: BootstrapTestAppOptions = {}
+): Promise<TestAppBootstrapResult & { logger: PinoLogger }> {
   const logger = options.logger ?? (await PinoLogger.init({ pretty: true }));
   const ownsLogger = options.logger === undefined;
   const prefix = LogPrefix.TEST;
@@ -152,29 +178,18 @@ export async function bootstrapTestApp(
     throwIfCleanupFailed("Test app cleanup failed", errors);
   }
 
-  try {
-    await api.init();
-  } catch (error) {
-    try {
-      await cleanup();
-    } catch (cleanupError) {
-      throw combineErrors("Test app startup failed", [
-        toCleanupError("Startup", error),
-        toCleanupError("Startup cleanup", cleanupError)
-      ]);
-    }
-    throw error;
-  }
-
-  logger.info("Test app initialized", { prefix });
   return {
     app,
     httpServer,
     io,
-    serverUrl: api.serverUrl,
+    api,
+    get serverUrl(): string {
+      return api.serverUrl;
+    },
     database: db,
     dataSource: testDataSource,
-    cleanup
+    cleanup,
+    logger
   };
 }
 

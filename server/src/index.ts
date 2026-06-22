@@ -21,7 +21,9 @@ import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { ServeApi } from "./ServeApi";
 
-const FORCE_SHUTDOWN_TIMEOUT_MS = 5000;
+// This is the whole-process last resort. It must exceed the sum of individual
+// cleanup budgets inside ServeApi plus Redis/logger reporting overhead.
+const FORCE_SHUTDOWN_TIMEOUT_MS = 30000;
 let shutdownPromise: Promise<void> | undefined;
 
 interface ShutdownResources {
@@ -176,12 +178,15 @@ async function runShutdown(resources: ShutdownResources): Promise<void> {
 
   try {
     if (trigger !== undefined) {
-      await ErrorController.resolveError(trigger, logger);
       const triggerError = toLifecycleError("Shutdown trigger", trigger);
       errors.push(triggerError);
-      logger.warn("Server shutting down due to error", {
-        prefix: LogPrefix.SERVER,
-        error: triggerError.message
+
+      await collectFailure(errors, logger, "Shutdown trigger reporting", async () => {
+        await ErrorController.resolveError(trigger, logger);
+        logger.warn("Server shutting down due to error", {
+          prefix: LogPrefix.SERVER,
+          error: triggerError.message
+        });
       });
     }
 

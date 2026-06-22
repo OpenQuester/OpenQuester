@@ -5,7 +5,7 @@ import { type DataSource } from "typeorm";
 import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { type Database } from "infrastructure/database/Database";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
+import { bootstrapTestApp, createTestAppRuntime } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 
 interface ServerTestHarnessOptions {
@@ -33,7 +33,8 @@ export class ServerTestHarness {
   private constructor(
     private readonly testEnvironment: TestEnvironment,
     private readonly testApp: TestAppBootstrap,
-    private readonly envSnapshot: EnvSnapshot
+    private readonly envSnapshot: EnvSnapshot,
+    private readonly _initPromise: Promise<void> | undefined = undefined
   ) {
     //
   }
@@ -72,6 +73,49 @@ export class ServerTestHarness {
     }
   }
 
+  public static async startInitializing(
+    options: ServerTestHarnessOptions = {}
+  ): Promise<ServerTestHarness> {
+    const envSnapshot = captureEnv();
+    const logger = await PinoLogger.init({ pretty: true });
+    const testEnvironment = new TestEnvironment(logger);
+    const startupErrors: Error[] = [];
+    let testApp: TestAppBootstrap | undefined;
+    let started = false;
+
+    try {
+      await testEnvironment.setup();
+      testApp = await createTestAppRuntime(testEnvironment.getDatabase(), {
+        ...options,
+        logger
+      });
+      const initPromise = testApp.api.init();
+      await waitForHttpListening(testApp, TEST_HARNESS_HTTP_LISTEN_TIMEOUT_MS);
+      started = true;
+      return new ServerTestHarness(testEnvironment, testApp, envSnapshot, initPromise);
+    } catch (error) {
+      startupErrors.push(toLifecycleError("Server test harness startup", error));
+      if (testApp) {
+        const currentTestApp = testApp;
+        await collectFailure(startupErrors, "Test app cleanup after startup failure", async () => {
+          await currentTestApp.cleanup();
+        });
+      }
+      await collectFailure(
+        startupErrors,
+        "Test environment teardown after startup failure",
+        async () => {
+          await testEnvironment.teardown();
+        }
+      );
+      throw combineErrors("ServerTestHarness startup failed", startupErrors);
+    } finally {
+      if (!started) {
+        restoreEnv(envSnapshot);
+      }
+    }
+  }
+
   public get app(): Express {
     return this.testApp.app;
   }
@@ -86,6 +130,18 @@ export class ServerTestHarness {
 
   public get serverUrl(): string {
     return this.testApp.serverUrl;
+  }
+
+  public get api(): TestAppBootstrap["api"] {
+    return this.testApp.api;
+  }
+
+  public get initPromise(): Promise<void> {
+    if (!this._initPromise) {
+      throw new Error("ServerTestHarness was started after initialization completed");
+    }
+
+    return this._initPromise;
   }
 
   public waitForSocketDisconnect(
@@ -168,6 +224,47 @@ export class ServerTestHarness {
       }));
     });
   }
+}
+
+const TEST_HARNESS_HTTP_LISTEN_TIMEOUT_MS = 2000;
+
+async function waitForHttpListening(
+  testApp: TestAppBootstrap,
+  timeoutMs: number
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(
+        new Error(`Timed out after ${timeoutMs}ms waiting for test HTTP server to listen`)
+      );
+    }, timeoutMs);
+
+    const cleanup = (): void => {
+      clearTimeout(timeout);
+      testApp.httpServer.off("listening", onListening);
+      testApp.httpServer.off("error", onError);
+    };
+
+    const onListening = (): void => {
+      cleanup();
+      resolve();
+    };
+
+    const onError = (error: Error): void => {
+      cleanup();
+      reject(error);
+    };
+
+    if (testApp.httpServer.listening) {
+      cleanup();
+      resolve();
+      return;
+    }
+
+    testApp.httpServer.once("listening", onListening);
+    testApp.httpServer.once("error", onError);
+  });
 }
 
 function isServerSocketConnected(socket: ServerSocket): boolean {
