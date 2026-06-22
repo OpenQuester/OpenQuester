@@ -1,48 +1,42 @@
 import { afterEach, describe, expect, it } from "@jest/globals";
 import { createServer, type Server as HTTPServer } from "http";
-import { io as createSocket, type Socket } from "socket.io-client";
+import { io as createSocket, type Socket as ClientSocket } from "socket.io-client";
 
-import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
+import {
+  disconnectSocket,
+  waitForSocketConnection
+} from "tests/e2e/harness/SocketTestWait";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 const healthPath = "/v1/test/health";
+const httpTimeoutMs = 2000;
 
-const connectSocket = async (serverUrl: string): Promise<Socket> => {
-  const socket = createSocket(`${serverUrl}${SOCKET_GAME_NAMESPACE}`, {
+const connectRootSocket = async (
+  serverUrl: string,
+  client: string
+): Promise<ClientSocket> => {
+  const socket = createSocket(serverUrl, {
     reconnection: false,
     timeout: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS,
     transports: ["websocket"]
   });
 
-  return new Promise<Socket>((resolve, reject) => {
-    const cleanup = (): void => {
-      socket.off("connect", onConnect);
-      socket.off("connect_error", onConnectError);
-    };
-    const onConnect = (): void => {
-      cleanup();
-      resolve(socket);
-    };
-    const onConnectError = (error: Error): void => {
-      cleanup();
-      socket.disconnect();
-      reject(error);
-    };
-
-    socket.once("connect", onConnect);
-    socket.once("connect_error", onConnectError);
+  await waitForSocketConnection(socket, {
+    client,
+    serverUrl,
+    timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
   });
+
+  return socket;
 };
 
-const waitForSocketDisconnect = async (socket: Socket): Promise<void> => {
-  if (!socket.connected) {
-    return;
+const requireSocketId = (socket: ClientSocket): string => {
+  if (!socket.id) {
+    throw new Error("Expected connected Socket.IO client to have an id");
   }
 
-  await new Promise<void>((resolve) => {
-    socket.once("disconnect", () => resolve());
-  });
+  return socket.id;
 };
 
 const listenOnEphemeralPort = async (): Promise<{ server: HTTPServer; port: number }> => {
@@ -51,13 +45,23 @@ const listenOnEphemeralPort = async (): Promise<{ server: HTTPServer; port: numb
     res.end();
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      server.off("error", reject);
-      resolve();
-    });
-  });
+  await withTimeout(
+    new Promise<void>((resolve, reject) => {
+      const onError = (error: Error): void => {
+        server.off("listening", onListening);
+        reject(error);
+      };
+      const onListening = (): void => {
+        server.off("error", onError);
+        resolve();
+      };
+
+      server.once("error", onError);
+      server.listen(0, "127.0.0.1", onListening);
+    }),
+    httpTimeoutMs,
+    "dummy HTTP listen"
+  );
 
   const address = server.address();
   if (address === null || typeof address === "string") {
@@ -68,26 +72,132 @@ const listenOnEphemeralPort = async (): Promise<{ server: HTTPServer; port: numb
 };
 
 const closeServer = async (server: HTTPServer): Promise<void> => {
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => {
-      if (error) {
-        reject(error);
-        return;
+  if (!server.listening) {
+    return;
+  }
+
+  await withTimeout(
+    new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    }),
+    httpTimeoutMs,
+    "dummy HTTP close"
+  );
+};
+
+const fetchJson = async (url: string): Promise<{ status: number; body: unknown }> => {
+  const response = await fetchWithTimeout(url);
+  return {
+    status: response.status,
+    body: await response.json()
+  };
+};
+
+const fetchWithTimeout = async (url: string): Promise<Response> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), httpTimeoutMs);
+
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch (error) {
+    throw new Error(`HTTP request failed for ${url}`, { cause: error });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const withTimeout = async <T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  operation: string
+): Promise<T> => {
+  let timeout: NodeJS.Timeout | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error(`Timed out after ${timeoutMs}ms waiting for ${operation}`));
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  }
+};
+
+const flattenErrorMessages = (error: unknown): string[] => {
+  const messages: string[] = [];
+  const visit = (current: unknown): void => {
+    if (current instanceof AggregateError) {
+      messages.push(current.message);
+      for (const nested of current.errors) {
+        visit(nested);
       }
-      resolve();
-    });
-  });
+      visit(current.cause);
+      return;
+    }
+
+    if (current instanceof Error) {
+      messages.push(current.message);
+      visit(current.cause);
+      return;
+    }
+
+    if (current !== undefined) {
+      messages.push(String(current));
+    }
+  };
+
+  visit(error);
+  return messages;
+};
+
+const expectStartupFailureForPort = async (port: number): Promise<void> => {
+  let startupError: unknown;
+  try {
+    await ServerTestHarness.start({ apiPort: port });
+  } catch (error) {
+    startupError = error;
+  }
+
+  expect(startupError).toBeDefined();
+  const messages = flattenErrorMessages(startupError).join("\n");
+  expect(messages).toContain("EADDRINUSE");
+  expect(messages).toContain(String(port));
+  expect(messages).toContain("HTTP listen");
+};
+
+const expectServerClosed = async (serverUrl: string): Promise<void> => {
+  await expect(fetchWithTimeout(`${serverUrl}${healthPath}`)).rejects.toThrow(
+    "HTTP request failed"
+  );
+};
+
+const expectDummyServerResponds = async (port: number): Promise<void> => {
+  const response = await fetchWithTimeout(`http://127.0.0.1:${port}`);
+  expect(response.status).toBe(204);
 };
 
 describe("ServerTestHarness", () => {
   let harness: ServerTestHarness | undefined;
 
   afterEach(async () => {
-    await harness?.stop();
+    const currentHarness = harness;
     harness = undefined;
+    await currentHarness?.stop();
   });
 
-  it("starts a real HTTP and Socket.IO server on the actual bound port", async () => {
+  it("starts a real HTTP and root Socket.IO server on the actual bound port", async () => {
     harness = await ServerTestHarness.start({ apiPort: 0 });
 
     const url = new URL(harness.serverUrl);
@@ -97,34 +207,100 @@ describe("ServerTestHarness", () => {
     expect(url.port).not.toBe("0");
     expect(process.env.API_PORT).toBe("0");
 
-    const response = await fetch(`${harness.serverUrl}${healthPath}`);
-    await expect(response.json()).resolves.toEqual({ ok: true });
-    expect(response.status).toBe(200);
+    await expect(fetchJson(`${harness.serverUrl}${healthPath}`)).resolves.toEqual({
+      status: 200,
+      body: { ok: true }
+    });
 
-    const socket = await connectSocket(harness.serverUrl);
-    const disconnected = waitForSocketDisconnect(socket);
+    const socket = await connectRootSocket(harness.serverUrl, "lifecycle-smoke");
+    const socketId = requireSocketId(socket);
+    const serverDisconnect = harness.waitForSocketDisconnect(
+      "/",
+      socketId,
+      "lifecycle-smoke",
+      TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+    );
+    await disconnectSocket(socket, {
+      client: "lifecycle-smoke",
+      serverUrl: harness.serverUrl,
+      timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+    });
+    await serverDisconnect;
 
+    const serverUrl = harness.serverUrl;
     await harness.stop();
-    await disconnected;
-
-    expect(socket.connected).toBe(false);
-    await expect(fetch(`${harness.serverUrl}${healthPath}`)).rejects.toThrow();
+    await expectServerClosed(serverUrl);
   });
 
-  it("allows stop to be called more than once", async () => {
+  it("returns the same successful stop promise for repeated stop calls", async () => {
     harness = await ServerTestHarness.start({ apiPort: 0 });
 
-    await harness.stop();
-    await expect(harness.stop()).resolves.toBeUndefined();
+    const firstStop = harness.stop();
+    const secondStop = harness.stop();
+
+    expect(secondStop).toBe(firstStop);
+    await expect(firstStop).resolves.toBeUndefined();
   });
 
-  it("rejects startup when the configured port cannot listen", async () => {
+  it("rejects occupied-port startup with the HTTP listen EADDRINUSE failure", async () => {
     const occupied = await listenOnEphemeralPort();
 
     try {
-      await expect(ServerTestHarness.start({ apiPort: occupied.port })).rejects.toThrow();
+      await expectStartupFailureForPort(occupied.port);
+      await expectDummyServerResponds(occupied.port);
+
+      harness = await ServerTestHarness.start({ apiPort: 0 });
+      await expect(fetchJson(`${harness.serverUrl}${healthPath}`)).resolves.toEqual({
+        status: 200,
+        body: { ok: true }
+      });
+      await harness.stop();
     } finally {
       await closeServer(occupied.server);
     }
+  });
+
+  it("runs repeated lifecycle cycles in one Jest process", async () => {
+    for (let cycle = 1; cycle <= 3; cycle += 1) {
+      harness = await ServerTestHarness.start({ apiPort: 0 });
+      await expect(fetchJson(`${harness.serverUrl}${healthPath}`)).resolves.toEqual({
+        status: 200,
+        body: { ok: true }
+      });
+
+      const socket = await connectRootSocket(harness.serverUrl, `cycle-${cycle}`);
+      const socketId = requireSocketId(socket);
+      const serverDisconnect = harness.waitForSocketDisconnect(
+        "/",
+        socketId,
+        `cycle-${cycle}`,
+        TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+      );
+      await disconnectSocket(socket, {
+        client: `cycle-${cycle}`,
+        serverUrl: harness.serverUrl,
+        timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+      });
+      await serverDisconnect;
+
+      await harness.stop();
+      harness = undefined;
+    }
+  });
+
+  it("reports connected client diagnostics while still closing leaked resources", async () => {
+    harness = await ServerTestHarness.start({ apiPort: 0 });
+    const socket = await connectRootSocket(harness.serverUrl, "leaked-root-client");
+    const serverUrl = harness.serverUrl;
+
+    const firstStop = harness.stop();
+    const secondStop = harness.stop();
+    harness = undefined;
+
+    expect(secondStop).toBe(firstStop);
+    await expect(firstStop).rejects.toThrow(socket.id ?? "unknown");
+    await expect(firstStop).rejects.toThrow("/");
+    await expect(firstStop).rejects.toThrow("tests must close their Socket.IO clients");
+    await expectServerClosed(serverUrl);
   });
 });

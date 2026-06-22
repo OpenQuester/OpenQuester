@@ -1,36 +1,47 @@
 import { createAdapter } from "@socket.io/redis-adapter";
-import express from "express";
+import express, { type Express } from "express";
 import session from "express-session";
 import { createServer, type Server as HTTPServer } from "http";
 import { Server as IOServer } from "socket.io";
 import { container } from "tsyringe";
-import { DataSource } from "typeorm";
+import { type DataSource } from "typeorm";
 
-import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { ApiContext } from "shared/context/ApiContext";
-import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
-import { MetricsService } from "application/services/metrics/MetricsService";
 import { Environment } from "shared/config/Environment";
 import { RedisConfig } from "shared/config/RedisConfig";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { Database } from "infrastructure/database/Database";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { RedisPubSubService } from "application/services/redis/RedisPubSubService";
 import { ServeApi } from "../src/ServeApi";
-import { SocketActionDispatcher } from "presentation/controllers/io/SocketActionDispatcher";
 import { TestRestApiController } from "tests/TestRestApiController";
 import { setTestEnvDefaults } from "tests/utils/utils";
 
 interface BootstrapTestAppOptions {
   apiPort?: number;
+  /**
+   * Caller-owned logger. ServerTestHarness passes one logger shared with
+   * TestEnvironment, while legacy callers get a bootstrap-owned logger.
+   */
+  logger?: PinoLogger;
+}
+
+interface TestAppBootstrapResult {
+  app: Express;
+  httpServer: HTTPServer;
+  io: IOServer;
+  serverUrl: string;
+  database: Database;
+  dataSource: DataSource;
+  cleanup: () => Promise<void>;
 }
 
 export async function bootstrapTestApp(
   testDataSource: DataSource,
   options: BootstrapTestAppOptions = {}
-) {
-  const logger = await PinoLogger.init({ pretty: true });
+): Promise<TestAppBootstrapResult> {
+  const logger = options.logger ?? (await PinoLogger.init({ pretty: true }));
+  const ownsLogger = options.logger === undefined;
   const prefix = LogPrefix.TEST;
 
   logger.info("Setting up test application...", { prefix });
@@ -91,16 +102,17 @@ export async function bootstrapTestApp(
 
   logger.info("Initializing API server...", { prefix });
   const api = new ServeApi(context);
-  let isCleanedUp = false;
+  let cleanupPromise: Promise<void> | undefined;
 
-  // Provide a cleanup function for Socket.IO and HTTP server
-  // Close app-level resources and reset shared clients to keep suites isolated.
-  async function cleanup() {
-    if (isCleanedUp) {
-      return;
+  function cleanup(): Promise<void> {
+    if (!cleanupPromise) {
+      cleanupPromise = cleanupInternal();
     }
 
-    isCleanedUp = true;
+    return cleanupPromise;
+  }
+
+  async function cleanupInternal(): Promise<void> {
     const errors: Error[] = [];
 
     const runCleanupStep = async (
@@ -119,64 +131,23 @@ export async function bootstrapTestApp(
       }
     };
 
-    // Stop cron scheduler to allow tests to exit cleanly
-    await runCleanupStep("Cron scheduler stop", async () => {
-      const cronScheduler = container.resolve(CronSchedulerService);
-      logger.info("Stopping cron scheduler...", { prefix });
-      await cronScheduler.stopAll();
-    });
-
-    // Unsubscribe from Redis keyspace notifications to prevent duplicate
-    // timer expirations across test suites
-    await runCleanupStep("Redis pub/sub unsubscribe", async () => {
-      const pubSub = container.resolve(RedisPubSubService);
-      logger.info("Unsubscribing from Redis keyspace notifications...", {
-        prefix
-      });
-      await pubSub.unsubscribe();
-    });
-
-    await runCleanupStep("Metrics service stop", async () => {
-      if (container.isRegistered(MetricsService, true)) {
-        const metricsService = container.resolve(MetricsService);
-        logger.info("Stopping metrics service...", { prefix });
-        await metricsService.stop();
-      }
-    });
-
-    await runCleanupStep("Socket.IO close", async () => {
-      await io.close();
-      logger.info("Socket.IO server closed", { prefix });
-    });
-
-    await runCleanupStep("Socket action dispatcher idle", async () => {
-      if (container.isRegistered(SocketActionDispatcher, true)) {
-        const dispatcher = container.resolve(SocketActionDispatcher);
-        await dispatcher.waitForIdle();
-      }
-    });
-
-    await runCleanupStep("Game action executor idle", async () => {
-      const actionExecutor = container.resolve(GameActionExecutor);
-      await actionExecutor.waitForIdle();
-    });
-
-    await runCleanupStep("HTTP server close", async () => {
-      await closeHttpServer(api.server);
-      if (!api.server.listening) {
-        logger.info("HTTP server closed", { prefix });
-      }
+    await runCleanupStep("ServeApi shutdown", async () => {
+      await api.shutdown();
     });
 
     await runCleanupStep("Redis disconnect", async () => {
       await RedisConfig.disconnect();
     });
 
-    container.clearInstances();
-
-    await runCleanupStep("Logger close", async () => {
-      await logger.close();
+    await runCleanupStep("DI container cleanup", async () => {
+      container.clearInstances();
     });
+
+    if (ownsLogger) {
+      await runCleanupStep("Logger close", async () => {
+        await logger.close();
+      });
+    }
 
     throwIfCleanupFailed("Test app cleanup failed", errors);
   }
@@ -199,28 +170,12 @@ export async function bootstrapTestApp(
   return {
     app,
     httpServer,
+    io,
     serverUrl: api.serverUrl,
     database: db,
     dataSource: testDataSource,
     cleanup
   };
-}
-
-async function closeHttpServer(server: HTTPServer): Promise<void> {
-  if (!server.listening) {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-    server.closeAllConnections();
-  });
 }
 
 function toCleanupError(label: string, error: unknown): Error {

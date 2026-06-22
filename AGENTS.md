@@ -87,6 +87,20 @@ shared/      --> dependency-neutral config, DI tokens, logging contracts, contex
 
 ### Action Queue — `GameActionExecutor` + Redis lock per game prevents concurrent state corruption. Game state stored in Redis as serialized `GameStateDTO`.
 
+### Multi-instance production invariants
+
+Production may run multiple independent server instances behind a load balancer. Do not assume sticky sessions: HTTP auth, Socket.IO events, timers, and queued action processing may land on different instances.
+
+- Process-local state may own local lifecycle, local sockets, logger streams, metrics buffers, immutable config, and test-only harness state, but it must not be the source of truth for game correctness.
+- Shared game correctness must stay in PostgreSQL, Redis game/session/timer state, Redis action queues and locks, and Socket.IO Redis-adapter operations.
+- Never replace Redis-backed action ordering, locks, timers, socket/session metadata, or cron ownership with a local `Map`, `Set`, array, promise chain, EventEmitter, or mutex.
+- `namespace.sockets` is local to one process. Use adapter-aware operations (`to(room).emit`, `in(room).fetchSockets`, `in(socketId).socketsJoin`, `in(socketId).socketsLeave`, `in(socketId).disconnectSockets`, `serverSideEmit`) for cluster-wide behavior.
+- Tests may use in-memory journals, actors, and harness state under `server/tests`; production code must not depend on those helpers or test-only tracking.
+- A local cache is acceptable only when Redis/PostgreSQL remains authoritative or the cache can be safely reconstructed without changing behavior.
+- When ownership is unclear, document whether the state is local or distributed before implementing it.
+
+Read `server/docs/multi-instance-invariants.md` before changing server lifecycle, Socket.IO, game action, timer, or cron behavior.
+
 ### DI — tsyringe: `@singleton()` for concrete classes; `@inject(DI_TOKENS.X)` with `Symbol.for()` tokens for interfaces/ports (see `shared/di/tokens.ts`, registrations in `bootstrap/bootstrapContainer.ts`).
 
 ### REST Controllers — class-based with Express `Router`. Wrap handlers with `asyncHandler`. Validate with `RequestDataValidator` + Joi schemes (`presentation/schemes/`). Use `HttpStatus` enum.

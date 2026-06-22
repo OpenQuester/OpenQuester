@@ -55,7 +55,7 @@ interface StartupJobContext {
 }
 
 interface StartupJobRunner {
-  _processPrepareJobs(this: StartupJobContext): Promise<void>;
+  _runStartupPreparation(this: StartupJobContext): Promise<void>;
 }
 
 const runStartupJobs = (
@@ -63,7 +63,7 @@ const runStartupJobs = (
   logger: ILogger
 ): Promise<void> => {
   const runner = ServeApi.prototype as unknown as StartupJobRunner;
-  return runner._processPrepareJobs.call({ _context: { env, logger } });
+  return runner._runStartupPreparation.call({ _context: { env, logger } });
 };
 
 const registerStartupJobMocks = () => {
@@ -122,8 +122,8 @@ describe("ServeApi startup recovery", () => {
     expect(mocks.socketUserDataService.cleanupAllSession).not.toHaveBeenCalled();
     expect(mocks.gameService.cleanOrphanedGames).toHaveBeenCalledTimes(1);
     expect(mocks.permissionService.grantAllPermissionsByEmails).toHaveBeenCalledWith(adminEmails);
-    expect(mocks.pubSub.initKeyExpirationHandling).toHaveBeenCalledTimes(1);
-    expect(mocks.cronScheduler.initialize).toHaveBeenCalledTimes(1);
+    expect(mocks.pubSub.initKeyExpirationHandling).not.toHaveBeenCalled();
+    expect(mocks.cronScheduler.initialize).not.toHaveBeenCalled();
   });
 
   it("runs startup recovery by default for single-instance deployments", async () => {

@@ -44,6 +44,25 @@ import { UserRestApiController } from "presentation/controllers/rest/UserRestApi
 import { errorMiddleware } from "presentation/middleware/errorMiddleware";
 import { SocketIORealtimeGateway } from "presentation/realtime/SocketIORealtimeGateway";
 
+const SOCKET_IO_CLOSE_TIMEOUT_MS = 5000;
+const HTTP_SERVER_CLOSE_TIMEOUT_MS = 5000;
+
+type ServeApiState =
+  | "created"
+  | "initializing"
+  | "running"
+  | "failed"
+  | "shutting_down"
+  | "shutdown"
+  | "shutdown_failed";
+
+interface SocketDiagnostic {
+  namespace: string;
+  socketId: string;
+  userId: number | undefined;
+  gameId: string | null | undefined;
+}
+
 /**
  * Serves all api controllers and dependencies.
  */
@@ -60,6 +79,14 @@ export class ServeApi {
   /** HTTP Server */
   private readonly _server: HTTPServer;
   private _serverUrl: string | undefined;
+  private _state: ServeApiState = "created";
+  // This Promise coordinates shutdown of this process only.
+  // Shared game/action state remains Redis-backed.
+  private _shutdownPromise: Promise<void> | undefined;
+  private _metricsService: MetricsService | undefined;
+  private _pubSubService: RedisPubSubService | undefined;
+  private _cronSchedulerService: CronSchedulerService | undefined;
+  private _socketActionDispatcher: SocketActionDispatcher | undefined;
 
   constructor(private readonly _context: ApiContext) {
     this._db = this._context.db;
@@ -71,6 +98,14 @@ export class ServeApi {
   }
 
   public async init(): Promise<void> {
+    if (this._state === "running") {
+      return;
+    }
+    if (this._state !== "created") {
+      throw new Error(`ServeApi cannot initialize from state "${this._state}"`);
+    }
+
+    this._state = "initializing";
     const initStartTime = Date.now();
     this._context.logger.trace("API initialization started", {
       prefix: LogPrefix.SERVE_API
@@ -97,25 +132,30 @@ export class ServeApi {
         logger: this._context.logger
       });
 
-      const metricsService = container.resolve(MetricsService);
+      this._metricsService = container.resolve(MetricsService);
 
       // Middlewares
-      await new MiddlewareController(this._context, this._redis, metricsService).initialize();
+      await new MiddlewareController(
+        this._context,
+        this._redis,
+        this._metricsService
+      ).initialize();
 
-      await this._processPrepareJobs();
-
-      // Attach API controllers
       this._attachControllers();
       this._app.use(errorMiddleware(this._context.logger));
 
-      metricsService.start();
-
-      // Initialize server listening after middleware and routes are installed.
       await this._listen();
 
+      await this._runStartupPreparation();
+      await this._initializeRedisSubscriptions();
+      await this._initializeCronScheduler();
+      this._startMetrics();
+
+      this._state = "running";
       log.finish();
     } catch (err: unknown) {
       const failureTime = Date.now() - initStartTime;
+      this._state = "failed";
       this._context.logger.error(`API initialization failed after ${failureTime}ms`, {
         prefix: LogPrefix.SERVE_API,
         failureTime
@@ -126,8 +166,31 @@ export class ServeApi {
         prefix: LogPrefix.SERVE_API,
         errorMessage: error.message
       });
+
+      try {
+        await this.shutdown();
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [toLifecycleError("ServeApi startup", err), toLifecycleError("ServeApi rollback", rollbackError)],
+          "ServeApi startup failed"
+        );
+      }
+
       throw err;
     }
+  }
+
+  /**
+   * Stops application-level runtime resources initialized by this instance.
+   * Composition roots still own database, root Redis clients, DI cleanup,
+   * logger close, and process exit.
+   */
+  public shutdown(): Promise<void> {
+    if (!this._shutdownPromise) {
+      this._shutdownPromise = this._shutdown();
+    }
+
+    return this._shutdownPromise;
   }
 
   // Get API server instance
@@ -148,7 +211,7 @@ export class ServeApi {
    * API controller is an entity, that manages initializing and handling of endpoints
    * to which this controller related (you can see it in their names)
    */
-  private _attachControllers() {
+  private _attachControllers(): void {
     // Resolve all dependencies from tsyringe container
     const deps = {
       app: this._app,
@@ -214,12 +277,11 @@ export class ServeApi {
       this._context.logger
     );
 
-    container.registerInstance(SocketActionDispatcher, dispatcher);
+    this._socketActionDispatcher = dispatcher;
     new SocketIOInitializer(deps.io, dispatcher, this._context.logger);
   }
 
-  private async _processPrepareJobs() {
-    const pubSub = container.resolve(RedisPubSubService);
+  private async _runStartupPreparation(): Promise<void> {
     const gameService = container.resolve(GameService);
     const permissionService = container.resolve(PermissionService);
 
@@ -242,13 +304,20 @@ export class ServeApi {
     await gameService.cleanOrphanedGames();
 
     await permissionService.grantAllPermissionsByEmails(this._context.env.ADMIN_EMAILS);
+  }
 
-    // Init key expiration listeners
-    await pubSub.initKeyExpirationHandling();
+  private async _initializeRedisSubscriptions(): Promise<void> {
+    this._pubSubService = container.resolve(RedisPubSubService);
+    await this._pubSubService.initKeyExpirationHandling();
+  }
 
-    // Initialize cron scheduler
-    const cronScheduler = container.resolve(CronSchedulerService);
-    await cronScheduler.initialize();
+  private async _initializeCronScheduler(): Promise<void> {
+    this._cronSchedulerService = container.resolve(CronSchedulerService);
+    await this._cronSchedulerService.initialize();
+  }
+
+  private _startMetrics(): void {
+    this._metricsService?.start();
   }
 
   private async _listen(): Promise<void> {
@@ -260,7 +329,7 @@ export class ServeApi {
     await new Promise<void>((resolve, reject) => {
       const onError = (error: Error): void => {
         this._server.off("listening", onListening);
-        reject(error);
+        reject(toLifecycleError(`HTTP listen on port ${this._port}`, error));
       };
       const onListening = (): void => {
         this._server.off("error", onError);
@@ -276,6 +345,189 @@ export class ServeApi {
       this._server.once("listening", onListening);
       this._server.listen(this._port);
     });
+  }
+
+  private async _shutdown(): Promise<void> {
+    this._state = "shutting_down";
+    const errors: Error[] = [];
+
+    await this._collectCleanupFailure(errors, "Cron scheduler stop", async () => {
+      if (this._cronSchedulerService) {
+        await this._cronSchedulerService.stopAll();
+      }
+    });
+
+    await this._collectCleanupFailure(errors, "Redis pub/sub unsubscribe", async () => {
+      if (this._pubSubService) {
+        await this._pubSubService.unsubscribe();
+      }
+    });
+
+    await this._collectCleanupFailure(errors, "Metrics service stop", async () => {
+      if (this._metricsService) {
+        await this._metricsService.stop();
+      }
+    });
+
+    await this._collectCleanupFailure(errors, "Socket.IO close", async () => {
+      await this._closeSocketIO();
+    });
+
+    await this._collectCleanupFailure(errors, "HTTP server close", async () => {
+      await this._closeHttpServer();
+    });
+
+    if (errors.length > 0) {
+      this._state = "shutdown_failed";
+      throw new AggregateError(errors, "ServeApi shutdown failed");
+    }
+
+    this._state = "shutdown";
+  }
+
+  private async _collectCleanupFailure(
+    errors: Error[],
+    label: string,
+    action: () => Promise<void>
+  ): Promise<void> {
+    try {
+      await action();
+    } catch (error) {
+      const cleanupError = toLifecycleError(label, error);
+      this._context.logger.error(cleanupError.message, {
+        prefix: LogPrefix.SERVE_API,
+        error: cleanupError.message
+      });
+      errors.push(cleanupError);
+    }
+  }
+
+  private async _closeSocketIO(): Promise<void> {
+    const connectedSockets = this._collectConnectedSockets();
+    if (!this._server.listening && connectedSockets.length === 0) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+
+      const finish = (error?: Error): void => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimeout(timeout);
+
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        this._context.logger.info("Socket.IO server closed", {
+          prefix: LogPrefix.SERVE_API
+        });
+        resolve();
+      };
+
+      const timeout = setTimeout(() => {
+        finish(
+          new Error(
+            `Timed out after ${SOCKET_IO_CLOSE_TIMEOUT_MS}ms waiting for Socket.IO close callback ` +
+              this._formatSocketDiagnostics(connectedSockets)
+          )
+        );
+      }, SOCKET_IO_CLOSE_TIMEOUT_MS);
+      timeout.unref();
+
+      try {
+        void this._io.close((error?: Error) => {
+          finish(error);
+        }).catch((error: unknown) => {
+          finish(toError(error));
+        });
+      } catch (error) {
+        finish(toError(error));
+      }
+    });
+  }
+
+  private async _closeHttpServer(): Promise<void> {
+    if (!this._server.listening) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+
+      const finish = (error?: Error): void => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimeout(timeout);
+
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        this._context.logger.info("HTTP server closed", {
+          prefix: LogPrefix.SERVE_API
+        });
+        resolve();
+      };
+
+      const timeout = setTimeout(() => {
+        if (typeof this._server.closeAllConnections === "function") {
+          this._server.closeAllConnections();
+        }
+        finish(
+          new Error(
+            `Timed out after ${HTTP_SERVER_CLOSE_TIMEOUT_MS}ms waiting for HTTP server graceful close`
+          )
+        );
+      }, HTTP_SERVER_CLOSE_TIMEOUT_MS);
+      timeout.unref();
+
+      try {
+        this._server.close((error?: Error) => {
+          finish(error);
+        });
+      } catch (error) {
+        finish(toError(error));
+      }
+    });
+  }
+
+  private _collectConnectedSockets(): SocketDiagnostic[] {
+    // namespace.sockets is local to this process; this is shutdown diagnostics only.
+    return ["/", SOCKET_GAME_NAMESPACE].flatMap((namespaceName) => {
+      const namespace = this._io.of(namespaceName);
+      return [...namespace.sockets.values()].map((socket) => ({
+        namespace: namespace.name,
+        socketId: socket.id,
+        userId: socket.userId,
+        gameId: socket.gameId
+      }));
+    });
+  }
+
+  private _formatSocketDiagnostics(sockets: SocketDiagnostic[]): string {
+    if (sockets.length === 0) {
+      return "(connectedSockets=0)";
+    }
+
+    const details = sockets
+      .map(
+        (socket) =>
+          `namespace="${socket.namespace}", socketId="${socket.socketId}", ` +
+          `userId=${socket.userId ?? "unknown"}, gameId=${socket.gameId ?? "unknown"}`
+      )
+      .join("; ");
+
+    return `(connectedSockets=${sockets.length}, sockets=[${details}])`;
   }
 
   private _createServerUrl(): string {
@@ -309,4 +561,19 @@ export class ServeApi {
 
     return address.address;
   }
+}
+
+function toLifecycleError(label: string, error: unknown): Error {
+  const cause = error instanceof Error ? error : undefined;
+  const message = cause?.message ?? String(error);
+
+  return new Error(`${label} failed: ${message}`, { cause });
+}
+
+function toError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error(String(error));
 }

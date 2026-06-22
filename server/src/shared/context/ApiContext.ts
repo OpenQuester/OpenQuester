@@ -1,4 +1,4 @@
-import { ApiContextDTO } from "shared/context/ApiContextDTO";
+import { type ApiContextDTO } from "shared/context/ApiContextDTO";
 
 export class ApiContext {
   private readonly _ctx: ApiContextDTO;
@@ -10,42 +10,42 @@ export class ApiContext {
   /**
    * Database
    */
-  public get db() {
+  public get db(): ApiContextDTO["db"] {
     return this._ctx.db;
   }
 
   /**
    * Express application
    */
-  public get app() {
+  public get app(): ApiContextDTO["app"] {
     return this._ctx.app;
   }
 
   /**
    * HTTP server
    */
-  public get httpServer() {
+  public get httpServer(): ApiContextDTO["httpServer"] {
     return this._ctx.httpServer;
   }
 
   /**
    * socket.io server
    */
-  public get io() {
+  public get io(): ApiContextDTO["io"] {
     return this._ctx.io;
   }
 
   /**
    * Project environment
    */
-  public get env() {
+  public get env(): ApiContextDTO["env"] {
     return this._ctx.env;
   }
 
   /**
    * Logger instance
    */
-  public get logger() {
+  public get logger(): ApiContextDTO["logger"] {
     return this._ctx.logger;
   }
 }

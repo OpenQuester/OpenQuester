@@ -1,6 +1,8 @@
 import { type Express } from "express";
+import { type Socket as ServerSocket } from "socket.io";
 import { type DataSource } from "typeorm";
 
+import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { type Database } from "infrastructure/database/Database";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp } from "tests/TestApp";
@@ -18,8 +20,15 @@ interface EnvSnapshot {
   redisDbNumber: string | undefined;
 }
 
+interface ConnectedSocketDiagnostic {
+  namespace: string;
+  socketId: string;
+  userId: number | undefined;
+  gameId: string | null | undefined;
+}
+
 export class ServerTestHarness {
-  private _stopped = false;
+  private _stopPromise: Promise<void> | undefined;
 
   private constructor(
     private readonly testEnvironment: TestEnvironment,
@@ -36,10 +45,15 @@ export class ServerTestHarness {
     const logger = await PinoLogger.init({ pretty: true });
     const testEnvironment = new TestEnvironment(logger);
     const startupErrors: Error[] = [];
+    let started = false;
 
     try {
       await testEnvironment.setup();
-      const testApp = await bootstrapTestApp(testEnvironment.getDatabase(), options);
+      const testApp = await bootstrapTestApp(testEnvironment.getDatabase(), {
+        ...options,
+        logger
+      });
+      started = true;
       return new ServerTestHarness(testEnvironment, testApp, envSnapshot);
     } catch (error) {
       startupErrors.push(toLifecycleError("Server test harness startup", error));
@@ -50,8 +64,11 @@ export class ServerTestHarness {
           await testEnvironment.teardown();
         }
       );
-      restoreEnv(envSnapshot);
       throw combineErrors("ServerTestHarness startup failed", startupErrors);
+    } finally {
+      if (!started) {
+        restoreEnv(envSnapshot);
+      }
     }
   }
 
@@ -71,24 +88,90 @@ export class ServerTestHarness {
     return this.testApp.serverUrl;
   }
 
-  public async stop(): Promise<void> {
-    if (this._stopped) {
-      return;
+  public waitForSocketDisconnect(
+    namespaceName: string,
+    socketId: string,
+    client: string,
+    timeoutMs: number
+  ): Promise<void> {
+    const namespace = this.testApp.io.of(namespaceName);
+    const socket = namespace.sockets.get(socketId);
+
+    if (!socket) {
+      return Promise.resolve();
     }
 
-    this._stopped = true;
+    return new Promise<void>((resolve, reject) => {
+      const cleanup = (): void => {
+        clearTimeout(timeout);
+        socket.off("disconnect", onDisconnect);
+      };
+
+      const onDisconnect = (): void => {
+        cleanup();
+        resolve();
+      };
+
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(
+          new Error(
+            `Timed out after ${timeoutMs}ms waiting for server Socket.IO disconnect ` +
+              `(client="${client}", namespace="${namespaceName}", socketId="${socketId}", ` +
+              `connected=${isServerSocketConnected(socket)}, serverUrl="${this.serverUrl}")`
+          )
+        );
+      }, timeoutMs);
+
+      socket.once("disconnect", onDisconnect);
+    });
+  }
+
+  public stop(): Promise<void> {
+    if (!this._stopPromise) {
+      this._stopPromise = this.stopInternal();
+    }
+
+    return this._stopPromise;
+  }
+
+  private async stopInternal(): Promise<void> {
     const cleanupErrors: Error[] = [];
+    const connectedSockets = this.collectConnectedSockets();
 
-    await collectFailure(cleanupErrors, "Test app cleanup", async () => {
-      await this.testApp.cleanup();
-    });
-    await collectFailure(cleanupErrors, "Test environment teardown", async () => {
-      await this.testEnvironment.teardown();
-    });
+    if (connectedSockets.length > 0) {
+      cleanupErrors.push(createLeakedSocketError(connectedSockets));
+    }
 
-    restoreEnv(this.envSnapshot);
+    try {
+      await collectFailure(cleanupErrors, "Test app cleanup", async () => {
+        await this.testApp.cleanup();
+      });
+      await collectFailure(cleanupErrors, "Test environment teardown", async () => {
+        await this.testEnvironment.teardown();
+      });
+    } finally {
+      restoreEnv(this.envSnapshot);
+    }
+
     throwIfFailed("ServerTestHarness cleanup failed", cleanupErrors);
   }
+
+  private collectConnectedSockets(): ConnectedSocketDiagnostic[] {
+    return ["/", SOCKET_GAME_NAMESPACE].flatMap((namespaceName) => {
+      const namespace = this.testApp.io.of(namespaceName);
+      return [...namespace.sockets.values()].map((socket) => ({
+        namespace: namespace.name,
+        socketId: socket.id,
+        userId: socket.userId,
+        gameId: socket.gameId
+      }));
+    });
+  }
+}
+
+function isServerSocketConnected(socket: ServerSocket): boolean {
+  return socket.connected;
 }
 
 async function collectFailure(
@@ -116,7 +199,10 @@ function combineErrors(message: string, errors: Error[]): Error {
     return errors[0];
   }
 
-  return new AggregateError(errors, message);
+  return new AggregateError(
+    errors,
+    `${message}: ${errors.map((error) => error.message).join("; ")}`
+  );
 }
 
 function throwIfFailed(message: string, errors: Error[]): void {
@@ -148,4 +234,20 @@ function restoreEnvValue(key: string, value: string | undefined): void {
   }
 
   process.env[key] = value;
+}
+
+function createLeakedSocketError(sockets: ConnectedSocketDiagnostic[]): Error {
+  const details = sockets
+    .map(
+      (socket) =>
+        `namespace="${socket.namespace}", socketId="${socket.socketId}", ` +
+        `actor="${socket.userId ?? "unknown"}", gameId="${socket.gameId ?? "unknown"}"`
+    )
+    .join("; ");
+
+  return new Error(
+    "Connected Socket.IO clients remained before ServerTestHarness.stop(); " +
+      "tests must close their Socket.IO clients before stopping the harness. " +
+      `Sockets: ${details}`
+  );
 }

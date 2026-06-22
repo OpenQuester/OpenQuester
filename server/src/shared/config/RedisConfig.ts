@@ -127,7 +127,7 @@ export class RedisConfig {
       const waitForClose = this._waitForClientClose(client);
 
       if (client.status === "ready") {
-        await this._quitOrDisconnect(client);
+        await client.quit();
         await waitForClose;
         return;
       }
@@ -163,37 +163,6 @@ export class RedisConfig {
       client.once("end", cleanup);
       client.once("close", cleanup);
     });
-  }
-
-  private static async _quitOrDisconnect(client: Redis): Promise<void> {
-    let timeout: NodeJS.Timeout | undefined;
-    let forcedDisconnect = false;
-
-    const quitPromise = client.quit().then(() => undefined).catch((error: unknown) => {
-      if (forcedDisconnect || this._isExpectedDisconnectError(error)) {
-        return;
-      }
-
-      throw error;
-    });
-    const disconnectPromise = new Promise<void>((resolve) => {
-      timeout = setTimeout(() => {
-        forcedDisconnect = true;
-        if (client.status !== "end") {
-          client.disconnect(false);
-        }
-        resolve();
-      }, REDIS_DISCONNECT_TIMEOUT_MS);
-      timeout.unref();
-    });
-
-    try {
-      await Promise.race([quitPromise, disconnectPromise]);
-    } finally {
-      if (timeout) {
-        clearTimeout(timeout);
-      }
-    }
   }
 
   private static _getConnectionTimeoutMs(): number {

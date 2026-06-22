@@ -4,7 +4,7 @@ import { type Server as IOServer } from "socket.io";
 
 import { type Environment } from "shared/config/Environment";
 import { type Database } from "infrastructure/database/Database";
-import { ILogger } from "shared/logging/ILogger";
+import { type ILogger } from "shared/logging/ILogger";
 
 export interface ApiContextDTO {
   db: Database;

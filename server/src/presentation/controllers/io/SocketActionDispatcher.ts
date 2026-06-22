@@ -39,8 +39,6 @@ import { asUserId } from "domain/types/ids";
  * execute the same side effects as immediately processed actions.
  */
 export class SocketActionDispatcher {
-  private readonly activeDispatches = new Set<Promise<void>>();
-
   constructor(
     private readonly actionExecutor: GameActionExecutor,
     private readonly socketGameContextService: SocketGameContextService,
@@ -56,28 +54,9 @@ export class SocketActionDispatcher {
    */
   public async registerAll(socket: Socket): Promise<void> {
     for (const entry of SOCKET_ACTION_MAP) {
-      socket.on(entry.event, (data: unknown) => {
-        const dispatchPromise = this.dispatch(socket, entry, data);
-        this.activeDispatches.add(dispatchPromise);
-
-        void dispatchPromise
-          .catch((error: unknown) => {
-            this.logger.error(`Unhandled socket dispatch error`, {
-              prefix: LogPrefix.SOCKET,
-              event: entry.event,
-              error: error instanceof Error ? error.message : String(error)
-            });
-          })
-          .finally(() => {
-            this.activeDispatches.delete(dispatchPromise);
-          });
+      socket.on(entry.event, async (data: unknown) => {
+        await this.dispatch(socket, entry, data);
       });
-    }
-  }
-
-  public async waitForIdle(): Promise<void> {
-    while (this.activeDispatches.size > 0) {
-      await Promise.allSettled([...this.activeDispatches]);
     }
   }
 

@@ -19,7 +19,7 @@ export class TestRestApiController {
       const { userId } = req.body;
       if (!userId) return res.status(400).json({ error: "userId required" });
       req.session.userId = userId;
-      req.session.save((err: any) => {
+      req.session.save((err: unknown) => {
         if (err) return res.status(500).json({ error: "Session error" });
         // Return the session cookie as set by express-session
         res.status(200).json({ success: true });

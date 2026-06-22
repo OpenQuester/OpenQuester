@@ -5,12 +5,11 @@ import { instrument } from "@socket.io/admin-ui";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { hashSync } from "bcryptjs";
 import express from "express";
-import { createServer, type Server } from "http";
+import { createServer } from "http";
 import { Server as IOServer } from "socket.io";
 import { container } from "tsyringe";
 
 import { ApiContext } from "shared/context/ApiContext";
-import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
 import { ErrorController } from "domain/errors/ErrorController";
 import { Environment, EnvType } from "shared/config/Environment";
 import { RedisConfig } from "shared/config/RedisConfig";
@@ -20,12 +19,17 @@ import { TypeOrmLoggerAdapter } from "infrastructure/database/TypeOrmLoggerAdapt
 import { ILogger } from "shared/logging/ILogger";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { MetricsService } from "application/services/metrics/MetricsService";
 import { ServeApi } from "./ServeApi";
 
 const FORCE_SHUTDOWN_TIMEOUT_MS = 5000;
-const LOGGER_CLOSE_TIMEOUT_MS = 1000;
-let shutdownInProgress = false;
+let shutdownPromise: Promise<void> | undefined;
+
+interface ShutdownResources {
+  context: ApiContext;
+  api: ServeApi | undefined;
+  logger: PinoLogger;
+  trigger: unknown | undefined;
+}
 
 const main = async () => {
   const logger = await PinoLogger.init({ pretty: true });
@@ -125,140 +129,161 @@ const main = async () => {
 
   context.env.load(false);
 
+  const api = new ServeApi(context);
+
   process.on("SIGINT", () => {
-    void gracefulShutdown(context, context.httpServer, logger);
+    void gracefulShutdown({ context, api, logger, trigger: undefined });
   });
   process.on("SIGTERM", () => {
-    void gracefulShutdown(context, context.httpServer, logger);
+    void gracefulShutdown({ context, api, logger, trigger: undefined });
   });
   process.on("uncaughtException", (error) => {
-    void gracefulShutdown(context, context.httpServer, logger, error);
+    void gracefulShutdown({ context, api, logger, trigger: error });
   });
   process.on("unhandledRejection", (reason) => {
-    void gracefulShutdown(context, context.httpServer, logger, reason);
+    void gracefulShutdown({ context, api, logger, trigger: reason });
   });
-
-  const api = new ServeApi(context);
 
   try {
     await api.init();
   } catch (error) {
-    await gracefulShutdown(context, context.httpServer, logger, error);
+    await gracefulShutdown({ context, api, logger, trigger: error });
   }
 };
 
-async function gracefulShutdown(
-  ctx: ApiContext,
-  server: Server | undefined,
-  logger: PinoLogger,
-  error?: unknown
-) {
-  if (shutdownInProgress) {
-    logger.debug("Shutdown already in progress", { prefix: LogPrefix.SERVER });
-    return;
+function gracefulShutdown(resources: ShutdownResources): Promise<void> {
+  if (shutdownPromise) {
+    resources.logger.debug("Shutdown already in progress", { prefix: LogPrefix.SERVER });
+    return shutdownPromise;
   }
-  shutdownInProgress = true;
 
-  let exitCode = 0;
+  shutdownPromise = runShutdown(resources);
+  return shutdownPromise;
+}
+
+async function runShutdown(resources: ShutdownResources): Promise<void> {
+  const { api, context, logger, trigger } = resources;
+  const errors: Error[] = [];
+  let exitCode = trigger === undefined ? 0 : 1;
+
   const forceShutdownTimer = setTimeout(() => {
-    process.stderr.write("Graceful shutdown timed out; forcing exit\n");
+    process.stderr.write(
+      `Graceful shutdown timed out after ${FORCE_SHUTDOWN_TIMEOUT_MS}ms; forcing exit\n`
+    );
     process.exit(1);
   }, FORCE_SHUTDOWN_TIMEOUT_MS);
   forceShutdownTimer.unref();
 
   try {
-    if (error !== undefined) {
-      await ErrorController.resolveError(error, logger);
-      logger.warn("Server closed due to error", {
+    if (trigger !== undefined) {
+      await ErrorController.resolveError(trigger, logger);
+      const triggerError = toLifecycleError("Shutdown trigger", trigger);
+      errors.push(triggerError);
+      logger.warn("Server shutting down due to error", {
         prefix: LogPrefix.SERVER,
-        error: error instanceof Error ? error.message : String(error)
-      });
-      exitCode = 1;
-    }
-
-    if (!server) {
-      logger.warn("Server not initiated", { prefix: LogPrefix.SERVER });
-      exitCode = 1;
-      return;
-    }
-
-    // Stop cron jobs
-    try {
-      const cronScheduler = container.resolve(CronSchedulerService);
-      logger.info("Stopping cron scheduler...", {
-        prefix: LogPrefix.CRON_SCHEDULER
-      });
-      await cronScheduler.stopAll();
-    } catch (cronError) {
-      logger.warn("Failed to stop cron scheduler", {
-        prefix: LogPrefix.CRON_SCHEDULER,
-        error: cronError instanceof Error ? cronError.message : String(cronError)
+        error: triggerError.message
       });
     }
 
-    // Stop metrics collection
-    try {
-      await container.resolve(MetricsService).stop();
-    } catch {
-      // Ignore
-    }
-
-    await ctx.io.close();
-    await closeHttpServer(server);
-    await ctx.db.disconnect();
-    await RedisConfig.disconnect();
-    logger.info("Server closed gracefully", { prefix: LogPrefix.SERVER });
-  } catch (shutdownError) {
-    exitCode = 1;
-    logger.error("Server shutdown failed", {
-      prefix: LogPrefix.SERVER,
-      error: shutdownError instanceof Error ? shutdownError.message : String(shutdownError)
+    await collectFailure(errors, logger, "ServeApi shutdown", async () => {
+      if (api) {
+        await api.shutdown();
+      }
     });
+
+    await collectFailure(errors, logger, "Database disconnect", async () => {
+      await context.db.disconnect();
+    });
+
+    await collectFailure(errors, logger, "RedisConfig disconnect", async () => {
+      await RedisConfig.disconnect();
+    });
+
+    await collectFailure(errors, logger, "DI container cleanup", async () => {
+      container.clearInstances();
+    });
+
+    if (errors.length > (trigger === undefined ? 0 : 1)) {
+      exitCode = 1;
+    }
+
+    if (errors.length > 0) {
+      const shutdownError = new AggregateError(errors, "Server shutdown completed with failures");
+      logger.error(shutdownError.message, {
+        prefix: LogPrefix.SERVER,
+        error: flattenErrorMessages(shutdownError).join("\n")
+      });
+    } else {
+      logger.info("Server closed gracefully", { prefix: LogPrefix.SERVER });
+    }
   } finally {
     clearTimeout(forceShutdownTimer);
-    await closeLogger(logger);
+
+    try {
+      logger.info("Closing logger", { prefix: LogPrefix.SERVER });
+      await logger.close();
+    } catch (error) {
+      exitCode = 1;
+      process.stderr.write(`${toLifecycleError("Logger close", error).message}\n`);
+    }
+
     process.exit(exitCode);
   }
 }
 
-async function closeHttpServer(server: Server): Promise<void> {
-  if (!server.listening) {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    server.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve();
-    });
-    server.closeAllConnections();
-  });
-}
-
-async function closeLogger(logger: PinoLogger): Promise<void> {
-  let timeout: NodeJS.Timeout | undefined;
-
+async function collectFailure(
+  errors: Error[],
+  logger: PinoLogger,
+  label: string,
+  action: () => Promise<void>
+): Promise<void> {
   try {
-    await Promise.race([
-      logger.close(),
-      new Promise<void>((resolve) => {
-        timeout = setTimeout(resolve, LOGGER_CLOSE_TIMEOUT_MS);
-        timeout.unref();
-      })
-    ]);
-  } catch {
-    // Process is exiting; there is no reliable logger left to report this.
-  } finally {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
+    await action();
+  } catch (error) {
+    const cleanupError = toLifecycleError(label, error);
+    logger.error(cleanupError.message, {
+      prefix: LogPrefix.SERVER,
+      error: cleanupError.message
+    });
+    errors.push(cleanupError);
   }
 }
 
-function setLoggers(logger: ILogger) {
+function toLifecycleError(label: string, error: unknown): Error {
+  const cause = error instanceof Error ? error : undefined;
+  const message = cause?.message ?? String(error);
+
+  return new Error(`${label} failed: ${message}`, { cause });
+}
+
+function flattenErrorMessages(error: unknown): string[] {
+  const messages: string[] = [];
+  const visit = (current: unknown): void => {
+    if (current instanceof AggregateError) {
+      messages.push(current.message);
+      for (const nested of current.errors) {
+        visit(nested);
+      }
+      visit(current.cause);
+      return;
+    }
+
+    if (current instanceof Error) {
+      messages.push(current.message);
+      visit(current.cause);
+      return;
+    }
+
+    if (current !== undefined) {
+      messages.push(String(current));
+    }
+  };
+
+  visit(error);
+  return messages;
+}
+
+function setLoggers(logger: ILogger): void {
   RedisConfig.setLogger(logger);
 }
 
