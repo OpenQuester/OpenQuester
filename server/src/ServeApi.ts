@@ -89,6 +89,7 @@ export class ServeApi {
   // correctness remains Redis/PostgreSQL-backed and adapter-aware.
   private _initPromise: Promise<void> | undefined;
   private _shutdownPromise: Promise<void> | undefined;
+  private _cleanupPromise: Promise<void> | undefined;
   private _shutdownRequested = false;
   private _admissionMiddlewareInstalled = false;
   private _socketAdmissionInstalled = false;
@@ -216,6 +217,20 @@ export class ServeApi {
         });
       }
 
+      this._requestShutdown();
+
+      try {
+        await this._ensureCleanup();
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [
+            toLifecycleError("ServeApi startup", err),
+            toLifecycleError("ServeApi startup rollback", cleanupError)
+          ],
+          "ServeApi startup failed and rollback was incomplete"
+        );
+      }
+
       throw err;
     }
   }
@@ -226,8 +241,7 @@ export class ServeApi {
    * logger close, and process exit.
    */
   public shutdown(): Promise<void> {
-    this._shutdownRequested = true;
-    this._markReadinessRejected(new Error(SOCKET_ADMISSION_NOT_READY_ERROR));
+    this._requestShutdown();
     if (!this._shutdownPromise) {
       this._shutdownPromise = this._shutdownAfterInitSettles();
     }
@@ -498,11 +512,21 @@ export class ServeApi {
       try {
         await this._initPromise;
       } catch {
-        // Startup failure has already been logged by init(); shutdown owns cleanup.
+        // Startup failure has already been logged and rolled back by init().
       }
     }
 
-    await this._cleanupInternal();
+    await this._ensureCleanup();
+  }
+
+  private _requestShutdown(): void {
+    this._shutdownRequested = true;
+    this._markReadinessRejected(new Error(SOCKET_ADMISSION_NOT_READY_ERROR));
+  }
+
+  private _ensureCleanup(): Promise<void> {
+    this._cleanupPromise ??= this._cleanupInternal();
+    return this._cleanupPromise;
   }
 
   private async _cleanupInternal(): Promise<void> {
@@ -566,9 +590,6 @@ export class ServeApi {
 
   private async _closeSocketIO(): Promise<void> {
     const connectedSockets = this._collectConnectedSockets();
-    if (!this._server.listening && connectedSockets.length === 0) {
-      return;
-    }
 
     await new Promise<void>((resolve, reject) => {
       let settled = false;
@@ -581,7 +602,7 @@ export class ServeApi {
         settled = true;
         clearTimeout(timeout);
 
-        if (error) {
+        if (error && !this._isBenignPreListenSocketIoCloseError(error)) {
           reject(error);
           return;
         }
@@ -612,6 +633,13 @@ export class ServeApi {
         finish(toError(error));
       }
     });
+  }
+
+  private _isBenignPreListenSocketIoCloseError(error: Error): boolean {
+    return (
+      hasErrorCode(error, "ERR_SERVER_NOT_RUNNING") &&
+      error.message === "Server is not running."
+    );
   }
 
   private async _closeHttpServer(): Promise<void> {
@@ -738,4 +766,12 @@ function toError(error: unknown): Error {
   }
 
   return new Error(String(error));
+}
+
+function hasErrorCode(error: Error, code: string): boolean {
+  return (
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string" &&
+    (error as { code: string }).code === code
+  );
 }

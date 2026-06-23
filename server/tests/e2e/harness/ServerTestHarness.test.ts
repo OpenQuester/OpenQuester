@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { createServer, type Server as HTTPServer } from "http";
+import { Server as IOServer } from "socket.io";
 import { io as createSocket, type Socket as ClientSocket } from "socket.io-client";
 
 import { Environment } from "shared/config/Environment";
@@ -91,6 +92,19 @@ const closeServer = async (server: HTTPServer): Promise<void> => {
     httpTimeoutMs,
     "dummy HTTP close"
   );
+};
+
+const formatSocketIoCloseResult = (error: Error | undefined): string => {
+  if (!error) {
+    return "ok";
+  }
+
+  const errorWithCode = error as { code?: unknown };
+  if (typeof errorWithCode.code === "string") {
+    return `${errorWithCode.code}:${error.message}`;
+  }
+
+  return error.message;
 };
 
 const fetchJson = async (url: string): Promise<{ status: number; body: unknown }> => {
@@ -266,11 +280,53 @@ describe("ServerTestHarness", () => {
 
   it("fails startInitializing immediately when initialization fails before HTTP listen", async () => {
     const startupFailure = new Error("session config failed before HTTP listen");
+    const originalStartupRecoveryEnabled = process.env.STARTUP_RECOVERY_ENABLED;
+    let restoredStartupRecoveryEnabled: string | undefined;
+    const socketCloseResults: string[] = [];
+    const originalClose: IOServer["close"] = IOServer.prototype.close;
     jest.spyOn(Environment.prototype, "loadSessionConfig").mockRejectedValue(startupFailure);
+    const socketCloseSpy = jest
+      .spyOn(IOServer.prototype, "close")
+      .mockImplementation(function closeWithResultCapture(
+        this: IOServer,
+        fn?: (err?: Error) => void
+      ): Promise<void> {
+        return originalClose.call(this, (error?: Error) => {
+          socketCloseResults.push(formatSocketIoCloseResult(error));
+          fn?.(error);
+        });
+      });
+    process.env.STARTUP_RECOVERY_ENABLED = "pre-listen-preserved";
 
-    await expect(ServerTestHarness.startInitializing({ apiPort: 0 })).rejects.toThrow(
-      "session config failed before HTTP listen"
+    let startupError: unknown;
+    try {
+      await ServerTestHarness.startInitializing({ apiPort: 0 });
+    } catch (error) {
+      startupError = error;
+    } finally {
+      restoredStartupRecoveryEnabled = process.env.STARTUP_RECOVERY_ENABLED;
+      if (originalStartupRecoveryEnabled === undefined) {
+        delete process.env.STARTUP_RECOVERY_ENABLED;
+      } else {
+        process.env.STARTUP_RECOVERY_ENABLED = originalStartupRecoveryEnabled;
+      }
+    }
+
+    expect(startupError).toBeDefined();
+    const messages = flattenErrorMessages(startupError).join("\n");
+    expect(messages).toContain("session config failed before HTTP listen");
+    expect(messages).toContain(
+      "Server initialization failed before HTTP listening:\n" +
+        "session config failed before HTTP listen"
     );
+    expect(messages).not.toContain(
+      "Timed out after 2000ms waiting for test HTTP server to listen"
+    );
+    expect(messages).not.toContain("ERR_SERVER_NOT_RUNNING");
+    expect(socketCloseSpy).toHaveBeenCalledTimes(1);
+    expect(socketCloseResults).toEqual(["ERR_SERVER_NOT_RUNNING:Server is not running."]);
+    expect(restoredStartupRecoveryEnabled).toBe("pre-listen-preserved");
+    expect(process.env.STARTUP_RECOVERY_ENABLED).toBe(originalStartupRecoveryEnabled);
   });
 
   it("runs repeated lifecycle cycles in one Jest process", async () => {

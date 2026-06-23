@@ -7,6 +7,7 @@ import { type Database } from "infrastructure/database/Database";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp, createTestAppRuntime } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
+import { waitForHttpListeningOrStartupFailure } from "tests/e2e/harness/HttpTestWait";
 
 interface ServerTestHarnessOptions {
   apiPort?: number;
@@ -92,11 +93,11 @@ export class ServerTestHarness {
         logger
       });
       const initPromise = testApp.api.init();
-      await waitForHttpListeningOrStartupFailure(
-        testApp,
+      await waitForHttpListeningOrStartupFailure({
+        httpServer: testApp.httpServer,
         initPromise,
-        TEST_HARNESS_HTTP_LISTEN_TIMEOUT_MS
-      );
+        timeoutMs: TEST_HARNESS_HTTP_LISTEN_TIMEOUT_MS
+      });
       started = true;
       return new ServerTestHarness(testEnvironment, testApp, envSnapshot, initPromise);
     } catch (error) {
@@ -233,63 +234,6 @@ export class ServerTestHarness {
 }
 
 const TEST_HARNESS_HTTP_LISTEN_TIMEOUT_MS = 2000;
-
-async function waitForHttpListening(
-  testApp: TestAppBootstrap,
-  timeoutMs: number
-): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(
-        new Error(`Timed out after ${timeoutMs}ms waiting for test HTTP server to listen`)
-      );
-    }, timeoutMs);
-
-    const cleanup = (): void => {
-      clearTimeout(timeout);
-      testApp.httpServer.off("listening", onListening);
-      testApp.httpServer.off("error", onError);
-    };
-
-    const onListening = (): void => {
-      cleanup();
-      resolve();
-    };
-
-    const onError = (error: Error): void => {
-      cleanup();
-      reject(error);
-    };
-
-    if (testApp.httpServer.listening) {
-      cleanup();
-      resolve();
-      return;
-    }
-
-    testApp.httpServer.once("listening", onListening);
-    testApp.httpServer.once("error", onError);
-  });
-}
-
-async function waitForHttpListeningOrStartupFailure(
-  testApp: TestAppBootstrap,
-  initPromise: Promise<void>,
-  timeoutMs: number
-): Promise<void> {
-  let listeningSettled = false;
-  const listening = waitForHttpListening(testApp, timeoutMs).then(() => {
-    listeningSettled = true;
-  });
-  const startupFailure = initPromise.catch((error: unknown) => {
-    if (!listeningSettled) {
-      throw error;
-    }
-  });
-
-  await Promise.race([listening, startupFailure]);
-}
 
 function isServerSocketConnected(socket: ServerSocket): boolean {
   return socket.connected;
