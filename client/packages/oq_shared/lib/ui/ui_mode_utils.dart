@@ -9,9 +9,8 @@ class UiModeUtils {
     return size.width > width;
   }
 
-  static bool landscapeScreenSize(BuildContext context) {
-    return MediaQuery.sizeOf(context).aspectRatio > 1;
-  }
+  static bool landscapeScreenSize(BuildContext context) =>
+      MediaQuery.sizeOf(context).aspectRatio > 1;
 
   static const double extraLarge = 1600;
   static const double large = 1200;

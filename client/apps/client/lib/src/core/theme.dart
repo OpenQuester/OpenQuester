@@ -16,6 +16,44 @@ class AppTheme {
   }
 
   static ThemeData change(ThemeData theme) {
+    const success = Color(0xFF7CE883);
+    const successDark = Color(0xFF0B6B2B);
+    const warning = Color(0xFFFFE078);
+    const warningDark = Color(0xFF755100);
+    const gold = Color(0xFFFFD700);
+    const goldDark = Color(0xFF6F5A00);
+    const silver = Color(0xFFC0C0C0);
+    const silverDark = Color(0xFF5F6670);
+    const bronze = Color(0xFFCD7F32);
+    const bronzeDark = Color(0xFF7A4A1D);
+    const lightExtraColors = ExtraColors(
+      success: successDark,
+      successDark: successDark,
+      warning: warningDark,
+      warningDark: warningDark,
+      gold: goldDark,
+      goldDark: goldDark,
+      silver: silverDark,
+      silverDark: silverDark,
+      bronze: bronzeDark,
+      bronzeDark: bronzeDark,
+    );
+    const darkExtraColors = ExtraColors(
+      success: success,
+      successDark: successDark,
+      warning: warning,
+      warningDark: warningDark,
+      gold: gold,
+      goldDark: goldDark,
+      silver: silver,
+      silverDark: silverDark,
+      bronze: bronze,
+      bronzeDark: bronzeDark,
+    );
+    final extraColors = theme.brightness == Brightness.light
+        ? lightExtraColors
+        : darkExtraColors;
+
     final colorScheme = theme.colorScheme.copyWith(
       surface: pureDarkColor,
       surfaceContainerLow: pureDarkColor,
@@ -41,15 +79,7 @@ class AppTheme {
       expansionTileTheme: expansionTileTheme(colorScheme),
       cardColor: pureDarkColor,
       colorScheme: colorScheme,
-      extensions: const [
-        ExtraColors(
-          success: Color(0xFF7CE883),
-          warning: Color(0xFFFFE078),
-          gold: Color(0xFFFFD700),
-          silver: Color(0xFFC0C0C0),
-          bronze: Color(0xFFCD7F32),
-        ),
-      ],
+      extensions: [extraColors],
     );
   }
 
@@ -119,20 +149,34 @@ class AppTheme {
   }
 }
 
+Color contrastOnColor(Color background) {
+  return background.computeLuminance() > 0.179 ? Colors.black : Colors.white;
+}
+
 class ExtraColors extends ThemeExtension<ExtraColors> {
   const ExtraColors({
     required this.success,
+    required this.successDark,
     required this.warning,
+    required this.warningDark,
     required this.gold,
+    required this.goldDark,
     required this.silver,
+    required this.silverDark,
     required this.bronze,
+    required this.bronzeDark,
   });
 
   final Color success;
+  final Color successDark;
   final Color warning;
+  final Color warningDark;
   final Color gold;
+  final Color goldDark;
   final Color silver;
+  final Color silverDark;
   final Color bronze;
+  final Color bronzeDark;
 
   static ExtraColors of(BuildContext context) =>
       Theme.of(context).extension<ExtraColors>()!;
@@ -140,17 +184,27 @@ class ExtraColors extends ThemeExtension<ExtraColors> {
   @override
   ThemeExtension<ExtraColors> copyWith({
     Color? success,
+    Color? successDark,
     Color? warning,
+    Color? warningDark,
     Color? gold,
+    Color? goldDark,
     Color? silver,
+    Color? silverDark,
     Color? bronze,
+    Color? bronzeDark,
   }) {
     return ExtraColors(
       success: success ?? this.success,
+      successDark: successDark ?? this.successDark,
       warning: warning ?? this.warning,
+      warningDark: warningDark ?? this.warningDark,
       gold: gold ?? this.gold,
+      goldDark: goldDark ?? this.goldDark,
       silver: silver ?? this.silver,
+      silverDark: silverDark ?? this.silverDark,
       bronze: bronze ?? this.bronze,
+      bronzeDark: bronzeDark ?? this.bronzeDark,
     );
   }
 
@@ -164,10 +218,15 @@ class ExtraColors extends ThemeExtension<ExtraColors> {
     }
     return ExtraColors(
       success: Color.lerp(success, other.success, t) ?? success,
+      successDark: Color.lerp(successDark, other.successDark, t) ?? successDark,
       warning: Color.lerp(warning, other.warning, t) ?? warning,
+      warningDark: Color.lerp(warningDark, other.warningDark, t) ?? warningDark,
       gold: Color.lerp(gold, other.gold, t) ?? gold,
+      goldDark: Color.lerp(goldDark, other.goldDark, t) ?? goldDark,
       silver: Color.lerp(silver, other.silver, t) ?? silver,
+      silverDark: Color.lerp(silverDark, other.silverDark, t) ?? silverDark,
       bronze: Color.lerp(bronze, other.bronze, t) ?? bronze,
+      bronzeDark: Color.lerp(bronzeDark, other.bronzeDark, t) ?? bronzeDark,
     );
   }
 }

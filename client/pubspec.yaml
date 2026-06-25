@@ -33,13 +33,6 @@ melos:
         - melos run gen_workers
         - melos run gen_locale
 
-    pre_build_package:
-      description: Build pipeline for individual packages (skips API generation)
-      steps:
-        - melos run pre_build
-        - melos run gen_indexes
-        - melos run format
-
     # =============================================================================
     # CODE GENERATION
     # =============================================================================
@@ -60,8 +53,8 @@ melos:
 
     gen_indexes:
       description: Generate index files (barrel exports)
-      run: |
-        if grep -q "^index_generator:" pubspec.yaml; then
+      exec: |
+        if [ -f index_generator.yaml ]; then
           dart pub global run index_generator
         else
           echo "Skipping index generation: no index_generator config found in pubspec.yaml"
