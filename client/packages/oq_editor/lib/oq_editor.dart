@@ -3,12 +3,16 @@
 library;
 
 export 'controllers/oq_editor_controller.dart';
+export 'domain/editor_node_id.dart';
+export 'domain/package_editor_operation_state.dart';
+export 'domain/package_editor_validation.dart';
 export 'models/editor_step.dart';
 export 'models/media_file_reference.dart';
 export 'models/oq_editor_translations.dart';
 export 'models/package_encoding_exceptions.dart';
 export 'models/package_upload_state.dart';
 export 'models/ui_media_file.dart';
+export 'ports/package_editor_save_adapter.dart';
 export 'router/router.dart';
 export 'router/router.gr.dart';
 export 'utils/blob_helper.dart';

@@ -87,6 +87,15 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           widget.themeIndex,
           widget.questionIndex,
         );
+    if (widget.questionIndex != null) {
+      controller.selectQuestion(
+        widget.roundIndex,
+        widget.themeIndex,
+        widget.questionIndex!,
+      );
+    } else {
+      controller.selectTheme(widget.roundIndex, widget.themeIndex);
+    }
 
     _initializeFromQuestion();
     _loadExistingMediaFiles();

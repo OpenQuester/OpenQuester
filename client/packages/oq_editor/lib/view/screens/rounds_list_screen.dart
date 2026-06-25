@@ -16,6 +16,7 @@ class RoundsListScreen extends WatchingWidget {
     final package = watchValue((OqEditorController c) => c.package);
     final translations = controller.translations;
     final rounds = package.rounds;
+    callOnce((_) => controller.selectPackage());
 
     return Scaffold(
       body: Column(

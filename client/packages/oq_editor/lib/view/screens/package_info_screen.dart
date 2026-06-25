@@ -18,6 +18,7 @@ class PackageInfoScreen extends WatchingWidget {
     final package = watchValue((OqEditorController c) => c.package);
     final translations = controller.translations;
     final formKey = createOnce(GlobalKey<FormState>.new);
+    callOnce((_) => controller.selectPackage());
 
     return Scaffold(
       body: MaxSizeContainer(

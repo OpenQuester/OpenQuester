@@ -2,12 +2,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:marionette_flutter/marionette_flutter.dart';
 import 'package:openquester/common_imports.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class AppInit {
   static Future<void> init() async {
-    final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+    final widgetsBinding = kDebugMode
+        ? MarionetteBinding.ensureInitialized()
+        : WidgetsFlutterBinding.ensureInitialized();
     FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
     // Init localization

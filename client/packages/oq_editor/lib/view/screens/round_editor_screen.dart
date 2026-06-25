@@ -21,6 +21,7 @@ class RoundEditorScreen extends WatchingWidget {
     final package = watchValue((OqEditorController c) => c.package);
 
     final translations = controller.translations;
+    callOnce((_) => controller.selectRound(roundIndex));
 
     if (roundIndex >= package.rounds.length) {
       return Scaffold(

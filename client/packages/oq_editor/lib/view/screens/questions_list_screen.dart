@@ -25,6 +25,7 @@ class QuestionsListScreen extends WatchingWidget {
     final package = watchValue((OqEditorController c) => c.package);
 
     final translations = controller.translations;
+    callOnce((_) => controller.selectTheme(roundIndex, themeIndex));
 
     if (roundIndex >= package.rounds.length) {
       return Center(child: Text(translations.invalidQuestionContext));
