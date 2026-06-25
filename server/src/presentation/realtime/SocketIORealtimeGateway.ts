@@ -67,10 +67,12 @@ export class SocketIORealtimeGateway implements RealtimeGateway {
   }
 
   public getOnlineSocketCount(): number {
+    // Local process metric only; do not use for gameplay decisions.
     return this.namespace.sockets.size;
   }
 
   private applySocketContext(update: SocketRuntimeContextUpdate): void {
+    // serverSideEmit fans the update out; each instance applies it only to its local socket.
     const socket = this.namespace.sockets.get(update.socketId);
     if (!socket) {
       return;

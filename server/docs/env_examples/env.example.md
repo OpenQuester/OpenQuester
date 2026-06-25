@@ -87,8 +87,10 @@ S3_SECRET_KEY=
 REDIS_PERF_LOG_MODE=slow
 REDIS_SLOW_LOG_MS=50
 
-# Startup recovery clears active Redis games/sockets.
-# Keep true for single-instance restarts; set false for replicated deployment.
+# Single-instance restart recovery. Default is true for the historical
+# single-server deployment. Replicated deployments must explicitly set false so
+# one instance restart does not mutate games, timers, or socket sessions owned by
+# other live instances.
 STARTUP_RECOVERY_ENABLED=true
 
 ```
