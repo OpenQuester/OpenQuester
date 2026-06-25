@@ -148,7 +148,7 @@ class _RoleList extends StatelessWidget {
             if (showHeading) const _RoleListHeader().paddingBottom(14),
             showmanGroup,
             const _RoleSectionDivider(),
-            Expanded(child: playersGroup),
+            playersGroup,
             const _RoleSectionDivider(),
             spectatorsGroup,
           ],
