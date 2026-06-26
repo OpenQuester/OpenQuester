@@ -193,6 +193,11 @@ class QuestionsListScreen extends WatchingWidget {
                           themeIndex,
                           index,
                         ),
+                        onDuplicate: () => _duplicateQuestion(
+                          roundIndex,
+                          themeIndex,
+                          index,
+                        ),
                       );
                     },
                   ),
@@ -338,6 +343,18 @@ class QuestionsListScreen extends WatchingWidget {
       controller.deleteQuestion(roundIndex, themeIndex, questionIndex);
     }
   }
+
+  void _duplicateQuestion(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex,
+  ) {
+    GetIt.I<OqEditorController>().copyQuestion(
+      roundIndex,
+      themeIndex,
+      questionIndex,
+    );
+  }
 }
 
 class _QuestionCard extends StatelessWidget {
@@ -346,6 +363,7 @@ class _QuestionCard extends StatelessWidget {
     required this.questionIndex,
     required this.onEdit,
     required this.onDelete,
+    required this.onDuplicate,
     super.key,
   });
 
@@ -353,6 +371,7 @@ class _QuestionCard extends StatelessWidget {
   final int questionIndex;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback onDuplicate;
 
   @override
   Widget build(BuildContext context) {
@@ -419,7 +438,7 @@ class _QuestionCard extends StatelessWidget {
             const SizedBox(width: 8),
             if (questionPrice != null)
               Text(
-                '$questionPrice pts',
+                '$questionPrice ${translations.pts}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.w600,
@@ -434,6 +453,12 @@ class _QuestionCard extends StatelessWidget {
               icon: const Icon(Icons.edit_outlined),
               onPressed: onEdit,
               tooltip: GetIt.I<OqEditorController>().translations.editButton,
+            ),
+            IconButton(
+              icon: const Icon(Icons.copy_all_outlined),
+              onPressed: onDuplicate,
+              tooltip:
+                  GetIt.I<OqEditorController>().translations.duplicateQuestion,
             ),
             IconButton(
               icon: const Icon(Icons.delete_outline),

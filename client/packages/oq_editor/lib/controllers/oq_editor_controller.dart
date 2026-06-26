@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:openapi/openapi.dart';
@@ -23,6 +24,7 @@ class OqEditorController {
     this.logger,
   }) {
     package.value = initialPackage ?? OqPackageX.empty;
+    validationIssues.value = validatePackageIssues(package.value);
   }
 
   final OqEditorTranslations translations;
@@ -44,6 +46,16 @@ class OqEditorController {
   final ValueNotifier<PackageEditorOperationState> operationState =
       ValueNotifier<PackageEditorOperationState>(
         const PackageEditorOperationState.idle(),
+      );
+
+  final ValueNotifier<bool> hasUnsavedChanges = ValueNotifier<bool>(false);
+  final ValueNotifier<String?> lastErrorMessage = ValueNotifier<String?>(null);
+  final ValueNotifier<List<String>> operationLogs = ValueNotifier<List<String>>(
+    <String>[],
+  );
+  final ValueNotifier<Map<EditorNodeId, List<String>>> validationIssues =
+      ValueNotifier<Map<EditorNodeId, List<String>>>(
+        <EditorNodeId, List<String>>{},
       );
 
   final ValueNotifier<bool> outlinePanelVisible = ValueNotifier<bool>(true);
@@ -77,6 +89,11 @@ class OqEditorController {
   ValueNotifier<double> get totalSizeMBNotifier => _totalSizeMB;
 
   bool get isOperationRunning => operationState.value.isRunning;
+
+  String get operationLogText {
+    if (operationLogs.value.isEmpty) return translations.noProcessLogs;
+    return operationLogs.value.join('\n');
+  }
 
   void selectNode(EditorNodeId node) {
     selectedNode.value = _coerceNode(node);
@@ -117,6 +134,7 @@ class OqEditorController {
     final hash = await file.calculateHash();
     _mediaFilesByHash[hash] = file;
     _updateTotalSize();
+    _markDirty();
     return hash;
   }
 
@@ -124,6 +142,7 @@ class OqEditorController {
     final file = _mediaFilesByHash.remove(hash);
     await file?.disposeController();
     _updateTotalSize();
+    _markDirty();
   }
 
   Future<void> clearPendingMediaFiles() async {
@@ -176,7 +195,7 @@ class OqEditorController {
         throw StateError(translations.errorSaving);
       }
 
-      package.value = result;
+      _setPackage(result, dirty: false);
       selectedNode.value = _coerceNode(selectedNode.value);
       operationState.value = PackageEditorOperationState.completed(
         message: translations.uploadComplete,
@@ -214,6 +233,7 @@ class OqEditorController {
         encodingResult.package.title,
       );
 
+      _markClean();
       operationState.value = PackageEditorOperationState.completed(
         message: translations.packageExportedSuccessfully,
       );
@@ -355,22 +375,54 @@ class OqEditorController {
     }
 
     _updateTotalSize();
-    this.package.value = package;
+    _setPackage(package);
     selectPackage();
   }
 
   PackageEditorValidationResult validatePackage([OqPackage? package]) {
     final targetPackage = package ?? this.package.value;
-    final errors = <String>[];
+    final issueMap = validatePackageIssues(targetPackage);
+    final errors = issueMap.values.expand((messages) => messages).toList();
+
+    validationIssues.value = issueMap;
+
+    return PackageEditorValidationResult(errors: errors);
+  }
+
+  Map<EditorNodeId, List<String>> validatePackageIssues([OqPackage? package]) {
+    final targetPackage = package ?? this.package.value;
+    final issues = <EditorNodeId, List<String>>{};
+
+    void addIssue(EditorNodeId node, String message) {
+      issues.update(
+        node,
+        (messages) => <String>[...messages, message],
+        ifAbsent: () => <String>[message],
+      );
+    }
 
     if (targetPackage.title.trim().isEmpty) {
-      errors.add(translations.packageTitle);
+      addIssue(
+        const EditorNodeId.package(),
+        _requiredIssue(translations.packageTitle),
+      );
+    } else if (targetPackage.title.trim().length < 3) {
+      addIssue(
+        const EditorNodeId.package(),
+        '${translations.packageTitle}: ${translations.minLengthError(3)}',
+      );
     }
     if (targetPackage.language?.trim().isEmpty ?? true) {
-      errors.add(translations.packageLanguage);
+      addIssue(
+        const EditorNodeId.package(),
+        _requiredIssue(translations.packageLanguage),
+      );
     }
     if (targetPackage.ageRestriction == AgeRestriction.$unknown) {
-      errors.add(translations.packageAgeRestriction);
+      addIssue(
+        const EditorNodeId.package(),
+        _requiredIssue(translations.packageAgeRestriction),
+      );
     }
 
     for (
@@ -379,21 +431,44 @@ class OqEditorController {
       roundIndex++
     ) {
       final round = targetPackage.rounds[roundIndex];
+      final roundNode = EditorNodeId.round(roundIndex);
       if (round.name.trim().isEmpty) {
-        errors.add('${translations.roundName} ${roundIndex + 1}');
+        addIssue(roundNode, _requiredIssue(translations.roundName));
       }
 
       for (var themeIndex = 0; themeIndex < round.themes.length; themeIndex++) {
         final theme = round.themes[themeIndex];
+        final themeNode = EditorNodeId.theme(roundIndex, themeIndex);
         if (theme.name.trim().isEmpty) {
-          errors.add(
-            '${translations.themeName} ${roundIndex + 1}.${themeIndex + 1}',
+          addIssue(themeNode, _requiredIssue(translations.themeName));
+        }
+
+        for (
+          var questionIndex = 0;
+          questionIndex < theme.questions.length;
+          questionIndex++
+        ) {
+          final question = theme.questions[questionIndex];
+          final questionNode = EditorNodeId.question(
+            roundIndex,
+            themeIndex,
+            questionIndex,
           );
+          final questionIssues = _validateQuestion(question);
+          for (final issue in questionIssues) {
+            addIssue(questionNode, issue);
+          }
         }
       }
     }
 
-    return PackageEditorValidationResult(errors: errors);
+    return issues;
+  }
+
+  bool refreshValidationIssues() {
+    final issues = validatePackageIssues();
+    validationIssues.value = issues;
+    return issues.isEmpty;
   }
 
   void updatePackageInfo({
@@ -403,12 +478,14 @@ class OqEditorController {
     String? language,
     List<PackageTag>? tags,
   }) {
-    package.value = package.value.copyWith(
-      title: title ?? package.value.title,
-      description: description ?? package.value.description,
-      ageRestriction: ageRestriction ?? package.value.ageRestriction,
-      language: language ?? package.value.language,
-      tags: tags ?? package.value.tags,
+    _setPackage(
+      package.value.copyWith(
+        title: title ?? package.value.title,
+        description: description ?? package.value.description,
+        ageRestriction: ageRestriction ?? package.value.ageRestriction,
+        language: language ?? package.value.language,
+        tags: tags ?? package.value.tags,
+      ),
     );
   }
 
@@ -416,7 +493,7 @@ class OqEditorController {
     final newOrder = package.value.rounds.length;
     final updatedRounds = List<PackageRound>.from(package.value.rounds)
       ..add(round.copyWith(order: newOrder));
-    package.value = package.value.copyWith(rounds: updatedRounds);
+    _setPackage(package.value.copyWith(rounds: updatedRounds));
     selectRound(updatedRounds.length - 1);
   }
 
@@ -436,7 +513,7 @@ class OqEditorController {
     if (index < 0 || index >= package.value.rounds.length) return;
     final updatedRounds = List<PackageRound>.from(package.value.rounds);
     updatedRounds[index] = round;
-    package.value = package.value.copyWith(rounds: updatedRounds);
+    _setPackage(package.value.copyWith(rounds: updatedRounds));
     _repairSelection();
   }
 
@@ -445,12 +522,14 @@ class OqEditorController {
     final updatedRounds = List<PackageRound>.from(package.value.rounds)
       ..removeAt(index);
 
-    package.value = package.value.copyWith(
-      rounds: updatedRounds
-          .asMap()
-          .entries
-          .map((entry) => entry.value.copyWith(order: entry.key))
-          .toList(),
+    _setPackage(
+      package.value.copyWith(
+        rounds: updatedRounds
+            .asMap()
+            .entries
+            .map((entry) => entry.value.copyWith(order: entry.key))
+            .toList(),
+      ),
     );
     _repairSelection(preferredRoundIndex: index);
   }
@@ -465,12 +544,14 @@ class OqEditorController {
     final insertIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
     updatedRounds.insert(insertIndex, round);
 
-    package.value = package.value.copyWith(
-      rounds: updatedRounds
-          .asMap()
-          .entries
-          .map((entry) => entry.value.copyWith(order: entry.key))
-          .toList(),
+    _setPackage(
+      package.value.copyWith(
+        rounds: updatedRounds
+            .asMap()
+            .entries
+            .map((entry) => entry.value.copyWith(order: entry.key))
+            .toList(),
+      ),
     );
     _repairSelection(preferredRoundIndex: insertIndex);
   }
@@ -732,6 +813,10 @@ class OqEditorController {
     package.dispose();
     selectedNode.dispose();
     operationState.dispose();
+    hasUnsavedChanges.dispose();
+    lastErrorMessage.dispose();
+    operationLogs.dispose();
+    validationIssues.dispose();
     outlinePanelVisible.dispose();
     previewPanelVisible.dispose();
     outlinePanelWidth.dispose();
@@ -745,6 +830,8 @@ class OqEditorController {
     }
 
     _operationRunning = true;
+    lastErrorMessage.value = null;
+    _appendOperationLog(translations.initializing);
     try {
       return await operation();
     } catch (error, stackTrace) {
@@ -753,8 +840,12 @@ class OqEditorController {
         error: error,
         stackTrace: stackTrace,
       );
+      final message = userFacingError(error);
+      lastErrorMessage.value = message;
+      _appendOperationLog('Error: $error');
+      _appendOperationLog(stackTrace.toString());
       operationState.value = PackageEditorOperationState.failed(
-        error: error,
+        error: message,
         stackTrace: stackTrace,
       );
       rethrow;
@@ -768,6 +859,9 @@ class OqEditorController {
     double? progress,
     String? message,
   }) {
+    if (message != null && message.trim().isNotEmpty) {
+      _appendOperationLog(message);
+    }
     operationState.value = PackageEditorOperationState.running(
       phase: phase,
       progress: progress,
@@ -803,6 +897,158 @@ class OqEditorController {
 
   void _updateTotalSize() {
     _totalSizeMB.value = totalMediaFilesSizeMB;
+  }
+
+  void _setPackage(OqPackage value, {bool dirty = true}) {
+    package.value = value;
+    if (dirty) {
+      _markDirty();
+    } else {
+      _markClean();
+    }
+    validationIssues.value = validatePackageIssues(value);
+  }
+
+  void _markDirty() {
+    if (!hasUnsavedChanges.value) {
+      hasUnsavedChanges.value = true;
+    }
+  }
+
+  void _markClean() {
+    hasUnsavedChanges.value = false;
+  }
+
+  void _appendOperationLog(String entry) {
+    final text = entry.trim();
+    if (text.isEmpty) return;
+    operationLogs.value = <String>[
+      ...operationLogs.value,
+      '[${DateTime.now().toIso8601String()}] $text',
+    ];
+  }
+
+  void clearOperationLogs() {
+    operationLogs.value = <String>[];
+  }
+
+  String userFacingError(Object error) {
+    final raw = error.toString().trim();
+    final candidates = <String?>[
+      _extractJsonError(raw),
+      _extractLooseErrorField(raw),
+      _stripExceptionPrefixes(raw),
+    ].whereType<String>().map((value) => value.trim()).toList();
+
+    for (final candidate in candidates) {
+      if (_isUsefulUserMessage(candidate)) {
+        return candidate;
+      }
+    }
+
+    return translations.somethingWentWrong;
+  }
+
+  String? _extractJsonError(String raw) {
+    final start = raw.indexOf('{');
+    final end = raw.lastIndexOf('}');
+    if (start == -1 || end <= start) return null;
+
+    final jsonText = raw.substring(start, end + 1);
+    try {
+      final decoded = jsonDecode(jsonText);
+      if (decoded is Map<String, dynamic>) {
+        final value = decoded['error'] ?? decoded['message'];
+        if (value is String) return value;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  String? _extractLooseErrorField(String raw) {
+    final quotedMatch = RegExp(
+      r'''["'](?:error|message)["']\s*:\s*["']([^"']+)["']''',
+      caseSensitive: false,
+    ).firstMatch(raw);
+    if (quotedMatch != null) return quotedMatch.group(1);
+
+    final looseMatch = RegExp(
+      r'''(?:error|message)\s*:\s*([^,}\n]+)''',
+      caseSensitive: false,
+    ).firstMatch(raw);
+    return looseMatch?.group(1);
+  }
+
+  String _stripExceptionPrefixes(String raw) {
+    return raw
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .replaceFirst(RegExp(r'^Bad state:\s*'), '')
+        .replaceFirst(RegExp(r'^FormatException:\s*'), '')
+        .trim();
+  }
+
+  bool _isUsefulUserMessage(String message) {
+    if (message.isEmpty) return false;
+    if (message.contains('{') || message.contains('}')) return false;
+    if (message.contains('DioException')) return false;
+    if (message.contains('StackTrace')) return false;
+    return true;
+  }
+
+  List<String> _validateQuestion(PackageQuestionUnion question) {
+    final issues = <String>[];
+    final text = question.map(
+      simple: (question) => question.text,
+      stake: (question) => question.text,
+      secret: (question) => question.text,
+      noRisk: (question) => question.text,
+      choice: (question) => question.text,
+      hidden: (question) => question.text,
+    );
+    if (text == null || text.trim().isEmpty) {
+      issues.add(_requiredIssue(translations.questionText));
+    }
+
+    question.map(
+      simple: (question) {
+        if (question.answerText?.trim().isEmpty ?? true) {
+          issues.add(_requiredIssue(translations.questionAnswer));
+        }
+      },
+      stake: (question) {
+        if (question.answerText?.trim().isEmpty ?? true) {
+          issues.add(_requiredIssue(translations.questionAnswer));
+        }
+      },
+      secret: (question) {
+        if (question.answerText?.trim().isEmpty ?? true) {
+          issues.add(_requiredIssue(translations.questionAnswer));
+        }
+      },
+      noRisk: (question) {
+        if (question.answerText?.trim().isEmpty ?? true) {
+          issues.add(_requiredIssue(translations.questionAnswer));
+        }
+      },
+      choice: (question) {
+        final answers = question.answers;
+        if (answers.length < 2 || answers.length > 8) {
+          issues.add(translations.add2to8Choices);
+        }
+        if (answers.any((answer) => answer.text?.trim().isEmpty ?? true)) {
+          issues.add(_requiredIssue(translations.answerText));
+        }
+      },
+      hidden: (_) {},
+    );
+
+    return issues;
+  }
+
+  String _requiredIssue(String fieldName) {
+    return '$fieldName: ${translations.fieldRequired}';
   }
 
   PackageRound? _roundAt(int roundIndex) {

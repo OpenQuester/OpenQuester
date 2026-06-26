@@ -36,6 +36,13 @@ class PackageEditorUploadController {
           message: LocaleKeys.oq_editor_upload_complete.tr(),
         ),
         error: (state) {
+          final message = Api.parseError(state.error);
+          if (message != null && message.trim().isNotEmpty) {
+            Error.throwWithStackTrace(
+              StateError(message),
+              state.stackTrace ?? StackTrace.current,
+            );
+          }
           Error.throwWithStackTrace(
             state.error,
             state.stackTrace ?? StackTrace.current,

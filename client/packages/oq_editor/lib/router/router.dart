@@ -18,6 +18,10 @@ class OqEditorRouter extends RootStackRouter {
         initial: true,
       ),
       AutoRoute(
+        page: UploadProgressRoute.page,
+        path: 'upload',
+      ),
+      AutoRoute(
         page: RoundsListRoute.page,
         path: 'rounds',
       ),

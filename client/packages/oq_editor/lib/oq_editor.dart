@@ -41,6 +41,7 @@ export 'view/screens/round_editor_screen.dart';
 export 'view/screens/rounds_list_screen.dart';
 export 'view/screens/theme_editor_screen.dart';
 export 'view/screens/themes_grid_screen.dart';
+export 'view/screens/upload_progress_screen.dart';
 export 'view/widgets/audio_preview_widget.dart';
 export 'view/widgets/media_file_list_tile.dart';
 export 'view/widgets/media_files_section.dart';

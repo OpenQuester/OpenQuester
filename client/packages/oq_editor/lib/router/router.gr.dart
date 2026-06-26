@@ -24,6 +24,8 @@ import 'package:oq_editor/view/screens/rounds_list_screen.dart' deferred as _i5;
 import 'package:oq_editor/view/screens/theme_editor_screen.dart'
     deferred as _i6;
 import 'package:oq_editor/view/screens/themes_grid_screen.dart' deferred as _i7;
+import 'package:oq_editor/view/screens/upload_progress_screen.dart'
+    deferred as _i11;
 
 /// generated route for
 /// [_i1.PackageInfoScreen]
@@ -411,4 +413,23 @@ class ThemesGridRouteArgs {
 
   @override
   int get hashCode => roundIndex.hashCode ^ key.hashCode;
+}
+
+/// generated route for
+/// [_i11.UploadProgressScreen]
+class UploadProgressRoute extends _i8.PageRouteInfo<void> {
+  const UploadProgressRoute({List<_i8.PageRouteInfo>? children})
+    : super(UploadProgressRoute.name, initialChildren: children);
+
+  static const String name = 'UploadProgressRoute';
+
+  static _i8.PageInfo page = _i8.PageInfo(
+    name,
+    builder: (data) {
+      return _i8.DeferredWidget(
+        _i11.loadLibrary,
+        () => _i11.UploadProgressScreen(),
+      );
+    },
+  );
 }

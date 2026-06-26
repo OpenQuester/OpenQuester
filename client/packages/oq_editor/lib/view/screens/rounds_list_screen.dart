@@ -98,17 +98,11 @@ class RoundsListScreen extends WatchingWidget {
   }
 
   Future<void> _showAddRoundDialog(BuildContext context) async {
-    final controller = GetIt.I<OqEditorController>();
-    final newRound = PackageRound(
-      order: 0,
-      name: controller.translations.newRound,
-      description: '',
-      type: PackageRoundType.simple,
-      themes: [],
-    );
+    final controller = GetIt.I<OqEditorController>()..createRound();
+    final roundIndex = controller.selectedNode.value.roundIndex;
+    if (roundIndex == null || !context.mounted) return;
 
-    // Simple add for now - in a real implementation, show a dialog
-    controller.addRound(newRound);
+    await context.router.push(RoundEditorRoute(roundIndex: roundIndex));
   }
 
   Future<void> _showEditRoundDialog(
@@ -245,7 +239,11 @@ class _RoundCard extends StatelessWidget {
               Row(
                 children: [
                   Chip(
-                    label: Text('${round.themes.length} themes'),
+                    label: Text(
+                      GetIt.I<OqEditorController>().translations.themesCount(
+                        round.themes.length,
+                      ),
+                    ),
                     labelStyle: Theme.of(context).textTheme.bodySmall,
                   ),
                   const Spacer(),

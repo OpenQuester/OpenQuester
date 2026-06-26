@@ -24,6 +24,7 @@ class OqEditorBody extends WatchingWidget {
   @override
   Widget build(BuildContext context) {
     final operation = watch(controller.operationState).value;
+    final hasLogs = watch(controller.operationLogs).value.isNotEmpty;
     final outlinePanelVisible = watch(controller.outlinePanelVisible).value;
     final previewPanelVisible = watch(controller.previewPanelVisible).value;
     final isRunning = operation.isRunning;
@@ -89,12 +90,7 @@ class OqEditorBody extends WatchingWidget {
             ),
             IconButton(
               icon: const Icon(Icons.upload_file),
-              onPressed: isRunning
-                  ? null
-                  : () => _runToolbarAction(
-                      context,
-                      controller.importPickedPackage,
-                    ),
+              onPressed: isRunning ? null : () => _runImportAction(context),
               tooltip: controller.translations.importPackageTooltip,
             ),
             IconButton(
@@ -109,23 +105,21 @@ class OqEditorBody extends WatchingWidget {
             ),
             IconButton(
               icon: const Icon(Icons.save),
-              onPressed: isRunning
-                  ? null
-                  : () => _runToolbarAction(
-                      context,
-                      controller.savePackage,
-                    ),
+              onPressed: isRunning ? null : () => _openUploadPage(context),
               tooltip: controller.translations.saveButton,
             ),
+            if (hasLogs)
+              IconButton(
+                icon: const Icon(Icons.receipt_long_outlined),
+                onPressed: () => _showProcessLogs(context),
+                tooltip: controller.translations.showProcessLogs,
+              ),
           ],
         ),
         drawer: _EditorDrawer(
           controller: controller,
           onNodeSelected: (node) => _navigateToNode(context, node),
-          onImport: () => _runToolbarAction(
-            context,
-            controller.importPickedPackage,
-          ),
+          onImport: () => _runImportAction(context),
         ),
         body: MaxSizeContainer(
           child: Column(
@@ -150,10 +144,7 @@ class OqEditorBody extends WatchingWidget {
                       controller: controller,
                       child: child,
                       onNodeSelected: (node) => _navigateToNode(context, node),
-                      onImport: () => _runToolbarAction(
-                        context,
-                        controller.importPickedPackage,
-                      ),
+                      onImport: () => _runImportAction(context),
                     );
                   },
                 ),
@@ -172,11 +163,17 @@ class OqEditorBody extends WatchingWidget {
       return;
     }
 
+    if (!controller.hasUnsavedChanges.value) {
+      await router.parent()?.maybePop();
+      return;
+    }
+
     final exit = await showDialog<bool>(
       context: context,
       useRootNavigator: false,
       builder: (context) => AlertDialog(
         title: Text(controller.translations.leaveWarning),
+        content: Text(controller.translations.unsavedChangesWarning),
         actions: [
           TextButton(
             onPressed: () => context.router.pop(false),
@@ -202,8 +199,8 @@ class OqEditorBody extends WatchingWidget {
             onPressed: controller.operationState.value.isRunning
                 ? null
                 : () async {
-                    await controller.savePackage();
-                    if (context.mounted) await context.router.maybePop(true);
+                    await context.router.maybePop(false);
+                    if (context.mounted) await _openUploadPage(context);
                   },
             child: Text(controller.translations.saveToServer),
           ),
@@ -240,11 +237,89 @@ class OqEditorBody extends WatchingWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${controller.translations.errorGeneric}: $error'),
+          content: Text(controller.userFacingError(error)),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     }
+  }
+
+  Future<void> _runImportAction(BuildContext context) async {
+    if (controller.hasUnsavedChanges.value) {
+      final confirmed = await _confirmImportReplace(context);
+      if (!confirmed) return;
+      if (!context.mounted) return;
+    }
+
+    controller.clearOperationLogs();
+    await _runToolbarAction(context, controller.importPickedPackage);
+  }
+
+  Future<bool> _confirmImportReplace(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      useRootNavigator: false,
+      builder: (context) => AlertDialog(
+        title: Text(controller.translations.importReplaceTitle),
+        content: Text(controller.translations.importReplaceMessage),
+        actions: [
+          TextButton(
+            onPressed: () => context.router.pop(false),
+            child: Text(controller.translations.cancelButton),
+          ),
+          FilledButton(
+            onPressed: () => context.router.pop(true),
+            child: Text(controller.translations.importPackage),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
+  }
+
+  Future<void> _openUploadPage(BuildContext context) async {
+    final valid = controller.refreshValidationIssues();
+    if (!valid) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(controller.translations.fixIssuesBeforeSaving),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      final issueNodes = controller.validationIssues.value.keys;
+      final firstNode = issueNodes.isEmpty ? null : issueNodes.first;
+      if (firstNode != null) {
+        await _navigateToNode(context, firstNode);
+      }
+      return;
+    }
+
+    controller.clearOperationLogs();
+    await context.router.push(const UploadProgressRoute());
+  }
+
+  Future<void> _showProcessLogs(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: false,
+      builder: (context) => AlertDialog(
+        title: Text(controller.translations.processLogs),
+        content: SizedBox(
+          width: 640,
+          child: SingleChildScrollView(
+            child: SelectableText(controller.operationLogText),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => context.router.pop(),
+            child: Text(controller.translations.closeButton),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _navigateToNode(BuildContext context, EditorNodeId node) async {
@@ -511,6 +586,7 @@ class _EditorOutline extends WatchingWidget {
   Widget build(BuildContext context) {
     final package = watch(controller.package).value;
     final selectedNode = watch(controller.selectedNode).value;
+    final validationIssues = watch(controller.validationIssues).value;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
@@ -519,6 +595,14 @@ class _EditorOutline extends WatchingWidget {
           controller: controller,
           onImport: onImport,
         ),
+        if (validationIssues.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _ValidationSummary(
+            controller: controller,
+            issues: validationIssues,
+            onNodeSelected: onNodeSelected,
+          ),
+        ],
         const SizedBox(height: 8),
         _OutlineTile(
           icon: Icons.inventory_2_outlined,
@@ -526,6 +610,14 @@ class _EditorOutline extends WatchingWidget {
               ? controller.translations.packageInfo
               : package.title,
           selected: selectedNode == const EditorNodeId.package(),
+          validationCount: _issueCountForNode(
+            validationIssues,
+            const EditorNodeId.package(),
+          ),
+          validationTooltip: _issueTooltip(
+            validationIssues,
+            const EditorNodeId.package(),
+          ),
           onTap: () => onNodeSelected(const EditorNodeId.package()),
         ),
         Padding(
@@ -549,6 +641,7 @@ class _EditorOutline extends WatchingWidget {
             round: package.rounds[roundIndex],
             roundIndex: roundIndex,
             selectedNode: selectedNode,
+            validationIssues: validationIssues,
             onNodeSelected: onNodeSelected,
           ),
       ],
@@ -587,6 +680,7 @@ class _RoundOutlineSection extends StatelessWidget {
     required this.round,
     required this.roundIndex,
     required this.selectedNode,
+    required this.validationIssues,
     required this.onNodeSelected,
   });
 
@@ -594,6 +688,7 @@ class _RoundOutlineSection extends StatelessWidget {
   final PackageRound round;
   final int roundIndex;
   final EditorNodeId selectedNode;
+  final Map<EditorNodeId, List<String>> validationIssues;
   final Future<void> Function(EditorNodeId node) onNodeSelected;
 
   @override
@@ -601,12 +696,28 @@ class _RoundOutlineSection extends StatelessWidget {
     return ExpansionTile(
       initiallyExpanded: selectedNode.roundIndex == roundIndex,
       leading: const Icon(Icons.layers_outlined),
-      title: Text(
-        round.name.trim().isEmpty
-            ? '${controller.translations.rounds} ${roundIndex + 1}'
-            : round.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              round.name.trim().isEmpty
+                  ? '${controller.translations.rounds} ${roundIndex + 1}'
+                  : round.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          _ValidationBadge(
+            count: _issueCountForNode(
+              validationIssues,
+              EditorNodeId.round(roundIndex),
+            ),
+            tooltip: _issueTooltip(
+              validationIssues,
+              EditorNodeId.round(roundIndex),
+            ),
+          ),
+        ],
       ),
       trailing: IconButton(
         icon: const Icon(Icons.edit_outlined),
@@ -635,6 +746,7 @@ class _RoundOutlineSection extends StatelessWidget {
             roundIndex: roundIndex,
             themeIndex: themeIndex,
             selectedNode: selectedNode,
+            validationIssues: validationIssues,
             onNodeSelected: onNodeSelected,
           ),
       ],
@@ -649,6 +761,7 @@ class _ThemeOutlineSection extends StatelessWidget {
     required this.roundIndex,
     required this.themeIndex,
     required this.selectedNode,
+    required this.validationIssues,
     required this.onNodeSelected,
   });
 
@@ -657,6 +770,7 @@ class _ThemeOutlineSection extends StatelessWidget {
   final int roundIndex;
   final int themeIndex;
   final EditorNodeId selectedNode;
+  final Map<EditorNodeId, List<String>> validationIssues;
   final Future<void> Function(EditorNodeId node) onNodeSelected;
 
   @override
@@ -666,12 +780,28 @@ class _ThemeOutlineSection extends StatelessWidget {
           selectedNode.roundIndex == roundIndex &&
           selectedNode.themeIndex == themeIndex,
       leading: const SizedBox(width: 24),
-      title: Text(
-        theme.name.trim().isEmpty
-            ? '${controller.translations.themes} ${themeIndex + 1}'
-            : theme.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              theme.name.trim().isEmpty
+                  ? '${controller.translations.themes} ${themeIndex + 1}'
+                  : theme.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          _ValidationBadge(
+            count: _issueCountForNode(
+              validationIssues,
+              EditorNodeId.theme(roundIndex, themeIndex),
+            ),
+            tooltip: _issueTooltip(
+              validationIssues,
+              EditorNodeId.theme(roundIndex, themeIndex),
+            ),
+          ),
+        ],
       ),
       trailing: IconButton(
         icon: const Icon(Icons.edit_outlined),
@@ -714,12 +844,28 @@ class _ThemeOutlineSection extends StatelessWidget {
                   themeIndex,
                   questionIndex,
                 ),
+            validationCount: _issueCountForNode(
+              validationIssues,
+              EditorNodeId.question(
+                roundIndex,
+                themeIndex,
+                questionIndex,
+              ),
+            ),
+            validationTooltip: _issueTooltip(
+              validationIssues,
+              EditorNodeId.question(
+                roundIndex,
+                themeIndex,
+                questionIndex,
+              ),
+            ),
             onTap: () => onNodeSelected(
               EditorNodeId.question(roundIndex, themeIndex, questionIndex),
             ),
             trailing: IconButton(
               icon: const Icon(Icons.copy_all_outlined),
-              tooltip: controller.translations.addQuestion,
+              tooltip: controller.translations.duplicateQuestion,
               onPressed: () async {
                 controller.copyQuestion(roundIndex, themeIndex, questionIndex);
                 await onNodeSelected(controller.selectedNode.value);
@@ -751,6 +897,8 @@ class _OutlineTile extends StatelessWidget {
     required this.title,
     required this.selected,
     required this.onTap,
+    this.validationCount = 0,
+    this.validationTooltip,
     this.trailing,
     this.inset = 16,
   });
@@ -759,6 +907,8 @@ class _OutlineTile extends StatelessWidget {
   final String title;
   final bool selected;
   final VoidCallback onTap;
+  final int validationCount;
+  final String? validationTooltip;
   final Widget? trailing;
   final double inset;
 
@@ -768,10 +918,123 @@ class _OutlineTile extends StatelessWidget {
       contentPadding: EdgeInsetsDirectional.only(start: inset, end: 12),
       leading: Icon(icon),
       title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: trailing,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ValidationBadge(
+            count: validationCount,
+            tooltip: validationTooltip,
+          ),
+          ?trailing,
+        ],
+      ),
       selected: selected,
       onTap: onTap,
     );
+  }
+}
+
+class _ValidationSummary extends StatelessWidget {
+  const _ValidationSummary({
+    required this.controller,
+    required this.issues,
+    required this.onNodeSelected,
+  });
+
+  final OqEditorController controller;
+  final Map<EditorNodeId, List<String>> issues;
+  final Future<void> Function(EditorNodeId node) onNodeSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = <({EditorNodeId node, String message})>[];
+    for (final entry in issues.entries) {
+      for (final message in entry.value) {
+        entries.add((node: entry.key, message: message));
+      }
+    }
+
+    return Card(
+      color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: .4),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    controller.translations.validationIssues,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                Text(
+                  controller.translations.validationIssueCount(entries.length),
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final entry in entries.take(5))
+              TextButton(
+                onPressed: () => onNodeSelected(entry.node),
+                style: TextButton.styleFrom(
+                  alignment: Alignment.centerLeft,
+                  padding: EdgeInsets.zero,
+                ),
+                child: Text(
+                  entry.message,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ValidationBadge extends StatelessWidget {
+  const _ValidationBadge({
+    required this.count,
+    this.tooltip,
+  });
+
+  final int count;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count == 0) return const SizedBox.shrink();
+
+    final badge = Container(
+      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.error,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        count.toString(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.onError,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+
+    final tooltipText = tooltip;
+    if (tooltipText == null || tooltipText.isEmpty) return badge;
+    return Tooltip(message: tooltipText, child: badge);
   }
 }
 
@@ -898,6 +1161,47 @@ class _PreviewRow extends StatelessWidget {
   }
 }
 
+int _issueCountForNode(
+  Map<EditorNodeId, List<String>> issues,
+  EditorNodeId node,
+) {
+  var count = 0;
+  for (final entry in issues.entries) {
+    if (_nodeContains(node, entry.key)) {
+      count += entry.value.length;
+    }
+  }
+  return count;
+}
+
+String? _issueTooltip(
+  Map<EditorNodeId, List<String>> issues,
+  EditorNodeId node,
+) {
+  final messages = <String>[];
+  for (final entry in issues.entries) {
+    if (_nodeContains(node, entry.key)) {
+      messages.addAll(entry.value);
+    }
+  }
+  if (messages.isEmpty) return null;
+  return messages.take(4).join('\n');
+}
+
+bool _nodeContains(EditorNodeId parent, EditorNodeId child) {
+  switch (parent.kind) {
+    case EditorNodeKind.package:
+      return true;
+    case EditorNodeKind.round:
+      return child.roundIndex == parent.roundIndex;
+    case EditorNodeKind.theme:
+      return child.roundIndex == parent.roundIndex &&
+          child.themeIndex == parent.themeIndex;
+    case EditorNodeKind.question:
+      return child == parent;
+  }
+}
+
 class _OperationBanner extends StatelessWidget {
   const _OperationBanner({
     required this.operation,
@@ -917,15 +1221,39 @@ class _OperationBanner extends StatelessWidget {
         minHeight: 3,
       ),
       failed: (state) => MaterialBanner(
-        content: Text(
-          '${controller.translations.errorGeneric}: ${state.error}',
-        ),
+        content: Text(state.error.toString()),
         actions: [
+          TextButton(
+            onPressed: () => _showLogs(context),
+            child: Text(controller.translations.showProcessLogs),
+          ),
           TextButton(
             onPressed: () {
               controller.operationState.value =
                   const PackageEditorOperationState.idle();
             },
+            child: Text(controller.translations.closeButton),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showLogs(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: false,
+      builder: (context) => AlertDialog(
+        title: Text(controller.translations.processLogs),
+        content: SizedBox(
+          width: 640,
+          child: SingleChildScrollView(
+            child: SelectableText(controller.operationLogText),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => context.router.pop(),
             child: Text(controller.translations.closeButton),
           ),
         ],

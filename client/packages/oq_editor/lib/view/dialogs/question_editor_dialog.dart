@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -307,23 +309,24 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   }
 
   @override
-  Future<void> dispose() async {
-    super.dispose();
-    // Dispose all media file controllers
-    try {
-      await Future.wait([
-        ..._questionMediaFiles.map((e) => e.disposeController()),
-        ..._answerMediaFiles.map((e) => e.disposeController()),
-      ]);
-    } catch (_) {}
-
-    // Dispose text controllers
+  void dispose() {
+    unawaited(_disposeMediaControllers());
     _textController.dispose();
     _priceController.dispose();
     _answerTextController.dispose();
     _answerHintController.dispose();
     _questionCommentController.dispose();
     _answerDelayController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _disposeMediaControllers() async {
+    try {
+      await Future.wait([
+        ..._questionMediaFiles.map((e) => e.disposeController()),
+        ..._answerMediaFiles.map((e) => e.disposeController()),
+      ]);
+    } catch (_) {}
   }
 
   @override
@@ -338,7 +341,10 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
       insetPadding: 16.all,
       backgroundColor: context.theme.cardColor,
       content: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 600),
+        constraints: BoxConstraints(
+          minWidth: MediaQuery.sizeOf(context).width < 700 ? 0 : 600,
+          maxWidth: 760,
+        ),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -347,6 +353,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _QuestionEditorSectionTitle(translations.basicSection),
+                const SizedBox(height: 16),
+
                 // Question type selector
                 DropdownButtonFormField<QuestionType>(
                   initialValue: _questionType,
@@ -499,6 +508,9 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
 
                 const SizedBox(height: 16),
 
+                _QuestionEditorSectionTitle(translations.rulesSection),
+                const SizedBox(height: 16),
+
                 // Type-specific fields
                 ..._buildTypeSpecificFields(),
 
@@ -510,19 +522,20 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                 const SizedBox(height: 24),
                 const Divider(),
                 const SizedBox(height: 16),
+                _QuestionEditorSectionTitle(translations.mediaSection),
+                const SizedBox(height: 16),
 
                 // Media files section
                 MediaFilesSection(
                   title: translations.questionMediaFiles,
                   files: _questionMediaFiles,
                   onAdd: () => _addMediaFile(isQuestionMedia: true),
-                  onRemove: (int index) {
-                    setState(() async {
-                      // Dispose controller before removing
-                      await _questionMediaFiles[index].disposeController();
-                      _questionMediaFiles.removeAt(index);
-                    });
-                  },
+                  onRemove: (int index) =>
+                      _removeMediaFile(index, isQuestionMedia: true),
+                  onMoveUp: (int index) =>
+                      _moveMediaFile(index, -1, isQuestionMedia: true),
+                  onMoveDown: (int index) =>
+                      _moveMediaFile(index, 1, isQuestionMedia: true),
                   onEditDisplayTime: (int index) =>
                       _editMediaDisplayTime(index, isQuestionMedia: true),
                 ),
@@ -533,13 +546,12 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
                   title: translations.answerMediaFiles,
                   files: _answerMediaFiles,
                   onAdd: () => _addMediaFile(isQuestionMedia: false),
-                  onRemove: (int index) {
-                    setState(() async {
-                      // Dispose controller before removing
-                      await _answerMediaFiles[index].disposeController();
-                      _answerMediaFiles.removeAt(index);
-                    });
-                  },
+                  onRemove: (int index) =>
+                      _removeMediaFile(index, isQuestionMedia: false),
+                  onMoveUp: (int index) =>
+                      _moveMediaFile(index, -1, isQuestionMedia: false),
+                  onMoveDown: (int index) =>
+                      _moveMediaFile(index, 1, isQuestionMedia: false),
                   onEditDisplayTime: (int index) =>
                       _editMediaDisplayTime(index, isQuestionMedia: false),
                 ),
@@ -1031,6 +1043,41 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     });
   }
 
+  void _removeMediaFile(int index, {required bool isQuestionMedia}) {
+    final files = isQuestionMedia ? _questionMediaFiles : _answerMediaFiles;
+    if (index < 0 || index >= files.length) return;
+
+    final removedFile = files[index];
+    setState(() {
+      files.removeAt(index);
+      _repairMediaOrder(files);
+    });
+    unawaited(removedFile.disposeController());
+  }
+
+  void _moveMediaFile(
+    int index,
+    int direction, {
+    required bool isQuestionMedia,
+  }) {
+    final files = isQuestionMedia ? _questionMediaFiles : _answerMediaFiles;
+    final targetIndex = index + direction;
+    if (index < 0 || index >= files.length) return;
+    if (targetIndex < 0 || targetIndex >= files.length) return;
+
+    setState(() {
+      final file = files.removeAt(index);
+      files.insert(targetIndex, file);
+      _repairMediaOrder(files);
+    });
+  }
+
+  void _repairMediaOrder(List<UiMediaFile> files) {
+    for (var index = 0; index < files.length; index++) {
+      files[index].order = index;
+    }
+  }
+
   /// Add media file (stores file reference, not bytes, for memory efficiency)
   Future<void> _addMediaFile({required bool isQuestionMedia}) async {
     try {
@@ -1310,6 +1357,22 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
         ),
       );
     }
+  }
+}
+
+class _QuestionEditorSectionTitle extends StatelessWidget {
+  const _QuestionEditorSectionTitle(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+      ),
+    );
   }
 }
 

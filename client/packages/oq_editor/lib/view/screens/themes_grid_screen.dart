@@ -59,7 +59,7 @@ class ThemesGridScreen extends WatchingWidget {
                   ),
                 ),
                 FilledButton.icon(
-                  onPressed: () => _addNewTheme(context, roundIndex),
+                  onPressed: () async => _addNewTheme(context, roundIndex),
                   icon: const Icon(Icons.add),
                   label: Text(translations.addTheme),
                 ),
@@ -131,15 +131,17 @@ class ThemesGridScreen extends WatchingWidget {
     );
   }
 
-  void _addNewTheme(BuildContext context, int roundIndex) {
-    final controller = GetIt.I<OqEditorController>();
-    final newTheme = PackageTheme(
-      order: 0,
-      name: controller.translations.newTheme,
-      description: '',
-      questions: [],
+  Future<void> _addNewTheme(BuildContext context, int roundIndex) async {
+    final controller = GetIt.I<OqEditorController>()..createTheme(roundIndex);
+    final themeIndex = controller.selectedNode.value.themeIndex;
+    if (themeIndex == null || !context.mounted) return;
+
+    await context.router.push(
+      ThemeEditorRoute(
+        roundIndex: roundIndex,
+        themeIndex: themeIndex,
+      ),
     );
-    controller.addTheme(roundIndex, newTheme);
   }
 
   Future<void> _confirmDeleteTheme(

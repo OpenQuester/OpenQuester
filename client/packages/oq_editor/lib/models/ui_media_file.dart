@@ -23,7 +23,7 @@ class UiMediaFile {
   int displayTime;
 
   /// Order in the list (UI metadata)
-  final int order;
+  int order;
 
   /// Convenience getters that delegate to the underlying reference
   String get fileName => reference.fileName;
