@@ -7,9 +7,12 @@ import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/domain/editor_node_id.dart';
 import 'package:oq_editor/domain/package_editor_operation_state.dart';
 import 'package:oq_editor/router/router.gr.dart';
+import 'package:oq_editor/view/utils/editor_layout_metrics.dart';
 import 'package:oq_editor/view/widgets/package_size_indicator.dart';
 import 'package:oq_shared/ui/max_size_container.dart';
 import 'package:watch_it/watch_it.dart';
+
+enum _EditorToolbarAction { importPackage, exportPackage, save, logs }
 
 class OqEditorBody extends WatchingWidget {
   const OqEditorBody({
@@ -27,6 +30,9 @@ class OqEditorBody extends WatchingWidget {
     final hasLogs = watch(controller.operationLogs).value.isNotEmpty;
     final outlinePanelVisible = watch(controller.outlinePanelVisible).value;
     final previewPanelVisible = watch(controller.previewPanelVisible).value;
+    final isCompact =
+        MediaQuery.sizeOf(context).width <
+        EditorLayoutMetrics.compactBreakpoint;
     final isRunning = operation.isRunning;
 
     return PopScope(
@@ -37,82 +43,113 @@ class OqEditorBody extends WatchingWidget {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(controller.translations.editorTitle),
+          centerTitle: false,
+          title: Text(
+            controller.translations.editorTitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           leading: BackButton(onPressed: () => _handleBack(context)),
           actions: [
-            Builder(
-              builder: (context) {
-                final isCompact = MediaQuery.sizeOf(context).width < 900;
-                if (!isCompact) return const SizedBox.shrink();
-
-                return IconButton(
-                  icon: const Icon(Icons.account_tree_outlined),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                  tooltip: controller.translations.packageInfo,
-                );
-              },
-            ),
-            Builder(
-              builder: (context) {
-                final isCompact = MediaQuery.sizeOf(context).width < 900;
-                if (isCompact) return const SizedBox.shrink();
-
-                return IconButton(
-                  icon: Icon(
-                    outlinePanelVisible
-                        ? Icons.view_sidebar_outlined
-                        : Icons.view_sidebar,
-                  ),
-                  onPressed: () {
-                    controller.outlinePanelVisible.value = !outlinePanelVisible;
-                  },
-                  tooltip: controller.translations.packageInfo,
-                );
-              },
-            ),
-            Builder(
-              builder: (context) {
-                final isCompact = MediaQuery.sizeOf(context).width < 900;
-                if (isCompact) return const SizedBox.shrink();
-
-                return IconButton(
-                  icon: Icon(
-                    previewPanelVisible
-                        ? Icons.preview_outlined
-                        : Icons.preview,
-                  ),
-                  onPressed: () {
-                    controller.previewPanelVisible.value = !previewPanelVisible;
-                  },
-                  tooltip: controller.translations.preview,
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.upload_file),
-              onPressed: isRunning ? null : () => _runImportAction(context),
-              tooltip: controller.translations.importPackageTooltip,
-            ),
-            IconButton(
-              icon: const Icon(Icons.download),
-              onPressed: isRunning
-                  ? null
-                  : () => _runToolbarAction(
-                      context,
-                      controller.exportPackage,
-                    ),
-              tooltip: controller.translations.exportPackageTooltip,
-            ),
-            IconButton(
-              icon: const Icon(Icons.save),
-              onPressed: isRunning ? null : () => _openUploadPage(context),
-              tooltip: controller.translations.saveButton,
-            ),
-            if (hasLogs)
+            if (isCompact)
+              Builder(
+                builder: (context) {
+                  return IconButton(
+                    icon: const Icon(Icons.account_tree_outlined),
+                    onPressed: () => Scaffold.of(context).openDrawer(),
+                    tooltip: controller.translations.packageInfo,
+                  );
+                },
+              )
+            else ...[
               IconButton(
-                icon: const Icon(Icons.receipt_long_outlined),
-                onPressed: () => _showProcessLogs(context),
-                tooltip: controller.translations.showProcessLogs,
+                icon: Icon(
+                  outlinePanelVisible
+                      ? Icons.view_sidebar_outlined
+                      : Icons.view_sidebar,
+                ),
+                onPressed: () {
+                  controller.outlinePanelVisible.value = !outlinePanelVisible;
+                },
+                tooltip: controller.translations.packageInfo,
+              ),
+              IconButton(
+                icon: Icon(
+                  previewPanelVisible ? Icons.preview_outlined : Icons.preview,
+                ),
+                onPressed: () {
+                  controller.previewPanelVisible.value = !previewPanelVisible;
+                },
+                tooltip: controller.translations.preview,
+              ),
+              IconButton(
+                icon: const Icon(Icons.upload_file),
+                onPressed: isRunning ? null : () => _runImportAction(context),
+                tooltip: controller.translations.importPackageTooltip,
+              ),
+              IconButton(
+                icon: const Icon(Icons.download),
+                onPressed: isRunning
+                    ? null
+                    : () => _runToolbarAction(
+                        context,
+                        controller.exportPackage,
+                      ),
+                tooltip: controller.translations.exportPackageTooltip,
+              ),
+              IconButton(
+                icon: const Icon(Icons.save),
+                onPressed: isRunning ? null : () => _openUploadPage(context),
+                tooltip: controller.translations.saveButton,
+              ),
+              if (hasLogs)
+                IconButton(
+                  icon: const Icon(Icons.receipt_long_outlined),
+                  onPressed: () => _showProcessLogs(context),
+                  tooltip: controller.translations.showProcessLogs,
+                ),
+            ],
+            if (isCompact)
+              PopupMenuButton<_EditorToolbarAction>(
+                tooltip: MaterialLocalizations.of(context).moreButtonTooltip,
+                onSelected: (action) => _handleToolbarMenuAction(
+                  context,
+                  action,
+                ),
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: _EditorToolbarAction.importPackage,
+                    enabled: !isRunning,
+                    child: _ToolbarMenuItem(
+                      icon: Icons.upload_file,
+                      label: controller.translations.importPackage,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _EditorToolbarAction.exportPackage,
+                    enabled: !isRunning,
+                    child: _ToolbarMenuItem(
+                      icon: Icons.download,
+                      label: controller.translations.exportPackageTooltip,
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _EditorToolbarAction.save,
+                    enabled: !isRunning,
+                    child: _ToolbarMenuItem(
+                      icon: Icons.save,
+                      label: controller.translations.saveButton,
+                    ),
+                  ),
+                  if (hasLogs)
+                    PopupMenuItem(
+                      value: _EditorToolbarAction.logs,
+                      child: _ToolbarMenuItem(
+                        icon: Icons.receipt_long_outlined,
+                        label: controller.translations.showProcessLogs,
+                      ),
+                    ),
+                ],
               ),
           ],
         ),
@@ -122,6 +159,7 @@ class OqEditorBody extends WatchingWidget {
           onImport: () => _runImportAction(context),
         ),
         body: MaxSizeContainer(
+          maxWidth: EditorLayoutMetrics.shellMaxWidth,
           child: Column(
             children: [
               PackageSizeIndicator(controller: controller),
@@ -132,7 +170,9 @@ class OqEditorBody extends WatchingWidget {
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final isCompact = constraints.maxWidth < 900;
+                    final isCompact =
+                        constraints.maxWidth <
+                        EditorLayoutMetrics.compactBreakpoint;
                     if (isCompact) {
                       return _CompactEditorLayout(
                         controller: controller,
@@ -244,6 +284,22 @@ class OqEditorBody extends WatchingWidget {
     }
   }
 
+  Future<void> _handleToolbarMenuAction(
+    BuildContext context,
+    _EditorToolbarAction action,
+  ) async {
+    switch (action) {
+      case _EditorToolbarAction.importPackage:
+        await _runImportAction(context);
+      case _EditorToolbarAction.exportPackage:
+        await _runToolbarAction(context, controller.exportPackage);
+      case _EditorToolbarAction.save:
+        await _openUploadPage(context);
+      case _EditorToolbarAction.logs:
+        await _showProcessLogs(context);
+    }
+  }
+
   Future<void> _runImportAction(BuildContext context) async {
     if (controller.hasUnsavedChanges.value) {
       final confirmed = await _confirmImportReplace(context);
@@ -343,6 +399,33 @@ class OqEditorBody extends WatchingWidget {
   }
 }
 
+class _ToolbarMenuItem extends StatelessWidget {
+  const _ToolbarMenuItem({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _EditorDrawer extends StatelessWidget {
   const _EditorDrawer({
     required this.controller,
@@ -412,8 +495,8 @@ class _DesktopEditorLayout extends WatchingWidget {
             onDrag: (delta) {
               controller.outlinePanelWidth.value =
                   (controller.outlinePanelWidth.value + delta).clamp(
-                    260,
-                    520,
+                    EditorLayoutMetrics.outlineMinWidth,
+                    EditorLayoutMetrics.outlineMaxWidth,
                   );
             },
           ),
@@ -426,8 +509,8 @@ class _DesktopEditorLayout extends WatchingWidget {
             onDrag: (delta) {
               controller.previewPanelWidth.value =
                   (controller.previewPanelWidth.value - delta).clamp(
-                    280,
-                    560,
+                    EditorLayoutMetrics.previewMinWidth,
+                    EditorLayoutMetrics.previewMaxWidth,
                   );
             },
           ),
@@ -491,7 +574,7 @@ class _EditorContentFrame extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: EditorLayoutMetrics.pagePadding(context),
       child: ClipRect(child: child),
     );
   }
@@ -512,17 +595,24 @@ class _EditorPanelChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        color: colorScheme.surfaceContainerLow,
+        border: Border.symmetric(
+          vertical: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: .55),
+          ),
+        ),
       ),
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
             child: Row(
               children: [
-                Icon(icon, size: 18),
+                Icon(icon, size: 18, color: colorScheme.primary),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -555,16 +645,24 @@ class _ResizeHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return MouseRegion(
       cursor: SystemMouseCursors.resizeColumn,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.45),
+        child: SizedBox(
+          width: 12,
+          child: Center(
+            child: Container(
+              width: 2,
+              decoration: BoxDecoration(
+                color: colorScheme.outlineVariant.withValues(alpha: .72),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
           ),
-          child: const SizedBox(width: 6),
         ),
       ),
     );
@@ -589,7 +687,7 @@ class _EditorOutline extends WatchingWidget {
     final validationIssues = watch(controller.validationIssues).value;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
       children: [
         _OutlineToolbar(
           controller: controller,
@@ -693,9 +791,18 @@ class _RoundOutlineSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return ExpansionTile(
       initiallyExpanded: selectedNode.roundIndex == roundIndex,
       leading: const Icon(Icons.layers_outlined),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      collapsedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      tilePadding: const EdgeInsetsDirectional.only(start: 12, end: 6),
+      iconColor: colorScheme.primary,
+      collapsedIconColor: colorScheme.onSurfaceVariant,
       title: Row(
         children: [
           Expanded(
@@ -775,11 +882,20 @@ class _ThemeOutlineSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return ExpansionTile(
       initiallyExpanded:
           selectedNode.roundIndex == roundIndex &&
           selectedNode.themeIndex == themeIndex,
       leading: const SizedBox(width: 24),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      collapsedShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      tilePadding: const EdgeInsetsDirectional.only(start: 16, end: 6),
+      iconColor: colorScheme.primary,
+      collapsedIconColor: colorScheme.onSurfaceVariant,
       title: Row(
         children: [
           Expanded(
@@ -914,22 +1030,34 @@ class _OutlineTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsetsDirectional.only(start: inset, end: 12),
-      leading: Icon(icon),
-      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _ValidationBadge(
-            count: validationCount,
-            tooltip: validationTooltip,
-          ),
-          ?trailing,
-        ],
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Material(
+      type: MaterialType.transparency,
+      child: ListTile(
+        contentPadding: EdgeInsetsDirectional.only(start: inset, end: 12),
+        minLeadingWidth: 28,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        selectedTileColor: colorScheme.primaryContainer.withValues(alpha: .34),
+        selectedColor: colorScheme.onPrimaryContainer,
+        iconColor: selected
+            ? colorScheme.primary
+            : colorScheme.onSurfaceVariant,
+        leading: Icon(icon),
+        title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ValidationBadge(
+              count: validationCount,
+              tooltip: validationTooltip,
+            ),
+            ?trailing,
+          ],
+        ),
+        selected: selected,
+        onTap: onTap,
       ),
-      selected: selected,
-      onTap: onTap,
     );
   }
 }
@@ -955,7 +1083,10 @@ class _ValidationSummary extends StatelessWidget {
     }
 
     return Card(
-      color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: .4),
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: .3),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(

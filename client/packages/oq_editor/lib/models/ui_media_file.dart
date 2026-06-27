@@ -4,7 +4,7 @@ import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:video_player/video_player.dart';
 
 /// UI wrapper for media file with metadata
-/// Used in question editor dialog to track file metadata before saving
+/// Used in the question editor to track file metadata before saving
 class UiMediaFile {
   UiMediaFile({
     required this.reference,

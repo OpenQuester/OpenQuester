@@ -1,12 +1,16 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
-import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
+import 'package:oq_editor/models/oq_editor_translations.dart';
 import 'package:oq_editor/router/router.gr.dart';
 import 'package:oq_editor/utils/question_templates.dart';
-import 'package:oq_editor/view/dialogs/question_editor_dialog.dart';
+import 'package:oq_editor/view/screens/question_editor_screen.dart';
+import 'package:oq_editor/view/utils/editor_layout_metrics.dart';
+import 'package:oq_shared/ui/max_size_container.dart';
 import 'package:watch_it/watch_it.dart';
+
+enum _QuestionCardAction { edit, duplicate, delete }
 
 /// List of questions within a theme
 @RoutePage()
@@ -25,7 +29,11 @@ class QuestionsListScreen extends WatchingWidget {
     final package = watchValue((OqEditorController c) => c.package);
 
     final translations = controller.translations;
-    callOnce((_) => controller.selectTheme(roundIndex, themeIndex));
+    callOnce((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) controller.selectTheme(roundIndex, themeIndex);
+      });
+    });
 
     if (roundIndex >= package.rounds.length) {
       return Center(child: Text(translations.invalidQuestionContext));
@@ -40,169 +48,92 @@ class QuestionsListScreen extends WatchingWidget {
     final questions = theme.questions;
 
     return Scaffold(
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          translations.questions,
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          theme.name,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ],
+      body: MaxSizeContainer(
+        maxWidth: EditorLayoutMetrics.listMaxWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EditorLayoutMetrics.pagePadding(context),
+              child: _QuestionsHeader(
+                title: translations.questions,
+                subtitle: theme.name,
+                onAddQuestion: () =>
+                    _addNewQuestion(context, roundIndex, themeIndex),
+                onAddTemplate: () => _addQuestionFromTemplate(
+                  context,
+                  roundIndex,
+                  themeIndex,
+                  QuestionTemplate.openingQuestion,
                 ),
-                Flexible(
-                  child: OverflowBar(
-                    overflowAlignment: OverflowBarAlignment.end,
-                    spacing: 8,
-                    overflowSpacing: 8,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: () =>
-                            _addNewQuestion(context, roundIndex, themeIndex),
-                        icon: const Icon(Icons.add),
-                        label: Text(translations.addQuestion),
-                      ),
-                      MenuAnchor(
-                        crossAxisUnconstrained: false,
-                        builder: (context, controller, child) {
-                          return FilledButton.tonalIcon(
-                            onPressed: () {
-                              if (controller.isOpen) {
-                                controller.close();
-                              } else {
-                                controller.open();
-                              }
-                            },
-                            icon: const Icon(Icons.auto_awesome),
-                            label: Text(translations.addFromTemplate),
-                          );
-                        },
-                        menuChildren: [
-                          MenuItemButton(
-                            leadingIcon: const Icon(Icons.file_upload_outlined),
-                            onPressed: () => _addQuestionFromTemplate(
-                              context,
-                              roundIndex,
-                              themeIndex,
-                              QuestionTemplate.openingQuestion,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  translations.templateOpeningQuestion,
-                                  style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+
+            Expanded(
+              child: questions.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.quiz_outlined,
+                            size: 64,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            translations.noQuestions,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
-                                Text(
-                                  translations.templateOpeningQuestionDesc,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
-                            ).paddingAll(16),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Questions list or empty state
-          Expanded(
-            child: questions.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.quiz_outlined,
-                          size: 64,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          translations.noQuestions,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ],
+                    )
+                  : ReorderableListView.builder(
+                      padding: EditorLayoutMetrics.listPadding(context),
+                      itemCount: questions.length,
+                      onReorderItem: (oldIndex, newIndex) {
+                        controller.reorderQuestions(
+                          roundIndex,
+                          themeIndex,
+                          oldIndex,
+                          newIndex > oldIndex ? newIndex - 1 : newIndex,
+                        );
+                      },
+                      itemBuilder: (context, index) {
+                        final question = questions[index];
+                        return _QuestionCard(
+                          key: ValueKey(question.id ?? index),
+                          question: question,
+                          questionIndex: index,
+                          onEdit: () => _showEditQuestionPage(
+                            context,
+                            roundIndex,
+                            themeIndex,
+                            index,
+                            question,
+                          ),
+                          onDelete: () => _confirmDeleteQuestion(
+                            context,
+                            roundIndex,
+                            themeIndex,
+                            index,
+                          ),
+                          onDuplicate: () => _duplicateQuestion(
+                            roundIndex,
+                            themeIndex,
+                            index,
+                          ),
+                        );
+                      },
                     ),
-                  )
-                : ReorderableListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: questions.length,
-                    onReorderItem: (oldIndex, newIndex) {
-                      controller.reorderQuestions(
-                        roundIndex,
-                        themeIndex,
-                        oldIndex,
-                        newIndex > oldIndex ? newIndex - 1 : newIndex,
-                      );
-                    },
-                    itemBuilder: (context, index) {
-                      final question = questions[index];
-                      return _QuestionCard(
-                        key: ValueKey(question.id ?? index),
-                        question: question,
-                        questionIndex: index,
-                        onEdit: () => _showEditQuestionDialog(
-                          context,
-                          roundIndex,
-                          themeIndex,
-                          index,
-                          question,
-                        ),
-                        onDelete: () => _confirmDeleteQuestion(
-                          context,
-                          roundIndex,
-                          themeIndex,
-                          index,
-                        ),
-                        onDuplicate: () => _duplicateQuestion(
-                          roundIndex,
-                          themeIndex,
-                          index,
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -216,10 +147,9 @@ class QuestionsListScreen extends WatchingWidget {
 
     final result = await context
         .pushRoute(
-          QuestionEditorRoute(
+          AddQuestionRoute(
             roundIndex: roundIndex,
             themeIndex: themeIndex,
-            questionIndex: null,
           ),
         )
         .then((value) => value as QuestionEditResult?);
@@ -258,13 +188,11 @@ class QuestionsListScreen extends WatchingWidget {
     if (prefilledQuestion == null) return;
     if (!context.mounted) return;
 
-    // Show dialog with pre-filled question
     final result = await context
         .pushRoute(
-          QuestionEditorRoute(
+          AddQuestionRoute(
             roundIndex: roundIndex,
             themeIndex: themeIndex,
-            questionIndex: null,
             initialQuestion: prefilledQuestion,
           ),
         )
@@ -278,7 +206,7 @@ class QuestionsListScreen extends WatchingWidget {
     }
   }
 
-  Future<void> _showEditQuestionDialog(
+  Future<void> _showEditQuestionPage(
     BuildContext context,
     int roundIndex,
     int themeIndex,
@@ -357,6 +285,117 @@ class QuestionsListScreen extends WatchingWidget {
   }
 }
 
+class _QuestionsHeader extends StatelessWidget {
+  const _QuestionsHeader({
+    required this.title,
+    required this.subtitle,
+    required this.onAddQuestion,
+    required this.onAddTemplate,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onAddQuestion;
+  final VoidCallback onAddTemplate;
+
+  @override
+  Widget build(BuildContext context) {
+    final translations = GetIt.I<OqEditorController>().translations;
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
+    final actions = OverflowBar(
+      overflowAlignment: OverflowBarAlignment.end,
+      spacing: 8,
+      overflowSpacing: 8,
+      children: [
+        FilledButton.icon(
+          onPressed: onAddQuestion,
+          icon: const Icon(Icons.add),
+          label: Text(translations.addQuestion),
+        ),
+        MenuAnchor(
+          crossAxisUnconstrained: false,
+          builder: (context, controller, child) {
+            return FilledButton.tonalIcon(
+              onPressed: () {
+                if (controller.isOpen) {
+                  controller.close();
+                } else {
+                  controller.open();
+                }
+              },
+              icon: const Icon(Icons.auto_awesome),
+              label: Text(translations.addFromTemplate),
+            );
+          },
+          menuChildren: [
+            MenuItemButton(
+              leadingIcon: const Icon(Icons.file_upload_outlined),
+              onPressed: onAddTemplate,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      translations.templateOpeningQuestion,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    Text(
+                      translations.templateOpeningQuestionDesc,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 640) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              titleBlock,
+              const SizedBox(height: 12),
+              actions,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: titleBlock),
+            Flexible(child: actions),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _QuestionCard extends StatelessWidget {
   const _QuestionCard({
     required this.question,
@@ -377,6 +416,10 @@ class _QuestionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = GetIt.I<OqEditorController>();
     final translations = controller.translations;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isCompact =
+        MediaQuery.sizeOf(context).width <
+        EditorLayoutMetrics.compactBreakpoint;
 
     final questionText = question.map(
       simple: (q) => q.text ?? translations.untitledQuestion,
@@ -406,8 +449,16 @@ class _QuestionCard extends StatelessWidget {
     );
 
     return Card(
+      elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
+      color: colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: ListTile(
+        contentPadding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -428,14 +479,16 @@ class _QuestionCard extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Row(
+        subtitle: Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Chip(
               label: Text(questionType),
               labelStyle: Theme.of(context).textTheme.bodySmall,
               padding: EdgeInsets.zero,
             ),
-            const SizedBox(width: 8),
             if (questionPrice != null)
               Text(
                 '$questionPrice ${translations.pts}',
@@ -446,28 +499,99 @@ class _QuestionCard extends StatelessWidget {
               ),
           ],
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: onEdit,
-              tooltip: GetIt.I<OqEditorController>().translations.editButton,
-            ),
-            IconButton(
-              icon: const Icon(Icons.copy_all_outlined),
-              onPressed: onDuplicate,
-              tooltip:
-                  GetIt.I<OqEditorController>().translations.duplicateQuestion,
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline),
-              onPressed: onDelete,
-              tooltip: GetIt.I<OqEditorController>().translations.deleteButton,
-            ),
-          ],
-        ),
+        trailing: isCompact ? _compactMenu(translations) : _inlineActions(),
       ),
+    );
+  }
+
+  Widget _compactMenu(OqEditorTranslations translations) {
+    return PopupMenuButton<_QuestionCardAction>(
+      onSelected: _handleAction,
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _QuestionCardAction.edit,
+          child: _ToolbarMenuItem(
+            icon: Icons.edit_outlined,
+            label: translations.editButton,
+          ),
+        ),
+        PopupMenuItem(
+          value: _QuestionCardAction.duplicate,
+          child: _ToolbarMenuItem(
+            icon: Icons.copy_all_outlined,
+            label: translations.duplicateQuestion,
+          ),
+        ),
+        PopupMenuItem(
+          value: _QuestionCardAction.delete,
+          child: _ToolbarMenuItem(
+            icon: Icons.delete_outline,
+            label: translations.deleteButton,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _inlineActions() {
+    final translations = GetIt.I<OqEditorController>().translations;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.edit_outlined),
+          onPressed: onEdit,
+          tooltip: translations.editButton,
+        ),
+        IconButton(
+          icon: const Icon(Icons.copy_all_outlined),
+          onPressed: onDuplicate,
+          tooltip: translations.duplicateQuestion,
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline),
+          onPressed: onDelete,
+          tooltip: translations.deleteButton,
+        ),
+      ],
+    );
+  }
+
+  void _handleAction(_QuestionCardAction action) {
+    switch (action) {
+      case _QuestionCardAction.edit:
+        onEdit();
+      case _QuestionCardAction.duplicate:
+        onDuplicate();
+      case _QuestionCardAction.delete:
+        onDelete();
+    }
+  }
+}
+
+class _ToolbarMenuItem extends StatelessWidget {
+  const _ToolbarMenuItem({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }

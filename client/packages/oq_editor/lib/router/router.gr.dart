@@ -12,7 +12,7 @@
 import 'package:auto_route/auto_route.dart' as _i8;
 import 'package:flutter/material.dart' as _i10;
 import 'package:openapi/openapi.dart' as _i9;
-import 'package:oq_editor/view/dialogs/question_editor_dialog.dart'
+import 'package:oq_editor/view/screens/question_editor_screen.dart'
     deferred as _i2;
 import 'package:oq_editor/view/screens/package_info_screen.dart'
     deferred as _i1;
@@ -44,7 +44,92 @@ class PackageInfoRoute extends _i8.PageRouteInfo<void> {
 }
 
 /// generated route for
-/// [_i2.QuestionEditorDialog]
+/// [_i2.AddQuestionScreen]
+class AddQuestionRoute extends _i8.PageRouteInfo<AddQuestionRouteArgs> {
+  AddQuestionRoute({
+    required int roundIndex,
+    required int themeIndex,
+    _i9.PackageQuestionUnion? initialQuestion,
+    _i10.Key? key,
+    List<_i8.PageRouteInfo>? children,
+  }) : super(
+         AddQuestionRoute.name,
+         args: AddQuestionRouteArgs(
+           roundIndex: roundIndex,
+           themeIndex: themeIndex,
+           initialQuestion: initialQuestion,
+           key: key,
+         ),
+         rawPathParams: {'roundIndex': roundIndex, 'themeIndex': themeIndex},
+         initialChildren: children,
+       );
+
+  static const String name = 'AddQuestionRoute';
+
+  static _i8.PageInfo page = _i8.PageInfo(
+    name,
+    builder: (data) {
+      final pathParams = data.inheritedPathParams;
+      final args = data.argsAs<AddQuestionRouteArgs>(
+        orElse: () => AddQuestionRouteArgs(
+          roundIndex: pathParams.getInt('roundIndex'),
+          themeIndex: pathParams.getInt('themeIndex'),
+        ),
+      );
+      return _i8.DeferredWidget(
+        _i2.loadLibrary,
+        () => _i2.AddQuestionScreen(
+          roundIndex: args.roundIndex,
+          themeIndex: args.themeIndex,
+          initialQuestion: args.initialQuestion,
+          key: args.key,
+        ),
+      );
+    },
+  );
+}
+
+class AddQuestionRouteArgs {
+  const AddQuestionRouteArgs({
+    required this.roundIndex,
+    required this.themeIndex,
+    this.initialQuestion,
+    this.key,
+  });
+
+  final int roundIndex;
+
+  final int themeIndex;
+
+  final _i9.PackageQuestionUnion? initialQuestion;
+
+  final _i10.Key? key;
+
+  @override
+  String toString() {
+    return 'AddQuestionRouteArgs{roundIndex: $roundIndex, themeIndex: $themeIndex, initialQuestion: $initialQuestion, key: $key}';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! AddQuestionRouteArgs) return false;
+    return roundIndex == other.roundIndex &&
+        themeIndex == other.themeIndex &&
+        initialQuestion == other.initialQuestion &&
+        key == other.key;
+  }
+
+  @override
+  int get hashCode =>
+      roundIndex.hashCode ^
+      themeIndex.hashCode ^
+      initialQuestion.hashCode ^
+      key.hashCode;
+}
+
+/// generated route for
+/// [_i2.QuestionEditorScreen]
 class QuestionEditorRoute extends _i8.PageRouteInfo<QuestionEditorRouteArgs> {
   QuestionEditorRoute({
     required int roundIndex,
@@ -85,7 +170,7 @@ class QuestionEditorRoute extends _i8.PageRouteInfo<QuestionEditorRouteArgs> {
       );
       return _i8.DeferredWidget(
         _i2.loadLibrary,
-        () => _i2.QuestionEditorDialog(
+        () => _i2.QuestionEditorScreen(
           roundIndex: args.roundIndex,
           themeIndex: args.themeIndex,
           questionIndex: args.questionIndex,
