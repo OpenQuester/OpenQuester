@@ -4,6 +4,8 @@ import 'package:nb_utils/nb_utils.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/router/router.gr.dart';
+import 'package:oq_editor/view/utils/editor_layout_metrics.dart';
+import 'package:oq_shared/ui/max_size_container.dart';
 import 'package:watch_it/watch_it.dart';
 
 /// Edit a specific round
@@ -21,6 +23,11 @@ class RoundEditorScreen extends WatchingWidget {
     final package = watchValue((OqEditorController c) => c.package);
 
     final translations = controller.translations;
+    callOnce((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) controller.selectRound(roundIndex);
+      });
+    });
 
     if (roundIndex >= package.rounds.length) {
       return Scaffold(
@@ -31,92 +38,92 @@ class RoundEditorScreen extends WatchingWidget {
     final round = package.rounds[roundIndex];
 
     return Scaffold(
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Header with back button
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    translations.editRound,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+      body: MaxSizeContainer(
+        maxWidth: EditorLayoutMetrics.formMaxWidth,
+        child: SingleChildScrollView(
+          padding: EditorLayoutMetrics.pagePadding(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      translations.editRound,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              TextFormField(
+                initialValue: round.name,
+                decoration: InputDecoration(
+                  labelText: translations.roundName,
+                  border: const OutlineInputBorder(),
                 ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Round name field
-            TextFormField(
-              initialValue: round.name,
-              decoration: InputDecoration(
-                labelText: translations.roundName,
-                border: const OutlineInputBorder(),
+                onChanged: (value) {
+                  controller.updateRound(
+                    roundIndex,
+                    round.copyWith(name: value),
+                  );
+                },
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return translations.fieldRequired;
+                  }
+                  return null;
+                },
+                maxLength: 100,
               ),
-              onChanged: (value) {
-                controller.updateRound(
-                  roundIndex,
-                  round.copyWith(name: value),
-                );
-              },
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return translations.fieldRequired;
-                }
-                return null;
-              },
-              maxLength: 100,
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Description field
-            TextFormField(
-              initialValue: round.description,
-              decoration: InputDecoration(
-                labelText: translations.roundDescription,
-                border: const OutlineInputBorder(),
+              TextFormField(
+                initialValue: round.description,
+                decoration: InputDecoration(
+                  labelText: translations.roundDescription,
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (value) {
+                  controller.updateRound(
+                    roundIndex,
+                    round.copyWith(description: value),
+                  );
+                },
+                maxLines: 3,
+                maxLength: 300,
               ),
-              onChanged: (value) {
-                controller.updateRound(
-                  roundIndex,
-                  round.copyWith(description: value),
-                );
-              },
-              maxLines: 3,
-              maxLength: 300,
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // Round type selector
-            _RoundTypeSection(
-              currentType: round.type,
-              onChanged: (type) {
-                controller.updateRound(
-                  roundIndex,
-                  round.copyWith(type: type),
-                );
-              },
-            ),
-            const SizedBox(height: 24),
+              _RoundTypeSection(
+                currentType: round.type,
+                onChanged: (type) {
+                  controller.updateRound(
+                    roundIndex,
+                    round.copyWith(type: type),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
 
-            // Navigate to themes button
-            FilledButton.icon(
-              onPressed: () =>
-                  context.router.push(ThemesGridRoute(roundIndex: roundIndex)),
-              icon: const Icon(Icons.grid_view),
-              label: Text(
-                '${translations.themes} (${round.themes.length})',
+              FilledButton.icon(
+                onPressed: () => context.router.push(
+                  ThemesGridRoute(roundIndex: roundIndex),
+                ),
+                icon: const Icon(Icons.grid_view),
+                label: Text(
+                  '${translations.themes} (${round.themes.length})',
+                ),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
               ),
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

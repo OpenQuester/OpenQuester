@@ -9,9 +9,10 @@ import 'package:oq_shared/oq_shared.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
 import 'package:video_player/video_player.dart';
+import 'package:watch_it/watch_it.dart';
 
 /// Widget to preview video/audio files with playback controls
-class MediaPlaybackWidget extends StatefulWidget {
+class MediaPlaybackWidget extends WatchingStatefulWidget {
   const MediaPlaybackWidget({
     required this.mediaFile,
     required this.type,
@@ -264,6 +265,8 @@ class _MediaPlaybackWidgetState extends State<MediaPlaybackWidget> {
   }
 
   Widget _buildAudioVisualizer(BuildContext context) {
+    final value = watch(_controller!).value;
+
     return Container(
       width: 200,
       height: 200,
@@ -278,17 +281,12 @@ class _MediaPlaybackWidgetState extends State<MediaPlaybackWidget> {
         ),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: ValueListenableBuilder(
-        valueListenable: _controller!,
-        builder: (context, value, child) {
-          return Center(
-            child: Icon(
-              value.isPlaying ? Icons.music_note : Icons.music_note,
-              size: 80,
-              color: Colors.white,
-            ),
-          );
-        },
+      child: Center(
+        child: Icon(
+          value.isPlaying ? Icons.graphic_eq : Icons.music_note,
+          size: 80,
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -351,7 +349,7 @@ class _MediaPlaybackWidgetState extends State<MediaPlaybackWidget> {
 }
 
 /// Video player controls
-class VideoControls extends StatefulWidget {
+class VideoControls extends WatchingStatefulWidget {
   const VideoControls({
     required this.controller,
     this.onVolumeChanged,
@@ -377,64 +375,60 @@ class _VideoControlsState extends State<VideoControls> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder(
-      valueListenable: widget.controller,
-      builder: (context, value, child) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(8),
+    final value = watch(widget.controller).value;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 4,
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: Icon(
+              value.isPlaying ? Icons.pause : Icons.play_arrow,
+              color: Colors.white,
+            ),
+            onPressed: () => widget.controller.playPause().ignore(),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 4,
-            children: [
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: Icon(
-                  value.isPlaying ? Icons.pause : Icons.play_arrow,
-                  color: Colors.white,
-                ),
-                onPressed: () => widget.controller.playPause().ignore(),
-              ),
-              Text(
-                _formatDuration(value.position),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
-              ),
-              Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 2,
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 6,
-                    ),
-                  ),
-                  child: Slider(
-                    value: value.position.inMilliseconds.toDouble(),
-                    max: value.duration.inMilliseconds.toDouble(),
-                    onChanged: (newValue) {
-                      widget.controller
-                          .seekTo(
-                            Duration(milliseconds: newValue.toInt()),
-                          )
-                          .ignore();
-                    },
-                    activeColor: Colors.white,
-                    inactiveColor: Colors.white.withValues(alpha: 0.3),
-                  ),
+          Text(
+            _formatDuration(value.position),
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+          Expanded(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                trackHeight: 2,
+                thumbShape: const RoundSliderThumbShape(
+                  enabledThumbRadius: 6,
                 ),
               ),
-              Text(
-                _formatDuration(value.duration),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+              child: Slider(
+                value: value.position.inMilliseconds.toDouble(),
+                max: value.duration.inMilliseconds.toDouble(),
+                onChanged: (newValue) {
+                  widget.controller
+                      .seekTo(
+                        Duration(milliseconds: newValue.toInt()),
+                      )
+                      .ignore();
+                },
+                activeColor: Colors.white,
+                inactiveColor: Colors.white.withValues(alpha: 0.3),
               ),
-              // Volume control
-              _buildVolumeControl(),
-            ],
+            ),
           ),
-        );
-      },
+          Text(
+            _formatDuration(value.duration),
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+          _buildVolumeControl(),
+        ],
+      ),
     );
   }
 

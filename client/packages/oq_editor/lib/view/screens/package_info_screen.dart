@@ -4,6 +4,7 @@ import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/router/router.gr.dart';
 import 'package:oq_editor/utils/package_editor_validators.dart';
+import 'package:oq_editor/view/utils/editor_layout_metrics.dart';
 import 'package:oq_shared/oq_shared.dart';
 import 'package:watch_it/watch_it.dart';
 
@@ -18,14 +19,19 @@ class PackageInfoScreen extends WatchingWidget {
     final package = watchValue((OqEditorController c) => c.package);
     final translations = controller.translations;
     final formKey = createOnce(GlobalKey<FormState>.new);
+    callOnce((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) controller.selectPackage();
+      });
+    });
 
     return Scaffold(
       body: MaxSizeContainer(
-        maxWidth: UiModeUtils.maximumDialogWidth(context),
+        maxWidth: EditorLayoutMetrics.formMaxWidth,
         child: Form(
           key: formKey,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: EditorLayoutMetrics.pagePadding(context),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
