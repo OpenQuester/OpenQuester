@@ -8,7 +8,7 @@ This map helps agents pick the right files before editing. It is not a replaceme
 |---|---|---|
 | `server/` | Backend API, realtime game server, Redis/PostgreSQL/S3, game state execution | `server/AGENTS.md` |
 | `client/` | Flutter app, editor packages, SIQ import, compression, generated API usage | `client/AGENTS.md` |
-| `openapi/` | REST + Socket.IO public contract and generated Dart SDK source | `openapi/AGENTS.md` |
+| `openapi/` | REST + Socket.IO public contract schema. Generated Dart code lives in `client/packages/openapi/`. | `openapi/AGENTS.md` |
 | `loadtest/` | Load testing tool and scenarios | `server/AGENTS.md` + release gate docs |
 | `websites/` | Static docs/landing pages | nearby README/docs |
 | `.agents/skills/` | Repeatable agent workflows | relevant `SKILL.md` |
@@ -37,12 +37,12 @@ This map helps agents pick the right files before editing. It is not a replaceme
 |---|---|
 | Change gameplay screen | `client/apps/client/lib/src/features/game_*`, `.agents/skills/frontend-game-ui-state/SKILL.md`, `docs/specs/game-state-matrix.md` |
 | Change buzzer/answer UI | `client/apps/client/lib/src/features/game_question/`, `docs/specs/buzzer-state-machine.md` |
-| Change socket handling | `client/apps/client/lib/src/features/game_lobby/controllers/`, generated socket/event models |
+| Change socket handling | `client/apps/client/lib/src/features/game_lobby/controllers/`, generated socket/event models in `client/packages/openapi/` |
 | Change package editor | `client/packages/oq_editor/`, `.agents/skills/package-editor-change/SKILL.md` |
 | Change SIQ import | `client/packages/siq_file/`, `client/packages/oq_editor/lib/utils/siq_import_helper.dart`, `docs/specs/siq-compatibility-matrix.md` |
 | Change package compression/export | `client/packages/oq_compress/`, `client/packages/oq_editor/lib/utils/oq_package_archiver.dart` |
 | Add user-facing string | localization JSON in `client/apps/client/assets/localization/`, generated locale keys |
-| Change generated API models | `openapi/schema.json`, `openapi/AGENTS.md`, `.agents/skills/openapi-sdk-change/SKILL.md` |
+| Change generated API models | `openapi/schema.json`, `client/packages/openapi/`, `openapi/AGENTS.md`, `.agents/skills/openapi-sdk-change/SKILL.md` |
 
 ## Product/spec map
 
