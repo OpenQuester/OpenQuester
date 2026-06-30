@@ -9,7 +9,7 @@ Use this file for all changes under `client/`. The root `AGENTS.md` is only a ro
 Main areas:
 
 - `apps/client/` — main OpenQuester Flutter app.
-- `packages/openapi/` or `openapi` dependency — generated API/Socket contract models from `openapi/schema.json`.
+- `packages/openapi/` — generated Dart API/Socket contract package from `openapi/schema.json`.
 - `packages/siq_file/` — SIQ parsing/import support.
 - `packages/oq_editor/` — package editor UI/controller utilities.
 - `packages/oq_compress/` — package media encoding/compression pipeline.
@@ -126,7 +126,7 @@ Preserve these concepts:
 
 Generated or regeneration-sensitive areas include:
 
-- OpenAPI Dart models/client.
+- OpenAPI Dart models/client in `packages/openapi/`.
 - Auto Route generated routes.
 - Easy Localization key files.
 - Freezed/JSON serializable files.
