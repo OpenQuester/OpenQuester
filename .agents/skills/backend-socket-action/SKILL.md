@@ -1,3 +1,8 @@
+---
+name: backend-socket-action
+description: Use when adding or changing server Socket.IO game events, GameActionType handlers, action use cases, socket payloads, GameActionExecutor flows, or public socket contracts. Do not use for REST-only endpoint changes.
+---
+
 # Backend socket action skill
 
 Use this skill when adding or changing a server-side Socket.IO event, `GameActionType`, game action handler/use case, socket payload, or public game event contract.
@@ -37,7 +42,7 @@ Minimum backend files:
 For public contract changes:
 
 - `openapi/schema.json`
-- generated Dart client/models after regeneration
+- generated Dart client/models in `client/packages/openapi/` after regeneration
 - affected client socket listeners/controllers
 
 ## Architecture invariant
