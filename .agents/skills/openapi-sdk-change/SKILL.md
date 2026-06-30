@@ -1,3 +1,8 @@
+---
+name: openapi-sdk-change
+description: Use when changing openapi/schema.json, REST contracts, Socket.IO contract metadata, generated Dart API models in client/packages/openapi, or frontend/server code that depends on public contracts.
+---
+
 # OpenAPI and SDK change skill
 
 Use this skill when changing `openapi/schema.json`, REST contracts, Socket.IO contract metadata, generated Dart API models, or frontend/server code that depends on the public contract.
@@ -31,10 +36,11 @@ Backend:
 Contract:
 
 - `openapi/schema.json`
+- `client/packages/openapi/swagger_parser.yaml`
 
 Frontend:
 
-- generated models/client package
+- generated models/client package in `client/packages/openapi/`
 - affected app controllers/services/listeners
 - localization/UI if new user-facing errors/states appear
 
