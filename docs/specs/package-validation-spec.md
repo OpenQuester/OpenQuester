@@ -2,6 +2,8 @@
 
 This spec defines how package/editor validation should behave. Use it when changing package editor fields, `.oq`/`.siq` import, media upload, package publish, package health, or package discovery metadata.
 
+Status note: this is a target validation spec, not a claim that every validation rule or health state is implemented today. Verify current editor/backend code before marking a rule as done.
+
 ## Product rule
 
 Broken packages destroy trust. The editor should help creators fix packages before players experience failures.
