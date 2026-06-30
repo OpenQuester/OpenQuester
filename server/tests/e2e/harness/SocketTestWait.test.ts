@@ -34,26 +34,34 @@ const requireSocketId = (socket: ClientSocket): string => {
 
 describe("SocketTestWait", () => {
   let harness: ServerTestHarness | undefined;
-  const sockets: Array<{ socket: ClientSocket; namespace: string }> = [];
+  const sockets: Array<{ socket: ClientSocket; namespace: string; socketId?: string }> = [];
 
   afterEach(async () => {
-    for (const { socket, namespace } of sockets.splice(0)) {
+    const currentHarness = harness;
+
+    for (const { socket, namespace, socketId: registeredSocketId } of sockets.splice(0)) {
+      const socketId = registeredSocketId ?? socket.id;
       if (socket.connected) {
-        const serverDisconnect =
-          harness && socket.id
-            ? harness.waitForSocketDisconnect(
-                namespace,
-                socket.id,
-                "socket-wait-cleanup",
-                TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
-              )
-            : Promise.resolve();
+        await disconnectSocket(socket, {
+          client: "socket-wait-cleanup",
+          namespace,
+          serverUrl: currentHarness?.serverUrl ?? "unknown",
+          timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+        });
+      } else {
         socket.disconnect();
-        await serverDisconnect;
+      }
+
+      if (currentHarness && socketId) {
+        await currentHarness.waitForSocketDisconnect(
+          namespace,
+          socketId,
+          "socket-wait-cleanup",
+          TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+        );
       }
     }
 
-    const currentHarness = harness;
     harness = undefined;
     await currentHarness?.stop();
   });
@@ -67,6 +75,7 @@ describe("SocketTestWait", () => {
       serverUrl: harness.serverUrl,
       timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
     });
+    sockets[sockets.length - 1].socketId = requireSocketId(socket);
 
     await expect(
       waitForSocketEvent(socket, {
@@ -119,6 +128,7 @@ describe("SocketTestWait", () => {
       timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
     });
     const socketId = requireSocketId(socket);
+    sockets[sockets.length - 1].socketId = socketId;
 
     const eventWait = waitForSocketEvent(socket, {
       client: "disconnect-client",
@@ -151,11 +161,13 @@ describe("SocketTestWait", () => {
       serverUrl: harness.serverUrl,
       timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
     });
+    sockets[0].socketId = requireSocketId(rootSocket);
     await waitForSocketConnection(gameSocket, {
       client: "multiplex-game",
       serverUrl: harness.serverUrl,
       timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
     });
+    sockets[1].socketId = requireSocketId(gameSocket);
 
     await expect(
       disconnectSocket(gameSocket, {
@@ -178,6 +190,7 @@ describe("SocketTestWait", () => {
       serverUrl: harness.serverUrl,
       timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
     });
+    sockets[sockets.length - 1].socketId = requireSocketId(socket);
 
     let unrelatedDisconnects = 0;
     socket.on("disconnect", () => {

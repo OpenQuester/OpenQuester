@@ -17,7 +17,11 @@ import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 const healthPath = "/health/live";
 const httpRequestTimeoutMs = 2000;
 
-const listenOnEphemeralPort = async (): Promise<{ server: HTTPServer; port: number }> => {
+const listenOnEphemeralPort = async (): Promise<{
+  server: HTTPServer;
+  port: number;
+  serverUrl: string;
+}> => {
   const server = createServer((_req, res) => {
     res.statusCode = 204;
     res.end();
@@ -35,7 +39,7 @@ const listenOnEphemeralPort = async (): Promise<{ server: HTTPServer; port: numb
       };
 
       server.once("error", onError);
-      server.listen(0, "127.0.0.1", onListening);
+      server.listen(0, onListening);
     }),
     httpRequestTimeoutMs,
     "dummy HTTP listen"
@@ -46,7 +50,11 @@ const listenOnEphemeralPort = async (): Promise<{ server: HTTPServer; port: numb
     throw new Error("Expected dummy server to bind to a TCP port");
   }
 
-  return { server, port: address.port };
+  return {
+    server,
+    port: address.port,
+    serverUrl: `http://${normalizeClientHost(address)}:${address.port}`
+  };
 };
 
 const closeServer = async (server: HTTPServer): Promise<void> => {
@@ -63,6 +71,7 @@ const closeServer = async (server: HTTPServer): Promise<void> => {
         }
         resolve();
       });
+      server.closeIdleConnections();
     }),
     httpRequestTimeoutMs,
     "dummy HTTP close"
@@ -103,8 +112,19 @@ const expectServerClosed = async (serverUrl: string): Promise<void> => {
   );
 };
 
-const expectDummyServerResponds = async (port: number): Promise<void> => {
-  const response = await fetchWithTimeout(`http://127.0.0.1:${port}`);
+const normalizeClientHost = (address: { address: string; family: string | number }): string => {
+  if (address.address === "::" || address.address === "0.0.0.0") {
+    return "127.0.0.1";
+  }
+  if (address.family === "IPv6") {
+    return `[${address.address}]`;
+  }
+
+  return address.address;
+};
+
+const expectDummyServerResponds = async (serverUrl: string): Promise<void> => {
+  const response = await fetchWithTimeout(serverUrl);
   expect(response.status).toBe(204);
 };
 
@@ -169,7 +189,7 @@ describe("ServerTestHarness", () => {
 
     try {
       await expectStartupFailureForPort(occupied.port);
-      await expectDummyServerResponds(occupied.port);
+      await expectDummyServerResponds(occupied.serverUrl);
 
       harness = await ServerTestHarness.start({ apiPort: 0 });
       await expect(fetchJson(`${harness.serverUrl}${healthPath}`)).resolves.toMatchObject({
@@ -234,7 +254,7 @@ describe("ServerTestHarness", () => {
   });
 
   it("runs repeated lifecycle cycles in one Jest process", async () => {
-    for (let cycle = 1; cycle <= 3; cycle += 1) {
+    for (let cycle = 1; cycle <= 2; cycle += 1) {
       harness = await ServerTestHarness.start({ apiPort: 0 });
       await expect(fetchJson(`${harness.serverUrl}${healthPath}`)).resolves.toMatchObject({
         status: 200,

@@ -43,16 +43,26 @@ describe("ServeApi readiness admission", () => {
   const sockets: Array<{ socket: ClientSocket; namespace: string }> = [];
 
   afterEach(async () => {
+    const currentHarness = harness;
+
     for (const { socket, namespace } of sockets.splice(0)) {
+      const socketId = socket.id;
       await disconnectSocket(socket, {
         client: "readiness-cleanup",
         namespace,
-        serverUrl: harness?.serverUrl ?? "unknown",
+        serverUrl: currentHarness?.serverUrl ?? "unknown",
         timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
       });
+      if (currentHarness && socketId) {
+        await currentHarness.waitForSocketDisconnect(
+          namespace,
+          socketId,
+          "readiness-cleanup",
+          TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+        );
+      }
     }
 
-    const currentHarness = harness;
     harness = undefined;
     await currentHarness?.stop();
 
@@ -73,6 +83,7 @@ describe("ServeApi readiness admission", () => {
       });
 
     harness = await ServerTestHarness.startInitializing({ apiPort: 0 });
+    const packagesUrl = `${harness.serverUrl}/v1/packages?limit=20&offset=0&sortBy=id`;
     await withTimeout(
       permissionEntered.promise,
       httpRequestTimeoutMs,
@@ -90,7 +101,7 @@ describe("ServeApi readiness admission", () => {
       cacheControl: expect.stringContaining("no-store")
     });
 
-    await expect(fetchJson(`${harness.serverUrl}/v1/packages`)).resolves.toMatchObject({
+    await expect(fetchJson(packagesUrl)).resolves.toMatchObject({
       status: serviceUnavailableStatus,
       body: { status: "not_ready" }
     });
@@ -127,7 +138,7 @@ describe("ServeApi readiness admission", () => {
       timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
     });
 
-    await expect(fetchJson(`${harness.serverUrl}/v1/packages`)).resolves.toMatchObject({
+    await expect(fetchJson(packagesUrl)).resolves.toMatchObject({
       status: HttpStatus.OK
     });
     expect(packageSearchSpy).toHaveBeenCalledTimes(1);
@@ -385,8 +396,12 @@ describe("ServeApi readiness admission", () => {
     if (!currentHarness) {
       throw new Error("Expected harness to be initialized");
     }
-    await expect(currentHarness.stop()).rejects.toThrow(
-      "Metrics service stop failed: metrics cleanup failed during rollback"
+    const stopError = await getRejectedError(currentHarness.stop());
+    expect(flattenErrorMessages(stopError)).toEqual(
+      expect.arrayContaining([
+        "Metrics service stop failed: metrics cleanup failed during rollback",
+        "metrics cleanup failed during rollback"
+      ])
     );
   });
 

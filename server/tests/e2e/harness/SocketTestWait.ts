@@ -69,6 +69,8 @@ export async function waitForSocketEvent(
     );
   }
 
+  const socketId = socket.id;
+
   return new Promise<unknown[]>((resolve, reject) => {
     const timeout = setTimeout(() => {
       cleanup();
@@ -103,7 +105,7 @@ export async function waitForSocketEvent(
       reject(
         new Error(
           `Socket.IO client disconnected while waiting for event "${context.event}" ` +
-            buildSocketContext(socket, context, `reason="${reason}"`)
+            buildSocketContext(socket, context, `reason="${reason}"`, socketId)
         )
       );
     };
@@ -174,12 +176,13 @@ function buildSocketTimeoutError(
 function buildSocketContext(
   socket: Socket,
   context: SocketWaitContext,
-  extra?: string
+  extra?: string,
+  socketId?: string
 ): string {
   const extraPart = extra ? `${extra}, ` : "";
   return (
     `(client="${context.client}", namespace="${context.namespace ?? "unknown"}", ` +
-    `socketId="${socket.id ?? "unknown"}", ${extraPart}` +
+    `socketId="${socketId ?? socket.id ?? "unknown"}", ${extraPart}` +
     `connected=${socket.connected}, serverUrl="${context.serverUrl}")`
   );
 }

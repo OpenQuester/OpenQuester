@@ -625,9 +625,12 @@ export class ServeApi {
       timeout.unref();
 
       try {
-        void this._io.close((error?: Error) => {
+        const closePromise = this._io.close((error?: Error) => {
           finish(error);
-        }).catch((error: unknown) => {
+        });
+        this._closeIdleHttpConnections();
+
+        void closePromise.catch((error: unknown) => {
           finish(toError(error));
         });
       } catch (error) {
@@ -690,10 +693,17 @@ export class ServeApi {
         this._server.close((error?: Error) => {
           finish(error);
         });
+        this._closeIdleHttpConnections();
       } catch (error) {
         finish(toError(error));
       }
     });
+  }
+
+  private _closeIdleHttpConnections(): void {
+    if (typeof this._server.closeIdleConnections === "function") {
+      this._server.closeIdleConnections();
+    }
   }
 
   private _collectConnectedSockets(): SocketDiagnostic[] {

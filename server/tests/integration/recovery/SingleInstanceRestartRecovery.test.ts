@@ -43,9 +43,11 @@ describe("SingleInstanceRestartRecovery real Redis integration", () => {
     env.load(true);
     const httpServer = createServer();
     io = new IOServer(httpServer);
+    const db = Database.getInstance(testEnvironment.getDatabase(), logger);
+    await db.build();
 
     await bootstrapContainer({
-      db: Database.getInstance(testEnvironment.getDatabase(), logger),
+      db,
       redisClient: RedisConfig.getClient(),
       io,
       realtimeGateway: new SocketIORealtimeGateway(io.of(SOCKET_GAME_NAMESPACE)),

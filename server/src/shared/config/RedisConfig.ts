@@ -9,12 +9,34 @@ const REDIS_PREFIX = LogPrefix.REDIS;
 const REDIS_CONNECTION_TIMEOUT_MS = 2000;
 const REDIS_DISCONNECT_TIMEOUT_MS = 500;
 
+interface PendingRedisCommand {
+  promise?: Promise<unknown>;
+}
+
+interface RedisCommandQueueItem {
+  command?: PendingRedisCommand;
+}
+
+interface RedisCommandQueue {
+  length: number;
+  peekAt(index: number): RedisCommandQueueItem | undefined;
+}
+
+interface RedisClientWithCommandQueue {
+  commandQueue?: RedisCommandQueue;
+}
+
+type RedisPubSubMethodName = "subscribe" | "psubscribe" | "unsubscribe" | "punsubscribe";
+type RedisPubSubMethod = (...args: unknown[]) => Promise<unknown>;
+type RedisClientWithPubSubMethods = Redis & Record<RedisPubSubMethodName, RedisPubSubMethod>;
+
 export class RedisConfig {
   private static _client: Redis;
   private static _subClient: Redis;
   private static _env: Environment;
   private static _logger: ILogger;
   private static _closingClients = new WeakSet<Redis>();
+  private static _observedPubSubClients = new WeakSet<Redis>();
   private static _clients = new Set<Redis>();
 
   public static setLogger(logger: ILogger): void {
@@ -124,6 +146,7 @@ export class RedisConfig {
 
     try {
       this._closingClients.add(client);
+      await this._waitForPendingCommands(client);
       const waitForClose = this._waitForClientClose(client);
 
       if (client.status === "ready") {
@@ -144,6 +167,55 @@ export class RedisConfig {
         error: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  private static async _waitForPendingCommands(client: Redis): Promise<void> {
+    const pendingCommands = this._getPendingCommandPromises(client);
+    if (pendingCommands.length === 0) {
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const finish = (): void => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearTimeout(timeout);
+        resolve();
+      };
+
+      const timeout = setTimeout(finish, REDIS_DISCONNECT_TIMEOUT_MS);
+      void Promise.allSettled(pendingCommands).then(finish);
+    });
+  }
+
+  private static _getPendingCommandPromises(client: Redis): Promise<unknown>[] {
+    const queue = (client as unknown as RedisClientWithCommandQueue).commandQueue;
+    if (!queue) {
+      return [];
+    }
+
+    const promises: Promise<unknown>[] = [];
+    for (let index = 0; index < queue.length; index += 1) {
+      const promise = queue.peekAt(index)?.command?.promise;
+      if (promise) {
+        promises.push(
+          promise.catch((error: unknown) => {
+            if (!this._isExpectedDisconnectError(error)) {
+              this._logger?.warn("Redis pending command failed during disconnect", {
+                prefix: REDIS_PREFIX,
+                error: error instanceof Error ? error.message : String(error)
+              });
+            }
+          })
+        );
+      }
+    }
+
+    return promises;
   }
 
   private static async _waitForClientClose(client: Redis): Promise<void> {
@@ -200,6 +272,7 @@ export class RedisConfig {
 
     this._clients.add(client);
     this._attachErrorHandler(client, clientName);
+    this._observePubSubCommandRejections(client, clientName);
 
     const duplicate = client.duplicate.bind(client);
     client.duplicate = ((...args: Parameters<Redis["duplicate"]>) => {
@@ -207,6 +280,43 @@ export class RedisConfig {
       this._registerClient(duplicatedClient, `${clientName} duplicate`);
       return duplicatedClient;
     }) as Redis["duplicate"];
+  }
+
+  private static _observePubSubCommandRejections(
+    client: Redis,
+    clientName: string
+  ): void {
+    if (this._observedPubSubClients.has(client)) {
+      return;
+    }
+
+    this._observedPubSubClients.add(client);
+    const redisClient = client as unknown as RedisClientWithPubSubMethods;
+    const methods: RedisPubSubMethodName[] = [
+      "subscribe",
+      "psubscribe",
+      "unsubscribe",
+      "punsubscribe"
+    ];
+
+    for (const method of methods) {
+      const original = redisClient[method].bind(client);
+      redisClient[method] = ((...args: unknown[]): Promise<unknown> => {
+        const result = original(...args);
+        void result.catch((error: unknown) => {
+          if (this._isExpectedDisconnectError(error)) {
+            return;
+          }
+
+          this._logger?.warn(`${clientName} ${method} command failed`, {
+            prefix: REDIS_PREFIX,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        });
+
+        return result;
+      }) as RedisClientWithPubSubMethods[typeof method];
+    }
   }
 
   private static _isExpectedDisconnectError(error: unknown): boolean {
