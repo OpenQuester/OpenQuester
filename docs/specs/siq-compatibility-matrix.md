@@ -2,6 +2,8 @@
 
 This spec defines how OpenQuester should handle SIGame `.siq` import compatibility. It is both a product spec and an agent guardrail.
 
+Status note: this is a target compatibility matrix and audit baseline, not a claim that every status is already implemented. Verify current parser/editor/game code before marking a SIQ feature as done.
+
 ## Product rule
 
 Never silently corrupt a legacy package.
@@ -97,7 +99,7 @@ After SIQ import:
 If the import report becomes part of backend API or saved package metadata, update:
 
 - `openapi/schema.json`
-- generated Dart client/models
+- generated Dart client/models in `client/packages/openapi/`
 - package editor UI
 - package validation spec if it changes publish readiness
 
