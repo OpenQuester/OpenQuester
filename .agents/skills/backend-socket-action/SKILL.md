@@ -67,7 +67,7 @@ Only use `directExecution: true` for actions that never mutate game state. Chat-
 6. Implement a use case/action handler under `application/usecases/**` or the nearest existing pattern.
 7. Keep reusable rules in `domain/logic/**` or validators.
 8. Return `ActionHandlerResult` with `DataMutation[]`.
-9. Register handler in `application/config/ActionHandlerConfig.ts`.
+9. Register the handler manually in `application/config/ActionHandlerConfig.ts`, following nearby registrations. Do not introduce a new DI registration style just for one handler.
 10. Process new mutation types in `DataMutationProcessor` only if existing mutations cannot express the side effect.
 11. Update OpenAPI socket metadata if public contract changed.
 12. Update frontend generated models/listeners if needed.
@@ -103,7 +103,7 @@ Match nearby project code over this sketch.
 ## Common failure modes
 
 - Adding event enum but forgetting `SOCKET_ACTION_MAP`.
-- Adding use case but forgetting `ActionHandlerConfig` registration.
+- Adding use case but forgetting manual registration in `ActionHandlerConfig`.
 - Emitting directly from use case instead of returning mutations.
 - Using `directExecution: true` for a game-changing action.
 - Forgetting OpenAPI/socket contract metadata.
