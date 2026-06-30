@@ -186,3 +186,5 @@ shared/      --> dependency-neutral config, DI tokens, logging contracts, contex
 - `server/docs/game-action-executor.md` — Race condition prevention via Redis locks
 - `server/docs/media-download-sync.md` — Cross-client media synchronization
 - `server/docs/logging-guidelines.md` — Structured logging conventions
+
+<!-- test -->
