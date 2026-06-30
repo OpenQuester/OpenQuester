@@ -11,7 +11,6 @@ Top-level areas:
 - `server/` — TypeScript/Node.js backend: Express, Socket.IO, PostgreSQL, Redis, TypeORM, tsyringe.
 - `client/` — Flutter/Dart app and local packages managed through Melos.
 - `openapi/` — OpenAPI schema and Socket.IO contract metadata. Generated Dart code lives in `client/packages/openapi/`.
-- `loadtest/` — TypeScript load testing tool.
 - `websites/` — Hugo docs/landing pages.
 - `docs/` — product, architecture, agent workflows, and implementation specs.
 - `.agents/skills/` — repeatable Codex skills for high-risk workflows.
