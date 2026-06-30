@@ -1,12 +1,14 @@
-# openapi/AGENTS.md — API and generated SDK rules
+# openapi/AGENTS.md — API contract and generated-client rules
 
 Use this file for changes under `openapi/` or any task that changes a public REST/Socket.IO contract.
 
 ## Role of OpenAPI
 
-`openapi/schema.json` is the public contract source for REST endpoints and Socket.IO contract metadata. The Flutter client consumes generated Dart code from this schema.
+`openapi/schema.json` is the public contract source for REST endpoints and Socket.IO contract metadata.
 
-Contract changes are cross-layer changes. Treat them as backend + schema + client work unless the task explicitly scopes otherwise.
+The generated Dart client package lives in `client/packages/openapi/`. It is generated from `openapi/schema.json` through `client/packages/openapi/swagger_parser.yaml` and the Melos `gen_api` script.
+
+Contract changes are cross-layer changes. Treat them as backend + schema + generated client + app usage work unless the task explicitly scopes otherwise.
 
 ## When to update `schema.json`
 
@@ -41,7 +43,7 @@ Full client pre-build when unsure:
 melos run pre_build
 ```
 
-If generated files change, include them in the PR unless project maintainers explicitly prefer generation outside the PR.
+If generated files in `client/packages/openapi/` change, include them in the PR unless project maintainers explicitly prefer generation outside the PR.
 
 ## Agent workflow
 
@@ -64,7 +66,7 @@ Socket.IO contract metadata belongs in `x-socket-io` and related schemas. Keep e
 - `server/src/domain/enums/SocketIOEvents.ts`
 - `server/src/domain/enums/GameActionType.ts` where applicable
 - `server/src/presentation/controllers/io/SocketActionMap.ts`
-- generated Dart event/model usage in the client
+- generated Dart event/model usage in `client/packages/openapi/` and app code
 
 For game-changing socket events, also read:
 
@@ -74,7 +76,7 @@ For game-changing socket events, also read:
 
 ## Generated files
 
-Generated Dart files should reflect schema/source changes. Do not patch generated Dart output manually as a shortcut. If a file is temporarily manual, preserve the existing comment and call out the exception in the PR.
+Generated Dart files in `client/packages/openapi/` should reflect schema/source changes. Do not patch generated Dart output manually as a shortcut. If a file is temporarily manual, preserve the existing comment and call out the exception in the PR.
 
 ## Compatibility
 
