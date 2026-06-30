@@ -1,3 +1,8 @@
+---
+name: frontend-game-ui-state
+description: Use when changing Flutter gameplay screens, role-aware CTAs, disabled reasons, buzzer/answer UI, timers, media waiting, reconnect banners, final round UI, or game summary behavior. Avoid for non-game UI-only changes.
+---
+
 # Frontend game UI state skill
 
 Use this skill when changing Flutter gameplay screens, game lobby/question/final UI, answer/buzzer controls, timers, media waiting, reconnect banners, game summary, or role-aware controls.
@@ -29,7 +34,7 @@ Likely app areas:
 - `client/apps/client/lib/src/features/game_lobby/**`
 - `client/apps/client/lib/src/features/game_question/**`
 - `client/apps/client/lib/src/features/game_lobby_final_review/**`
-- generated models from `openapi`
+- generated models from `client/packages/openapi/`
 - `client/apps/client/assets/localization/**`
 - theme/UI helpers used nearby
 
