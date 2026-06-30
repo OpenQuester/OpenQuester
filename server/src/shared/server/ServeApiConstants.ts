@@ -1,0 +1,4 @@
+export const SOCKET_IO_CLOSE_TIMEOUT_MS = 5000;
+export const HTTP_SERVER_CLOSE_TIMEOUT_MS = 5000;
+export const READINESS_RETRY_AFTER_SECONDS = "1";
+export const SOCKET_ADMISSION_NOT_READY_ERROR = "server-not-ready";

@@ -13,7 +13,7 @@ export class SocketIORealtimeGateway implements RealtimeGateway {
     this.namespace.on(
       SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT,
       (update: SocketRuntimeContextUpdate) => {
-        this.applySocketContext(update);
+        this._applySocketContext(update);
       }
     );
   }
@@ -57,7 +57,7 @@ export class SocketIORealtimeGateway implements RealtimeGateway {
   }
 
   public updateSocketContext(update: SocketRuntimeContextUpdate): void {
-    this.applySocketContext(update);
+    this._applySocketContext(update);
     this.namespace.serverSideEmit(SOCKET_RUNTIME_CONTEXT_UPDATE_EVENT, update);
   }
 
@@ -67,12 +67,15 @@ export class SocketIORealtimeGateway implements RealtimeGateway {
   }
 
   public getOnlineSocketCount(): number {
-    // Local process metric only; do not use for gameplay decisions.
+    // Counts only sockets connected to this server process.
     return this.namespace.sockets.size;
   }
 
-  private applySocketContext(update: SocketRuntimeContextUpdate): void {
-    // serverSideEmit fans the update out; each instance applies it only to its local socket.
+  /*
+   * Runtime context updates are sent to every server instance.
+   * Each instance applies the update only when that socket exists locally.
+   */
+  private _applySocketContext(update: SocketRuntimeContextUpdate): void {
     const socket = this.namespace.sockets.get(update.socketId);
     if (!socket) {
       return;

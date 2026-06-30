@@ -19,13 +19,21 @@ import { PermissionService } from "application/services/permission/PermissionSer
 import { SocketGameContextService } from "application/services/socket/SocketGameContextService";
 import { UserService } from "application/services/user/UserService";
 import { SESSION_SECRET_LENGTH } from "domain/constants/session";
-import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
+import { SOCKET_GAME_NAMESPACE, SOCKET_ROOT_NAMESPACE } from "domain/constants/socket";
 import { ErrorController } from "domain/errors/ErrorController";
+import { ServerError } from "domain/errors/ServerError";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { EnvType } from "shared/config/Environment";
 import { RedisConfig } from "shared/config/RedisConfig";
 import { type Database } from "infrastructure/database/Database";
 import { LogPrefix } from "shared/logging/LogPrefix";
+import {
+  HTTP_SERVER_CLOSE_TIMEOUT_MS,
+  READINESS_RETRY_AFTER_SECONDS,
+  SOCKET_ADMISSION_NOT_READY_ERROR,
+  SOCKET_IO_CLOSE_TIMEOUT_MS
+} from "shared/server/ServeApiConstants";
+import { type ServeApiState, type SocketDiagnostic } from "shared/server/ServeApiTypes";
 import { MetricsService } from "application/services/metrics/MetricsService";
 import { RedisPubSubService } from "application/services/redis/RedisPubSubService";
 import { RedisService } from "application/services/redis/RedisService";
@@ -45,28 +53,6 @@ import { SwaggerRestApiController } from "presentation/controllers/rest/SwaggerR
 import { UserRestApiController } from "presentation/controllers/rest/UserRestApiController";
 import { errorMiddleware } from "presentation/middleware/errorMiddleware";
 import { SocketIORealtimeGateway } from "presentation/realtime/SocketIORealtimeGateway";
-
-const SOCKET_IO_CLOSE_TIMEOUT_MS = 5000;
-const HTTP_SERVER_CLOSE_TIMEOUT_MS = 5000;
-const READINESS_RETRY_AFTER_SECONDS = "1";
-const SOCKET_ADMISSION_NOT_READY_ERROR = "server-not-ready";
-
-type ServeApiState =
-  | "created"
-  | "initializing"
-  | "listening_not_ready"
-  | "running"
-  | "failed"
-  | "shutting_down"
-  | "shutdown"
-  | "shutdown_failed";
-
-interface SocketDiagnostic {
-  namespace: string;
-  socketId: string;
-  userId: number | undefined;
-  gameId: string | null | undefined;
-}
 
 /**
  * Serves all api controllers and dependencies.
@@ -125,7 +111,7 @@ export class ServeApi {
 
   private async _init(): Promise<void> {
     if (this._state !== "created") {
-      throw new Error(`ServeApi cannot initialize from state "${this._state}"`);
+      throw new ServerError(`ServeApi cannot initialize from state "${this._state}"`);
     }
 
     this._state = "initializing";
@@ -408,7 +394,11 @@ export class ServeApi {
         await this._waitForSocketAdmission();
         next();
       } catch (error) {
-        next(new Error(SOCKET_ADMISSION_NOT_READY_ERROR, { cause: toError(error) }));
+        next(
+          new ServerError(SOCKET_ADMISSION_NOT_READY_ERROR, undefined, undefined, {
+            cause: toError(error)
+          })
+        );
       }
     };
 
@@ -422,13 +412,13 @@ export class ServeApi {
     }
 
     if (this._shutdownRequested || !this._initPromise) {
-      throw new Error(SOCKET_ADMISSION_NOT_READY_ERROR);
+      throw new ServerError(SOCKET_ADMISSION_NOT_READY_ERROR);
     }
 
     await this._readinessPromise;
 
     if (!this._isReady()) {
-      throw new Error(SOCKET_ADMISSION_NOT_READY_ERROR);
+      throw new ServerError(SOCKET_ADMISSION_NOT_READY_ERROR);
     }
   }
 
@@ -451,19 +441,26 @@ export class ServeApi {
   }
 
   private _sendReadinessResponse(res: Response): Response {
-    res.setHeader("Cache-Control", "no-store");
-
     if (this._isReady()) {
-      return res.status(HttpStatus.OK).json({ status: "ready" });
+      return this._sendReadyResponse(res);
     }
 
     return this._sendNotReadyResponse(res);
   }
 
+  private _sendReadyResponse(res: Response): Response {
+    this._setReadinessCacheHeader(res);
+    return res.status(HttpStatus.OK).json({ status: "ready" });
+  }
+
   private _sendNotReadyResponse(res: Response): Response {
-    res.setHeader("Cache-Control", "no-store");
+    this._setReadinessCacheHeader(res);
     res.setHeader("Retry-After", READINESS_RETRY_AFTER_SECONDS);
     return res.status(HttpStatus.SERVICE_UNAVAILABLE).json({ status: "not_ready" });
+  }
+
+  private _setReadinessCacheHeader(res: Response): void {
+    res.setHeader("Cache-Control", "no-store");
   }
 
   private _isHealthPath(path: string): boolean {
@@ -476,7 +473,7 @@ export class ServeApi {
 
   private _assertStartupCanContinue(stage: string): void {
     if (this._shutdownRequested) {
-      throw new Error(`ServeApi startup aborted before ${stage}: shutdown requested`);
+      throw new ServerError(`ServeApi startup aborted before ${stage}: shutdown requested`);
     }
   }
 
@@ -521,7 +518,7 @@ export class ServeApi {
 
   private _requestShutdown(): void {
     this._shutdownRequested = true;
-    this._markReadinessRejected(new Error(SOCKET_ADMISSION_NOT_READY_ERROR));
+    this._markReadinessRejected(new ServerError(SOCKET_ADMISSION_NOT_READY_ERROR));
   }
 
   private _ensureCleanup(): Promise<void> {
@@ -594,6 +591,8 @@ export class ServeApi {
     await new Promise<void>((resolve, reject) => {
       let settled = false;
 
+      // Socket.IO may fail synchronously, reject its promise, or call back.
+      // Funnel all paths through one finish function so cleanup runs once.
       const finish = (error?: Error): void => {
         if (settled) {
           return;
@@ -613,9 +612,11 @@ export class ServeApi {
         resolve();
       };
 
+      // A hung close usually means a leaked test socket or stuck adapter close.
+      // Include local socket details so the caller can find the open client.
       const timeout = setTimeout(() => {
         finish(
-          new Error(
+          new ServerError(
             `Timed out after ${SOCKET_IO_CLOSE_TIMEOUT_MS}ms waiting for Socket.IO close callback ` +
               this._formatSocketDiagnostics(connectedSockets)
           )
@@ -650,6 +651,8 @@ export class ServeApi {
     await new Promise<void>((resolve, reject) => {
       let settled = false;
 
+      // Node HTTP close can finish by callback, throw immediately, or hang.
+      // Keep one exit path so the timeout and callback cannot both settle.
       const finish = (error?: Error): void => {
         if (settled) {
           return;
@@ -669,12 +672,14 @@ export class ServeApi {
         resolve();
       };
 
+      // If graceful close stalls, stop accepting the wait and close active
+      // local connections before reporting the timeout.
       const timeout = setTimeout(() => {
         if (typeof this._server.closeAllConnections === "function") {
           this._server.closeAllConnections();
         }
         finish(
-          new Error(
+          new ServerError(
             `Timed out after ${HTTP_SERVER_CLOSE_TIMEOUT_MS}ms waiting for HTTP server graceful close`
           )
         );
@@ -693,7 +698,7 @@ export class ServeApi {
 
   private _collectConnectedSockets(): SocketDiagnostic[] {
     // namespace.sockets is local to this process; this is shutdown diagnostics only.
-    return ["/", SOCKET_GAME_NAMESPACE].flatMap((namespaceName) => {
+    return [SOCKET_ROOT_NAMESPACE, SOCKET_GAME_NAMESPACE].flatMap((namespaceName) => {
       const namespace = this._io.of(namespaceName);
       return [...namespace.sockets.values()].map((socket) => ({
         namespace: namespace.name,
@@ -723,10 +728,10 @@ export class ServeApi {
   private _createServerUrl(): string {
     const address = this._server.address();
     if (address === null) {
-      throw new Error("HTTP server is not listening");
+      throw new ServerError("HTTP server is not listening");
     }
     if (typeof address === "string") {
-      throw new Error(`HTTP server is listening on unsupported pipe address: ${address}`);
+      throw new ServerError(`HTTP server is listening on unsupported pipe address: ${address}`);
     }
 
     return `http://${this._normalizeClientHost(address)}:${address.port}`;
@@ -757,7 +762,7 @@ function toLifecycleError(label: string, error: unknown): Error {
   const cause = error instanceof Error ? error : undefined;
   const message = cause?.message ?? String(error);
 
-  return new Error(`${label} failed: ${message}`, { cause });
+  return new ServerError(`${label} failed: ${message}`, undefined, undefined, { cause });
 }
 
 function toError(error: unknown): Error {
@@ -765,7 +770,7 @@ function toError(error: unknown): Error {
     return error;
   }
 
-  return new Error(String(error));
+  return new ServerError(String(error));
 }
 
 function hasErrorCode(error: Error, code: string): boolean {

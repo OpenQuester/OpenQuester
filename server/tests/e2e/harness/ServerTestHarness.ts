@@ -1,8 +1,7 @@
 import { type Express } from "express";
-import { type Socket as ServerSocket } from "socket.io";
 import { type DataSource } from "typeorm";
 
-import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
+import { SOCKET_GAME_NAMESPACE, SOCKET_ROOT_NAMESPACE } from "domain/constants/socket";
 import { type Database } from "infrastructure/database/Database";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { bootstrapTestApp, createTestAppRuntime } from "tests/TestApp";
@@ -179,9 +178,9 @@ export class ServerTestHarness {
         cleanup();
         reject(
           new Error(
-            `Timed out after ${timeoutMs}ms waiting for server Socket.IO disconnect ` +
+              `Timed out after ${timeoutMs}ms waiting for server Socket.IO disconnect ` +
               `(client="${client}", namespace="${namespaceName}", socketId="${socketId}", ` +
-              `connected=${isServerSocketConnected(socket)}, serverUrl="${this.serverUrl}")`
+              `connected=${socket.connected}, serverUrl="${this.serverUrl}")`
           )
         );
       }, timeoutMs);
@@ -192,15 +191,15 @@ export class ServerTestHarness {
 
   public stop(): Promise<void> {
     if (!this._stopPromise) {
-      this._stopPromise = this.stopInternal();
+      this._stopPromise = this._stopInternal();
     }
 
     return this._stopPromise;
   }
 
-  private async stopInternal(): Promise<void> {
+  private async _stopInternal(): Promise<void> {
     const cleanupErrors: Error[] = [];
-    const connectedSockets = this.collectConnectedSockets();
+    const connectedSockets = this._collectConnectedSockets();
 
     if (connectedSockets.length > 0) {
       cleanupErrors.push(createLeakedSocketError(connectedSockets));
@@ -220,8 +219,8 @@ export class ServerTestHarness {
     throwIfFailed("ServerTestHarness cleanup failed", cleanupErrors);
   }
 
-  private collectConnectedSockets(): ConnectedSocketDiagnostic[] {
-    return ["/", SOCKET_GAME_NAMESPACE].flatMap((namespaceName) => {
+  private _collectConnectedSockets(): ConnectedSocketDiagnostic[] {
+    return [SOCKET_ROOT_NAMESPACE, SOCKET_GAME_NAMESPACE].flatMap((namespaceName) => {
       const namespace = this.testApp.io.of(namespaceName);
       return [...namespace.sockets.values()].map((socket) => ({
         namespace: namespace.name,
@@ -234,10 +233,6 @@ export class ServerTestHarness {
 }
 
 const TEST_HARNESS_HTTP_LISTEN_TIMEOUT_MS = 2000;
-
-function isServerSocketConnected(socket: ServerSocket): boolean {
-  return socket.connected;
-}
 
 async function collectFailure(
   errors: Error[],

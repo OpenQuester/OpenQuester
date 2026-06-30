@@ -195,14 +195,15 @@ describe("SingleInstanceRestartRecoveryService", () => {
     expect(logger.warnings.join("\n")).toContain("invalid for multiple live server instances");
   });
 
-  it("rejects startup when enabled game recovery cannot acquire the recovery lock", async () => {
+  it("wraps game recovery failures", async () => {
     const { service, gameService, socketUserDataService } = createService(true, logger);
+    const failure = new Error("game recovery failed");
     jest
       .spyOn(gameService, "recoverAllGamesAfterSingleInstanceRestart")
-      .mockResolvedValue({ status: "lock-not-acquired" });
+      .mockRejectedValue(failure);
 
     await expect(service.recoverIfEnabled()).rejects.toThrow(
-      "single-instance restart game recovery did not execute because the recovery lock was not acquired"
+      "single-instance restart game recovery failed"
     );
     expect(
       socketUserDataService.clearAllSocketSessionsAfterSingleInstanceRestart
@@ -210,14 +211,15 @@ describe("SingleInstanceRestartRecoveryService", () => {
     expect(logger.infos.join("\n")).not.toContain("completed");
   });
 
-  it("rejects startup when enabled socket-session cleanup cannot acquire the recovery lock", async () => {
+  it("wraps socket-session cleanup failures", async () => {
     const { service, socketUserDataService } = createService(true, logger);
+    const failure = new Error("socket cleanup failed");
     jest
       .spyOn(socketUserDataService, "clearAllSocketSessionsAfterSingleInstanceRestart")
-      .mockResolvedValue({ status: "lock-not-acquired" });
+      .mockRejectedValue(failure);
 
     await expect(service.recoverIfEnabled()).rejects.toThrow(
-      "single-instance restart socket-session cleanup did not execute because the recovery lock was not acquired"
+      "single-instance restart socket-session cleanup failed"
     );
     expect(logger.infos.join("\n")).not.toContain("completed");
   });

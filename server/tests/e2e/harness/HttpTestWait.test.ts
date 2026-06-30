@@ -2,44 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals
 import { createServer } from "http";
 
 import { waitForHttpListeningOrStartupFailure } from "tests/e2e/harness/HttpTestWait";
+import {
+  createControlledPromise,
+  getRejectedError,
+  requireError
+} from "tests/e2e/harness/TestPromiseUtils";
 
-interface Deferred<T> {
-  promise: Promise<T>;
-  resolve: (value: T | PromiseLike<T>) => void;
-  reject: (error: unknown) => void;
-}
-
-const timeoutMs = 2000;
-
-const createDeferred = <T = void>(): Deferred<T> => {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (error: unknown) => void;
-
-  const promise = new Promise<T>((innerResolve, innerReject) => {
-    resolve = innerResolve;
-    reject = innerReject;
-  });
-
-  return { promise, resolve, reject };
-};
-
-const getRejectedError = async (promise: Promise<unknown>): Promise<unknown> => {
-  try {
-    await promise;
-  } catch (error) {
-    return error;
-  }
-
-  throw new Error("Expected promise to reject");
-};
-
-const requireError = (error: unknown): Error => {
-  if (!(error instanceof Error)) {
-    throw new Error(`Expected Error, got ${String(error)}`);
-  }
-
-  return error;
-};
+const httpListenTimeoutMs = 2000;
 
 describe("HttpTestWait", () => {
   beforeEach(() => {
@@ -53,7 +22,7 @@ describe("HttpTestWait", () => {
 
   it("wraps early startup rejection and removes only its own HTTP listeners", async () => {
     const httpServer = createServer();
-    const startup = createDeferred();
+    const startup = createControlledPromise();
     const startupFailure = new Error("session config failed before HTTP listen");
     const unrelatedListening = jest.fn();
     const unrelatedError = jest.fn();
@@ -65,7 +34,7 @@ describe("HttpTestWait", () => {
     const wait = waitForHttpListeningOrStartupFailure({
       httpServer,
       initPromise: startup.promise,
-      timeoutMs
+      timeoutMs: httpListenTimeoutMs
     });
 
     expect(httpServer.listenerCount("listening")).toBe(baselineListeningListeners + 1);
@@ -86,7 +55,7 @@ describe("HttpTestWait", () => {
 
   it("rejects HTTP errors and removes listeners and timeout", async () => {
     const httpServer = createServer();
-    const startup = createDeferred();
+    const startup = createControlledPromise();
     const httpError = new Error("listen failed");
     const baselineListeningListeners = httpServer.listenerCount("listening");
     const baselineErrorListeners = httpServer.listenerCount("error");
@@ -94,7 +63,7 @@ describe("HttpTestWait", () => {
     const wait = waitForHttpListeningOrStartupFailure({
       httpServer,
       initPromise: startup.promise,
-      timeoutMs
+      timeoutMs: httpListenTimeoutMs
     });
 
     httpServer.emit("error", httpError);
@@ -107,17 +76,17 @@ describe("HttpTestWait", () => {
 
   it("times out with HTTP state context and removes listeners", async () => {
     const httpServer = createServer();
-    const startup = createDeferred();
+    const startup = createControlledPromise();
     const baselineListeningListeners = httpServer.listenerCount("listening");
     const baselineErrorListeners = httpServer.listenerCount("error");
 
     const wait = waitForHttpListeningOrStartupFailure({
       httpServer,
       initPromise: startup.promise,
-      timeoutMs
+      timeoutMs: httpListenTimeoutMs
     });
 
-    jest.advanceTimersByTime(timeoutMs);
+    jest.advanceTimersByTime(httpListenTimeoutMs);
 
     await expect(wait).rejects.toThrow(
       "Timed out after 2000ms waiting for test HTTP server to listen " +
@@ -130,7 +99,7 @@ describe("HttpTestWait", () => {
 
   it("resolves on listening and preserves unrelated listeners", async () => {
     const httpServer = createServer();
-    const startup = createDeferred();
+    const startup = createControlledPromise();
     const unrelatedListening = jest.fn();
     const unrelatedError = jest.fn();
     httpServer.on("listening", unrelatedListening);
@@ -141,7 +110,7 @@ describe("HttpTestWait", () => {
     const wait = waitForHttpListeningOrStartupFailure({
       httpServer,
       initPromise: startup.promise,
-      timeoutMs
+      timeoutMs: httpListenTimeoutMs
     });
 
     httpServer.emit("listening");
@@ -155,7 +124,7 @@ describe("HttpTestWait", () => {
   it("observes later init rejection after listening without replacing the init promise", async () => {
     jest.useRealTimers();
     const httpServer = createServer();
-    const startup = createDeferred();
+    const startup = createControlledPromise();
     const unhandledReasons: unknown[] = [];
     const onUnhandledRejection = (reason: unknown): void => {
       unhandledReasons.push(reason);
@@ -166,7 +135,7 @@ describe("HttpTestWait", () => {
       const wait = waitForHttpListeningOrStartupFailure({
         httpServer,
         initPromise: startup.promise,
-        timeoutMs
+        timeoutMs: httpListenTimeoutMs
       });
 
       httpServer.emit("listening");

@@ -2,6 +2,7 @@ import { inject, singleton } from "tsyringe";
 
 import { GameService } from "application/services/game/GameService";
 import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
+import { ServerError } from "domain/errors/ServerError";
 import { Environment } from "shared/config/Environment";
 import { DI_TOKENS } from "shared/di/tokens";
 import { ILogger } from "shared/logging/ILogger";
@@ -35,24 +36,12 @@ export class SingleInstanceRestartRecoveryService {
     this.logger.warn(
       "STARTUP_RECOVERY_ENABLED=true: running single-instance restart recovery. " +
         "This globally affects all games, timers, and socket sessions and is invalid " +
-        "for multiple live server instances. Redis locks only prevent duplicate execution; " +
-        "they are not a cluster liveness detector.",
+        "for multiple live server instances.",
       { prefix: LogPrefix.SERVE_API }
     );
 
-    const gameRecovery = await this.runGameRecovery();
-    if (gameRecovery.status === "lock-not-acquired") {
-      throw new Error(
-        "single-instance restart game recovery did not execute because the recovery lock was not acquired"
-      );
-    }
-
-    const socketSessionCleanup = await this.runSocketSessionCleanup();
-    if (socketSessionCleanup.status === "lock-not-acquired") {
-      throw new Error(
-        "single-instance restart socket-session cleanup did not execute because the recovery lock was not acquired"
-      );
-    }
+    const gameRecovery = await this._runGameRecovery();
+    const socketSessionCleanup = await this._runSocketSessionCleanup();
 
     this.logger.info("single-instance restart recovery completed", {
       prefix: LogPrefix.SERVE_API,
@@ -69,23 +58,26 @@ export class SingleInstanceRestartRecoveryService {
     };
   }
 
-  private async runGameRecovery(): Promise<SingleInstanceGameRecoveryResult> {
+  private async _runGameRecovery(): Promise<SingleInstanceGameRecoveryResult> {
     try {
       return await this.gameService.recoverAllGamesAfterSingleInstanceRestart();
     } catch (error) {
-      throw new Error("single-instance restart game recovery failed", {
+      throw new ServerError("single-instance restart game recovery failed", undefined, undefined, {
         cause: error
       });
     }
   }
 
-  private async runSocketSessionCleanup(): Promise<SingleInstanceSocketSessionCleanupResult> {
+  private async _runSocketSessionCleanup(): Promise<SingleInstanceSocketSessionCleanupResult> {
     try {
       return await this.socketUserDataService.clearAllSocketSessionsAfterSingleInstanceRestart();
     } catch (error) {
-      throw new Error("single-instance restart socket-session cleanup failed", {
-        cause: error
-      });
+      throw new ServerError(
+        "single-instance restart socket-session cleanup failed",
+        undefined,
+        undefined,
+        { cause: error }
+      );
     }
   }
 }

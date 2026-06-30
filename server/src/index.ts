@@ -21,17 +21,37 @@ import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { ServeApi } from "./ServeApi";
 
-// This is the whole-process last resort. It must exceed the sum of individual
-// cleanup budgets inside ServeApi plus Redis/logger reporting overhead.
+// Last-chance shutdown timer for the whole process.
+// It is longer than the cleanup timeouts inside ServeApi.
 const FORCE_SHUTDOWN_TIMEOUT_MS = 30000;
 let shutdownPromise: Promise<void> | undefined;
+let earlyShutdownPromise: Promise<void> | undefined;
+let activeShutdownResources: ShutdownResourcesBase | undefined;
 
-interface ShutdownResources {
+interface ShutdownResourcesBase {
   context: ApiContext;
   api: ServeApi | undefined;
   logger: PinoLogger;
+}
+
+interface ShutdownResources extends ShutdownResourcesBase {
   trigger: unknown | undefined;
 }
+
+const onEarlySigint = (): void => {
+  void runEarlyShutdown(undefined);
+};
+const onEarlySigterm = (): void => {
+  void runEarlyShutdown(undefined);
+};
+const onEarlyUncaughtException = (error: Error): void => {
+  void handleFatalStartupTrigger(error);
+};
+const onEarlyUnhandledRejection = (reason: unknown): void => {
+  void handleFatalStartupTrigger(reason);
+};
+
+installEarlyShutdownHandlers();
 
 const main = async () => {
   const logger = await PinoLogger.init({ pretty: true });
@@ -112,6 +132,13 @@ const main = async () => {
     logger
   });
 
+  activeShutdownResources = {
+    context,
+    api: undefined,
+    logger
+  };
+  installGracefulShutdownHandlers(activeShutdownResources);
+
   if (context.env.SOCKET_IO_ADMIN_UI_ENABLE) {
     logger.info("Socket.IO Admin UI enabled", { prefix: LogPrefix.SERVER });
     instrument(io, {
@@ -132,19 +159,7 @@ const main = async () => {
   context.env.load(false);
 
   const api = new ServeApi(context);
-
-  process.on("SIGINT", () => {
-    void gracefulShutdown({ context, api, logger, trigger: undefined });
-  });
-  process.on("SIGTERM", () => {
-    void gracefulShutdown({ context, api, logger, trigger: undefined });
-  });
-  process.on("uncaughtException", (error) => {
-    void gracefulShutdown({ context, api, logger, trigger: error });
-  });
-  process.on("unhandledRejection", (reason) => {
-    void gracefulShutdown({ context, api, logger, trigger: reason });
-  });
+  activeShutdownResources.api = api;
 
   try {
     await api.init();
@@ -152,6 +167,61 @@ const main = async () => {
     await gracefulShutdown({ context, api, logger, trigger: error });
   }
 };
+
+function installEarlyShutdownHandlers(): void {
+  process.once("SIGINT", onEarlySigint);
+  process.once("SIGTERM", onEarlySigterm);
+  process.once("uncaughtException", onEarlyUncaughtException);
+  process.once("unhandledRejection", onEarlyUnhandledRejection);
+}
+
+function removeEarlyShutdownHandlers(): void {
+  process.off("SIGINT", onEarlySigint);
+  process.off("SIGTERM", onEarlySigterm);
+  process.off("uncaughtException", onEarlyUncaughtException);
+  process.off("unhandledRejection", onEarlyUnhandledRejection);
+}
+
+function installGracefulShutdownHandlers(resources: ShutdownResourcesBase): void {
+  removeEarlyShutdownHandlers();
+
+  process.on("SIGINT", () => {
+    void gracefulShutdown({ ...resources, trigger: undefined });
+  });
+  process.on("SIGTERM", () => {
+    void gracefulShutdown({ ...resources, trigger: undefined });
+  });
+  process.on("uncaughtException", (error) => {
+    void gracefulShutdown({ ...resources, trigger: error });
+  });
+  process.on("unhandledRejection", (reason) => {
+    void gracefulShutdown({ ...resources, trigger: reason });
+  });
+}
+
+function handleFatalStartupTrigger(trigger: unknown): Promise<void> {
+  if (activeShutdownResources) {
+    return gracefulShutdown({ ...activeShutdownResources, trigger });
+  }
+
+  return runEarlyShutdown(trigger);
+}
+
+function runEarlyShutdown(trigger: unknown | undefined): Promise<void> {
+  if (earlyShutdownPromise) {
+    return earlyShutdownPromise;
+  }
+
+  earlyShutdownPromise = (async () => {
+    if (trigger !== undefined) {
+      process.stderr.write(`Server startup failed: ${formatUnknownError(trigger)}\n`);
+    }
+
+    process.exit(trigger === undefined ? 0 : 1);
+  })();
+
+  return earlyShutdownPromise;
+}
 
 function gracefulShutdown(resources: ShutdownResources): Promise<void> {
   if (shutdownPromise) {
@@ -288,8 +358,18 @@ function flattenErrorMessages(error: unknown): string[] {
   return messages;
 }
 
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    return `${error.message}${error.stack ? `\n${error.stack}` : ""}`;
+  }
+
+  return String(error);
+}
+
 function setLoggers(logger: ILogger): void {
   RedisConfig.setLogger(logger);
 }
 
-void main();
+void main().catch((error: unknown) => {
+  void handleFatalStartupTrigger(error);
+});

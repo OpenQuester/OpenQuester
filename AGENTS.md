@@ -99,7 +99,7 @@ Production may run multiple independent server instances behind a load balancer.
 - A local cache is acceptable only when Redis/PostgreSQL remains authoritative or the cache can be safely reconstructed without changing behavior.
 - When ownership is unclear, document whether the state is local or distributed before implementing it.
 
-Read `server/docs/multi-instance-invariants.md` before changing server lifecycle, Socket.IO, game action, timer, or cron behavior.
+Before changing server lifecycle, Socket.IO, game action, timer, or cron behavior, apply the multi-instance rules in this section.
 
 ### DI — tsyringe: `@singleton()` for concrete classes; `@inject(DI_TOKENS.X)` with `Symbol.for()` tokens for interfaces/ports (see `shared/di/tokens.ts`, registrations in `bootstrap/bootstrapContainer.ts`).
 

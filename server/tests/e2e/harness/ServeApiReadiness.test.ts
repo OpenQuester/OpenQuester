@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { Server as IOServer } from "socket.io";
-import { io as createSocket, type Socket as ClientSocket } from "socket.io-client";
+import { type Socket as ClientSocket } from "socket.io-client";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
@@ -10,235 +10,33 @@ import { PackageService } from "application/services/package/PackageService";
 import { PermissionService } from "application/services/permission/PermissionService";
 import { RedisPubSubService } from "application/services/redis/RedisPubSubService";
 import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
-import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
+import { SOCKET_GAME_NAMESPACE, SOCKET_ROOT_NAMESPACE } from "domain/constants/socket";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { fetchJson, fetchWithTimeout } from "tests/e2e/harness/HttpTestClient";
 import {
   disconnectSocket,
   waitForSocketConnection
 } from "tests/e2e/harness/SocketTestWait";
+import {
+  createClientSocket,
+  expectSocketDoesNotConnect,
+  waitForSocketConnectError
+} from "tests/e2e/harness/SocketClientTestUtils";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
+import {
+  createControlledPromise,
+  findErrorByMessage,
+  flattenErrorMessages,
+  getAggregateErrors,
+  getRejectedError,
+  requireAggregateError,
+  withTimeout
+} from "tests/e2e/harness/TestPromiseUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
-const httpTimeoutMs = 2000;
+const httpRequestTimeoutMs = 2000;
 const serviceUnavailableStatus = 503;
-
-interface Deferred<T> {
-  promise: Promise<T>;
-  resolve: (value: T | PromiseLike<T>) => void;
-  reject: (error: unknown) => void;
-}
-
-interface JsonResponse {
-  status: number;
-  body: unknown;
-  retryAfter: string | null;
-  cacheControl: string | null;
-}
-
-const createDeferred = <T = void>(): Deferred<T> => {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (error: unknown) => void;
-
-  const promise = new Promise<T>((innerResolve, innerReject) => {
-    resolve = innerResolve;
-    reject = innerReject;
-  });
-
-  return { promise, resolve, reject };
-};
-
-const createClientSocket = (serverUrl: string, namespace: string = ""): ClientSocket =>
-  createSocket(`${serverUrl}${namespace}`, {
-    forceNew: true,
-    reconnection: false,
-    timeout: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS,
-    transports: ["websocket"]
-  });
-
-const fetchJson = async (url: string): Promise<JsonResponse> => {
-  const response = await fetchWithTimeout(url);
-
-  return {
-    status: response.status,
-    body: await response.json(),
-    retryAfter: response.headers.get("retry-after"),
-    cacheControl: response.headers.get("cache-control")
-  };
-};
-
-const fetchWithTimeout = async (url: string): Promise<Response> => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), httpTimeoutMs);
-
-  try {
-    return await fetch(url, { signal: controller.signal });
-  } catch (error) {
-    throw new Error(`HTTP request failed for ${url}`, { cause: error });
-  } finally {
-    clearTimeout(timeout);
-  }
-};
-
-const withTimeout = async <T>(
-  promise: Promise<T>,
-  timeoutMs: number,
-  operation: string
-): Promise<T> => {
-  let timeout: NodeJS.Timeout | undefined;
-
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timeout = setTimeout(() => {
-          reject(new Error(`Timed out after ${timeoutMs}ms waiting for ${operation}`));
-        }, timeoutMs);
-      })
-    ]);
-  } finally {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-  }
-};
-
-const flattenErrorMessages = (error: unknown): string[] => {
-  const messages: string[] = [];
-  const visit = (current: unknown): void => {
-    if (current instanceof AggregateError) {
-      messages.push(current.message);
-      for (const nested of getAggregateErrors(current)) {
-        visit(nested);
-      }
-      visit(current.cause);
-      return;
-    }
-
-    if (current instanceof Error) {
-      messages.push(current.message);
-      visit(current.cause);
-      return;
-    }
-
-    if (current !== undefined) {
-      messages.push(String(current));
-    }
-  };
-
-  visit(error);
-  return messages;
-};
-
-const getAggregateErrors = (error: AggregateError): readonly unknown[] =>
-  error.errors as readonly unknown[];
-
-const requireAggregateError = (error: unknown): AggregateError => {
-  if (!(error instanceof AggregateError)) {
-    throw new Error(`Expected AggregateError, got ${String(error)}`);
-  }
-
-  return error;
-};
-
-const findErrorByMessage = (
-  errors: readonly unknown[],
-  message: string
-): Error | undefined =>
-  errors.find(
-    (error): error is Error => error instanceof Error && error.message === message
-  );
-
-const getRejectedError = async (promise: Promise<unknown>): Promise<unknown> => {
-  try {
-    await promise;
-  } catch (error) {
-    return error;
-  }
-
-  throw new Error("Expected promise to reject");
-};
-
-const expectSocketDoesNotConnect = async (
-  socket: ClientSocket,
-  client: string,
-  serverUrl: string
-): Promise<void> => {
-  await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup();
-      resolve();
-    }, TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS);
-
-    const cleanup = (): void => {
-      clearTimeout(timeout);
-      socket.off("connect", onConnect);
-      socket.off("connect_error", onConnectError);
-    };
-
-    const onConnect = (): void => {
-      cleanup();
-      reject(
-        new Error(
-          `Socket.IO client connected before readiness ` +
-            `(client="${client}", socketId="${socket.id ?? "unknown"}", ` +
-            `serverUrl="${serverUrl}")`
-        )
-      );
-    };
-
-    const onConnectError = (error: Error): void => {
-      cleanup();
-      reject(error);
-    };
-
-    socket.once("connect", onConnect);
-    socket.once("connect_error", onConnectError);
-  });
-};
-
-const waitForSocketConnectError = async (
-  socket: ClientSocket,
-  client: string,
-  serverUrl: string
-): Promise<Error> =>
-  new Promise<Error>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(
-        new Error(
-          `Timed out after ${TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS}ms waiting for ` +
-            `Socket.IO connect_error (client="${client}", socketId="${socket.id ?? "unknown"}", ` +
-            `connected=${socket.connected}, serverUrl="${serverUrl}")`
-        )
-      );
-    }, TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS);
-
-    const cleanup = (): void => {
-      clearTimeout(timeout);
-      socket.off("connect", onConnect);
-      socket.off("connect_error", onConnectError);
-    };
-
-    const onConnect = (): void => {
-      cleanup();
-      reject(
-        new Error(
-          `Socket.IO client connected while waiting for connect_error ` +
-            `(client="${client}", socketId="${socket.id ?? "unknown"}", ` +
-            `serverUrl="${serverUrl}")`
-        )
-      );
-    };
-
-    const onConnectError = (error: Error): void => {
-      cleanup();
-      resolve(error);
-    };
-
-    socket.once("connect", onConnect);
-    socket.once("connect_error", onConnectError);
-  });
 
 describe("ServeApi readiness admission", () => {
   let harness: ServerTestHarness | undefined;
@@ -262,8 +60,8 @@ describe("ServeApi readiness admission", () => {
   });
 
   it("keeps HTTP and Socket.IO application traffic out until startup preparation completes", async () => {
-    const permissionEntered = createDeferred();
-    const releasePermission = createDeferred();
+    const permissionEntered = createControlledPromise();
+    const releasePermission = createControlledPromise();
     const packageSearchSpy = jest.spyOn(PackageService.prototype, "searchPackages");
     const actionSubmitSpy = jest.spyOn(GameActionExecutor.prototype, "submitAction");
 
@@ -277,7 +75,7 @@ describe("ServeApi readiness admission", () => {
     harness = await ServerTestHarness.startInitializing({ apiPort: 0 });
     await withTimeout(
       permissionEntered.promise,
-      httpTimeoutMs,
+      httpRequestTimeoutMs,
       "permission startup preparation to pause"
     );
 
@@ -301,7 +99,7 @@ describe("ServeApi readiness admission", () => {
     const rootSocket = createClientSocket(harness.serverUrl);
     const gameSocket = createClientSocket(harness.serverUrl, SOCKET_GAME_NAMESPACE);
     sockets.push(
-      { socket: rootSocket, namespace: "/" },
+      { socket: rootSocket, namespace: SOCKET_ROOT_NAMESPACE },
       { socket: gameSocket, namespace: SOCKET_GAME_NAMESPACE }
     );
 
@@ -336,8 +134,8 @@ describe("ServeApi readiness admission", () => {
   });
 
   it("does not start runtime services after shutdown is requested during initialization", async () => {
-    const permissionEntered = createDeferred();
-    const releasePermission = createDeferred();
+    const permissionEntered = createControlledPromise();
+    const releasePermission = createControlledPromise();
     const events: string[] = [];
     const pubSubSpy = jest.spyOn(RedisPubSubService.prototype, "initKeyExpirationHandling");
     const cronSpy = jest.spyOn(CronSchedulerService.prototype, "initialize");
@@ -360,7 +158,7 @@ describe("ServeApi readiness admission", () => {
     harness = await ServerTestHarness.startInitializing({ apiPort: 0 });
     await withTimeout(
       permissionEntered.promise,
-      httpTimeoutMs,
+      httpRequestTimeoutMs,
       "permission startup preparation to pause before shutdown"
     );
 
@@ -395,7 +193,11 @@ describe("ServeApi readiness admission", () => {
 
     releasePermission.resolve();
     await expect(harness.initPromise).rejects.toThrow("shutdown");
-    await withTimeout(firstShutdown, httpTimeoutMs, "ServeApi shutdown during initialization");
+    await withTimeout(
+      firstShutdown,
+      httpRequestTimeoutMs,
+      "ServeApi shutdown during initialization"
+    );
     events.push("shutdown-resolved");
 
     expect(pubSubSpy).not.toHaveBeenCalled();
@@ -416,10 +218,10 @@ describe("ServeApi readiness admission", () => {
   });
 
   it("keeps failed startup not ready and reports pending Socket.IO admission failure", async () => {
-    const permissionEntered = createDeferred();
-    const releasePermission = createDeferred<void>();
-    const metricsStopEntered = createDeferred();
-    const releaseMetricsStop = createDeferred();
+    const permissionEntered = createControlledPromise();
+    const releasePermission = createControlledPromise<void>();
+    const metricsStopEntered = createControlledPromise();
+    const releaseMetricsStop = createControlledPromise();
     const startupFailure = new Error("permission bootstrap failed intentionally");
     const events: string[] = [];
     const originalClose: IOServer["close"] = IOServer.prototype.close;
@@ -456,7 +258,7 @@ describe("ServeApi readiness admission", () => {
     events.push("HTTP listening");
     await withTimeout(
       permissionEntered.promise,
-      httpTimeoutMs,
+      httpRequestTimeoutMs,
       "permission startup preparation before failure"
     );
     events.push("startup collaborator entered");
@@ -488,7 +290,7 @@ describe("ServeApi readiness admission", () => {
     releasePermission.resolve();
     await withTimeout(
       metricsStopEntered.promise,
-      httpTimeoutMs,
+      httpRequestTimeoutMs,
       "metrics cleanup to pause before Socket.IO close"
     );
     const connectError = await admissionRejected;
@@ -524,8 +326,8 @@ describe("ServeApi readiness admission", () => {
   });
 
   it("aggregates startup failure and rollback cleanup failure with retained causes", async () => {
-    const permissionEntered = createDeferred();
-    const releasePermission = createDeferred<void>();
+    const permissionEntered = createControlledPromise();
+    const releasePermission = createControlledPromise<void>();
     const startupFailure = new Error("permission bootstrap failed before rollback");
     const cleanupFailure = new Error("metrics cleanup failed during rollback");
 
@@ -541,7 +343,7 @@ describe("ServeApi readiness admission", () => {
     harness = await ServerTestHarness.startInitializing({ apiPort: 0 });
     await withTimeout(
       permissionEntered.promise,
-      httpTimeoutMs,
+      httpRequestTimeoutMs,
       "permission startup preparation before aggregate failure"
     );
 
@@ -589,8 +391,8 @@ describe("ServeApi readiness admission", () => {
   });
 
   it("keeps single-instance restart recovery before readiness", async () => {
-    const cleanupEntered = createDeferred();
-    const releaseCleanup = createDeferred();
+    const cleanupEntered = createControlledPromise();
+    const releaseCleanup = createControlledPromise();
     const events: string[] = [];
 
     jest
@@ -620,7 +422,7 @@ describe("ServeApi readiness admission", () => {
     });
     await withTimeout(
       cleanupEntered.promise,
-      httpTimeoutMs,
+      httpRequestTimeoutMs,
       "single-instance restart recovery cleanup to pause"
     );
 

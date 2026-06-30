@@ -1,22 +1,14 @@
-export type SingleInstanceGameRecoveryResult =
-  | {
-      status: "completed";
-      recoveredGames: number;
-      recoveredTimers: number;
-    }
-  | {
-      status: "lock-not-acquired";
-    };
+export interface SingleInstanceGameRecoveryResult {
+  status: "completed";
+  recoveredGames: number;
+  recoveredTimers: number;
+}
 
-export type SingleInstanceSocketSessionCleanupResult =
-  | {
-      status: "completed";
-      removedSocketSessions: number;
-      removedUserSocketLookups: number;
-    }
-  | {
-      status: "lock-not-acquired";
-    };
+export interface SingleInstanceSocketSessionCleanupResult {
+  status: "completed";
+  removedSocketSessions: number;
+  removedUserSocketLookups: number;
+}
 
 export type SingleInstanceRestartRecoveryResult =
   | {
@@ -24,9 +16,6 @@ export type SingleInstanceRestartRecoveryResult =
     }
   | {
       status: "completed";
-      gameRecovery: Extract<SingleInstanceGameRecoveryResult, { status: "completed" }>;
-      socketSessionCleanup: Extract<
-        SingleInstanceSocketSessionCleanupResult,
-        { status: "completed" }
-      >;
+      gameRecovery: SingleInstanceGameRecoveryResult;
+      socketSessionCleanup: SingleInstanceSocketSessionCleanupResult;
     };

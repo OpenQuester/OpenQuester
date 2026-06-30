@@ -7,7 +7,6 @@ applyTo: "server/**/*"
 ## Key Docs (Read First)
 - **Final Round:** `server/docs/final-round-flow.md` - Theme elimination → bidding → answering → reviewing
 - **Action Queue:** `server/docs/game-action-executor.md` - Race condition prevention via Redis locks
-- **Multi-instance invariants:** `server/docs/multi-instance-invariants.md` - production local vs distributed state rules
 - **Media Sync:** `server/docs/media-download-sync.md` - Cross-client synchronization
 
 ## Architecture
@@ -85,6 +84,5 @@ npx jest path/to/file   # Specific (set trace logs in tests/utils.ts)
 - Socket dispatch: `server/src/presentation/controllers/io/SocketActionDispatcher.ts`
 - Game action execution: `server/src/application/executors/GameActionExecutor.ts`
 - Distributed action docs: `server/docs/game-action-executor.md`
-- Multi-instance rules: `server/docs/multi-instance-invariants.md`
 - Test bootstrap: `tests/TestApp.ts`
 - Game state transitions: `server/src/domain/state-machine/`

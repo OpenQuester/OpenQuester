@@ -1,6 +1,5 @@
 import { singleton } from "tsyringe";
 
-import { REDIS_LOCK_SESSIONS_CLEANUP } from "domain/constants/redis";
 import {
   SOCKET_GAME_AUTH_TTL,
   SOCKET_SESSION_PREFIX,
@@ -252,15 +251,9 @@ export class SocketUserDataRepository {
 
   /**
    * Clear all socket sessions only for a single-instance restart. This removes
-   * stale sockets for the one server runtime that was fully offline.
+   * stale sockets for the one server instance that was fully offline.
    */
   public async clearAllSocketSessionsAfterSingleInstanceRestart(): Promise<SingleInstanceSocketSessionCleanupResult> {
-    const acquired = await this.redisRepository.setLockKey(REDIS_LOCK_SESSIONS_CLEANUP);
-
-    if (acquired !== "OK") {
-      return { status: "lock-not-acquired" };
-    }
-
     const sessionKeys = await this.redisRepository.scan(`${SOCKET_SESSION_PREFIX}:*`);
     let removedSocketSessions = 0;
     if (sessionKeys.length) {

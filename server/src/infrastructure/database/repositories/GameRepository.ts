@@ -10,7 +10,6 @@ import {
   GAME_TTL_IN_SECONDS
 } from "domain/constants/game";
 import { PACKAGE_DETAILED_RELATIONS, PACKAGE_SELECT_FIELDS } from "domain/constants/package";
-import { REDIS_LOCK_GAMES_CLEANUP } from "domain/constants/redis";
 import { TIMER_NSP } from "domain/constants/timer";
 import { SECOND_MS } from "domain/constants/time";
 import { Game } from "domain/entities/game/Game";
@@ -344,16 +343,10 @@ export class GameRepository {
   }
 
   /**
-   * Global restart recovery for deployments with exactly one server runtime.
+   * Global restart recovery for deployments with exactly one server instance.
    * It is unsafe while another instance may still own live sockets or timers.
    */
   public async recoverAllGamesAfterSingleInstanceRestart(): Promise<SingleInstanceGameRecoveryResult> {
-    const acquired = await this.redisRepository.setLockKey(REDIS_LOCK_GAMES_CLEANUP);
-
-    if (!acquired) {
-      return { status: "lock-not-acquired" };
-    }
-
     const startTime = Date.now();
 
     const keys = await this.redisRepository.scan(this.getGameKey("*"));
