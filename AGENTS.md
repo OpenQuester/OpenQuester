@@ -10,7 +10,7 @@ Top-level areas:
 
 - `server/` — TypeScript/Node.js backend: Express, Socket.IO, PostgreSQL, Redis, TypeORM, tsyringe.
 - `client/` — Flutter/Dart app and local packages managed through Melos.
-- `openapi/` — OpenAPI schema and generated Dart SDK.
+- `openapi/` — OpenAPI schema and Socket.IO contract metadata. Generated Dart code lives in `client/packages/openapi/`.
 - `loadtest/` — TypeScript load testing tool.
 - `websites/` — Hugo docs/landing pages.
 - `docs/` — product, architecture, agent workflows, and implementation specs.
@@ -49,7 +49,8 @@ For gameplay changes, do not treat UI text, disabled states, timers, role-specif
 - Product direction: `docs/product/00-north-star.md` and `docs/product/01-release-plan.md`.
 - Backend architecture: `server/AGENTS.md` and `docs/architecture/adr/`.
 - Frontend architecture and UI patterns: `client/AGENTS.md`.
-- API/schema generation: `openapi/AGENTS.md`.
+- API schema and contract metadata: `openapi/AGENTS.md` and `openapi/schema.json`.
+- Generated Dart API package: `client/packages/openapi/`.
 - Game state/product behavior: `docs/specs/game-state-matrix.md` and feature-specific specs.
 - Existing deep implementation references: `server/docs/`.
 
@@ -71,13 +72,13 @@ Use `docs/agent/03-verification-matrix.md` for the full matrix.
 Common checks:
 
 ```bash
-# server/
+# run from server/
 npm run validate:schema
 npm run lint
 npm run build
 npm test
 
-# client/
+# run from client/
 melos run pre_build
 melos run analyze
 melos run test
