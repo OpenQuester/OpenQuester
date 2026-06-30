@@ -1,3 +1,8 @@
+---
+name: release-gate-audit
+description: Use when auditing MVP, alpha, beta, or release readiness; stability gaps; load testing; reconnect/media/storage safety; admin diagnostics; rate-limit UX; or evidence-backed blocker lists.
+---
+
 # Release gate audit skill
 
 Use this skill when auditing release readiness, alpha/beta blockers, stability gaps, load testing, reconnect/media/storage safety, or admin diagnostics.
