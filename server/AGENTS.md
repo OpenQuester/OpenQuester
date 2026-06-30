@@ -62,8 +62,9 @@ Current DI source of truth:
 - Tokens: `src/shared/di/tokens.ts`
 - Bootstrap: `src/bootstrap/bootstrapContainer.ts`
 - Runtime entry: `src/ServeApi.ts`
+- Action handler registration: `src/application/config/ActionHandlerConfig.ts`
 
-Use `@singleton()` for concrete injectable classes. Use `@inject(DI_TOKENS.X)` for interfaces/ports and external runtime objects. Do not create a second container or revive legacy `application/Container.ts` patterns.
+Use `@singleton()` for concrete services/adapters that are resolved by the tsyringe container. Use `@inject(DI_TOKENS.X)` for interfaces/ports and external runtime objects. Action handlers are currently registered manually in `ActionHandlerConfig.ts`; follow that pattern unless the task explicitly asks for a handler-registration refactor. Do not create a second container or revive legacy `application/Container.ts` patterns.
 
 ## Socket/game action architecture
 
@@ -161,6 +162,7 @@ Throw typed errors from services/repositories/use cases. Let `asyncHandler` + `e
 - `src/shared/di/tokens.ts` — DI tokens.
 - `src/bootstrap/bootstrapContainer.ts` — DI/composition root.
 - `src/ServeApi.ts` — API server composition.
+- `src/application/config/ActionHandlerConfig.ts` — action handler registration.
 - `src/application/executors/GameActionExecutor.ts` — queued action execution.
 - `src/application/executors/DataMutationProcessor.ts` — declared side effects.
 - `src/presentation/controllers/io/SocketActionDispatcher.ts` — socket dispatch loop.
