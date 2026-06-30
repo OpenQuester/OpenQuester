@@ -59,6 +59,8 @@ Frontend quality notes:
 | Socket event enum/payload | `npm run validate:schema` | `melos run gen_api`, affected socket listener compile/analyze |
 | Public enum change | `npm run validate:schema` | generated client + affected UI compile/analyze |
 
+Generated Dart API files live in `client/packages/openapi/`; the schema source is `openapi/schema.json`.
+
 Contract PR summaries should state:
 
 - what changed in the public contract
