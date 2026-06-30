@@ -2,6 +2,8 @@
 
 Skills are repeatable workflows for Codex-style agents. Use them when the task matches their trigger.
 
+Each skill is a folder with a `SKILL.md` file. `SKILL.md` must start with frontmatter containing `name` and `description` so Codex can discover and trigger it reliably.
+
 ## Available skills
 
 | Skill | Use when |
