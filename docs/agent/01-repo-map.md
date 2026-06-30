@@ -9,7 +9,6 @@ This map helps agents pick the right files before editing. It is not a replaceme
 | `server/` | Backend API, realtime game server, Redis/PostgreSQL/S3, game state execution | `server/AGENTS.md` |
 | `client/` | Flutter app, editor packages, SIQ import, compression, generated API usage | `client/AGENTS.md` |
 | `openapi/` | REST + Socket.IO public contract schema. Generated Dart code lives in `client/packages/openapi/`. | `openapi/AGENTS.md` |
-| `loadtest/` | Load testing tool and scenarios | `server/AGENTS.md` + release gate docs |
 | `websites/` | Static docs/landing pages | nearby README/docs |
 | `.agents/skills/` | Repeatable agent workflows | relevant `SKILL.md` |
 | `docs/product/` | Product direction and release priorities | `docs/product/00-north-star.md` |
