@@ -1,3 +1,8 @@
+---
+name: package-editor-change
+description: Use when changing package editor screens/controllers, OQ/SIQ import-export, media references, package validation, compression progress, package health, publish readiness, or creator workflow. Avoid for gameplay-only changes.
+---
+
 # Package editor change skill
 
 Use this skill when changing package editor screens/controllers, `.oq` import/export, `.siq` import, media references, package validation, compression progress, package health, or creator workflow.
