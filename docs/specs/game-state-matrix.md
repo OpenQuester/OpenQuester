@@ -2,6 +2,8 @@
 
 This spec helps agents keep gameplay UI and backend state changes aligned. Update it whenever a phase, role permission, CTA, disabled reason, timer, or user-facing state changes.
 
+Status note: this is a product behavior target and maintenance matrix, not a claim that every row is fully implemented today. Verify current code before marking a behavior as done.
+
 ## Core rule
 
 For every visible game phase, each role should know:
