@@ -7,7 +7,7 @@ This file is intentionally short. The canonical agent documentation is in repo d
 - `AGENTS.md` — repository-wide agent router.
 - `server/AGENTS.md` — backend architecture and rules.
 - `client/AGENTS.md` — Flutter/Melos/frontend rules.
-- `openapi/AGENTS.md` — schema and generated SDK rules.
+- `openapi/AGENTS.md` — schema, public contract, and generated-client workflow rules.
 - `docs/product/00-north-star.md` — product direction.
 - `docs/agent/03-verification-matrix.md` — checks by task type.
 
