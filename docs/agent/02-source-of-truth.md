@@ -24,6 +24,7 @@ Do not silently choose the convenient source. If the difference matters, update 
 | Backend architecture | `server/AGENTS.md` + `docs/architecture/adr/` |
 | Frontend architecture | `client/AGENTS.md` |
 | Public API/schema | `openapi/AGENTS.md` + `openapi/schema.json` |
+| Generated Dart API package | `client/packages/openapi/` + `client/packages/openapi/swagger_parser.yaml` |
 | Product North Star | `docs/product/00-north-star.md` |
 | Release priority | `docs/product/01-release-plan.md` |
 | Game phase/role behavior | `docs/specs/game-state-matrix.md` |
