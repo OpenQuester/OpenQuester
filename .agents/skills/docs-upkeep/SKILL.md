@@ -5,7 +5,7 @@ description: Use when changing docs, skills, AGENTS files, specs, ADRs, source-o
 
 # Docs upkeep skill
 
-Use this skill when creating or changing project documentation, or when implementation work changes behavior that docs describe.
+Use this skill when creating, changing, removing, or collapsing project documentation, or when implementation work changes behavior that docs describe.
 
 ## Read first
 
@@ -16,7 +16,7 @@ Use this skill when creating or changing project documentation, or when implemen
 
 ## Documentation maintenance rule
 
-Documentation is part of implementation. If a task changes architecture, workflows, commands, public contracts, game behavior, or product decisions, update the related docs in the same task when practical.
+Documentation is part of implementation. If a task changes architecture, workflows, commands, public contracts, game behavior, generated-code flow, validation structure, or product decisions, update the related docs in the same task when practical.
 
 Do not wait for a periodic docs cleanup if the current task made a doc stale.
 
@@ -44,6 +44,12 @@ Add a doc/skill when:
 
 Do not add a new doc just because a small feature was implemented. Prefer updating an existing spec or skill.
 
+## When to remove or collapse docs
+
+Remove or collapse docs when they are stale, misleading, duplicated, no longer relevant after a release phase, or replaced by a better source of truth.
+
+When removing docs, update all links that pointed to them.
+
 ## Handoff checklist
 
-Report docs added/changed, stale docs fixed, source-of-truth links updated, commands or workflows changed, and docs intentionally not updated with reason.
+Report docs added/changed/removed, stale docs fixed, source-of-truth links updated, commands or workflows changed, and docs intentionally not updated with reason.
