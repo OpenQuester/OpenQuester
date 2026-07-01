@@ -10,7 +10,6 @@ import {
   GAME_TTL_IN_SECONDS
 } from "domain/constants/game";
 import { PACKAGE_DETAILED_RELATIONS, PACKAGE_SELECT_FIELDS } from "domain/constants/package";
-import { REDIS_LOCK_GAMES_CLEANUP } from "domain/constants/redis";
 import { TIMER_NSP } from "domain/constants/timer";
 import { SECOND_MS } from "domain/constants/time";
 import { Game } from "domain/entities/game/Game";
@@ -41,6 +40,7 @@ import { RedisRepository } from "infrastructure/database/repositories/RedisRepos
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 import { PackageRepository } from "infrastructure/database/repositories/PackageRepository";
 import { S3FileUrlBuilder } from "infrastructure/storage/S3FileUrlBuilder";
+import { type SingleInstanceGameRecoveryResult } from "domain/types/recovery/SingleInstanceRestartRecoveryResult";
 
 /**
  * Repository for Game entity operations (stored in Redis).
@@ -343,25 +343,10 @@ export class GameRepository {
   }
 
   /**
-   * Cleans up all active games from Redis on server start.
-   *
-   * For each game:
-   * 1. Sets all players as disconnected
-   * 2. If game has an active timer:
-   *    - Clears existing Redis timer keys
-   *    - Recreates timer starting from 0 (elapsedMs=0)
-   *    - Pauses the game
-   * 3. Updates game state in Redis
-   *
-   * This ensures games can continue after server restart without stuck states.
+   * Global restart recovery for deployments with exactly one server instance.
+   * It is unsafe while another instance may still own live sockets or timers.
    */
-  public async cleanupAllGames(): Promise<void> {
-    const acquired = await this.redisRepository.setLockKey(REDIS_LOCK_GAMES_CLEANUP);
-
-    if (!acquired) {
-      return; // Another instance acquired the lock
-    }
-
+  public async recoverAllGamesAfterSingleInstanceRestart(): Promise<SingleInstanceGameRecoveryResult> {
     const startTime = Date.now();
 
     const keys = await this.redisRepository.scan(this.getGameKey("*"));
@@ -406,11 +391,17 @@ export class GameRepository {
     await Promise.all(gamesUpdates);
 
     this.logger.info(
-      `Games updated: ${gamesCounter}, timers recovered: ${timerRecoveryCounter}, in ${
+      `Single-instance restart game recovery completed: games updated: ${gamesCounter}, timers recovered: ${timerRecoveryCounter}, in ${
         Date.now() - startTime
       } ms`,
       { prefix: LogPrefix.GAME }
     );
+
+    return {
+      status: "completed",
+      recoveredGames: gamesCounter,
+      recoveredTimers: timerRecoveryCounter
+    };
   }
 
   /**

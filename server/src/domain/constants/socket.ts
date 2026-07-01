@@ -1,4 +1,5 @@
 export const SOCKET_REDIS_NSP = "socket";
+export const SOCKET_ROOT_NAMESPACE = "/";
 export const SOCKET_SESSION_PREFIX = `${SOCKET_REDIS_NSP}:session`;
 export const SOCKET_USER_PREFIX = `${SOCKET_REDIS_NSP}:user`;
 export const SOCKET_USER_MUTE_PREFIX = `${SOCKET_USER_PREFIX}:mute`;

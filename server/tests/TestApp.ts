@@ -1,27 +1,74 @@
 import { createAdapter } from "@socket.io/redis-adapter";
-import express from "express";
+import express, { type Express } from "express";
 import session from "express-session";
-import { createServer } from "http";
+import { createServer, type Server as HTTPServer } from "http";
 import { Server as IOServer } from "socket.io";
 import { container } from "tsyringe";
-import { DataSource } from "typeorm";
+import { type DataSource } from "typeorm";
 
 import { ApiContext } from "shared/context/ApiContext";
-import { CronSchedulerService } from "application/services/cron/CronSchedulerService";
-import { MetricsService } from "application/services/metrics/MetricsService";
 import { Environment } from "shared/config/Environment";
 import { RedisConfig } from "shared/config/RedisConfig";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { Database } from "infrastructure/database/Database";
 import { LogPrefix } from "shared/logging/LogPrefix";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { RedisPubSubService } from "application/services/redis/RedisPubSubService";
 import { ServeApi } from "../src/ServeApi";
 import { TestRestApiController } from "tests/TestRestApiController";
 import { setTestEnvDefaults } from "tests/utils/utils";
 
-export async function bootstrapTestApp(testDataSource: DataSource) {
-  const logger = await PinoLogger.init({ pretty: true });
+interface BootstrapTestAppOptions {
+  apiPort?: number;
+  startupRecoveryEnabled?: boolean;
+  /**
+   * Caller-owned logger. ServerTestHarness passes one logger shared with
+   * TestEnvironment, while legacy callers get a bootstrap-owned logger.
+   */
+  logger?: PinoLogger;
+}
+
+interface TestAppBootstrapResult {
+  app: Express;
+  httpServer: HTTPServer;
+  io: IOServer;
+  api: ServeApi;
+  serverUrl: string;
+  database: Database;
+  dataSource: DataSource;
+  cleanup: () => Promise<void>;
+}
+
+export async function bootstrapTestApp(
+  testDataSource: DataSource,
+  options: BootstrapTestAppOptions = {}
+): Promise<TestAppBootstrapResult> {
+  const testApp = await createTestAppRuntime(testDataSource, options);
+
+  try {
+    await testApp.api.init();
+  } catch (error) {
+    try {
+      await testApp.cleanup();
+    } catch (cleanupError) {
+      throw combineErrors("Test app startup failed", [
+        toCleanupError("Startup", error),
+        toCleanupError("Startup cleanup", cleanupError)
+      ]);
+    }
+    throw error;
+  }
+
+  testApp.logger.info("Test app initialized", { prefix: LogPrefix.TEST });
+
+  return testApp;
+}
+
+export async function createTestAppRuntime(
+  testDataSource: DataSource,
+  options: BootstrapTestAppOptions = {}
+): Promise<TestAppBootstrapResult & { logger: PinoLogger }> {
+  const logger = options.logger ?? (await PinoLogger.init({ pretty: true }));
+  const ownsLogger = options.logger === undefined;
   const prefix = LogPrefix.TEST;
 
   logger.info("Setting up test application...", { prefix });
@@ -30,7 +77,10 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
   const app = express();
 
   logger.info("Setting up test environment...", { prefix });
-  setTestEnvDefaults();
+  setTestEnvDefaults({
+    apiPort: options.apiPort,
+    startupRecoveryEnabled: options.startupRecoveryEnabled
+  });
 
   // Connect to Redis
   logger.info("Connecting to Redis...", { prefix });
@@ -74,6 +124,7 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
     env: Environment.getInstance(logger, { overwrite: true }),
     io,
     app,
+    httpServer,
     logger
   });
 
@@ -81,85 +132,91 @@ export async function bootstrapTestApp(testDataSource: DataSource) {
 
   logger.info("Initializing API server...", { prefix });
   const api = new ServeApi(context);
-  await api.init();
+  let cleanupPromise: Promise<void> | undefined;
 
-  // Provide a cleanup function for Socket.IO and HTTP server
-  // Close app-level resources and reset shared clients to keep suites isolated.
-  async function cleanup() {
-    // Stop cron scheduler to allow tests to exit cleanly
-    const cronScheduler = container.resolve(CronSchedulerService);
-    logger.info("Stopping cron scheduler...", { prefix });
-    await cronScheduler.stopAll();
-
-    // Unsubscribe from Redis keyspace notifications to prevent duplicate
-    // timer expirations across test suites
-    const pubSub = container.resolve(RedisPubSubService);
-    logger.info("Unsubscribing from Redis keyspace notifications...", {
-      prefix
-    });
-    await pubSub.unsubscribe();
-
-    if (container.isRegistered(MetricsService, true)) {
-      const metricsService = container.resolve(MetricsService);
-      logger.info("Stopping metrics service...", { prefix });
-      await metricsService.stop();
+  function cleanup(): Promise<void> {
+    if (!cleanupPromise) {
+      cleanupPromise = cleanupInternal();
     }
 
-    // api.server is the HTTP server created by app.listen() inside ServeApi.init()
-    // (httpServer above was never .listen()'d, so it is not the one bound to port).
-    // Force-close lingering keep-alive connections so the port is released
-    // immediately; then close Socket.IO using the callback form — io.close()
-    // returns 'this', not a Promise, so without a callback await resolves
-    // instantly and the port stays bound for the next test suite.
-    if (api.server && api.server.listening) {
-      api.server.closeAllConnections();
-    }
-
-    await new Promise<void>((resolve) => {
-      if (api.server === undefined) {
-        resolve();
-        return;
-      }
-
-      io.close(() => {
-        logger.info("Socket.IO server closed", { prefix });
-        resolve();
-      }).catch((err) => {
-        logger.info(`Socket.IO server closed with error, ${err}`, { prefix });
-        resolve();
-      });
-    });
-
-    if (api.server && api.server.listening) {
-      await new Promise<void>((resolve, reject) => {
-        api.server.close((err) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-
-          logger.info("HTTP server closed", { prefix });
-          resolve();
-        });
-      });
-    }
-
-    // Allow adapter/socket close callbacks to flush before Redis shutdown.
-    await new Promise((resolve) => setTimeout(resolve, TEST_TIMEOUTS.TEST_CLEANUP_DRAIN_MS));
-
-    try {
-      await RedisConfig.disconnect();
-    } catch (error) {
-      logger.warn("Redis disconnect during test cleanup failed", {
-        prefix,
-        error: error instanceof Error ? error.message : String(error)
-      });
-    }
-
-    container.clearInstances();
-    await logger.close();
+    return cleanupPromise;
   }
 
-  logger.info("Test app initialized", { prefix });
-  return { app, httpServer, dataSource: testDataSource, cleanup };
+  async function cleanupInternal(): Promise<void> {
+    const errors: Error[] = [];
+
+    const runCleanupStep = async (
+      label: string,
+      action: () => Promise<void>
+    ): Promise<void> => {
+      try {
+        await action();
+      } catch (error) {
+        const cleanupError = toCleanupError(label, error);
+        logger.error(cleanupError.message, {
+          prefix,
+          error: cleanupError.message
+        });
+        errors.push(cleanupError);
+      }
+    };
+
+    await runCleanupStep("ServeApi shutdown", async () => {
+      await api.shutdown();
+    });
+
+    await runCleanupStep("Redis disconnect", async () => {
+      await RedisConfig.disconnect();
+    });
+
+    await runCleanupStep("DI container cleanup", async () => {
+      container.clearInstances();
+    });
+
+    if (ownsLogger) {
+      await runCleanupStep("Logger close", async () => {
+        await logger.close();
+      });
+    }
+
+    throwIfCleanupFailed("Test app cleanup failed", errors);
+  }
+
+  return {
+    app,
+    httpServer,
+    io,
+    api,
+    get serverUrl(): string {
+      return api.serverUrl;
+    },
+    database: db,
+    dataSource: testDataSource,
+    cleanup,
+    logger
+  };
+}
+
+function toCleanupError(label: string, error: unknown): Error {
+  if (error instanceof Error) {
+    return new Error(`${label} failed: ${error.message}`, { cause: error });
+  }
+
+  return new Error(`${label} failed: ${String(error)}`);
+}
+
+function combineErrors(message: string, errors: Error[]): Error {
+  if (errors.length === 1) {
+    return errors[0];
+  }
+
+  return new AggregateError(errors, message);
+}
+
+function throwIfCleanupFailed(message: string, errors: Error[]): void {
+  if (errors.length === 0) {
+    return;
+  }
+
+  throw combineErrors(message, errors);
 }
