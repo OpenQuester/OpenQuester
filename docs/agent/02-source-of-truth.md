@@ -12,7 +12,7 @@ When sources disagree, use this order:
 4. Relevant ADR in `docs/architecture/adr/`.
 5. Deep implementation docs such as `server/docs/*`.
 6. `.github/instructions/*` compatibility reminders.
-7. Old comments, old PR descriptions, or stale snippets.
+7. Old comments, old task notes, or stale snippets.
 
 Do not silently choose the convenient source. If the difference matters, update the stale doc or call it out.
 
@@ -32,19 +32,22 @@ Do not silently choose the convenient source. If the difference matters, update 
 | SIQ import compatibility | `docs/specs/siq-compatibility-matrix.md` |
 | Package publish readiness | `docs/specs/package-validation-spec.md` |
 | Socket action workflow | `.agents/skills/backend-socket-action/SKILL.md` |
+| HTTP API workflow | `.agents/skills/backend-http-api/SKILL.md` |
+| Backend rule workflow | `.agents/skills/backend-rules/SKILL.md` |
 | Frontend game UI workflow | `.agents/skills/frontend-game-ui-state/SKILL.md` |
 | Package editor workflow | `.agents/skills/package-editor-change/SKILL.md` |
+| Documentation upkeep | `.agents/skills/docs-upkeep/SKILL.md` |
 
 ## What to do with stale docs
 
 If a doc points to a nonexistent file, old class, old flow, or old command:
 
 1. Verify current code.
-2. Update the doc in the same PR if it is in scope.
+2. Update the doc in the same task if it is in scope.
 3. Prefer a short pointer to the canonical doc over duplicating a long explanation.
-4. Mention the drift fix in the PR summary.
+4. Mention the drift fix in the handoff summary.
 
-If the stale doc is outside the task scope, leave a clear note in the PR summary so it can be fixed intentionally.
+If the stale doc is outside the task scope, leave a clear note in the handoff summary so it can be fixed intentionally.
 
 ## What not to do
 
