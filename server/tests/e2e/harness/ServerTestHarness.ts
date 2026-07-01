@@ -15,11 +15,11 @@ interface ServerTestHarnessOptions {
 
 type TestAppBootstrap = Awaited<ReturnType<typeof bootstrapTestApp>>;
 
-interface EnvSnapshot {
-  apiPort: string | undefined;
-  dbName: string | undefined;
-  redisDbNumber: string | undefined;
-  startupRecoveryEnabled: string | undefined;
+type EnvSnapshot = Readonly<Record<string, string | undefined>>;
+
+interface ErrorWithNestedErrors {
+  message?: unknown;
+  errors: unknown[];
 }
 
 interface ConnectedSocketDiagnostic {
@@ -41,9 +41,7 @@ export class ServerTestHarness {
     //
   }
 
-  public static async start(
-    options: ServerTestHarnessOptions = {}
-  ): Promise<ServerTestHarness> {
+  public static async start(options: ServerTestHarnessOptions = {}): Promise<ServerTestHarness> {
     const envSnapshot = captureEnv();
     const logger = await PinoLogger.init({ pretty: true });
     const testEnvironment = new TestEnvironment(logger);
@@ -178,7 +176,7 @@ export class ServerTestHarness {
         cleanup();
         reject(
           new Error(
-              `Timed out after ${timeoutMs}ms waiting for server Socket.IO disconnect ` +
+            `Timed out after ${timeoutMs}ms waiting for server Socket.IO disconnect ` +
               `(client="${client}", namespace="${namespaceName}", socketId="${socketId}", ` +
               `connected=${socket.connected}, serverUrl="${this.serverUrl}")`
           )
@@ -247,11 +245,43 @@ async function collectFailure(
 }
 
 function toLifecycleError(label: string, error: unknown): Error {
+  const message = `${label} failed: ${formatErrorMessage(error)}`;
+
   if (error instanceof Error) {
-    return new Error(`${label} failed: ${error.message}`, { cause: error });
+    return new Error(message, { cause: error });
   }
 
-  return new Error(`${label} failed: ${String(error)}`);
+  return new Error(message);
+}
+
+function formatErrorMessage(error: unknown): string {
+  if (hasNestedErrors(error)) {
+    const nestedMessages = error.errors.map(formatErrorMessage);
+    return [formatPrimaryErrorMessage(error), ...nestedMessages].filter(Boolean).join("; ");
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
+function hasNestedErrors(error: unknown): error is ErrorWithNestedErrors {
+  // Jest can surface AggregateError-shaped values across realms, where instanceof is unreliable.
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    Array.isArray((error as { errors?: unknown }).errors)
+  );
+}
+
+function formatPrimaryErrorMessage(error: { message?: unknown }): string {
+  if (typeof error.message === "string") {
+    return error.message;
+  }
+
+  return String(error);
 }
 
 function combineErrors(message: string, errors: Error[]): Error {
@@ -274,19 +304,21 @@ function throwIfFailed(message: string, errors: Error[]): void {
 }
 
 function captureEnv(): EnvSnapshot {
-  return {
-    apiPort: process.env.API_PORT,
-    dbName: process.env.DB_NAME,
-    redisDbNumber: process.env.REDIS_DB_NUMBER,
-    startupRecoveryEnabled: process.env.STARTUP_RECOVERY_ENABLED
-  };
+  return { ...process.env };
 }
 
 function restoreEnv(snapshot: EnvSnapshot): void {
-  restoreEnvValue("API_PORT", snapshot.apiPort);
-  restoreEnvValue("DB_NAME", snapshot.dbName);
-  restoreEnvValue("REDIS_DB_NUMBER", snapshot.redisDbNumber);
-  restoreEnvValue("STARTUP_RECOVERY_ENABLED", snapshot.startupRecoveryEnabled);
+  const snapshotKeys = new Set(Object.keys(snapshot));
+
+  for (const key of Object.keys(process.env)) {
+    if (!snapshotKeys.has(key)) {
+      delete process.env[key];
+    }
+  }
+
+  for (const [key, value] of Object.entries(snapshot)) {
+    restoreEnvValue(key, value);
+  }
 }
 
 function restoreEnvValue(key: string, value: string | undefined): void {
