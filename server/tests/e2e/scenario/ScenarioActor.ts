@@ -1,11 +1,14 @@
 import { type Socket } from "socket.io-client";
 
+import { type EventJournal } from "tests/e2e/scenario/EventJournal";
+
 export interface ScenarioActorOptions {
   readonly label: string;
   readonly socket: Socket;
   readonly namespace?: string;
   readonly userId?: number;
   readonly gameId?: string;
+  readonly journal?: EventJournal;
 }
 
 export interface EmitManyOptions<TPayload> {
@@ -27,6 +30,7 @@ export class ScenarioActor {
   public readonly namespace: string;
   public readonly userId: number | undefined;
   public readonly gameId: string | undefined;
+  private readonly journal: EventJournal | undefined;
 
   public constructor(options: ScenarioActorOptions) {
     this.label = options.label;
@@ -34,9 +38,13 @@ export class ScenarioActor {
     this.namespace = options.namespace ?? "unknown";
     this.userId = options.userId;
     this.gameId = options.gameId;
+    this.journal = options.journal;
   }
 
   public emit<TPayload = unknown>(event: string, payload?: TPayload): void {
+    const args = payload === undefined ? [] : [payload];
+    this.journal?.recordOutgoing(this, event, args);
+
     if (payload === undefined) {
       this.socket.emit(event);
       return;
