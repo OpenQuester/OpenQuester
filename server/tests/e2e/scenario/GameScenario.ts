@@ -1,4 +1,9 @@
-import { EventJournal, type EventExpectation, type EventRecord, type NoEventExpectation } from "tests/e2e/scenario/EventJournal";
+import {
+  EventJournal,
+  type EventExpectation,
+  type EventRecord,
+  type NoEventExpectation
+} from "tests/e2e/scenario/EventJournal";
 import { ScenarioActor, type ScenarioActorOptions } from "tests/e2e/scenario/ScenarioActor";
 
 /**
@@ -12,16 +17,10 @@ export class GameScenario {
 
   public constructor(private readonly journal: EventJournal = new EventJournal()) {}
 
-  public addActor(options: ScenarioActorOptions): ScenarioActor {
-    const actor = new ScenarioActor(options);
+  public addActor(options: Omit<ScenarioActorOptions, "journal">): ScenarioActor {
+    const actor = new ScenarioActor({ ...options, journal: this.journal });
     this.actors.set(actor.label, actor);
-    this.journal.attach({
-      label: actor.label,
-      socket: actor.socket,
-      namespace: actor.namespace,
-      userId: actor.userId,
-      gameId: actor.gameId
-    });
+    this.journal.attach(actor);
 
     return actor;
   }
