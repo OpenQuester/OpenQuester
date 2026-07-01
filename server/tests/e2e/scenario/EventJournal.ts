@@ -167,8 +167,9 @@ export class EventJournal {
     resolve: (record: EventRecord<TArgs>) => void,
     reject: (error: Error) => void
   ): PendingEventWait<TArgs> {
-    let wait: PendingEventWait<TArgs>;
+    let wait: PendingEventWait<TArgs> | undefined;
     const timeout = setTimeout(() => {
+      if (!wait) return;
       this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
       reject(new Error(this.formatEventTimeout(expectation)));
     }, expectation.timeoutMs);
@@ -182,8 +183,9 @@ export class EventJournal {
     resolve: () => void,
     reject: (error: Error) => void
   ): PendingNoEventWait<TArgs> {
-    let wait: PendingNoEventWait<TArgs>;
+    let wait: PendingNoEventWait<TArgs> | undefined;
     const timeout = setTimeout(() => {
+      if (!wait) return;
       this.noEventWaits.delete(wait as PendingNoEventWait<readonly unknown[]>);
       resolve();
     }, expectation.durationMs);
