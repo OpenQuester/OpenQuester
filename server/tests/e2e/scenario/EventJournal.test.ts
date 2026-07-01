@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
 import { EventEmitter } from "events";
+import { type Socket } from "socket.io-client";
 
 import { EventJournal } from "tests/e2e/scenario/EventJournal";
 import { ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
@@ -31,11 +32,14 @@ class FakeSocket extends EventEmitter {
 
 let journal: EventJournal;
 
+const asClientSocket = (socket: FakeSocket): Socket => socket as unknown as Socket;
+const asFakeSocket = (actor: ScenarioActor): FakeSocket => actor.socket as unknown as FakeSocket;
+
 const createActor = (label: string): ScenarioActor => {
   const socket = new FakeSocket(`${label}-socket`);
   const actor = new ScenarioActor({
     label,
-    socket: socket as never,
+    socket: asClientSocket(socket),
     namespace: "/game",
     userId: label === "p1" ? 101 : 102,
     gameId: "game-1",
@@ -44,8 +48,6 @@ const createActor = (label: string): ScenarioActor => {
   journal.attach(actor);
   return actor;
 };
-
-const fakeSocketOf = (actor: ScenarioActor): FakeSocket => actor.socket as never;
 
 describe("EventJournal", () => {
   beforeEach(() => {
@@ -62,7 +64,7 @@ describe("EventJournal", () => {
     const actor = createActor("p1");
     const mark = journal.mark();
 
-    fakeSocketOf(actor).emitInbound("media-download-status", {
+    asFakeSocket(actor).emitInbound("media-download-status", {
       playerId: 101,
       allPlayersReady: false
     });
@@ -112,7 +114,7 @@ describe("EventJournal", () => {
     const actor = createActor("p1");
     const mark = journal.mark();
 
-    fakeSocketOf(actor).emitInbound("unexpected", { value: true });
+    asFakeSocket(actor).emitInbound("unexpected", { value: true });
 
     await expect(
       journal.expectNoEvent({
