@@ -1,5 +1,7 @@
 import { type Socket } from "socket.io-client";
 
+export type EventDirection = "inbound" | "outbound";
+
 export interface JournalActor {
   readonly label: string;
   readonly socket: Socket;
@@ -10,6 +12,7 @@ export interface JournalActor {
 
 export interface EventRecord<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly sequence: number;
+  readonly direction: EventDirection;
   readonly event: string;
   readonly args: TArgs;
   readonly actorLabel: string;
@@ -26,6 +29,7 @@ export type EventPredicate<TArgs extends readonly unknown[] = readonly unknown[]
 
 export interface EventExpectation<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly actor?: JournalActor;
+  readonly direction?: EventDirection;
   readonly event: string;
   readonly timeoutMs: number;
   readonly afterSequence?: number;
@@ -35,6 +39,7 @@ export interface EventExpectation<TArgs extends readonly unknown[] = readonly un
 
 export interface NoEventExpectation<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly actor?: JournalActor;
+  readonly direction?: EventDirection;
   readonly event: string;
   readonly durationMs: number;
   readonly afterSequence?: number;
@@ -63,12 +68,7 @@ interface PendingNoEventWait<TArgs extends readonly unknown[]> {
   readonly timeout: NodeJS.Timeout;
 }
 
-/**
- * Records every Socket.IO event seen by attached test clients.
- *
- * Tests can emit many commands first and assert the resulting event history
- * afterwards without losing events that arrived before a wait was created.
- */
+/** Records inbound broadcasts and outbound client commands for scenario tests. */
 export class EventJournal {
   private readonly attachments = new Map<string, JournalAttachment>();
   private readonly records: EventRecord[] = [];
@@ -80,7 +80,7 @@ export class EventJournal {
     this.detach(actor.label);
 
     const handler: OnAnyHandler = (event: string, ...args: unknown[]) => {
-      this.record(actor, event, args);
+      this.record(actor, "inbound", event, args);
     };
 
     actor.socket.onAny(handler);
@@ -113,6 +113,10 @@ export class EventJournal {
     return this.records.filter((record) => record.actorLabel === actor.label);
   }
 
+  public recordOutgoing(actor: JournalActor, event: string, args: readonly unknown[]): void {
+    this.record(actor, "outbound", event, args);
+  }
+
   public async expectEvent<TArgs extends readonly unknown[] = readonly unknown[]>(
     expectation: EventExpectation<TArgs>
   ): Promise<EventRecord<TArgs>> {
@@ -136,6 +140,7 @@ export class EventJournal {
   ): Promise<void> {
     const existing = await this.findMatchingRecord({
       actor: expectation.actor,
+      direction: expectation.direction,
       event: expectation.event,
       timeoutMs: expectation.durationMs,
       afterSequence: expectation.afterSequence,
@@ -157,9 +162,15 @@ export class EventJournal {
     });
   }
 
-  private record(actor: JournalActor, event: string, args: readonly unknown[]): void {
+  private record(
+    actor: JournalActor,
+    direction: EventDirection,
+    event: string,
+    args: readonly unknown[]
+  ): void {
     const record: EventRecord = {
       sequence: this.nextSequence,
+      direction,
       event,
       args,
       actorLabel: actor.label,
@@ -236,6 +247,7 @@ export class EventJournal {
     expectation: EventExpectation<TArgs> | NoEventExpectation<TArgs>
   ): Promise<boolean> {
     if (record.event !== expectation.event) return false;
+    if (expectation.direction && record.direction !== expectation.direction) return false;
     if (expectation.actor && record.actorLabel !== expectation.actor.label) return false;
     if (expectation.afterSequence !== undefined && record.sequence <= expectation.afterSequence) {
       return false;
@@ -270,6 +282,7 @@ export class EventJournal {
     return JSON.stringify({
       description: expectation.description,
       actor: expectation.actor?.label,
+      direction: expectation.direction,
       afterSequence: expectation.afterSequence,
       recordedEvents: this.records.length
     });
@@ -278,6 +291,7 @@ export class EventJournal {
   private formatRecord(record: EventRecord): string {
     return JSON.stringify({
       sequence: record.sequence,
+      direction: record.direction,
       event: record.event,
       actorLabel: record.actorLabel,
       namespace: record.namespace,
