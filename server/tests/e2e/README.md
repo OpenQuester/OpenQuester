@@ -10,5 +10,17 @@
 - Do not copy lifecycle setup or teardown code into individual suites.
 - Do not add production hot-path instrumentation solely to support tests.
 - Use port `0` for new isolated lifecycle tests unless a fixed-port failure path is under test.
-- The event journal/scenario DSL belongs to a later phase.
-- Do not migrate existing game tests in this phase.
+
+## Scenario and journal rules
+
+- Use `GameScenario`, `ScenarioActor`, and `EventJournal` for new client-perspective game-flow tests.
+- Attach every relevant actor socket to the journal before emitting commands.
+- Prefer actor methods over raw `socket.emit` in scenario tests.
+- Use `journal.mark()` before a burst of commands when assertions should only inspect new events.
+- Predicate event expectations by actor/payload when the event can be broadcast more than once.
+- Negative assertions must use bounded no-event waits and should explain the expected quiescence window.
+- Scenario tests may emit bursts, such as duplicate or concurrent media-download commands, and assert the resulting journal history afterwards.
+
+## Migration rule
+
+Do not migrate the whole socket test suite at once. Use the scenario/journal layer first for the Media Download proof-of-concept, then migrate other critical flows once the pattern is stable.
