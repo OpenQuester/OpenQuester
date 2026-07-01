@@ -22,28 +22,32 @@ class FakeSocket extends EventEmitter {
     this.anyHandlers.delete(handler);
   }
 
-  public emit(event: string, ...args: unknown[]): boolean {
-    const emitted = super.emit(event, ...args);
+  public emitInbound(event: string, ...args: unknown[]): void {
     for (const handler of this.anyHandlers) {
       handler(event, ...args);
     }
-
-    return emitted;
   }
 }
 
-const createActor = (label: string): ScenarioActor =>
-  new ScenarioActor({
+let journal: EventJournal;
+
+const createActor = (label: string): ScenarioActor => {
+  const socket = new FakeSocket(`${label}-socket`);
+  const actor = new ScenarioActor({
     label,
-    socket: new FakeSocket(`${label}-socket`) as never,
+    socket: socket as never,
     namespace: "/game",
     userId: label === "p1" ? 101 : 102,
-    gameId: "game-1"
+    gameId: "game-1",
+    journal
   });
+  journal.attach(actor);
+  return actor;
+};
+
+const fakeSocketOf = (actor: ScenarioActor): FakeSocket => actor.socket as never;
 
 describe("EventJournal", () => {
-  let journal: EventJournal;
-
   beforeEach(() => {
     jest.useFakeTimers();
     journal = new EventJournal();
@@ -54,15 +58,18 @@ describe("EventJournal", () => {
     jest.useRealTimers();
   });
 
-  it("records events emitted before assertions are awaited", async () => {
+  it("records inbound events emitted before assertions are awaited", async () => {
     const actor = createActor("p1");
-    journal.attach(actor);
     const mark = journal.mark();
 
-    actor.emit("media-download-status", { playerId: 101, allPlayersReady: false });
+    fakeSocketOf(actor).emitInbound("media-download-status", {
+      playerId: 101,
+      allPlayersReady: false
+    });
 
     const record = await journal.expectEvent({
       actor,
+      direction: "inbound",
       event: "media-download-status",
       timeoutMs: 100,
       afterSequence: mark,
@@ -71,13 +78,13 @@ describe("EventJournal", () => {
     });
 
     expect(record.actorLabel).toBe("p1");
+    expect(record.direction).toBe("inbound");
     expect(record.socketId).toBe("p1-socket");
     expect(record.userId).toBe(101);
   });
 
-  it("supports burst emits without awaiting every emitted command", async () => {
+  it("records burst outbound emits without awaiting every emitted command", () => {
     const actor = createActor("p1");
-    journal.attach(actor);
     const mark = journal.mark();
 
     actor.emitMany({
@@ -88,7 +95,12 @@ describe("EventJournal", () => {
 
     const eventsAfterMark = journal
       .snapshot()
-      .filter((record) => record.event === "media-downloaded" && record.sequence > mark);
+      .filter(
+        (record) =>
+          record.direction === "outbound" &&
+          record.event === "media-downloaded" &&
+          record.sequence > mark
+      );
 
     expect(eventsAfterMark).toHaveLength(15);
     expect(eventsAfterMark.map((record) => (record.args[0] as { index: number }).index)).toEqual(
@@ -98,14 +110,14 @@ describe("EventJournal", () => {
 
   it("fails no-event expectations when a matching event was already recorded", async () => {
     const actor = createActor("p1");
-    journal.attach(actor);
     const mark = journal.mark();
 
-    actor.emit("unexpected", { value: true });
+    fakeSocketOf(actor).emitInbound("unexpected", { value: true });
 
     await expect(
       journal.expectNoEvent({
         actor,
+        direction: "inbound",
         event: "unexpected",
         durationMs: 100,
         afterSequence: mark
@@ -115,10 +127,10 @@ describe("EventJournal", () => {
 
   it("times out with expectation context when an event is missing", async () => {
     const actor = createActor("p1");
-    journal.attach(actor);
 
     const wait = journal.expectEvent({
       actor,
+      direction: "inbound",
       event: "missing",
       timeoutMs: 100,
       description: "missing event test"
