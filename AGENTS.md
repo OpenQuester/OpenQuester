@@ -1,202 +1,107 @@
-# AGENTS.md — OpenQuester
+# AGENTS.md — OpenQuester agent router
 
-## Project Overview
+This file is the first stop for Codex/Copilot-style agents. Keep it short. It routes agents to the right source-of-truth documents instead of trying to describe the whole repository.
 
-OpenQuester is a multiplayer quiz game. Independent sub-projects (no workspaces):
-- `server/` — TypeScript/Node.js backend (Express, Socket.IO, PostgreSQL, Redis)
-- `client/` — Flutter/Dart frontend
-- `loadtest/` — TypeScript load testing tool (imports server domain types via path aliases)
-- `openapi/` — OpenAPI schema (`schema.json`) + generated Dart SDK
-- `websites/` — Hugo docs and landing page
+## Project shape
 
-Node version: 20.12 (`server/.node-version`). Build target: Node 18 (tsup).
+OpenQuester is a multiplayer quiz platform inspired by SIGame, with a strong focus on clear realtime game state, package/editor workflows, and stable multiplayer infrastructure.
 
-## Build / Lint / Test Commands
+Top-level areas:
 
-### Server (run from `server/`)
+- `server/` — TypeScript/Node.js backend: Express, Socket.IO, PostgreSQL, Redis, TypeORM, tsyringe.
+- `client/` — Flutter/Dart app and local packages managed through Melos.
+- `openapi/` — OpenAPI schema and Socket.IO contract metadata. Generated Dart code lives in `client/packages/openapi/`.
+- `websites/` — Hugo docs/landing pages.
+- `docs/` — product, architecture, agent workflows, and implementation specs.
+- `.agents/skills/` — repeatable Codex skills for high-risk workflows.
+
+## Read order for agents
+
+1. Read this file.
+2. Read the nearest scoped `AGENTS.md` for the files you will touch:
+   - `server/AGENTS.md`
+   - `client/AGENTS.md`
+   - `openapi/AGENTS.md`
+3. Read the relevant workflow or spec:
+   - `docs/agent/01-repo-map.md`
+   - `docs/agent/02-source-of-truth.md`
+   - `docs/agent/03-verification-matrix.md`
+   - `docs/agent/04-docs-drift-policy.md`
+   - `docs/agent/05-decision-navigation.md` for broad design/architecture/product/test strategy work
+   - `docs/specs/game-state-matrix.md`
+   - `docs/specs/buzzer-state-machine.md`
+   - `docs/specs/siq-compatibility-matrix.md`
+   - `docs/specs/package-validation-spec.md`
+4. If the task matches a repeatable workflow, use the relevant skill in `.agents/skills/`.
+
+## Product rule
+
+OpenQuester should not merely copy SIGame. It should make the game easier to understand, faster to start, safer to host, and better for package creators.
+
+The core product rule is:
+
+> Every player, showman, and spectator should understand what is happening, what they can do now, why an action is unavailable, and why a result happened.
+
+For gameplay changes, do not treat UI text, disabled states, timers, role-specific CTAs, and feedback as polish. They are part of the feature.
+
+## Source of truth
+
+- Product direction: `docs/product/00-north-star.md` and `docs/product/01-release-plan.md`.
+- Backend architecture: `server/AGENTS.md` and `docs/architecture/adr/`.
+- Frontend architecture and UI patterns: `client/AGENTS.md`.
+- API schema and contract metadata: `openapi/AGENTS.md` and `openapi/schema.json`.
+- Generated Dart API package: `client/packages/openapi/`.
+- Game state/product behavior: `docs/specs/game-state-matrix.md` and feature-specific specs.
+- Existing deep implementation references: `server/docs/`.
+
+If implementation and docs disagree, do not guess. Inspect the current code, fix the stale documentation in the same change when it is in scope, and call out the drift in the handoff summary.
+
+## Documentation upkeep
+
+Docs and skills are part of the work. If a change affects architecture, workflows, commands, public contracts, game behavior, generated-code flow, validation strategy, or product decisions, update the related docs/specs/skills in the same task when practical.
+
+Agents may add, collapse, or remove docs when it clearly improves source-of-truth quality. Prefer updating an existing spec/skill over creating a new file for every small feature.
+
+## Hard boundaries
+
+- Do not bypass `GameActionExecutor` for game-changing socket actions.
+- Do not mutate game state directly from presentation/controller code.
+- Do not emit Socket.IO directly from application use cases; return declared mutations or use the realtime port.
+- Do not manually edit generated Dart OpenAPI files unless a scoped doc explicitly says the file is temporarily manual.
+- Do not introduce architecture-wide refactors while doing a feature task unless explicitly requested.
+- Do not bring back legacy backend patterns such as `BaseSocketEventHandler`, `application/Container.ts`, or `domain/orchestrators/GameOrchestrator.ts` unless those files are reintroduced intentionally in the same change.
+
+## Verification quick map
+
+Use `docs/agent/03-verification-matrix.md` for the full matrix.
+
+Common checks:
 
 ```bash
-npm run start:dev          # Dev server (build + watch + nodemon)
-npm run build              # Production build (clean + tsc --noEmit + tsup)
-npm run lint               # ESLint 9 flat config
-npm test                   # All tests (Jest, serial, requires PostgreSQL + Redis)
-npx jest tests/game/someTest.test.ts   # Single test file
-npx jest -t "should create game"       # Tests matching name pattern
-npm run test:pipeline      # CI mode (stdout suppressed)
-npm run validate:schema    # Validate OpenAPI schema
+# run from server/
+npm run validate:schema
+npm run lint
+npm run build
+npm test
+
+# run from client/
+melos run pre_build
+melos run analyze
+melos run test
+melos run format
 ```
 
-### Loadtest (run from `loadtest/`)
+Only run the checks relevant to the changed area when local infrastructure or time makes full validation impractical. Always report what was and was not run.
 
-```bash
-npm run build              # clean + tsc --noEmit + tsup
-npm run dev                # ts-node with tsconfig-paths (runs src/index.ts)
-npm start                  # node dist/index.js (after build)
-```
+## Commit policy
 
-### Client (run from `client/`)
+Do not create commits unless the user explicitly asks for commits or asks you to work in a branch where commits are expected.
 
-```bash
-flutter pub get            # Install dependencies
-dart run build_runner build --delete-conflicting-outputs  # Code generation
-flutter analyze            # Lint (very_good_analysis)
-flutter test               # Run tests
-dart format .              # Format code
-./oqhelper gen_locale      # Regenerate localization keys
-```
+When commits are requested, use short one-line commit messages that describe the result, for example:
 
-### Dev Infrastructure (from `server/`)
+- `docs: add backend HTTP skill`
+- `fix: preserve buzzer disabled reason`
+- `refactor: move package validation rules`
+- `test: cover final round reconnect`
 
-```bash
-docker compose up -d       # PostgreSQL 16, Redis, MinIO, pgAdmin, Prometheus, Grafana
-```
-
-CI requires: PostgreSQL 15, Redis 7. Env vars: `NODE_ENV=test`, `SESSION_SECRET=test_secret`, `REDIS_URL=redis://localhost:6379/12`, `DB_HOST/PORT/USERNAME/PASSWORD/DATABASE`.
-
-## Server Architecture
-
-Layered clean architecture with explicit boundary rules:
-
-```
-bootstrap/  --> wires all layers and external runtime objects
-presentation/ → application/ → domain/
-                 application → infrastructure/  (current pragmatic repository/adaptor usage)
-shared/      --> dependency-neutral config, DI tokens, logging contracts, context types
-```
-
-- **`domain/`** — Pure logic, entities, enums, DTOs, errors, validators, state machine. No application/infrastructure/presentation imports and no external I/O.
-- **`application/`** — Use cases, orchestration services, action executors, workers, jobs, factories, and app-owned ports. No presentation imports. No Socket.IO/Express transport imports; realtime output goes through `RealtimeGateway`.
-- **`infrastructure/`** — TypeORM/PostgreSQL, Redis implementations, S3/MinIO, pino logger implementation, migrations, storage/database adapters.
-- **`presentation/`** — REST controllers, Socket.IO setup/dispatching, realtime adapters, Express middleware, Joi schemes. Must not import infrastructure directly.
-- **`shared/`** — Cross-cutting contracts/types with no layer-specific dependencies: DI tokens, config, logging contracts, Express/Socket.IO type augmentation, API/request context types.
-- **`bootstrap/`** — Composition root. It can import all layers to register DI dependencies and connect runtime objects.
-
-**Path aliases** (`tsconfig.json` + `jest.config.ts`): `domain/*`, `application/*`, `infrastructure/*`, `presentation/*`, `shared/*`, `bootstrap/*`, `tests/*`
-
-### Boundary Rules
-
-- Domain never imports application, infrastructure, or presentation.
-- Infrastructure never imports application or presentation.
-- Presentation never imports infrastructure; delegate work to application services/use cases.
-- Application never imports presentation and must not import Socket.IO/Express transport APIs.
-- Application may currently call infrastructure repositories/adapters directly where existing code does so. Do not introduce repository interfaces just for ceremony; add app-owned ports only for clear boundary benefits.
-- Realtime output from application goes through `application/ports/realtime/RealtimeGateway`. Socket.IO-specific delivery is implemented in `presentation/realtime/SocketIORealtimeGateway.ts`.
-- Do not put TypeORM entities or transport objects on Express request objects. Use `req.auth` (`RequestAuthContext`) for request identity only.
-
-### Socket Actions — presentation receives Socket.IO events through `SocketIOInitializer`/`SocketActionDispatcher`, maps them to `GameAction`, and submits them to `GameActionExecutor`. Game action use cases return mutations/events; application publishes realtime effects through `RealtimeGateway`, not direct Socket.IO calls.
-
-### Action Queue — `GameActionExecutor` + Redis lock per game prevents concurrent state corruption. Game state stored in Redis as serialized `GameStateDTO`.
-
-### Multi-instance production invariants
-
-Production may run multiple independent server instances behind a load balancer. Do not assume sticky sessions: HTTP auth, Socket.IO events, timers, and queued action processing may land on different instances.
-
-- Process-local state may own local lifecycle, local sockets, logger streams, metrics buffers, immutable config, and test-only harness state, but it must not be the source of truth for game correctness.
-- Shared game correctness must stay in PostgreSQL, Redis game/session/timer state, Redis action queues and locks, and Socket.IO Redis-adapter operations.
-- Never replace Redis-backed action ordering, locks, timers, socket/session metadata, or cron ownership with a local `Map`, `Set`, array, promise chain, EventEmitter, or mutex.
-- `namespace.sockets` is local to one process. Use adapter-aware operations (`to(room).emit`, `in(room).fetchSockets`, `in(socketId).socketsJoin`, `in(socketId).socketsLeave`, `in(socketId).disconnectSockets`, `serverSideEmit`) for cluster-wide behavior.
-- Tests may use in-memory journals, actors, and harness state under `server/tests`; production code must not depend on those helpers or test-only tracking.
-- A local cache is acceptable only when Redis/PostgreSQL remains authoritative or the cache can be safely reconstructed without changing behavior.
-- When ownership is unclear, document whether the state is local or distributed before implementing it.
-
-Before changing server lifecycle, Socket.IO, game action, timer, or cron behavior, apply the multi-instance rules in this section.
-
-### DI — tsyringe: `@singleton()` for concrete classes; `@inject(DI_TOKENS.X)` with `Symbol.for()` tokens for interfaces/ports (see `shared/di/tokens.ts`, registrations in `bootstrap/bootstrapContainer.ts`).
-
-### REST Controllers — class-based with Express `Router`. Wrap handlers with `asyncHandler`. Validate with `RequestDataValidator` + Joi schemes (`presentation/schemes/`). Use `HttpStatus` enum.
-
-## Code Style
-
-### Imports
-- Path aliases, not relative paths: `import { Game } from "domain/entities/game/Game"`
-- `type` keyword for type-only imports: `import { type NextFunction } from "express"`
-- Order: external packages → internal aliases grouped by layer (`shared`/`domain` → `application` → `infrastructure` → `presentation`/`bootstrap`, matching nearby code)
-- Named imports only. **No default exports. No re-exports. No `index.ts` barrel files.**
-
-### Naming Conventions
-- **Files & Classes:** `PascalCase` — filename matches the exported class/interface/enum
-- **Variables & functions:** `camelCase` | **Constants:** `UPPER_SNAKE_CASE`
-- **Enums:** `PascalCase` name, `UPPER_SNAKE_CASE` or `"kebab-case"` values
-- **DB columns:** `snake_case` (TypeORM `SnakeNamingStrategy`)
-- **Suffixes:** `*Service`, `*Repository`, `*EventHandler` | **Unused params:** `_` prefix
-
-### Type Safety
-- **Never use `any`** — use `unknown` or `Record<string, T>`
-- Explicit return types on all public methods
-- `satisfies` on untyped objects for type checking without widening
-- `interface` for DTOs/contracts; `type` for unions/aliases
-- DTOs live in `domain/types/dto/`, always interfaces, use mappers to convert
-
-### Error Handling
-- `BaseError` → `ClientError` (400, user-facing, translated) / `ServerError` (500, internal)
-- Throw in services/repositories → `asyncHandler` → `errorMiddleware` → `ErrorController.resolveError`
-- Client errors not logged (expected); server errors logged
-- Supply `textArgs` for translated string interpolation in client errors
-
-### Logging
-- `ILogger` abstraction (pino): `logger.info("msg", { prefix: LogPrefix.GAME })`
-- Performance: `const perf = logger.performance("op", { prefix }); ... perf.finish();`
-- JSDoc `/** */` on classes and public methods; `//` for inline notes
-
-### Database
-- TypeORM with manual migrations in `infrastructure/database/migrations/`
-- `SnakeNamingStrategy` for columns. Repositories as `@singleton()` wrapping TypeORM repos.
-- Redis: namespaced keys (e.g. `game:{gameId}`), keyspace notifications + handlers
-
-### Testing
-- Jest with `ts-jest`, serial (`maxWorkers: 1`). Setup: `tests/setup.ts`. Bootstrap: `tests/TestApp.ts`
-- Timer testing: **always** use `TestUtils.expireTimer()` — **never `setTimeout`**
-- **Never increase test timeouts** — missing events indicate broken code
-- Tests require running PostgreSQL and Redis instances
-
-## ESLint Rules (Key)
-
-- `@typescript-eslint/no-floating-promises: error` — must await or void promises
-- `node/no-sync: error` — no synchronous I/O
-- `@typescript-eslint/no-unused-vars: error` — prefix unused with `_`
-- `no-implicit-globals: error` | `promise/no-callback-in-promise: warn`
-- Boundary rules restrict domain/infrastructure/presentation imports. Application transport/adaptor import ratchets may fail while staged cleanup is in progress; do not bypass them with type-only imports or eslint disables.
-
-## Client (Flutter/Dart)
-
-- Architecture: `core/` (DI, routing, theme) → `features/` (controller/data/view/utils) → `data/` → `ui/` → `connection/`
-- Files: `snake_case` | Classes: `PascalCase` | Private: `_prefix` | Use `common_imports.dart`
-- DI: `get_it` + `@singleton` + `createOnce` | State: `ValueNotifier`, `StreamController`
-- Widgets: `StatefulWidget` or `WatchingWidget` (reactive via `watchValue`/`watchIt`)
-- Localization: `easy_localization` — edit JSON in `assets/localization/` → `./oqhelper gen_locale` → `LocaleKeys.*`
-- Navigation: Auto Route (`@RoutePage()`, `.push(context)`)
-- Lint: `very_good_analysis`. Max 300-400 lines/file. Fix linting before commit.
-
-## Commit Conventions
-
-- Conventional commits: `feat:`, `fix:`, `refactor:`, etc.
-- MVP-first: minimal diff, zero side effects
-- No formatting-only changes, no unrelated edits, no unnecessary refactors
-- Architecture changes only when explicitly requested
-
-## Key Files
-
-| Purpose | Path |
-|---|---|
-| DI tokens | `server/src/shared/di/tokens.ts` |
-| DI bootstrap | `server/src/bootstrap/bootstrapContainer.ts` |
-| Server entry | `server/src/index.ts` |
-| API server composition | `server/src/ServeApi.ts` |
-| Realtime gateway port | `server/src/application/ports/realtime/RealtimeGateway.ts` |
-| Socket.IO realtime adapter | `server/src/presentation/realtime/SocketIORealtimeGateway.ts` |
-| Socket.IO dispatcher | `server/src/presentation/controllers/io/SocketActionDispatcher.ts` |
-| Test bootstrap | `server/tests/TestApp.ts` |
-| Error hierarchy | `server/src/domain/errors/{BaseError,ClientError,ServerError,ErrorController}.ts` |
-| ESLint config | `server/eslint.config.mjs` |
-| Docker Compose | `server/compose.yml` |
-| Copilot instructions | `.github/copilot-instructions.md` |
-| Backend instructions | `.github/instructions/backend.instructions.md` |
-| Frontend instructions | `.github/instructions/frontend-core.instructions.md` |
-| Frontend patterns | `.github/instructions/frontend-patterns.instructions.md` |
-
-## Important Docs
-
-- `server/docs/final-round-flow.md` — Theme elimination → bidding → answering → reviewing
-- `server/docs/game-action-executor.md` — Race condition prevention via Redis locks
-- `server/docs/media-download-sync.md` — Cross-client media synchronization
-- `server/docs/logging-guidelines.md` — Structured logging conventions
+Avoid vague messages such as `update`, `changes`, or `fix stuff`.
