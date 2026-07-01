@@ -27,6 +27,10 @@ Use this skill when changing Flutter gameplay screens, game lobby/question/final
 5. `server/docs/final-round-flow.md` if final round related
 6. `server/docs/media-download-sync.md` if media readiness related
 
+## Context7 requirement
+
+Before frontend code changes, use Context7 for current Flutter/Dart docs and for docs of every touched third-party package. If Context7 is unavailable, state that and follow existing project code patterns instead of inventing APIs from memory.
+
 ## Files to inspect
 
 Likely app areas:
@@ -131,10 +135,11 @@ melos run test
 
 Manual scenario notes are valuable for gameplay UI. Include role/phase tested.
 
-## PR summary checklist
+## Handoff checklist
 
 Include:
 
+- Context7 docs fetched or why unavailable
 - phases/roles affected
 - primary CTA and disabled reason changes
 - localization/generation impact
