@@ -6,16 +6,35 @@ import { SOCKET_ROOT_NAMESPACE } from "domain/constants/socket";
 import { Environment } from "shared/config/Environment";
 import { fetchJson, fetchWithTimeout } from "tests/e2e/harness/HttpTestClient";
 import { disconnectSocket } from "tests/e2e/harness/SocketTestWait";
-import {
-  connectRootSocket,
-  requireSocketId
-} from "tests/e2e/harness/SocketClientTestUtils";
+import { connectRootSocket, requireSocketId } from "tests/e2e/harness/SocketClientTestUtils";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { flattenErrorMessages, withTimeout } from "tests/e2e/harness/TestPromiseUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 const healthPath = "/health/live";
 const httpRequestTimeoutMs = 2000;
+const envKeysMutatedByHarness = [
+  "ENV",
+  "NODE_ENV",
+  "CORS_ORIGINS",
+  "LOG_LEVEL",
+  "S3_BUCKET",
+  "INFLUX_URL",
+  "STARTUP_RECOVERY_ENABLED"
+] as const;
+
+type HarnessEnvKey = (typeof envKeysMutatedByHarness)[number];
+type EnvValues = Record<HarnessEnvKey, string | undefined>;
+
+const preListenEnvValues: Record<HarnessEnvKey, string> = {
+  ENV: "pre-listen-env",
+  NODE_ENV: "pre-listen-node-env",
+  CORS_ORIGINS: "pre-listen-cors",
+  LOG_LEVEL: "pre-listen-log",
+  S3_BUCKET: "pre-listen-bucket",
+  INFLUX_URL: "pre-listen-influx",
+  STARTUP_RECOVERY_ENABLED: "pre-listen-preserved"
+};
 
 const listenOnEphemeralPort = async (): Promise<{
   server: HTTPServer;
@@ -89,6 +108,25 @@ const formatSocketIoCloseResult = (error: Error | undefined): string => {
   }
 
   return error.message;
+};
+
+const captureEnvValues = (): EnvValues =>
+  Object.fromEntries(envKeysMutatedByHarness.map((key) => [key, process.env[key]])) as EnvValues;
+
+const setEnvValues = (values: Record<HarnessEnvKey, string>): void => {
+  for (const [key, value] of Object.entries(values)) {
+    process.env[key] = value;
+  }
+};
+
+const restoreEnvValues = (values: EnvValues): void => {
+  for (const [key, value] of Object.entries(values)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
 };
 
 const expectStartupFailureForPort = async (port: number): Promise<void> => {
@@ -204,8 +242,8 @@ describe("ServerTestHarness", () => {
 
   it("fails startInitializing immediately when initialization fails before HTTP listen", async () => {
     const startupFailure = new Error("session config failed before HTTP listen");
-    const originalStartupRecoveryEnabled = process.env.STARTUP_RECOVERY_ENABLED;
-    let restoredStartupRecoveryEnabled: string | undefined;
+    const originalEnvValues = captureEnvValues();
+    let restoredEnvValues: EnvValues | undefined;
     const socketCloseResults: string[] = [];
     const originalClose: IOServer["close"] = IOServer.prototype.close;
     jest.spyOn(Environment.prototype, "loadSessionConfig").mockRejectedValue(startupFailure);
@@ -220,7 +258,7 @@ describe("ServerTestHarness", () => {
           fn?.(error);
         });
       });
-    process.env.STARTUP_RECOVERY_ENABLED = "pre-listen-preserved";
+    setEnvValues(preListenEnvValues);
 
     let startupError: unknown;
     try {
@@ -228,12 +266,8 @@ describe("ServerTestHarness", () => {
     } catch (error) {
       startupError = error;
     } finally {
-      restoredStartupRecoveryEnabled = process.env.STARTUP_RECOVERY_ENABLED;
-      if (originalStartupRecoveryEnabled === undefined) {
-        delete process.env.STARTUP_RECOVERY_ENABLED;
-      } else {
-        process.env.STARTUP_RECOVERY_ENABLED = originalStartupRecoveryEnabled;
-      }
+      restoredEnvValues = captureEnvValues();
+      restoreEnvValues(originalEnvValues);
     }
 
     expect(startupError).toBeDefined();
@@ -243,14 +277,12 @@ describe("ServerTestHarness", () => {
       "Server initialization failed before HTTP listening:\n" +
         "session config failed before HTTP listen"
     );
-    expect(messages).not.toContain(
-      "Timed out after 2000ms waiting for test HTTP server to listen"
-    );
+    expect(messages).not.toContain("Timed out after 2000ms waiting for test HTTP server to listen");
     expect(messages).not.toContain("ERR_SERVER_NOT_RUNNING");
     expect(socketCloseSpy).toHaveBeenCalledTimes(1);
     expect(socketCloseResults).toEqual(["ERR_SERVER_NOT_RUNNING:Server is not running."]);
-    expect(restoredStartupRecoveryEnabled).toBe("pre-listen-preserved");
-    expect(process.env.STARTUP_RECOVERY_ENABLED).toBe(originalStartupRecoveryEnabled);
+    expect(restoredEnvValues).toEqual(preListenEnvValues);
+    expect(captureEnvValues()).toEqual(originalEnvValues);
   });
 
   it("runs repeated lifecycle cycles in one Jest process", async () => {

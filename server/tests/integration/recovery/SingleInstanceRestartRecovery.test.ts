@@ -61,13 +61,21 @@ describe("SingleInstanceRestartRecovery real Redis integration", () => {
   });
 
   afterEach(async () => {
+    const currentIo = io;
+    const currentTestEnvironment = testEnvironment;
+    io = undefined;
+    testEnvironment = undefined;
+
     try {
       await RedisConfig.disconnect();
     } finally {
-      await io?.close();
-      await testEnvironment?.teardown();
-      container.reset();
-      delete process.env.STARTUP_RECOVERY_ENABLED;
+      try {
+        await closeSocketIoServer(currentIo);
+      } finally {
+        await currentTestEnvironment?.teardown();
+        container.reset();
+        delete process.env.STARTUP_RECOVERY_ENABLED;
+      }
     }
   });
 
@@ -138,9 +146,7 @@ describe("SingleInstanceRestartRecovery real Redis integration", () => {
     const pausedTimer = await gameRepository.getTimer(game.id, QuestionState.SHOWING);
 
     expect(
-      recoveredGame.players.every(
-        (player) => player.gameStatus === PlayerGameStatus.DISCONNECTED
-      )
+      recoveredGame.players.every((player) => player.gameStatus === PlayerGameStatus.DISCONNECTED)
     ).toBe(true);
     expect(recoveredGame.gameState.isPaused).toBe(false);
     expect(recoveredGame.gameState.timer).toBeNull();
@@ -191,3 +197,35 @@ describe("SingleInstanceRestartRecovery real Redis integration", () => {
     });
   });
 });
+
+async function closeSocketIoServer(ioServer: IOServer | undefined): Promise<void> {
+  if (!ioServer) {
+    return;
+  }
+
+  try {
+    await ioServer.close();
+  } catch (error) {
+    if (isBenignPreListenSocketIoCloseError(error)) {
+      return;
+    }
+
+    throw error;
+  }
+}
+
+function isBenignPreListenSocketIoCloseError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    hasErrorCode(error, "ERR_SERVER_NOT_RUNNING") &&
+    error.message === "Server is not running."
+  );
+}
+
+function hasErrorCode(error: Error, code: string): boolean {
+  return (
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string" &&
+    (error as { code: string }).code === code
+  );
+}
