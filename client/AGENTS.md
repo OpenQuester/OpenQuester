@@ -17,6 +17,10 @@ Main areas:
 
 The app uses GetIt/Injectable-style DI, WatchIt reactive widgets, Auto Route, Easy Localization, generated assets, generated API models, and custom editor packages.
 
+## Context7 rule for frontend work
+
+Before frontend code changes, use Context7 for current Flutter/Dart docs and for docs of every touched third-party package. If Context7 is unavailable, say so and rely on existing project code patterns instead of inventing APIs from memory.
+
 ## Commands
 
 Run from `client/` unless a package-specific task requires a narrower working directory.
