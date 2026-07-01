@@ -27,6 +27,7 @@ Top-level areas:
    - `docs/agent/02-source-of-truth.md`
    - `docs/agent/03-verification-matrix.md`
    - `docs/agent/04-docs-drift-policy.md`
+   - `docs/agent/05-decision-navigation.md` for broad design/architecture/product/test strategy work
    - `docs/specs/game-state-matrix.md`
    - `docs/specs/buzzer-state-machine.md`
    - `docs/specs/siq-compatibility-matrix.md`
@@ -53,7 +54,13 @@ For gameplay changes, do not treat UI text, disabled states, timers, role-specif
 - Game state/product behavior: `docs/specs/game-state-matrix.md` and feature-specific specs.
 - Existing deep implementation references: `server/docs/`.
 
-If implementation and docs disagree, do not guess. Inspect the current code, fix the stale documentation in the same change when it is in scope, and call out the drift in the PR summary.
+If implementation and docs disagree, do not guess. Inspect the current code, fix the stale documentation in the same change when it is in scope, and call out the drift in the handoff summary.
+
+## Documentation upkeep
+
+Docs and skills are part of the work. If a change affects architecture, workflows, commands, public contracts, game behavior, generated-code flow, validation strategy, or product decisions, update the related docs/specs/skills in the same task when practical.
+
+Agents may add, collapse, or remove docs when it clearly improves source-of-truth quality. Prefer updating an existing spec/skill over creating a new file for every small feature.
 
 ## Hard boundaries
 
@@ -62,7 +69,7 @@ If implementation and docs disagree, do not guess. Inspect the current code, fix
 - Do not emit Socket.IO directly from application use cases; return declared mutations or use the realtime port.
 - Do not manually edit generated Dart OpenAPI files unless a scoped doc explicitly says the file is temporarily manual.
 - Do not introduce architecture-wide refactors while doing a feature task unless explicitly requested.
-- Do not bring back legacy backend patterns such as `BaseSocketEventHandler`, `application/Container.ts`, or `domain/orchestrators/GameOrchestrator.ts` unless those files are reintroduced intentionally in the same PR.
+- Do not bring back legacy backend patterns such as `BaseSocketEventHandler`, `application/Container.ts`, or `domain/orchestrators/GameOrchestrator.ts` unless those files are reintroduced intentionally in the same change.
 
 ## Verification quick map
 
@@ -86,10 +93,15 @@ melos run format
 
 Only run the checks relevant to the changed area when local infrastructure or time makes full validation impractical. Always report what was and was not run.
 
-## Commit and PR style
+## Commit policy
 
-- Use Conventional Commit style when practical: `docs:`, `feat:`, `fix:`, `refactor:`.
-- Prefer small, reviewable diffs.
-- Avoid formatting-only churn.
-- Keep draft PRs as drafts until a human decides otherwise.
-- Do not merge your own PR unless explicitly instructed.
+Do not create commits unless the user explicitly asks for commits or asks you to work in a branch where commits are expected.
+
+When commits are requested, use short one-line commit messages that describe the result, for example:
+
+- `docs: add backend HTTP skill`
+- `fix: preserve buzzer disabled reason`
+- `refactor: move package validation rules`
+- `test: cover final round reconnect`
+
+Avoid vague messages such as `update`, `changes`, or `fix stuff`.
