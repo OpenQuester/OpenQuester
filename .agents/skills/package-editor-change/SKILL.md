@@ -7,17 +7,6 @@ description: Use when changing package editor screens/controllers, OQ/SIQ import
 
 Use this skill when changing package editor screens/controllers, `.oq` import/export, `.siq` import, media references, package validation, compression progress, package health, or creator workflow.
 
-## Trigger examples
-
-- “package editor”
-- “SIQ import”
-- “OQ export”
-- “package validation”
-- “media preview”
-- “compression progress”
-- “publish readiness”
-- “package health badge”
-
 ## Read first
 
 1. `client/AGENTS.md`
@@ -26,9 +15,11 @@ Use this skill when changing package editor screens/controllers, `.oq` import/ex
 4. `docs/specs/siq-compatibility-matrix.md`
 5. `openapi/AGENTS.md` if backend/API contract changes
 
-## Files to inspect
+## Context7 requirement
 
-Likely frontend/package files:
+Before frontend/editor code changes, use Context7 for current Flutter/Dart docs and every touched third-party package. If Context7 is unavailable, state that and follow existing project code patterns instead of inventing APIs from memory.
+
+## Files to inspect
 
 - `client/packages/oq_editor/lib/controllers/oq_editor_controller.dart`
 - `client/packages/oq_editor/lib/utils/siq_import_helper.dart`
@@ -41,12 +32,6 @@ Likely frontend/package files:
 - `client/apps/client/lib/src/features/package_editor/**`
 - `client/apps/client/lib/src/features/package_upload/**`
 - localization JSON
-
-Backend/API if package persistence or validation contract changes:
-
-- `server/src/application/services/package/**`
-- package REST controller/schemes
-- package DTOs/OpenAPI schema
 
 ## Product invariant
 
@@ -71,22 +56,8 @@ Every validation/import/export change should answer:
 6. For validation, classify severity in `docs/specs/package-validation-spec.md`.
 7. Add localized user-facing messages.
 8. Update OpenAPI/generated client if validation/report shape crosses backend/client boundary.
-9. Add fixtures/tests where practical.
+9. Add fixtures/checks where practical.
 10. Report import/export/manual validation scenarios.
-
-## Validation severity rule
-
-Use:
-
-- `Critical` for package cannot safely play/publish.
-- `Warning` for playable but risky/changed/needs review.
-- `Info` for helpful quality suggestions.
-
-Do not block draft save for warnings. Block publish/play only for critical errors.
-
-## SIQ import rule
-
-Never silently degrade imported SIQ behavior. If feature support is partial, fallback, unsupported, or unknown, the creator should see it in the compatibility report or validation issues.
 
 ## Common failure modes
 
@@ -96,7 +67,6 @@ Never silently degrade imported SIQ behavior. If feature support is partial, fal
 - Compression progress looks like the app froze.
 - Validation blocks draft save unnecessarily.
 - User-facing validation strings are hard-coded.
-- Backend rejects a package after frontend said it was publish-ready.
 - Generated API models are not updated after contract changes.
 
 ## Verification
@@ -129,23 +99,6 @@ npm run lint
 npm run build
 ```
 
-Manual scenario notes are useful:
+## Handoff checklist
 
-- import `.siq`
-- import `.oq`
-- add media
-- export package
-- save/publish validation
-- jump to next issue
-
-## PR summary checklist
-
-Include:
-
-- editor/import/export area touched
-- validation severity changes
-- SIQ compatibility impact
-- media/compression impact
-- API/generated impact
-- checks/manual scenarios run
-- known gaps or follow-up
+Include Context7 docs fetched or why unavailable, editor/import/export area touched, validation severity changes, SIQ compatibility impact, media/compression impact, API/generated impact, checks/manual scenarios run, and known gaps.
