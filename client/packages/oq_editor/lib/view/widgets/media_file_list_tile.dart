@@ -56,8 +56,9 @@ class MediaFileListTile extends StatelessWidget {
                   children: [
                     IconButton(
                       icon: const Icon(Icons.open_in_full),
-                      onPressed: () =>
-                          MediaPreviewDialog.show(context, mediaFile),
+                      onPressed: () => MediaPreviewDialog(
+                        mediaFile: mediaFile,
+                      ).show(context),
                       tooltip: translations.preview,
                     ),
                     IconButton(

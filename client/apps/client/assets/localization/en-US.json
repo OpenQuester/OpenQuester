@@ -22,9 +22,25 @@
     "one": "{} round",
     "other": "{} rounds"
   },
+  "package_themes": {
+    "one": "{} theme",
+    "other": "{} themes"
+  },
   "questions": {
     "one": "{} question",
     "other": "{} questions"
+  },
+  "package_text_questions": {
+    "one": "{} text question",
+    "other": "{} text questions"
+  },
+  "package_media_questions": {
+    "one": "{} media question",
+    "other": "{} media questions"
+  },
+  "package_mixed_questions": {
+    "one": "{} mixed question",
+    "other": "{} mixed questions"
   },
   "game_tile_tooltips": {
     "players": "Players playing/maximum",
@@ -55,7 +71,13 @@
     "login_description_guest": "You can also play as a guest, but you will not be able to upload packages."
   },
   "username": "Username",
-  "start_game": "Start Game",
+  "start_game": "Start game",
+  "start_game_anyway": "Start anyway",
+  "no_players_joined_yet": "No players have joined yet",
+  "players_not_ready": {
+    "one": "{} player is not ready",
+    "other": "{} players are not ready"
+  },
   "select": "Select",
   "game_name": "Game name",
   "age_restriction": "Age restriction",
@@ -89,8 +111,14 @@
   "user_leave_the_game": "User {} leave the game",
   "user_joined_the_game": "User {} joined the game",
   "showman": "Showman",
+  "player": "Player",
+  "spectator": "Spectator",
   "join_game": "Join game",
+  "join_as": "Join as",
+  "switch_to": "Switch to",
   "leave_game_confirmation": "Are you sure you want to leave?",
+  "leave_game": "Leave game",
+  "more_actions": "More actions",
   "yes": "Yes",
   "no": "No",
   "openquester": "OpenQuester",
@@ -120,10 +148,19 @@
   "skip_question": "Skip question",
   "share_game_tooltip": "Copies game link",
   "copy_game_link": "Copy game link",
+  "copy_invite_link": "Copy invite link",
   "link_copied": "Link copied to clipboard",
+  "link_copied_short": "Link copied",
+  "invite_link_copied": "Invite link copied",
+  "invite_link_copy_failed": "Could not copy invite link",
+  "open_chat": "Open chat",
+  "close_chat": "Close chat",
+  "chat": "Chat",
   "chat_message": "Chat message",
+  "send": "Send",
   "not_your_turn_to_pick": "Not your turn to pick",
   "drag_or_tap_to": "Drag or tap to {}",
+  "drag_to_change_role": "Drag to change role",
   "release_to": "Release to {}",
   "game_lobby_editor": {
     "set_as_showman": "set as showman",
@@ -135,9 +172,9 @@
     "close_player_editor": "Close player editor"
   },
   "spectators": "Spectators",
+  "participants": "Participants",
   "players": "Players",
   "you_are_spectator": "You are spectator",
-  "game_lobby_hint": "Select your role and press 'Ready' to start game",
   "create_game_hint": "Set up your game and invite players to join",
   "email": "Email",
   "member_since": "Member Since",
