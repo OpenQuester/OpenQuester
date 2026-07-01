@@ -9,6 +9,8 @@ This directory contains product, architecture, agent workflow, and implementatio
 - `agent/02-source-of-truth.md` — priority order when docs disagree.
 - `agent/03-verification-matrix.md` — commands/checks by task type.
 - `agent/04-docs-drift-policy.md` — how to prevent stale instructions.
+- `agent/05-decision-navigation.md` — what to read before broad project decisions.
+- `../.agents/skills/README.md` — repeatable agent workflow skills.
 
 ## Product docs
 
