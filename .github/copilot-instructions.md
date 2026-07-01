@@ -1,39 +1,35 @@
-# GitHub Copilot Instructions for OpenQuester
+# GitHub Copilot instructions for OpenQuester
 
-## Core Principles
+This file is intentionally short. The canonical agent documentation is in repo docs, not in `.github` prompts.
 
-**Behavior:** Hybrid engineer. Make safe minimal assumptions; ask when blocked.
-**MVP-First:** 1) Minimal diff, zero side effects 2) Short weighted list (max 5) improvements 3) Break large tasks into MVP units
-**Quality:** Follow patterns, architecture, DI, naming. Scan context. Validate types/interfaces/errors. Prefer OOP. Suggest tests (don't generate without permission).
-**Safety:** Detect breaking changes. Avoid: formatting-only, unrelated edits, unnecessary refactors. Arch changes only when requested.
-**Communication:** Short, structured. Output: MVP, Next Steps, Risks, Optional Enhancements
+## Read first
 
-## Project
+- `AGENTS.md` — repository-wide agent router.
+- `server/AGENTS.md` — backend architecture and rules.
+- `client/AGENTS.md` — Flutter/Melos/frontend rules.
+- `openapi/AGENTS.md` — schema, public contract, and generated-client workflow rules.
+- `docs/product/00-north-star.md` — product direction.
+- `docs/agent/03-verification-matrix.md` — checks by task type.
 
-**OpenQuester** - Multiplayer quiz game (backend: `server/`, frontend: `client/`)
+## Core behavior
 
-- **Backend:** TypeScript, Node.js, Express, PostgreSQL, Socket.IO, Joi, Redis
-- **Frontend:** Flutter, Dart
-- **Traffic:** ≥100K MAU | **Tests:** Client requests + DB/Redis validation
+- Make the smallest safe change that solves the task.
+- Preserve existing architecture unless the task explicitly asks to change it.
+- Prefer current code and scoped `AGENTS.md` files over stale snippets.
+- Call out uncertainty and documentation drift instead of guessing.
+- Do not make formatting-only or unrelated changes.
 
-### Game Mechanics
+## Product lens
 
-**Roles:** Showman (controls flow, marks attempts), Players (compete), Spectators (watch)
-**Regular Round:** Pick theme/question → media sync → timer → buzz to answer → showman marks (correct: +price, wrong: -price unless "No Risk")
-**Special:** Stake/Bidding, Secret/Transfer, No Risk
-**Final Round:** Theme Elimination → Bidding (45s) → Answering (75s, 255 chars) → Reviewing
-**Packages:** Community content (`.oq` + `.siq`)
-**Key Docs:** `server/docs/final-round-flow.md`, `server/docs/game-action-executor.md`, `server/docs/media-download-sync.md`
+OpenQuester is a multiplayer quiz platform inspired by SIGame. Its advantage should be clarity, speed, stability, and creator-friendly package workflows. For gameplay UI, role-aware CTAs, disabled reasons, timers, and result feedback are part of the feature, not optional polish.
+
+## Safety rules
+
+- Backend game-changing socket actions go through `GameActionExecutor`.
+- Application use cases return declared mutations; they do not directly emit Socket.IO events.
+- Frontend changes use generated models/localization patterns unless the scoped docs say otherwise.
+- Public API/socket contract changes require OpenAPI/schema and generated-client consideration.
 
 ## Reviews
 
-Check: security, performance, maintainability, dangerous patterns
-
-- Conventional commits (e.g. `feat: add login`)
-- Suggest fast path (minimal) + full path (thorough)
-- Structure: summary → reasoning → suggestions
-
-## Final Rule
-
-**Always:** safest, cleanest, smallest, most readable. Never exceed scope. MVP-first.
-**REQUIRED:** Read `.github/instructions/backend.instructions.md` or `frontend-*.instructions.md` before code changes!
+When reviewing code, check architecture boundaries, race conditions, public contract drift, security, maintainability, UX clarity, and missing validation/tests.
