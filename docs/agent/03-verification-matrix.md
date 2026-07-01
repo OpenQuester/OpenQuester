@@ -1,6 +1,6 @@
 # Verification matrix
 
-Use this matrix to choose checks for agent-created changes. Not every task needs every command, but every PR summary should say what was run and what was not run.
+Use this matrix to choose checks for agent-created changes. Not every task needs every command, but every handoff summary should say what was run and what was not run.
 
 ## General rule
 
@@ -50,6 +50,7 @@ Frontend quality notes:
 - Do not manually edit generated files as a shortcut.
 - If user-facing strings were added and localization was not regenerated, call it out.
 - Game UI changes should mention phase/role/disabled-reason impact.
+- Frontend code changes should report Context7 docs fetched or why Context7 was unavailable.
 
 ## OpenAPI contract checks
 
@@ -61,7 +62,7 @@ Frontend quality notes:
 
 Generated Dart API files live in `client/packages/openapi/`; the schema source is `openapi/schema.json`.
 
-Contract PR summaries should state:
+Contract handoff summaries should state:
 
 - what changed in the public contract
 - backend files updated
@@ -79,16 +80,16 @@ Minimum docs review:
 - The doc links to the canonical source instead of duplicating it when possible.
 - Any new spec is linked from an `AGENTS.md` or skill.
 
-## Suggested PR verification block
+## Suggested verification block
 
-Use this format in PR summaries:
+Use this format in handoff summaries:
 
 ```markdown
 ## Verification
 
 - [x] Reviewed docs paths for current repository structure.
 - [x] `npm run validate:schema` — passed.
-- [ ] `npm test` — not run; requires PostgreSQL/Redis and this PR is docs-only.
+- [ ] `npm test` — not run; requires PostgreSQL/Redis and this change is docs-only.
 - [ ] `melos run analyze` — not run; no client code changed.
 ```
 
