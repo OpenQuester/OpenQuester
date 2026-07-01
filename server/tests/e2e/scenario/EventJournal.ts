@@ -124,21 +124,104 @@ export class EventJournal {
     if (existing) return existing;
 
     return new Promise<EventRecord<TArgs>>((resolve, reject) => {
-      let wait: PendingEventWait<TArgs> | undefined;
-      const timeout = setTimeout(() => {
-        if (wait) this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
-        reject(new Error(this.formatEventTimeout(expectation)));
-      }, expectation.timeoutMs);
-
-      wait = { expectation, resolve, reject, timeout };
+      const wait = this.createPendingEventWait(expectation, resolve, reject);
       this.eventWaits.add(wait as PendingEventWait<readonly unknown[]>);
+
+      void this.findMatchingRecord(expectation)
+        .then((record) => {
+          if (record) this.resolveEventWait(wait, record);
+        })
+        .catch((error: unknown) => {
+          this.rejectEventWait(wait, toError(error));
+        });
     });
   }
 
   public async expectNoEvent<TArgs extends readonly unknown[] = readonly unknown[]>(
     expectation: NoEventExpectation<TArgs>
   ): Promise<void> {
-    const existing = await this.findMatchingRecord({
+    const existing = await this.findMatchingRecord(this.toEventExpectation(expectation));
+    if (existing) throw new Error(this.formatUnexpectedEvent(existing, expectation));
+
+    return new Promise<void>((resolve, reject) => {
+      const wait = this.createPendingNoEventWait(expectation, resolve, reject);
+      this.noEventWaits.add(wait as PendingNoEventWait<readonly unknown[]>);
+
+      void this.findMatchingRecord(this.toEventExpectation(expectation))
+        .then((record) => {
+          if (record) this.rejectNoEventWait(wait, new Error(this.formatUnexpectedEvent(record, expectation)));
+        })
+        .catch((error: unknown) => {
+          this.rejectNoEventWait(wait, toError(error));
+        });
+    });
+  }
+
+  private createPendingEventWait<TArgs extends readonly unknown[]>(
+    expectation: EventExpectation<TArgs>,
+    resolve: (record: EventRecord<TArgs>) => void,
+    reject: (error: Error) => void
+  ): PendingEventWait<TArgs> {
+    const timeout = setTimeout(() => {
+      this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
+      reject(new Error(this.formatEventTimeout(expectation)));
+    }, expectation.timeoutMs);
+
+    const wait: PendingEventWait<TArgs> = { expectation, resolve, reject, timeout };
+    return wait;
+  }
+
+  private createPendingNoEventWait<TArgs extends readonly unknown[]>(
+    expectation: NoEventExpectation<TArgs>,
+    resolve: () => void,
+    reject: (error: Error) => void
+  ): PendingNoEventWait<TArgs> {
+    const timeout = setTimeout(() => {
+      this.noEventWaits.delete(wait as PendingNoEventWait<readonly unknown[]>);
+      resolve();
+    }, expectation.durationMs);
+
+    const wait: PendingNoEventWait<TArgs> = { expectation, resolve, reject, timeout };
+    return wait;
+  }
+
+  private resolveEventWait<TArgs extends readonly unknown[]>(
+    wait: PendingEventWait<TArgs>,
+    record: EventRecord<TArgs>
+  ): void {
+    if (!this.eventWaits.has(wait as PendingEventWait<readonly unknown[]>)) return;
+
+    clearTimeout(wait.timeout);
+    this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
+    wait.resolve(record);
+  }
+
+  private rejectEventWait<TArgs extends readonly unknown[]>(
+    wait: PendingEventWait<TArgs>,
+    error: Error
+  ): void {
+    if (!this.eventWaits.has(wait as PendingEventWait<readonly unknown[]>)) return;
+
+    clearTimeout(wait.timeout);
+    this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
+    wait.reject(error);
+  }
+
+  private rejectNoEventWait<TArgs extends readonly unknown[]>(
+    wait: PendingNoEventWait<TArgs>,
+    error: Error
+  ): void {
+    if (!this.noEventWaits.has(wait as PendingNoEventWait<readonly unknown[]>)) return;
+
+    clearTimeout(wait.timeout);
+    this.noEventWaits.delete(wait as PendingNoEventWait<readonly unknown[]>);
+    wait.reject(error);
+  }
+
+  private toEventExpectation<TArgs extends readonly unknown[]>(
+    expectation: NoEventExpectation<TArgs>
+  ): EventExpectation<TArgs> {
+    return {
       actor: expectation.actor,
       direction: expectation.direction,
       event: expectation.event,
@@ -146,20 +229,7 @@ export class EventJournal {
       afterSequence: expectation.afterSequence,
       predicate: expectation.predicate,
       description: expectation.description
-    });
-
-    if (existing) throw new Error(this.formatUnexpectedEvent(existing, expectation));
-
-    return new Promise<void>((resolve, reject) => {
-      let wait: PendingNoEventWait<TArgs> | undefined;
-      const timeout = setTimeout(() => {
-        if (wait) this.noEventWaits.delete(wait as PendingNoEventWait<readonly unknown[]>);
-        resolve();
-      }, expectation.durationMs);
-
-      wait = { expectation, resolve, reject, timeout };
-      this.noEventWaits.add(wait as PendingNoEventWait<readonly unknown[]>);
-    });
+    };
   }
 
   private record(
@@ -202,14 +272,9 @@ export class EventJournal {
   ): Promise<void> {
     try {
       if (!(await this.matches(record, wait.expectation))) return;
-
-      clearTimeout(wait.timeout);
-      this.eventWaits.delete(wait);
-      wait.resolve(record);
+      this.resolveEventWait(wait, record);
     } catch (error) {
-      clearTimeout(wait.timeout);
-      this.eventWaits.delete(wait);
-      wait.reject(error instanceof Error ? error : new Error(String(error)));
+      this.rejectEventWait(wait, toError(error));
     }
   }
 
@@ -219,14 +284,9 @@ export class EventJournal {
   ): Promise<void> {
     try {
       if (!(await this.matches(record, wait.expectation))) return;
-
-      clearTimeout(wait.timeout);
-      this.noEventWaits.delete(wait);
-      wait.reject(new Error(this.formatUnexpectedEvent(record, wait.expectation)));
+      this.rejectNoEventWait(wait, new Error(this.formatUnexpectedEvent(record, wait.expectation)));
     } catch (error) {
-      clearTimeout(wait.timeout);
-      this.noEventWaits.delete(wait);
-      wait.reject(error instanceof Error ? error : new Error(String(error)));
+      this.rejectNoEventWait(wait, toError(error));
     }
   }
 
@@ -301,4 +361,8 @@ export class EventJournal {
       args: record.args
     });
   }
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
