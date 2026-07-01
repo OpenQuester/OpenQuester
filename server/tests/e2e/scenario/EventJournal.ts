@@ -149,7 +149,12 @@ export class EventJournal {
 
       void this.findMatchingRecord(this.toEventExpectation(expectation))
         .then((record) => {
-          if (record) this.rejectNoEventWait(wait, new Error(this.formatUnexpectedEvent(record, expectation)));
+          if (record) {
+            this.rejectNoEventWait(
+              wait,
+              new Error(this.formatUnexpectedEvent(record, expectation))
+            );
+          }
         })
         .catch((error: unknown) => {
           this.rejectNoEventWait(wait, toError(error));
@@ -162,12 +167,13 @@ export class EventJournal {
     resolve: (record: EventRecord<TArgs>) => void,
     reject: (error: Error) => void
   ): PendingEventWait<TArgs> {
+    let wait: PendingEventWait<TArgs>;
     const timeout = setTimeout(() => {
       this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
       reject(new Error(this.formatEventTimeout(expectation)));
     }, expectation.timeoutMs);
 
-    const wait: PendingEventWait<TArgs> = { expectation, resolve, reject, timeout };
+    wait = { expectation, resolve, reject, timeout };
     return wait;
   }
 
@@ -176,12 +182,13 @@ export class EventJournal {
     resolve: () => void,
     reject: (error: Error) => void
   ): PendingNoEventWait<TArgs> {
+    let wait: PendingNoEventWait<TArgs>;
     const timeout = setTimeout(() => {
       this.noEventWaits.delete(wait as PendingNoEventWait<readonly unknown[]>);
       resolve();
     }, expectation.durationMs);
 
-    const wait: PendingNoEventWait<TArgs> = { expectation, resolve, reject, timeout };
+    wait = { expectation, resolve, reject, timeout };
     return wait;
   }
 
