@@ -36,7 +36,27 @@ const buildActionHandlerDeps = (
     logger
   }) as Parameters<typeof configureActionHandlers>[0];
 
+const configureRegistry = (): GameActionHandlerRegistry => {
+  const registry = new GameActionHandlerRegistry(logger);
+  configureActionHandlers(buildActionHandlerDeps(registry));
+  return registry;
+};
+
 describe("socket action contracts", () => {
+  it("has one socket action entry per socket event", () => {
+    const events = SOCKET_ACTION_MAP.map((entry) => entry.event);
+
+    expect(new Set(events).size).toBe(events.length);
+  });
+
+  it("registers handlers for every mapped socket action", () => {
+    const registry = configureRegistry();
+
+    for (const entry of SOCKET_ACTION_MAP) {
+      expect(registry.has(entry.actionType)).toBe(true);
+    }
+  });
+
   it("routes MEDIA_DOWNLOADED through the queued game action path", () => {
     const entry = SOCKET_ACTION_MAP.find(
       (actionEntry) => actionEntry.event === SocketIOGameEvents.MEDIA_DOWNLOADED
@@ -50,13 +70,5 @@ describe("socket action contracts", () => {
     });
     expect(entry?.directExecution).not.toBe(true);
     expect(entry?.allowNullGameId).not.toBe(true);
-  });
-
-  it("registers a handler for MEDIA_DOWNLOADED actions", () => {
-    const registry = new GameActionHandlerRegistry(logger);
-
-    configureActionHandlers(buildActionHandlerDeps(registry));
-
-    expect(registry.has(GameActionType.MEDIA_DOWNLOADED)).toBe(true);
   });
 });
