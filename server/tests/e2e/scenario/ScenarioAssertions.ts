@@ -1,3 +1,5 @@
+import { expect } from "@jest/globals";
+
 import {
   type EventDirection,
   type EventExpectation,
