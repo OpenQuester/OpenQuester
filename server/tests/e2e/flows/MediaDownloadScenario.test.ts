@@ -62,9 +62,8 @@ describe("Media download scenario POC", () => {
       );
       const questionDataReceived = Promise.all(
         players.map((player) =>
-          scenario.expectEvent({
+          scenario.assert.inbound({
             actor: player,
-            direction: "inbound",
             event: SocketIOGameEvents.QUESTION_DATA,
             timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
             afterSequence: afterQuestionPick
@@ -107,19 +106,16 @@ describe("Media download scenario POC", () => {
       await finalStatusBroadcasts;
       await utils.waitForActionsComplete(setup.gameId);
 
-      const outboundDownloadCommands = scenario.eventHistory().filter(
-        (record) =>
-          record.direction === "outbound" &&
-          record.event === SocketIOGameEvents.MEDIA_DOWNLOADED &&
-          record.sequence > afterDownloadBurst
-      );
-      expect(outboundDownloadCommands).toHaveLength(players.length);
+      scenario.assert.expectOutboundCommandCount({
+        event: SocketIOGameEvents.MEDIA_DOWNLOADED,
+        afterSequence: afterDownloadBurst,
+        expectedCount: players.length
+      });
 
       const stateAfterDownloads = await utils.getGameState(setup.gameId);
       expect(stateAfterDownloads?.questionState).toBe(QuestionState.SHOWING);
 
-      await scenario.expectNoEvent({
-        direction: "inbound",
+      await scenario.assert.noInbound({
         event: "error",
         durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,
         afterSequence: afterDownloadBurst,
@@ -141,9 +137,8 @@ function expectMediaDownloadStatus(
     readonly allPlayersReady: boolean;
   }
 ): Promise<unknown> {
-  return scenario.expectEvent<[MediaDownloadStatusBroadcastData]>({
+  return scenario.assert.inbound<[MediaDownloadStatusBroadcastData]>({
     actor,
-    direction: "inbound",
     event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
     timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
     afterSequence,
