@@ -1,3 +1,4 @@
+/* eslint-disable prefer-const -- wait is assigned after timeout creation so the timeout callback can remove the pending wait from its Set. */
 import { type Socket } from "socket.io-client";
 
 export type EventDirection = "inbound" | "outbound";
@@ -124,7 +125,14 @@ export class EventJournal {
     if (existing) return existing;
 
     return new Promise<EventRecord<TArgs>>((resolve, reject) => {
-      const wait = this.createPendingEventWait(expectation, resolve, reject);
+      let wait: PendingEventWait<TArgs> | undefined;
+      const timeout = setTimeout(() => {
+        if (!wait) return;
+        this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
+        reject(new Error(this.formatEventTimeout(expectation)));
+      }, expectation.timeoutMs);
+
+      wait = { expectation, resolve, reject, timeout };
       this.eventWaits.add(wait as PendingEventWait<readonly unknown[]>);
 
       void this.findMatchingRecord(expectation)
@@ -144,7 +152,14 @@ export class EventJournal {
     if (existing) throw new Error(this.formatUnexpectedEvent(existing, expectation));
 
     return new Promise<void>((resolve, reject) => {
-      const wait = this.createPendingNoEventWait(expectation, resolve, reject);
+      let wait: PendingNoEventWait<TArgs> | undefined;
+      const timeout = setTimeout(() => {
+        if (!wait) return;
+        this.noEventWaits.delete(wait as PendingNoEventWait<readonly unknown[]>);
+        resolve();
+      }, expectation.durationMs);
+
+      wait = { expectation, resolve, reject, timeout };
       this.noEventWaits.add(wait as PendingNoEventWait<readonly unknown[]>);
 
       void this.findMatchingRecord(this.toEventExpectation(expectation))
@@ -162,43 +177,11 @@ export class EventJournal {
     });
   }
 
-  private createPendingEventWait<TArgs extends readonly unknown[]>(
-    expectation: EventExpectation<TArgs>,
-    resolve: (record: EventRecord<TArgs>) => void,
-    reject: (error: Error) => void
-  ): PendingEventWait<TArgs> {
-    let wait: PendingEventWait<TArgs> | undefined;
-    const timeout = setTimeout(() => {
-      if (!wait) return;
-      this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
-      reject(new Error(this.formatEventTimeout(expectation)));
-    }, expectation.timeoutMs);
-
-    wait = { expectation, resolve, reject, timeout };
-    return wait;
-  }
-
-  private createPendingNoEventWait<TArgs extends readonly unknown[]>(
-    expectation: NoEventExpectation<TArgs>,
-    resolve: () => void,
-    reject: (error: Error) => void
-  ): PendingNoEventWait<TArgs> {
-    let wait: PendingNoEventWait<TArgs> | undefined;
-    const timeout = setTimeout(() => {
-      if (!wait) return;
-      this.noEventWaits.delete(wait as PendingNoEventWait<readonly unknown[]>);
-      resolve();
-    }, expectation.durationMs);
-
-    wait = { expectation, resolve, reject, timeout };
-    return wait;
-  }
-
   private resolveEventWait<TArgs extends readonly unknown[]>(
-    wait: PendingEventWait<TArgs>,
+    wait: PendingEventWait<TArgs> | undefined,
     record: EventRecord<TArgs>
   ): void {
-    if (!this.eventWaits.has(wait as PendingEventWait<readonly unknown[]>)) return;
+    if (!wait || !this.eventWaits.has(wait as PendingEventWait<readonly unknown[]>)) return;
 
     clearTimeout(wait.timeout);
     this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
@@ -206,10 +189,10 @@ export class EventJournal {
   }
 
   private rejectEventWait<TArgs extends readonly unknown[]>(
-    wait: PendingEventWait<TArgs>,
+    wait: PendingEventWait<TArgs> | undefined,
     error: Error
   ): void {
-    if (!this.eventWaits.has(wait as PendingEventWait<readonly unknown[]>)) return;
+    if (!wait || !this.eventWaits.has(wait as PendingEventWait<readonly unknown[]>)) return;
 
     clearTimeout(wait.timeout);
     this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
@@ -217,10 +200,10 @@ export class EventJournal {
   }
 
   private rejectNoEventWait<TArgs extends readonly unknown[]>(
-    wait: PendingNoEventWait<TArgs>,
+    wait: PendingNoEventWait<TArgs> | undefined,
     error: Error
   ): void {
-    if (!this.noEventWaits.has(wait as PendingNoEventWait<readonly unknown[]>)) return;
+    if (!wait || !this.noEventWaits.has(wait as PendingNoEventWait<readonly unknown[]>)) return;
 
     clearTimeout(wait.timeout);
     this.noEventWaits.delete(wait as PendingNoEventWait<readonly unknown[]>);
