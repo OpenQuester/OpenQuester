@@ -5,6 +5,7 @@ import {
   type NoEventExpectation
 } from "tests/e2e/scenario/EventJournal";
 import { ScenarioActor, type ScenarioActorOptions } from "tests/e2e/scenario/ScenarioActor";
+import { ScenarioAssertions } from "tests/e2e/scenario/ScenarioAssertions";
 
 /**
  * Lightweight scenario shell for client-perspective realtime tests.
@@ -14,8 +15,15 @@ import { ScenarioActor, type ScenarioActorOptions } from "tests/e2e/scenario/Sce
  */
 export class GameScenario {
   private readonly actors = new Map<string, ScenarioActor>();
+  public readonly assert: ScenarioAssertions;
 
-  public constructor(private readonly journal: EventJournal = new EventJournal()) {}
+  public constructor(private readonly journal: EventJournal = new EventJournal()) {
+    this.assert = new ScenarioAssertions({
+      expectEvent: (expectation) => this.expectEvent(expectation),
+      expectNoEvent: (expectation) => this.expectNoEvent(expectation),
+      eventHistory: () => this.eventHistory()
+    });
+  }
 
   public addActor(options: Omit<ScenarioActorOptions, "journal">): ScenarioActor {
     const actor = new ScenarioActor({ ...options, journal: this.journal });
