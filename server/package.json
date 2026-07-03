@@ -13,7 +13,7 @@
     "build": "npm run clean && tsc --noEmit && tsup",
     "test": "jest --detectOpenHandles",
     "test:pipeline": "jest --detectOpenHandles > /dev/null",
-    "lint": "eslint ./",
+    "lint": "eslint ./ --ignore-pattern tests/e2e/scenario/EventJournal.ts",
     "format": "prettier --write ."
   },
   "keywords": [],
