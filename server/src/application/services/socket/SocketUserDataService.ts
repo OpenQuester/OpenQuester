@@ -3,6 +3,7 @@ import { singleton } from "tsyringe";
 import { SocketRedisUserUpdateDTO } from "domain/types/dto/user/SocketRedisUserUpdateDTO";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { SocketUserDataRepository } from "infrastructure/database/repositories/socket/SocketUserDataRepository";
+import { type SingleInstanceSocketSessionCleanupResult } from "domain/types/recovery/SingleInstanceRestartRecoveryResult";
 
 /**
  * Service for managing socket user session data.
@@ -42,11 +43,8 @@ export class SocketUserDataService {
     return this.socketUserDataRepository.remove(socketId);
   }
 
-  /**
-   * Cleans up all socket auth sessions since on server restart connections recreated
-   */
-  public async cleanupAllSession(): Promise<void> {
-    return this.socketUserDataRepository.cleanupAllSession();
+  public async clearAllSocketSessionsAfterSingleInstanceRestart(): Promise<SingleInstanceSocketSessionCleanupResult> {
+    return this.socketUserDataRepository.clearAllSocketSessionsAfterSingleInstanceRestart();
   }
 
   /**

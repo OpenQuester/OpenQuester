@@ -40,19 +40,25 @@ services:
 
   # If you want to store data after container restart, do not forget to give permission to the folder
   # Also adjust ports from 127.0.0.1:6380:6379 to 127.0.0.1:6379:6379 if you need default port
-  # sudo chown -R 1001:1001 ./data/redis && sudo chmod -R 775 ./data/redis
+  # sudo chown -R 999:999 ./data/redis && sudo chmod -R 775 ./data/redis
   oq-redis:
     container_name: oq-redis
     restart: unless-stopped
-    image: bitnami/redis:8.0
+    image: redis:7-alpine
     ports:
       - "127.0.0.1:6380:6379"
-    environment:
-      - ALLOW_EMPTY_PASSWORD=yes
-      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
-      - REDIS_AOF_ENABLED=yes
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --rename-command
+      - FLUSHDB
+      - ""
+      - --rename-command
+      - FLUSHALL
+      - ""
     volumes:
-      - ./data/redis:/bitnami/redis/data
+      - ./data/redis:/data
 
   influxdb3:
     image: influxdb:3-core

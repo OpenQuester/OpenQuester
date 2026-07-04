@@ -22,10 +22,15 @@ import { GameStatistics } from "infrastructure/database/models/statistics/GameSt
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { User } from "infrastructure/database/models/User";
 
-export function setTestEnvDefaults() {
+interface TestEnvDefaultsOptions {
+  apiPort?: number;
+  startupRecoveryEnabled?: boolean;
+}
+
+export function setTestEnvDefaults(options: TestEnvDefaultsOptions = {}) {
   process.env.ENV = "test";
   process.env.NODE_ENV = "test";
-  process.env.API_PORT = String(getTestApiPort());
+  process.env.API_PORT = String(options.apiPort ?? getTestApiPort());
   process.env.DB_TYPE = "pg";
   if (!process.env.DB_NAME) {
     process.env.DB_NAME = getTestDbName();
@@ -58,6 +63,7 @@ export function setTestEnvDefaults() {
   // Disable InfluxDB metrics in tests — no InfluxDB instance available
   process.env.INFLUX_URL = "";
   process.env.TEST_DB_NAME_PREFIX = TEST_TIMEOUTS.TEST_DB_NAME_PREFIX;
+  process.env.STARTUP_RECOVERY_ENABLED = String(options.startupRecoveryEnabled ?? false);
 }
 
 export function createTestAppDataSource() {

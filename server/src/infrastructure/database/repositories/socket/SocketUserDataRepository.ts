@@ -1,6 +1,5 @@
 import { singleton } from "tsyringe";
 
-import { REDIS_LOCK_SESSIONS_CLEANUP } from "domain/constants/redis";
 import {
   SOCKET_GAME_AUTH_TTL,
   SOCKET_SESSION_PREFIX,
@@ -12,6 +11,7 @@ import { asUserId } from "domain/types/ids";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { ValueUtils } from "domain/utils/ValueUtils";
 import { RedisRepository } from "infrastructure/database/repositories/RedisRepository";
+import { type SingleInstanceSocketSessionCleanupResult } from "domain/types/recovery/SingleInstanceRestartRecoveryResult";
 
 /**
  * Repository for socket user session data (stored in Redis).
@@ -250,23 +250,26 @@ export class SocketUserDataRepository {
   }
 
   /**
-   * Cleanup all socket sessions (uses SCAN; acceptable for maintenance).
+   * Clear all socket sessions only for a single-instance restart. This removes
+   * stale sockets for the one server instance that was fully offline.
    */
-  public async cleanupAllSession(): Promise<void> {
-    const acquired = await this.redisRepository.setLockKey(REDIS_LOCK_SESSIONS_CLEANUP);
-
-    if (acquired !== "OK") {
-      return;
-    }
-
+  public async clearAllSocketSessionsAfterSingleInstanceRestart(): Promise<SingleInstanceSocketSessionCleanupResult> {
     const sessionKeys = await this.redisRepository.scan(`${SOCKET_SESSION_PREFIX}:*`);
+    let removedSocketSessions = 0;
     if (sessionKeys.length) {
-      await this.redisRepository.delMultiple(sessionKeys);
+      removedSocketSessions = await this.redisRepository.delMultiple(sessionKeys);
     }
 
     const userKeys = await this.redisRepository.scan(`${SOCKET_USER_PREFIX}:*`);
+    let removedUserSocketLookups = 0;
     if (userKeys.length) {
-      await this.redisRepository.delMultiple(userKeys);
+      removedUserSocketLookups = await this.redisRepository.delMultiple(userKeys);
     }
+
+    return {
+      status: "completed",
+      removedSocketSessions,
+      removedUserSocketLookups
+    };
   }
 }
