@@ -2,66 +2,37 @@
 applyTo: "server/**/*"
 ---
 
-# OpenQuester Backend Instructions
+# OpenQuester backend instructions
 
-## Key Docs (Read First)
-- **Final Round:** `server/docs/final-round-flow.md` - Theme elimination → bidding → answering → reviewing
-- **Action Queue:** `server/docs/game-action-executor.md` - Race condition prevention via Redis locks
-- **Media Sync:** `server/docs/media-download-sync.md` - Cross-client synchronization
+This file exists for GitHub Copilot compatibility. The canonical backend agent instructions live in:
 
-## Architecture
-**4 Layers:** `domain/` (pure logic, entities), `application/` (services), `infrastructure/` (DB, Redis, S3), `presentation/` (REST, Socket.IO)
-**DI:** Symbol-based registry in `application/Container.ts`
+- `AGENTS.md` — repository-wide router
+- `server/AGENTS.md` — backend architecture and coding rules
+- `.agents/skills/backend-socket-action/SKILL.md` — socket/game action workflow
+- `docs/agent/03-verification-matrix.md` — validation commands
 
-## Core Patterns
+## Current backend source of truth
 
-### Socket Events
-Extend `BaseSocketEventHandler<TInput, TOutput>`: `validate()` → `execute()` → `broadcast()`
-Auto-registered via `SocketEventHandlerRegistry`
+The backend currently uses:
 
-### Action Queue (Critical)
-**Problem:** Concurrent socket events → corrupt state
-**Solution:** `GameActionExecutor` + Redis lock per game
-```typescript
-protected async executeAction(data: TInput): Promise<GameActionResult> {
-  const action: GameAction = { id: uuidv4(), type: GameActionType.X, gameId, ...data };
-  return this.actionExecutor.submitAction(action, async (action) => { /* logic */ });
-}
-```
+- `bootstrap/bootstrapContainer.ts` as the tsyringe composition root.
+- `shared/di/tokens.ts` for DI tokens.
+- `presentation/controllers/io/SocketActionDispatcher.ts` for Socket.IO dispatch.
+- `presentation/controllers/io/SocketActionMap.ts` as the socket event → action map.
+- `application/executors/GameActionExecutor.ts` for queued game-changing actions.
+- `application/executors/DataMutationProcessor.ts` for declared side effects.
+- `application/ports/realtime/RealtimeGateway.ts` for transport-agnostic realtime output.
 
-### Game State
-- Stored in Redis (serialized GameStateDTO)
-- Retrieved: `SocketGameContextService.getFullGameContext()`
-- Round progression: `RoundHandlerFactory`
+## Do not use stale patterns
 
-### Validation
-REST: Joi + `RequestDataValidator` | Socket: Joi in `validate()` | Rules: `domain/validators/`
+Do not implement new backend work with these legacy/stale references unless the files are deliberately reintroduced in the same PR:
 
-## Testing
-```bash
-npm test                # All tests
-npm run test:pipeline   # CI
-npx jest path/to/file   # Specific (set trace logs in tests/utils.ts)
-```
-**Timer Testing:** Use `TestUtils.expireTimer()` - NEVER `setTimeout` in tests
-**NO test timeout increases** - missing events = broken code
+- `application/Container.ts`
+- `presentation/index.ts` as socket action registration root
+- `BaseSocketEventHandler<TInput, TOutput>`
+- `SocketEventHandlerRegistry`
+- `domain/orchestrators/GameOrchestrator.ts`
 
-## Conventions
-**Naming:** Services end `Service`, Repositories end `Repository`, Socket events `*EventHandler`
-**Enums:** `PascalCase` names, `SCREAMING_SNAKE_CASE` or `"kebab-case"` values
-**DTOs:** `domain/types/dto/`, interfaces only, use mappers
-**Errors:** `ClientError` (translated), `ServerError` (not translated)
-**Redis:** Namespaced keys (e.g. `game:{gameId}`), `keyspace` notifications + handlers
-**TypeORM:** Manual migrations (`infrastructure/database/migrations/`), snake_case via `SnakeNamingStrategy`
+## Before changing server code
 
-## Type Safety
-- **NEVER** `any` → use `unknown` or `Record<string, T>`
-- Explicit return types
-- Use `satisfies` on un-typed objects
-- **NEVER** re-exports or `index.ts` files
-
-## Critical Files
-- DI: `application/Container.ts`
-- Socket: `presentation/index.ts`
-- Test bootstrap: `tests/TestApp.ts`
-- Game orchestrator: `domain/orchestrators/GameOrchestrator.ts`
+Read `server/AGENTS.md`. For public socket actions, also read `.agents/skills/backend-socket-action/SKILL.md` and update OpenAPI/socket docs when the public contract changes.

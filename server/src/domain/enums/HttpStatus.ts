@@ -10,5 +10,6 @@ export enum HttpStatus {
   NOT_FOUND = 404,
 
   // 5xx: Server Errors
+  SERVICE_UNAVAILABLE = 503,
   INTERNAL = 500
 }

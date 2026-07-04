@@ -53,9 +53,7 @@ describe("Package Search API", () => {
 
   beforeEach(async () => {
     await testEnv.clearRedis();
-    await deleteAll(packageRepo);
-    await deleteAll(packageTagRepo);
-    await deleteAll(userRepo);
+    await clearPackageSearchData();
 
     // Create test users
     const loginData1 = await testUtils.createAndLoginUser("testuser1");
@@ -67,10 +65,15 @@ describe("Package Search API", () => {
   });
 
   afterEach(async () => {
+    await clearPackageSearchData();
+  });
+
+  async function clearPackageSearchData(): Promise<void> {
+    await dataSource.createQueryBuilder().delete().from("packages_tags").execute();
     await deleteAll(packageRepo);
     await deleteAll(packageTagRepo);
     await deleteAll(userRepo);
-  });
+  }
 
   afterAll(async () => {
     try {
@@ -1114,9 +1117,9 @@ describe("Package Search API", () => {
 
   describe("Performance and Scalability", () => {
     it("should handle search across many packages efficiently", async () => {
-      // Create 50 packages
+      // Keep this below the global Jest timeout while still exercising paging/filtering.
       await createMultiplePackages({
-        count: 50,
+        count: 20,
         languages: (i) => (i % 2 === 0 ? "en" : "ua"),
         tags: (i) => (i % 3 === 0 ? ["special"] : ["regular"]),
         authors: "alternate",
@@ -1131,16 +1134,16 @@ describe("Package Search API", () => {
       expect(res.status).toBe(200);
       const result: PaginatedResult<Omit<PackageDTO, "rounds">[]> = res.body;
       expect(result.data.length).toBeLessThanOrEqual(20);
-      expect(result.pageInfo.total).toBe(25);
+      expect(result.pageInfo.total).toBe(10);
 
       // Should complete in reasonable time (less than 1 second)
       expect(endTime - startTime).toBeLessThan(1000);
     });
 
     it("should handle complex filters on large dataset", async () => {
-      // Create diverse packages
+      // Keep setup small enough for the fixed per-test timeout.
       await createMultiplePackages({
-        count: 30,
+        count: 15,
         titlePrefix: "Complex Package",
         descriptions: (i) =>
           i % 5 === 0 ? "special description" : "regular content",

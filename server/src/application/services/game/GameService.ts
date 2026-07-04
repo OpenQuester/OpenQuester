@@ -26,6 +26,7 @@ import { ClientError } from "domain/errors/ClientError";
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { HttpStatus } from "domain/enums/HttpStatus";
 import { GameStateMapper } from "domain/mappers/GameStateMapper";
+import { type SingleInstanceGameRecoveryResult } from "domain/types/recovery/SingleInstanceRestartRecoveryResult";
 
 /**
  * Service for game management operations.
@@ -158,8 +159,8 @@ export class GameService {
     return gameDTO;
   }
 
-  public async cleanupAllGames() {
-    return this.gameRepository.cleanupAllGames();
+  public async recoverAllGamesAfterSingleInstanceRestart(): Promise<SingleInstanceGameRecoveryResult> {
+    return this.gameRepository.recoverAllGamesAfterSingleInstanceRestart();
   }
 
   public async updateGame(game: Game) {

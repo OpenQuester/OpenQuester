@@ -2,7 +2,10 @@ import pluginJs from "@eslint/js";
 import nodePlugin from "eslint-plugin-node";
 import promisePlugin from "eslint-plugin-promise";
 import globals from "globals";
+import { fileURLToPath } from "node:url";
 import tseslint from "typescript-eslint";
+
+const tsconfigRootDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default [
   { files: ["**/*.{js,mjs,cjs,ts}"] },
@@ -19,7 +22,7 @@ export default [
       parser: tseslint.parser,
       parserOptions: {
         project: "./tsconfig.json",
-        tsconfigRootDir: new URL(".", import.meta.url).pathname
+        tsconfigRootDir
       }
     },
     rules: {
