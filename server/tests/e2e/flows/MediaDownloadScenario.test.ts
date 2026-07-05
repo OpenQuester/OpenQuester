@@ -9,9 +9,9 @@ import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUti
 
 const DUPLICATE_MEDIA_DOWNLOAD_COMMANDS = 15;
 
-describe("Media download scenario POC", () => {
-  let harness: ServerTestHarness;
+let harness: ServerTestHarness;
 
+describe("Media download scenario POC", () => {
   beforeAll(async () => {
     harness = await ServerTestHarness.start({ apiPort: 0 });
   });
