@@ -1,6 +1,7 @@
 import { type GameActionType } from "domain/enums/GameActionType";
 import { type GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import {
+  type PlayerMediaDownloadedOptions,
   type ScenarioGameDriver,
   type WaitForActionsCompleteOptions,
   type WaitForSubmittedActionsOptions
@@ -17,6 +18,19 @@ export class SocketGameScenarioDriver implements ScenarioGameDriver {
 
   public getFirstAvailableQuestionId(gameId: string): Promise<number> {
     return this.utils.getFirstAvailableQuestionId(gameId);
+  }
+
+  public async getPlayerMediaDownloaded(
+    options: PlayerMediaDownloadedOptions
+  ): Promise<boolean> {
+    const game = await this.utils.getGameFromGameService(options.gameId);
+    const player = game.getPlayer(options.playerId, { fetchDisconnected: true });
+
+    if (!player) {
+      throw new Error(`Player ${options.playerId} not found in game ${options.gameId}`);
+    }
+
+    return Boolean(player.mediaDownloaded);
   }
 
   public waitForSubmittedActions(options: WaitForSubmittedActionsOptions): Promise<void> {
