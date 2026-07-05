@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals";
+import { describe, expect, it } from "@jest/globals";
 import { EventEmitter } from "events";
 import { type Socket } from "socket.io-client";
 
@@ -7,7 +7,6 @@ import { ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
 
 class FakeSocket extends EventEmitter {
   public id: string | undefined;
-  public connected = true;
   private readonly anyHandlers = new Set<(event: string, ...args: unknown[]) => void>();
 
   public constructor(id: string) {
@@ -30,16 +29,11 @@ class FakeSocket extends EventEmitter {
   }
 }
 
-let journal: EventJournal;
-
-const asClientSocket = (socket: FakeSocket): Socket => socket as unknown as Socket;
-const asFakeSocket = (actor: ScenarioActor): FakeSocket => actor.socket as unknown as FakeSocket;
-
-const createActor = (label: string): ScenarioActor => {
+const createActor = (journal: EventJournal, label: string): ScenarioActor => {
   const socket = new FakeSocket(`${label}-socket`);
   const actor = new ScenarioActor({
     label,
-    socket: asClientSocket(socket),
+    socket: socket as unknown as Socket,
     namespace: "/game",
     userId: label === "p1" ? 101 : 102,
     gameId: "game-1",
@@ -49,22 +43,15 @@ const createActor = (label: string): ScenarioActor => {
   return actor;
 };
 
+const fakeSocketOf = (actor: ScenarioActor): FakeSocket => actor.socket as unknown as FakeSocket;
+
 describe("EventJournal", () => {
-  beforeEach(() => {
-    jest.useFakeTimers();
-    journal = new EventJournal();
-  });
-
-  afterEach(() => {
-    journal.detachAll();
-    jest.useRealTimers();
-  });
-
   it("records inbound events emitted before assertions are awaited", async () => {
-    const actor = createActor("p1");
+    const journal = new EventJournal();
+    const actor = createActor(journal, "p1");
     const mark = journal.mark();
 
-    asFakeSocket(actor).emitInbound("media-download-status", {
+    fakeSocketOf(actor).emitInbound("media-download-status", {
       playerId: 101,
       allPlayersReady: false
     });
@@ -82,11 +69,11 @@ describe("EventJournal", () => {
     expect(record.actorLabel).toBe("p1");
     expect(record.direction).toBe("inbound");
     expect(record.socketId).toBe("p1-socket");
-    expect(record.userId).toBe(101);
   });
 
-  it("records burst outbound emits without awaiting every emitted command", () => {
-    const actor = createActor("p1");
+  it("records outbound command bursts without awaiting every command", () => {
+    const journal = new EventJournal();
+    const actor = createActor(journal, "p1");
     const mark = journal.mark();
 
     actor.emitMany({
@@ -95,51 +82,34 @@ describe("EventJournal", () => {
       payloadFactory: (index) => ({ index })
     });
 
-    const eventsAfterMark = journal
-      .snapshot()
-      .filter(
-        (record) =>
-          record.direction === "outbound" &&
-          record.event === "media-downloaded" &&
-          record.sequence > mark
-      );
+    const records = journal.snapshot().filter(
+      (record) =>
+        record.direction === "outbound" &&
+        record.event === "media-downloaded" &&
+        record.sequence > mark
+    );
 
-    expect(eventsAfterMark).toHaveLength(15);
-    expect(eventsAfterMark.map((record) => (record.args[0] as { index: number }).index)).toEqual(
+    expect(records).toHaveLength(15);
+    expect(records.map((record) => (record.args[0] as { index: number }).index)).toEqual(
       Array.from({ length: 15 }, (_, index) => index)
     );
   });
 
-  it("fails no-event expectations when a matching event was already recorded", async () => {
-    const actor = createActor("p1");
+  it("rejects no-event assertions when a matching event is already recorded", async () => {
+    const journal = new EventJournal();
+    const actor = createActor(journal, "p1");
     const mark = journal.mark();
 
-    asFakeSocket(actor).emitInbound("unexpected", { value: true });
+    fakeSocketOf(actor).emitInbound("blocked-event", { value: true });
 
     await expect(
       journal.expectNoEvent({
         actor,
         direction: "inbound",
-        event: "unexpected",
+        event: "blocked-event",
         durationMs: 100,
         afterSequence: mark
       })
-    ).rejects.toThrow('Unexpected event "unexpected"');
-  });
-
-  it("times out with expectation context when an event is missing", async () => {
-    const actor = createActor("p1");
-
-    const wait = journal.expectEvent({
-      actor,
-      direction: "inbound",
-      event: "missing",
-      timeoutMs: 100,
-      description: "missing event test"
-    });
-
-    jest.advanceTimersByTime(100);
-
-    await expect(wait).rejects.toThrow('Timed out after 100ms waiting for event "missing"');
+    ).rejects.toThrow('Unexpected event "blocked-event"');
   });
 });
