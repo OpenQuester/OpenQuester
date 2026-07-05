@@ -1,5 +1,6 @@
 import { type Repository } from "typeorm";
 
+import { SYSTEM_PLAYER_ID } from "domain/constants/game";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { type QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -12,6 +13,7 @@ import { type ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
 import { SocketGameScenarioDriver } from "tests/e2e/scenario/SocketGameScenarioDriver";
 import { type GameTestSetup, SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
+import { TestUtils } from "tests/utils/TestUtils";
 
 const GAME_NAMESPACE = "/game";
 
@@ -21,6 +23,7 @@ export interface MediaDownloadFlowOptions {
   readonly userRepo: Repository<User>;
   readonly playerCount: number;
   readonly spectatorCount?: number;
+  readonly testUtils?: TestUtils;
 }
 
 export interface MediaDownloadStatusExpectation {
@@ -50,6 +53,7 @@ export class MediaDownloadFlow {
   private constructor(
     private readonly setup: GameTestSetup,
     private readonly utils: SocketGameTestUtils,
+    private readonly timerUtils: TestUtils,
     public readonly scenario: GameScenario,
     public readonly showman: ScenarioActor,
     public readonly players: readonly ScenarioActor[],
@@ -63,6 +67,8 @@ export class MediaDownloadFlow {
       options.playerCount,
       options.spectatorCount ?? 0
     );
+    const timerUtils =
+      options.testUtils ?? new TestUtils(options.harness.app, options.userRepo, options.harness.serverUrl);
     const scenario = new GameScenario(new SocketGameScenarioDriver(options.utils));
     const showman = scenario.addActor({
       label: "showman",
@@ -89,7 +95,7 @@ export class MediaDownloadFlow {
       })
     );
 
-    return new MediaDownloadFlow(setup, options.utils, scenario, showman, players, spectators);
+    return new MediaDownloadFlow(setup, options.utils, timerUtils, scenario, showman, players, spectators);
   }
 
   public get gameId(): string {
@@ -150,6 +156,13 @@ export class MediaDownloadFlow {
       count,
       event: SocketIOGameEvents.MEDIA_DOWNLOADED
     });
+  }
+
+  public async expireMediaDownloadTimer(): Promise<void> {
+    await this.timerUtils.expireTimerAndWaitForAction(
+      this.gameId,
+      GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED
+    );
   }
 
   public waitForSubmittedMediaDownloads(expectedCount: number): Promise<void> {
@@ -227,6 +240,26 @@ export class MediaDownloadFlow {
         const data = record.args[0];
         return data.playerId === expected.playerId && data.allPlayersReady === expected.allPlayersReady;
       }
+    });
+  }
+
+  public expectMediaTimeoutBroadcast(
+    actors: readonly ScenarioActor[],
+    afterSequence: number
+  ): Promise<readonly unknown[]> {
+    return this.expectMediaDownloadBroadcast(actors, afterSequence, {
+      playerId: SYSTEM_PLAYER_ID,
+      allPlayersReady: true
+    });
+  }
+
+  public expectNoMediaTimeoutBroadcast(afterSequence: number): Promise<void> {
+    return this.assert.noInbound<[MediaDownloadStatusBroadcastData]>({
+      event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+      durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,
+      afterSequence,
+      predicate: (record) => record.args[0].playerId === SYSTEM_PLAYER_ID,
+      description: "media timeout status should not be broadcast after players are already ready"
     });
   }
 
