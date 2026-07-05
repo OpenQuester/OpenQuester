@@ -1,3 +1,5 @@
+import dotenv, { type DotenvParseOutput } from "dotenv";
+import path from "path";
 import { DataSource, DataSourceOptions } from "typeorm";
 import {
   getTestApiPort,
@@ -22,8 +24,10 @@ import { GameStatistics } from "infrastructure/database/models/statistics/GameSt
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { User } from "infrastructure/database/models/User";
 
-const DEFAULT_TEST_REDIS_HOST = "127.0.0.1";
-const DEFAULT_TEST_REDIS_PORT = "6380";
+const DEFAULT_TEST_REDIS_HOST = "localhost";
+const DEFAULT_TEST_REDIS_PORT = "6379";
+
+let cachedLocalEnvOverrides: DotenvParseOutput | undefined;
 
 interface TestEnvDefaultsOptions {
   apiPort?: number;
@@ -46,8 +50,10 @@ export function setTestEnvDefaults(options: TestEnvDefaultsOptions = {}) {
   process.env.SESSION_SECRET = "test_secret";
   process.env.API_DOMAIN = "localhost";
   process.env.SESSION_MAX_AGE = "3600000";
-  process.env.REDIS_HOST ||= DEFAULT_TEST_REDIS_HOST;
-  process.env.REDIS_PORT ||= DEFAULT_TEST_REDIS_PORT;
+  process.env.REDIS_USERNAME = getRedisTestEnvValue("REDIS_USERNAME", "");
+  process.env.REDIS_PASSWORD = getRedisTestEnvValue("REDIS_PASSWORD", "");
+  process.env.REDIS_HOST = getRedisTestEnvValue("REDIS_HOST", DEFAULT_TEST_REDIS_HOST);
+  process.env.REDIS_PORT = getRedisTestEnvValue("REDIS_PORT", DEFAULT_TEST_REDIS_PORT);
   if (!process.env.REDIS_DB_NUMBER) {
     process.env.REDIS_DB_NUMBER = String(getTestRedisDb());
   }
@@ -67,6 +73,32 @@ export function setTestEnvDefaults(options: TestEnvDefaultsOptions = {}) {
   process.env.INFLUX_URL = "";
   process.env.TEST_DB_NAME_PREFIX = TEST_TIMEOUTS.TEST_DB_NAME_PREFIX;
   process.env.STARTUP_RECOVERY_ENABLED = String(options.startupRecoveryEnabled ?? false);
+}
+
+function getRedisTestEnvValue(key: string, defaultValue: string): string {
+  return process.env[key] ?? getLocalEnvOverrides()[key] ?? defaultValue;
+}
+
+function getLocalEnvOverrides(): DotenvParseOutput {
+  if (isCiEnv()) {
+    return {};
+  }
+
+  if (!cachedLocalEnvOverrides) {
+    const processEnv: DotenvParseOutput = {};
+    const result = dotenv.config({
+      path: path.resolve(process.cwd(), ".env"),
+      processEnv,
+      quiet: true
+    });
+    cachedLocalEnvOverrides = result.parsed ?? {};
+  }
+
+  return cachedLocalEnvOverrides;
+}
+
+function isCiEnv(): boolean {
+  return process.env.CI === "true" || process.env.CI === "1";
 }
 
 export function createTestAppDataSource() {
