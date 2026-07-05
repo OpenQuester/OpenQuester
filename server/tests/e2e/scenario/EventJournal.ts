@@ -1,4 +1,3 @@
-/* eslint-disable prefer-const -- wait is assigned after timeout creation so the timeout callback can remove the pending wait from its Set. */
 import { type Socket } from "socket.io-client";
 
 export type EventDirection = "inbound" | "outbound";
@@ -56,6 +55,7 @@ interface JournalAttachment {
 }
 
 interface PendingEventWait<TArgs extends readonly unknown[]> {
+  readonly id: number;
   readonly expectation: EventExpectation<TArgs>;
   readonly resolve: (record: EventRecord<TArgs>) => void;
   readonly reject: (error: Error) => void;
@@ -63,6 +63,7 @@ interface PendingEventWait<TArgs extends readonly unknown[]> {
 }
 
 interface PendingNoEventWait<TArgs extends readonly unknown[]> {
+  readonly id: number;
   readonly expectation: NoEventExpectation<TArgs>;
   readonly resolve: () => void;
   readonly reject: (error: Error) => void;
@@ -73,9 +74,10 @@ interface PendingNoEventWait<TArgs extends readonly unknown[]> {
 export class EventJournal {
   private readonly attachments = new Map<string, JournalAttachment>();
   private readonly records: EventRecord[] = [];
-  private readonly eventWaits = new Set<PendingEventWait<readonly unknown[]>>();
-  private readonly noEventWaits = new Set<PendingNoEventWait<readonly unknown[]>>();
+  private readonly eventWaits = new Map<number, PendingEventWait<readonly unknown[]>>();
+  private readonly noEventWaits = new Map<number, PendingNoEventWait<readonly unknown[]>>();
   private nextSequence = 1;
+  private nextWaitId = 1;
 
   public attach(actor: JournalActor): void {
     this.detach(actor.label);
@@ -125,15 +127,20 @@ export class EventJournal {
     if (existing) return existing;
 
     return new Promise<EventRecord<TArgs>>((resolve, reject) => {
-      let wait: PendingEventWait<TArgs> | undefined;
+      const waitId = this.allocateWaitId();
       const timeout = setTimeout(() => {
-        if (!wait) return;
-        this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
+        this.eventWaits.delete(waitId);
         reject(new Error(this.formatEventTimeout(expectation)));
       }, expectation.timeoutMs);
+      const wait: PendingEventWait<TArgs> = {
+        id: waitId,
+        expectation,
+        resolve,
+        reject,
+        timeout
+      };
 
-      wait = { expectation, resolve, reject, timeout };
-      this.eventWaits.add(wait as PendingEventWait<readonly unknown[]>);
+      this.eventWaits.set(wait.id, wait as PendingEventWait<readonly unknown[]>);
 
       void this.findMatchingRecord(expectation)
         .then((record) => {
@@ -148,21 +155,27 @@ export class EventJournal {
   public async expectNoEvent<TArgs extends readonly unknown[] = readonly unknown[]>(
     expectation: NoEventExpectation<TArgs>
   ): Promise<void> {
-    const existing = await this.findMatchingRecord(this.toEventExpectation(expectation));
+    const eventExpectation = this.toEventExpectation(expectation);
+    const existing = await this.findMatchingRecord(eventExpectation);
     if (existing) throw new Error(this.formatUnexpectedEvent(existing, expectation));
 
     return new Promise<void>((resolve, reject) => {
-      let wait: PendingNoEventWait<TArgs> | undefined;
+      const waitId = this.allocateWaitId();
       const timeout = setTimeout(() => {
-        if (!wait) return;
-        this.noEventWaits.delete(wait as PendingNoEventWait<readonly unknown[]>);
+        this.noEventWaits.delete(waitId);
         resolve();
       }, expectation.durationMs);
+      const wait: PendingNoEventWait<TArgs> = {
+        id: waitId,
+        expectation,
+        resolve,
+        reject,
+        timeout
+      };
 
-      wait = { expectation, resolve, reject, timeout };
-      this.noEventWaits.add(wait as PendingNoEventWait<readonly unknown[]>);
+      this.noEventWaits.set(wait.id, wait as PendingNoEventWait<readonly unknown[]>);
 
-      void this.findMatchingRecord(this.toEventExpectation(expectation))
+      void this.findMatchingRecord(eventExpectation)
         .then((record) => {
           if (record) {
             this.rejectNoEventWait(
@@ -177,36 +190,42 @@ export class EventJournal {
     });
   }
 
+  private allocateWaitId(): number {
+    const id = this.nextWaitId;
+    this.nextWaitId += 1;
+    return id;
+  }
+
   private resolveEventWait<TArgs extends readonly unknown[]>(
-    wait: PendingEventWait<TArgs> | undefined,
+    wait: PendingEventWait<TArgs>,
     record: EventRecord<TArgs>
   ): void {
-    if (!wait || !this.eventWaits.has(wait as PendingEventWait<readonly unknown[]>)) return;
+    if (!this.eventWaits.has(wait.id)) return;
 
     clearTimeout(wait.timeout);
-    this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
+    this.eventWaits.delete(wait.id);
     wait.resolve(record);
   }
 
   private rejectEventWait<TArgs extends readonly unknown[]>(
-    wait: PendingEventWait<TArgs> | undefined,
+    wait: PendingEventWait<TArgs>,
     error: Error
   ): void {
-    if (!wait || !this.eventWaits.has(wait as PendingEventWait<readonly unknown[]>)) return;
+    if (!this.eventWaits.has(wait.id)) return;
 
     clearTimeout(wait.timeout);
-    this.eventWaits.delete(wait as PendingEventWait<readonly unknown[]>);
+    this.eventWaits.delete(wait.id);
     wait.reject(error);
   }
 
   private rejectNoEventWait<TArgs extends readonly unknown[]>(
-    wait: PendingNoEventWait<TArgs> | undefined,
+    wait: PendingNoEventWait<TArgs>,
     error: Error
   ): void {
-    if (!wait || !this.noEventWaits.has(wait as PendingNoEventWait<readonly unknown[]>)) return;
+    if (!this.noEventWaits.has(wait.id)) return;
 
     clearTimeout(wait.timeout);
-    this.noEventWaits.delete(wait as PendingNoEventWait<readonly unknown[]>);
+    this.noEventWaits.delete(wait.id);
     wait.reject(error);
   }
 
@@ -249,11 +268,11 @@ export class EventJournal {
   }
 
   private notifyWaiters(record: EventRecord): void {
-    for (const wait of [...this.eventWaits]) {
+    for (const wait of [...this.eventWaits.values()]) {
       void this.tryResolveEventWait(wait, record);
     }
 
-    for (const wait of [...this.noEventWaits]) {
+    for (const wait of [...this.noEventWaits.values()]) {
       void this.tryRejectNoEventWait(wait, record);
     }
   }
@@ -314,7 +333,7 @@ export class EventJournal {
   ): string {
     return (
       `Timed out after ${expectation.timeoutMs}ms waiting for event "${expectation.event}" ` +
-      this.formatExpectationContext(expectation)
+      `${this.formatExpectationContext(expectation)} lastEvents=${this.formatLastRecords()}`
     );
   }
 
@@ -324,7 +343,8 @@ export class EventJournal {
   ): string {
     return (
       `Unexpected event "${expectation.event}" received during ${expectation.durationMs}ms ` +
-      `${this.formatExpectationContext(expectation)} record=${this.formatRecord(record)}`
+      `${this.formatExpectationContext(expectation)} record=${this.formatRecord(record)} ` +
+      `lastEvents=${this.formatLastRecords()}`
     );
   }
 
@@ -340,8 +360,16 @@ export class EventJournal {
     });
   }
 
+  private formatLastRecords(limit = 10): string {
+    return JSON.stringify(this.records.slice(-limit).map((record) => this.recordToDebugObject(record)));
+  }
+
   private formatRecord(record: EventRecord): string {
-    return JSON.stringify({
+    return JSON.stringify(this.recordToDebugObject(record));
+  }
+
+  private recordToDebugObject(record: EventRecord): Record<string, unknown> {
+    return {
       sequence: record.sequence,
       direction: record.direction,
       event: record.event,
@@ -351,7 +379,7 @@ export class EventJournal {
       userId: record.userId,
       gameId: record.gameId,
       args: record.args
-    });
+    };
   }
 }
 
