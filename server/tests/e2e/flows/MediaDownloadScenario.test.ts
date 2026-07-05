@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
+import { afterAll, beforeAll, describe, it } from "@jest/globals";
 import { type Repository } from "typeorm";
 
 import { GameActionType } from "domain/enums/GameActionType";
@@ -9,6 +9,7 @@ import { User } from "infrastructure/database/models/User";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { type ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
+import { SocketGameScenarioDriver } from "tests/e2e/scenario/SocketGameScenarioDriver";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
@@ -31,7 +32,7 @@ describe("Media download scenario POC", () => {
 
   it("tracks burst media-download commands through journal, actions, broadcasts, and final state", async () => {
     const setup = await utils.setupGameTestEnvironment(userRepo, harness.app, 2, 0);
-    const scenario = new GameScenario();
+    const scenario = new GameScenario(new SocketGameScenarioDriver(utils));
 
     try {
       const showman = scenario.addActor({
@@ -55,11 +56,11 @@ describe("Media download scenario POC", () => {
       const questionId = await utils.getFirstAvailableQuestionId(setup.gameId);
 
       const afterQuestionPick = scenario.mark();
-      const questionPickSubmitted = utils.waitForSubmittedActions(
-        setup.gameId,
-        1,
-        GameActionType.QUESTION_PICK
-      );
+      const questionPickSubmitted = scenario.assert.waitForSubmittedActions({
+        gameId: setup.gameId,
+        expectedCount: 1,
+        actionType: GameActionType.QUESTION_PICK
+      });
       const questionDataReceived = Promise.all(
         players.map((player) =>
           scenario.assert.inbound({
@@ -75,17 +76,18 @@ describe("Media download scenario POC", () => {
 
       await questionPickSubmitted;
       await questionDataReceived;
-      await utils.waitForActionsComplete(setup.gameId);
-
-      const stateBeforeDownloads = await utils.getGameState(setup.gameId);
-      expect(stateBeforeDownloads?.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
+      await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+      await scenario.assert.questionState({
+        gameId: setup.gameId,
+        expectedState: QuestionState.MEDIA_DOWNLOADING
+      });
 
       const afterDownloadBurst = scenario.mark();
-      const mediaActionsSubmitted = utils.waitForSubmittedActions(
-        setup.gameId,
-        players.length,
-        GameActionType.MEDIA_DOWNLOADED
-      );
+      const mediaActionsSubmitted = scenario.assert.waitForSubmittedActions({
+        gameId: setup.gameId,
+        expectedCount: players.length,
+        actionType: GameActionType.MEDIA_DOWNLOADED
+      });
       const firstPlayerStatus = expectMediaDownloadStatus(scenario, showman, afterDownloadBurst, {
         playerId: players[0].userId,
         allPlayersReady: false
@@ -104,7 +106,7 @@ describe("Media download scenario POC", () => {
       await mediaActionsSubmitted;
       await firstPlayerStatus;
       await finalStatusBroadcasts;
-      await utils.waitForActionsComplete(setup.gameId);
+      await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
 
       scenario.assert.expectOutboundCommandCount({
         event: SocketIOGameEvents.MEDIA_DOWNLOADED,
@@ -112,8 +114,10 @@ describe("Media download scenario POC", () => {
         expectedCount: players.length
       });
 
-      const stateAfterDownloads = await utils.getGameState(setup.gameId);
-      expect(stateAfterDownloads?.questionState).toBe(QuestionState.SHOWING);
+      await scenario.assert.questionState({
+        gameId: setup.gameId,
+        expectedState: QuestionState.SHOWING
+      });
 
       await scenario.assert.noInbound({
         event: "error",
