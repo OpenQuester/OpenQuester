@@ -31,7 +31,7 @@ describe("Media download scenario POC", () => {
   });
 
   it("tracks burst media-download commands through journal, actions, broadcasts, and final state", async () => {
-    const context = await createMediaDownloadScenario(2);
+    const context = await createMediaDownloadScenario({ harness, utils, userRepo, playerCount: 2 });
 
     try {
       await pickMediaQuestion(context);
@@ -87,7 +87,7 @@ describe("Media download scenario POC", () => {
   });
 
   it("keeps waiting when one player sends a duplicate media-download burst", async () => {
-    const context = await createMediaDownloadScenario(2);
+    const context = await createMediaDownloadScenario({ harness, utils, userRepo, playerCount: 2 });
 
     try {
       await pickMediaQuestion(context);
@@ -137,18 +137,31 @@ describe("Media download scenario POC", () => {
   });
 });
 
+interface CreateMediaDownloadScenarioOptions {
+  readonly harness: ServerTestHarness;
+  readonly utils: SocketGameTestUtils;
+  readonly userRepo: Repository<User>;
+  readonly playerCount: number;
+}
+
 interface MediaDownloadScenarioContext {
   readonly setup: GameTestSetup;
+  readonly utils: SocketGameTestUtils;
   readonly scenario: GameScenario;
   readonly showman: ScenarioActor;
   readonly players: readonly ScenarioActor[];
 }
 
 async function createMediaDownloadScenario(
-  playerCount: number
+  options: CreateMediaDownloadScenarioOptions
 ): Promise<MediaDownloadScenarioContext> {
-  const setup = await utils.setupGameTestEnvironment(userRepo, harness.app, playerCount, 0);
-  const scenario = new GameScenario(new SocketGameScenarioDriver(utils));
+  const setup = await options.utils.setupGameTestEnvironment(
+    options.userRepo,
+    options.harness.app,
+    options.playerCount,
+    0
+  );
+  const scenario = new GameScenario(new SocketGameScenarioDriver(options.utils));
 
   const showman = scenario.addActor({
     label: "showman",
@@ -167,17 +180,17 @@ async function createMediaDownloadScenario(
     })
   );
 
-  return { setup, scenario, showman, players };
+  return { setup, utils: options.utils, scenario, showman, players };
 }
 
 async function cleanupMediaDownloadScenario(context: MediaDownloadScenarioContext): Promise<void> {
   context.scenario.dispose();
-  await utils.cleanupGameClients(context.setup);
+  await context.utils.cleanupGameClients(context.setup);
 }
 
 async function pickMediaQuestion(context: MediaDownloadScenarioContext): Promise<void> {
-  await utils.startGame(context.setup.showmanSocket);
-  const questionId = await utils.getFirstAvailableQuestionId(context.setup.gameId);
+  await context.utils.startGame(context.setup.showmanSocket);
+  const questionId = await context.utils.getFirstAvailableQuestionId(context.setup.gameId);
 
   const afterQuestionPick = context.scenario.mark();
   const questionPickSubmitted = context.scenario.assert.waitForSubmittedActions({
