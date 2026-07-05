@@ -132,8 +132,12 @@ export class MediaDownloadFlow {
     await this.waitForActionsComplete();
   }
 
+  public emitPlayerDownloaded(actor: ScenarioActor): void {
+    actor.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+  }
+
   public emitAllPlayersDownloaded(): void {
-    this.players.forEach((player) => player.emit(SocketIOGameEvents.MEDIA_DOWNLOADED));
+    this.players.forEach((player) => this.emitPlayerDownloaded(player));
   }
 
   public emitDuplicateDownloads(actor: ScenarioActor, count: number): void {
