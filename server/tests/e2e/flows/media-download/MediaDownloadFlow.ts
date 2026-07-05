@@ -34,6 +34,11 @@ export interface MediaDownloadCommandCountExpectation {
   readonly expectedCount: number;
 }
 
+export interface PlayerMediaDownloadedExpectation {
+  readonly actor: ScenarioActor;
+  readonly expected: boolean;
+}
+
 /**
  * Scenario helper for Media Download client-perspective E2E tests.
  *
@@ -171,6 +176,24 @@ export class MediaDownloadFlow {
       gameId: this.gameId,
       expectedState
     });
+  }
+
+  public expectPlayerMediaDownloaded(
+    expectation: PlayerMediaDownloadedExpectation
+  ): Promise<void> {
+    return this.assert.playerMediaDownloaded({
+      gameId: this.gameId,
+      actor: expectation.actor,
+      expected: expectation.expected
+    });
+  }
+
+  public async expectMediaReadiness(
+    expectations: readonly PlayerMediaDownloadedExpectation[]
+  ): Promise<void> {
+    await Promise.all(
+      expectations.map((expectation) => this.expectPlayerMediaDownloaded(expectation))
+    );
   }
 
   public expectMediaDownloadStatus(
