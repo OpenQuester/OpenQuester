@@ -25,6 +25,39 @@ describe("Media download scenario POC", () => {
     await harness.stop();
   });
 
+  it("keeps waiting until every player downloads media", async () => {
+    const flow = await createFlow(2);
+
+    try {
+      await flow.pickMediaQuestion();
+
+      const player = flow.player(0);
+      const afterDownload = flow.mark();
+      const mediaActionSubmitted = flow.waitForSubmittedMediaDownloads(1);
+      const status = flow.expectMediaDownloadStatus(flow.showman, afterDownload, {
+        playerId: player.userId,
+        allPlayersReady: false
+      });
+
+      flow.emitPlayerDownloaded(player);
+
+      await mediaActionSubmitted;
+      await status;
+      await flow.waitForActionsComplete();
+
+      flow.expectOutboundMediaDownloadCommands({
+        actor: player,
+        afterSequence: afterDownload,
+        expectedCount: 1
+      });
+
+      await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
+      await flow.expectNoSocketErrors(afterDownload);
+    } finally {
+      await flow.cleanup();
+    }
+  });
+
   it("tracks media-download commands through actions, broadcasts, journal, and final state", async () => {
     const flow = await createFlow(2);
 
