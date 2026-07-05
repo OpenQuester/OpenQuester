@@ -32,7 +32,7 @@
 ## Flow helper rules
 
 - Use small flow helpers, such as `MediaDownloadFlow`, only after a pattern repeats.
-- Flow helpers should express domain actions and assertions, not hide important test intent.
+- Flow helpers should express domain actions and assertions; they must not hide important scenario intent.
 - Keep setup/cleanup in the helper when it removes noise from scenario tests.
 
 ## Migration rule
