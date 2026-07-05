@@ -10,7 +10,7 @@ import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { type ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
 import { SocketGameScenarioDriver } from "tests/e2e/scenario/SocketGameScenarioDriver";
-import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { type GameTestSetup, SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 const GAME_NAMESPACE = "/game";
@@ -31,106 +31,181 @@ describe("Media download scenario POC", () => {
   });
 
   it("tracks burst media-download commands through journal, actions, broadcasts, and final state", async () => {
-    const setup = await utils.setupGameTestEnvironment(userRepo, harness.app, 2, 0);
-    const scenario = new GameScenario(new SocketGameScenarioDriver(utils));
+    const context = await createMediaDownloadScenario(2);
 
     try {
-      const showman = scenario.addActor({
-        label: "showman",
-        socket: setup.showmanSocket,
-        namespace: GAME_NAMESPACE,
-        userId: setup.showmanUser.id,
-        gameId: setup.gameId
-      });
-      const players = setup.playerSockets.map((socket, index) =>
-        scenario.addActor({
-          label: `player-${index + 1}`,
-          socket,
-          namespace: GAME_NAMESPACE,
-          userId: setup.playerUsers[index].id,
-          gameId: setup.gameId
-        })
-      );
+      await pickMediaQuestion(context);
 
-      await utils.startGame(setup.showmanSocket);
-      const questionId = await utils.getFirstAvailableQuestionId(setup.gameId);
-
-      const afterQuestionPick = scenario.mark();
-      const questionPickSubmitted = scenario.assert.waitForSubmittedActions({
-        gameId: setup.gameId,
-        expectedCount: 1,
-        actionType: GameActionType.QUESTION_PICK
-      });
-      const questionDataReceived = Promise.all(
-        players.map((player) =>
-          scenario.assert.inbound({
-            actor: player,
-            event: SocketIOGameEvents.QUESTION_DATA,
-            timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
-            afterSequence: afterQuestionPick
-          })
-        )
-      );
-
-      showman.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-
-      await questionPickSubmitted;
-      await questionDataReceived;
-      await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
-      await scenario.assert.questionState({
-        gameId: setup.gameId,
-        expectedState: QuestionState.MEDIA_DOWNLOADING
-      });
-
-      const afterDownloadBurst = scenario.mark();
-      const mediaActionsSubmitted = scenario.assert.waitForSubmittedActions({
-        gameId: setup.gameId,
-        expectedCount: players.length,
+      const afterDownloadBurst = context.scenario.mark();
+      const mediaActionsSubmitted = context.scenario.assert.waitForSubmittedActions({
+        gameId: context.setup.gameId,
+        expectedCount: context.players.length,
         actionType: GameActionType.MEDIA_DOWNLOADED
       });
-      const firstPlayerStatus = expectMediaDownloadStatus(scenario, showman, afterDownloadBurst, {
-        playerId: players[0].userId,
-        allPlayersReady: false
-      });
-      const finalStatusBroadcasts = Promise.all(
-        [showman, ...players].map((actor) =>
-          expectMediaDownloadStatus(scenario, actor, afterDownloadBurst, {
-            playerId: players[1].userId,
-            allPlayersReady: true
-          })
-        )
+      const firstPlayerStatus = expectMediaDownloadStatus(
+        context.scenario,
+        context.showman,
+        afterDownloadBurst,
+        {
+          playerId: context.players[0].userId,
+          allPlayersReady: false
+        }
       );
+      const finalStatusBroadcasts = context.scenario.assert.broadcast<[MediaDownloadStatusBroadcastData]>({
+        actors: [context.showman, ...context.players],
+        event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+        timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        afterSequence: afterDownloadBurst,
+        predicate: (record) => {
+          const data = record.args[0];
+          return data.playerId === context.players[1].userId && data.allPlayersReady;
+        }
+      });
 
-      players.forEach((player) => player.emit(SocketIOGameEvents.MEDIA_DOWNLOADED));
+      context.players.forEach((player) => player.emit(SocketIOGameEvents.MEDIA_DOWNLOADED));
 
       await mediaActionsSubmitted;
       await firstPlayerStatus;
       await finalStatusBroadcasts;
-      await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+      await context.scenario.assert.waitForActionsComplete({ gameId: context.setup.gameId });
 
-      scenario.assert.expectOutboundCommandCount({
+      context.scenario.assert.expectOutboundCommandCount({
         event: SocketIOGameEvents.MEDIA_DOWNLOADED,
         afterSequence: afterDownloadBurst,
-        expectedCount: players.length
+        expectedCount: context.players.length
       });
 
-      await scenario.assert.questionState({
-        gameId: setup.gameId,
+      await context.scenario.assert.questionState({
+        gameId: context.setup.gameId,
         expectedState: QuestionState.SHOWING
       });
 
-      await scenario.assert.noInbound({
-        event: "error",
-        durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,
-        afterSequence: afterDownloadBurst,
-        description: "media download burst should not emit socket errors"
-      });
+      await expectNoSocketErrors(context.scenario, afterDownloadBurst);
     } finally {
-      scenario.dispose();
-      await utils.cleanupGameClients(setup);
+      await cleanupMediaDownloadScenario(context);
+    }
+  });
+
+  it("keeps waiting when one player sends a duplicate media-download burst", async () => {
+    const context = await createMediaDownloadScenario(2);
+
+    try {
+      await pickMediaQuestion(context);
+
+      const burstActor = context.players[0];
+      const afterDownloadBurst = context.scenario.mark();
+      const mediaActionsSubmitted = context.scenario.assert.waitForSubmittedActions({
+        gameId: context.setup.gameId,
+        expectedCount: 15,
+        actionType: GameActionType.MEDIA_DOWNLOADED
+      });
+      const firstStatus = expectMediaDownloadStatus(
+        context.scenario,
+        context.showman,
+        afterDownloadBurst,
+        {
+          playerId: burstActor.userId,
+          allPlayersReady: false
+        }
+      );
+
+      burstActor.emitMany({
+        count: 15,
+        event: SocketIOGameEvents.MEDIA_DOWNLOADED
+      });
+
+      await mediaActionsSubmitted;
+      await firstStatus;
+      await context.scenario.assert.waitForActionsComplete({ gameId: context.setup.gameId });
+
+      context.scenario.assert.expectOutboundCommandCount({
+        actor: burstActor,
+        event: SocketIOGameEvents.MEDIA_DOWNLOADED,
+        afterSequence: afterDownloadBurst,
+        expectedCount: 15
+      });
+
+      await context.scenario.assert.questionState({
+        gameId: context.setup.gameId,
+        expectedState: QuestionState.MEDIA_DOWNLOADING
+      });
+
+      await expectNoSocketErrors(context.scenario, afterDownloadBurst);
+    } finally {
+      await cleanupMediaDownloadScenario(context);
     }
   });
 });
+
+interface MediaDownloadScenarioContext {
+  readonly setup: GameTestSetup;
+  readonly scenario: GameScenario;
+  readonly showman: ScenarioActor;
+  readonly players: readonly ScenarioActor[];
+}
+
+async function createMediaDownloadScenario(
+  playerCount: number
+): Promise<MediaDownloadScenarioContext> {
+  const setup = await utils.setupGameTestEnvironment(userRepo, harness.app, playerCount, 0);
+  const scenario = new GameScenario(new SocketGameScenarioDriver(utils));
+
+  const showman = scenario.addActor({
+    label: "showman",
+    socket: setup.showmanSocket,
+    namespace: GAME_NAMESPACE,
+    userId: setup.showmanUser.id,
+    gameId: setup.gameId
+  });
+  const players = setup.playerSockets.map((socket, index) =>
+    scenario.addActor({
+      label: `player-${index + 1}`,
+      socket,
+      namespace: GAME_NAMESPACE,
+      userId: setup.playerUsers[index].id,
+      gameId: setup.gameId
+    })
+  );
+
+  return { setup, scenario, showman, players };
+}
+
+async function cleanupMediaDownloadScenario(context: MediaDownloadScenarioContext): Promise<void> {
+  context.scenario.dispose();
+  await utils.cleanupGameClients(context.setup);
+}
+
+async function pickMediaQuestion(context: MediaDownloadScenarioContext): Promise<void> {
+  await utils.startGame(context.setup.showmanSocket);
+  const questionId = await utils.getFirstAvailableQuestionId(context.setup.gameId);
+
+  const afterQuestionPick = context.scenario.mark();
+  const questionPickSubmitted = context.scenario.assert.waitForSubmittedActions({
+    gameId: context.setup.gameId,
+    expectedCount: 1,
+    actionType: GameActionType.QUESTION_PICK
+  });
+  const questionDataReceived = Promise.all(
+    context.players.map((player) =>
+      context.scenario.assert.inbound({
+        actor: player,
+        event: SocketIOGameEvents.QUESTION_DATA,
+        timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        afterSequence: afterQuestionPick
+      })
+    )
+  );
+
+  context.showman.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
+
+  await questionPickSubmitted;
+  await questionDataReceived;
+  await context.scenario.assert.waitForActionsComplete({ gameId: context.setup.gameId });
+  await context.scenario.assert.questionState({
+    gameId: context.setup.gameId,
+    expectedState: QuestionState.MEDIA_DOWNLOADING
+  });
+}
 
 function expectMediaDownloadStatus(
   scenario: GameScenario,
@@ -150,5 +225,14 @@ function expectMediaDownloadStatus(
       const data = record.args[0];
       return data.playerId === expected.playerId && data.allPlayersReady === expected.allPlayersReady;
     }
+  });
+}
+
+function expectNoSocketErrors(scenario: GameScenario, afterSequence: number): Promise<void> {
+  return scenario.assert.noInbound({
+    event: "error",
+    durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,
+    afterSequence,
+    description: "media download scenario should not emit socket errors"
   });
 }
