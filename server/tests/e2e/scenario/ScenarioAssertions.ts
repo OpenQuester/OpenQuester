@@ -48,13 +48,17 @@ export interface CommandCountOptions {
   readonly expectedCount: number;
 }
 
+export type SyncEventPredicate<TArgs extends readonly unknown[] = readonly unknown[]> = (
+  record: EventRecord<TArgs>
+) => boolean;
+
 export interface DirectedEventCountOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly actor?: ScenarioActor;
   readonly direction: EventDirection;
   readonly event: string;
   readonly afterSequence?: number;
   readonly expectedCount: number;
-  readonly predicate?: EventPredicate<TArgs>;
+  readonly predicate?: SyncEventPredicate<TArgs>;
 }
 
 export interface BroadcastOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
