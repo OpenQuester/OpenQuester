@@ -13,13 +13,21 @@
 
 ## Scenario and journal rules
 
-- Use `GameScenario`, `ScenarioActor`, and `EventJournal` for new client-perspective game-flow tests.
+- Use `GameScenario`, `ScenarioActor`, `ScenarioAssertions`, and `EventJournal` for new client-perspective game-flow tests.
 - Attach every relevant actor socket to the journal before emitting commands.
 - Prefer actor methods over raw `socket.emit` in scenario tests.
-- Use `journal.mark()` before a burst of commands when assertions should only inspect new events.
+- Use `scenario.mark()` before a burst of commands when assertions should only inspect new events.
 - Predicate event expectations by actor/payload when the event can be broadcast more than once.
+- Use `scenario.assert.broadcast(...)` when every actor must receive the same server event.
+- Use `scenario.assert.expectOutboundCommandCount(...)` to prove command bursts were actually sent.
 - Negative assertions must use bounded no-event waits and should explain the expected quiescence window.
 - Scenario tests may emit bursts, such as duplicate or concurrent media-download commands, and assert the resulting journal history afterwards.
+
+## Driver rules
+
+- Route state/action assertions through `ScenarioGameDriver` instead of calling old socket utilities directly from scenario tests.
+- The current driver is `SocketGameScenarioDriver`, which adapts the existing Node/Socket.IO helpers.
+- Keep the driver interface small so future game-engine implementations can reuse the same scenario tests.
 
 ## Migration rule
 
