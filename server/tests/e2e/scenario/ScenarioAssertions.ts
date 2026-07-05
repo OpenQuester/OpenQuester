@@ -1,5 +1,7 @@
 import { expect } from "@jest/globals";
 
+import { type GameActionType } from "domain/enums/GameActionType";
+import { type QuestionState } from "domain/types/dto/game/state/QuestionState";
 import {
   type EventDirection,
   type EventExpectation,
@@ -8,8 +10,10 @@ import {
   type NoEventExpectation
 } from "tests/e2e/scenario/EventJournal";
 import { type ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
+import { type ScenarioGameDriver } from "tests/e2e/scenario/ScenarioGameDriver";
 
 export interface ScenarioAssertionsOptions {
+  readonly driver?: ScenarioGameDriver;
   readonly expectEvent: <TArgs extends readonly unknown[] = readonly unknown[]>(
     expectation: EventExpectation<TArgs>
   ) => Promise<EventRecord<TArgs>>;
@@ -44,12 +48,29 @@ export interface CommandCountOptions {
   readonly expectedCount: number;
 }
 
+export interface SubmittedActionsOptions {
+  readonly gameId: string;
+  readonly expectedCount: number;
+  readonly actionType?: GameActionType;
+  readonly timeoutMs?: number;
+}
+
+export interface ActionsCompleteOptions {
+  readonly gameId: string;
+  readonly timeoutMs?: number;
+}
+
+export interface QuestionStateOptions {
+  readonly gameId: string;
+  readonly expectedState: QuestionState;
+}
+
 /**
- * Small assertion facade over EventJournal.
+ * Small assertion facade over EventJournal and the optional scenario driver.
  *
  * Scenario tests should prefer this class over raw journal predicates once a
  * repeated pattern appears. It keeps the test body readable while still using
- * the journal as the source of truth.
+ * the journal/driver as the source of truth.
  */
 export class ScenarioAssertions {
   public constructor(private readonly options: ScenarioAssertionsOptions) {}
@@ -90,6 +111,20 @@ export class ScenarioAssertions {
     expect(records).toHaveLength(options.expectedCount);
   }
 
+  public waitForSubmittedActions(options: SubmittedActionsOptions): Promise<void> {
+    return this.requireDriver().waitForSubmittedActions(options);
+  }
+
+  public waitForActionsComplete(options: ActionsCompleteOptions): Promise<void> {
+    return this.requireDriver().waitForActionsComplete(options);
+  }
+
+  public async questionState(options: QuestionStateOptions): Promise<void> {
+    const state = await this.requireDriver().getGameState(options.gameId);
+
+    expect(state?.questionState).toBe(options.expectedState);
+  }
+
   private expectDirectedEvent<TArgs extends readonly unknown[]>(
     direction: EventDirection,
     options: EventMatchOptions<TArgs>
@@ -118,5 +153,13 @@ export class ScenarioAssertions {
       predicate: options.predicate,
       description: options.description
     });
+  }
+
+  private requireDriver(): ScenarioGameDriver {
+    if (!this.options.driver) {
+      throw new Error("Scenario driver is required for action/state assertions");
+    }
+
+    return this.options.driver;
   }
 }
