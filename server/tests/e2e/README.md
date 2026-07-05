@@ -29,6 +29,12 @@
 - The current driver is `SocketGameScenarioDriver`, which adapts the existing Node/Socket.IO helpers.
 - Keep the driver interface small so future game-engine implementations can reuse the same scenario tests.
 
+## Flow helper rules
+
+- Use small flow helpers, such as `MediaDownloadFlow`, only after a pattern repeats.
+- Flow helpers should express domain actions and assertions, not hide important test intent.
+- Keep setup/cleanup in the helper when it removes noise from scenario tests.
+
 ## Migration rule
 
 Do not migrate the whole socket test suite at once. Use the scenario/journal layer first for Media Download, then migrate other critical flows once the pattern is stable.
