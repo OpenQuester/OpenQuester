@@ -31,4 +31,4 @@
 
 ## Migration rule
 
-Do not migrate the whole socket test suite at once. Use the scenario/journal layer first for the Media Download proof-of-concept, including duplicate-burst edge cases, then migrate other critical flows once the pattern is stable.
+Do not migrate the whole socket test suite at once. Use the scenario/journal layer first for the Media Download proof-of-concept, then migrate other critical flows once the pattern is stable.
