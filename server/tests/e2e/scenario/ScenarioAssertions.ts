@@ -87,6 +87,12 @@ export interface QuestionStateOptions {
   readonly expectedState: QuestionState;
 }
 
+export interface PlayerMediaDownloadedOptions {
+  readonly gameId: string;
+  readonly actor: ScenarioActor;
+  readonly expected: boolean;
+}
+
 /**
  * Small assertion facade over EventJournal and the optional scenario driver.
  *
@@ -175,6 +181,19 @@ export class ScenarioAssertions {
     const state = await this.requireDriver().getGameState(options.gameId);
 
     expect(state?.questionState).toBe(options.expectedState);
+  }
+
+  public async playerMediaDownloaded(options: PlayerMediaDownloadedOptions): Promise<void> {
+    if (options.actor.userId === undefined) {
+      throw new Error(`Actor ${options.actor.label} does not have a userId`);
+    }
+
+    const mediaDownloaded = await this.requireDriver().getPlayerMediaDownloaded({
+      gameId: options.gameId,
+      playerId: options.actor.userId
+    });
+
+    expect(mediaDownloaded).toBe(options.expected);
   }
 
   private expectDirectedEvent<TArgs extends readonly unknown[]>(
