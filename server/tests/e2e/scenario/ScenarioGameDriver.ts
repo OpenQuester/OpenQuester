@@ -13,6 +13,11 @@ export interface WaitForActionsCompleteOptions {
   readonly timeoutMs?: number;
 }
 
+export interface PlayerMediaDownloadedOptions {
+  readonly gameId: string;
+  readonly playerId: number;
+}
+
 /**
  * Minimal driver contract for scenario tests.
  *
@@ -23,6 +28,7 @@ export interface WaitForActionsCompleteOptions {
 export interface ScenarioGameDriver {
   getGameState(gameId: string): Promise<GameStateDTO | null>;
   getFirstAvailableQuestionId(gameId: string): Promise<number>;
+  getPlayerMediaDownloaded(options: PlayerMediaDownloadedOptions): Promise<boolean>;
   waitForSubmittedActions(options: WaitForSubmittedActionsOptions): Promise<void>;
   waitForActionsComplete(options: WaitForActionsCompleteOptions): Promise<void>;
 }
