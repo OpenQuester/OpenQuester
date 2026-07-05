@@ -22,6 +22,9 @@ import { GameStatistics } from "infrastructure/database/models/statistics/GameSt
 import { PlayerGameStats } from "infrastructure/database/models/statistics/PlayerGameStats";
 import { User } from "infrastructure/database/models/User";
 
+const DEFAULT_TEST_REDIS_HOST = "127.0.0.1";
+const DEFAULT_TEST_REDIS_PORT = "6380";
+
 interface TestEnvDefaultsOptions {
   apiPort?: number;
   startupRecoveryEnabled?: boolean;
@@ -43,8 +46,8 @@ export function setTestEnvDefaults(options: TestEnvDefaultsOptions = {}) {
   process.env.SESSION_SECRET = "test_secret";
   process.env.API_DOMAIN = "localhost";
   process.env.SESSION_MAX_AGE = "3600000";
-  process.env.REDIS_HOST = "localhost";
-  process.env.REDIS_PORT ||= "6379";
+  process.env.REDIS_HOST ||= DEFAULT_TEST_REDIS_HOST;
+  process.env.REDIS_PORT ||= DEFAULT_TEST_REDIS_PORT;
   if (!process.env.REDIS_DB_NUMBER) {
     process.env.REDIS_DB_NUMBER = String(getTestRedisDb());
   }
