@@ -133,6 +133,61 @@ describe("Media download scenario POC", () => {
       await flow.cleanup();
     }
   });
+
+  it("transitions after duplicate burst player and remaining player both download", async () => {
+    const flow = await createFlow(2);
+
+    try {
+      await flow.pickMediaQuestion();
+
+      const burstActor = flow.player(0);
+      const remainingActor = flow.player(1);
+      const afterDuplicateBurst = flow.mark();
+      const duplicateActionsSubmitted = flow.waitForSubmittedActions(
+        DUPLICATE_MEDIA_DOWNLOAD_COMMANDS,
+        GameActionType.MEDIA_DOWNLOADED
+      );
+      const firstStatus = flow.expectMediaDownloadStatus(flow.showman, afterDuplicateBurst, {
+        playerId: burstActor.userId,
+        allPlayersReady: false
+      });
+
+      flow.emitDuplicateDownloads(burstActor, DUPLICATE_MEDIA_DOWNLOAD_COMMANDS);
+
+      await duplicateActionsSubmitted;
+      await firstStatus;
+      await flow.waitForActionsComplete();
+      await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
+
+      const afterRemainingDownload = flow.mark();
+      const remainingActionSubmitted = flow.waitForSubmittedMediaDownloads(1);
+      const finalStatusBroadcasts = flow.expectMediaDownloadBroadcast(
+        [flow.showman, ...flow.players],
+        afterRemainingDownload,
+        {
+          playerId: remainingActor.userId,
+          allPlayersReady: true
+        }
+      );
+
+      flow.emitPlayerDownloaded(remainingActor);
+
+      await remainingActionSubmitted;
+      await finalStatusBroadcasts;
+      await flow.waitForActionsComplete();
+
+      flow.expectOutboundMediaDownloadCommands({
+        actor: remainingActor,
+        afterSequence: afterRemainingDownload,
+        expectedCount: 1
+      });
+
+      await flow.expectQuestionState(QuestionState.SHOWING);
+      await flow.expectNoSocketErrors(afterDuplicateBurst);
+    } finally {
+      await flow.cleanup();
+    }
+  });
 });
 
 function createFlow(playerCount: number): Promise<MediaDownloadFlow> {
