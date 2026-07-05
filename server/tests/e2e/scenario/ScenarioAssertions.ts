@@ -48,6 +48,24 @@ export interface CommandCountOptions {
   readonly expectedCount: number;
 }
 
+export interface DirectedEventCountOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
+  readonly actor?: ScenarioActor;
+  readonly direction: EventDirection;
+  readonly event: string;
+  readonly afterSequence?: number;
+  readonly expectedCount: number;
+  readonly predicate?: EventPredicate<TArgs>;
+}
+
+export interface BroadcastOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
+  readonly actors: readonly ScenarioActor[];
+  readonly event: string;
+  readonly timeoutMs: number;
+  readonly afterSequence?: number;
+  readonly description?: string;
+  readonly predicate?: EventPredicate<TArgs>;
+}
+
 export interface SubmittedActionsOptions {
   readonly gameId: string;
   readonly expectedCount: number;
@@ -99,13 +117,43 @@ export class ScenarioAssertions {
     return this.expectNoDirectedEvent("outbound", options);
   }
 
+  public broadcast<TArgs extends readonly unknown[] = readonly unknown[]>(
+    options: BroadcastOptions<TArgs>
+  ): Promise<readonly EventRecord<TArgs>[]> {
+    return Promise.all(
+      options.actors.map((actor) =>
+        this.inbound({
+          actor,
+          event: options.event,
+          timeoutMs: options.timeoutMs,
+          afterSequence: options.afterSequence,
+          predicate: options.predicate,
+          description: options.description
+        })
+      )
+    );
+  }
+
   public expectOutboundCommandCount(options: CommandCountOptions): void {
+    this.expectDirectedEventCount({
+      actor: options.actor,
+      direction: "outbound",
+      event: options.event,
+      afterSequence: options.afterSequence,
+      expectedCount: options.expectedCount
+    });
+  }
+
+  public expectDirectedEventCount<TArgs extends readonly unknown[] = readonly unknown[]>(
+    options: DirectedEventCountOptions<TArgs>
+  ): void {
     const records = this.options.eventHistory().filter(
       (record) =>
-        record.direction === "outbound" &&
+        record.direction === options.direction &&
         record.event === options.event &&
         (options.actor ? record.actorLabel === options.actor.label : true) &&
-        (options.afterSequence === undefined || record.sequence > options.afterSequence)
+        (options.afterSequence === undefined || record.sequence > options.afterSequence) &&
+        (options.predicate ? options.predicate(record as EventRecord<TArgs>) : true)
     );
 
     expect(records).toHaveLength(options.expectedCount);
