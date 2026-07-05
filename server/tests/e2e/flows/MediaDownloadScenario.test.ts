@@ -27,6 +27,7 @@ describe("Media download scenario POC", () => {
       await flow.pickMediaQuestion();
 
       const player = flow.player(0);
+      const waitingPlayer = flow.player(1);
       const afterDownload = flow.mark();
       const mediaActionSubmitted = flow.waitForSubmittedMediaDownloads(1);
       const status = flow.expectMediaDownloadStatus(flow.showman, afterDownload, {
@@ -46,6 +47,10 @@ describe("Media download scenario POC", () => {
         expectedCount: 1
       });
 
+      await flow.expectMediaReadiness([
+        { actor: player, expected: true },
+        { actor: waitingPlayer, expected: false }
+      ]);
       await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
       await flow.expectNoSocketErrors(afterDownload);
     } finally {
@@ -86,7 +91,9 @@ describe("Media download scenario POC", () => {
         expectedCount: flow.players.length
       });
 
+      await flow.expectMediaReadiness(flow.players.map((actor) => ({ actor, expected: true })));
       await flow.expectQuestionState(QuestionState.SHOWING);
+      await flow.expectNoMediaTimeoutBroadcast(afterDownloadBurst);
       await flow.expectNoSocketErrors(afterDownloadBurst);
     } finally {
       await flow.cleanup();
@@ -100,6 +107,7 @@ describe("Media download scenario POC", () => {
       await flow.pickMediaQuestion();
 
       const burstActor = flow.player(0);
+      const waitingActor = flow.player(1);
       const afterDownloadBurst = flow.mark();
       const mediaActionsSubmitted = flow.waitForSubmittedActions(
         DUPLICATE_MEDIA_DOWNLOAD_COMMANDS,
@@ -122,6 +130,10 @@ describe("Media download scenario POC", () => {
         expectedCount: DUPLICATE_MEDIA_DOWNLOAD_COMMANDS
       });
 
+      await flow.expectMediaReadiness([
+        { actor: burstActor, expected: true },
+        { actor: waitingActor, expected: false }
+      ]);
       await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
       await flow.expectNoSocketErrors(afterDownloadBurst);
     } finally {
@@ -152,6 +164,10 @@ describe("Media download scenario POC", () => {
       await duplicateActionsSubmitted;
       await firstStatus;
       await flow.waitForActionsComplete();
+      await flow.expectMediaReadiness([
+        { actor: burstActor, expected: true },
+        { actor: remainingActor, expected: false }
+      ]);
       await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
 
       const afterRemainingDownload = flow.mark();
@@ -177,8 +193,33 @@ describe("Media download scenario POC", () => {
         expectedCount: 1
       });
 
+      await flow.expectMediaReadiness(flow.players.map((actor) => ({ actor, expected: true })));
       await flow.expectQuestionState(QuestionState.SHOWING);
       await flow.expectNoSocketErrors(afterDuplicateBurst);
+    } finally {
+      await flow.cleanup();
+    }
+  });
+
+  it("forces all players ready when the media download timer expires", async () => {
+    const flow = await createFlow(2);
+
+    try {
+      await flow.pickMediaQuestion();
+
+      const afterTimerExpiration = flow.mark();
+      const timeoutBroadcasts = flow.expectMediaTimeoutBroadcast(
+        [flow.showman, ...flow.players],
+        afterTimerExpiration
+      );
+
+      await flow.expireMediaDownloadTimer();
+      await timeoutBroadcasts;
+      await flow.waitForActionsComplete();
+
+      await flow.expectMediaReadiness(flow.players.map((actor) => ({ actor, expected: true })));
+      await flow.expectQuestionState(QuestionState.SHOWING);
+      await flow.expectNoSocketErrors(afterTimerExpiration);
     } finally {
       await flow.cleanup();
     }
