@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, it } from "@jest/globals";
-import { type Repository } from "typeorm";
 
 import { GameActionType } from "domain/enums/GameActionType";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -12,13 +11,9 @@ const DUPLICATE_MEDIA_DOWNLOAD_COMMANDS = 15;
 
 describe("Media download scenario POC", () => {
   let harness: ServerTestHarness;
-  let utils: SocketGameTestUtils;
-  let userRepo: Repository<User>;
 
   beforeAll(async () => {
     harness = await ServerTestHarness.start({ apiPort: 0 });
-    utils = new SocketGameTestUtils(harness.serverUrl);
-    userRepo = harness.dataSource.getRepository(User);
   });
 
   afterAll(async () => {
@@ -191,6 +186,9 @@ describe("Media download scenario POC", () => {
 });
 
 function createFlow(playerCount: number): Promise<MediaDownloadFlow> {
+  const utils = new SocketGameTestUtils(harness.serverUrl);
+  const userRepo = harness.dataSource.getRepository(User);
+
   return MediaDownloadFlow.start({
     harness,
     utils,
