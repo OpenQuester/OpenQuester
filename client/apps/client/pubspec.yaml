@@ -71,6 +71,7 @@ dependencies:
   talker_flutter: ^5.1.16
   talker_dio_logger: ^5.1.17
   archive: ^4.0.9
+  marionette_flutter: ^0.6.0
 
 dev_dependencies:
   flutter_test:

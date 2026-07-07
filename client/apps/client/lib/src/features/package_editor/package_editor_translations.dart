@@ -32,6 +32,9 @@ class AppOqEditorTranslations implements OqEditorTranslations {
   String get deleteButton => LocaleKeys.oq_editor_delete.tr();
 
   @override
+  String get duplicateQuestion => LocaleKeys.oq_editor_duplicate_question.tr();
+
+  @override
   String get packageInfo => LocaleKeys.oq_editor_package_info.tr();
 
   @override
@@ -135,6 +138,10 @@ class AppOqEditorTranslations implements OqEditorTranslations {
 
   @override
   String get errorGeneric => LocaleKeys.oq_editor_error_generic.tr();
+
+  @override
+  String get somethingWentWrong =>
+      LocaleKeys.oq_editor_something_went_wrong.tr();
 
   @override
   String get invalidTheme => LocaleKeys.oq_editor_invalid_theme.tr();
@@ -250,6 +257,15 @@ class AppOqEditorTranslations implements OqEditorTranslations {
       LocaleKeys.oq_editor_question_type_unknown_desc.tr();
 
   @override
+  String get basicSection => LocaleKeys.oq_editor_basic_section.tr();
+
+  @override
+  String get rulesSection => LocaleKeys.oq_editor_rules_section.tr();
+
+  @override
+  String get mediaSection => LocaleKeys.oq_editor_media_section.tr();
+
+  @override
   String get questionHint => LocaleKeys.oq_editor_question_hint.tr();
 
   @override
@@ -345,6 +361,12 @@ class AppOqEditorTranslations implements OqEditorTranslations {
 
   @override
   String get removeFile => LocaleKeys.oq_editor_remove_file.tr();
+
+  @override
+  String get moveUp => LocaleKeys.oq_editor_move_up.tr();
+
+  @override
+  String get moveDown => LocaleKeys.oq_editor_move_down.tr();
 
   @override
   String get errorAddingFile => LocaleKeys.oq_editor_error_adding_file.tr();
@@ -466,6 +488,10 @@ class AppOqEditorTranslations implements OqEditorTranslations {
   String get leaveWarning => LocaleKeys.oq_editor_leave_warning.tr();
 
   @override
+  String get unsavedChangesWarning =>
+      LocaleKeys.oq_editor_unsaved_changes_warning.tr();
+
+  @override
   String get leave => LocaleKeys.oq_editor_leave.tr();
 
   @override
@@ -485,6 +511,14 @@ class AppOqEditorTranslations implements OqEditorTranslations {
 
   @override
   String get exportPackage => LocaleKeys.oq_editor_export_package.tr();
+
+  @override
+  String get importReplaceTitle =>
+      LocaleKeys.oq_editor_import_replace_title.tr();
+
+  @override
+  String get importReplaceMessage =>
+      LocaleKeys.oq_editor_import_replace_message.tr();
 
   @override
   String get importPackageTooltip =>
@@ -585,4 +619,40 @@ class AppOqEditorTranslations implements OqEditorTranslations {
 
   @override
   String get exportRecommended => LocaleKeys.oq_editor_export_recommended.tr();
+
+  @override
+  String get validationIssues => LocaleKeys.oq_editor_validation_issues.tr();
+
+  @override
+  String get fixIssuesBeforeSaving =>
+      LocaleKeys.oq_editor_fix_issues_before_saving.tr();
+
+  @override
+  String validationIssueCount(int count) =>
+      LocaleKeys.oq_editor_validation_issue_count.tr(args: [count.toString()]);
+
+  @override
+  String get processLogs => LocaleKeys.oq_editor_process_logs.tr();
+
+  @override
+  String get showProcessLogs => LocaleKeys.oq_editor_show_process_logs.tr();
+
+  @override
+  String get noProcessLogs => LocaleKeys.oq_editor_no_process_logs.tr();
+
+  @override
+  String get uploadPackageTitle =>
+      LocaleKeys.oq_editor_upload_package_title.tr();
+
+  @override
+  String get uploadFailed => LocaleKeys.oq_editor_upload_failed.tr();
+
+  @override
+  String get uploadSucceeded => LocaleKeys.oq_editor_upload_succeeded.tr();
+
+  @override
+  String get retryUpload => LocaleKeys.oq_editor_retry_upload.tr();
+
+  @override
+  String get backToEditor => LocaleKeys.oq_editor_back_to_editor.tr();
 }

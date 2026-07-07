@@ -3,6 +3,7 @@
 
 .history/
 *.log
+screenshots/
 
 # Env files
 .env*

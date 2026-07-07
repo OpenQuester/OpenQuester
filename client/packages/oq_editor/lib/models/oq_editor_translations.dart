@@ -30,6 +30,9 @@ abstract class OqEditorTranslations {
   /// Label for delete button
   String get deleteButton;
 
+  /// Label for duplicate question button
+  String get duplicateQuestion;
+
   /// Package info section
   String get packageInfo;
   String get packageTitle;
@@ -76,6 +79,7 @@ abstract class OqEditorTranslations {
   /// Error messages
   String get errorSaving;
   String get errorGeneric;
+  String get somethingWentWrong;
   String get invalidTheme;
   String get invalidRound;
   String get invalidQuestionContext;
@@ -124,6 +128,9 @@ abstract class OqEditorTranslations {
   String get questionTypeUnknownDesc;
 
   /// Question fields
+  String get basicSection;
+  String get rulesSection;
+  String get mediaSection;
   String get questionHint;
   String get questionComment;
   String get answerDelay;
@@ -158,6 +165,8 @@ abstract class OqEditorTranslations {
   String get noMediaFiles;
   String get preview;
   String get removeFile;
+  String get moveUp;
+  String get moveDown;
   String get errorAddingFile;
   String get failedToLoadImage;
   String get failedToLoadVideo;
@@ -211,6 +220,7 @@ abstract class OqEditorTranslations {
 
   /// Exit dialog
   String get leaveWarning;
+  String get unsavedChangesWarning;
   String get leave;
   String get saveToServer;
   String get saveAsFile;
@@ -220,6 +230,8 @@ abstract class OqEditorTranslations {
   String get importPackage;
   String get importSiqPackage;
   String get exportPackage;
+  String get importReplaceTitle;
+  String get importReplaceMessage;
   String get importPackageTooltip;
   String get importSiqTooltip;
   String get exportPackageTooltip;
@@ -245,4 +257,19 @@ abstract class OqEditorTranslations {
   String get uploadNowButton;
   String get exportAndUploadButton;
   String get exportRecommended;
+
+  /// Validation and process logs
+  String get validationIssues;
+  String get fixIssuesBeforeSaving;
+  String validationIssueCount(int count);
+  String get processLogs;
+  String get showProcessLogs;
+  String get noProcessLogs;
+
+  /// Upload progress page
+  String get uploadPackageTitle;
+  String get uploadFailed;
+  String get uploadSucceeded;
+  String get retryUpload;
+  String get backToEditor;
 }

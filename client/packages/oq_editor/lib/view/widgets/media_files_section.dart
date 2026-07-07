@@ -12,6 +12,8 @@ class MediaFilesSection extends StatelessWidget {
     required this.onAdd,
     required this.onEditDisplayTime,
     required this.onRemove,
+    this.onMoveUp,
+    this.onMoveDown,
     super.key,
   });
 
@@ -20,6 +22,8 @@ class MediaFilesSection extends StatelessWidget {
   final VoidCallback onAdd;
   final void Function(int index) onEditDisplayTime;
   final void Function(int index) onRemove;
+  final void Function(int index)? onMoveUp;
+  final void Function(int index)? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +66,12 @@ class MediaFilesSection extends StatelessWidget {
                   mediaFile: file,
                   onEditDisplayTime: () => onEditDisplayTime(index),
                   onRemove: () => onRemove(index),
+                  onMoveUp: onMoveUp == null || index == 0
+                      ? null
+                      : () => onMoveUp!(index),
+                  onMoveDown: onMoveDown == null || index == files.length - 1
+                      ? null
+                      : () => onMoveDown!(index),
                 );
               }),
           ],

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
 import 'package:oq_editor/controllers/oq_editor_controller.dart';
 import 'package:oq_editor/router/router.gr.dart';
+import 'package:oq_editor/view/utils/editor_layout_metrics.dart';
+import 'package:oq_shared/ui/max_size_container.dart';
 import 'package:watch_it/watch_it.dart';
 
 /// Second step: manage rounds in the package
@@ -16,98 +18,99 @@ class RoundsListScreen extends WatchingWidget {
     final package = watchValue((OqEditorController c) => c.package);
     final translations = controller.translations;
     final rounds = package.rounds;
+    callOnce((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) controller.selectPackage();
+      });
+    });
 
     return Scaffold(
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    translations.rounds,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+      body: MaxSizeContainer(
+        maxWidth: EditorLayoutMetrics.listMaxWidth,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: EditorLayoutMetrics.pagePadding(context),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      translations.rounds,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                   ),
-                ),
-                FilledButton.icon(
-                  onPressed: () => _showAddRoundDialog(context),
-                  icon: const Icon(Icons.add),
-                  label: Text(translations.addRound),
-                ),
-              ],
+                  FilledButton.icon(
+                    onPressed: () => _showAddRoundDialog(context),
+                    icon: const Icon(Icons.add),
+                    label: Text(translations.addRound),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          // Rounds list or empty state
-          Expanded(
-            child: rounds.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.interests_outlined,
-                          size: 64,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          translations.noRounds,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ],
+            Expanded(
+              child: rounds.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.interests_outlined,
+                            size: 64,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            translations.noRounds,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ReorderableListView.builder(
+                      padding: EditorLayoutMetrics.listPadding(context),
+                      itemCount: rounds.length,
+                      onReorderItem: controller.reorderRounds,
+                      itemBuilder: (context, index) {
+                        final round = rounds[index];
+                        return _RoundCard(
+                          key: ValueKey(round.id ?? index),
+                          round: round,
+                          roundIndex: index,
+                          onTap: () => context.router.push(
+                            RoundEditorRoute(roundIndex: index),
+                          ),
+                          onEdit: () =>
+                              _showEditRoundDialog(context, index, round),
+                          onDelete: () => _confirmDeleteRound(context, index),
+                          onViewThemes: () => context.router.push(
+                            ThemesGridRoute(roundIndex: index),
+                          ),
+                        );
+                      },
                     ),
-                  )
-                : ReorderableListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: rounds.length,
-                    onReorderItem: controller.reorderRounds,
-                    itemBuilder: (context, index) {
-                      final round = rounds[index];
-                      return _RoundCard(
-                        key: ValueKey(round.id ?? index),
-                        round: round,
-                        roundIndex: index,
-                        onTap: () => context.router.push(
-                          RoundEditorRoute(roundIndex: index),
-                        ),
-                        onEdit: () =>
-                            _showEditRoundDialog(context, index, round),
-                        onDelete: () => _confirmDeleteRound(context, index),
-                        onViewThemes: () => context.router.push(
-                          ThemesGridRoute(roundIndex: index),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _showAddRoundDialog(BuildContext context) async {
-    final controller = GetIt.I<OqEditorController>();
-    final newRound = PackageRound(
-      order: 0,
-      name: controller.translations.newRound,
-      description: '',
-      type: PackageRoundType.simple,
-      themes: [],
-    );
+    final controller = GetIt.I<OqEditorController>()..createRound();
+    final roundIndex = controller.selectedNode.value.roundIndex;
+    if (roundIndex == null || !context.mounted) return;
 
-    // Simple add for now - in a real implementation, show a dialog
-    controller.addRound(newRound);
+    await context.router.push(RoundEditorRoute(roundIndex: roundIndex));
   }
 
   Future<void> _showEditRoundDialog(
@@ -174,11 +177,20 @@ class _RoundCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Card(
+      elevation: 0,
       margin: const EdgeInsets.only(bottom: 12),
+      color: colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: colorScheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -244,7 +256,11 @@ class _RoundCard extends StatelessWidget {
               Row(
                 children: [
                   Chip(
-                    label: Text('${round.themes.length} themes'),
+                    label: Text(
+                      GetIt.I<OqEditorController>().translations.themesCount(
+                        round.themes.length,
+                      ),
+                    ),
                     labelStyle: Theme.of(context).textTheme.bodySmall,
                   ),
                   const Spacer(),

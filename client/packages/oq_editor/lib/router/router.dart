@@ -1,6 +1,5 @@
 import 'package:auto_route/auto_route.dart';
 import 'package:oq_editor/router/router.gr.dart';
-import 'package:oq_shared/ui/blur_dialog_route.dart';
 
 @AutoRouterConfig(
   deferredLoading: true,
@@ -16,6 +15,10 @@ class OqEditorRouter extends RootStackRouter {
         page: PackageInfoRoute.page,
         path: 'info',
         initial: true,
+      ),
+      AutoRoute(
+        page: UploadProgressRoute.page,
+        path: 'upload',
       ),
       AutoRoute(
         page: RoundsListRoute.page,
@@ -37,7 +40,11 @@ class OqEditorRouter extends RootStackRouter {
         page: QuestionsListRoute.page,
         path: 'rounds/:roundIndex/themes/:themeIndex/questions',
       ),
-      BlurDialogRoute<void>(
+      AutoRoute(
+        page: AddQuestionRoute.page,
+        path: 'rounds/:roundIndex/themes/:themeIndex/questions/new',
+      ),
+      AutoRoute(
         page: QuestionEditorRoute.page,
         path: 'rounds/:roundIndex/themes/:themeIndex/questions/:questionIndex',
       ),

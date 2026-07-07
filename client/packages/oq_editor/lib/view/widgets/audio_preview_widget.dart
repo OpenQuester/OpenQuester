@@ -10,9 +10,10 @@ import 'package:oq_shared/oq_shared.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_io/io.dart';
 import 'package:video_player/video_player.dart';
+import 'package:watch_it/watch_it.dart';
 
 /// Widget to preview audio files with playback controls using VideoPlayer
-class AudioPreviewWidget extends StatefulWidget {
+class AudioPreviewWidget extends WatchingStatefulWidget {
   const AudioPreviewWidget({
     required this.mediaFile,
     this.size = 80,
@@ -182,17 +183,14 @@ class _AudioPreviewWidgetState extends State<AudioPreviewWidget> {
                 ),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: ValueListenableBuilder(
-                valueListenable: _controller!,
-                builder: (context, value, child) {
-                  return Center(
-                    child: Icon(
-                      value.isPlaying ? Icons.music_note : Icons.music_note,
-                      size: 80,
-                      color: Colors.white,
-                    ),
-                  );
-                },
+              child: Center(
+                child: Icon(
+                  watch(_controller!).value.isPlaying
+                      ? Icons.graphic_eq
+                      : Icons.music_note,
+                  size: 80,
+                  color: Colors.white,
+                ),
               ),
             ),
             const SizedBox(height: 24),

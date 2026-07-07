@@ -19,7 +19,6 @@ class OqEditorScreen extends WatchingWidget {
           GetIt.I.unregister<OqEditorController>(instance: controller),
     );
     return AutoRouter(
-      navigatorKey: controller.navigatorKey,
       builder: (context, content) {
         return OqEditorBody(
           controller: controller,

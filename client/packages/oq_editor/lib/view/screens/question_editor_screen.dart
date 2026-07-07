@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:auto_route/auto_route.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -10,12 +12,38 @@ import 'package:oq_editor/models/oq_editor_translations.dart';
 import 'package:oq_editor/models/ui_media_file.dart';
 import 'package:oq_editor/utils/media_type_detector.dart';
 import 'package:oq_editor/view/dialogs/display_time_dialog.dart';
+import 'package:oq_editor/view/utils/editor_layout_metrics.dart';
 import 'package:oq_editor/view/widgets/media_files_section.dart';
 import 'package:oq_shared/oq_shared.dart';
+import 'package:oq_shared/ui/max_size_container.dart';
 
 @RoutePage()
-class QuestionEditorDialog extends StatefulWidget {
-  const QuestionEditorDialog({
+class AddQuestionScreen extends StatelessWidget {
+  const AddQuestionScreen({
+    @PathParam() required this.roundIndex,
+    @PathParam() required this.themeIndex,
+    this.initialQuestion,
+    super.key,
+  });
+
+  final int roundIndex;
+  final int themeIndex;
+  final PackageQuestionUnion? initialQuestion;
+
+  @override
+  Widget build(BuildContext context) {
+    return QuestionEditorScreen(
+      roundIndex: roundIndex,
+      themeIndex: themeIndex,
+      questionIndex: null,
+      initialQuestion: initialQuestion,
+    );
+  }
+}
+
+@RoutePage()
+class QuestionEditorScreen extends StatefulWidget {
+  const QuestionEditorScreen({
     @PathParam() required this.roundIndex,
     @PathParam() required this.themeIndex,
     @PathParam() required this.questionIndex,
@@ -31,10 +59,10 @@ class QuestionEditorDialog extends StatefulWidget {
   final PackageQuestionUnion? initialQuestion;
 
   @override
-  State<QuestionEditorDialog> createState() => _QuestionEditorDialogState();
+  State<QuestionEditorScreen> createState() => _QuestionEditorScreenState();
 }
 
-class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
+class _QuestionEditorScreenState extends State<QuestionEditorScreen> {
   final OqEditorController controller = GetIt.I<OqEditorController>();
   final _formKey = GlobalKey<FormState>();
   late final PackageQuestionUnion? initQuestion;
@@ -87,6 +115,15 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
           widget.themeIndex,
           widget.questionIndex,
         );
+    if (widget.questionIndex != null) {
+      controller.selectQuestion(
+        widget.roundIndex,
+        widget.themeIndex,
+        widget.questionIndex!,
+      );
+    } else {
+      controller.selectTheme(widget.roundIndex, widget.themeIndex);
+    }
 
     _initializeFromQuestion();
     _loadExistingMediaFiles();
@@ -298,258 +335,118 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   }
 
   @override
-  Future<void> dispose() async {
-    super.dispose();
-    // Dispose all media file controllers
-    try {
-      await Future.wait([
-        ..._questionMediaFiles.map((e) => e.disposeController()),
-        ..._answerMediaFiles.map((e) => e.disposeController()),
-      ]);
-    } catch (_) {}
-
-    // Dispose text controllers
+  void dispose() {
+    unawaited(_disposeMediaControllers());
     _textController.dispose();
     _priceController.dispose();
     _answerTextController.dispose();
     _answerHintController.dispose();
     _questionCommentController.dispose();
     _answerDelayController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _disposeMediaControllers() async {
+    try {
+      await Future.wait([
+        ..._questionMediaFiles.map((e) => e.disposeController()),
+        ..._answerMediaFiles.map((e) => e.disposeController()),
+      ]);
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        initQuestion == null
-            ? translations.addQuestion
-            : translations.editQuestion,
-      ),
-      contentPadding: 16.all,
-      insetPadding: 16.all,
-      backgroundColor: context.theme.cardColor,
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 600),
+    final title = initQuestion == null
+        ? translations.addQuestion
+        : translations.editQuestion;
+    final subtitle = _contextSubtitle();
+
+    return Scaffold(
+      body: MaxSizeContainer(
+        maxWidth: EditorLayoutMetrics.formMaxWidth,
         child: Form(
           key: _formKey,
-          child: SingleChildScrollView(
-            padding: 10.top,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Question type selector
-                DropdownButtonFormField<QuestionType>(
-                  initialValue: _questionType,
-                  decoration: InputDecoration(
-                    labelText: translations.questionTypeLabel,
-                    border: const OutlineInputBorder(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EditorLayoutMetrics.pagePadding(context),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _QuestionEditorHeader(
+                        title: title,
+                        subtitle: subtitle,
+                      ),
+                      const SizedBox(height: 24),
+                      _QuestionEditorFormFields(
+                        questionType: _questionType,
+                        questionTypeName: _getQuestionTypeName,
+                        textController: _textController,
+                        priceController: _priceController,
+                        answerTextController: _answerTextController,
+                        answerHintController: _answerHintController,
+                        questionCommentController: _questionCommentController,
+                        answerDelayController: _answerDelayController,
+                        isHidden: _isHidden,
+                        onQuestionTypeChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _questionType = value;
+                          });
+                        },
+                        onHiddenChanged: (value) {
+                          setState(() {
+                            _isHidden = value ?? false;
+                          });
+                        },
+                        buildTypeSpecificFields: _buildTypeSpecificFields,
+                        buildTypeSpecificInfo: _buildTypeSpecificInfo,
+                        questionMediaFiles: _questionMediaFiles,
+                        answerMediaFiles: _answerMediaFiles,
+                        addMediaFile: _addMediaFile,
+                        removeMediaFile: _removeMediaFile,
+                        moveMediaFile: _moveMediaFile,
+                        editMediaDisplayTime: _editMediaDisplayTime,
+                        translations: translations,
+                      ),
+                    ],
                   ),
-                  items: QuestionType.values
-                      .where((e) => e != QuestionType.$unknown)
-                      .map((type) {
-                        return DropdownMenuItem(
-                          value: type,
-                          child: Text(_getQuestionTypeName(type)),
-                        );
-                      })
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _questionType = value;
-                      });
-                    }
-                  },
                 ),
-                const SizedBox(height: 16),
-
-                // Question text
-                TextFormField(
-                  controller: _textController,
-                  decoration: InputDecoration(
-                    labelText: translations.questionText,
-                    border: const OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                  maxLength: 500,
-                ),
-                const SizedBox(height: 16),
-
-                // Price
-                TextFormField(
-                  controller: _priceController,
-                  decoration: InputDecoration(
-                    labelText: translations.questionPrice,
-                    border: const OutlineInputBorder(),
-
-                    suffixText: translations.pts,
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return translations.fieldRequired;
-                    }
-                    final price = int.tryParse(value);
-                    if (price == null || price < 0) {
-                      return translations.enterValidPositiveNumber;
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Answer (not for choice/hidden)
-                if (_questionType != QuestionType.choice &&
-                    _questionType != QuestionType.hidden) ...[
-                  TextFormField(
-                    controller: _answerTextController,
-                    decoration: InputDecoration(
-                      labelText: translations.questionAnswer,
-                      border: const OutlineInputBorder(),
-                    ),
-                    maxLines: 2,
-                    maxLength: 200,
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return translations.fieldRequired;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Common optional fields
-                TextFormField(
-                  controller: _answerHintController,
-                  decoration: InputDecoration(
-                    labelText:
-                        '${translations.questionHint}'
-                        '(${translations.optional})',
-                    border: const OutlineInputBorder(),
-
-                    helperText: translations.questionHintHelper,
-                  ),
-                  maxLines: 2,
-                  maxLength: 200,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _questionCommentController,
-                  decoration: InputDecoration(
-                    labelText:
-                        '${translations.questionComment} '
-                        '(${translations.optional})',
-                    border: const OutlineInputBorder(),
-
-                    helperText: translations.questionCommentHelper,
-                  ),
-                  maxLines: 2,
-                  maxLength: 200,
-                ),
-                const SizedBox(height: 16),
-
-                TextFormField(
-                  controller: _answerDelayController,
-                  decoration: InputDecoration(
-                    labelText: translations.answerDelay,
-                    border: const OutlineInputBorder(),
-
-                    suffixText: translations.ms,
-                    helperText: translations.answerDelayHint,
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return translations.required;
-                    }
-                    final delay = int.tryParse(value);
-                    if (delay == null || delay < 0) {
-                      return translations.enterValidNumber;
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Is Hidden checkbox (not for hidden type)
-                if (_questionType != QuestionType.hidden)
-                  CheckboxListTile(
-                    value: _isHidden,
-                    onChanged: (value) {
-                      setState(() {
-                        _isHidden = value ?? false;
-                      });
-                    },
-                    title: Text(translations.isHidden),
-                    subtitle: Text(translations.isHiddenDesc),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-
-                const SizedBox(height: 16),
-
-                // Type-specific fields
-                ..._buildTypeSpecificFields(),
-
-                const SizedBox(height: 16),
-
-                // Type-specific info card
-                _buildTypeSpecificInfo(),
-
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 16),
-
-                // Media files section
-                MediaFilesSection(
-                  title: translations.questionMediaFiles,
-                  files: _questionMediaFiles,
-                  onAdd: () => _addMediaFile(isQuestionMedia: true),
-                  onRemove: (int index) {
-                    setState(() async {
-                      // Dispose controller before removing
-                      await _questionMediaFiles[index].disposeController();
-                      _questionMediaFiles.removeAt(index);
-                    });
-                  },
-                  onEditDisplayTime: (int index) =>
-                      _editMediaDisplayTime(index, isQuestionMedia: true),
-                ),
-
-                const SizedBox(height: 16),
-
-                MediaFilesSection(
-                  title: translations.answerMediaFiles,
-                  files: _answerMediaFiles,
-                  onAdd: () => _addMediaFile(isQuestionMedia: false),
-                  onRemove: (int index) {
-                    setState(() async {
-                      // Dispose controller before removing
-                      await _answerMediaFiles[index].disposeController();
-                      _answerMediaFiles.removeAt(index);
-                    });
-                  },
-                  onEditDisplayTime: (int index) =>
-                      _editMediaDisplayTime(index, isQuestionMedia: false),
-                ),
-              ],
-            ),
+              ),
+              _QuestionEditorFooter(
+                onCancel: () => context.router.pop(),
+                onSave: _saveQuestion,
+                translations: translations,
+              ),
+            ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(translations.cancelButton),
-        ),
-        FilledButton(
-          onPressed: _saveQuestion,
-          child: Text(translations.saveButton),
-        ),
-      ],
     );
+  }
+
+  String? _contextSubtitle() {
+    final package = controller.package.value;
+    if (widget.roundIndex < 0 || widget.roundIndex >= package.rounds.length) {
+      return null;
+    }
+
+    final round = package.rounds[widget.roundIndex];
+    if (widget.themeIndex < 0 || widget.themeIndex >= round.themes.length) {
+      final roundName = round.name.trim();
+      return roundName.isEmpty ? null : roundName;
+    }
+
+    final theme = round.themes[widget.themeIndex];
+    final parts = [
+      round.name.trim(),
+      theme.name.trim(),
+    ].where((part) => part.isNotEmpty).toList();
+
+    return parts.isEmpty ? null : parts.join(' / ');
   }
 
   String _getQuestionTypeName(QuestionType type) {
@@ -1022,6 +919,41 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
     });
   }
 
+  void _removeMediaFile(int index, {required bool isQuestionMedia}) {
+    final files = isQuestionMedia ? _questionMediaFiles : _answerMediaFiles;
+    if (index < 0 || index >= files.length) return;
+
+    final removedFile = files[index];
+    setState(() {
+      files.removeAt(index);
+      _repairMediaOrder(files);
+    });
+    unawaited(removedFile.disposeController());
+  }
+
+  void _moveMediaFile(
+    int index,
+    int direction, {
+    required bool isQuestionMedia,
+  }) {
+    final files = isQuestionMedia ? _questionMediaFiles : _answerMediaFiles;
+    final targetIndex = index + direction;
+    if (index < 0 || index >= files.length) return;
+    if (targetIndex < 0 || targetIndex >= files.length) return;
+
+    setState(() {
+      final file = files.removeAt(index);
+      files.insert(targetIndex, file);
+      _repairMediaOrder(files);
+    });
+  }
+
+  void _repairMediaOrder(List<UiMediaFile> files) {
+    for (var index = 0; index < files.length; index++) {
+      files[index].order = index;
+    }
+  }
+
   /// Add media file (stores file reference, not bytes, for memory efficiency)
   Future<void> _addMediaFile({required bool isQuestionMedia}) async {
     try {
@@ -1304,7 +1236,353 @@ class _QuestionEditorDialogState extends State<QuestionEditorDialog> {
   }
 }
 
-/// Result data from question editing dialog
+class _QuestionEditorHeader extends StatelessWidget {
+  const _QuestionEditorHeader({
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = this.subtitle;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _QuestionEditorFormFields extends StatelessWidget {
+  const _QuestionEditorFormFields({
+    required this.questionType,
+    required this.questionTypeName,
+    required this.textController,
+    required this.priceController,
+    required this.answerTextController,
+    required this.answerHintController,
+    required this.questionCommentController,
+    required this.answerDelayController,
+    required this.isHidden,
+    required this.onQuestionTypeChanged,
+    required this.onHiddenChanged,
+    required this.buildTypeSpecificFields,
+    required this.buildTypeSpecificInfo,
+    required this.questionMediaFiles,
+    required this.answerMediaFiles,
+    required this.addMediaFile,
+    required this.removeMediaFile,
+    required this.moveMediaFile,
+    required this.editMediaDisplayTime,
+    required this.translations,
+  });
+
+  final QuestionType questionType;
+  final String Function(QuestionType type) questionTypeName;
+  final TextEditingController textController;
+  final TextEditingController priceController;
+  final TextEditingController answerTextController;
+  final TextEditingController answerHintController;
+  final TextEditingController questionCommentController;
+  final TextEditingController answerDelayController;
+  final bool isHidden;
+  final ValueChanged<QuestionType?> onQuestionTypeChanged;
+  final ValueChanged<bool?> onHiddenChanged;
+  final List<Widget> Function() buildTypeSpecificFields;
+  final Widget Function() buildTypeSpecificInfo;
+  final List<UiMediaFile> questionMediaFiles;
+  final List<UiMediaFile> answerMediaFiles;
+  final Future<void> Function({required bool isQuestionMedia}) addMediaFile;
+  final void Function(int index, {required bool isQuestionMedia})
+  removeMediaFile;
+  final void Function(
+    int index,
+    int direction, {
+    required bool isQuestionMedia,
+  })
+  moveMediaFile;
+  final Future<void> Function(int index, {required bool isQuestionMedia})
+  editMediaDisplayTime;
+  final OqEditorTranslations translations;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _QuestionEditorSectionTitle(translations.basicSection),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<QuestionType>(
+          initialValue: questionType,
+          decoration: InputDecoration(
+            labelText: translations.questionTypeLabel,
+            border: const OutlineInputBorder(),
+          ),
+          items: QuestionType.values
+              .where((e) => e != QuestionType.$unknown)
+              .map((type) {
+                return DropdownMenuItem(
+                  value: type,
+                  child: Text(questionTypeName(type)),
+                );
+              })
+              .toList(),
+          onChanged: onQuestionTypeChanged,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: textController,
+          decoration: InputDecoration(
+            labelText: translations.questionText,
+            border: const OutlineInputBorder(),
+          ),
+          maxLines: 3,
+          maxLength: 500,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: priceController,
+          decoration: InputDecoration(
+            labelText: translations.questionPrice,
+            border: const OutlineInputBorder(),
+            suffixText: translations.pts,
+          ),
+          keyboardType: TextInputType.number,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return translations.fieldRequired;
+            }
+            final price = int.tryParse(value);
+            if (price == null || price < 0) {
+              return translations.enterValidPositiveNumber;
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        if (questionType != QuestionType.choice &&
+            questionType != QuestionType.hidden) ...[
+          TextFormField(
+            controller: answerTextController,
+            decoration: InputDecoration(
+              labelText: translations.questionAnswer,
+              border: const OutlineInputBorder(),
+            ),
+            maxLines: 2,
+            maxLength: 200,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return translations.fieldRequired;
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+        TextFormField(
+          controller: answerHintController,
+          decoration: InputDecoration(
+            labelText:
+                '${translations.questionHint}'
+                '(${translations.optional})',
+            border: const OutlineInputBorder(),
+            helperText: translations.questionHintHelper,
+          ),
+          maxLines: 2,
+          maxLength: 200,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: questionCommentController,
+          decoration: InputDecoration(
+            labelText:
+                '${translations.questionComment} '
+                '(${translations.optional})',
+            border: const OutlineInputBorder(),
+            helperText: translations.questionCommentHelper,
+          ),
+          maxLines: 2,
+          maxLength: 200,
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: answerDelayController,
+          decoration: InputDecoration(
+            labelText: translations.answerDelay,
+            border: const OutlineInputBorder(),
+            suffixText: translations.ms,
+            helperText: translations.answerDelayHint,
+          ),
+          keyboardType: TextInputType.number,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return translations.required;
+            }
+            final delay = int.tryParse(value);
+            if (delay == null || delay < 0) {
+              return translations.enterValidNumber;
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        if (questionType != QuestionType.hidden)
+          CheckboxListTile(
+            value: isHidden,
+            onChanged: onHiddenChanged,
+            title: Text(translations.isHidden),
+            subtitle: Text(translations.isHiddenDesc),
+            contentPadding: EdgeInsets.zero,
+          ),
+        const SizedBox(height: 16),
+        _QuestionEditorSectionTitle(translations.rulesSection),
+        const SizedBox(height: 16),
+        ...buildTypeSpecificFields(),
+        const SizedBox(height: 16),
+        buildTypeSpecificInfo(),
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 16),
+        _QuestionEditorSectionTitle(translations.mediaSection),
+        const SizedBox(height: 16),
+        MediaFilesSection(
+          title: translations.questionMediaFiles,
+          files: questionMediaFiles,
+          onAdd: () => addMediaFile(isQuestionMedia: true),
+          onRemove: (index) => removeMediaFile(
+            index,
+            isQuestionMedia: true,
+          ),
+          onMoveUp: (index) => moveMediaFile(
+            index,
+            -1,
+            isQuestionMedia: true,
+          ),
+          onMoveDown: (index) => moveMediaFile(
+            index,
+            1,
+            isQuestionMedia: true,
+          ),
+          onEditDisplayTime: (index) => editMediaDisplayTime(
+            index,
+            isQuestionMedia: true,
+          ),
+        ),
+        const SizedBox(height: 16),
+        MediaFilesSection(
+          title: translations.answerMediaFiles,
+          files: answerMediaFiles,
+          onAdd: () => addMediaFile(isQuestionMedia: false),
+          onRemove: (index) => removeMediaFile(
+            index,
+            isQuestionMedia: false,
+          ),
+          onMoveUp: (index) => moveMediaFile(
+            index,
+            -1,
+            isQuestionMedia: false,
+          ),
+          onMoveDown: (index) => moveMediaFile(
+            index,
+            1,
+            isQuestionMedia: false,
+          ),
+          onEditDisplayTime: (index) => editMediaDisplayTime(
+            index,
+            isQuestionMedia: false,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuestionEditorFooter extends StatelessWidget {
+  const _QuestionEditorFooter({
+    required this.onCancel,
+    required this.onSave,
+    required this.translations,
+  });
+
+  final VoidCallback onCancel;
+  final VoidCallback onSave;
+  final OqEditorTranslations translations;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final padding = EditorLayoutMetrics.pagePadding(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: colorScheme.outlineVariant),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          padding.left,
+          12,
+          padding.right,
+          12,
+        ),
+        child: OverflowBar(
+          alignment: MainAxisAlignment.end,
+          spacing: 8,
+          overflowSpacing: 8,
+          children: [
+            TextButton(
+              onPressed: onCancel,
+              child: Text(translations.cancelButton),
+            ),
+            FilledButton(
+              onPressed: onSave,
+              child: Text(translations.saveButton),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuestionEditorSectionTitle extends StatelessWidget {
+  const _QuestionEditorSectionTitle(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+/// Result data from question editing.
 class QuestionEditResult {
   const QuestionEditResult({
     required this.question,

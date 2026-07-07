@@ -1,13 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 
-import 'package:auto_route/auto_route.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
+import 'package:oq_editor/domain/editor_node_id.dart';
+import 'package:oq_editor/domain/package_editor_operation_state.dart';
+import 'package:oq_editor/domain/package_editor_validation.dart';
 import 'package:oq_editor/models/media_file_reference.dart';
 import 'package:oq_editor/models/oq_editor_translations.dart';
-import 'package:oq_editor/models/package_upload_state.dart';
-import 'package:oq_editor/router/router.gr.dart';
+import 'package:oq_editor/ports/package_editor_save_adapter.dart';
 import 'package:oq_editor/utils/editor_media_utils.dart';
 import 'package:oq_editor/utils/extensions.dart';
 import 'package:oq_editor/utils/media_file_encoder.dart';
@@ -19,120 +20,63 @@ class OqEditorController {
   OqEditorController({
     required this.translations,
     OqPackage? initialPackage,
-    this.onSave,
-    this.onSaveProgressStream,
+    this.saveAdapter,
     this.logger,
   }) {
     package.value = initialPackage ?? OqPackageX.empty;
+    validationIssues.value = validatePackageIssues(package.value);
   }
 
-  /// Translation provider injected from parent app
   final OqEditorTranslations translations;
-
-  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
-  /// Optional logger for debug messages
+  final OqPackageSaveAdapter? saveAdapter;
   final BaseLogger? logger;
 
-  /// Save callback function
-  /// Should handle uploading media files and saving the package
-  /// Returns the saved package or throws an error
-  /// Map key is the hash, value is MediaFileReference
-  final Future<OqPackage> Function(
-    OqPackage package,
-    Map<String, MediaFileReference> mediaFilesByHash,
-  )?
-  onSave;
-
-  /// Optional stream of upload progress states
-  /// If provided, the save dialog will show real-time progress
-  final Stream<PackageUploadState>? onSaveProgressStream;
-
-  /// Media file encoder for compressing files before upload/export
-  /// Maintains a cache of encoded files to avoid re-encoding
   late final MediaFileEncoder _mediaFileEncoder = MediaFileEncoder(
     logger: logger,
   );
 
-  /// Current package being edited
   final ValueNotifier<OqPackage> package = ValueNotifier<OqPackage>(
     OqPackageX.empty,
   );
 
-  /// Key to force refresh of the editor screen
-  final ValueNotifier<Key> refreshKey = ValueNotifier<Key>(
-    UniqueKey(),
+  final ValueNotifier<EditorNodeId> selectedNode = ValueNotifier<EditorNodeId>(
+    const EditorNodeId.package(),
   );
 
-  /// Media file references map by hash
-  /// Key: MD5 hash of file, Value: MediaFileReference for upload
-  /// This includes both newly added files and imported files from .oq archives
-  final Map<String, MediaFileReference> _mediaFilesByHash = {};
+  final ValueNotifier<PackageEditorOperationState> operationState =
+      ValueNotifier<PackageEditorOperationState>(
+        const PackageEditorOperationState.idle(),
+      );
 
-  /// Total size of media files in MB
+  final ValueNotifier<bool> hasUnsavedChanges = ValueNotifier<bool>(false);
+  final ValueNotifier<String?> lastErrorMessage = ValueNotifier<String?>(null);
+  final ValueNotifier<List<String>> operationLogs = ValueNotifier<List<String>>(
+    <String>[],
+  );
+  final ValueNotifier<Map<EditorNodeId, List<String>>> validationIssues =
+      ValueNotifier<Map<EditorNodeId, List<String>>>(
+        <EditorNodeId, List<String>>{},
+      );
+
+  final ValueNotifier<bool> outlinePanelVisible = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> previewPanelVisible = ValueNotifier<bool>(true);
+  final ValueNotifier<double> outlinePanelWidth = ValueNotifier<double>(320);
+  final ValueNotifier<double> previewPanelWidth = ValueNotifier<double>(360);
   final ValueNotifier<double> _totalSizeMB = ValueNotifier<double>(0);
 
-  /// Encoding progress stream controllers
-  StreamController<double>? _encodingProgressController;
+  final Map<String, MediaFileReference> _mediaFilesByHash = {};
 
-  /// Encoding progress stream for UI dialogs
-  Stream<double> get encodingProgressStream =>
-      _encodingProgressController?.stream ?? const Stream<double>.empty();
+  bool _operationRunning = false;
 
-  // Last used settings for question creation
-  /// Last used price value (persisted across question creations)
   int lastUsedPrice = 100;
-
-  /// Last used answer delay in milliseconds (persisted
-  /// across question creations)
   int lastUsedShowAnswerDuration = 5000;
-
-  /// Last used display time question for media files in milliseconds
-  ///  (persisted across question creations)
   int lastUsedQuestionDisplayTime = 5000;
-
-  /// Last used display time for answer media files in milliseconds
-  ///  (persisted across question creations)
   int lastUsedAnswerDisplayTime = 5000;
 
-  /// Get media file reference by hash
-  MediaFileReference? getMediaFileByHash(String hash) {
-    return _mediaFilesByHash[hash];
+  Map<String, MediaFileReference> get pendingMediaFiles {
+    return Map.unmodifiable(_mediaFilesByHash);
   }
 
-  /// Get file bytes by hash (works for both new and imported files)
-  Future<Uint8List?> getImportedFileBytes(String hash) async {
-    final mediaFile = _mediaFilesByHash[hash];
-    if (mediaFile == null) return null;
-
-    try {
-      return await mediaFile.platformFile.readBytes();
-    } catch (e) {
-      return null;
-    }
-  }
-
-  /// Register a media file reference for upload
-  /// Returns the hash for the file
-  Future<String> registerMediaFile(MediaFileReference file) async {
-    final hash = await file.calculateHash();
-    _mediaFilesByHash[hash] = file;
-    _updateTotalSize();
-    return hash;
-  }
-
-  /// Remove media file reference by hash
-  Future<void> unregisterMediaFile(String hash) async {
-    final file = _mediaFilesByHash.remove(hash);
-    await file?.disposeController();
-    _updateTotalSize();
-  }
-
-  /// Get all pending media files for upload
-  Map<String, MediaFileReference> get pendingMediaFiles =>
-      Map.unmodifiable(_mediaFilesByHash);
-
-  /// Calculate total size of pending media files in bytes
   int get totalMediaFilesSize {
     return _mediaFilesByHash.values.fold<int>(
       0,
@@ -140,432 +84,393 @@ class OqEditorController {
     );
   }
 
-  /// Calculate total size of pending media files in MB
-  double get totalMediaFilesSizeMB {
-    return totalMediaFilesSize / (1024 * 1024);
-  }
+  double get totalMediaFilesSizeMB => totalMediaFilesSize / (1024 * 1024);
 
-  /// Get reactive total size in MB for watching
   ValueNotifier<double> get totalSizeMBNotifier => _totalSizeMB;
 
-  /// Update the total size notifier
-  void _updateTotalSize() {
-    _totalSizeMB.value = totalMediaFilesSizeMB;
+  bool get isOperationRunning => operationState.value.isRunning;
+
+  String get operationLogText {
+    if (operationLogs.value.isEmpty) return translations.noProcessLogs;
+    return operationLogs.value.join('\n');
   }
 
-  /// Clear all pending media files
+  void selectNode(EditorNodeId node) {
+    selectedNode.value = _coerceNode(node);
+  }
+
+  void selectPackage() {
+    selectedNode.value = const EditorNodeId.package();
+  }
+
+  void selectRound(int roundIndex) {
+    selectNode(EditorNodeId.round(roundIndex));
+  }
+
+  void selectTheme(int roundIndex, int themeIndex) {
+    selectNode(EditorNodeId.theme(roundIndex, themeIndex));
+  }
+
+  void selectQuestion(int roundIndex, int themeIndex, int questionIndex) {
+    selectNode(EditorNodeId.question(roundIndex, themeIndex, questionIndex));
+  }
+
+  MediaFileReference? getMediaFileByHash(String hash) {
+    return _mediaFilesByHash[hash];
+  }
+
+  Future<Uint8List?> getImportedFileBytes(String hash) async {
+    final mediaFile = _mediaFilesByHash[hash];
+    if (mediaFile == null) return null;
+
+    try {
+      return mediaFile.platformFile.readBytes();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String> registerMediaFile(MediaFileReference file) async {
+    final hash = await file.calculateHash();
+    _mediaFilesByHash[hash] = file;
+    _updateTotalSize();
+    _markDirty();
+    return hash;
+  }
+
+  Future<void> unregisterMediaFile(String hash) async {
+    final file = _mediaFilesByHash.remove(hash);
+    await file?.disposeController();
+    _updateTotalSize();
+    _markDirty();
+  }
+
   Future<void> clearPendingMediaFiles() async {
-    // Dispose all controllers
     await Future.wait(
-      _mediaFilesByHash.values.map((e) => e.disposeController()),
+      _mediaFilesByHash.values.map((file) => file.disposeController()),
     );
     _mediaFilesByHash.clear();
     _updateTotalSize();
   }
 
-  /// Save the package
-  /// Calls the onSave callback with the current package and pending media files
-  /// Normalizes order fields for all questions before saving
-  /// Encodes media files for compression before upload and updates package
-  /// file hashes
   Future<OqPackage> savePackage() async {
-    StreamController<double>? progressController;
-
-    try {
-      if (onSave == null) {
-        throw UnimplementedError(
-          'onSave callback must be provided to OqEditorController',
-        );
-      }
-
-      // Start encoding progress tracking if there are media files
-      if (_mediaFilesByHash.isNotEmpty) {
-        progressController = StreamController<double>.broadcast();
-        _encodingProgressController = progressController;
-      }
-
-      // Normalize order fields before saving
-      final normalizedPackage = _normalizePackageOrder(package.value);
-
-      // Encode media files for compression and update package with new hashes
-      final encodingResult = await _mediaFileEncoder.encodePackage(
-        normalizedPackage,
-        Map.from(_mediaFilesByHash),
-        onProgress: progressController?.add,
+    if (saveAdapter == null) {
+      throw UnimplementedError(
+        'saveAdapter must be provided to OqEditorController',
       );
-
-      // Close encoding progress stream
-      await progressController?.close();
-      _encodingProgressController = null;
-
-      final savedPackage = await onSave!(
-        encodingResult.package,
-        encodingResult.files,
-      );
-
-      // Update the package with the saved version
-      package.value = savedPackage;
-
-      return savedPackage;
-    } catch (e) {
-      // Clean up progress stream on error
-      await progressController?.close();
-      _encodingProgressController = null;
-
-      logger?.e('Error saving package: $e');
-      rethrow;
     }
+
+    return _runOperation<OqPackage>(() async {
+      final normalizedPackage = _normalizePackageOrder(package.value);
+      final validation = validatePackage(normalizedPackage);
+      if (!validation.isValid) {
+        throw StateError(validation.errors.join('\n'));
+      }
+
+      final encodingResult = await _encodePackageIfNeeded(
+        normalizedPackage,
+        message: translations.encodingForUpload,
+      );
+
+      OqPackage? savedPackage;
+      await for (final event in saveAdapter!(
+        PackageEditorSaveRequest(
+          package: encodingResult.package,
+          mediaFilesByHash: encodingResult.files,
+        ),
+      )) {
+        _setRunning(
+          event.phase,
+          progress: event.progress,
+          message: event.message,
+        );
+
+        if (event.savedPackage != null) {
+          savedPackage = event.savedPackage;
+        }
+      }
+
+      final result = savedPackage;
+      if (result == null) {
+        throw StateError(translations.errorSaving);
+      }
+
+      _setPackage(result, dirty: false);
+      selectedNode.value = _coerceNode(selectedNode.value);
+      operationState.value = PackageEditorOperationState.completed(
+        message: translations.uploadComplete,
+      );
+      return result;
+    });
   }
 
-  /// Export package to .oq file
-  /// Downloads a zip archive with structure:
-  /// /content.json - serialized package
-  /// /encoded_files.json - metadata about encoded files
-  /// /files/{md5} - media files with hash as filename
-  /// Encodes media files for compression before export and updates package
-  /// file hashes
   Future<void> exportPackage() async {
-    StreamController<double>? progressController;
-
-    try {
-      // Start encoding progress tracking if there are media files
-      if (_mediaFilesByHash.isNotEmpty) {
-        progressController = StreamController<double>.broadcast();
-        _encodingProgressController = progressController;
+    await _runOperation<void>(() async {
+      final normalizedPackage = _normalizePackageOrder(package.value);
+      final validation = validatePackage(normalizedPackage);
+      if (!validation.isValid) {
+        throw StateError(validation.errors.join('\n'));
       }
 
-      // Normalize package before export
-      final normalizedPackage = _normalizePackageOrder(package.value);
-
-      // Encode media files for compression and update package with new hashes
-      final encodingResult = await _mediaFileEncoder.encodePackage(
+      final encodingResult = await _encodePackageIfNeeded(
         normalizedPackage,
-        Map.from(_mediaFilesByHash),
-        onProgress: progressController?.add,
+        message: translations.encodingForExport,
       );
 
-      // Close encoding progress stream
-      await progressController?.close();
-      _encodingProgressController = null;
+      _setRunning(
+        PackageEditorOperationPhase.exporting,
+        message: translations.exportPackage,
+      );
 
-      // Create archive with encoded media files and updated package
       final archiveBytes = await OqPackageArchiver.exportPackage(
         encodingResult.package,
         encodingResult.files,
         encodedFileHashes: _mediaFileEncoder.encodedFileHashes,
       );
 
-      // Save to file
       await OqPackageArchiver.saveArchiveToFile(
         archiveBytes,
         encodingResult.package.title,
       );
-    } catch (e) {
-      // Clean up progress stream on error
-      await progressController?.close();
-      _encodingProgressController = null;
 
-      logger?.e('Error exporting package: $e');
-      rethrow;
-    }
-  }
-
-  /// Import package from .oq file
-  /// Replaces current package with imported data
-  /// Converts imported file bytes to MediaFileReference objects
-  /// Restores encoded files cache from archive metadata to avoid re-encoding
-  Future<void> importPackage() async {
-    try {
-      // Pick file
-      final archiveBytes = await OqPackageArchiver.pickArchiveFile();
-      if (archiveBytes == null) return; // User cancelled
-
-      // Import package
-      final result = await OqPackageArchiver.importPackage(archiveBytes);
-
-      // Clear existing media files
-      await clearPendingMediaFiles();
-
-      // Populate encoder cache with encoded files from archive metadata
-      if (result.encodedFileHashes != null) {
-        _mediaFileEncoder.populateEncodedFilesCache(result.encodedFileHashes!);
-      }
-
-      // Convert imported file bytes to MediaFileReference objects
-      // This allows them to be treated the same as newly added files
-      for (final entry in result.filesBytesByHash.entries) {
-        final hash = entry.key;
-        final bytes = entry.value;
-
-        // Create MediaFileReference using utility
-        final mediaFile = EditorMediaUtils.createMediaFileFromBytes(
-          hash: hash,
-          bytes: bytes,
-        );
-        _mediaFilesByHash[hash] = mediaFile;
-      }
-
-      // Update total size after import
-      _updateTotalSize();
-
-      // Update package with imported data
-      package.value = result.package;
-
-      // Navigate to package info screen
-      unawaited(
-        AutoRouter.of(
-          navigatorKey.currentContext!,
-        ).push(const PackageInfoRoute()),
+      _markClean();
+      operationState.value = PackageEditorOperationState.completed(
+        message: translations.packageExportedSuccessfully,
       );
-      refreshKey.value = UniqueKey();
-    } catch (e) {
-      logger?.e('Error importing package: $e');
-      rethrow;
-    }
+    });
   }
 
-  /// Import package from .siq file
-  /// Converts SIQ format to OQ package and replaces current data
-  /// Shows encoding warning and progress dialog
-  Future<void> importSiqPackage() async {
-    try {
-      // Clear existing media files first
-      await clearPendingMediaFiles();
-
-      // Start SIQ import with progress tracking
-      await for (final progress in SiqImportHelper(
-        logger: logger,
-      ).pickAndConvertSiqFile()) {
-        switch (progress) {
-          case SiqImportPickingFile():
-            // No action needed, file picker is shown
-            break;
-          case SiqImportParsingFile(:final progress):
-            // Could show parsing progress if needed
-            logger?.d('Parsing SIQ file: ${(progress * 100).toInt()}%');
-          case SiqImportConvertingMedia(:final current, :final total):
-            // Could show media conversion progress
-            logger?.d('Converting media files: $current/$total');
-          case SiqImportCompleted(:final result):
-            // Import completed successfully
-
-            // Register media files
-            _mediaFilesByHash.clear();
-            _mediaFilesByHash.addAll(result.mediaFilesByHash);
-
-            // Update total size after import
-            _updateTotalSize();
-
-            // Update package with imported data
-            package.value = result.package;
-
-            // Navigate to package info screen
-            unawaited(
-              AutoRouter.of(
-                navigatorKey.currentContext!,
-              ).push(const PackageInfoRoute()),
-            );
-            refreshKey.value = UniqueKey();
-
-            logger?.i(
-              'SIQ package imported successfully: ${result.package.title}',
-            );
-          case SiqImportError(:final error, :final stackTrace):
-            logger?.e(
-              'SIQ import failed',
-              error: error,
-              stackTrace: stackTrace,
-            );
-            // ignore: only_throw_errors
-            throw error;
-        }
-      }
-    } catch (e) {
-      logger?.e('Error importing SIQ package: $e');
-      rethrow;
-    }
-  }
-
-  /// Pick package file (.oq or .siq) using unified picker
-  /// Returns file bytes and extension or null if cancelled
-  Future<({Uint8List bytes, String extension})?> pickPackageFile() async {
+  Future<({Uint8List bytes, String extension})?> pickPackageFile() {
     return SiqImportHelper.pickPackageFile();
   }
 
-  /// Import OQ package from bytes
-  /// Replaces current package data with imported data
+  Future<void> importPickedPackage() async {
+    await _runOperation<void>(() async {
+      _setRunning(
+        PackageEditorOperationPhase.importPicking,
+        message: translations.importPackage,
+      );
+
+      final fileResult = await pickPackageFile();
+      if (fileResult == null) {
+        operationState.value = const PackageEditorOperationState.idle();
+        return;
+      }
+
+      if (fileResult.extension == 'oq') {
+        await _importOqPackageBytes(fileResult.bytes);
+      } else {
+        await _importSiqPackageBytes(fileResult.bytes);
+      }
+    });
+  }
+
   Future<void> importOqPackage(Uint8List oqBytes) async {
-    try {
-      // Import package
-      final result = await OqPackageArchiver.importPackage(oqBytes);
-
-      // Clear existing media files
-      await clearPendingMediaFiles();
-
-      // Populate encoder cache with encoded files from archive metadata
-      if (result.encodedFileHashes != null) {
-        _mediaFileEncoder.populateEncodedFilesCache(result.encodedFileHashes!);
-      }
-
-      // Convert imported file bytes to MediaFileReference objects
-      for (final entry in result.filesBytesByHash.entries) {
-        final hash = entry.key;
-        final bytes = entry.value;
-
-        // Create MediaFileReference using utility
-        final mediaFile = EditorMediaUtils.createMediaFileFromBytes(
-          hash: hash,
-          bytes: bytes,
-        );
-        _mediaFilesByHash[hash] = mediaFile;
-      }
-
-      // Update total size after import
-      _updateTotalSize();
-
-      // Update package with imported data
-      package.value = result.package;
-
-      // Navigate to package info screen
-      unawaited(
-        AutoRouter.of(
-          navigatorKey.currentContext!,
-        ).push(const PackageInfoRoute()),
-      );
-      refreshKey.value = UniqueKey();
-    } catch (e) {
-      logger?.e('Error importing OQ package: $e');
-      rethrow;
-    }
+    await _runOperation<void>(() => _importOqPackageBytes(oqBytes));
   }
 
-  /// Import SIQ package from bytes
-  /// Converts SIQ format to OQ package and replaces current data
   Future<void> importSiqPackageFromBytes(Uint8List siqBytes) async {
-    try {
-      // Clear existing media files first
-      await clearPendingMediaFiles();
-
-      // Start SIQ import with progress tracking
-      await for (final progress in SiqImportHelper(
-        logger: logger,
-      ).convertSiqToOqPackage(siqBytes)) {
-        switch (progress) {
-          case SiqImportParsingFile(:final progress):
-            // Could show parsing progress if needed
-            logger?.d('Parsing SIQ file: ${(progress * 100).toInt()}%');
-          case SiqImportConvertingMedia(:final current, :final total):
-            // Could show media conversion progress
-            logger?.d('Converting media files: $current/$total');
-          case SiqImportCompleted(:final result):
-            // Import completed successfully
-
-            // Register media files
-            _mediaFilesByHash.clear();
-            _mediaFilesByHash.addAll(result.mediaFilesByHash);
-
-            // Update total size after import
-            _updateTotalSize();
-
-            // Update package with imported data
-            package.value = result.package;
-
-            // Navigate to package info screen
-            unawaited(
-              AutoRouter.of(
-                navigatorKey.currentContext!,
-              ).push(const PackageInfoRoute()),
-            );
-            refreshKey.value = UniqueKey();
-
-            logger?.i(
-              'SIQ package imported successfully: ${result.package.title}',
-            );
-          case SiqImportError(:final error, :final stackTrace):
-            logger?.e(
-              'SIQ import failed',
-              error: error,
-              stackTrace: stackTrace,
-            );
-            // ignore: only_throw_errors
-            throw error;
-          case SiqImportPickingFile():
-            // This shouldn't happen when called with bytes
-            break;
-        }
-      }
-    } catch (e) {
-      logger?.e('Error importing SIQ package: $e');
-      rethrow;
-    }
+    await _runOperation<void>(() => _importSiqPackageBytes(siqBytes));
   }
 
-  /// Normalize order fields for rounds, themes, and questions in the package
-  /// Ensures all entities are sorted by order and have sequential
-  /// order values (0, 1, 2, ...)
-  OqPackage _normalizePackageOrder(OqPackage pkg) {
-    // Sort rounds by current order field
-    final sortedRounds = List<PackageRound>.from(pkg.rounds)
-      ..sort((a, b) => a.order.compareTo(b.order));
+  Future<void> importPackage() async {
+    await importPickedPackage();
+  }
 
-    // Reassign order values to rounds sequentially
-    final normalizedRounds = sortedRounds.asMap().entries.map((roundEntry) {
-      final round = roundEntry.value;
-      final roundOrder = roundEntry.key;
-
-      // Sort themes by current order field
-      final sortedThemes = List<PackageTheme>.from(round.themes)
-        ..sort((a, b) => a.order.compareTo(b.order));
-
-      // Reassign order values to themes sequentially
-      final normalizedThemes = sortedThemes.asMap().entries.map((themeEntry) {
-        final theme = themeEntry.value;
-        final themeOrder = themeEntry.key;
-
-        // Sort questions by current order field
-        final sortedQuestions = List<PackageQuestionUnion>.from(theme.questions)
-          ..sort((a, b) => a.order.compareTo(b.order));
-
-        // Reassign order values to questions sequentially
-        final reorderedQuestions = sortedQuestions
-            .asMap()
-            .entries
-            .map((entry) => _updateQuestionOrder(entry.value, entry.key))
-            .toList();
-
-        return theme.copyWith(
-          order: themeOrder,
-          questions: reorderedQuestions,
-        );
-      }).toList();
-
-      return round.copyWith(
-        order: roundOrder,
-        themes: normalizedThemes,
+  Future<void> importSiqPackage() async {
+    await _runOperation<void>(() async {
+      _setRunning(
+        PackageEditorOperationPhase.importPicking,
+        message: translations.importSiqPackage,
       );
-    }).toList();
 
-    return pkg.copyWith(rounds: normalizedRounds);
+      final fileResult = await pickPackageFile();
+      if (fileResult == null) {
+        operationState.value = const PackageEditorOperationState.idle();
+        return;
+      }
+
+      if (fileResult.extension != 'siq') {
+        throw StateError(translations.errorImportingSiq);
+      }
+
+      await _importSiqPackageBytes(fileResult.bytes);
+    });
   }
 
-  /// Update the order field of a question based on its type
-  PackageQuestionUnion _updateQuestionOrder(
-    PackageQuestionUnion question,
-    int newOrder,
-  ) {
-    return question.map(
-      simple: (q) => q.copyWith(order: newOrder),
-      stake: (q) => q.copyWith(order: newOrder),
-      secret: (q) => q.copyWith(order: newOrder),
-      noRisk: (q) => q.copyWith(order: newOrder),
-      choice: (q) => q.copyWith(order: newOrder),
-      hidden: (q) => q.copyWith(order: newOrder),
+  Future<void> _importOqPackageBytes(Uint8List oqBytes) async {
+    _setRunning(
+      PackageEditorOperationPhase.importParsing,
+      message: translations.importPackage,
+    );
+
+    final result = await OqPackageArchiver.importPackage(oqBytes);
+    await _replacePackageFromImport(
+      package: result.package,
+      filesBytesByHash: result.filesBytesByHash,
+      encodedFileHashes: result.encodedFileHashes,
+    );
+
+    operationState.value = PackageEditorOperationState.completed(
+      message: translations.packageImportedSuccessfully,
     );
   }
 
-  // Package modification methods
+  Future<void> _importSiqPackageBytes(Uint8List siqBytes) async {
+    await clearPendingMediaFiles();
 
-  /// Update package basic info
+    await for (final progress in SiqImportHelper(
+      logger: logger,
+    ).convertSiqToOqPackage(siqBytes)) {
+      switch (progress) {
+        case SiqImportParsingFile(:final progress):
+          _setRunning(
+            PackageEditorOperationPhase.importParsing,
+            progress: progress,
+            message: translations.importSiqPackage,
+          );
+        case SiqImportConvertingMedia(:final current, :final total):
+          _setRunning(
+            PackageEditorOperationPhase.importParsing,
+            progress: total == 0 ? null : current / total,
+            message: '${translations.importSiqPackage} $current/$total',
+          );
+        case SiqImportCompleted(:final result):
+          _mediaFilesByHash
+            ..clear()
+            ..addAll(result.mediaFilesByHash);
+          _updateTotalSize();
+          package.value = result.package;
+          selectPackage();
+          operationState.value = PackageEditorOperationState.completed(
+            message: translations.siqPackageImportedSuccessfully,
+          );
+        case SiqImportError(:final error, :final stackTrace):
+          Error.throwWithStackTrace(
+            error,
+            stackTrace ?? StackTrace.current,
+          );
+        case SiqImportPickingFile():
+          break;
+      }
+    }
+  }
+
+  Future<void> _replacePackageFromImport({
+    required OqPackage package,
+    required Map<String, Uint8List> filesBytesByHash,
+    Set<String>? encodedFileHashes,
+  }) async {
+    await clearPendingMediaFiles();
+
+    if (encodedFileHashes != null) {
+      _mediaFileEncoder.populateEncodedFilesCache(encodedFileHashes);
+    }
+
+    for (final entry in filesBytesByHash.entries) {
+      _mediaFilesByHash[entry.key] = EditorMediaUtils.createMediaFileFromBytes(
+        hash: entry.key,
+        bytes: entry.value,
+      );
+    }
+
+    _updateTotalSize();
+    _setPackage(package);
+    selectPackage();
+  }
+
+  PackageEditorValidationResult validatePackage([OqPackage? package]) {
+    final targetPackage = package ?? this.package.value;
+    final issueMap = validatePackageIssues(targetPackage);
+    final errors = issueMap.values.expand((messages) => messages).toList();
+
+    validationIssues.value = issueMap;
+
+    return PackageEditorValidationResult(errors: errors);
+  }
+
+  Map<EditorNodeId, List<String>> validatePackageIssues([OqPackage? package]) {
+    final targetPackage = package ?? this.package.value;
+    final issues = <EditorNodeId, List<String>>{};
+
+    void addIssue(EditorNodeId node, String message) {
+      issues.update(
+        node,
+        (messages) => <String>[...messages, message],
+        ifAbsent: () => <String>[message],
+      );
+    }
+
+    if (targetPackage.title.trim().isEmpty) {
+      addIssue(
+        const EditorNodeId.package(),
+        _requiredIssue(translations.packageTitle),
+      );
+    } else if (targetPackage.title.trim().length < 3) {
+      addIssue(
+        const EditorNodeId.package(),
+        '${translations.packageTitle}: ${translations.minLengthError(3)}',
+      );
+    }
+    if (targetPackage.language?.trim().isEmpty ?? true) {
+      addIssue(
+        const EditorNodeId.package(),
+        _requiredIssue(translations.packageLanguage),
+      );
+    }
+    if (targetPackage.ageRestriction == AgeRestriction.$unknown) {
+      addIssue(
+        const EditorNodeId.package(),
+        _requiredIssue(translations.packageAgeRestriction),
+      );
+    }
+
+    for (
+      var roundIndex = 0;
+      roundIndex < targetPackage.rounds.length;
+      roundIndex++
+    ) {
+      final round = targetPackage.rounds[roundIndex];
+      final roundNode = EditorNodeId.round(roundIndex);
+      if (round.name.trim().isEmpty) {
+        addIssue(roundNode, _requiredIssue(translations.roundName));
+      }
+
+      for (var themeIndex = 0; themeIndex < round.themes.length; themeIndex++) {
+        final theme = round.themes[themeIndex];
+        final themeNode = EditorNodeId.theme(roundIndex, themeIndex);
+        if (theme.name.trim().isEmpty) {
+          addIssue(themeNode, _requiredIssue(translations.themeName));
+        }
+
+        for (
+          var questionIndex = 0;
+          questionIndex < theme.questions.length;
+          questionIndex++
+        ) {
+          final question = theme.questions[questionIndex];
+          final questionNode = EditorNodeId.question(
+            roundIndex,
+            themeIndex,
+            questionIndex,
+          );
+          final questionIssues = _validateQuestion(question);
+          for (final issue in questionIssues) {
+            addIssue(questionNode, issue);
+          }
+        }
+      }
+    }
+
+    return issues;
+  }
+
+  bool refreshValidationIssues() {
+    final issues = validatePackageIssues();
+    validationIssues.value = issues;
+    return issues.isEmpty;
+  }
+
   void updatePackageInfo({
     String? title,
     String? description,
@@ -573,178 +478,249 @@ class OqEditorController {
     String? language,
     List<PackageTag>? tags,
   }) {
-    package.value = package.value.copyWith(
-      title: title ?? package.value.title,
-      description: description ?? package.value.description,
-      ageRestriction: ageRestriction ?? package.value.ageRestriction,
-      language: language ?? package.value.language,
-      tags: tags ?? package.value.tags,
+    _setPackage(
+      package.value.copyWith(
+        title: title ?? package.value.title,
+        description: description ?? package.value.description,
+        ageRestriction: ageRestriction ?? package.value.ageRestriction,
+        language: language ?? package.value.language,
+        tags: tags ?? package.value.tags,
+      ),
     );
   }
 
-  // Round CRUD operations
-
-  /// Add a new round
-  /// Automatically assigns order based on current position in the list
   void addRound(PackageRound round) {
-    // Assign order based on current round count
     final newOrder = package.value.rounds.length;
-    final roundWithOrder = round.copyWith(order: newOrder);
-
     final updatedRounds = List<PackageRound>.from(package.value.rounds)
-      ..add(roundWithOrder);
-    package.value = package.value.copyWith(rounds: updatedRounds);
+      ..add(round.copyWith(order: newOrder));
+    _setPackage(package.value.copyWith(rounds: updatedRounds));
+    selectRound(updatedRounds.length - 1);
   }
 
-  /// Update an existing round
+  void createRound() {
+    addRound(
+      PackageRound(
+        order: package.value.rounds.length,
+        name: translations.newRound,
+        description: '',
+        type: PackageRoundType.simple,
+        themes: [],
+      ),
+    );
+  }
+
   void updateRound(int index, PackageRound round) {
     if (index < 0 || index >= package.value.rounds.length) return;
     final updatedRounds = List<PackageRound>.from(package.value.rounds);
     updatedRounds[index] = round;
-    package.value = package.value.copyWith(rounds: updatedRounds);
+    _setPackage(package.value.copyWith(rounds: updatedRounds));
+    _repairSelection();
   }
 
-  /// Delete a round
-  /// Renormalizes order fields for remaining rounds
   void deleteRound(int index) {
     if (index < 0 || index >= package.value.rounds.length) return;
     final updatedRounds = List<PackageRound>.from(package.value.rounds)
       ..removeAt(index);
 
-    // Renormalize order values after deletion
-    final reorderedRounds = updatedRounds
-        .asMap()
-        .entries
-        .map((entry) => entry.value.copyWith(order: entry.key))
-        .toList();
-
-    package.value = package.value.copyWith(rounds: reorderedRounds);
+    _setPackage(
+      package.value.copyWith(
+        rounds: updatedRounds
+            .asMap()
+            .entries
+            .map((entry) => entry.value.copyWith(order: entry.key))
+            .toList(),
+      ),
+    );
+    _repairSelection(preferredRoundIndex: index);
   }
 
-  /// Reorder rounds
-  /// Updates order fields to reflect new positions
   void reorderRounds(int oldIndex, int newIndex) {
     if (oldIndex == newIndex) return;
+    if (oldIndex < 0 || oldIndex >= package.value.rounds.length) return;
+    if (newIndex < 0 || newIndex > package.value.rounds.length) return;
+
     final updatedRounds = List<PackageRound>.from(package.value.rounds);
     final round = updatedRounds.removeAt(oldIndex);
-    updatedRounds.insert(newIndex, round);
+    final insertIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    updatedRounds.insert(insertIndex, round);
 
-    // Reassign order values to match new positions
-    final reorderedRounds = updatedRounds
-        .asMap()
-        .entries
-        .map((entry) => entry.value.copyWith(order: entry.key))
-        .toList();
-
-    package.value = package.value.copyWith(rounds: reorderedRounds);
+    _setPackage(
+      package.value.copyWith(
+        rounds: updatedRounds
+            .asMap()
+            .entries
+            .map((entry) => entry.value.copyWith(order: entry.key))
+            .toList(),
+      ),
+    );
+    _repairSelection(preferredRoundIndex: insertIndex);
   }
 
-  // Theme CRUD operations
-
-  /// Add a new theme to a round
-  /// Automatically assigns order based on current position in the list
   void addTheme(int roundIndex, PackageTheme theme) {
-    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) return;
-    final round = package.value.rounds[roundIndex];
-
-    // Assign order based on current theme count
-    final newOrder = round.themes.length;
-    final themeWithOrder = theme.copyWith(order: newOrder);
+    final round = _roundAt(roundIndex);
+    if (round == null) return;
 
     final updatedThemes = List<PackageTheme>.from(round.themes)
-      ..add(themeWithOrder);
+      ..add(theme.copyWith(order: round.themes.length));
     updateRound(roundIndex, round.copyWith(themes: updatedThemes));
+    selectTheme(roundIndex, updatedThemes.length - 1);
   }
 
-  /// Update a theme in a round
+  void createTheme(int roundIndex) {
+    final round = _roundAt(roundIndex);
+    if (round == null) return;
+
+    addTheme(
+      roundIndex,
+      PackageTheme(
+        order: round.themes.length,
+        name: translations.newTheme,
+        description: '',
+        questions: [],
+      ),
+    );
+  }
+
   void updateTheme(int roundIndex, int themeIndex, PackageTheme theme) {
-    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) return;
-    final round = package.value.rounds[roundIndex];
-    if (themeIndex < 0 || themeIndex >= round.themes.length) return;
+    final round = _roundAt(roundIndex);
+    if (round == null || themeIndex < 0 || themeIndex >= round.themes.length) {
+      return;
+    }
+
     final updatedThemes = List<PackageTheme>.from(round.themes);
     updatedThemes[themeIndex] = theme;
     updateRound(roundIndex, round.copyWith(themes: updatedThemes));
   }
 
-  /// Delete a theme from a round
-  /// Renormalizes order fields for remaining themes
   void deleteTheme(int roundIndex, int themeIndex) {
-    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) return;
-    final round = package.value.rounds[roundIndex];
-    if (themeIndex < 0 || themeIndex >= round.themes.length) return;
+    final round = _roundAt(roundIndex);
+    if (round == null || themeIndex < 0 || themeIndex >= round.themes.length) {
+      return;
+    }
 
     final updatedThemes = List<PackageTheme>.from(round.themes)
       ..removeAt(themeIndex);
-
-    // Renormalize order values after deletion
-    final reorderedThemes = updatedThemes
-        .asMap()
-        .entries
-        .map((entry) => entry.value.copyWith(order: entry.key))
-        .toList();
-
-    updateRound(roundIndex, round.copyWith(themes: reorderedThemes));
+    updateRound(
+      roundIndex,
+      round.copyWith(
+        themes: updatedThemes
+            .asMap()
+            .entries
+            .map((entry) => entry.value.copyWith(order: entry.key))
+            .toList(),
+      ),
+    );
+    _repairSelection(
+      preferredRoundIndex: roundIndex,
+      preferredThemeIndex: themeIndex,
+    );
   }
 
-  /// Reorder themes in a round
-  /// Updates order fields to reflect new positions
   void reorderThemes(int roundIndex, int oldIndex, int newIndex) {
-    if (oldIndex == newIndex) return;
-    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) return;
-    final round = package.value.rounds[roundIndex];
+    final round = _roundAt(roundIndex);
+    if (round == null || oldIndex == newIndex) return;
+    if (oldIndex < 0 || oldIndex >= round.themes.length) return;
+    if (newIndex < 0 || newIndex > round.themes.length) return;
+
     final updatedThemes = List<PackageTheme>.from(round.themes);
     final theme = updatedThemes.removeAt(oldIndex);
-    updatedThemes.insert(newIndex, theme);
+    final insertIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    updatedThemes.insert(insertIndex, theme);
 
-    // Reassign order values to match new positions
-    final reorderedThemes = updatedThemes
-        .asMap()
-        .entries
-        .map((entry) => entry.value.copyWith(order: entry.key))
-        .toList();
-
-    updateRound(roundIndex, round.copyWith(themes: reorderedThemes));
+    updateRound(
+      roundIndex,
+      round.copyWith(
+        themes: updatedThemes
+            .asMap()
+            .entries
+            .map((entry) => entry.value.copyWith(order: entry.key))
+            .toList(),
+      ),
+    );
+    _repairSelection(
+      preferredRoundIndex: roundIndex,
+      preferredThemeIndex: insertIndex,
+    );
   }
 
-  // Question CRUD operations
-
-  /// Add a new question to a theme
-  /// Automatically assigns order based on current position in the list
   void addQuestion(
     int roundIndex,
     int themeIndex,
     PackageQuestionUnion question,
   ) {
-    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) return;
-    final round = package.value.rounds[roundIndex];
-    if (themeIndex < 0 || themeIndex >= round.themes.length) return;
-    final theme = round.themes[themeIndex];
-
-    // Assign order based on current question count
-    final newOrder = theme.questions.length;
-    final questionWithOrder = _updateQuestionOrder(question, newOrder);
+    final theme = _themeAt(roundIndex, themeIndex);
+    if (theme == null) return;
 
     final updatedQuestions = List<PackageQuestionUnion>.from(theme.questions)
-      ..add(questionWithOrder);
+      ..add(_updateQuestionOrder(question, theme.questions.length));
     updateTheme(
       roundIndex,
       themeIndex,
       theme.copyWith(questions: updatedQuestions),
     );
+    selectQuestion(roundIndex, themeIndex, updatedQuestions.length - 1);
   }
 
-  /// Update a question in a theme
+  void createQuestion(int roundIndex, int themeIndex) {
+    final theme = _themeAt(roundIndex, themeIndex);
+    if (theme == null) return;
+
+    addQuestion(
+      roundIndex,
+      themeIndex,
+      PackageQuestionUnion.simple(
+        order: theme.questions.length,
+        price: lastUsedPrice,
+        showAnswerDuration: lastUsedShowAnswerDuration,
+        answerDelay: lastUsedQuestionDisplayTime,
+        text: translations.newQuestion,
+        answerText: '',
+      ),
+    );
+  }
+
+  void copyQuestion(int roundIndex, int themeIndex, int questionIndex) {
+    final theme = _themeAt(roundIndex, themeIndex);
+    if (theme == null ||
+        questionIndex < 0 ||
+        questionIndex >= theme.questions.length) {
+      return;
+    }
+
+    final insertIndex = questionIndex + 1;
+    final updatedQuestions = List<PackageQuestionUnion>.from(theme.questions)
+      ..insert(
+        insertIndex,
+        _copyQuestionForInsert(theme.questions[questionIndex], insertIndex),
+      );
+
+    updateTheme(
+      roundIndex,
+      themeIndex,
+      theme.copyWith(
+        questions: updatedQuestions
+            .asMap()
+            .entries
+            .map((entry) => _updateQuestionOrder(entry.value, entry.key))
+            .toList(),
+      ),
+    );
+    selectQuestion(roundIndex, themeIndex, insertIndex);
+  }
+
   void updateQuestion(
     int roundIndex,
     int themeIndex,
     int questionIndex,
     PackageQuestionUnion question,
   ) {
-    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) return;
-    final round = package.value.rounds[roundIndex];
-    if (themeIndex < 0 || themeIndex >= round.themes.length) return;
-    final theme = round.themes[themeIndex];
-    if (questionIndex < 0 || questionIndex >= theme.questions.length) return;
+    final theme = _themeAt(roundIndex, themeIndex);
+    if (theme == null ||
+        questionIndex < 0 ||
+        questionIndex >= theme.questions.length) {
+      return;
+    }
+
     final updatedQuestions = List<PackageQuestionUnion>.from(theme.questions);
     updatedQuestions[questionIndex] = question;
     updateTheme(
@@ -754,71 +730,66 @@ class OqEditorController {
     );
   }
 
-  /// Delete a question from a theme
-  /// Renormalizes order fields for remaining questions
   void deleteQuestion(int roundIndex, int themeIndex, int questionIndex) {
-    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) return;
-    final round = package.value.rounds[roundIndex];
-    if (themeIndex < 0 || themeIndex >= round.themes.length) return;
-    final theme = round.themes[themeIndex];
-    if (questionIndex < 0 || questionIndex >= theme.questions.length) return;
+    final theme = _themeAt(roundIndex, themeIndex);
+    if (theme == null ||
+        questionIndex < 0 ||
+        questionIndex >= theme.questions.length) {
+      return;
+    }
 
     final updatedQuestions = List<PackageQuestionUnion>.from(theme.questions)
       ..removeAt(questionIndex);
-
-    // Renormalize order values after deletion
-    final reorderedQuestions = updatedQuestions
-        .asMap()
-        .entries
-        .map((entry) => _updateQuestionOrder(entry.value, entry.key))
-        .toList();
-
     updateTheme(
       roundIndex,
       themeIndex,
-      theme.copyWith(questions: reorderedQuestions),
+      theme.copyWith(
+        questions: updatedQuestions
+            .asMap()
+            .entries
+            .map((entry) => _updateQuestionOrder(entry.value, entry.key))
+            .toList(),
+      ),
+    );
+    _repairSelection(
+      preferredRoundIndex: roundIndex,
+      preferredThemeIndex: themeIndex,
+      preferredQuestionIndex: questionIndex,
     );
   }
 
-  /// Reorder questions in a theme
-  /// Updates order fields to reflect new positions
   void reorderQuestions(
     int roundIndex,
     int themeIndex,
     int oldIndex,
     int newIndex,
   ) {
-    if (oldIndex == newIndex) return;
-    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) return;
-    final round = package.value.rounds[roundIndex];
-    if (themeIndex < 0 || themeIndex >= round.themes.length) return;
-    final theme = round.themes[themeIndex];
+    final theme = _themeAt(roundIndex, themeIndex);
+    if (theme == null || oldIndex == newIndex) return;
+    if (oldIndex < 0 || oldIndex >= theme.questions.length) return;
+    if (newIndex < 0 || newIndex > theme.questions.length) return;
+
     final updatedQuestions = List<PackageQuestionUnion>.from(theme.questions);
     final question = updatedQuestions.removeAt(oldIndex);
-    updatedQuestions.insert(newIndex, question);
-
-    // Reassign order values to match new positions
-    final reorderedQuestions = updatedQuestions
-        .asMap()
-        .entries
-        .map((entry) => _updateQuestionOrder(entry.value, entry.key))
-        .toList();
+    final insertIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    updatedQuestions.insert(insertIndex, question);
 
     updateTheme(
       roundIndex,
       themeIndex,
-      theme.copyWith(questions: reorderedQuestions),
+      theme.copyWith(
+        questions: updatedQuestions
+            .asMap()
+            .entries
+            .map((entry) => _updateQuestionOrder(entry.value, entry.key))
+            .toList(),
+      ),
     );
-  }
-
-  /// Dispose resources
-  Future<void> dispose() async {
-    await clearPendingMediaFiles();
-    await _mediaFileEncoder.dispose();
-    await _encodingProgressController?.close();
-    package.dispose();
-    refreshKey.dispose();
-    _totalSizeMB.dispose();
+    _repairSelection(
+      preferredRoundIndex: roundIndex,
+      preferredThemeIndex: themeIndex,
+      preferredQuestionIndex: insertIndex,
+    );
   }
 
   PackageQuestionUnion? getQuestionByIndices(
@@ -826,19 +797,412 @@ class OqEditorController {
     int themeIndex,
     int? questionIndex,
   ) {
-    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) {
-      return null;
-    }
-    final round = package.value.rounds[roundIndex];
-    if (themeIndex < 0 || themeIndex >= round.themes.length) {
-      return null;
-    }
-    final theme = round.themes[themeIndex];
-    if (questionIndex == null ||
+    final theme = _themeAt(roundIndex, themeIndex);
+    if (theme == null ||
+        questionIndex == null ||
         questionIndex < 0 ||
         questionIndex >= theme.questions.length) {
       return null;
     }
     return theme.questions[questionIndex];
+  }
+
+  Future<void> dispose() async {
+    await clearPendingMediaFiles();
+    await _mediaFileEncoder.dispose();
+    package.dispose();
+    selectedNode.dispose();
+    operationState.dispose();
+    hasUnsavedChanges.dispose();
+    lastErrorMessage.dispose();
+    operationLogs.dispose();
+    validationIssues.dispose();
+    outlinePanelVisible.dispose();
+    previewPanelVisible.dispose();
+    outlinePanelWidth.dispose();
+    previewPanelWidth.dispose();
+    _totalSizeMB.dispose();
+  }
+
+  Future<T> _runOperation<T>(Future<T> Function() operation) async {
+    if (_operationRunning) {
+      throw StateError('Another package editor operation is already running');
+    }
+
+    _operationRunning = true;
+    lastErrorMessage.value = null;
+    _appendOperationLog(translations.initializing);
+    try {
+      return await operation();
+    } catch (error, stackTrace) {
+      logger?.e(
+        'Package editor operation failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      final message = userFacingError(error);
+      lastErrorMessage.value = message;
+      _appendOperationLog('Error: $error');
+      _appendOperationLog(stackTrace.toString());
+      operationState.value = PackageEditorOperationState.failed(
+        error: message,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    } finally {
+      _operationRunning = false;
+    }
+  }
+
+  void _setRunning(
+    PackageEditorOperationPhase phase, {
+    double? progress,
+    String? message,
+  }) {
+    if (message != null && message.trim().isNotEmpty) {
+      _appendOperationLog(message);
+    }
+    operationState.value = PackageEditorOperationState.running(
+      phase: phase,
+      progress: progress,
+      message: message,
+    );
+  }
+
+  Future<({OqPackage package, Map<String, MediaFileReference> files})>
+  _encodePackageIfNeeded(
+    OqPackage package, {
+    required String message,
+  }) async {
+    if (_mediaFilesByHash.isEmpty) {
+      return (package: package, files: <String, MediaFileReference>{});
+    }
+
+    _setRunning(
+      PackageEditorOperationPhase.encoding,
+      progress: 0,
+      message: message,
+    );
+
+    return _mediaFileEncoder.encodePackage(
+      package,
+      Map.from(_mediaFilesByHash),
+      onProgress: (progress) => _setRunning(
+        PackageEditorOperationPhase.encoding,
+        progress: progress,
+        message: message,
+      ),
+    );
+  }
+
+  void _updateTotalSize() {
+    _totalSizeMB.value = totalMediaFilesSizeMB;
+  }
+
+  void _setPackage(OqPackage value, {bool dirty = true}) {
+    package.value = value;
+    if (dirty) {
+      _markDirty();
+    } else {
+      _markClean();
+    }
+    validationIssues.value = validatePackageIssues(value);
+  }
+
+  void _markDirty() {
+    if (!hasUnsavedChanges.value) {
+      hasUnsavedChanges.value = true;
+    }
+  }
+
+  void _markClean() {
+    hasUnsavedChanges.value = false;
+  }
+
+  void _appendOperationLog(String entry) {
+    final text = entry.trim();
+    if (text.isEmpty) return;
+    operationLogs.value = <String>[
+      ...operationLogs.value,
+      '[${DateTime.now().toIso8601String()}] $text',
+    ];
+  }
+
+  void clearOperationLogs() {
+    operationLogs.value = <String>[];
+  }
+
+  String userFacingError(Object error) {
+    final raw = error.toString().trim();
+    final candidates = <String?>[
+      _extractJsonError(raw),
+      _extractLooseErrorField(raw),
+      _stripExceptionPrefixes(raw),
+    ].whereType<String>().map((value) => value.trim()).toList();
+
+    for (final candidate in candidates) {
+      if (_isUsefulUserMessage(candidate)) {
+        return candidate;
+      }
+    }
+
+    return translations.somethingWentWrong;
+  }
+
+  String? _extractJsonError(String raw) {
+    final start = raw.indexOf('{');
+    final end = raw.lastIndexOf('}');
+    if (start == -1 || end <= start) return null;
+
+    final jsonText = raw.substring(start, end + 1);
+    try {
+      final decoded = jsonDecode(jsonText);
+      if (decoded is Map<String, dynamic>) {
+        final value = decoded['error'] ?? decoded['message'];
+        if (value is String) return value;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  String? _extractLooseErrorField(String raw) {
+    final quotedMatch = RegExp(
+      r'''["'](?:error|message)["']\s*:\s*["']([^"']+)["']''',
+      caseSensitive: false,
+    ).firstMatch(raw);
+    if (quotedMatch != null) return quotedMatch.group(1);
+
+    final looseMatch = RegExp(
+      r'''(?:error|message)\s*:\s*([^,}\n]+)''',
+      caseSensitive: false,
+    ).firstMatch(raw);
+    return looseMatch?.group(1);
+  }
+
+  String _stripExceptionPrefixes(String raw) {
+    return raw
+        .replaceFirst(RegExp(r'^Exception:\s*'), '')
+        .replaceFirst(RegExp(r'^Bad state:\s*'), '')
+        .replaceFirst(RegExp(r'^FormatException:\s*'), '')
+        .trim();
+  }
+
+  bool _isUsefulUserMessage(String message) {
+    if (message.isEmpty) return false;
+    if (message.contains('{') || message.contains('}')) return false;
+    if (message.contains('DioException')) return false;
+    if (message.contains('StackTrace')) return false;
+    return true;
+  }
+
+  List<String> _validateQuestion(PackageQuestionUnion question) {
+    final issues = <String>[];
+    final text = question.map(
+      simple: (question) => question.text,
+      stake: (question) => question.text,
+      secret: (question) => question.text,
+      noRisk: (question) => question.text,
+      choice: (question) => question.text,
+      hidden: (question) => question.text,
+    );
+    if (text == null || text.trim().isEmpty) {
+      issues.add(_requiredIssue(translations.questionText));
+    }
+
+    question.map(
+      simple: (question) {
+        if (question.answerText?.trim().isEmpty ?? true) {
+          issues.add(_requiredIssue(translations.questionAnswer));
+        }
+      },
+      stake: (question) {
+        if (question.answerText?.trim().isEmpty ?? true) {
+          issues.add(_requiredIssue(translations.questionAnswer));
+        }
+      },
+      secret: (question) {
+        if (question.answerText?.trim().isEmpty ?? true) {
+          issues.add(_requiredIssue(translations.questionAnswer));
+        }
+      },
+      noRisk: (question) {
+        if (question.answerText?.trim().isEmpty ?? true) {
+          issues.add(_requiredIssue(translations.questionAnswer));
+        }
+      },
+      choice: (question) {
+        final answers = question.answers;
+        if (answers.length < 2 || answers.length > 8) {
+          issues.add(translations.add2to8Choices);
+        }
+        if (answers.any((answer) => answer.text?.trim().isEmpty ?? true)) {
+          issues.add(_requiredIssue(translations.answerText));
+        }
+      },
+      hidden: (_) {},
+    );
+
+    return issues;
+  }
+
+  String _requiredIssue(String fieldName) {
+    return '$fieldName: ${translations.fieldRequired}';
+  }
+
+  PackageRound? _roundAt(int roundIndex) {
+    if (roundIndex < 0 || roundIndex >= package.value.rounds.length) {
+      return null;
+    }
+    return package.value.rounds[roundIndex];
+  }
+
+  PackageTheme? _themeAt(int roundIndex, int themeIndex) {
+    final round = _roundAt(roundIndex);
+    if (round == null || themeIndex < 0 || themeIndex >= round.themes.length) {
+      return null;
+    }
+    return round.themes[themeIndex];
+  }
+
+  void _repairSelection({
+    int? preferredRoundIndex,
+    int? preferredThemeIndex,
+    int? preferredQuestionIndex,
+  }) {
+    selectedNode.value = _coerceNode(
+      selectedNode.value,
+      preferredRoundIndex: preferredRoundIndex,
+      preferredThemeIndex: preferredThemeIndex,
+      preferredQuestionIndex: preferredQuestionIndex,
+    );
+  }
+
+  EditorNodeId _coerceNode(
+    EditorNodeId node, {
+    int? preferredRoundIndex,
+    int? preferredThemeIndex,
+    int? preferredQuestionIndex,
+  }) {
+    final rounds = package.value.rounds;
+
+    switch (node.kind) {
+      case EditorNodeKind.package:
+        return const EditorNodeId.package();
+      case EditorNodeKind.round:
+        if (rounds.isEmpty) return const EditorNodeId.package();
+        return EditorNodeId.round(
+          _clampIndex(
+            preferredRoundIndex ?? node.roundIndex ?? 0,
+            rounds.length,
+          ),
+        );
+      case EditorNodeKind.theme:
+        if (rounds.isEmpty) return const EditorNodeId.package();
+        final roundIndex = _clampIndex(
+          preferredRoundIndex ?? node.roundIndex ?? 0,
+          rounds.length,
+        );
+        final themes = rounds[roundIndex].themes;
+        if (themes.isEmpty) return EditorNodeId.round(roundIndex);
+        return EditorNodeId.theme(
+          roundIndex,
+          _clampIndex(
+            preferredThemeIndex ?? node.themeIndex ?? 0,
+            themes.length,
+          ),
+        );
+      case EditorNodeKind.question:
+        if (rounds.isEmpty) return const EditorNodeId.package();
+        final roundIndex = _clampIndex(
+          preferredRoundIndex ?? node.roundIndex ?? 0,
+          rounds.length,
+        );
+        final themes = rounds[roundIndex].themes;
+        if (themes.isEmpty) return EditorNodeId.round(roundIndex);
+        final themeIndex = _clampIndex(
+          preferredThemeIndex ?? node.themeIndex ?? 0,
+          themes.length,
+        );
+        final questions = themes[themeIndex].questions;
+        if (questions.isEmpty) {
+          return EditorNodeId.theme(roundIndex, themeIndex);
+        }
+        return EditorNodeId.question(
+          roundIndex,
+          themeIndex,
+          _clampIndex(
+            preferredQuestionIndex ?? node.questionIndex ?? 0,
+            questions.length,
+          ),
+        );
+    }
+  }
+
+  int _clampIndex(int index, int length) {
+    if (index < 0) return 0;
+    if (index >= length) return length - 1;
+    return index;
+  }
+
+  OqPackage _normalizePackageOrder(OqPackage package) {
+    final sortedRounds = List<PackageRound>.from(package.rounds)
+      ..sort((a, b) => a.order.compareTo(b.order));
+
+    final normalizedRounds = sortedRounds.asMap().entries.map((roundEntry) {
+      final sortedThemes = List<PackageTheme>.from(roundEntry.value.themes)
+        ..sort((a, b) => a.order.compareTo(b.order));
+
+      final normalizedThemes = sortedThemes.asMap().entries.map((themeEntry) {
+        final sortedQuestions = List<PackageQuestionUnion>.from(
+          themeEntry.value.questions,
+        )..sort((a, b) => a.order.compareTo(b.order));
+
+        return themeEntry.value.copyWith(
+          order: themeEntry.key,
+          questions: sortedQuestions
+              .asMap()
+              .entries
+              .map((entry) => _updateQuestionOrder(entry.value, entry.key))
+              .toList(),
+        );
+      }).toList();
+
+      return roundEntry.value.copyWith(
+        order: roundEntry.key,
+        themes: normalizedThemes,
+      );
+    }).toList();
+
+    return package.copyWith(rounds: normalizedRounds);
+  }
+
+  PackageQuestionUnion _updateQuestionOrder(
+    PackageQuestionUnion question,
+    int newOrder,
+  ) {
+    return question.map(
+      simple: (question) => question.copyWith(order: newOrder),
+      stake: (question) => question.copyWith(order: newOrder),
+      secret: (question) => question.copyWith(order: newOrder),
+      noRisk: (question) => question.copyWith(order: newOrder),
+      choice: (question) => question.copyWith(order: newOrder),
+      hidden: (question) => question.copyWith(order: newOrder),
+    );
+  }
+
+  PackageQuestionUnion _copyQuestionForInsert(
+    PackageQuestionUnion question,
+    int order,
+  ) {
+    return question.map(
+      simple: (question) => question.copyWith(id: null, order: order),
+      stake: (question) => question.copyWith(id: null, order: order),
+      secret: (question) => question.copyWith(id: null, order: order),
+      noRisk: (question) => question.copyWith(id: null, order: order),
+      choice: (question) => question.copyWith(id: null, order: order),
+      hidden: (question) => question.copyWith(id: null, order: order),
+    );
   }
 }

@@ -11,9 +11,7 @@ class PackageEditorScreen extends WatchingWidget {
     final controller = createOnce(
       () => OqEditorController(
         translations: const AppOqEditorTranslations(),
-        onSave: PackageEditorUploadController.onSave,
-        onSaveProgressStream:
-            getIt<PackageEditorUploadController>().progressStream,
+        saveAdapter: PackageEditorUploadController.savePackage,
         logger: logger,
       ),
       dispose: (e) => e.dispose(),

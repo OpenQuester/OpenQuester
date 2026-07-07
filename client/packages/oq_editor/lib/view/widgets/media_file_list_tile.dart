@@ -13,12 +13,16 @@ class MediaFileListTile extends StatelessWidget {
     required this.mediaFile,
     required this.onEditDisplayTime,
     required this.onRemove,
+    this.onMoveUp,
+    this.onMoveDown,
     super.key,
   });
 
   final UiMediaFile mediaFile;
   final VoidCallback onEditDisplayTime;
   final VoidCallback onRemove;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +69,16 @@ class MediaFileListTile extends StatelessWidget {
                       icon: const Icon(Icons.timer),
                       onPressed: onEditDisplayTime,
                       tooltip: translations.editDisplayTime,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_upward),
+                      onPressed: onMoveUp,
+                      tooltip: translations.moveUp,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_downward),
+                      onPressed: onMoveDown,
+                      tooltip: translations.moveDown,
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete),
