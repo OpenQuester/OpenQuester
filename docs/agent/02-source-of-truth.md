@@ -34,6 +34,8 @@ Do not silently choose the convenient source. If the difference matters, update 
 | Socket action workflow | `.agents/skills/backend-socket-action/SKILL.md` |
 | HTTP API workflow | `.agents/skills/backend-http-api/SKILL.md` |
 | Backend rule workflow | `.agents/skills/backend-rules/SKILL.md` |
+| Backend test execution | `.agents/skills/backend-test-runner/SKILL.md` |
+| Backend smoke-test workflow | `.agents/skills/backend-smoke-tests/SKILL.md` |
 | Frontend game UI workflow | `.agents/skills/frontend-game-ui-state/SKILL.md` |
 | Package editor workflow | `.agents/skills/package-editor-change/SKILL.md` |
 | Documentation upkeep | `.agents/skills/docs-upkeep/SKILL.md` |

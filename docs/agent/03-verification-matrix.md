@@ -14,16 +14,20 @@ Run from `server/`.
 |---|---|---|
 | Docs-only backend docs | Markdown review, link/path sanity | none required unless commands changed |
 | TypeScript compile-sensitive change | `npm run lint`, `npm run build` | focused Jest test |
-| REST endpoint/controller/scheme | `npm run lint`, `npm run build`, `npm run validate:schema` | focused REST tests, `npm test` |
+| REST endpoint/controller/scheme | `npm run lint`, `npm run build`, `npm run validate:schema` | focused REST tests, `npm run test:pipeline` |
 | Socket event/action/use case | `npm run lint`, `npm run build`, `npm run validate:schema` if public contract changed | focused socket/game tests, queue-sensitive test |
-| Game state/domain logic | `npm run lint`, `npm run build`, focused Jest tests | `npm test` with PostgreSQL + Redis |
-| Redis lock/queue/timer logic | `npm run lint`, `npm run build`, focused integration tests | `npm test`, load/reconnect scenario when available |
+| Game state/domain logic | `npm run lint`, `npm run build`, focused Jest tests through `test:pipeline` | `npm run test:pipeline` with PostgreSQL + Redis |
+| Redis lock/queue/timer logic | `npm run lint`, `npm run build`, focused integration tests through `test:pipeline` | `npm run test:pipeline`, load/reconnect scenario when available |
 | DB model/repository/migration | `npm run lint`, `npm run build` | migration/integration test against PostgreSQL |
 | Logging/metrics/admin diagnostics | `npm run lint`, `npm run build` | focused endpoint/service tests |
 | OpenAPI/schema only | `npm run validate:schema` | client `melos run gen_api` |
 
 Backend test rules:
 
+- Read `.agents/skills/backend-test-runner/SKILL.md` before executing backend tests.
+- For a new observable backend feature or behavior fix, use `.agents/skills/backend-smoke-tests/SKILL.md` to add and run one focused E2E smoke case. Do not add smoke tests for minor behavior-neutral changes.
+- Use `npm run test:pipeline` for normal full-suite or focused pass/fail verification; do not use verbose/manual Jest for aggregate runs.
+- If detailed logs are required, run exactly one isolated test. Every direct test command outside `npm run` must include `--forceExit`.
 - Do not use `setTimeout` to wait for game timers in tests; use `TestUtils.expireTimer()`.
 - Do not increase test timeouts to hide missing events.
 - Tests requiring PostgreSQL/Redis must say so when not run.
@@ -89,7 +93,7 @@ Use this format in handoff summaries:
 
 - [x] Reviewed docs paths for current repository structure.
 - [x] `npm run validate:schema` — passed.
-- [ ] `npm test` — not run; requires PostgreSQL/Redis and this change is docs-only.
+- [ ] `npm run test:pipeline` — not run; requires PostgreSQL/Redis and this change is docs-only.
 - [ ] `melos run analyze` — not run; no client code changed.
 ```
 

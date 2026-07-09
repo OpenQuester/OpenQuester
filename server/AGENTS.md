@@ -13,11 +13,14 @@ npm run start:dev          # validate schema + lint + watch build + nodemon
 npm run validate:schema    # validate ../openapi/schema.json
 npm run lint               # ESLint 9 flat config
 npm run build              # clean + tsc --noEmit + tsup
-npm test                   # Jest; requires PostgreSQL + Redis
-npm run test:pipeline      # CI-mode Jest output
-npx jest path/to/test.ts   # focused test file
-npx jest -t "test name"    # focused test name
+npm run test:pipeline      # concise Jest result; requires PostgreSQL + Redis
+npm run test:pipeline -- path/to/test.ts -t "test name" --runInBand
 ```
+
+Before running or debugging backend tests, read
+`.agents/skills/backend-test-runner/SKILL.md`. Normal verification must use
+`test:pipeline`. Detailed output is allowed only for one isolated test, and
+every direct/manual Jest command outside `npm run` must include `--forceExit`.
 
 Test dependencies: PostgreSQL and Redis. Local infra is started from `server/` with:
 
@@ -152,7 +155,14 @@ Throw typed errors from services/repositories/use cases. Let `asyncHandler` + `e
 ## Testing rules
 
 - Jest runs serially (`maxWorkers: 1`).
+- Follow `.agents/skills/backend-test-runner/SKILL.md` for the mandatory
+  concise-output, single-test diagnostic, and manual `--forceExit` rules.
+- For a new backend feature or behavior fix, follow
+  `.agents/skills/backend-smoke-tests/SKILL.md` to add one focused E2E smoke
+  case without creating smoke-test churn for behavior-neutral minor changes.
 - Use `tests/TestApp.ts` for integration setup.
+- For client-perspective Socket.IO scenario/journal tests, follow
+  `tests/e2e/README.md` for accepted-action, drain, disposal, and cleanup rules.
 - Timer tests must use `TestUtils.expireTimer()`; do not use `setTimeout` as a test synchronization mechanism.
 - Do not increase test timeouts to hide missing events.
 - For socket/game changes, cover success, validation failure, permission/role failure, and queue-sensitive cases when applicable.

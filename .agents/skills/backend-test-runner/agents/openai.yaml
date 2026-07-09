@@ -1,0 +1,4 @@
+interface:
+  display_name: "Backend Test Runner"
+  short_description: "Run backend tests with concise output"
+  default_prompt: "Use $backend-test-runner to run the relevant OpenQuester backend tests safely and concisely."
