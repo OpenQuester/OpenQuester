@@ -1,7 +1,10 @@
 # Media Download Synchronization Feature
 
 ## Overview
-This feature ensures fair gameplay by tracking when players have downloaded media content for questions. The game displays visual indicators on player cards showing the download status of each player.
+This feature ensures fair gameplay by tracking when players have downloaded
+media content for questions. The game remains in `MEDIA_DOWNLOADING` until all
+active players are ready or the media timeout expires, then transitions to
+`SHOWING` with the normal question timer.
 
 ## Event Flow Diagram
 
@@ -69,6 +72,13 @@ Legend:
    - All clients update their UI to show which players have downloaded media
    - When `allPlayersReady` is `true`, clients start media playback synchronously
 
+3. **Timer semantics**
+   - Picking a regular question starts the `MEDIA_DOWNLOAD_TIMEOUT` timer.
+   - Partial readiness broadcasts contain `timer: null`; the media timeout
+     remains active in persisted game state.
+   - Full readiness or media timeout transitions to `SHOWING`, and the status
+     broadcast contains the new `GAME_QUESTION_ANSWER_TIME` timer.
+
 ### Frontend (Client)
 
 1. **Media Download Detection**
@@ -111,20 +121,21 @@ Legend:
     playerId: number;
     mediaDownloaded: boolean;
     allPlayersReady: boolean;
+    timer: GameStateTimerDTO | null;
   }
   ```
 - OpenAPI schema - Updated media download event contract
 
-### Frontend
-- `client/lib/src/features/game_question/controllers/game_question_controller.dart` - Send media downloaded event
-  - Calls `notifyMediaDownloaded()` after media loads or immediately if no media
-- `client/lib/src/features/game_lobby/controllers/game_lobby_controller.dart` - Handle status events
-  - `notifyMediaDownloaded()` - Emits MEDIA_DOWNLOADED event to server
-  - `_onMediaDownloadStatus()` - Updates player state when receiving status broadcasts using `MediaDownloadStatusEventPayload` model
-- `client/lib/src/features/game_lobby/view/game_lobby_player.dart` - Visual indicators
-  - `_MediaDownloadIndicator` widget shows download status icons
-- `openapi/dart_sdk/lib/src/models/media_download_status_event_payload.dart` - Event payload model (temporary manual implementation)
-  - This file should be replaced when running `./oqhelper gen_files` (from client directory) to regenerate the full SDK from OpenAPI schema
+### Current implementation references
+
+- `src/application/usecases/game/MediaDownloadedUseCase.ts`
+- `src/application/services/timer/TimerExpirationService.ts`
+- `src/domain/state-machine/handlers/regular-round/ChoosingToMediaDownloadingHandler.ts`
+- `src/domain/state-machine/handlers/regular-round/MediaDownloadingToShowingHandler.ts`
+- `src/domain/types/socket/events/game/MediaDownloadStatusEventPayload.ts`
+
+The generated client contract is derived from `openapi/schema.json`; do not use
+historical manual generated-file paths as implementation guidance.
 
 ## API Usage Examples
 
@@ -148,21 +159,16 @@ socket?.on(SocketIOGameReceiveEvents.mediaDownloadStatus.json!, (data) {
 
 ### Server-Side (TypeScript)
 ```typescript
-// The use case automatically:
-// 1. Marks player as downloaded
-// 2. Checks if all players are ready
-// 3. Broadcasts status to all clients
+// The use case marks the player ready, transitions when appropriate,
+// and broadcasts readiness plus the resulting timer to the whole game.
 await gameActionExecutor.submitAction(mediaDownloadedAction);
-
-// Reset status when new question is picked
-MediaDownloadLogic.resetAllPlayerStatus(game);
 ```
 
-## Future Enhancements
+## Potential future enhancements
 
-The current implementation provides visual feedback but doesn't enforce waiting. Potential enhancements:
+The current implementation enforces media readiness through its timeout.
+Potential future improvements include:
 
-1. **Timeout Implementation**: Add a 10-second timeout after which the question proceeds regardless of download status
-2. **Content Hiding**: Don't show question content until all players are ready (or timeout)
-3. **Progress Indicators**: Show download progress percentage instead of just status
-4. **Skip Option**: Allow showman to skip waiting for specific players
+1. **Content Hiding**: Don't show question content until all players are ready (or timeout)
+2. **Progress Indicators**: Show download progress percentage instead of just status
+3. **Skip Option**: Allow showman to skip waiting for specific players

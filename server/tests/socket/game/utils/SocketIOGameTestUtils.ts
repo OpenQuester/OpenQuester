@@ -21,7 +21,11 @@ import { User } from "infrastructure/database/models/User";
 
 import { GameStateQuestionDTO } from "domain/types/dto/game/state/GameStateQuestionDTO";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
-import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
+import {
+  type AcceptedActionFilter,
+  type AcceptedActionProbe,
+  SocketGameTestEventUtils
+} from "./SocketGameTestEventUtils";
 import { SocketGameTestFlowUtils } from "./SocketGameTestFlowUtils";
 import { SocketGameTestLobbyUtils } from "./SocketGameTestLobbyUtils";
 import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
@@ -334,6 +338,10 @@ export class SocketGameTestUtils {
     timeout: number = TEST_TIMEOUTS.ACTION_QUEUE_WAIT_MS
   ): Promise<void> {
     return this.eventUtils.waitForSubmittedActions(gameId, expectedCount, actionType, timeout);
+  }
+
+  public createAcceptedActionProbe(filter: AcceptedActionFilter): AcceptedActionProbe {
+    return this.eventUtils.createAcceptedActionProbe(filter);
   }
 
   public async cleanupGameClients(setup: GameTestSetup): Promise<void> {

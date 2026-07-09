@@ -3,6 +3,7 @@ import { expect } from "@jest/globals";
 import { type GameActionType } from "domain/enums/GameActionType";
 import { type QuestionState } from "domain/types/dto/game/state/QuestionState";
 import {
+  copyEventRecord,
   type EventDirection,
   type EventExpectation,
   type EventRecord,
@@ -48,17 +49,18 @@ export interface CommandCountOptions {
   readonly expectedCount: number;
 }
 
-export type SyncEventPredicate<TArgs extends readonly unknown[] = readonly unknown[]> = (
-  record: EventRecord<TArgs>
-) => boolean;
-
-export interface DirectedEventCountOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
+export interface EventRecordQueryOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly actor?: ScenarioActor;
+  readonly direction?: EventDirection;
+  readonly event?: string;
+  readonly afterSequence?: number;
+  readonly predicate?: EventPredicate<TArgs>;
+}
+
+export interface DirectedEventCountOptions<TArgs extends readonly unknown[] = readonly unknown[]> extends EventRecordQueryOptions<TArgs> {
   readonly direction: EventDirection;
   readonly event: string;
-  readonly afterSequence?: number;
   readonly expectedCount: number;
-  readonly predicate?: SyncEventPredicate<TArgs>;
 }
 
 export interface BroadcastOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
@@ -91,6 +93,11 @@ export interface PlayerMediaDownloadedOptions {
   readonly gameId: string;
   readonly actor: ScenarioActor;
   readonly expected: boolean;
+}
+
+export interface ActiveTimerDurationOptions {
+  readonly gameId: string;
+  readonly expectedDurationMs: number;
 }
 
 /**
@@ -130,7 +137,7 @@ export class ScenarioAssertions {
   public broadcast<TArgs extends readonly unknown[] = readonly unknown[]>(
     options: BroadcastOptions<TArgs>
   ): Promise<readonly EventRecord<TArgs>[]> {
-    return Promise.all(
+    const expectation = Promise.all(
       options.actors.map((actor) =>
         this.inbound({
           actor,
@@ -142,6 +149,11 @@ export class ScenarioAssertions {
         })
       )
     );
+
+    // EventJournal.dispose() settles its raw waits. Keep an abandoned aggregate
+    // expectation observed as well, while preserving rejection for callers that await it.
+    void expectation.catch(() => undefined);
+    return expectation;
   }
 
   public expectOutboundCommandCount(options: CommandCountOptions): void {
@@ -157,16 +169,36 @@ export class ScenarioAssertions {
   public expectDirectedEventCount<TArgs extends readonly unknown[] = readonly unknown[]>(
     options: DirectedEventCountOptions<TArgs>
   ): void {
-    const records = this.options.eventHistory().filter(
-      (record) =>
-        record.direction === options.direction &&
-        record.event === options.event &&
-        (options.actor ? record.actorLabel === options.actor.label : true) &&
-        (options.afterSequence === undefined || record.sequence > options.afterSequence) &&
-        (options.predicate ? options.predicate(record as EventRecord<TArgs>) : true)
-    );
+    const records = this.records(options);
 
-    expect(records).toHaveLength(options.expectedCount);
+    if (records.length !== options.expectedCount) {
+      throw new Error(
+        `Expected exactly ${options.expectedCount} ${options.direction} "${options.event}" records, ` +
+          `received ${records.length}; matching=${JSON.stringify(records.map(toEventDiagnostic))}; ` +
+          `recent=${JSON.stringify(this.options.eventHistory().slice(-10).map(toEventDiagnostic))}`
+      );
+    }
+  }
+
+  /**
+   * Returns a synchronous, defensive journal snapshot. Use it only after the
+   * expected actions and queue drain have established quiescence.
+   */
+  public records<TArgs extends readonly unknown[] = readonly unknown[]>(
+    options: EventRecordQueryOptions<TArgs> = {}
+  ): readonly EventRecord<TArgs>[] {
+    return this.options
+      .eventHistory()
+      .filter(
+        (record) =>
+          (options.direction === undefined || record.direction === options.direction) &&
+          (options.event === undefined || record.event === options.event) &&
+          (options.actor === undefined || record.actorLabel === options.actor.label) &&
+          (options.afterSequence === undefined || record.sequence > options.afterSequence) &&
+          (options.predicate === undefined || options.predicate(record as EventRecord<TArgs>))
+      )
+      .sort((left, right) => left.sequence - right.sequence)
+      .map((record) => copyEventRecord(record as EventRecord<TArgs>));
   }
 
   public waitForSubmittedActions(options: SubmittedActionsOptions): Promise<void> {
@@ -194,6 +226,13 @@ export class ScenarioAssertions {
     });
 
     expect(mediaDownloaded).toBe(options.expected);
+  }
+
+  public async activeTimerDuration(options: ActiveTimerDurationOptions): Promise<void> {
+    const state = await this.requireDriver().getGameState(options.gameId);
+
+    expect(state?.timer).not.toBeNull();
+    expect(state?.timer?.durationMs).toBe(options.expectedDurationMs);
   }
 
   private expectDirectedEvent<TArgs extends readonly unknown[]>(
@@ -233,4 +272,14 @@ export class ScenarioAssertions {
 
     return this.options.driver;
   }
+}
+
+function toEventDiagnostic(record: EventRecord): Record<string, unknown> {
+  return {
+    sequence: record.sequence,
+    direction: record.direction,
+    event: record.event,
+    actorLabel: record.actorLabel,
+    args: record.args
+  };
 }

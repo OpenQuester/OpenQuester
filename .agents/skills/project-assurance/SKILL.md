@@ -42,6 +42,10 @@ For broad validation work, do not start by moving files. First map:
 
 ## E2E/refactor workflow
 
+For Socket.IO scenario/journal work, read `server/tests/e2e/README.md` before
+changing helpers or flows; it owns accepted-action, drain, disposal, and
+cleanup sequencing rules.
+
 1. Inventory current checks and helpers.
 2. Define target validation pyramid for the feature area.
 3. Create a small migration plan before moving many files.

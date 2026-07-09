@@ -1,5 +1,9 @@
 import { type GameActionType } from "domain/enums/GameActionType";
 import { type GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
+import {
+  type AcceptedActionFilter,
+  type AcceptedActionProbe
+} from "tests/socket/game/utils/SocketGameTestEventUtils";
 
 export interface WaitForSubmittedActionsOptions {
   readonly gameId: string;
@@ -29,6 +33,7 @@ export interface ScenarioGameDriver {
   getGameState(gameId: string): Promise<GameStateDTO | null>;
   getFirstAvailableQuestionId(gameId: string): Promise<number>;
   getPlayerMediaDownloaded(options: PlayerMediaDownloadedOptions): Promise<boolean>;
+  createAcceptedActionProbe(filter: AcceptedActionFilter): AcceptedActionProbe;
   waitForSubmittedActions(options: WaitForSubmittedActionsOptions): Promise<void>;
   waitForActionsComplete(options: WaitForActionsCompleteOptions): Promise<void>;
 }

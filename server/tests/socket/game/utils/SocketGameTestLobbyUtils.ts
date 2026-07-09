@@ -23,15 +23,22 @@ import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
 import { GameClientSocket, GameTestSetup } from "./SocketIOGameTestUtils";
 
+export interface SocketGameTestLobbyUtilsDependencies {
+  readonly socketGameContextService?: Pick<SocketGameContextService, "getGameIdForSocket">;
+}
+
 export class SocketGameTestLobbyUtils {
   private packageUtils: PackageUtils;
-  private socketGameContextService = container.resolve(SocketGameContextService);
+  private socketGameContextService: Pick<SocketGameContextService, "getGameIdForSocket">;
 
   constructor(
     private userUtils: SocketGameTestUserUtils,
-    private eventUtils: SocketGameTestEventUtils
+    private eventUtils: SocketGameTestEventUtils,
+    dependencies: SocketGameTestLobbyUtilsDependencies = {}
   ) {
     this.packageUtils = new PackageUtils();
+    this.socketGameContextService =
+      dependencies.socketGameContextService ?? container.resolve(SocketGameContextService);
   }
 
   public async setupGameTestEnvironment(
@@ -42,44 +49,52 @@ export class SocketGameTestLobbyUtils {
     includeFinalRound: boolean = true,
     additionalSimpleQuestions: number = 0
   ): Promise<GameTestSetup> {
-    // Create showman
-    const {
-      socket: showmanSocket,
-      gameId,
-      user: showmanUser
-    } = await this.createGameWithShowman(
-      app,
-      userRepo,
-      includeFinalRound,
-      additionalSimpleQuestions
-    );
-
-    // Create players
+    const createdSockets: GameClientSocket[] = [];
     const playerSockets: GameClientSocket[] = [];
     const playerUsers: User[] = [];
-    for (let i = 0; i < playerCount; i++) {
-      const { socket, user } = await this.userUtils.createGameClient(app, userRepo);
-      await this.joinGame(socket, gameId, PlayerRole.PLAYER);
-      playerSockets.push(socket as GameClientSocket);
-      playerUsers.push(user);
-    }
-
-    // Create spectators
     const spectatorSockets: GameClientSocket[] = [];
-    for (let i = 0; i < spectatorCount; i++) {
-      const { socket } = await this.userUtils.createGameClient(app, userRepo);
-      await this.joinGame(socket, gameId, PlayerRole.SPECTATOR);
-      spectatorSockets.push(socket as GameClientSocket);
-    }
 
-    return {
-      gameId,
-      showmanSocket: showmanSocket as GameClientSocket,
-      playerSockets,
-      spectatorSockets,
-      showmanUser,
-      playerUsers
-    };
+    try {
+      const {
+        socket: showmanSocket,
+        gameId,
+        user: showmanUser
+      } = await this.createGameWithShowman(
+        app,
+        userRepo,
+        includeFinalRound,
+        additionalSimpleQuestions
+      );
+      createdSockets.push(showmanSocket);
+
+      for (let i = 0; i < playerCount; i++) {
+        const { socket, user } = await this.userUtils.createGameClient(app, userRepo);
+        const playerSocket = socket as GameClientSocket;
+        createdSockets.push(playerSocket);
+        playerSockets.push(playerSocket);
+        playerUsers.push(user);
+        await this.joinGame(playerSocket, gameId, PlayerRole.PLAYER);
+      }
+
+      for (let i = 0; i < spectatorCount; i++) {
+        const { socket } = await this.userUtils.createGameClient(app, userRepo);
+        const spectatorSocket = socket as GameClientSocket;
+        createdSockets.push(spectatorSocket);
+        spectatorSockets.push(spectatorSocket);
+        await this.joinGame(spectatorSocket, gameId, PlayerRole.SPECTATOR);
+      }
+
+      return {
+        gameId,
+        showmanSocket,
+        playerSockets,
+        spectatorSockets,
+        showmanUser,
+        playerUsers
+      };
+    } catch (error) {
+      this.rethrowSetupFailure(error, createdSockets);
+    }
   }
 
   async createGameWithShowman(
@@ -95,54 +110,58 @@ export class SocketGameTestLobbyUtils {
     // Create a test user and get authenticated socket
     const { socket, user, cookie } = await this.userUtils.createGameClient(app, userRepo);
 
-    // Create a test package
-    const packageData = this.packageUtils.createTestPackageData(
-      {
-        id: user.id,
-        username: user.username
-      },
-      includeFinalRound,
-      additionalSimpleQuestions
-    );
-
-    const packageRes = await request(app)
-      .post("/v1/packages")
-      .set("Cookie", cookie)
-      .send({ content: packageData });
-
-    if (packageRes.status !== 200) {
-      throw new Error(
-        `Failed to create package: ${packageRes.status} - ${JSON.stringify(packageRes.body)}`
+    try {
+      // Create a test package
+      const packageData = this.packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username
+        },
+        includeFinalRound,
+        additionalSimpleQuestions
       );
+
+      const packageRes = await request(app)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
+
+      if (packageRes.status !== 200) {
+        throw new Error(
+          `Failed to create package: ${packageRes.status} - ${JSON.stringify(packageRes.body)}`
+        );
+      }
+
+      const createdPackage = packageRes.body;
+      const packageId = createdPackage.id;
+
+      // Create game data
+      const gameData: GameCreateDTO = {
+        title: "Test Game " + Math.random().toString(36).substring(7),
+        packageId: packageId,
+        isPrivate: false,
+        password: undefined,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10
+      };
+
+      // Create the game via REST API
+      const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+
+      if (gameRes.status !== 200) {
+        throw new Error(`Failed to create game: ${gameRes.status} - ${JSON.stringify(gameRes.body)}`);
+      }
+
+      const createdGame = gameRes.body;
+      const gameId = createdGame.id;
+
+      // Join the game as showman
+      await this.joinGame(socket, gameId, PlayerRole.SHOWMAN);
+
+      return { socket, gameId, user };
+    } catch (error) {
+      this.rethrowSetupFailure(error, [socket]);
     }
-
-    const createdPackage = packageRes.body;
-    const packageId = createdPackage.id;
-
-    // Create game data
-    const gameData: GameCreateDTO = {
-      title: "Test Game " + Math.random().toString(36).substring(7),
-      packageId: packageId,
-      isPrivate: false,
-      password: undefined,
-      ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10
-    };
-
-    // Create the game via REST API
-    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
-
-    if (gameRes.status !== 200) {
-      throw new Error(`Failed to create game: ${gameRes.status} - ${JSON.stringify(gameRes.body)}`);
-    }
-
-    const createdGame = gameRes.body;
-    const gameId = createdGame.id;
-
-    // Join the game as showman
-    await this.joinGame(socket, gameId, PlayerRole.SHOWMAN);
-
-    return { socket, gameId, user };
   }
 
   public async joinGame(
@@ -336,50 +355,58 @@ export class SocketGameTestLobbyUtils {
   }
 
   public async cleanupGameClients(setup: GameTestSetup): Promise<void> {
-    try {
+    const sockets = [setup.showmanSocket, ...setup.playerSockets, ...setup.spectatorSockets];
+    const cleanupFailures: Error[] = [];
+
+    await collectCleanupFailure(cleanupFailures, "Initial action drain", async () => {
       await this.eventUtils.waitForActionsComplete(setup.gameId);
+    });
 
-      const sockets = [
-        setup.showmanSocket,
-        ...setup.playerSockets,
-        ...setup.spectatorSockets
-      ];
-      const socketsWithServerGameSession = await this.getSocketsWithServerGameSession(
-        setup.gameId,
-        sockets
-      );
-
-      const disconnectActionsPromise =
-        socketsWithServerGameSession.length > 0
-          ? this.eventUtils.waitForSubmittedActions(
-              setup.gameId,
-              socketsWithServerGameSession.length,
-              GameActionType.DISCONNECT
-            )
-          : Promise.resolve();
-
-      sockets.forEach((socket) => this.closeClientSocket(socket));
-
-      await disconnectActionsPromise;
-      await this.eventUtils.waitForActionsComplete(setup.gameId);
-    } catch (err) {
-      console.error("Error during cleanup:", err);
-    }
-  }
-
-  private async getSocketsWithServerGameSession(
-    gameId: string,
-    sockets: GameClientSocket[]
-  ): Promise<GameClientSocket[]> {
-    const socketsWithSession: GameClientSocket[] = [];
-
+    const socketsWithServerGameSession: GameClientSocket[] = [];
     for (const socket of sockets) {
-      if (await this.hasServerGameSession(socket, gameId)) {
-        socketsWithSession.push(socket);
+      try {
+        if (await this.hasServerGameSession(socket, setup.gameId)) {
+          socketsWithServerGameSession.push(socket);
+        }
+      } catch (error) {
+        cleanupFailures.push(
+          toCleanupError(`Server session discovery for socket ${socket.id ?? "unknown"}`, error)
+        );
       }
     }
 
-    return socketsWithSession;
+    let disconnectActionsPromise: Promise<void> | undefined;
+    if (socketsWithServerGameSession.length > 0) {
+      try {
+        disconnectActionsPromise = this.eventUtils.waitForSubmittedActions(
+          setup.gameId,
+          socketsWithServerGameSession.length,
+          GameActionType.DISCONNECT
+        );
+      } catch (error) {
+        cleanupFailures.push(toCleanupError("Disconnect action wait setup", error));
+      }
+    }
+
+    for (const socket of sockets) {
+      try {
+        this.closeClientSocket(socket);
+      } catch (error) {
+        cleanupFailures.push(toCleanupError(`Client socket close for ${socket.id ?? "unknown"}`, error));
+      }
+    }
+
+    if (disconnectActionsPromise) {
+      await collectCleanupFailure(cleanupFailures, "Disconnect action wait", async () => {
+        await disconnectActionsPromise;
+      });
+    }
+
+    await collectCleanupFailure(cleanupFailures, "Final action drain", async () => {
+      await this.eventUtils.waitForActionsComplete(setup.gameId);
+    });
+
+    throwIfCleanupFailed(cleanupFailures);
   }
 
   private async hasServerGameSession(socket: GameClientSocket, gameId: string): Promise<boolean> {
@@ -396,13 +423,61 @@ export class SocketGameTestLobbyUtils {
     return serverGameId === gameId;
   }
 
-  private closeClientSocket(socket: GameClientSocket): void {
-    if (socket.connected) {
-      socket.disconnect();
+  private rethrowSetupFailure(error: unknown, sockets: readonly GameClientSocket[]): never {
+    const setupFailure = error instanceof Error ? error : new Error(String(error));
+    const cleanupFailures: Error[] = [];
+
+    for (const socket of sockets) {
+      try {
+        this.closeClientSocket(socket);
+      } catch (cleanupError) {
+        cleanupFailures.push(
+          toCleanupError(`Partial setup socket close for ${socket.id ?? "unknown"}`, cleanupError)
+        );
+      }
     }
 
-    socket.removeAllListeners();
-    socket.close();
+    if (cleanupFailures.length === 0) {
+      throw setupFailure;
+    }
+
+    throw new AggregateError(
+      [setupFailure, ...cleanupFailures],
+      `Game test environment setup and cleanup failed: ${[setupFailure, ...cleanupFailures]
+        .map((failure) => failure.message)
+        .join("; ")}`
+    );
+  }
+
+  private closeClientSocket(socket: GameClientSocket): void {
+    const failures: Error[] = [];
+
+    if (socket.connected) {
+      try {
+        socket.disconnect();
+      } catch (error) {
+        failures.push(toCleanupError("Socket disconnect", error));
+      }
+    }
+
+    try {
+      socket.removeAllListeners();
+    } catch (error) {
+      failures.push(toCleanupError("Socket listener removal", error));
+    }
+
+    try {
+      socket.close();
+    } catch (error) {
+      failures.push(toCleanupError("Socket close", error));
+    }
+
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `Socket client close failed: ${failures.map((failure) => failure.message).join("; ")}`
+      );
+    }
   }
 
   public async deleteGame(app: Express, gameId: string, cookie: string[]): Promise<void> {
@@ -449,4 +524,32 @@ export class SocketGameTestLobbyUtils {
       showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
     });
   }
+}
+
+async function collectCleanupFailure(
+  failures: Error[],
+  label: string,
+  action: () => Promise<void>
+): Promise<void> {
+  try {
+    await action();
+  } catch (error) {
+    failures.push(toCleanupError(label, error));
+  }
+}
+
+function throwIfCleanupFailed(failures: Error[]): void {
+  if (failures.length === 0) {
+    return;
+  }
+
+  throw new AggregateError(
+    failures,
+    `Socket.IO client cleanup failed: ${failures.map((failure) => failure.message).join("; ")}`
+  );
+}
+
+function toCleanupError(label: string, error: unknown): Error {
+  const cause = error instanceof Error ? error : new Error(String(error));
+  return new Error(`${label} failed: ${cause.message}`, { cause });
 }

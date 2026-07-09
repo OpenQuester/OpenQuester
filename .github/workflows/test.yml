@@ -48,12 +48,12 @@ jobs:
     env:
       NODE_ENV: test
       SESSION_SECRET: test_secret
-      REDIS_URL: redis://localhost:6379/12
+      TEST_REDIS_HOST: 127.0.0.1
+      TEST_REDIS_PORT: 6379
       DB_HOST: localhost
       DB_PORT: 5432
-      DB_USERNAME: postgres
-      DB_PASSWORD: postgres
-      DB_DATABASE: test_db
+      DB_USER: postgres
+      DB_PASS: postgres
     defaults:
       run:
         working-directory: ./server

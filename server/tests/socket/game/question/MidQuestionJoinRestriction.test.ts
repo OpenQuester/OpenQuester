@@ -13,6 +13,7 @@ import {
   SocketIOEvents,
   SocketIOGameEvents,
 } from "domain/enums/SocketIOEvents";
+import { GameActionType } from "domain/enums/GameActionType";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
@@ -87,8 +88,18 @@ describe("Mid-Question Join Restriction", () => {
         const initialAnswerText = (initialQuestionData.data as PackageQuestionDTO).answerText;
         expect(initialAnswerText).toBeDefined();
 
-        showmanSocket.disconnect();
-        await utils.waitForActionsComplete(gameId);
+        const disconnectProbe = utils.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.DISCONNECT,
+          socketId: showmanSocket.id!
+        });
+        try {
+          showmanSocket.disconnect();
+          await disconnectProbe.waitForCount(1);
+          await utils.waitForActionsComplete(gameId);
+        } finally {
+          disconnectProbe.dispose();
+        }
 
         const reconnected = await utils.createSocketForExistingUser(app, showmanUser.id);
         reconnectedShowmanSocket = reconnected.socket;
@@ -142,8 +153,18 @@ describe("Mid-Question Join Restriction", () => {
         expect(answeringState?.questionState).toBe(QuestionState.ANSWERING);
         expect(answeringState?.answeringPlayer).toBe(playerUsers[0].id);
 
-        showmanSocket.disconnect();
-        await utils.waitForActionsComplete(gameId);
+        const disconnectProbe = utils.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.DISCONNECT,
+          socketId: showmanSocket.id!
+        });
+        try {
+          showmanSocket.disconnect();
+          await disconnectProbe.waitForCount(1);
+          await utils.waitForActionsComplete(gameId);
+        } finally {
+          disconnectProbe.dispose();
+        }
 
         const reconnected = await utils.createSocketForExistingUser(app, showmanUser.id);
         reconnectedShowmanSocket = reconnected.socket;
@@ -348,10 +369,18 @@ describe("Mid-Question Join Restriction", () => {
 
         // Simulate disconnect
         const originalPlayerId = playerUsers[0].id;
-        playerSockets[0].disconnect();
-
-        // Wait for disconnect to process
-        await utils.waitForActionsComplete(gameId);
+        const disconnectProbe = utils.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.DISCONNECT,
+          socketId: playerSockets[0].id!
+        });
+        try {
+          playerSockets[0].disconnect();
+          await disconnectProbe.waitForCount(1);
+          await utils.waitForActionsComplete(gameId);
+        } finally {
+          disconnectProbe.dispose();
+        }
 
         // Reconnect with same user
         const { socket: reconnectedSocket } =

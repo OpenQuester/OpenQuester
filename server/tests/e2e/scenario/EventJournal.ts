@@ -23,9 +23,10 @@ export interface EventRecord<TArgs extends readonly unknown[] = readonly unknown
   readonly recordedAt: Date;
 }
 
+/** Event payload predicates are deliberately synchronous to preserve record order. */
 export type EventPredicate<TArgs extends readonly unknown[] = readonly unknown[]> = (
   record: EventRecord<TArgs>
-) => boolean | Promise<boolean>;
+) => boolean;
 
 export interface EventExpectation<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly actor?: JournalActor;
@@ -54,20 +55,31 @@ interface JournalAttachment {
   readonly handler: OnAnyHandler;
 }
 
+interface Deferred<T> {
+  readonly promise: Promise<T>;
+  readonly resolve: (value: T) => void;
+  readonly reject: (error: Error) => void;
+}
+
 interface PendingEventWait<TArgs extends readonly unknown[]> {
   readonly id: number;
   readonly expectation: EventExpectation<TArgs>;
-  readonly resolve: (record: EventRecord<TArgs>) => void;
-  readonly reject: (error: Error) => void;
+  readonly deferred: Deferred<EventRecord<TArgs>>;
   readonly timeout: NodeJS.Timeout;
 }
 
 interface PendingNoEventWait<TArgs extends readonly unknown[]> {
   readonly id: number;
   readonly expectation: NoEventExpectation<TArgs>;
-  readonly resolve: () => void;
-  readonly reject: (error: Error) => void;
+  readonly deferred: Deferred<void>;
   readonly timeout: NodeJS.Timeout;
+}
+
+export class EventJournalDisposedError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "EventJournalDisposedError";
+  }
 }
 
 /** Records inbound broadcasts and outbound client commands for scenario tests. */
@@ -78,9 +90,15 @@ export class EventJournal {
   private readonly noEventWaits = new Map<number, PendingNoEventWait<readonly unknown[]>>();
   private nextSequence = 1;
   private nextWaitId = 1;
+  private disposed = false;
+  private disposePromise: Promise<void> | undefined;
 
   public attach(actor: JournalActor): void {
-    this.detach(actor.label);
+    this.assertNotDisposed();
+
+    if (this.attachments.has(actor.label)) {
+      throw new Error(`Event journal actor label "${actor.label}" is already attached`);
+    }
 
     const handler: OnAnyHandler = (event: string, ...args: unknown[]) => {
       this.record(actor, "inbound", event, args);
@@ -92,7 +110,9 @@ export class EventJournal {
 
   public detach(actorLabel: string): void {
     const attachment = this.attachments.get(actorLabel);
-    if (!attachment) return;
+    if (!attachment) {
+      return;
+    }
 
     attachment.actor.socket.offAny(attachment.handler);
     this.attachments.delete(actorLabel);
@@ -105,89 +125,145 @@ export class EventJournal {
   }
 
   public mark(): number {
+    this.assertNotDisposed();
     return this.nextSequence - 1;
   }
 
   public snapshot(): readonly EventRecord[] {
-    return [...this.records];
+    return this.records.map(copyEventRecord);
   }
 
   public recordsFor(actor: JournalActor): readonly EventRecord[] {
-    return this.records.filter((record) => record.actorLabel === actor.label);
+    return this.records
+      .filter((record) => record.actorLabel === actor.label)
+      .map(copyEventRecord);
   }
 
   public recordOutgoing(actor: JournalActor, event: string, args: readonly unknown[]): void {
     this.record(actor, "outbound", event, args);
   }
 
-  public async expectEvent<TArgs extends readonly unknown[] = readonly unknown[]>(
+  public expectEvent<TArgs extends readonly unknown[] = readonly unknown[]>(
     expectation: EventExpectation<TArgs>
   ): Promise<EventRecord<TArgs>> {
-    const existing = await this.findMatchingRecord(expectation);
-    if (existing) return existing;
+    this.assertNotDisposed();
 
-    return new Promise<EventRecord<TArgs>>((resolve, reject) => {
-      const waitId = this.allocateWaitId();
-      const timeout = setTimeout(() => {
-        this.eventWaits.delete(waitId);
-        reject(new Error(this.formatEventTimeout(expectation)));
-      }, expectation.timeoutMs);
-      const wait: PendingEventWait<TArgs> = {
-        id: waitId,
-        expectation,
-        resolve,
-        reject,
-        timeout
-      };
+    try {
+      const existing = this.findMatchingRecord(expectation);
+      if (existing) {
+        return Promise.resolve(existing);
+      }
+    } catch (error) {
+      return Promise.reject(this.toPredicateError(error, expectation));
+    }
 
-      this.eventWaits.set(wait.id, wait as PendingEventWait<readonly unknown[]>);
+    const waitId = this.allocateWaitId();
+    const deferred = createDeferred<EventRecord<TArgs>>();
+    const timeout = setTimeout(() => {
+      const wait = this.eventWaits.get(waitId);
+      if (!wait) {
+        return;
+      }
 
-      void this.findMatchingRecord(expectation)
-        .then((record) => {
-          if (record) this.resolveEventWait(wait, record);
-        })
-        .catch((error: unknown) => {
-          this.rejectEventWait(wait, toError(error));
-        });
-    });
+      this.eventWaits.delete(waitId);
+      wait.deferred.reject(new Error(this.formatEventTimeout(wait.expectation)));
+    }, expectation.timeoutMs);
+    const wait: PendingEventWait<TArgs> = {
+      id: waitId,
+      expectation,
+      deferred,
+      timeout
+    };
+
+    this.eventWaits.set(waitId, wait as unknown as PendingEventWait<readonly unknown[]>);
+    return deferred.promise;
   }
 
-  public async expectNoEvent<TArgs extends readonly unknown[] = readonly unknown[]>(
+  public expectNoEvent<TArgs extends readonly unknown[] = readonly unknown[]>(
     expectation: NoEventExpectation<TArgs>
   ): Promise<void> {
-    const eventExpectation = this.toEventExpectation(expectation);
-    const existing = await this.findMatchingRecord(eventExpectation);
-    if (existing) throw new Error(this.formatUnexpectedEvent(existing, expectation));
+    this.assertNotDisposed();
 
-    return new Promise<void>((resolve, reject) => {
-      const waitId = this.allocateWaitId();
-      const timeout = setTimeout(() => {
-        this.noEventWaits.delete(waitId);
-        resolve();
-      }, expectation.durationMs);
-      const wait: PendingNoEventWait<TArgs> = {
-        id: waitId,
-        expectation,
-        resolve,
-        reject,
-        timeout
-      };
+    try {
+      const existing = this.findMatchingRecord(this.toEventExpectation(expectation));
+      if (existing) {
+        return Promise.reject(new Error(this.formatUnexpectedEvent(existing, expectation)));
+      }
+    } catch (error) {
+      return Promise.reject(this.toPredicateError(error, expectation));
+    }
 
-      this.noEventWaits.set(wait.id, wait as PendingNoEventWait<readonly unknown[]>);
+    const waitId = this.allocateWaitId();
+    const deferred = createDeferred<void>();
+    const timeout = setTimeout(() => {
+      const wait = this.noEventWaits.get(waitId);
+      if (!wait) {
+        return;
+      }
 
-      void this.findMatchingRecord(eventExpectation)
-        .then((record) => {
-          if (record) {
-            this.rejectNoEventWait(
-              wait,
-              new Error(this.formatUnexpectedEvent(record, expectation))
-            );
-          }
-        })
-        .catch((error: unknown) => {
-          this.rejectNoEventWait(wait, toError(error));
-        });
-    });
+      this.noEventWaits.delete(waitId);
+      wait.deferred.resolve();
+    }, expectation.durationMs);
+    const wait: PendingNoEventWait<TArgs> = {
+      id: waitId,
+      expectation,
+      deferred,
+      timeout
+    };
+
+    this.noEventWaits.set(waitId, wait as PendingNoEventWait<readonly unknown[]>);
+    return deferred.promise;
+  }
+
+  public dispose(): Promise<void> {
+    if (!this.disposePromise) {
+      this.disposePromise = this.disposeInternal();
+    }
+
+    return this.disposePromise;
+  }
+
+  private async disposeInternal(): Promise<void> {
+    this.disposed = true;
+    const infrastructureFailures: Error[] = [];
+
+    for (const [actorLabel, attachment] of [...this.attachments.entries()]) {
+      try {
+        attachment.actor.socket.offAny(attachment.handler);
+      } catch (error) {
+        infrastructureFailures.push(toError(error));
+      } finally {
+        this.attachments.delete(actorLabel);
+      }
+    }
+
+    const eventWaits = [...this.eventWaits.values()];
+    const noEventWaits = [...this.noEventWaits.values()];
+    this.eventWaits.clear();
+    this.noEventWaits.clear();
+
+    for (const wait of eventWaits) {
+      clearTimeout(wait.timeout);
+      wait.deferred.reject(this.createDisposedError("event", wait.expectation));
+    }
+    for (const wait of noEventWaits) {
+      clearTimeout(wait.timeout);
+      wait.deferred.reject(this.createDisposedError("no-event", wait.expectation));
+    }
+
+    await Promise.allSettled([
+      ...eventWaits.map((wait) => wait.deferred.promise),
+      ...noEventWaits.map((wait) => wait.deferred.promise)
+    ]);
+
+    if (infrastructureFailures.length > 0) {
+      throw new AggregateError(
+        infrastructureFailures,
+        `Event journal disposal failed: ${infrastructureFailures
+          .map((failure) => failure.message)
+          .join("; ")}`
+      );
+    }
   }
 
   private allocateWaitId(): number {
@@ -200,33 +276,39 @@ export class EventJournal {
     wait: PendingEventWait<TArgs>,
     record: EventRecord<TArgs>
   ): void {
-    if (!this.eventWaits.has(wait.id)) return;
+    if (!this.eventWaits.has(wait.id)) {
+      return;
+    }
 
     clearTimeout(wait.timeout);
     this.eventWaits.delete(wait.id);
-    wait.resolve(record);
+    wait.deferred.resolve(record);
   }
 
   private rejectEventWait<TArgs extends readonly unknown[]>(
     wait: PendingEventWait<TArgs>,
     error: Error
   ): void {
-    if (!this.eventWaits.has(wait.id)) return;
+    if (!this.eventWaits.has(wait.id)) {
+      return;
+    }
 
     clearTimeout(wait.timeout);
     this.eventWaits.delete(wait.id);
-    wait.reject(error);
+    wait.deferred.reject(error);
   }
 
   private rejectNoEventWait<TArgs extends readonly unknown[]>(
     wait: PendingNoEventWait<TArgs>,
     error: Error
   ): void {
-    if (!this.noEventWaits.has(wait.id)) return;
+    if (!this.noEventWaits.has(wait.id)) {
+      return;
+    }
 
     clearTimeout(wait.timeout);
     this.noEventWaits.delete(wait.id);
-    wait.reject(error);
+    wait.deferred.reject(error);
   }
 
   private toEventExpectation<TArgs extends readonly unknown[]>(
@@ -249,6 +331,8 @@ export class EventJournal {
     event: string,
     args: readonly unknown[]
   ): void {
+    this.assertNotDisposed();
+
     const record: EventRecord = {
       sequence: this.nextSequence,
       direction,
@@ -269,43 +353,34 @@ export class EventJournal {
 
   private notifyWaiters(record: EventRecord): void {
     for (const wait of [...this.eventWaits.values()]) {
-      void this.tryResolveEventWait(wait, record);
+      try {
+        if (this.matches(record, wait.expectation)) {
+          this.resolveEventWait(wait, record);
+        }
+      } catch (error) {
+        this.rejectEventWait(wait, this.toPredicateError(error, wait.expectation));
+      }
     }
 
     for (const wait of [...this.noEventWaits.values()]) {
-      void this.tryRejectNoEventWait(wait, record);
+      try {
+        if (this.matches(record, wait.expectation)) {
+          this.rejectNoEventWait(
+            wait,
+            new Error(this.formatUnexpectedEvent(record, wait.expectation))
+          );
+        }
+      } catch (error) {
+        this.rejectNoEventWait(wait, this.toPredicateError(error, wait.expectation));
+      }
     }
   }
 
-  private async tryResolveEventWait(
-    wait: PendingEventWait<readonly unknown[]>,
-    record: EventRecord
-  ): Promise<void> {
-    try {
-      if (!(await this.matches(record, wait.expectation))) return;
-      this.resolveEventWait(wait, record);
-    } catch (error) {
-      this.rejectEventWait(wait, toError(error));
-    }
-  }
-
-  private async tryRejectNoEventWait(
-    wait: PendingNoEventWait<readonly unknown[]>,
-    record: EventRecord
-  ): Promise<void> {
-    try {
-      if (!(await this.matches(record, wait.expectation))) return;
-      this.rejectNoEventWait(wait, new Error(this.formatUnexpectedEvent(record, wait.expectation)));
-    } catch (error) {
-      this.rejectNoEventWait(wait, toError(error));
-    }
-  }
-
-  private async findMatchingRecord<TArgs extends readonly unknown[]>(
+  private findMatchingRecord<TArgs extends readonly unknown[]>(
     expectation: EventExpectation<TArgs>
-  ): Promise<EventRecord<TArgs> | undefined> {
+  ): EventRecord<TArgs> | undefined {
     for (const record of this.records) {
-      if (await this.matches(record, expectation)) {
+      if (this.matches(record, expectation)) {
         return record as EventRecord<TArgs>;
       }
     }
@@ -313,10 +388,10 @@ export class EventJournal {
     return undefined;
   }
 
-  private async matches<TArgs extends readonly unknown[]>(
+  private matches<TArgs extends readonly unknown[]>(
     record: EventRecord,
     expectation: EventExpectation<TArgs> | NoEventExpectation<TArgs>
-  ): Promise<boolean> {
+  ): boolean {
     if (record.event !== expectation.event) return false;
     if (expectation.direction && record.direction !== expectation.direction) return false;
     if (expectation.actor && record.actorLabel !== expectation.actor.label) return false;
@@ -326,6 +401,27 @@ export class EventJournal {
     if (!expectation.predicate) return true;
 
     return expectation.predicate(record as EventRecord<TArgs>);
+  }
+
+  private createDisposedError(
+    direction: "event" | "no-event",
+    expectation: EventExpectation<readonly unknown[]> | NoEventExpectation<readonly unknown[]>
+  ): EventJournalDisposedError {
+    return new EventJournalDisposedError(
+      `Event journal disposed while waiting for ${direction} "${expectation.event}" ` +
+        `${this.formatExpectationContext(expectation)} lastEvents=${this.formatLastRecords()}`
+    );
+  }
+
+  private toPredicateError<TArgs extends readonly unknown[]>(
+    error: unknown,
+    expectation: EventExpectation<TArgs> | NoEventExpectation<TArgs>
+  ): Error {
+    const cause = toError(error);
+    return new Error(
+      `Event predicate failed for "${expectation.event}" ${this.formatExpectationContext(expectation)}: ${cause.message}`,
+      { cause }
+    );
   }
 
   private formatEventTimeout<TArgs extends readonly unknown[]>(
@@ -381,6 +477,51 @@ export class EventJournal {
       args: record.args
     };
   }
+
+  private assertNotDisposed(): void {
+    if (this.disposed) {
+      throw new EventJournalDisposedError("Event journal is disposed");
+    }
+  }
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve: (value: T) => void = () => undefined;
+  let reject: (error: Error) => void = () => undefined;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return { promise, resolve, reject };
+}
+
+export function copyEventRecord<TArgs extends readonly unknown[]>(
+  record: EventRecord<TArgs>
+): EventRecord<TArgs> {
+  return {
+    ...record,
+    args: record.args.map(copyEventArgument) as unknown as TArgs,
+    recordedAt: new Date(record.recordedAt)
+  };
+}
+
+function copyEventArgument(value: unknown): unknown {
+  if (value instanceof Date) {
+    return new Date(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(copyEventArgument);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, copyEventArgument(nestedValue)])
+    );
+  }
+
+  return value;
 }
 
 function toError(error: unknown): Error {

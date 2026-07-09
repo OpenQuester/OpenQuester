@@ -6,6 +6,10 @@ import {
   type WaitForActionsCompleteOptions,
   type WaitForSubmittedActionsOptions
 } from "tests/e2e/scenario/ScenarioGameDriver";
+import {
+  type AcceptedActionFilter,
+  type AcceptedActionProbe
+} from "tests/socket/game/utils/SocketGameTestEventUtils";
 import { type SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 /** Scenario driver backed by the existing Socket.IO game test utilities. */
@@ -31,6 +35,10 @@ export class SocketGameScenarioDriver implements ScenarioGameDriver {
     }
 
     return Boolean(player.mediaDownloaded);
+  }
+
+  public createAcceptedActionProbe(filter: AcceptedActionFilter): AcceptedActionProbe {
+    return this.utils.createAcceptedActionProbe(filter);
   }
 
   public waitForSubmittedActions(options: WaitForSubmittedActionsOptions): Promise<void> {

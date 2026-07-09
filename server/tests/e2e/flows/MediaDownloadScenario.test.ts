@@ -1,239 +1,360 @@
-import { afterAll, beforeAll, describe, it } from "@jest/globals";
+import { afterAll, beforeAll, describe, expect, it } from "@jest/globals";
 
-import { GameActionType } from "domain/enums/GameActionType";
+import {
+  GAME_QUESTION_ANSWER_TIME,
+  MEDIA_DOWNLOAD_TIMEOUT,
+  SYSTEM_PLAYER_ID
+} from "domain/constants/game";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { User } from "infrastructure/database/models/User";
-import { MediaDownloadFlow } from "tests/e2e/flows/media-download/MediaDownloadFlow";
+import {
+  type CreateMediaDownloadFlowOptions,
+  type ExpectedMediaDownloadStatus,
+  MediaDownloadFlow,
+  withMediaDownloadFlow
+} from "tests/e2e/flows/media-download/MediaDownloadFlow";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 const DUPLICATE_MEDIA_DOWNLOAD_COMMANDS = 15;
 
-let harness: ServerTestHarness;
+let harness: ServerTestHarness | undefined;
 
-describe("Media download scenario POC", () => {
+describe("Media Download client-contract golden scenarios", () => {
   beforeAll(async () => {
     harness = await ServerTestHarness.start({ apiPort: 0 });
   });
 
   afterAll(async () => {
-    await harness.stop();
+    if (harness) {
+      await harness.stop();
+    }
   });
 
-  it("keeps waiting until every player downloads media", async () => {
-    const flow = await createFlow(2);
-
-    try {
+  it("transitions a single player immediately to showing", async () => {
+    await withMediaDownloadFlow(createFlowOptions({ playerCount: 1 }), async (flow) => {
       await flow.pickMediaQuestion();
+      await assertInitialMediaState(flow);
 
       const player = flow.player(0);
-      const waitingPlayer = flow.player(1);
       const afterDownload = flow.mark();
-      const mediaActionSubmitted = flow.waitForSubmittedMediaDownloads(1);
-      const status = flow.expectMediaDownloadStatus(flow.showman, afterDownload, {
-        playerId: player.userId,
-        allPlayersReady: false
-      });
+      const probe = flow.createAcceptedMediaDownloadProbe(player);
+      const status = expectedStatus(player.userId!, true, showingTimer());
+      const statusBroadcasts = flow.waitForMediaDownloadBroadcast(
+        flow.allRecipients,
+        afterDownload,
+        status
+      );
 
       flow.emitPlayerDownloaded(player);
 
-      await mediaActionSubmitted;
-      await status;
+      await Promise.all([probe.waitForCount(1), statusBroadcasts]);
       await flow.waitForActionsComplete();
 
-      flow.expectOutboundMediaDownloadCommands({
+      flow.assertOutboundMediaDownloadCommands({
         actor: player,
         afterSequence: afterDownload,
         expectedCount: 1
       });
+      flow.assertAcceptedMediaDownloadCount(probe, 1, player);
+      flow.allRecipients.forEach((recipient) =>
+        flow.assertExactMediaStatusCount(recipient, afterDownload, 1)
+      );
+      await flow.expectMediaReadiness([{ actor: player, expected: true }]);
+      await flow.expectQuestionState(QuestionState.SHOWING);
+      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectNoSocketErrors(afterDownload);
+    });
+  });
 
+  it("keeps the media timer active while readiness is partial", async () => {
+    await withMediaDownloadFlow(createFlowOptions(), async (flow) => {
+      await flow.pickMediaQuestion();
+      await assertInitialMediaState(flow);
+
+      const downloadedPlayer = flow.player(0);
+      const waitingPlayer = flow.player(1);
+      const afterDownload = flow.mark();
+      const probe = flow.createAcceptedMediaDownloadProbe(downloadedPlayer);
+      const status = expectedStatus(downloadedPlayer.userId!, false, noTimer());
+      const statusBroadcasts = flow.waitForMediaDownloadBroadcast(
+        flow.allRecipients,
+        afterDownload,
+        status
+      );
+
+      flow.emitPlayerDownloaded(downloadedPlayer);
+
+      await Promise.all([probe.waitForCount(1), statusBroadcasts]);
+      await flow.waitForActionsComplete();
+
+      flow.assertOutboundMediaDownloadCommands({
+        actor: downloadedPlayer,
+        afterSequence: afterDownload,
+        expectedCount: 1
+      });
+      flow.assertAcceptedMediaDownloadCount(probe, 1, downloadedPlayer);
+      flow.allRecipients.forEach((recipient) =>
+        flow.assertExactMediaStatusCount(recipient, afterDownload, 1)
+      );
       await flow.expectMediaReadiness([
-        { actor: player, expected: true },
+        { actor: downloadedPlayer, expected: true },
         { actor: waitingPlayer, expected: false }
       ]);
       await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
+      await flow.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
       await flow.expectNoSocketErrors(afterDownload);
-    } finally {
-      await flow.cleanup();
-    }
+    });
   });
 
-  it("tracks media-download commands through actions, broadcasts, journal, and final state", async () => {
-    const flow = await createFlow(2);
-
-    try {
+  it("handles concurrent two-player completion without assuming socket arrival order", async () => {
+    await withMediaDownloadFlow(createFlowOptions({ spectatorCount: 1 }), async (flow) => {
       await flow.pickMediaQuestion();
+      await assertInitialMediaState(flow);
 
+      const firstPlayer = flow.player(0);
+      const secondPlayer = flow.player(1);
       const afterDownloadBurst = flow.mark();
-      const mediaActionsSubmitted = flow.waitForSubmittedMediaDownloads(flow.players.length);
-      const firstPlayerStatus = flow.expectMediaDownloadStatus(flow.showman, afterDownloadBurst, {
-        playerId: flow.player(0).userId,
-        allPlayersReady: false
-      });
-      const finalStatusBroadcasts = flow.expectMediaDownloadBroadcast(
-        [flow.showman, ...flow.players],
-        afterDownloadBurst,
-        {
-          playerId: flow.player(1).userId,
-          allPlayersReady: true
-        }
+      const probe = flow.createAcceptedMediaDownloadProbe();
+      const finalReadyBroadcasts = flow.waitForAllPlayersReadyBroadcast(
+        flow.allRecipients,
+        afterDownloadBurst
       );
 
-      flow.emitAllPlayersDownloaded();
+      flow.emitPlayerDownloaded(firstPlayer);
+      flow.emitPlayerDownloaded(secondPlayer);
 
-      await mediaActionsSubmitted;
-      await firstPlayerStatus;
-      await finalStatusBroadcasts;
+      await Promise.all([probe.waitForCount(2), finalReadyBroadcasts]);
       await flow.waitForActionsComplete();
 
-      flow.expectOutboundMediaDownloadCommands({
+      flow.assertOutboundMediaDownloadCommands({
         afterSequence: afterDownloadBurst,
-        expectedCount: flow.players.length
+        expectedCount: 2
       });
+      const acceptedActions = flow.assertAcceptedMediaDownloadCount(probe, 2);
+      expect(
+        acceptedActions.map((action) => `${action.playerId}:${action.socketId}`).sort()
+      ).toEqual(
+        [
+          `${firstPlayer.userId}:${firstPlayer.socketId}`,
+          `${secondPlayer.userId}:${secondPlayer.socketId}`
+        ].sort()
+      );
 
-      await flow.expectMediaReadiness(flow.players.map((actor) => ({ actor, expected: true })));
+      for (const recipient of flow.allRecipients) {
+        const records = flow.mediaStatusHistory(recipient, afterDownloadBurst);
+        const statuses = records.map((record) => record.args[0]);
+
+        expect(statuses).toHaveLength(2);
+        expect(statuses.map((status) => status.playerId).sort()).toEqual(
+          [firstPlayer.userId, secondPlayer.userId].sort()
+        );
+        expect(statuses[0]).toMatchObject({ mediaDownloaded: true, allPlayersReady: false, timer: null });
+        expect(statuses[1].mediaDownloaded).toBe(true);
+        expect(statuses[1].allPlayersReady).toBe(true);
+        expect(statuses[1].timer?.durationMs).toBe(GAME_QUESTION_ANSWER_TIME);
+      }
+
+      await flow.expectMediaReadiness([
+        { actor: firstPlayer, expected: true },
+        { actor: secondPlayer, expected: true }
+      ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
-      await flow.expectNoMediaTimeoutBroadcast(afterDownloadBurst);
+      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
       await flow.expectNoSocketErrors(afterDownloadBurst);
-    } finally {
-      await flow.cleanup();
-    }
+    });
   });
 
-  it("keeps waiting when one player sends a duplicate media-download burst", async () => {
-    const flow = await createFlow(2);
-
-    try {
+  it("settles 15 duplicate confirmations before the remaining player completes", async () => {
+    await withMediaDownloadFlow(createFlowOptions(), async (flow) => {
       await flow.pickMediaQuestion();
+      await assertInitialMediaState(flow);
 
-      const burstActor = flow.player(0);
-      const waitingActor = flow.player(1);
-      const afterDownloadBurst = flow.mark();
-      const mediaActionsSubmitted = flow.waitForSubmittedActions(
-        DUPLICATE_MEDIA_DOWNLOAD_COMMANDS,
-        GameActionType.MEDIA_DOWNLOADED
+      const duplicatePlayer = flow.player(0);
+      const remainingPlayer = flow.player(1);
+      const afterDuplicates = flow.mark();
+      const duplicateProbe = flow.createAcceptedMediaDownloadProbe(duplicatePlayer);
+      const firstPartialStatus = flow.waitForMediaDownloadStatus(
+        flow.showman,
+        afterDuplicates,
+        expectedStatus(duplicatePlayer.userId!, false, noTimer())
       );
-      const firstStatus = flow.expectMediaDownloadStatus(flow.showman, afterDownloadBurst, {
-        playerId: burstActor.userId,
-        allPlayersReady: false
-      });
 
-      flow.emitDuplicateDownloads(burstActor, DUPLICATE_MEDIA_DOWNLOAD_COMMANDS);
+      flow.emitDuplicateDownloads(duplicatePlayer, DUPLICATE_MEDIA_DOWNLOAD_COMMANDS);
 
-      await mediaActionsSubmitted;
-      await firstStatus;
+      await Promise.all([duplicateProbe.waitForCount(DUPLICATE_MEDIA_DOWNLOAD_COMMANDS), firstPartialStatus]);
       await flow.waitForActionsComplete();
 
-      flow.expectOutboundMediaDownloadCommands({
-        actor: burstActor,
-        afterSequence: afterDownloadBurst,
+      flow.assertOutboundMediaDownloadCommands({
+        actor: duplicatePlayer,
+        afterSequence: afterDuplicates,
         expectedCount: DUPLICATE_MEDIA_DOWNLOAD_COMMANDS
       });
-
-      await flow.expectMediaReadiness([
-        { actor: burstActor, expected: true },
-        { actor: waitingActor, expected: false }
-      ]);
-      await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
-      await flow.expectNoSocketErrors(afterDownloadBurst);
-    } finally {
-      await flow.cleanup();
-    }
-  });
-
-  it("transitions after duplicate burst player and remaining player both download", async () => {
-    const flow = await createFlow(2);
-
-    try {
-      await flow.pickMediaQuestion();
-
-      const burstActor = flow.player(0);
-      const remainingActor = flow.player(1);
-      const afterDuplicateBurst = flow.mark();
-      const duplicateActionsSubmitted = flow.waitForSubmittedActions(
+      const duplicateActions = flow.assertAcceptedMediaDownloadCount(
+        duplicateProbe,
         DUPLICATE_MEDIA_DOWNLOAD_COMMANDS,
-        GameActionType.MEDIA_DOWNLOADED
+        duplicatePlayer
       );
-      const firstStatus = flow.expectMediaDownloadStatus(flow.showman, afterDuplicateBurst, {
-        playerId: burstActor.userId,
-        allPlayersReady: false
-      });
-
-      flow.emitDuplicateDownloads(burstActor, DUPLICATE_MEDIA_DOWNLOAD_COMMANDS);
-
-      await duplicateActionsSubmitted;
-      await firstStatus;
-      await flow.waitForActionsComplete();
+      expect(new Set(duplicateActions.map((action) => action.actionId)).size).toBe(
+        DUPLICATE_MEDIA_DOWNLOAD_COMMANDS
+      );
+      flow.assertExactMediaStatusCount(
+        flow.showman,
+        afterDuplicates,
+        DUPLICATE_MEDIA_DOWNLOAD_COMMANDS
+      );
+      const duplicateStatuses = flow.mediaStatusHistory(flow.showman, afterDuplicates);
+      flow.assertAllMediaStatuses(
+        duplicateStatuses,
+        expectedStatus(duplicatePlayer.userId!, false, noTimer())
+      );
+      expect(duplicateStatuses.some((record) => record.args[0].allPlayersReady)).toBe(false);
+      expect(duplicateStatuses.some((record) => record.args[0].playerId === SYSTEM_PLAYER_ID)).toBe(false);
       await flow.expectMediaReadiness([
-        { actor: burstActor, expected: true },
-        { actor: remainingActor, expected: false }
+        { actor: duplicatePlayer, expected: true },
+        { actor: remainingPlayer, expected: false }
       ]);
       await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
+      await flow.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
+      await flow.expectNoSocketErrors(afterDuplicates);
 
       const afterRemainingDownload = flow.mark();
-      const remainingActionSubmitted = flow.waitForSubmittedMediaDownloads(1);
-      const finalStatusBroadcasts = flow.expectMediaDownloadBroadcast(
-        [flow.showman, ...flow.players],
+      const remainingProbe = flow.createAcceptedMediaDownloadProbe(remainingPlayer);
+      const finalStatus = expectedStatus(remainingPlayer.userId!, true, showingTimer());
+      const finalBroadcasts = flow.waitForMediaDownloadBroadcast(
+        flow.allRecipients,
         afterRemainingDownload,
-        {
-          playerId: remainingActor.userId,
-          allPlayersReady: true
-        }
+        finalStatus
       );
 
-      flow.emitPlayerDownloaded(remainingActor);
+      flow.emitPlayerDownloaded(remainingPlayer);
 
-      await remainingActionSubmitted;
-      await finalStatusBroadcasts;
+      await Promise.all([remainingProbe.waitForCount(1), finalBroadcasts]);
       await flow.waitForActionsComplete();
 
-      flow.expectOutboundMediaDownloadCommands({
-        actor: remainingActor,
+      flow.assertOutboundMediaDownloadCommands({
+        actor: remainingPlayer,
         afterSequence: afterRemainingDownload,
         expectedCount: 1
       });
-
-      await flow.expectMediaReadiness(flow.players.map((actor) => ({ actor, expected: true })));
+      flow.assertAcceptedMediaDownloadCount(remainingProbe, 1, remainingPlayer);
+      flow.allRecipients.forEach((recipient) =>
+        flow.assertExactMediaStatusCount(recipient, afterRemainingDownload, 1)
+      );
+      await flow.expectMediaReadiness([
+        { actor: duplicatePlayer, expected: true },
+        { actor: remainingPlayer, expected: true }
+      ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
-      await flow.expectNoSocketErrors(afterDuplicateBurst);
-    } finally {
-      await flow.cleanup();
-    }
+      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectNoSocketErrors(afterRemainingDownload);
+    });
   });
 
-  it("forces all players ready when the media download timer expires", async () => {
-    const flow = await createFlow(2);
-
-    try {
+  it("transitions partial readiness deterministically through media timer expiry", async () => {
+    await withMediaDownloadFlow(createFlowOptions({ spectatorCount: 1 }), async (flow) => {
       await flow.pickMediaQuestion();
+      await assertInitialMediaState(flow);
 
-      const afterTimerExpiration = flow.mark();
-      const timeoutBroadcasts = flow.expectMediaTimeoutBroadcast(
-        [flow.showman, ...flow.players],
-        afterTimerExpiration
+      const downloadedPlayer = flow.player(0);
+      const waitingPlayer = flow.player(1);
+      const afterPartial = flow.mark();
+      const partialProbe = flow.createAcceptedMediaDownloadProbe(downloadedPlayer);
+      const partialBroadcasts = flow.waitForMediaDownloadBroadcast(
+        flow.allRecipients,
+        afterPartial,
+        expectedStatus(downloadedPlayer.userId!, false, noTimer())
       );
 
-      await flow.expireMediaDownloadTimer();
-      await timeoutBroadcasts;
+      flow.emitPlayerDownloaded(downloadedPlayer);
+
+      await Promise.all([partialProbe.waitForCount(1), partialBroadcasts]);
+      await flow.waitForActionsComplete();
+      flow.assertOutboundMediaDownloadCommands({
+        actor: downloadedPlayer,
+        afterSequence: afterPartial,
+        expectedCount: 1
+      });
+      flow.assertAcceptedMediaDownloadCount(partialProbe, 1, downloadedPlayer);
+      flow.allRecipients.forEach((recipient) =>
+        flow.assertExactMediaStatusCount(recipient, afterPartial, 1)
+      );
+      await flow.expectMediaReadiness([
+        { actor: downloadedPlayer, expected: true },
+        { actor: waitingPlayer, expected: false }
+      ]);
+      await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
+      await flow.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
+      await flow.expectNoSocketErrors(afterPartial);
+
+      const afterTimerExpiry = flow.mark();
+      const timeoutStatus = expectedStatus(SYSTEM_PLAYER_ID, true, showingTimer());
+      const timeoutBroadcasts = flow.waitForMediaDownloadBroadcast(
+        flow.allRecipients,
+        afterTimerExpiry,
+        timeoutStatus
+      );
+
+      await Promise.all([flow.expireMediaDownloadTimer(), timeoutBroadcasts]);
       await flow.waitForActionsComplete();
 
-      await flow.expectMediaReadiness(flow.players.map((actor) => ({ actor, expected: true })));
+      flow.allRecipients.forEach((recipient) =>
+        flow.assertExactMediaStatusCount(recipient, afterTimerExpiry, 1)
+      );
+      await flow.expectMediaReadiness([
+        { actor: downloadedPlayer, expected: true },
+        { actor: waitingPlayer, expected: true }
+      ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
-      await flow.expectNoSocketErrors(afterTimerExpiration);
-    } finally {
-      await flow.cleanup();
-    }
+      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectNoSocketErrors(afterTimerExpiry);
+    });
   });
 });
 
-function createFlow(playerCount: number): Promise<MediaDownloadFlow> {
-  const utils = new SocketGameTestUtils(harness.serverUrl);
-  const userRepo = harness.dataSource.getRepository(User);
+function createFlowOptions(
+  options: Pick<CreateMediaDownloadFlowOptions, "playerCount" | "spectatorCount"> = {}
+): CreateMediaDownloadFlowOptions {
+  const currentHarness = requireHarness();
 
-  return MediaDownloadFlow.start({
-    harness,
-    utils,
-    userRepo,
-    playerCount
-  });
+  return {
+    harness: currentHarness,
+    utils: new SocketGameTestUtils(currentHarness.serverUrl),
+    userRepo: currentHarness.dataSource.getRepository(User),
+    ...options
+  };
+}
+
+function requireHarness(): ServerTestHarness {
+  if (!harness) {
+    throw new Error("ServerTestHarness was not started");
+  }
+
+  return harness;
+}
+
+async function assertInitialMediaState(flow: MediaDownloadFlow): Promise<void> {
+  await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
+  await flow.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
+}
+
+function expectedStatus(
+  playerId: number,
+  allPlayersReady: boolean,
+  timer: ExpectedMediaDownloadStatus["timer"]
+): ExpectedMediaDownloadStatus {
+  return {
+    playerId,
+    mediaDownloaded: true,
+    allPlayersReady,
+    timer
+  };
+}
+
+function noTimer(): ExpectedMediaDownloadStatus["timer"] {
+  return { kind: "none" };
+}
+
+function showingTimer(): ExpectedMediaDownloadStatus["timer"] {
+  return { kind: "active", durationMs: GAME_QUESTION_ANSWER_TIME };
 }

@@ -291,15 +291,17 @@ describe("Socket Question Flow Tests", () => {
           answerCount++;
         });
 
-        playerSockets.forEach((socket) => {
-          socket.emit(SocketIOGameEvents.QUESTION_ANSWER, {});
-        });
-
-        await utils.waitForSubmittedActions(
+        const answerActionsAccepted = utils.waitForSubmittedActions(
           setup.gameId,
           playerSockets.length,
           GameActionType.QUESTION_ANSWER
         );
+
+        playerSockets.forEach((socket) => {
+          socket.emit(SocketIOGameEvents.QUESTION_ANSWER, {});
+        });
+
+        await answerActionsAccepted;
         await utils.waitForActionsComplete(setup.gameId);
 
         expect(answerCount).toBe(1);
