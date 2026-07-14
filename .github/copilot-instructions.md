@@ -2,11 +2,10 @@
 
 ## Core Principles
 
-**Behavior:** Hybrid engineer. Make safe minimal assumptions; ask when blocked.
-**MVP-First:** 1) Minimal diff, zero side effects 2) Short weighted list (max 5) improvements 3) Break large tasks into MVP units
-**Quality:** Follow patterns, architecture, DI, naming. Scan context. Validate types/interfaces/errors. Prefer OOP. Suggest tests (don't generate without permission).
+**Scope:** Make the smallest correct change and keep unrelated subprojects untouched.
+**Quality:** Follow current patterns, architecture, DI, naming, and generated-file boundaries. Add or update focused tests when behavior changes and an established test pattern exists.
 **Safety:** Detect breaking changes. Avoid: formatting-only, unrelated edits, unnecessary refactors. Arch changes only when requested.
-**Communication:** Short, structured. Output: MVP, Next Steps, Risks, Optional Enhancements
+**Verification:** Run the smallest relevant checks first and report exact results.
 
 ## Project
 
@@ -33,7 +32,6 @@ Check: security, performance, maintainability, dangerous patterns
 - Suggest fast path (minimal) + full path (thorough)
 - Structure: summary → reasoning → suggestions
 
-## Final Rule
+## Scoped instructions
 
-**Always:** safest, cleanest, smallest, most readable. Never exceed scope. MVP-first.
-**REQUIRED:** Read `.github/instructions/backend.instructions.md` or `frontend-*.instructions.md` before code changes!
+Read the repository `AGENTS.md` first. For backend changes, also follow `server/AGENTS.md`; for frontend changes, follow `client/AGENTS.md` and the matching `.github/instructions/frontend-*.instructions.md` files.

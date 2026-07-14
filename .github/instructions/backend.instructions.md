@@ -4,6 +4,8 @@ applyTo: "server/**/*"
 
 # OpenQuester Backend Instructions
 
+Canonical repository guidance also lives in `server/AGENTS.md`. Keep this Copilot-specific file aligned with it.
+
 ## Key Docs (Read First)
 - **Final Round:** `server/docs/final-round-flow.md` - Theme elimination → bidding → answering → reviewing
 - **Action Queue:** `server/docs/game-action-executor.md` - Race condition prevention via Redis locks
@@ -61,8 +63,8 @@ npm test                # All tests
 npm run test:pipeline   # CI
 npx jest path/to/file   # Specific (set trace logs in tests/utils.ts)
 ```
-**Timer Testing:** Use `TestUtils.expireTimer()` - NEVER `setTimeout` in tests
-**NO test timeout increases** - missing events = broken code
+**Timer Testing:** Use `TestUtils.expireTimer()` to manipulate game timer expiration. Bounded `setTimeout` calls remain valid for harness deadlines, aborts, and explicit polling.
+Do not increase timeouts merely to hide missing events, leaked resources, or broken synchronization.
 
 ## Conventions
 **Naming:** Services end `Service`, Repositories end `Repository`; socket game actions are map entries plus use cases/handlers registered in the action system
@@ -73,7 +75,7 @@ npx jest path/to/file   # Specific (set trace logs in tests/utils.ts)
 **TypeORM:** Manual migrations (`infrastructure/database/migrations/`), snake_case via `SnakeNamingStrategy`
 
 ## Type Safety
-- **NEVER** `any` → use `unknown` or `Record<string, T>`
+- Do not introduce new `any` when `unknown`, a precise type, or `Record<string, T>` works
 - Explicit return types
 - Use `satisfies` on un-typed objects
 - **NEVER** re-exports or `index.ts` files

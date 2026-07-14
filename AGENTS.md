@@ -1,202 +1,47 @@
-# AGENTS.md — OpenQuester
+# OpenQuester repository instructions
 
-## Project Overview
+## Repository map
 
-OpenQuester is a multiplayer quiz game. Independent sub-projects (no workspaces):
-- `server/` — TypeScript/Node.js backend (Express, Socket.IO, PostgreSQL, Redis)
-- `client/` — Flutter/Dart frontend
-- `loadtest/` — TypeScript load testing tool (imports server domain types via path aliases)
-- `openapi/` — OpenAPI schema (`schema.json`) + generated Dart SDK
-- `websites/` — Hugo docs and landing page
+- `server/` — TypeScript/Node.js backend using Express, Socket.IO, PostgreSQL, and Redis.
+- `client/` — Flutter/Dart Melos workspace. The application is under `apps/client/`; reusable packages are under `packages/`.
+- `loadtest/` — TypeScript load-testing tool.
+- `openapi/` — OpenAPI schema and generated-client inputs.
+- `websites/` — Hugo documentation and landing page.
 
-Node version: 20.12 (`server/.node-version`). Build target: Node 18 (tsup).
+There is no single root build or test command. Work from the affected subproject and keep unrelated subprojects unchanged.
 
-## Build / Lint / Test Commands
+## Scope routing
 
-### Server (run from `server/`)
+- For server work, follow `server/AGENTS.md`.
+- For client work, follow `client/AGENTS.md`.
+- For API-contract changes, inspect the schema, server consumers, generated Dart SDK, and affected client callers.
+- When a change crosses subprojects, verify each affected contract separately.
+- Do not edit generated files directly when the repository provides a generator.
 
-```bash
-npm run start:dev          # Dev server (build + watch + nodemon)
-npm run build              # Production build (clean + tsc --noEmit + tsup)
-npm run lint               # ESLint 9 flat config
-npm test                   # All tests (Jest, serial, requires PostgreSQL + Redis)
-npx jest tests/game/someTest.test.ts   # Single test file
-npx jest -t "should create game"       # Tests matching name pattern
-npm run test:pipeline      # CI mode (stdout suppressed)
-npm run validate:schema    # Validate OpenAPI schema
-```
+## Commands
 
-### Loadtest (run from `loadtest/`)
+From `server/`:
 
-```bash
-npm run build              # clean + tsc --noEmit + tsup
-npm run dev                # ts-node with tsconfig-paths (runs src/index.ts)
-npm start                  # node dist/index.js (after build)
-```
+- `npm run build`
+- `npm run lint`
+- `npm test`
+- `npx jest path/to/test`
+- `npm run validate:schema`
 
-### Client (run from `client/`)
+From `loadtest/`:
 
-```bash
-flutter pub get            # Install dependencies
-dart run build_runner build --delete-conflicting-outputs  # Code generation
-flutter analyze            # Lint (very_good_analysis)
-flutter test               # Run tests
-dart format .              # Format code
-./oqhelper gen_locale      # Regenerate localization keys
-```
+- `npm run build`
+- `npm run dev`
+- `npm start`
 
-### Dev Infrastructure (from `server/`)
+From `client/`:
 
-```bash
-docker compose up -d       # PostgreSQL 16, Redis, MinIO, pgAdmin, Prometheus, Grafana
-```
+- Use the SDK pinned by `.puro.json`.
+- Use the Melos scripts declared in `pubspec.yaml` for workspace-wide generation, analysis, tests, and formatting.
+- Use `./oqhelper` for focused project generation commands.
 
-CI requires: PostgreSQL 15, Redis 7. Env vars: `NODE_ENV=test`, `SESSION_SECRET=test_secret`, `REDIS_URL=redis://localhost:6379/12`, `DB_HOST/PORT/USERNAME/PASSWORD/DATABASE`.
+## Shared expectations
 
-## Server Architecture
-
-Layered clean architecture with explicit boundary rules:
-
-```
-bootstrap/  --> wires all layers and external runtime objects
-presentation/ → application/ → domain/
-                 application → infrastructure/  (current pragmatic repository/adaptor usage)
-shared/      --> dependency-neutral config, DI tokens, logging contracts, context types
-```
-
-- **`domain/`** — Pure logic, entities, enums, DTOs, errors, validators, state machine. No application/infrastructure/presentation imports and no external I/O.
-- **`application/`** — Use cases, orchestration services, action executors, workers, jobs, factories, and app-owned ports. No presentation imports. No Socket.IO/Express transport imports; realtime output goes through `RealtimeGateway`.
-- **`infrastructure/`** — TypeORM/PostgreSQL, Redis implementations, S3/MinIO, pino logger implementation, migrations, storage/database adapters.
-- **`presentation/`** — REST controllers, Socket.IO setup/dispatching, realtime adapters, Express middleware, Joi schemes. Must not import infrastructure directly.
-- **`shared/`** — Cross-cutting contracts/types with no layer-specific dependencies: DI tokens, config, logging contracts, Express/Socket.IO type augmentation, API/request context types.
-- **`bootstrap/`** — Composition root. It can import all layers to register DI dependencies and connect runtime objects.
-
-**Path aliases** (`tsconfig.json` + `jest.config.ts`): `domain/*`, `application/*`, `infrastructure/*`, `presentation/*`, `shared/*`, `bootstrap/*`, `tests/*`
-
-### Boundary Rules
-
-- Domain never imports application, infrastructure, or presentation.
-- Infrastructure never imports application or presentation.
-- Presentation never imports infrastructure; delegate work to application services/use cases.
-- Application never imports presentation and must not import Socket.IO/Express transport APIs.
-- Application may currently call infrastructure repositories/adapters directly where existing code does so. Do not introduce repository interfaces just for ceremony; add app-owned ports only for clear boundary benefits.
-- Realtime output from application goes through `application/ports/realtime/RealtimeGateway`. Socket.IO-specific delivery is implemented in `presentation/realtime/SocketIORealtimeGateway.ts`.
-- Do not put TypeORM entities or transport objects on Express request objects. Use `req.auth` (`RequestAuthContext`) for request identity only.
-
-### Socket Actions — presentation receives Socket.IO events through `SocketIOInitializer`/`SocketActionDispatcher`, maps them to `GameAction`, and submits them to `GameActionExecutor`. Game action use cases return mutations/events; application publishes realtime effects through `RealtimeGateway`, not direct Socket.IO calls.
-
-### Action Queue — `GameActionExecutor` + Redis lock per game prevents concurrent state corruption. Game state stored in Redis as serialized `GameStateDTO`.
-
-### Multi-instance production invariants
-
-Production may run multiple independent server instances behind a load balancer. Do not assume sticky sessions: HTTP auth, Socket.IO events, timers, and queued action processing may land on different instances.
-
-- Process-local state may own local lifecycle, local sockets, logger streams, metrics buffers, immutable config, and test-only harness state, but it must not be the source of truth for game correctness.
-- Shared game correctness must stay in PostgreSQL, Redis game/session/timer state, Redis action queues and locks, and Socket.IO Redis-adapter operations.
-- Never replace Redis-backed action ordering, locks, timers, socket/session metadata, or cron ownership with a local `Map`, `Set`, array, promise chain, EventEmitter, or mutex.
-- `namespace.sockets` is local to one process. Use adapter-aware operations (`to(room).emit`, `in(room).fetchSockets`, `in(socketId).socketsJoin`, `in(socketId).socketsLeave`, `in(socketId).disconnectSockets`, `serverSideEmit`) for cluster-wide behavior.
-- Tests may use in-memory journals, actors, and harness state under `server/tests`; production code must not depend on those helpers or test-only tracking.
-- A local cache is acceptable only when Redis/PostgreSQL remains authoritative or the cache can be safely reconstructed without changing behavior.
-- When ownership is unclear, document whether the state is local or distributed before implementing it.
-
-Read `server/docs/multi-instance-invariants.md` before changing server lifecycle, Socket.IO, game action, timer, or cron behavior.
-
-### DI — tsyringe: `@singleton()` for concrete classes; `@inject(DI_TOKENS.X)` with `Symbol.for()` tokens for interfaces/ports (see `shared/di/tokens.ts`, registrations in `bootstrap/bootstrapContainer.ts`).
-
-### REST Controllers — class-based with Express `Router`. Wrap handlers with `asyncHandler`. Validate with `RequestDataValidator` + Joi schemes (`presentation/schemes/`). Use `HttpStatus` enum.
-
-## Code Style
-
-### Imports
-- Path aliases, not relative paths: `import { Game } from "domain/entities/game/Game"`
-- `type` keyword for type-only imports: `import { type NextFunction } from "express"`
-- Order: external packages → internal aliases grouped by layer (`shared`/`domain` → `application` → `infrastructure` → `presentation`/`bootstrap`, matching nearby code)
-- Named imports only. **No default exports. No re-exports. No `index.ts` barrel files.**
-
-### Naming Conventions
-- **Files & Classes:** `PascalCase` — filename matches the exported class/interface/enum
-- **Variables & functions:** `camelCase` | **Constants:** `UPPER_SNAKE_CASE`
-- **Enums:** `PascalCase` name, `UPPER_SNAKE_CASE` or `"kebab-case"` values
-- **DB columns:** `snake_case` (TypeORM `SnakeNamingStrategy`)
-- **Suffixes:** `*Service`, `*Repository`, `*EventHandler` | **Unused params:** `_` prefix
-
-### Type Safety
-- **Never use `any`** — use `unknown` or `Record<string, T>`
-- Explicit return types on all public methods
-- `satisfies` on untyped objects for type checking without widening
-- `interface` for DTOs/contracts; `type` for unions/aliases
-- DTOs live in `domain/types/dto/`, always interfaces, use mappers to convert
-
-### Error Handling
-- `BaseError` → `ClientError` (400, user-facing, translated) / `ServerError` (500, internal)
-- Throw in services/repositories → `asyncHandler` → `errorMiddleware` → `ErrorController.resolveError`
-- Client errors not logged (expected); server errors logged
-- Supply `textArgs` for translated string interpolation in client errors
-
-### Logging
-- `ILogger` abstraction (pino): `logger.info("msg", { prefix: LogPrefix.GAME })`
-- Performance: `const perf = logger.performance("op", { prefix }); ... perf.finish();`
-- JSDoc `/** */` on classes and public methods; `//` for inline notes
-
-### Database
-- TypeORM with manual migrations in `infrastructure/database/migrations/`
-- `SnakeNamingStrategy` for columns. Repositories as `@singleton()` wrapping TypeORM repos.
-- Redis: namespaced keys (e.g. `game:{gameId}`), keyspace notifications + handlers
-
-### Testing
-- Jest with `ts-jest`, serial (`maxWorkers: 1`). Setup: `tests/setup.ts`. Bootstrap: `tests/TestApp.ts`
-- Timer testing: **always** use `TestUtils.expireTimer()` — **never `setTimeout`**
-- **Never increase test timeouts** — missing events indicate broken code
-- Tests require running PostgreSQL and Redis instances
-
-## ESLint Rules (Key)
-
-- `@typescript-eslint/no-floating-promises: error` — must await or void promises
-- `node/no-sync: error` — no synchronous I/O
-- `@typescript-eslint/no-unused-vars: error` — prefix unused with `_`
-- `no-implicit-globals: error` | `promise/no-callback-in-promise: warn`
-- Boundary rules restrict domain/infrastructure/presentation imports. Application transport/adaptor import ratchets may fail while staged cleanup is in progress; do not bypass them with type-only imports or eslint disables.
-
-## Client (Flutter/Dart)
-
-- Architecture: `core/` (DI, routing, theme) → `features/` (controller/data/view/utils) → `data/` → `ui/` → `connection/`
-- Files: `snake_case` | Classes: `PascalCase` | Private: `_prefix` | Use `common_imports.dart`
-- DI: `get_it` + `@singleton` + `createOnce` | State: `ValueNotifier`, `StreamController`
-- Widgets: `StatefulWidget` or `WatchingWidget` (reactive via `watchValue`/`watchIt`)
-- Localization: `easy_localization` — edit JSON in `assets/localization/` → `./oqhelper gen_locale` → `LocaleKeys.*`
-- Navigation: Auto Route (`@RoutePage()`, `.push(context)`)
-- Lint: `very_good_analysis`. Max 300-400 lines/file. Fix linting before commit.
-
-## Commit Conventions
-
-- Conventional commits: `feat:`, `fix:`, `refactor:`, etc.
-- MVP-first: minimal diff, zero side effects
-- No formatting-only changes, no unrelated edits, no unnecessary refactors
-- Architecture changes only when explicitly requested
-
-## Key Files
-
-| Purpose | Path |
-|---|---|
-| DI tokens | `server/src/shared/di/tokens.ts` |
-| DI bootstrap | `server/src/bootstrap/bootstrapContainer.ts` |
-| Server entry | `server/src/index.ts` |
-| API server composition | `server/src/ServeApi.ts` |
-| Realtime gateway port | `server/src/application/ports/realtime/RealtimeGateway.ts` |
-| Socket.IO realtime adapter | `server/src/presentation/realtime/SocketIORealtimeGateway.ts` |
-| Socket.IO dispatcher | `server/src/presentation/controllers/io/SocketActionDispatcher.ts` |
-| Test bootstrap | `server/tests/TestApp.ts` |
-| Error hierarchy | `server/src/domain/errors/{BaseError,ClientError,ServerError,ErrorController}.ts` |
-| ESLint config | `server/eslint.config.mjs` |
-| Docker Compose | `server/compose.yml` |
-| Copilot instructions | `.github/copilot-instructions.md` |
-| Backend instructions | `.github/instructions/backend.instructions.md` |
-| Frontend instructions | `.github/instructions/frontend-core.instructions.md` |
-| Frontend patterns | `.github/instructions/frontend-patterns.instructions.md` |
-
-## Important Docs
-
-- `server/docs/final-round-flow.md` — Theme elimination → bidding → answering → reviewing
-- `server/docs/game-action-executor.md` — Race condition prevention via Redis locks
-- `server/docs/media-download-sync.md` — Cross-client media synchronization
-- `server/docs/logging-guidelines.md` — Structured logging conventions
+- Preserve public API, Socket.IO, persistence, and generated-client contracts unless the request explicitly changes them.
+- Add focused regression coverage for changed behavior when an established test pattern exists.
+- When asked to commit, use Conventional Commits.

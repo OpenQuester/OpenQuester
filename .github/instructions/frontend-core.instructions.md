@@ -4,6 +4,8 @@ applyTo: "client/**/*"
 
 # Frontend Core - Flutter/Dart
 
+Canonical repository guidance also lives in `client/AGENTS.md`. The current application is under `client/apps/client/` inside the Melos workspace.
+
 ## Architecture
 `core/` - DI, routing, theme | `features/` - modules (controller/, data/, view/, utils/) | `data/` - Models | `ui/` - Shared | `connection/` - API, socket
 

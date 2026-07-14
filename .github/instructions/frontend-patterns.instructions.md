@@ -4,6 +4,8 @@ applyTo: "client/**/*"
 
 # Frontend Patterns - Flutter/Dart
 
+Canonical repository guidance also lives in `client/AGENTS.md`. Use the Puro-pinned SDK and workspace scripts from `client/pubspec.yaml`.
+
 ## Localization (easy_localization)
 
 **Build:** `./oqhelper gen_locale` | **JSON:** `assets/localization/*.json` → `locale_keys.g.dart`
@@ -73,4 +75,4 @@ Use `const` | Prefer `WatchingWidget` for reactive | Extract complex widgets | `
 
 ## Quality
 
-`very_good_analysis` | Fix linting before commit | Document public APIs | Conventional commits | Max 300-400 lines/file
+Follow `very_good_analysis`, document public APIs where nearby code does so, and keep files cohesive. Use Conventional Commits only when creating a commit.
