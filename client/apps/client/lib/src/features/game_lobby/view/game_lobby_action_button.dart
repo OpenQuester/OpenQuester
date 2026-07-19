@@ -48,7 +48,9 @@ class _LobbyActionButtonContent extends StatelessWidget {
     final imReady = readyPlayers?.contains(gameData.me.meta.id) ?? false;
     final imShowman = gameData.me.role == PlayerRole.showman;
     final playerIds = gameData.players
-        .where((player) => player.role == PlayerRole.player)
+        .where(
+          (player) => player.role == PlayerRole.player && player.isActive,
+        )
         .map((player) => player.meta.id)
         .toList();
     final readyPlayerCount =
