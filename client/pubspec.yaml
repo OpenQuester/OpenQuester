@@ -93,6 +93,10 @@ melos:
       description: Run dart format on all packages
       run: melos exec -- "dart format lib"
 
+    format_check:
+      description: Check Dart formatting without changing files
+      run: melos exec -- "dart format -o none --set-exit-if-changed lib"
+
     format_exception:
       description: Run dart format on files that are exceptions to the standard formatting rules
       run: dart run scripts/run_format_exception.dart

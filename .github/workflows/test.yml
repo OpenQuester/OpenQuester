@@ -95,7 +95,7 @@ jobs:
         run: |
           echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
           flutter pub get
-          dart pub global activate melos
+          dart pub global activate melos 7.8.1
           melos bootstrap
 
       - name: Run code generation (pre_build)
@@ -104,7 +104,7 @@ jobs:
       - name: Check code formatting
         run: |
           melos run format_exception
-          melos run format -- --set-exit-if-changed
+          melos run format_check
 
       - name: Analyze Dart code
         run: melos run analyze
