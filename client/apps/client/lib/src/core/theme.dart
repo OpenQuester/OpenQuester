@@ -104,9 +104,7 @@ class AppTheme {
   static ExpansionTileThemeData expansionTileTheme(ColorScheme colorScheme) {
     final shape = RoundedRectangleBorder(
       borderRadius: 12.circular,
-      side: BorderSide(
-        color: colorScheme.outline.withValues(alpha: 0.1),
-      ),
+      side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.1)),
     );
 
     return ExpansionTileThemeData(
@@ -117,6 +115,10 @@ class AppTheme {
       clipBehavior: Clip.antiAlias,
     );
   }
+}
+
+Color contrastOnColor(Color background) {
+  return background.computeLuminance() > 0.179 ? Colors.black : Colors.white;
 }
 
 class ExtraColors extends ThemeExtension<ExtraColors> {

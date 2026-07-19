@@ -119,15 +119,20 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
 
     return GestureDetector(
       onTap: () {
-        if (_showControls) {
-          if (!widget.enablePlayback) {
-            unawaited(_handleTap(context));
-          } else {
-            setState(() => _showControls = false);
-          }
+        if (widget.type == PackageFileType.image && !widget.enableControls) {
+          // For images, open the preview dialog directly
+          unawaited(_handleTap(context));
         } else {
-          setState(() => _showControls = true);
-          _startHideTimer();
+          if (_showControls) {
+            if (!widget.enablePlayback) {
+              unawaited(_handleTap(context));
+            } else {
+              setState(() => _showControls = false);
+            }
+          } else {
+            setState(() => _showControls = true);
+            _startHideTimer();
+          }
         }
       },
       child: MouseRegion(
@@ -174,6 +179,7 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
                                       ? Icons.pause_circle_outline
                                       : Icons.play_circle_outline,
                                   color: Colors.white,
+                                  size: 64,
                                 ),
                                 onPressed: () {
                                   final controller =
@@ -185,6 +191,8 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
                                     } else {
                                       unawaited(controller.play());
                                     }
+
+                                    _showControls = false;
                                     // Refresh UI to update icon
                                     setState(() {});
                                   } else {
@@ -193,8 +201,6 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
                                       _forcePlay = true;
                                     });
                                   }
-                                  // Reset timer on interaction
-                                  _startHideTimer();
                                 },
                               ),
                             ),
@@ -229,14 +235,13 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
     } else {
       // Default behavior: open preview dialog
       if (widget.mediaFile != null) {
-        await MediaPreviewDialog.show(
-          context,
-          UiMediaFile(
+        await MediaPreviewDialog(
+          mediaFile: UiMediaFile(
             reference: widget.mediaFile!,
             type: widget.type,
             order: 0,
           ),
-        );
+        ).show(context);
       }
     }
   }

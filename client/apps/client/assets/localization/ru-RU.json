@@ -22,9 +22,25 @@
     "one": "{} раунд",
     "other": "{} раундов"
   },
+  "package_themes": {
+    "one": "{} тема",
+    "other": "{} тем"
+  },
   "questions": {
     "one": "{} вопрос",
     "other": "{} вопросов"
+  },
+  "package_text_questions": {
+    "one": "{} текстовый вопрос",
+    "other": "{} текстовых вопросов"
+  },
+  "package_media_questions": {
+    "one": "{} медиа вопрос",
+    "other": "{} медиа вопросов"
+  },
+  "package_mixed_questions": {
+    "one": "{} смешанный вопрос",
+    "other": "{} смешанных вопросов"
   },
   "game_tile_tooltips": {
     "players": "Игроки играют/максимум",
@@ -56,6 +72,12 @@
   },
   "username": "Имя пользователя",
   "start_game": "Начать игру",
+  "start_game_anyway": "Всё равно начать",
+  "no_players_joined_yet": "Игроки ещё не присоединились",
+  "players_not_ready": {
+    "one": "{} игрок не готов",
+    "other": "{} игроков не готовы"
+  },
   "select": "Выбрать",
   "game_name": "Название игры",
   "age_restriction": "Возрастное ограничение",
@@ -89,8 +111,14 @@
   "user_leave_the_game": "Игрок {} покинул игру",
   "user_joined_the_game": "Игрок {} присоединился к игре",
   "showman": "Ведущий",
+  "player": "Игрок",
+  "spectator": "Зритель",
   "join_game": "Присоединиться к игре",
+  "join_as": "Присоединиться как",
+  "switch_to": "Переключиться на",
   "leave_game_confirmation": "Вы уверены, что хотите выйти?",
+  "leave_game": "Покинуть игру",
+  "more_actions": "Больше действий",
   "yes": "Да",
   "no": "Нет",
   "openquester": "OpenQuester",
@@ -120,10 +148,19 @@
   "skip_question": "Пропустить вопрос",
   "share_game_tooltip": "Копирует ссылку на игру",
   "copy_game_link": "Скопировать ссылку на игру",
+  "copy_invite_link": "Скопировать ссылку-приглашение",
   "link_copied": "Ссылка скопирована в буфер обмена",
+  "link_copied_short": "Ссылка скопирована",
+  "invite_link_copied": "Ссылка-приглашение скопирована",
+  "invite_link_copy_failed": "Не удалось скопировать ссылку-приглашение",
+  "open_chat": "Открыть чат",
+  "close_chat": "Закрыть чат",
+  "chat": "Чат",
   "chat_message": "Сообщение в чате",
+  "send": "Отправить",
   "not_your_turn_to_pick": "Сейчас не ваш ход выбирать",
   "drag_or_tap_to": "Перетащите или нажмите, чтобы {}",
+  "drag_to_change_role": "Перетащите, чтобы изменить роль",
   "release_to": "Отпустите, чтобы {}",
   "game_lobby_editor": {
     "set_as_showman": "назначить ведущим",
@@ -135,9 +172,9 @@
     "close_player_editor": "Закрыть редактор игрока"
   },
   "spectators": "Зрители",
+  "participants": "Участники",
   "players": "Игроки",
   "you_are_spectator": "Вы зритель",
-  "game_lobby_hint": "Выберите роль и нажмите «Готов», чтобы начать игру",
   "create_game_hint": "Настройте игру и пригласите игроков",
   "email": "Email",
   "member_since": "Участник с",

@@ -21,6 +21,8 @@ class GameLobbyController {
 
   StreamSubscription<ChatOperation>? _chatMessagesSub;
   double? themeScrollPosition;
+  PlayerRole? _requestedJoinRole;
+  int? _requestedTargetSlot;
 
   String? get gameId => _gameId;
 
@@ -29,7 +31,11 @@ class GameLobbyController {
 
   JoinCompleter _joinCompleter = JoinCompleter();
 
-  Future<bool> join({required String gameId}) async {
+  Future<bool> join({
+    required String gameId,
+    PlayerRole? role,
+    int? targetSlot,
+  }) async {
     // Check if already joined
     if (_gameId == gameId) return true;
 
@@ -37,6 +43,8 @@ class GameLobbyController {
 
     try {
       _gameId = gameId;
+      _requestedJoinRole = role;
+      _requestedTargetSlot = targetSlot;
 
       // Get list game data
       gameListData.value = await Api.I.api.games.getV1GamesGameId(
@@ -190,9 +198,11 @@ class GameLobbyController {
         body: InputSocketIoAuth(socketId: socket!.id!),
       );
 
+      final joinRole = _getJoinRole();
       final ioGameJoinInput = SocketIoGameJoinInput(
         gameId: _gameId!,
-        role: _getJoinRole(),
+        role: joinRole,
+        targetSlot: joinRole == PlayerRole.player ? _requestedTargetSlot : null,
       );
 
       socket?.emit(SocketIoGameSendEvents.join.json!, ioGameJoinInput.toJson());
@@ -213,26 +223,34 @@ class GameLobbyController {
   }
 
   PlayerRole _getJoinRole() {
-    var lastRole = gameListData.value?.players
+    final lastRole = gameListData.value?.players
         .firstWhereOrNull((e) => e.id == myId)
         ?.role;
 
-    // Check for other showman who joined when you wore out
-    if (lastRole == PlayerRole.showman) {
-      final otherShowman = gameListData.value?.players.firstWhereOrNull(
-        (e) => e.id != myId && e.role == PlayerRole.showman,
+    final role = resolveJoinRole(
+      game: gameListData.value,
+      userId: myId,
+      requestedRole: _requestedJoinRole,
+    );
+
+    final requestedRoleWasImplicit = _requestedJoinRole == null;
+    final wasShowmanBeforeReconnect = lastRole == PlayerRole.showman;
+    final resolvedAwayFromShowman = role != PlayerRole.showman;
+    final shouldWarnAboutShowmanConflict =
+        requestedRoleWasImplicit &&
+        wasShowmanBeforeReconnect &&
+        resolvedAwayFromShowman;
+
+    // Check for other showman who joined when you were out
+    if (shouldWarnAboutShowmanConflict) {
+      unawaited(
+        getIt<ToastController>().show(
+          LocaleKeys.multiple_showman_warning.tr(),
+          type: ToastType.warning,
+        ),
       );
-      if (otherShowman != null) {
-        lastRole = null;
-        unawaited(
-          getIt<ToastController>().show(
-            LocaleKeys.multiple_showman_warning.tr(),
-            type: ToastType.warning,
-          ),
-        );
-      }
     }
-    return lastRole ?? PlayerRole.spectator;
+    return role;
   }
 
   Future<void> _onChatMessage(ChatOperation chatOperation) async {
@@ -275,6 +293,8 @@ class GameLobbyController {
       gameFinished.value = false;
       lobbyEditorMode.value = false;
       themeScrollPosition = null;
+      _requestedJoinRole = null;
+      _requestedTargetSlot = null;
       getIt<SocketChatController>().clear();
       await getIt<GameQuestionController>().clear();
       getIt<GameLobbyPlayerPickerController>().clear();
