@@ -1,0 +1,131 @@
+name: Cleanup Actions Caches
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: cleanup-actions-caches
+  cancel-in-progress: true
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove obsolete and excess caches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const gib = 1024 ** 3;
+            const targetBytes = 8 * gib;
+            const protectedAgeMs = 24 * 60 * 60 * 1000;
+
+            async function listCaches() {
+              const caches = [];
+              for (let page = 1; ; page += 1) {
+                const response = await github.rest.actions.getActionsCacheList({
+                  owner,
+                  repo,
+                  per_page: 100,
+                  page,
+                });
+                caches.push(...response.data.actions_caches);
+                if (response.data.actions_caches.length < 100) break;
+              }
+              return caches;
+            }
+
+            const caches = await listCaches();
+            const openPulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const openPullRefs = new Set(
+              openPulls.map((pull) => `refs/pull/${pull.number}/merge`),
+            );
+            const now = Date.now();
+            const deletions = new Map();
+
+            function accessedAt(cache) {
+              return Date.parse(cache.last_accessed_at || cache.created_at);
+            }
+
+            function mark(cache, reason) {
+              if (!deletions.has(cache.id)) deletions.set(cache.id, { cache, reason });
+            }
+
+            for (const cache of caches) {
+              if (cache.ref.startsWith('refs/pull/') && !openPullRefs.has(cache.ref)) {
+                mark(cache, 'closed pull request');
+              }
+            }
+
+            const managed = caches.filter((cache) =>
+              /^(client-build|client-codegen)-/.test(cache.key),
+            );
+            const groups = new Map();
+            for (const cache of managed) {
+              const rollingKey = cache.key.replace(/-[0-9a-f]{40}$/, '');
+              const group = `${cache.ref}:${rollingKey}`;
+              if (!groups.has(group)) groups.set(group, []);
+              groups.get(group).push(cache);
+            }
+
+            for (const group of groups.values()) {
+              group.sort((left, right) => accessedAt(right) - accessedAt(left));
+              for (const cache of group.slice(2)) {
+                if (now - accessedAt(cache) > protectedAgeMs) {
+                  mark(cache, 'superseded rolling cache');
+                }
+              }
+            }
+
+            const usage = await github.rest.actions.getActionsCacheUsage({ owner, repo });
+            let projectedBytes = usage.data.active_caches_size_in_bytes;
+            for (const { cache } of deletions.values()) projectedBytes -= cache.size_in_bytes;
+
+            if (projectedBytes > targetBytes) {
+              const oldestManaged = managed
+                .filter((cache) => !deletions.has(cache.id))
+                .filter((cache) => now - accessedAt(cache) > protectedAgeMs)
+                .sort((left, right) => accessedAt(left) - accessedAt(right));
+              for (const cache of oldestManaged) {
+                if (projectedBytes <= targetBytes) break;
+                mark(cache, 'repository cache usage above 8 GiB');
+                projectedBytes -= cache.size_in_bytes;
+              }
+            }
+
+            let deletedBytes = 0;
+            for (const { cache, reason } of deletions.values()) {
+              await github.rest.actions.deleteActionsCacheById({
+                owner,
+                repo,
+                cache_id: cache.id,
+              });
+              deletedBytes += cache.size_in_bytes;
+              core.info(`Deleted ${cache.key} (${reason})`);
+            }
+
+            await core.summary
+              .addHeading('Actions cache cleanup')
+              .addTable([
+                [
+                  { data: 'Metric', header: true },
+                  { data: 'Value', header: true },
+                ],
+                ['Caches scanned', String(caches.length)],
+                ['Caches deleted', String(deletions.size)],
+                ['Space reclaimed', `${(deletedBytes / gib).toFixed(2)} GiB`],
+                ['Projected usage', `${(projectedBytes / gib).toFixed(2)} GiB`],
+              ])
+              .write();

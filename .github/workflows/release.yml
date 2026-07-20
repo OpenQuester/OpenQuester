@@ -11,18 +11,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tests:
+  test_server:
     uses: ./.github/workflows/test.yml
+    with:
+      RUN_CLIENT: false
+      RUN_SERVER: true
 
   build_client:
-    needs: [tests]
     uses: ./.github/workflows/build_client.yml
     secrets: inherit
     with:
       DEPLOY_PROD: true
 
   build_docker:
-    needs: [tests]
+    needs: test_server
     uses: ./.github/workflows/docker.yml
     with:
       DEPLOY_PROD: true
@@ -32,7 +34,7 @@ jobs:
 
   publish_release:
     name: Publish GitHub Release & Deploy Web
-    needs: [build_client, build_docker, tests]
+    needs: [build_client, build_docker, test_server]
     runs-on: ubuntu-latest
     permissions:
       contents: write
