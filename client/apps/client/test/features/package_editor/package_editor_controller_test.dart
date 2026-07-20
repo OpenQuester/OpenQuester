@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openquester/openquester.dart' hide test;
 
@@ -100,5 +102,134 @@ void main() {
     expect(source, isEmpty);
     expect(target.map((question) => question.text), ['Second', 'First']);
     expect(target.map((question) => question.order), [0, 1]);
+  });
+
+  test('changing question type preserves common fields', () {
+    controller
+      ..addRound()
+      ..addTheme(0)
+      ..addQuestion(0, 0)
+      ..updateQuestionDetails(
+        0,
+        0,
+        0,
+        text: 'Question',
+        answer: 'Answer',
+        price: 300,
+        showAnswerDuration: 7000,
+        answerDelay: 2500,
+        isHidden: false,
+        answerHint: 'Hint',
+        questionComment: 'Comment',
+      )
+      ..changeQuestionType(0, 0, 0, EditorQuestionFilter.stake);
+
+    var question =
+        controller.package.rounds.single.themes.single.questions.single;
+    expect(question, isA<PackageQuestionUnionStake>());
+    expect(question.text, 'Question');
+    expect(question.answerText, 'Answer');
+    expect(question.price, 300);
+    expect(question.showAnswerDuration, 7000);
+    expect(question.answerDelay, 2500);
+    expect(question.answerHint, 'Hint');
+    expect(question.questionComment, 'Comment');
+
+    controller.changeQuestionType(0, 0, 0, EditorQuestionFilter.choice);
+    question = controller.package.rounds.single.themes.single.questions.single;
+    expect(question, isA<PackageQuestionUnionChoice>());
+    expect((question as PackageQuestionUnionChoice).answers, hasLength(2));
+    expect(question.text, 'Question');
+  });
+
+  test(
+    'two media files create question and answer text from filenames',
+    () async {
+      controller
+        ..addRound()
+        ..addTheme(0);
+
+      final result = await controller.addQuestionFromMediaFiles(0, 0, [
+        PlatformFile(
+          name: 'Capital_of-France.jpg',
+          size: 3,
+          bytes: Uint8List.fromList([1, 2, 3]),
+        ),
+        PlatformFile(
+          name: 'Paris.png',
+          size: 3,
+          bytes: Uint8List.fromList([4, 5, 6]),
+        ),
+      ]);
+
+      expect(result, MediaPairImportResult.added);
+      final question =
+          controller.package.rounds.single.themes.single.questions.single;
+      expect(question.text, 'Capital of France');
+      expect(question.answerText, 'Paris');
+      expect(question.questionFiles, hasLength(1));
+      expect(question.answerFiles, hasLength(1));
+      expect(question.questionFiles!.single.file.type, PackageFileType.image);
+      expect(question.answerFiles!.single.file.type, PackageFileType.image);
+      expect(controller.mediaFilesByHash, hasLength(2));
+      expect(controller.location.questionIndex, 0);
+
+      controller.changeQuestionType(0, 0, 0, EditorQuestionFilter.secret);
+      final converted =
+          controller.package.rounds.single.themes.single.questions.single;
+      expect(converted, isA<PackageQuestionUnionSecret>());
+      expect(converted.questionFiles, hasLength(1));
+      expect(converted.answerFiles, hasLength(1));
+      expect(controller.mediaFilesByHash, hasLength(2));
+    },
+  );
+
+  test(
+    'media-pair automation rejects selections that are not two files',
+    () async {
+      controller
+        ..addRound()
+        ..addTheme(0);
+
+      final result = await controller.addQuestionFromMediaFiles(0, 0, [
+        PlatformFile(
+          name: 'question.jpg',
+          size: 1,
+          bytes: Uint8List.fromList([1]),
+        ),
+      ]);
+
+      expect(result, MediaPairImportResult.requiresTwoFiles);
+      expect(
+        controller.package.rounds.single.themes.single.questions,
+        isEmpty,
+      );
+    },
+  );
+
+  test('unreadable media pair does not leave orphaned hashes', () async {
+    controller
+      ..addRound()
+      ..addTheme(0);
+
+    final result = await controller.addQuestionFromMediaFiles(0, 0, [
+      PlatformFile(
+        name: 'question.jpg',
+        size: 1,
+        bytes: Uint8List.fromList([1]),
+      ),
+      PlatformFile(
+        name: 'answer.jpg',
+        size: 0,
+        bytes: Uint8List(0),
+      ),
+    ]);
+
+    expect(result, MediaPairImportResult.unreadableFile);
+    expect(controller.mediaFilesByHash, isEmpty);
+    expect(
+      controller.package.rounds.single.themes.single.questions,
+      isEmpty,
+    );
   });
 }

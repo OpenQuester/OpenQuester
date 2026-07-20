@@ -3,6 +3,83 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:openquester/common_imports.dart';
 
+String _questionTypeLabel(EditorQuestionFilter type) => switch (type) {
+  EditorQuestionFilter.all => LocaleKeys.oq_editor_question_type_all.tr(),
+  EditorQuestionFilter.simple => LocaleKeys.oq_editor_question_type_simple.tr(),
+  EditorQuestionFilter.stake => LocaleKeys.oq_editor_question_type_stake.tr(),
+  EditorQuestionFilter.secret => LocaleKeys.oq_editor_question_type_secret.tr(),
+  EditorQuestionFilter.noRisk =>
+    LocaleKeys.oq_editor_question_type_no_risk.tr(),
+  EditorQuestionFilter.choice => LocaleKeys.oq_editor_question_type_choice.tr(),
+  EditorQuestionFilter.hidden => LocaleKeys.oq_editor_question_type_hidden.tr(),
+};
+
+String _stakeSubTypeLabel(StakeQuestionSubType type) => switch (type) {
+  StakeQuestionSubType.simple => LocaleKeys.oq_editor_subtype_simple.tr(),
+  StakeQuestionSubType.forEveryone =>
+    LocaleKeys.oq_editor_subtype_for_everyone.tr(),
+  StakeQuestionSubType.$unknown =>
+    LocaleKeys.oq_editor_question_type_unknown.tr(),
+};
+
+String _secretSubTypeLabel(SecretQuestionSubType type) => switch (type) {
+  SecretQuestionSubType.simple => LocaleKeys.oq_editor_subtype_simple.tr(),
+  SecretQuestionSubType.customPrice =>
+    LocaleKeys.oq_editor_subtype_custom_price.tr(),
+  SecretQuestionSubType.$unknown =>
+    LocaleKeys.oq_editor_question_type_unknown.tr(),
+};
+
+String _noRiskSubTypeLabel(NoRiskQuestionSubType type) => switch (type) {
+  NoRiskQuestionSubType.simple => LocaleKeys.oq_editor_subtype_simple.tr(),
+  NoRiskQuestionSubType.forEveryone =>
+    LocaleKeys.oq_editor_subtype_for_everyone.tr(),
+  NoRiskQuestionSubType.$unknown =>
+    LocaleKeys.oq_editor_question_type_unknown.tr(),
+};
+
+String _transferTypeLabel(QuestionTransferType type) => switch (type) {
+  QuestionTransferType.any => LocaleKeys.oq_editor_transfer_any.tr(),
+  QuestionTransferType.exceptCurrent =>
+    LocaleKeys.oq_editor_transfer_except_current.tr(),
+  QuestionTransferType.$unknown =>
+    LocaleKeys.oq_editor_question_type_unknown.tr(),
+};
+
+String _ageRestrictionLabel(AgeRestriction age) => switch (age) {
+  AgeRestriction.a18 => '18+',
+  AgeRestriction.a16 => '16+',
+  AgeRestriction.a12 => '12+',
+  AgeRestriction.none => LocaleKeys.oq_editor_age_none.tr(),
+  AgeRestriction.$unknown => LocaleKeys.oq_editor_question_type_unknown.tr(),
+};
+
+String _roundTypeLabel(PackageRoundType type) => switch (type) {
+  PackageRoundType.simple => LocaleKeys.oq_editor_round_type_simple.tr(),
+  PackageRoundType.valueFinal => LocaleKeys.oq_editor_round_type_final.tr(),
+  PackageRoundType.$unknown => LocaleKeys.oq_editor_round_type_unknown.tr(),
+};
+
+String _mediaMimeType(String? extension, PackageFileType type) {
+  return switch (extension?.toLowerCase()) {
+    'jpg' || 'jpeg' => 'image/jpeg',
+    'png' => 'image/png',
+    'gif' => 'image/gif',
+    'webp' => 'image/webp',
+    'mp3' => 'audio/mpeg',
+    'wav' => 'audio/wav',
+    'ogg' => 'audio/ogg',
+    'mp4' => 'video/mp4',
+    'webm' => 'video/webm',
+    _ =>
+      type == PackageFileType.audio
+          ? 'audio/mpeg'
+          : type == PackageFileType.video
+          ? 'video/mp4'
+          : 'image/png',
+  };
+}
+
 @RoutePage()
 class PackageEditorScreen extends StatefulWidget {
   const PackageEditorScreen({super.key});
@@ -498,6 +575,23 @@ class _Dashboard extends StatelessWidget {
                   onChanged: (value) =>
                       controller.updatePackageInfo(language: value),
                 ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<AgeRestriction>(
+                  initialValue: controller.package.ageRestriction,
+                  decoration: InputDecoration(
+                    labelText: LocaleKeys.oq_editor_package_age_restriction
+                        .tr(),
+                  ),
+                  items: [
+                    for (final age in AgeRestriction.$valuesDefined)
+                      DropdownMenuItem(
+                        value: age,
+                        child: Text(_ageRestrictionLabel(age)),
+                      ),
+                  ],
+                  onChanged: (age) =>
+                      controller.updatePackageInfo(ageRestriction: age),
+                ),
               ],
             ),
           ),
@@ -663,6 +757,28 @@ class _RoundView extends StatelessWidget {
                     description: description,
                   ),
                 ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<PackageRoundType>(
+                  initialValue: round.type == PackageRoundType.$unknown
+                      ? PackageRoundType.simple
+                      : round.type,
+                  decoration: InputDecoration(
+                    labelText: LocaleKeys.oq_editor_round_type.tr(),
+                  ),
+                  items: [
+                    for (final type in PackageRoundType.$valuesDefined)
+                      DropdownMenuItem(
+                        value: type,
+                        child: Text(_roundTypeLabel(type)),
+                      ),
+                  ],
+                  onChanged: (type) => controller.updateRound(
+                    r,
+                    name: round.name,
+                    description: round.description,
+                    type: type,
+                  ),
+                ),
               ],
             ),
           ),
@@ -721,7 +837,7 @@ class _ThemeView extends StatelessWidget {
                           padding: const EdgeInsets.only(right: 8),
                           child: FilterChip(
                             selected: controller.filter == filter,
-                            label: Text(filter.name),
+                            label: Text(_questionTypeLabel(filter)),
                             onSelected: (_) => controller.setFilter(filter),
                           ),
                         ),
@@ -729,6 +845,22 @@ class _ThemeView extends StatelessWidget {
                   ),
                 ),
               ),
+              if (MediaQuery.sizeOf(context).width >= 700)
+                OutlinedButton.icon(
+                  onPressed: () => _addFromFiles(context, r, t),
+                  icon: const Icon(Icons.auto_awesome_outlined),
+                  label: Text(
+                    LocaleKeys.oq_editor_add_question_from_files.tr(),
+                  ),
+                )
+              else
+                IconButton(
+                  tooltip: LocaleKeys.oq_editor_add_question_from_files_hint
+                      .tr(),
+                  onPressed: () => _addFromFiles(context, r, t),
+                  icon: const Icon(Icons.auto_awesome_outlined),
+                ),
+              const SizedBox(width: 8),
               IconButton(
                 tooltip: LocaleKeys.oq_editor_density.tr(),
                 onPressed: controller.toggleDensity,
@@ -769,6 +901,7 @@ class _ThemeView extends StatelessWidget {
                     return KeyedSubtree(
                       key: ValueKey('${location.key}-${question.id}'),
                       child: _QuestionRow(
+                        controller: controller,
                         question: question,
                         index: questionIndex,
                         compact: controller.compact,
@@ -793,10 +926,34 @@ class _ThemeView extends StatelessWidget {
       ],
     );
   }
+
+  Future<void> _addFromFiles(
+    BuildContext context,
+    int roundIndex,
+    int themeIndex,
+  ) async {
+    final result = await controller.addQuestionFromMediaPair(
+      roundIndex,
+      themeIndex,
+    );
+    if (!context.mounted || result == MediaPairImportResult.cancelled) return;
+    final message = switch (result) {
+      MediaPairImportResult.added => LocaleKeys.oq_editor_media_pair_added.tr(),
+      MediaPairImportResult.requiresTwoFiles =>
+        LocaleKeys.oq_editor_media_pair_requires_two.tr(),
+      MediaPairImportResult.unreadableFile =>
+        LocaleKeys.oq_editor_media_pair_unreadable.tr(),
+      MediaPairImportResult.cancelled => '',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 }
 
 class _QuestionRow extends StatelessWidget {
   const _QuestionRow({
+    required this.controller,
     required this.question,
     required this.index,
     required this.compact,
@@ -807,6 +964,7 @@ class _QuestionRow extends StatelessWidget {
     required this.onDelete,
   });
 
+  final PackageEditorController controller;
   final PackageQuestionUnion question;
   final int index;
   final bool compact;
@@ -822,6 +980,13 @@ class _QuestionRow extends StatelessWidget {
     final answerLabel = LocaleKeys.oq_editor_answer.tr();
     final answerText =
         question.answerText ?? LocaleKeys.oq_editor_empty_answer.tr();
+    final questionFiles = question.questionFiles;
+    final answerFiles = question.answerFiles;
+    final previewFile = questionFiles?.isNotEmpty ?? false
+        ? questionFiles!.first
+        : answerFiles?.isNotEmpty ?? false
+        ? answerFiles!.first
+        : null;
     final typeColor = switch (type) {
       'secret' => Colors.purple,
       'stake' => Colors.amber,
@@ -869,17 +1034,27 @@ class _QuestionRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: context.textTheme.bodySmall,
                       ),
+                      if (previewFile != null) ...[
+                        SizedBox(height: compact ? 4 : 10),
+                        _EditorMediaPreview(
+                          controller: controller,
+                          file: previewFile,
+                          size: compact ? 52 : 140,
+                          enablePlayback: !compact,
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
             ),
-            if (question.questionFiles?.isNotEmpty ?? false)
-              const Padding(
-                padding: EdgeInsets.all(6),
-                child: Icon(Icons.perm_media_outlined, size: 18),
+            Chip(
+              label: Text(
+                _questionTypeLabel(
+                  PackageEditorController.questionFilter(question),
+                ),
               ),
-            Chip(label: Text(type)),
+            ),
             SizedBox(
               width: 72,
               child: Text(
@@ -913,20 +1088,33 @@ class _QuestionEditorPanel extends StatelessWidget {
     var text = question.text ?? '';
     var answer = question.answerText ?? '';
     var price = question.price;
-    void update() => controller.updateQuestion(
+    var showAnswerDuration = question.showAnswerDuration;
+    var answerDelay = question.answerDelay;
+    var isHidden = question.isHidden;
+    var answerHint = question.answerHint ?? '';
+    var questionComment = question.questionComment ?? '';
+    void update() => controller.updateQuestionDetails(
       r,
       t,
       q,
       text: text,
       answer: answer,
       price: price,
+      showAnswerDuration: showAnswerDuration,
+      answerDelay: answerDelay,
+      isHidden: isHidden,
+      answerHint: answerHint,
+      questionComment: questionComment,
     );
 
     return Material(
       color: context.theme.colorScheme.surface,
       elevation: 3,
       child: ListView(
-        key: ValueKey(location.key),
+        key: ValueKey(
+          '${location.key}-'
+          '${PackageEditorController.questionType(question)}',
+        ),
         padding: const EdgeInsets.all(20),
         children: [
           Row(
@@ -947,7 +1135,24 @@ class _QuestionEditorPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Chip(label: Text(PackageEditorController.questionType(question))),
+          DropdownButtonFormField<EditorQuestionFilter>(
+            initialValue: PackageEditorController.questionFilter(question),
+            decoration: InputDecoration(
+              labelText: LocaleKeys.oq_editor_question_type_label.tr(),
+            ),
+            items: [
+              for (final type in EditorQuestionFilter.values.skip(1))
+                DropdownMenuItem(
+                  value: type,
+                  child: Text(_questionTypeLabel(type)),
+                ),
+            ],
+            onChanged: (type) {
+              if (type != null) {
+                controller.changeQuestionType(r, t, q, type);
+              }
+            },
+          ),
           const SizedBox(height: 12),
           TextFormField(
             initialValue: text,
@@ -987,39 +1192,104 @@ class _QuestionEditorPanel extends StatelessWidget {
             },
           ),
           const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: () => controller.addMedia(
-                  r,
-                  t,
-                  q,
-                  answerMedia: false,
+          Card(
+            margin: EdgeInsets.zero,
+            child: ExpansionTile(
+              title: Text(LocaleKeys.oq_editor_advanced_settings.tr()),
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              children: [
+                TextFormField(
+                  initialValue: answerHint,
+                  decoration: InputDecoration(
+                    labelText: LocaleKeys.oq_editor_question_hint.tr(),
+                    helperText: LocaleKeys.oq_editor_question_hint_helper.tr(),
+                  ),
+                  onChanged: (value) {
+                    answerHint = value;
+                    update();
+                  },
                 ),
-                icon: const Icon(Icons.add_photo_alternate_outlined),
-                label: Text(LocaleKeys.oq_editor_question_media.tr()),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => controller.addMedia(
-                  r,
-                  t,
-                  q,
-                  answerMedia: true,
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: questionComment,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    labelText: LocaleKeys.oq_editor_question_comment.tr(),
+                    helperText: LocaleKeys.oq_editor_question_comment_helper
+                        .tr(),
+                  ),
+                  onChanged: (value) {
+                    questionComment = value;
+                    update();
+                  },
                 ),
-                icon: const Icon(Icons.add_to_photos_outlined),
-                label: Text(LocaleKeys.oq_editor_answer_media.tr()),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: showAnswerDuration?.toString(),
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: LocaleKeys.oq_editor_show_answer_duration.tr(),
+                    suffixText: LocaleKeys.oq_editor_ms.tr(),
+                  ),
+                  onChanged: (value) {
+                    showAnswerDuration = int.tryParse(value);
+                    update();
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: answerDelay?.toString(),
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: LocaleKeys.oq_editor_answer_delay.tr(),
+                    helperText: LocaleKeys.oq_editor_answer_delay_hint.tr(),
+                    suffixText: LocaleKeys.oq_editor_ms.tr(),
+                  ),
+                  onChanged: (value) {
+                    answerDelay = int.tryParse(value);
+                    update();
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(LocaleKeys.oq_editor_is_hidden.tr()),
+                  subtitle: Text(LocaleKeys.oq_editor_is_hidden_desc.tr()),
+                  value: isHidden,
+                  onChanged: (value) {
+                    isHidden = value;
+                    update();
+                  },
+                ),
+                _QuestionTypeSettings(
+                  controller: controller,
+                  question: question,
+                  roundIndex: r,
+                  themeIndex: t,
+                  questionIndex: q,
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            '${question.questionFiles?.length ?? 0} '
-            '${LocaleKeys.oq_editor_question_media.tr()} • '
-            '${question.answerFiles?.length ?? 0} '
-            '${LocaleKeys.oq_editor_answer_media.tr()}',
-            style: context.textTheme.bodySmall,
+          const SizedBox(height: 16),
+          _EditorMediaSection(
+            controller: controller,
+            title: LocaleKeys.oq_editor_question_media.tr(),
+            files: question.questionFiles ?? const [],
+            roundIndex: r,
+            themeIndex: t,
+            questionIndex: q,
+            answerMedia: false,
+          ),
+          const SizedBox(height: 16),
+          _EditorMediaSection(
+            controller: controller,
+            title: LocaleKeys.oq_editor_answer_media.tr(),
+            files: question.answerFiles ?? const [],
+            roundIndex: r,
+            themeIndex: t,
+            questionIndex: q,
+            answerMedia: true,
           ),
           const SizedBox(height: 20),
           OutlinedButton.icon(
@@ -1028,6 +1298,482 @@ class _QuestionEditorPanel extends StatelessWidget {
             label: Text(LocaleKeys.oq_editor_delete.tr()),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _QuestionTypeSettings extends StatelessWidget {
+  const _QuestionTypeSettings({
+    required this.controller,
+    required this.question,
+    required this.roundIndex,
+    required this.themeIndex,
+    required this.questionIndex,
+  });
+
+  final PackageEditorController controller;
+  final PackageQuestionUnion question;
+  final int roundIndex;
+  final int themeIndex;
+  final int questionIndex;
+
+  @override
+  Widget build(BuildContext context) => switch (question) {
+    final PackageQuestionUnionStake question => _stake(context, question),
+    final PackageQuestionUnionSecret question => _secret(context, question),
+    final PackageQuestionUnionNoRisk question => _noRisk(context, question),
+    final PackageQuestionUnionChoice question => _choice(context, question),
+    _ => const SizedBox.shrink(),
+  };
+
+  Widget _stake(
+    BuildContext context,
+    PackageQuestionUnionStake question,
+  ) {
+    return Column(
+      children: [
+        DropdownButtonFormField<StakeQuestionSubType>(
+          initialValue: question.subType == StakeQuestionSubType.$unknown
+              ? null
+              : question.subType,
+          decoration: InputDecoration(
+            labelText: LocaleKeys.oq_editor_stake_sub_type.tr(),
+          ),
+          items: [
+            for (final type in StakeQuestionSubType.$valuesDefined)
+              DropdownMenuItem(
+                value: type,
+                child: Text(_stakeSubTypeLabel(type)),
+              ),
+          ],
+          onChanged: (type) {
+            if (type != null) {
+              controller.updateStakeSettings(
+                roundIndex,
+                themeIndex,
+                questionIndex,
+                subType: type,
+                maxPrice: question.maxPrice,
+              );
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: question.maxPrice?.toString(),
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: LocaleKeys.oq_editor_stake_max_price.tr(),
+            helperText: LocaleKeys.oq_editor_stake_max_price_hint.tr(),
+          ),
+          onChanged: (value) => controller.updateStakeSettings(
+            roundIndex,
+            themeIndex,
+            questionIndex,
+            subType: question.subType,
+            maxPrice: int.tryParse(value),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _secret(
+    BuildContext context,
+    PackageQuestionUnionSecret question,
+  ) {
+    return Column(
+      children: [
+        DropdownButtonFormField<SecretQuestionSubType>(
+          initialValue: question.subType == SecretQuestionSubType.$unknown
+              ? null
+              : question.subType,
+          decoration: InputDecoration(
+            labelText: LocaleKeys.oq_editor_secret_sub_type.tr(),
+          ),
+          items: [
+            for (final type in SecretQuestionSubType.$valuesDefined)
+              DropdownMenuItem(
+                value: type,
+                child: Text(_secretSubTypeLabel(type)),
+              ),
+          ],
+          onChanged: (type) {
+            if (type != null) {
+              controller.updateSecretSettings(
+                roundIndex,
+                themeIndex,
+                questionIndex,
+                subType: type,
+                transferType: question.transferType,
+                allowedPrices: question.allowedPrices,
+              );
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<QuestionTransferType>(
+          initialValue: question.transferType == QuestionTransferType.$unknown
+              ? null
+              : question.transferType,
+          decoration: InputDecoration(
+            labelText: LocaleKeys.oq_editor_secret_transfer_type.tr(),
+          ),
+          items: [
+            for (final type in QuestionTransferType.$valuesDefined)
+              DropdownMenuItem(
+                value: type,
+                child: Text(_transferTypeLabel(type)),
+              ),
+          ],
+          onChanged: (type) {
+            if (type != null) {
+              controller.updateSecretSettings(
+                roundIndex,
+                themeIndex,
+                questionIndex,
+                subType: question.subType,
+                transferType: type,
+                allowedPrices: question.allowedPrices,
+              );
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: question.allowedPrices?.join(', '),
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: LocaleKeys.oq_editor_allowed_prices.tr(),
+            helperText: LocaleKeys.oq_editor_no_prices_set_defaults.tr(),
+          ),
+          onChanged: (value) => controller.updateSecretSettings(
+            roundIndex,
+            themeIndex,
+            questionIndex,
+            subType: question.subType,
+            transferType: question.transferType,
+            allowedPrices: _parsePrices(value),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _noRisk(
+    BuildContext context,
+    PackageQuestionUnionNoRisk question,
+  ) {
+    return Column(
+      children: [
+        DropdownButtonFormField<NoRiskQuestionSubType>(
+          initialValue: question.subType == NoRiskQuestionSubType.$unknown
+              ? null
+              : question.subType,
+          decoration: InputDecoration(
+            labelText: LocaleKeys.oq_editor_no_risk_sub_type.tr(),
+          ),
+          items: [
+            for (final type in NoRiskQuestionSubType.$valuesDefined)
+              DropdownMenuItem(
+                value: type,
+                child: Text(_noRiskSubTypeLabel(type)),
+              ),
+          ],
+          onChanged: (type) {
+            if (type != null) {
+              controller.updateNoRiskSettings(
+                roundIndex,
+                themeIndex,
+                questionIndex,
+                subType: type,
+                priceMultiplier: question.priceMultiplier,
+              );
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          initialValue: question.priceMultiplier,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: LocaleKeys.oq_editor_price_multiplier.tr(),
+            helperText: LocaleKeys.oq_editor_price_multiplier_hint.tr(),
+          ),
+          onChanged: (value) {
+            if (value.trim().isNotEmpty) {
+              controller.updateNoRiskSettings(
+                roundIndex,
+                themeIndex,
+                questionIndex,
+                subType: question.subType,
+                priceMultiplier: value,
+              );
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _choice(
+    BuildContext context,
+    PackageQuestionUnionChoice question,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextFormField(
+          initialValue: question.showDelay.toString(),
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: LocaleKeys.oq_editor_show_delay.tr(),
+            helperText: LocaleKeys.oq_editor_show_delay_hint.tr(),
+            suffixText: LocaleKeys.oq_editor_ms.tr(),
+          ),
+          onChanged: (value) {
+            final delay = int.tryParse(value);
+            if (delay != null) {
+              controller.updateChoiceShowDelay(
+                roundIndex,
+                themeIndex,
+                questionIndex,
+                delay,
+              );
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        Text(
+          LocaleKeys.oq_editor_choice_answers.tr(),
+          style: context.textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        for (var i = 0; i < question.answers.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    key: ValueKey('choice-$questionIndex-$i'),
+                    initialValue: question.answers[i].text,
+                    decoration: InputDecoration(
+                      labelText:
+                          '${LocaleKeys.oq_editor_answer_text.tr()} ${i + 1}',
+                    ),
+                    onChanged: (value) => controller.updateChoiceAnswer(
+                      roundIndex,
+                      themeIndex,
+                      questionIndex,
+                      i,
+                      value,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: LocaleKeys.oq_editor_delete.tr(),
+                  onPressed: question.answers.length <= 2
+                      ? null
+                      : () => controller.removeChoiceAnswer(
+                          roundIndex,
+                          themeIndex,
+                          questionIndex,
+                          i,
+                        ),
+                  icon: const Icon(Icons.remove_circle_outline),
+                ),
+              ],
+            ),
+          ),
+        OutlinedButton.icon(
+          onPressed: question.answers.length >= 8
+              ? null
+              : () => controller.addChoiceAnswer(
+                  roundIndex,
+                  themeIndex,
+                  questionIndex,
+                ),
+          icon: const Icon(Icons.add),
+          label: Text(LocaleKeys.oq_editor_add_choice_answer.tr()),
+        ),
+      ],
+    );
+  }
+
+  List<int>? _parsePrices(String value) {
+    final prices = value
+        .split(RegExp(r'[,;\s]+'))
+        .map(int.tryParse)
+        .whereType<int>()
+        .take(5)
+        .toList();
+    return prices.isEmpty ? null : prices;
+  }
+}
+
+class _EditorMediaSection extends StatelessWidget {
+  const _EditorMediaSection({
+    required this.controller,
+    required this.title,
+    required this.files,
+    required this.roundIndex,
+    required this.themeIndex,
+    required this.questionIndex,
+    required this.answerMedia,
+  });
+
+  final PackageEditorController controller;
+  final String title;
+  final List<PackageQuestionFile> files;
+  final int roundIndex;
+  final int themeIndex;
+  final int questionIndex;
+  final bool answerMedia;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(title, style: context.textTheme.titleSmall),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => controller.addMedia(
+                roundIndex,
+                themeIndex,
+                questionIndex,
+                answerMedia: answerMedia,
+              ),
+              icon: const Icon(Icons.add_photo_alternate_outlined),
+              label: Text(LocaleKeys.oq_editor_add_media_file.tr()),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (files.isEmpty)
+          Text(
+            LocaleKeys.oq_editor_no_media_files.tr(),
+            style: context.textTheme.bodySmall,
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < files.length; i++)
+                Stack(
+                  children: [
+                    _EditorMediaPreview(
+                      controller: controller,
+                      file: files[i],
+                      size: 160,
+                      enablePlayback: true,
+                    ),
+                    Positioned(
+                      right: 4,
+                      top: 4,
+                      child: IconButton.filled(
+                        tooltip: LocaleKeys.oq_editor_remove_file.tr(),
+                        onPressed: () => controller.removeMedia(
+                          roundIndex,
+                          themeIndex,
+                          questionIndex,
+                          answerMedia: answerMedia,
+                          mediaIndex: i,
+                        ),
+                        icon: const Icon(Icons.close, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _EditorMediaPreview extends StatelessWidget {
+  const _EditorMediaPreview({
+    required this.controller,
+    required this.file,
+    required this.size,
+    required this.enablePlayback,
+  });
+
+  final PackageEditorController controller;
+  final PackageQuestionFile file;
+  final double size;
+  final bool enablePlayback;
+
+  @override
+  Widget build(BuildContext context) {
+    final local = controller.mediaFilesByHash[file.file.md5];
+    final immediateBytes = local?.platformFile.bytes;
+    if (immediateBytes != null) {
+      return MediaPreviewWidget.fromBytes(
+        key: ValueKey('${file.file.md5}-$size'),
+        bytes: immediateBytes,
+        type: file.file.type,
+        size: size,
+        enablePlayback: enablePlayback,
+        mimeType: _mediaMimeType(
+          local?.platformFile.extension,
+          file.file.type,
+        ),
+      );
+    }
+    if (local != null) {
+      return FutureBuilder(
+        future: local.readBytes(),
+        builder: (context, snapshot) {
+          final bytes = snapshot.data;
+          if (bytes == null) {
+            return SizedBox.square(
+              dimension: size,
+              child: const Card(
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            );
+          }
+          return MediaPreviewWidget.fromBytes(
+            key: ValueKey('${file.file.md5}-$size'),
+            bytes: bytes,
+            type: file.file.type,
+            size: size,
+            enablePlayback: enablePlayback,
+            mimeType: _mediaMimeType(
+              local.platformFile.extension,
+              file.file.type,
+            ),
+          );
+        },
+      );
+    }
+    final url = file.file.link;
+    if (url != null && url.isNotEmpty) {
+      return MediaPreviewWidget(
+        key: ValueKey('${file.file.md5}-$size'),
+        url: url,
+        type: file.file.type,
+        size: size,
+        enablePlayback: enablePlayback,
+      );
+    }
+    return SizedBox.square(
+      dimension: size,
+      child: Card(
+        child: Center(
+          child: Icon(
+            Icons.broken_image_outlined,
+            color: context.theme.colorScheme.error,
+          ),
+        ),
       ),
     );
   }

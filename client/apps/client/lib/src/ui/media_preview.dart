@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:openapi/openapi.dart';
@@ -59,14 +60,26 @@ class MediaPreviewDialog extends StatelessWidget {
 
 class MediaPreviewWidget extends StatefulWidget {
   const MediaPreviewWidget({
-    required this.url,
+    required String this.url,
     required this.type,
     required this.size,
     required this.enablePlayback,
     super.key,
-  });
+  }) : bytes = null,
+       mimeType = null;
 
-  final String url;
+  const MediaPreviewWidget.fromBytes({
+    required Uint8List this.bytes,
+    required this.type,
+    required this.size,
+    required this.enablePlayback,
+    this.mimeType,
+    super.key,
+  }) : url = null;
+
+  final String? url;
+  final Uint8List? bytes;
+  final String? mimeType;
   final PackageFileType type;
   final double size;
   final bool enablePlayback;
@@ -82,9 +95,16 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
   @override
   void initState() {
     super.initState();
-    if (widget.type == PackageFileType.audio ||
-        widget.type == PackageFileType.video) {
-      _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    if (widget.enablePlayback &&
+        (widget.type == PackageFileType.audio ||
+            widget.type == PackageFileType.video)) {
+      final source =
+          widget.url ??
+          Uri.dataFromBytes(
+            widget.bytes!,
+            mimeType: widget.mimeType ?? _mimeType(widget.type),
+          ).toString();
+      _controller = VideoPlayerController.networkUrl(Uri.parse(source));
       _initialization = _controller!.initialize();
     }
   }
@@ -99,10 +119,26 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
   @override
   Widget build(BuildContext context) {
     final child = widget.type == PackageFileType.image
-        ? Image.network(
-            widget.url,
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
+        ? widget.bytes != null
+              ? Image.memory(
+                  widget.bytes!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) =>
+                      const Icon(Icons.broken_image_outlined),
+                )
+              : Image.network(
+                  widget.url!,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) =>
+                      const Icon(Icons.broken_image_outlined),
+                )
+        : !widget.enablePlayback
+        ? Center(
+            child: Icon(
+              widget.type == PackageFileType.audio
+                  ? Icons.audio_file_outlined
+                  : Icons.video_file_outlined,
+            ),
           )
         : FutureBuilder<void>(
             future: _initialization,
@@ -156,4 +192,11 @@ class _MediaPreviewWidgetState extends State<MediaPreviewWidget> {
       }
     });
   }
+
+  static String _mimeType(PackageFileType type) => switch (type) {
+    PackageFileType.audio => 'audio/mpeg',
+    PackageFileType.video => 'video/mp4',
+    PackageFileType.image => 'image/png',
+    PackageFileType.$unknown => 'application/octet-stream',
+  };
 }

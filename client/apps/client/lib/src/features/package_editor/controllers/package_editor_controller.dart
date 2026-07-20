@@ -4,6 +4,13 @@ import 'package:openquester/common_imports.dart';
 
 enum EditorQuestionFilter { all, simple, stake, secret, noRisk, choice, hidden }
 
+enum MediaPairImportResult {
+  added,
+  cancelled,
+  requiresTwoFiles,
+  unreadableFile,
+}
+
 enum PackageHealth { good, needsAttention, broken }
 
 class EditorLocation {
@@ -58,6 +65,19 @@ class PackageEditorController extends ChangeNotifier {
   bool dirty = false;
   DateTime? lastSavedAt;
   PackageUploadState uploadState = const PackageUploadState.idle();
+
+  static const supportedMediaExtensions = [
+    'jpg',
+    'jpeg',
+    'png',
+    'gif',
+    'webp',
+    'mp3',
+    'wav',
+    'ogg',
+    'mp4',
+    'webm',
+  ];
 
   static OqPackage _emptyPackage() => OqPackage(
     id: -1,
@@ -263,6 +283,17 @@ class PackageEditorController extends ChangeNotifier {
         PackageQuestionUnionHidden() => 'hidden',
       };
 
+  static EditorQuestionFilter questionFilter(
+    PackageQuestionUnion question,
+  ) => switch (question) {
+    PackageQuestionUnionSimple() => EditorQuestionFilter.simple,
+    PackageQuestionUnionStake() => EditorQuestionFilter.stake,
+    PackageQuestionUnionSecret() => EditorQuestionFilter.secret,
+    PackageQuestionUnionNoRisk() => EditorQuestionFilter.noRisk,
+    PackageQuestionUnionChoice() => EditorQuestionFilter.choice,
+    PackageQuestionUnionHidden() => EditorQuestionFilter.hidden,
+  };
+
   void select(EditorLocation value) {
     location = value;
     notifyListeners();
@@ -287,11 +318,13 @@ class PackageEditorController extends ChangeNotifier {
     String? title,
     String? description,
     String? language,
+    AgeRestriction? ageRestriction,
   }) {
     _package = _package.copyWith(
       title: title ?? _package.title,
       description: description ?? _package.description,
       language: language ?? _package.language,
+      ageRestriction: ageRestriction ?? _package.ageRestriction,
     );
     _changed();
   }
@@ -315,11 +348,13 @@ class PackageEditorController extends ChangeNotifier {
     int roundIndex, {
     required String name,
     String? description,
+    PackageRoundType? type,
   }) {
     final rounds = [..._package.rounds];
     rounds[roundIndex] = rounds[roundIndex].copyWith(
       name: name,
       description: description,
+      type: type ?? rounds[roundIndex].type,
     );
     _package = _package.copyWith(rounds: rounds);
     _changed();
@@ -414,6 +449,295 @@ class PackageEditorController extends ChangeNotifier {
     _changed();
   }
 
+  void updateQuestionDetails(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex, {
+    required String text,
+    required String answer,
+    required int? price,
+    required int? showAnswerDuration,
+    required int? answerDelay,
+    required bool isHidden,
+    required String answerHint,
+    required String questionComment,
+  }) {
+    final question = _questionAt(roundIndex, themeIndex, questionIndex);
+    _replaceQuestion(
+      roundIndex,
+      themeIndex,
+      questionIndex,
+      question.copyWith(
+        text: text,
+        answerText: answer,
+        price: price,
+        showAnswerDuration: showAnswerDuration,
+        answerDelay: answerDelay,
+        isHidden: isHidden,
+        answerHint: answerHint.trim().isEmpty ? null : answerHint,
+        questionComment: questionComment.trim().isEmpty
+            ? null
+            : questionComment,
+      ),
+    );
+    _changed();
+  }
+
+  void changeQuestionType(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex,
+    EditorQuestionFilter type,
+  ) {
+    if (type == EditorQuestionFilter.all) return;
+    final question = _questionAt(roundIndex, themeIndex, questionIndex);
+    if (questionFilter(question) == type) return;
+
+    final replacement = switch (type) {
+      EditorQuestionFilter.simple => PackageQuestionUnion.simple(
+        order: question.order,
+        price: question.price,
+        showAnswerDuration: question.showAnswerDuration,
+        isHidden: question.isHidden,
+        answerDelay: question.answerDelay,
+        id: question.id,
+        text: question.text,
+        answerHint: question.answerHint,
+        answerText: question.answerText,
+        questionComment: question.questionComment,
+        questionFiles: question.questionFiles,
+        answerFiles: question.answerFiles,
+      ),
+      EditorQuestionFilter.stake => PackageQuestionUnion.stake(
+        order: question.order,
+        price: question.price,
+        showAnswerDuration: question.showAnswerDuration,
+        maxPrice: null,
+        isHidden: question.isHidden,
+        answerDelay: question.answerDelay,
+        id: question.id,
+        text: question.text,
+        answerHint: question.answerHint,
+        answerText: question.answerText,
+        questionComment: question.questionComment,
+        questionFiles: question.questionFiles,
+        answerFiles: question.answerFiles,
+      ),
+      EditorQuestionFilter.secret => PackageQuestionUnion.secret(
+        order: question.order,
+        price: question.price,
+        showAnswerDuration: question.showAnswerDuration,
+        subType: SecretQuestionSubType.simple,
+        transferType: QuestionTransferType.any,
+        isHidden: question.isHidden,
+        answerDelay: question.answerDelay,
+        id: question.id,
+        text: question.text,
+        answerHint: question.answerHint,
+        answerText: question.answerText,
+        questionComment: question.questionComment,
+        questionFiles: question.questionFiles,
+        answerFiles: question.answerFiles,
+      ),
+      EditorQuestionFilter.noRisk => PackageQuestionUnion.noRisk(
+        order: question.order,
+        price: question.price,
+        showAnswerDuration: question.showAnswerDuration,
+        subType: NoRiskQuestionSubType.simple,
+        priceMultiplier: '2',
+        isHidden: question.isHidden,
+        answerDelay: question.answerDelay,
+        id: question.id,
+        text: question.text,
+        answerHint: question.answerHint,
+        answerText: question.answerText,
+        questionComment: question.questionComment,
+        questionFiles: question.questionFiles,
+        answerFiles: question.answerFiles,
+      ),
+      EditorQuestionFilter.choice => PackageQuestionUnion.choice(
+        order: question.order,
+        price: question.price,
+        showAnswerDuration: question.showAnswerDuration,
+        showDelay: 3000,
+        answers: const [
+          QuestionChoiceAnswers(order: 0, text: ''),
+          QuestionChoiceAnswers(order: 1, text: ''),
+        ],
+        isHidden: question.isHidden,
+        answerDelay: question.answerDelay,
+        id: question.id,
+        text: question.text,
+        answerHint: question.answerHint,
+        answerText: question.answerText,
+        questionComment: question.questionComment,
+        questionFiles: question.questionFiles,
+        answerFiles: question.answerFiles,
+      ),
+      EditorQuestionFilter.hidden => PackageQuestionUnion.hidden(
+        order: question.order,
+        price: question.price,
+        showAnswerDuration: question.showAnswerDuration,
+        isHidden: true,
+        answerDelay: question.answerDelay,
+        id: question.id,
+        text: question.text,
+        answerHint: question.answerHint,
+        answerText: question.answerText,
+        questionComment: question.questionComment,
+        questionFiles: question.questionFiles,
+        answerFiles: question.answerFiles,
+      ),
+      EditorQuestionFilter.all => throw StateError('Invalid question type'),
+    };
+    _replaceQuestion(roundIndex, themeIndex, questionIndex, replacement);
+    _changed();
+  }
+
+  void updateStakeSettings(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex, {
+    required StakeQuestionSubType subType,
+    required int? maxPrice,
+  }) {
+    final question = _questionAt(roundIndex, themeIndex, questionIndex);
+    if (question is! PackageQuestionUnionStake) return;
+    _replaceQuestion(
+      roundIndex,
+      themeIndex,
+      questionIndex,
+      question.copyWith(subType: subType, maxPrice: maxPrice),
+    );
+    _changed();
+  }
+
+  void updateSecretSettings(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex, {
+    required SecretQuestionSubType subType,
+    required QuestionTransferType transferType,
+    required List<int>? allowedPrices,
+  }) {
+    final question = _questionAt(roundIndex, themeIndex, questionIndex);
+    if (question is! PackageQuestionUnionSecret) return;
+    _replaceQuestion(
+      roundIndex,
+      themeIndex,
+      questionIndex,
+      question.copyWith(
+        subType: subType,
+        transferType: transferType,
+        allowedPrices: allowedPrices,
+      ),
+    );
+    _changed();
+  }
+
+  void updateNoRiskSettings(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex, {
+    required NoRiskQuestionSubType subType,
+    required String priceMultiplier,
+  }) {
+    final question = _questionAt(roundIndex, themeIndex, questionIndex);
+    if (question is! PackageQuestionUnionNoRisk) return;
+    _replaceQuestion(
+      roundIndex,
+      themeIndex,
+      questionIndex,
+      question.copyWith(
+        subType: subType,
+        priceMultiplier: priceMultiplier,
+      ),
+    );
+    _changed();
+  }
+
+  void updateChoiceShowDelay(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex,
+    int showDelay,
+  ) {
+    final question = _questionAt(roundIndex, themeIndex, questionIndex);
+    if (question is! PackageQuestionUnionChoice) return;
+    _replaceQuestion(
+      roundIndex,
+      themeIndex,
+      questionIndex,
+      question.copyWith(showDelay: showDelay),
+    );
+    _changed();
+  }
+
+  void updateChoiceAnswer(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex,
+    int answerIndex,
+    String text,
+  ) {
+    final question = _questionAt(roundIndex, themeIndex, questionIndex);
+    if (question is! PackageQuestionUnionChoice) return;
+    final answers = [...question.answers];
+    answers[answerIndex] = answers[answerIndex].copyWith(text: text);
+    _replaceQuestion(
+      roundIndex,
+      themeIndex,
+      questionIndex,
+      question.copyWith(answers: answers),
+    );
+    _changed();
+  }
+
+  void addChoiceAnswer(int roundIndex, int themeIndex, int questionIndex) {
+    final question = _questionAt(roundIndex, themeIndex, questionIndex);
+    if (question is! PackageQuestionUnionChoice ||
+        question.answers.length >= 8) {
+      return;
+    }
+    final answers = [
+      ...question.answers,
+      QuestionChoiceAnswers(order: question.answers.length, text: ''),
+    ];
+    _replaceQuestion(
+      roundIndex,
+      themeIndex,
+      questionIndex,
+      question.copyWith(answers: answers),
+    );
+    _changed();
+  }
+
+  void removeChoiceAnswer(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex,
+    int answerIndex,
+  ) {
+    final question = _questionAt(roundIndex, themeIndex, questionIndex);
+    if (question is! PackageQuestionUnionChoice ||
+        question.answers.length <= 2) {
+      return;
+    }
+    final answers = [...question.answers]..removeAt(answerIndex);
+    _replaceQuestion(
+      roundIndex,
+      themeIndex,
+      questionIndex,
+      question.copyWith(
+        answers: [
+          for (var i = 0; i < answers.length; i++)
+            answers[i].copyWith(order: i),
+        ],
+      ),
+    );
+    _changed();
+  }
+
   Future<void> addMedia(
     int roundIndex,
     int themeIndex,
@@ -422,27 +746,14 @@ class PackageEditorController extends ChangeNotifier {
   }) async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: const [
-        'jpg',
-        'jpeg',
-        'png',
-        'gif',
-        'webp',
-        'mp3',
-        'wav',
-        'ogg',
-        'mp4',
-        'webm',
-      ],
+      allowedExtensions: supportedMediaExtensions,
       withData: true,
     );
     final platformFile = result?.files.single;
-    final bytes = platformFile?.bytes;
-    if (platformFile == null || bytes == null) return;
-
-    final hash = md5.convert(bytes).toString();
-    final fileType = _mediaType(platformFile.extension);
-    mediaFilesByHash[hash] = EditorMediaFile(platformFile: platformFile);
+    if (platformFile == null) return;
+    final media = await _prepareMedia(platformFile);
+    if (media == null) return;
+    mediaFilesByHash[media.hash] = media.file;
 
     final theme = _package.rounds[roundIndex].themes[themeIndex];
     final questions = [...theme.questions];
@@ -453,7 +764,7 @@ class PackageEditorController extends ChangeNotifier {
     files.add(
       PackageQuestionFile(
         order: files.length,
-        file: FileItem(md5: hash, type: fileType),
+        file: FileItem(md5: media.hash, type: media.type),
         displayTime: null,
       ),
     );
@@ -468,12 +779,121 @@ class PackageEditorController extends ChangeNotifier {
     _changed();
   }
 
+  void removeMedia(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex, {
+    required bool answerMedia,
+    required int mediaIndex,
+  }) {
+    final question = _questionAt(roundIndex, themeIndex, questionIndex);
+    final files = [
+      ...?(answerMedia ? question.answerFiles : question.questionFiles),
+    ]..removeAt(mediaIndex);
+    _replaceQuestion(
+      roundIndex,
+      themeIndex,
+      questionIndex,
+      answerMedia
+          ? question.copyWith(answerFiles: _normalizeFiles(files))
+          : question.copyWith(questionFiles: _normalizeFiles(files)),
+    );
+    _changed();
+  }
+
+  Future<MediaPairImportResult> addQuestionFromMediaPair(
+    int roundIndex,
+    int themeIndex,
+  ) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: supportedMediaExtensions,
+      allowMultiple: true,
+      withData: true,
+    );
+    if (result == null) return MediaPairImportResult.cancelled;
+    return addQuestionFromMediaFiles(roundIndex, themeIndex, result.files);
+  }
+
+  Future<MediaPairImportResult> addQuestionFromMediaFiles(
+    int roundIndex,
+    int themeIndex,
+    List<PlatformFile> files,
+  ) async {
+    if (files.length != 2) return MediaPairImportResult.requiresTwoFiles;
+    final questionMedia = await _prepareMedia(files[0]);
+    final answerMedia = await _prepareMedia(files[1]);
+    if (questionMedia == null || answerMedia == null) {
+      return MediaPairImportResult.unreadableFile;
+    }
+    mediaFilesByHash[questionMedia.hash] = questionMedia.file;
+    mediaFilesByHash[answerMedia.hash] = answerMedia.file;
+
+    final theme = _package.rounds[roundIndex].themes[themeIndex];
+    final questions = [...theme.questions];
+    questions.add(
+      PackageQuestionUnion.simple(
+        order: questions.length,
+        price: (questions.length + 1) * 100,
+        showAnswerDuration: 5000,
+        text: _textFromFileName(files[0].name),
+        answerText: _textFromFileName(files[1].name),
+        questionFiles: [
+          PackageQuestionFile(
+            order: 0,
+            file: FileItem(md5: questionMedia.hash, type: questionMedia.type),
+            displayTime: null,
+          ),
+        ],
+        answerFiles: [
+          PackageQuestionFile(
+            order: 0,
+            file: FileItem(md5: answerMedia.hash, type: answerMedia.type),
+            displayTime: null,
+          ),
+        ],
+      ),
+    );
+    _replaceTheme(roundIndex, themeIndex, theme.copyWith(questions: questions));
+    location = EditorLocation(
+      roundIndex: roundIndex,
+      themeIndex: themeIndex,
+      questionIndex: questions.length - 1,
+    );
+    _changed();
+    return MediaPairImportResult.added;
+  }
+
   PackageFileType _mediaType(String? extension) {
     return switch (extension?.toLowerCase()) {
       'mp3' || 'wav' || 'ogg' => PackageFileType.audio,
       'mp4' || 'webm' => PackageFileType.video,
       _ => PackageFileType.image,
     };
+  }
+
+  Future<({String hash, PackageFileType type, EditorMediaFile file})?>
+  _prepareMedia(
+    PlatformFile file,
+  ) async {
+    final media = EditorMediaFile(platformFile: file);
+    final bytes = await media.readBytes();
+    if (bytes.isEmpty) return null;
+    final hash = md5.convert(bytes).toString();
+    return (
+      hash: hash,
+      type: _mediaType(file.extension),
+      file: media,
+    );
+  }
+
+  String _textFromFileName(String name) {
+    final lastDot = name.lastIndexOf('.');
+    final withoutExtension = lastDot > 0 ? name.substring(0, lastDot) : name;
+    return withoutExtension
+        .replaceAll(RegExp('[_-]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   void deleteQuestion(int roundIndex, int themeIndex, int questionIndex) {
@@ -690,6 +1110,24 @@ class PackageEditorController extends ChangeNotifier {
     _replaceRound(roundIndex, round.copyWith(themes: themes));
   }
 
+  PackageQuestionUnion _questionAt(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex,
+  ) => _package.rounds[roundIndex].themes[themeIndex].questions[questionIndex];
+
+  void _replaceQuestion(
+    int roundIndex,
+    int themeIndex,
+    int questionIndex,
+    PackageQuestionUnion question,
+  ) {
+    final theme = _package.rounds[roundIndex].themes[themeIndex];
+    final questions = [...theme.questions];
+    questions[questionIndex] = question;
+    _replaceTheme(roundIndex, themeIndex, theme.copyWith(questions: questions));
+  }
+
   List<PackageRound> _normalizeRounds(List<PackageRound> rounds) => [
     for (var i = 0; i < rounds.length; i++) rounds[i].copyWith(order: i),
   ];
@@ -702,6 +1140,12 @@ class PackageEditorController extends ChangeNotifier {
     List<PackageQuestionUnion> questions,
   ) => [
     for (var i = 0; i < questions.length; i++) questions[i].copyWith(order: i),
+  ];
+
+  List<PackageQuestionFile> _normalizeFiles(
+    List<PackageQuestionFile> files,
+  ) => [
+    for (var i = 0; i < files.length; i++) files[i].copyWith(order: i),
   ];
 
   EditorLocation _parseLocation(String value) {
