@@ -29,7 +29,7 @@ Run from `client/` unless a package-specific task requires a narrower working di
 flutter pub get
 melos run pre_build       # gen_api + gen_files + gen_workers + gen_locale
 melos run gen_api         # regenerate OpenAPI Dart client/models
-melos run gen_files       # build_runner for packages that need it
+melos run gen_files       # one workspace-wide build_runner process
 melos run gen_locale      # localization keys
 melos run analyze         # dart analyze --fatal-infos
 melos run test            # tests across packages
@@ -136,6 +136,14 @@ Generated or regeneration-sensitive areas include:
 - Easy Localization key files.
 - Freezed/JSON serializable files.
 - Generated workers/assets.
+
+`gen_files` runs `build_runner` once from the workspace root with
+`--workspace`; do not replace it with per-package Melos processes. The
+workspace-level `.dart_tool/build/` directory is the incremental build state
+used by CI. Envied reads `client/.env` during the workspace build, so keep the
+development environment file at the client workspace root. CI includes a hash
+of that file in the build-runner cache key because Envied does not declare it as
+a build input.
 
 If a task changes inputs to generated code, update the source input and run the correct generator. Do not manually patch generated output unless the current code already marks a temporary manual exception and the PR calls it out.
 

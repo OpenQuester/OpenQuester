@@ -15,6 +15,12 @@ on:
         required: true
       PLAY_STORE_SERVICE_ACCOUNT_JSON:
         required: false
+      CLOUDFLARE_API_TOKEN:
+        required: false
+      CLOUDFLARE_ACCOUNT_ID:
+        required: false
+      CLOUDFLARE_ZONE:
+        required: false
     inputs:
       DEPLOY_PROD:
         type: boolean
@@ -23,15 +29,13 @@ on:
     branches:
       - main
 
-jobs:
-  test:
-    uses: ./.github/workflows/test.yml
-    permissions:
-      contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-client-${{ inputs.DEPLOY_PROD }}
+  cancel-in-progress: true
 
+jobs:
   pre_job:
     runs-on: ubuntu-latest
-    needs: test
     permissions:
       contents: read
     outputs:
@@ -47,15 +51,96 @@ jobs:
             client:
               - 'client/**'
               - 'openapi/**'
+              - '.github/workflows/build_client.yml'
+              - '.github/workflows/test.yml'
 
       - name: Check if we should force jobs to run
         id: should_force
         run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release' }}" >> "$GITHUB_OUTPUT"
 
-  build:
-    name: Build client (Web & Android)
+  test:
     needs: pre_job
-    if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.pre_job.outputs.should_run == 'true' }}
+    if: ${{ needs.pre_job.outputs.should_run == 'true' }}
+    uses: ./.github/workflows/test.yml
+    with:
+      RUN_CLIENT: true
+      RUN_SERVER: false
+    permissions:
+      contents: read
+
+  build_web:
+    name: Build client (Web)
+    needs: test
+    if: ${{ github.event_name != 'pull_request' || (!github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]') }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./client
+    environment: ${{ inputs.DEPLOY_PROD && 'openquester (Production)' || 'openquester (Preview)' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore generated client sources
+        uses: actions/download-artifact@v4
+        with:
+          name: client-codegen
+          path: ./client
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: ./client/apps/client/pubspec.yaml
+          cache: true
+          pub-cache: true
+
+      - name: Restore Web build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            client/apps/client/.dart_tool/flutter_build/
+            client/apps/client/build/web/
+          key: client-build-web-${{ runner.os }}-${{ hashFiles('client/pubspec.lock', 'client/apps/client/pubspec.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            client-build-web-${{ runner.os }}-${{ hashFiles('client/pubspec.lock', 'client/apps/client/pubspec.yaml') }}-
+            client-build-web-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          echo "${{ vars.ENV_FILE_CONTENT }}" > .env
+          flutter pub get
+
+      - name: Build Web
+        working-directory: ./client/apps/client
+        run: flutter build web --no-web-resources-cdn --build-number "$GITHUB_RUN_NUMBER" --wasm
+
+      - name: Publish Web Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-app
+          path: ./client/apps/client/build/web/
+
+      - name: Publish to Cloudflare Pages (Preview)
+        if: inputs.DEPLOY_PROD != true
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          command: pages deploy ./client/apps/client/build/web/ --project-name=openquester-dev --branch ${{ github.ref_name }}
+
+      - name: Purge Cloudflare cache
+        if: inputs.DEPLOY_PROD != true
+        run: |
+          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE }}/purge_cache" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{ "purge_everything": true }'
+
+  build_android:
+    name: Build client (Android)
+    needs: test
+    if: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -78,69 +163,38 @@ jobs:
           cache: gradle
 
       - name: Setup Flutter SDK
-        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          # Updated to point to the workspace app pubspec
           flutter-version-file: ./client/apps/client/pubspec.yaml
           cache: true
           pub-cache: true
 
-      - name: Restore incremental Flutter build cache
+      - name: Restore Android build cache
         uses: actions/cache@v4
         with:
           path: |
-            client/.dart_tool/
-            client/apps/client/.dart_tool/
-            client/apps/client/build/
-          key: client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-${{ github.sha }}
+            client/apps/client/.dart_tool/flutter_build/
+            client/apps/client/build/app/
+          key: client-build-android-${{ runner.os }}-${{ hashFiles('client/pubspec.lock', 'client/apps/client/pubspec.yaml') }}-${{ github.sha }}
           restore-keys: |
-            client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-
-            client-build-${{ runner.os }}-
+            client-build-android-${{ runner.os }}-${{ hashFiles('client/pubspec.lock', 'client/apps/client/pubspec.yaml') }}-
+            client-build-android-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
-          echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
+          echo "${{ vars.ENV_FILE_CONTENT }}" > .env
           flutter pub get
-
-      - name: Build Web
-        working-directory: ./client/apps/client
-        run: flutter build web --no-web-resources-cdn --build-number $GITHUB_RUN_NUMBER --wasm
-
-      - name: Publish Web Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-app
-          path: ./client/apps/client/build/web/
-
-      - name: Publish to Cloudflare Pages (Preview)
-        if: inputs.DEPLOY_PROD == false
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          command: pages deploy ./client/apps/client/build/web/ --project-name=openquester-dev --branch ${{ github.ref_name }}
-
-      - name: Purge Cloudflare cache
-        if: inputs.DEPLOY_PROD == false
-        run: |
-          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE }}/purge_cache" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            --data '{ "purge_everything": true }'
 
       - name: Decode and setup Android keystore
         working-directory: ./client/apps/client
-        run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
 
       - name: Build Android APKs
         working-directory: ./client/apps/client
-        run: flutter build apk --release --build-number $GITHUB_RUN_NUMBER
+        run: flutter build apk --release --build-number "$GITHUB_RUN_NUMBER"
         env:
           ANDROID_KEYSTORE_PATH: ${{ vars.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEY_ALIAS_NAME: ${{ vars.ANDROID_KEY_ALIAS_NAME }}
@@ -156,7 +210,7 @@ jobs:
       - name: Build Android Bundle (AAB)
         if: github.ref == 'refs/heads/main'
         working-directory: ./client/apps/client
-        run: flutter build appbundle --release --build-number $GITHUB_RUN_NUMBER
+        run: flutter build appbundle --release --build-number "$GITHUB_RUN_NUMBER"
         env:
           ANDROID_KEYSTORE_PATH: ${{ vars.ANDROID_KEYSTORE_PATH }}
           ANDROID_KEY_ALIAS_NAME: ${{ vars.ANDROID_KEY_ALIAS_NAME }}
@@ -176,8 +230,8 @@ jobs:
 
   build_windows:
     name: Build client (Windows)
-    needs: pre_job
-    if: ${{ needs.pre_job.outputs.should_run == 'true' }}
+    needs: test
+    if: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
     environment: ${{ inputs.DEPLOY_PROD && 'openquester (Production)' || 'openquester (Preview)' }}
     runs-on: windows-latest
     defaults:
@@ -193,7 +247,6 @@ jobs:
           path: ./client
 
       - name: Setup Flutter SDK
-        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -201,27 +254,26 @@ jobs:
           cache: true
           pub-cache: true
 
-      - name: Restore incremental Flutter build cache
+      - name: Restore Windows build cache
         uses: actions/cache@v4
         with:
           path: |
-            client/.dart_tool/
-            client/apps/client/.dart_tool/
-            client/apps/client/build/
-          key: client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-${{ github.sha }}
+            client/apps/client/.dart_tool/flutter_build/
+            client/apps/client/build/windows/
+          key: client-build-windows-${{ runner.os }}-${{ hashFiles('client/pubspec.lock', 'client/apps/client/pubspec.yaml') }}-${{ github.sha }}
           restore-keys: |
-            client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-
-            client-build-${{ runner.os }}-
+            client-build-windows-${{ runner.os }}-${{ hashFiles('client/pubspec.lock', 'client/apps/client/pubspec.yaml') }}-
+            client-build-windows-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
-          echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
+          echo "${{ vars.ENV_FILE_CONTENT }}" > .env
           flutter pub get
 
       - name: Build and create bundle
         working-directory: ./client/apps/client
         run: |
-          flutter build windows --release --build-number ${{ github.run_number }}
+          flutter build windows --release --build-number "${{ github.run_number }}"
           dart run inno_bundle:build --release --no-app
 
       - name: Publish Windows Artifacts
@@ -232,8 +284,8 @@ jobs:
 
   build_linux:
     name: Build client (Linux)
-    needs: pre_job
-    if: ${{ needs.pre_job.outputs.should_run == 'true' }}
+    needs: test
+    if: ${{ github.event_name != 'pull_request' && github.actor != 'dependabot[bot]' }}
     environment: ${{ inputs.DEPLOY_PROD && 'openquester (Production)' || 'openquester (Preview)' }}
     runs-on: ubuntu-latest
     permissions:
@@ -251,7 +303,6 @@ jobs:
           path: ./client
 
       - name: Setup Flutter SDK
-        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -259,17 +310,22 @@ jobs:
           cache: true
           pub-cache: true
 
-      - name: Restore incremental Flutter build cache
+      - name: Restore Linux build cache
         uses: actions/cache@v4
         with:
           path: |
-            client/.dart_tool/
-            client/apps/client/.dart_tool/
-            client/apps/client/build/
-          key: client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-${{ github.sha }}
+            client/apps/client/.dart_tool/flutter_build/
+            client/apps/client/build/linux/
+          key: client-build-linux-${{ runner.os }}-${{ hashFiles('client/pubspec.lock', 'client/apps/client/pubspec.yaml') }}-${{ github.sha }}
           restore-keys: |
-            client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-
-            client-build-${{ runner.os }}-
+            client-build-linux-${{ runner.os }}-${{ hashFiles('client/pubspec.lock', 'client/apps/client/pubspec.yaml') }}-
+            client-build-linux-${{ runner.os }}-
+
+      - name: Restore Flatpak builder cache
+        uses: actions/cache@v4
+        with:
+          path: client/apps/client/linux/.flatpak-builder/
+          key: flatpak-builder-${{ runner.os }}-${{ hashFiles('client/apps/client/linux/com.asion.openquester.yml') }}
 
       - name: Install dependencies
         run: |
@@ -280,18 +336,16 @@ jobs:
             ffmpeg libavcodec-dev libavformat-dev libavutil-dev \
             libwebkit2gtk-4.1-dev libsecret-1-dev \
             desktop-file-utils appstream
-          echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
+          echo "${{ vars.ENV_FILE_CONTENT }}" > .env
           flutter pub get
 
       - name: Build Linux application
         working-directory: ./client/apps/client
-        run: flutter build linux --release --build-number ${{ github.run_number }}
+        run: flutter build linux --release --build-number "${{ github.run_number }}"
 
       - name: Create tar.gz archive
         working-directory: ./client/apps/client
-        run: |
-          # Compress into the github workspace root to avoid path traversal nightmares
-          tar -czf $GITHUB_WORKSPACE/openquester-linux-x64.tar.gz -C build/linux/x64/release bundle/
+        run: tar -czf "$GITHUB_WORKSPACE/openquester-linux-x64.tar.gz" -C build/linux/x64/release bundle/
 
       - name: Publish Linux tar.gz
         uses: actions/upload-artifact@v4
@@ -311,10 +365,6 @@ jobs:
           name: linux-appimage
           path: ./client/apps/client/build/linux/appimage/OpenQuester-x86_64.AppImage
 
-      - name: Build Linux application for Flatpak
-        working-directory: ./client/apps/client
-        run: flutter build linux --release --build-number ${{ github.run_number }} --dart-define=BUILD_TYPE=flatpak
-
       - name: Install Flatpak and dependencies
         run: |
           sudo apt-get install -y flatpak flatpak-builder
@@ -322,9 +372,8 @@ jobs:
           flatpak install --user -y flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
 
       - name: Build Flatpak
-        working-directory: ./client/apps/client
+        working-directory: ./client/apps/client/linux
         run: |
-          cd linux
           flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build-flatpak com.asion.openquester.yml
           flatpak build-bundle repo openquester.flatpak com.asion.openquester
 

@@ -28,7 +28,7 @@ melos:
     pre_build:
       description: Pre-run tasks generating files, workers, and localization
       steps:
-        - melos run gen_api
+        - melos run gen_api_sources
         - melos run gen_files
         - melos run gen_workers
         - melos run gen_locale
@@ -38,13 +38,12 @@ melos:
     # =============================================================================
 
     gen_files:
-      description: Run build_runner to generate code for all packages that require it
-      # --depends-on ensures this only runs in packages that actually have build_runner
-      run: melos exec --depends-on="build_runner" -- "dart run build_runner build -d"
+      description: Generate code for the complete Dart workspace in one build_runner process
+      run: dart run build_runner build --workspace
 
     clean_build_runner:
       description: Clean build_runner cache and generated files
-      run: melos exec --depends-on="build_runner" -- "dart run build_runner clean"
+      run: dart run build_runner clean --workspace
 
     gen_locale:
       description: Generate localization keys from JSON files
@@ -63,13 +62,17 @@ melos:
     gen_api:
       description: Generate API client code from OpenAPI specs
       steps:
-        - melos exec --scope="openapi" -- "dart run swagger_parser"
-        - melos exec --scope="openapi" -- "dart run build_runner build -d"
+        - melos run gen_api_sources
+        - melos exec --scope="openapi" -- "dart run build_runner build"
+
+    gen_api_sources:
+      description: Generate raw API sources before the workspace build
+      run: melos exec --scope="openapi" -- "dart run swagger_parser"
 
     gen_workers:
       description: Generate JS and WASM web workers
       run: >
-        melos exec --scope="client"
+        melos exec --scope="openquester"
         -- "dart compile js -O2 ./lib/workers/package_service.web.g.dart -o ./web/workers/package_service.web.g.dart.js &&
             dart compile wasm ./lib/workers/package_service.web.g.dart -o ./web/workers/package_service.web.g.dart.wasm"
 

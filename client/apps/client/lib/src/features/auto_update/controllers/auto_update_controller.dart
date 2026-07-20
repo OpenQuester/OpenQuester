@@ -60,11 +60,8 @@ class AutoUpdateController {
   }
 
   bool get _isFlatpakBuild {
-    const buildType = String.fromEnvironment(
-      'BUILD_TYPE',
-      defaultValue: 'appimage',
-    );
-    return buildType == 'flatpak';
+    return Platform.environment.containsKey('FLATPAK_ID') ||
+        File('/.flatpak-info').existsSync();
   }
 
   Future<void> openInstallFile() async {

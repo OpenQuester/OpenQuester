@@ -2,36 +2,28 @@ name: Test
 
 on:
   workflow_dispatch:
+    inputs:
+      RUN_CLIENT:
+        description: Run client validation and code generation
+        type: boolean
+        default: true
+      RUN_SERVER:
+        description: Run server lint and tests
+        type: boolean
+        default: true
   workflow_call:
+    inputs:
+      RUN_CLIENT:
+        type: boolean
+        default: true
+      RUN_SERVER:
+        type: boolean
+        default: true
 
 jobs:
-  pre_job:
-    runs-on: ubuntu-latest
-    outputs:
-      should_run_server: ${{ steps.found_paths.outputs.server == 'true' || steps.should_force.outputs.should_force == 'true' }}
-      should_run_client: ${{ steps.found_paths.outputs.client == 'true' || steps.should_force.outputs.should_force == 'true' }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - id: found_paths
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            server:
-              - 'server/**'
-            client:
-              - 'client/**'
-              - 'openapi/**'
-
-      - name: Check if we should force jobs to run
-        id: should_force
-        run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release'}}" >> "$GITHUB_OUTPUT"
-
   test_server:
+    if: ${{ inputs.RUN_SERVER }}
     runs-on: ubuntu-latest
-    needs: pre_job
-    if: ${{ needs.pre_job.outputs.should_run_server == 'true' }}
     services:
       postgres:
         image: postgres:15
@@ -59,33 +51,31 @@ jobs:
         working-directory: ./server
     steps:
       - uses: actions/checkout@v4
+
       - name: Use the latest stable Node.js
         uses: actions/setup-node@v4
         with:
           node-version-file: ./server/.node-version
-          cache: "npm"
+          cache: npm
           cache-dependency-path: ./server/package-lock.json
+
       - run: npm ci
       - run: npm run lint
-      - run: |
-          until pg_isready -h localhost -p 5432; do sleep 1; done
-      - run: |
-          until docker run --rm --network host redis:7 redis-cli -h localhost -p 6379 ping; do sleep 1; done
+      - run: until pg_isready -h localhost -p 5432; do sleep 1; done
+      - run: until docker run --rm --network host redis:7 redis-cli -h localhost -p 6379 ping; do sleep 1; done
       - run: npm run test:pipeline
 
   test_client:
+    if: ${{ inputs.RUN_CLIENT }}
     runs-on: ubuntu-latest
-    needs: pre_job
-    if: ${{ needs.pre_job.outputs.should_run_client == 'true' }}
     defaults:
       run:
         working-directory: ./client
-    environment: "${{ github.event_name == 'workflow_call' && 'openquester (Production)' || 'openquester (Preview)' }}"
+    environment: ${{ github.workflow == 'Release' && 'openquester (Production)' || 'openquester (Preview)' }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Flutter SDK
-        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -93,22 +83,21 @@ jobs:
           cache: true
           pub-cache: true
 
+      - name: Install dependencies
+        id: client_env
+        run: |
+          echo "${{ vars.ENV_FILE_CONTENT }}" > .env
+          echo "hash=$(sha256sum .env | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+          flutter pub get
+
       - name: Restore build-runner cache
         uses: actions/cache@v4
         with:
-          path: |
-            client/.dart_tool/
-            client/apps/client/.dart_tool/build/
-            client/packages/*/.dart_tool/build/
-          key: client-codegen-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-${{ github.sha }}
+          path: client/.dart_tool/build/
+          key: client-codegen-${{ runner.os }}-${{ steps.client_env.outputs.hash }}-${{ hashFiles('client/pubspec.lock', 'client/**/pubspec.yaml', 'client/**/build.yaml') }}-${{ github.sha }}
           restore-keys: |
-            client-codegen-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-
-            client-codegen-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: |
-          echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
-          flutter pub get
+            client-codegen-${{ runner.os }}-${{ steps.client_env.outputs.hash }}-${{ hashFiles('client/pubspec.lock', 'client/**/pubspec.yaml', 'client/**/build.yaml') }}-
+            client-codegen-${{ runner.os }}-${{ steps.client_env.outputs.hash }}-
 
       - name: Run code generation (pre_build)
         run: dart run melos run pre_build
@@ -132,7 +121,3 @@ jobs:
           if-no-files-found: error
           retention-days: 1
           overwrite: true
-
-      - name: Run Tests
-        if: false # Skipped for now
-        run: dart run melos run test
