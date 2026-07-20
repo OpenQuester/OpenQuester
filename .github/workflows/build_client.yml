@@ -50,7 +50,7 @@ jobs:
 
       - name: Check if we should force jobs to run
         id: should_force
-        run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release' || github.event_name == 'push' }}" >> "$GITHUB_OUTPUT"
+        run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release' }}" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build client (Web & Android)
@@ -64,6 +64,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore generated client sources
+        uses: actions/download-artifact@v4
+        with:
+          name: client-codegen
+          path: ./client
+
       - name: Setup Java 17 + Gradle cache
         uses: actions/setup-java@v4
         with:
@@ -72,20 +78,31 @@ jobs:
           cache: gradle
 
       - name: Setup Flutter SDK
+        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           # Updated to point to the workspace app pubspec
           flutter-version-file: ./client/apps/client/pubspec.yaml
           cache: true
+          pub-cache: true
 
-      - name: Install dependencies & Melos Bootstrap
+      - name: Restore incremental Flutter build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            client/.dart_tool/
+            client/apps/client/.dart_tool/
+            client/apps/client/build/
+          key: client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-${{ github.sha }}
+          restore-keys: |
+            client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-
+            client-build-${{ runner.os }}-
+
+      - name: Install dependencies
         run: |
-          flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
-          dart pub global activate melos
-          melos bootstrap
-          melos run pre_build
+          flutter pub get
 
       - name: Build Web
         working-directory: ./client/apps/client
@@ -169,20 +186,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore generated client sources
+        uses: actions/download-artifact@v4
+        with:
+          name: client-codegen
+          path: ./client
+
       - name: Setup Flutter SDK
+        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version-file: ./client/apps/client/pubspec.yaml
           cache: true
+          pub-cache: true
 
-      - name: Install dependencies & Melos Bootstrap
+      - name: Restore incremental Flutter build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            client/.dart_tool/
+            client/apps/client/.dart_tool/
+            client/apps/client/build/
+          key: client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-${{ github.sha }}
+          restore-keys: |
+            client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-
+            client-build-${{ runner.os }}-
+
+      - name: Install dependencies
         run: |
-          flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
-          dart pub global activate melos
-          melos bootstrap
-          melos run pre_build
+          flutter pub get
 
       - name: Build and create bundle
         working-directory: ./client/apps/client
@@ -210,14 +244,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Restore generated client sources
+        uses: actions/download-artifact@v4
+        with:
+          name: client-codegen
+          path: ./client
+
       - name: Setup Flutter SDK
+        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version-file: ./client/apps/client/pubspec.yaml
           cache: true
+          pub-cache: true
 
-      - name: Install dependencies & Melos Bootstrap
+      - name: Restore incremental Flutter build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            client/.dart_tool/
+            client/apps/client/.dart_tool/
+            client/apps/client/build/
+          key: client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-${{ github.sha }}
+          restore-keys: |
+            client-build-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-
+            client-build-${{ runner.os }}-
+
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -226,11 +280,8 @@ jobs:
             ffmpeg libavcodec-dev libavformat-dev libavutil-dev \
             libwebkit2gtk-4.1-dev libsecret-1-dev \
             desktop-file-utils appstream
-          flutter pub get
           echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
-          dart pub global activate melos
-          melos bootstrap
-          melos run pre_build
+          flutter pub get
 
       - name: Build Linux application
         working-directory: ./client/apps/client

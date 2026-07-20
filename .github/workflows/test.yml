@@ -85,30 +85,54 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Flutter SDK
+        id: flutter-action
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           flutter-version-file: ./client/apps/client/pubspec.yaml
           cache: true
+          pub-cache: true
 
-      - name: Install dependencies & Bootstrap
+      - name: Restore build-runner cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            client/.dart_tool/
+            client/apps/client/.dart_tool/build/
+            client/packages/*/.dart_tool/build/
+          key: client-codegen-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-${{ github.sha }}
+          restore-keys: |
+            client-codegen-${{ runner.os }}-${{ hashFiles('client/pubspec.lock') }}-
+            client-codegen-${{ runner.os }}-
+
+      - name: Install dependencies
         run: |
           echo "${{ vars.ENV_FILE_CONTENT }}" > apps/client/.env
           flutter pub get
-          dart pub global activate melos 7.8.1
-          melos bootstrap
 
       - name: Run code generation (pre_build)
-        run: melos run pre_build
+        run: dart run melos run pre_build
 
       - name: Check code formatting
         run: |
-          melos run format_exception
-          melos run format_check
+          dart run melos run format_exception
+          dart run melos run format_check
 
       - name: Analyze Dart code
-        run: melos run analyze
+        run: dart run melos run analyze
+
+      - name: Share generated client sources with build jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-codegen
+          path: |
+            client/apps/client/lib/
+            client/apps/client/web/workers/
+            client/packages/*/lib/
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: true
 
       - name: Run Tests
         if: false # Skipped for now
-        run: melos run test
+        run: dart run melos run test
