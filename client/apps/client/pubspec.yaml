@@ -19,7 +19,6 @@ dependencies:
   openapi: any
   siq_file: any
   oq_compress: any
-  oq_editor: any
   oq_shared: any
   #
 

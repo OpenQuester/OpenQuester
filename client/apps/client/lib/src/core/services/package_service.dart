@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:openquester/common_imports.dart';
-import 'package:oq_editor/oq_editor.dart';
 
 /// Unified service for package operations
 @singleton
@@ -25,10 +24,10 @@ class PackageService {
   }
 
   /// Upload package with media files and detailed progress tracking
-  /// Stream-based version for PackageEditorUploadController
+  /// Stream-based upload progress for editor and standalone upload flows.
   Stream<PackageUploadState> uploadPackage({
     required PackageCreationInput packageInput,
-    required Map<String, MediaFileReference> mediaFilesByHash,
+    required Map<String, EditorMediaFile> mediaFilesByHash,
   }) async* {
     try {
       // Step 1: Create package on backend
@@ -65,7 +64,7 @@ class PackageService {
   /// Upload media files and emit progress updates
   Stream<PackageUploadState> _uploadMediaFiles(
     List<MapEntry<String, String>> uploadLinks,
-    Map<String, MediaFileReference> mediaFilesByHash,
+    Map<String, EditorMediaFile> mediaFilesByHash,
     int packageId,
   ) async* {
     logger.d('Uploading ${uploadLinks.length} files...');
@@ -87,8 +86,7 @@ class PackageService {
         );
 
         // Get media file by hash and upload
-        final media = await mediaFilesByHash[link.key]?.platformFile
-            .readBytes();
+        final media = await mediaFilesByHash[link.key]?.readBytes();
 
         if (media != null && media.isNotEmpty) {
           logger.t(
@@ -189,26 +187,23 @@ class PackageService {
     );
   }
 
-  /// Import SIQ file with progress tracking
-  /// Stream-based version for controllers that need progress updates
-  /// For progress tracking, always use the direct method as it provides
-  /// granular progress updates. Worker is mainly beneficial for
-  /// blocking operations without progress needs.
-  Stream<SiqImportProgress> importSiqFileWithProgress(Uint8List siqBytes) {
-    return SiqImportHelper().convertSiqToOqPackage(siqBytes);
-  }
-
   /// Pick and import package file (unified picker for .oq and .siq)
   /// Returns null if user cancels
   Future<ImportResult?> pickAndImportFile() async {
-    final fileResult = await SiqImportHelper.pickPackageFile();
-    if (fileResult == null) return null;
+    final picked = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['oq', 'siq'],
+      withData: true,
+    );
+    final fileResult = picked?.files.single;
+    final bytes = fileResult?.bytes;
+    if (fileResult == null || bytes == null) return null;
 
     switch (fileResult.extension) {
       case 'oq':
-        return importOqFile(fileResult.bytes);
+        return importOqFile(bytes);
       case 'siq':
-        return importSiqFile(fileResult.bytes);
+        return importSiqFile(bytes);
       default:
         throw Exception(
           'Unsupported file type: .${fileResult.extension}',
