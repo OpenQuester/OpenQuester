@@ -37,9 +37,9 @@ This map helps agents pick the right files before editing. It is not a replaceme
 | Change gameplay screen | `client/apps/client/lib/src/features/game_*`, `.agents/skills/frontend-game-ui-state/SKILL.md`, `docs/specs/game-state-matrix.md` |
 | Change buzzer/answer UI | `client/apps/client/lib/src/features/game_question/`, `docs/specs/buzzer-state-machine.md` |
 | Change socket handling | `client/apps/client/lib/src/features/game_lobby/controllers/`, generated socket/event models in `client/packages/openapi/` |
-| Change package editor | `client/packages/oq_editor/`, `.agents/skills/package-editor-change/SKILL.md` |
-| Change SIQ import | `client/packages/siq_file/`, `client/packages/oq_editor/lib/utils/siq_import_helper.dart`, `docs/specs/siq-compatibility-matrix.md` |
-| Change package compression/export | `client/packages/oq_compress/`, `client/packages/oq_editor/lib/utils/oq_package_archiver.dart` |
+| Change package editor | `client/apps/client/lib/src/features/package_editor/`, `.agents/skills/package-editor-change/SKILL.md` |
+| Change SIQ import | `client/packages/siq_file/`, `client/apps/client/lib/src/core/services/package_service.dart`, `client/apps/client/lib/workers/package_service.dart`, `docs/specs/siq-compatibility-matrix.md` |
+| Change package compression/export | `client/packages/oq_compress/`, `client/apps/client/lib/src/features/package_editor/services/package_editor_io.dart`, `client/apps/client/lib/workers/package_service.dart` |
 | Add user-facing string | localization JSON in `client/apps/client/assets/localization/`, generated locale keys |
 | Change generated API models | `openapi/schema.json`, `client/packages/openapi/`, `openapi/AGENTS.md`, `.agents/skills/openapi-sdk-change/SKILL.md` |
 
