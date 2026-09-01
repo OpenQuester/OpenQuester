@@ -14,6 +14,7 @@ class MediaPreviewDialog extends StatefulWidget {
   const MediaPreviewDialog({
     required this.mediaFile,
     this.autoPlay = true,
+    this.showInfo = true,
     super.key,
   }) : _url = null,
        _type = null,
@@ -25,6 +26,7 @@ class MediaPreviewDialog extends StatefulWidget {
     required PackageFileType type,
     String? fileName,
     this.autoPlay = true,
+    this.showInfo = true,
     super.key,
   }) : mediaFile = null,
        _url = url,
@@ -36,17 +38,13 @@ class MediaPreviewDialog extends StatefulWidget {
   final PackageFileType? _type;
   final String? _fileName;
   final bool autoPlay;
+  final bool showInfo;
 
   /// Show the media preview dialog
-  static Future<void> show(
-    BuildContext context,
-    UiMediaFile mediaFile,
-  ) {
-    return showDialog<void>(
-      context: context,
-      builder: (context) => MediaPreviewDialog(mediaFile: mediaFile),
-    );
-  }
+  Future<void> show(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (context) => this,
+  );
 
   /// Show the media preview dialog from URL
   static Future<void> showFromUrl(
@@ -112,41 +110,7 @@ class _MediaPreviewDialogState extends State<MediaPreviewDialog> {
             child: Column(
               children: [
                 _buildMediaContent(context).center().expand(),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _getFileName(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _getFileInfo(),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.7),
-                          fontSize: 12,
-                        ),
-                      ),
-                      if (_shouldShowControls()) ...[
-                        const SizedBox(height: 8),
-                        VideoControls(
-                          controller: _reference.sharedController!,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+                if (widget.showInfo) _buildMediaInfo(),
               ],
             ),
           ),
@@ -163,6 +127,44 @@ class _MediaPreviewDialogState extends State<MediaPreviewDialog> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Container _buildMediaInfo() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _getFileName(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _getFileInfo(),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.7),
+              fontSize: 12,
+            ),
+          ),
+          if (_shouldShowControls()) ...[
+            const SizedBox(height: 8),
+            VideoControls(
+              controller: _reference.sharedController!,
+            ),
+          ],
         ],
       ),
     );

@@ -41,6 +41,9 @@ export class RedisCache implements ICache {
     }
   }
 
+  // TODO: Implement cache for user list and packages list using query params normalization + hashing
+  // * so we collect all query params, sort them in same order always no matter how we got them, and then hash the resulting string to get a fixed length key part
+  // * also we add missing query params keys to the string with empty value always, so that we don't have cache misses for same queries with missing optional params
   public async set<T>(key: string, value: T, ttlMilliseconds?: number): Promise<void> {
     const serialized = JSON.stringify(value);
 

@@ -10,6 +10,7 @@ import 'package:video_player/video_player.dart';
 class MediaFileReference {
   MediaFileReference({
     required this.platformFile,
+    this.sharedController,
     this.url,
   });
 

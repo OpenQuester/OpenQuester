@@ -31,7 +31,7 @@ class GameQuestionLayout extends WatchingWidget {
 
     //TODO: Fix overflow
     return Column(
-      spacing: 16,
+      spacing: questionMediaOnLeft ? 0 : 16,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const GameQuestionTimer(),

@@ -34,6 +34,7 @@ melos run gen_locale      # localization keys
 melos run analyze         # dart analyze --fatal-infos
 melos run test            # tests across packages
 melos run format          # dart format lib
+melos run format_check    # verify formatting without changing files
 ```
 
 Use focused package/app commands only when you know the affected scope. Report exactly what was run.

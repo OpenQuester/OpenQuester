@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:openquester/openquester.dart';
+import 'package:oq_editor/view/dialogs/media_preview_dialog.dart';
 import 'package:video_player/video_player.dart';
 
 class GameQuestionMediaWidget extends WatchingWidget {
@@ -59,6 +60,17 @@ class GameQuestionMediaWidget extends WatchingWidget {
     }
 
     if (waitingForPlayers) return child;
+
+    if (url != null) {
+      child = InkWell(
+        onTap: () => MediaPreviewDialog.fromUrl(
+          url: url,
+          type: fileType,
+          showInfo: false,
+        ).show(context),
+        child: child,
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(

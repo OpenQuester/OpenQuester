@@ -252,9 +252,7 @@ class _ShowmanControls extends WatchingWidget {
           : context.theme.colorScheme.error;
       return ButtonStyle(
         backgroundColor: WidgetStatePropertyAll(background),
-        foregroundColor: WidgetStatePropertyAll(
-          Colors.black.withBrightness(-.4),
-        ),
+        foregroundColor: WidgetStatePropertyAll(contrastOnColor(background)),
       );
     }
 

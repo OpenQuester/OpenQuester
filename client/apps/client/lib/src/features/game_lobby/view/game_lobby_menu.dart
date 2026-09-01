@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:openquester/common_imports.dart';
 
 class GameLobbyMenu extends WatchingWidget {
@@ -18,15 +17,23 @@ class GameLobbyMenu extends WatchingWidget {
     );
 
     return PopupMenuButton(
-      itemBuilder: (BuildContext context) => [
+      tooltip: LocaleKeys.more_actions.tr(),
+      itemBuilder: (BuildContext menuContext) => [
         const PopupMenuItem<void>(child: _VolumeSlider()),
         PopupMenuItem<void>(
-          child: Text(LocaleKeys.copy_game_link.tr()),
+          child: Text(LocaleKeys.copy_invite_link.tr()),
           onTap: () async {
-            final gameId = getIt<GameLobbyController>().gameId;
-            if (gameId == null) return;
-            final link = Env.clientAppUrl.replace(path: '/games/$gameId');
-            await Clipboard.setData(ClipboardData(text: link.toString()));
+            final copied = await copyGameInviteLinkToClipboard(
+              context,
+              gameId: getIt<GameLobbyController>().gameId,
+            );
+            if (!copied || !getIt.isRegistered<ToastController>()) return;
+
+            await getIt<ToastController>().show(
+              LocaleKeys.invite_link_copied.tr(),
+              type: ToastType.success,
+              showFor: const Duration(seconds: 2),
+            );
           },
         ),
         if (!lobbyEditorMode)
@@ -49,7 +56,7 @@ class GameLobbyMenu extends WatchingWidget {
             onTap: () async {
               final result = await ConfirmDialog(
                 title: LocaleKeys.question_sure_skip_round.tr(),
-              ).show(context);
+              ).show(menuContext);
               if (!result) return;
               getIt<GameLobbyController>().skipRound();
             },
@@ -59,7 +66,7 @@ class GameLobbyMenu extends WatchingWidget {
             onTap: () async {
               final result = await ConfirmDialog(
                 title: LocaleKeys.delete_lobby_confirmation.tr(),
-              ).show(context);
+              ).show(menuContext);
               if (!result) return;
               await getIt<GamesListController>().deleteLobby(
                 getIt<GameLobbyController>().gameListData.value!.id,
