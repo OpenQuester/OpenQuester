@@ -8,6 +8,16 @@
 - After each transport scenario, call `harness.resetState()` only after flow/client cleanup; it
   rejects leaked sockets before clearing Redis so one case cannot contaminate the next.
 - Cleanup failures must fail the test run; do not catch and only log them.
+- Legacy suites that still call `bootstrapTestApp` directly must finish with
+  `teardownTestAppResources(cleanup, testEnv)`, which closes the app before its shared Redis,
+  database, and logger environment and preserves failures from both stages.
+- Use `runAndWaitForEvent` when a multi-step operation is expected to produce a terminal event; it
+  arms the listener first and cancels that wait if an earlier step fails.
+- Await every event assertion. The shared event utility observes and cancels unfinished waits before
+  client cleanup so a primary failure cannot leak listeners, timers, or secondary timeout noise.
+  Lint rejects floating or unused waits, and the transport policy rejects explicit `void` escapes.
+- Use `withEventJournal` for direct journal-backed assertions so scenario and disposal failures are
+  both preserved.
 - Do not use direct sleeps for readiness, event delivery, or cleanup.
 - Do not copy lifecycle setup or teardown code into individual suites.
 - Do not add production hot-path instrumentation solely to support tests.
@@ -82,3 +92,6 @@ coverage.
 lifecycle and rejects copied bootstrap/cleanup, warn-and-skip branches, and hand-written event
 timers outside the queue-mechanics stress collectors. It also rejects disabled/focused cases and
 catch-all branches that could turn an infrastructure failure into a passing assertion.
+
+`tests/e2e/contracts/TestLifecyclePolicy.test.ts` keeps remaining direct test-app callers on the
+ordered teardown helper and rejects teardown failures that are caught and only logged.

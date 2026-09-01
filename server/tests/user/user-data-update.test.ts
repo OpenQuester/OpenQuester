@@ -17,7 +17,7 @@ import { User } from "infrastructure/database/models/User";
 import { UserRepository } from "infrastructure/database/repositories/UserRepository";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
+import { bootstrapTestApp, teardownTestAppResources } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
@@ -36,21 +36,16 @@ describe("User Data Update on Game Join", () => {
     testEnv = new TestEnvironment(logger);
     await testEnv.setup();
     const boot = await bootstrapTestApp(testEnv.getDatabase());
+    cleanup = boot.cleanup;
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
     userRepository = container.resolve(UserRepository);
-    cleanup = boot.cleanup;
     serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await teardownTestAppResources(cleanup, testEnv);
   });
 
   beforeEach(async () => {

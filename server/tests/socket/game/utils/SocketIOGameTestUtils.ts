@@ -300,7 +300,7 @@ export class SocketGameTestUtils {
     return this.eventUtils.waitForQueueLengthAtLeast(gameId, expectedLength, timeout);
   }
 
-  public async waitForSubmittedActions(
+  public waitForSubmittedActions(
     gameId: string,
     expectedCount: number,
     actionType?: GameActionType,
@@ -318,32 +318,73 @@ export class SocketGameTestUtils {
   }
 
   public async cleanupOwnedClients(): Promise<void> {
-    return this.lobbyUtils.cleanupOwnedClients();
+    const failures: Error[] = [];
+
+    try {
+      await this.eventUtils.cancelPendingEventWaits();
+    } catch (error) {
+      failures.push(error instanceof Error ? error : new Error(String(error)));
+    }
+    try {
+      await this.lobbyUtils.cleanupOwnedClients();
+    } catch (error) {
+      failures.push(error instanceof Error ? error : new Error(String(error)));
+    }
+
+    if (failures.length === 1) {
+      throw failures[0];
+    }
+    if (failures.length > 1) {
+      throw new AggregateError(failures, "Socket game client cleanup failed");
+    }
   }
 
-  public async waitForEvent<T = any>(
+  public waitForEvent<T = any>(
     socket: GameClientSocket,
     event: string,
     timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
   ): Promise<T> {
-    return this.eventUtils.waitForEvent(socket, event, timeout);
+    return this.createObservedEventWait(() => this.eventUtils.waitForEvent(socket, event, timeout));
   }
 
-  public async waitForEventMatching<T = any>(
+  public runAndWaitForEvent<T = any>(
+    socket: GameClientSocket,
+    event: string,
+    operation: () => void | Promise<void>,
+    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+  ): Promise<T> {
+    return this.eventUtils.runAndWaitForEvent(socket, event, operation, timeout);
+  }
+
+  public waitForEventMatching<T = any>(
     socket: GameClientSocket,
     event: string,
     predicate: (data: T) => boolean,
     timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
   ): Promise<T> {
-    return this.eventUtils.waitForEventMatching(socket, event, predicate, timeout);
+    return this.createObservedEventWait(() =>
+      this.eventUtils.waitForEventMatching(socket, event, predicate, timeout)
+    );
   }
 
-  public async waitForNoEvent(
+  public waitForNoEvent(
     socket: GameClientSocket,
     event: string,
     timeout: number = TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS
   ): Promise<void> {
-    return this.eventUtils.waitForNoEvent(socket, event, timeout);
+    return this.createObservedEventWait(() =>
+      this.eventUtils.waitForNoEvent(socket, event, timeout)
+    );
+  }
+
+  private createObservedEventWait<T>(createWait: () => Promise<T>): Promise<T> {
+    try {
+      return createWait();
+    } catch (error) {
+      const rejectedWait = Promise.reject<T>(error);
+      void rejectedWait.catch(() => undefined);
+      return rejectedWait;
+    }
   }
 
   public async getGameFromGameService(gameId: string): Promise<Game> {
@@ -366,18 +407,22 @@ export class SocketGameTestUtils {
     return this.flowUtils.setPlayerUnready(playerSocket);
   }
 
-  public async waitForPlayerReady(
+  public waitForPlayerReady(
     socket: GameClientSocket,
     expectedPlayerId?: number
   ): Promise<PlayerReadinessBroadcastData> {
-    return this.flowUtils.waitForPlayerReady(socket, expectedPlayerId);
+    return this.createObservedEventWait(() =>
+      this.flowUtils.waitForPlayerReady(socket, expectedPlayerId)
+    );
   }
 
-  public async waitForPlayerUnready(
+  public waitForPlayerUnready(
     socket: GameClientSocket,
     expectedPlayerId?: number
   ): Promise<PlayerReadinessBroadcastData> {
-    return this.flowUtils.waitForPlayerUnready(socket, expectedPlayerId);
+    return this.createObservedEventWait(() =>
+      this.flowUtils.waitForPlayerUnready(socket, expectedPlayerId)
+    );
   }
 
   public async areAllPlayersReady(gameId: string): Promise<boolean> {

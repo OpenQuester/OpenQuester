@@ -580,25 +580,29 @@ export class SocketGameTestFlowUtils {
     );
   }
 
-  public async waitForPlayerReady(
+  public waitForPlayerReady(
     socket: GameClientSocket,
     expectedPlayerId?: number
   ): Promise<PlayerReadinessBroadcastData> {
-    return this.eventUtils.waitForEventMatching<PlayerReadinessBroadcastData>(
-      socket,
-      SocketIOGameEvents.PLAYER_READY,
-      (data) => expectedPlayerId === undefined || data.playerId === expectedPlayerId
+    return createObservedWait(() =>
+      this.eventUtils.waitForEventMatching<PlayerReadinessBroadcastData>(
+        socket,
+        SocketIOGameEvents.PLAYER_READY,
+        (data) => expectedPlayerId === undefined || data.playerId === expectedPlayerId
+      )
     );
   }
 
-  public async waitForPlayerUnready(
+  public waitForPlayerUnready(
     socket: GameClientSocket,
     expectedPlayerId?: number
   ): Promise<PlayerReadinessBroadcastData> {
-    return this.eventUtils.waitForEventMatching<PlayerReadinessBroadcastData>(
-      socket,
-      SocketIOGameEvents.PLAYER_UNREADY,
-      (data) => expectedPlayerId === undefined || data.playerId === expectedPlayerId
+    return createObservedWait(() =>
+      this.eventUtils.waitForEventMatching<PlayerReadinessBroadcastData>(
+        socket,
+        SocketIOGameEvents.PLAYER_UNREADY,
+        (data) => expectedPlayerId === undefined || data.playerId === expectedPlayerId
+      )
     );
   }
 
@@ -1030,4 +1034,14 @@ export class SocketGameTestFlowUtils {
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+function createObservedWait<T>(createWait: () => Promise<T>): Promise<T> {
+  try {
+    return createWait();
+  } catch (error) {
+    const rejectedWait = Promise.reject<T>(error);
+    void rejectedWait.catch(() => undefined);
+    return rejectedWait;
+  }
 }

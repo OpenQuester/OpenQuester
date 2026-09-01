@@ -49,6 +49,7 @@ export interface NoEventExpectation<TArgs extends readonly unknown[] = readonly 
 }
 
 type OnAnyHandler = (event: string, ...args: unknown[]) => void;
+type EventJournalCompletionMode = "finish" | "abort";
 
 interface JournalAttachment {
   readonly actor: JournalActor;
@@ -91,7 +92,8 @@ export class EventJournal {
   private nextSequence = 1;
   private nextWaitId = 1;
   private disposed = false;
-  private disposePromise: Promise<void> | undefined;
+  private completionMode: EventJournalCompletionMode | undefined;
+  private completionPromise: Promise<void> | undefined;
 
   public attach(actor: JournalActor): void {
     this.assertNotDisposed();
@@ -196,16 +198,41 @@ export class EventJournal {
   }
 
   public dispose(): Promise<void> {
-    if (!this.disposePromise) {
-      this.disposePromise = this.disposeInternal();
-    }
-
-    return this.disposePromise;
+    return this.complete("abort");
   }
 
-  private async disposeInternal(): Promise<void> {
+  public finish(): Promise<void> {
+    return this.complete("finish");
+  }
+
+  private complete(mode: EventJournalCompletionMode): Promise<void> {
+    if (this.completionPromise) {
+      if (this.completionMode !== mode) {
+        throw new Error(
+          `Event journal completion already started in ${this.completionMode ?? "unknown"} mode`
+        );
+      }
+
+      return this.completionPromise;
+    }
+
+    this.completionMode = mode;
+    this.completionPromise = this.disposeInternal(mode);
+    return this.completionPromise;
+  }
+
+  private async disposeInternal(mode: EventJournalCompletionMode): Promise<void> {
     this.disposed = true;
     const infrastructureFailures: Error[] = [];
+
+    if (mode === "finish" && (this.eventWaits.size > 0 || this.noEventWaits.size > 0)) {
+      infrastructureFailures.push(
+        new Error(
+          `Event journal finished with pending assertions: ` +
+            `${this.eventWaits.size} event waits, ${this.noEventWaits.size} no-event waits`
+        )
+      );
+    }
 
     for (const [actorLabel, attachment] of [...this.attachments.entries()]) {
       try {
@@ -234,7 +261,7 @@ export class EventJournal {
     if (infrastructureFailures.length > 0) {
       throw new AggregateError(
         infrastructureFailures,
-        `Event journal disposal failed: ${infrastructureFailures
+        `Event journal ${mode} failed: ${infrastructureFailures
           .map((failure) => failure.message)
           .join("; ")}`
       );
@@ -446,6 +473,47 @@ export class EventJournal {
       throw new EventJournalDisposedError("Event journal is disposed");
     }
   }
+}
+
+/** Runs a journal-backed assertion and preserves both scenario and disposal failures. */
+export async function withEventJournal<T>(
+  callback: (journal: EventJournal) => Promise<T>
+): Promise<T> {
+  const journal = new EventJournal();
+  let result: T | undefined;
+  let scenarioFailure: Error | undefined;
+
+  try {
+    result = await callback(journal);
+  } catch (error) {
+    scenarioFailure = toError(error);
+  }
+
+  let cleanupFailure: Error | undefined;
+  try {
+    if (scenarioFailure) {
+      await journal.dispose();
+    } else {
+      await journal.finish();
+    }
+  } catch (error) {
+    cleanupFailure = toError(error);
+  }
+
+  if (scenarioFailure && cleanupFailure) {
+    throw new AggregateError(
+      [scenarioFailure, cleanupFailure],
+      `Event journal scenario and cleanup both failed: ${scenarioFailure.message}; ${cleanupFailure.message}`
+    );
+  }
+  if (scenarioFailure) {
+    throw scenarioFailure;
+  }
+  if (cleanupFailure) {
+    throw cleanupFailure;
+  }
+
+  return result as T;
 }
 
 function createDeferred<T>(): Deferred<T> {

@@ -10,7 +10,7 @@ import { Database } from "infrastructure/database/Database";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { Environment } from "shared/config/Environment";
 import { RedisConfig } from "shared/config/RedisConfig";
-import { createTestAppRuntime } from "tests/TestApp";
+import { createTestAppRuntime, teardownTestAppResources } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { flattenErrorMessages, getRejectedError } from "tests/e2e/harness/TestPromiseUtils";
@@ -183,6 +183,55 @@ describe("createTestAppRuntime lifecycle", () => {
     expect(containerClear).toHaveBeenCalledTimes(1);
     expect(loggerClose).toHaveBeenCalledTimes(1);
     expect(mockCreatedHttpServer?.eventNames()).toEqual([]);
+  });
+
+  it("tears down the app before its shared test environment", async () => {
+    const order: string[] = [];
+
+    await teardownTestAppResources(
+      async () => {
+        order.push("app");
+      },
+      {
+        teardown: async () => {
+          order.push("environment");
+        }
+      }
+    );
+
+    expect(order).toEqual(["app", "environment"]);
+  });
+
+  it("does not add a teardown failure when startup created no resources", async () => {
+    await expect(teardownTestAppResources(undefined, undefined)).resolves.toBeUndefined();
+  });
+
+  it("runs both teardown stages and preserves every failure", async () => {
+    const appFailure = new AggregateError(
+      [new Error("Socket.IO close failed")],
+      "ServeApi shutdown failed"
+    );
+    const environmentFailure = new Error("Database teardown failed");
+    const environmentTeardown = jest
+      .fn<() => Promise<void>>()
+      .mockRejectedValue(environmentFailure);
+
+    const error = await getRejectedError(
+      teardownTestAppResources(
+        async () => {
+          throw appFailure;
+        },
+        { teardown: environmentTeardown }
+      )
+    );
+
+    expect(environmentTeardown).toHaveBeenCalledTimes(1);
+    expect(flattenErrorMessages(error)).toEqual(
+      expect.arrayContaining([
+        "Test app cleanup failed: ServeApi shutdown failed; Socket.IO close failed",
+        "Test environment teardown failed: Database teardown failed"
+      ])
+    );
   });
 
   it("force-closes transport resources when ServeApi shutdown rejects", async () => {

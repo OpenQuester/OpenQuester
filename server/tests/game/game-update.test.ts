@@ -20,7 +20,7 @@ import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
+import { bootstrapTestApp, teardownTestAppResources } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { PackageUtils } from "tests/utils/PackageUtils";
 
@@ -47,12 +47,7 @@ describe("Game REST update", () => {
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await teardownTestAppResources(cleanup, testEnv);
   });
 
   beforeEach(async () => {

@@ -9,7 +9,7 @@ import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { LogTag } from "shared/logging/LogTag";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
+import { bootstrapTestApp, teardownTestAppResources } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { LogTestUtils, TestLogEntry } from "tests/utils/LogTestUtils";
 import { deleteAll } from "tests/utils/TypeOrmTestUtils";
@@ -57,11 +57,11 @@ describe("Admin Logs API", () => {
     testEnv = new TestEnvironment(logger);
     await testEnv.setup();
     const boot = await bootstrapTestApp(testEnv.getDatabase());
+    cleanup = boot.cleanup;
     app = boot.app;
     dataSource = boot.dataSource;
     userRepo = dataSource.getRepository<User>("User");
     permRepo = dataSource.getRepository<Permission>("Permission");
-    cleanup = boot.cleanup;
   });
 
   beforeEach(async () => {
@@ -118,12 +118,28 @@ describe("Admin Logs API", () => {
   });
 
   afterAll(async () => {
+    let lifecycleError: unknown;
+
     try {
-      logTestUtils.teardown();
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
+      await teardownTestAppResources(cleanup, testEnv);
+    } catch (error) {
+      lifecycleError = error;
+    }
+
+    try {
+      logTestUtils?.teardown();
+    } catch (logCleanupError) {
+      if (lifecycleError) {
+        throw new AggregateError(
+          [lifecycleError, logCleanupError],
+          "Admin log test teardown failed"
+        );
+      }
+      throw logCleanupError;
+    }
+
+    if (lifecycleError) {
+      throw lifecycleError;
     }
   });
 

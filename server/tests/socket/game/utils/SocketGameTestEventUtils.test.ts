@@ -195,6 +195,55 @@ describe("SocketGameTestEventUtils", () => {
     expect(jest.getTimerCount()).toBe(0);
   });
 
+  it("cancels its armed wait when a coordinated async operation rejects", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const socket = new FakeGameClientSocket();
+
+    await expect(
+      fixture.utils.runAndWaitForEvent(
+        socket as unknown as GameClientSocket,
+        "target",
+        async () => {
+          await Promise.resolve();
+          throw new Error("operation failed");
+        },
+        25
+      )
+    ).rejects.toThrow("operation failed");
+
+    expect(socket.listenerCount("target")).toBe(0);
+    expect(socket.listenerCount("disconnect")).toBe(0);
+    expect(socket.listenerCount("connect_error")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("cancels every outstanding event assertion without leaking listeners or timers", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const socket = new FakeGameClientSocket();
+    const eventWait = fixture.utils.waitForEvent(
+      socket as unknown as GameClientSocket,
+      "target",
+      25
+    );
+    const noEventWait = fixture.utils.waitForNoEvent(
+      socket as unknown as GameClientSocket,
+      "quiet",
+      25
+    );
+
+    await expect(fixture.utils.cancelPendingEventWaits()).resolves.toBe(2);
+    await expect(fixture.utils.cancelPendingEventWaits()).resolves.toBe(0);
+    await expect(eventWait).rejects.toThrow('event wait aborted for "target"');
+    await expect(noEventWait).rejects.toThrow('no-event wait aborted for "quiet"');
+    expect(socket.listenerCount("target")).toBe(0);
+    expect(socket.listenerCount("quiet")).toBe(0);
+    expect(socket.listenerCount("disconnect")).toBe(0);
+    expect(socket.listenerCount("connect_error")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
   it("cleans a no-event wait before accepting later traffic", async () => {
     jest.useFakeTimers();
     const fixture = createFixture();
@@ -521,6 +570,18 @@ describe("SocketGameTestEventUtils", () => {
     await jest.advanceTimersByTimeAsync(25);
     expect((await timeoutError)?.message).toContain("accepted/enqueued");
     expect(eventEmitter.listenerCount(GAME_ID)).toBe(listenerCount);
+
+    const canceledWait = fixture.utils.waitForSubmittedActions(
+      GAME_ID,
+      1,
+      GameActionType.MEDIA_DOWNLOADED,
+      25
+    );
+    expect(eventEmitter.listenerCount(GAME_ID)).toBe(listenerCount + 1);
+    await expect(fixture.utils.cancelPendingEventWaits()).resolves.toBe(1);
+    await expect(canceledWait).rejects.toThrow("Accepted action probe disposed");
+    expect(eventEmitter.listenerCount(GAME_ID)).toBe(listenerCount);
+    expect(jest.getTimerCount()).toBe(0);
   });
 });
 

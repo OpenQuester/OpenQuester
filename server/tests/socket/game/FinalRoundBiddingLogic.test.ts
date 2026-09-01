@@ -37,11 +37,13 @@ describe("Final Round Bidding Logic", () => {
     event: string,
     playerIds: readonly number[]
   ): Promise<T[]> {
-    return Promise.all(
+    const broadcasts = Promise.all(
       playerIds.map((playerId) =>
         suite.utils.waitForEventMatching<T>(socket, event, (data) => data.playerId === playerId)
       )
     );
+    void broadcasts.catch(() => undefined);
+    return broadcasts;
   }
 
   describe("Basic Bidding Flow", () => {

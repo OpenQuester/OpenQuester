@@ -62,18 +62,17 @@ describe("Socket Game State Tests", () => {
       // Start game
       await utils.startGame(showmanSocket);
 
-      const nextRoundPromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.NEXT_ROUND);
-      const gameFinishedPromise = utils.waitForEvent<boolean>(
+      const gameFinished = await utils.runAndWaitForEvent<boolean>(
         playerSockets[0],
-        SocketIOGameEvents.GAME_FINISHED
+        SocketIOGameEvents.GAME_FINISHED,
+        async () => {
+          await utils.progressToNextRound(showmanSocket);
+          showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
+        }
       );
 
       // Simulate game finish by forcing next round twice (package has 2 rounds)
-      showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
-      await nextRoundPromise;
-      showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
-
-      expect(await gameFinishedPromise).toBe(true);
+      expect(gameFinished).toBe(true);
     });
 
     it("should handle game finish via all questions played", async () => {
@@ -87,34 +86,23 @@ describe("Socket Game State Tests", () => {
       showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
       await nextRoundPromise;
 
-      const gameFinishedPromise = utils.waitForEvent<boolean>(
+      const questionId = await utils.getFirstAvailableQuestionId(gameId);
+      const gameFinished = await utils.runAndWaitForEvent<boolean>(
         playerSockets[0],
-        SocketIOGameEvents.GAME_FINISHED
+        SocketIOGameEvents.GAME_FINISHED,
+        () =>
+          utils.pickAndCompleteQuestion(
+            showmanSocket,
+            playerSockets,
+            questionId,
+            true,
+            AnswerResultType.CORRECT,
+            100,
+            0
+          )
       );
-      let gameFinished = false;
-      const markedGameFinishedPromise = gameFinishedPromise.then((data) => {
-        gameFinished = true;
-        expect(data).toBe(true);
-      });
 
-      while (!gameFinished) {
-        const questionIds = await utils.getAllAvailableQuestionIds(gameId);
-        if (questionIds.length === 0) {
-          break;
-        }
-
-        await utils.pickAndCompleteQuestion(
-          showmanSocket,
-          playerSockets,
-          questionIds[0],
-          true,
-          AnswerResultType.CORRECT,
-          100,
-          0
-        );
-      }
-
-      await markedGameFinishedPromise;
+      expect(gameFinished).toBe(true);
     });
 
     it("should handle game finish via all questions played (last question skipped)", async () => {
@@ -181,26 +169,14 @@ describe("Socket Game State Tests", () => {
       // For the last question of Round 2, pick it then skip it
       const lastQuestionId = round2Questions[round2Questions.length - 1];
 
-      // Setup listener for game finish
-      const gameFinishedPromise = utils.waitForEvent(
+      const gameFinished = await utils.runAndWaitForEvent(
         showmanSocket,
-        SocketIOGameEvents.GAME_FINISHED
+        SocketIOGameEvents.GAME_FINISHED,
+        () => utils.pickAndCompleteQuestion(showmanSocket, playerSockets, lastQuestionId, false)
       );
-
-      await utils.pickQuestion(showmanSocket, lastQuestionId, playerSockets);
-
-      const showAnswerStart = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOGameEvents.ANSWER_SHOW_START
-      );
-
-      // Skip the last question
-      await utils.skipQuestion(showmanSocket);
-      await showAnswerStart;
-      await utils.skipShowAnswer(showmanSocket);
 
       // Verify game finished
-      await gameFinishedPromise;
+      expect(gameFinished).toBe(true);
       const game = await utils.getGameFromGameService(gameId);
       expect(game?.finishedAt).toBeTruthy();
     });

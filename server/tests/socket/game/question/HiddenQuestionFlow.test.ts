@@ -55,11 +55,10 @@ describe("Hidden Question Flow Tests", () => {
         SocketIOGameEvents.QUESTION_DATA
       );
 
-      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: hiddenQuestionId
-      });
-
-      const hiddenQuestionData = await hiddenQuestionDataPromise;
+      const [, hiddenQuestionData] = await Promise.all([
+        utils.pickQuestion(showmanSocket, hiddenQuestionId, playerSockets),
+        hiddenQuestionDataPromise
+      ]);
 
       // Verify that the question data now reveals the actual price
       expect(hiddenQuestionData.data).toBeDefined();
@@ -71,9 +70,6 @@ describe("Hidden Question Flow Tests", () => {
       // Verify this is indeed a hidden question
       expect(hiddenQuestionData.data.type).toBe(PackageQuestionType.HIDDEN);
       expect(hiddenQuestionData.data.isHidden).toBe(true);
-
-      // Wait for media download phase and emit MEDIA_DOWNLOADED for the player
-      await utils.waitForMediaDownload(showmanSocket, playerSockets);
 
       // Verify game state shows we're now showing the question
       const showingGameState = await utils.getGameState(gameId);

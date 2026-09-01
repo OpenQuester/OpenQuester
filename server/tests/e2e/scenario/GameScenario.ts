@@ -146,7 +146,11 @@ export class GameScenario {
     this.acceptedActionProbes.clear();
 
     try {
-      await this.journal.dispose();
+      if (mode === "finish") {
+        await this.journal.finish();
+      } else {
+        await this.journal.dispose();
+      }
     } catch (error) {
       failures.push(toError(error));
     } finally {

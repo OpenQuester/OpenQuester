@@ -14,7 +14,7 @@ import { QuestionAnswerResultEventPayload } from "domain/types/socket/events/gam
 import { QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
-import { EventJournal } from "tests/e2e/scenario/EventJournal";
+import { withEventJournal } from "tests/e2e/scenario/EventJournal";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
@@ -215,11 +215,10 @@ describe("Socket Question Flow Tests", () => {
     it("should handle simultaneous answer attempts", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
       const { showmanSocket, playerSockets } = setup;
-      const journal = new EventJournal();
-      const showmanActor = { label: "simultaneous-answer-showman", socket: showmanSocket };
-      journal.attach(showmanActor);
 
-      try {
+      await withEventJournal(async (journal) => {
+        const showmanActor = { label: "simultaneous-answer-showman", socket: showmanSocket };
+        journal.attach(showmanActor);
         await utils.startGame(showmanSocket);
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
@@ -256,9 +255,7 @@ describe("Socket Question Flow Tests", () => {
               record.event === SocketIOGameEvents.QUESTION_ANSWER
           );
         expect(answerEvents).toHaveLength(1);
-      } finally {
-        await journal.dispose();
-      }
+      });
     });
 
     it("should handle question skip during answer submission", async () => {
@@ -697,12 +694,11 @@ describe("Socket Question Flow Tests", () => {
       await utils.startGame(showmanSocket);
       await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
-      const journal = new EventJournal();
-      const showmanActor = { label: "all-skipped-showman", socket: showmanSocket };
-      journal.attach(showmanActor);
-      const afterSkips = journal.mark();
+      await withEventJournal(async (journal) => {
+        const showmanActor = { label: "all-skipped-showman", socket: showmanSocket };
+        journal.attach(showmanActor);
+        const afterSkips = journal.mark();
 
-      try {
         // Listen for automatic question finish when all players skip
         const questionFinishPromise = journal.expectEvent<[QuestionFinishEventPayload]>({
           actor: showmanActor,
@@ -752,9 +748,7 @@ describe("Socket Question Flow Tests", () => {
         expect(
           skipEvents.map((record) => (record.args[0] as QuestionSkipBroadcastData).playerId)
         ).toEqual(setup.playerUsers.map((player) => player.id));
-      } finally {
-        await journal.dispose();
-      }
+      });
     });
 
     it("should update game state with skipped players", async () => {

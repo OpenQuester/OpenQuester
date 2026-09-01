@@ -68,6 +68,11 @@ interface PendingAcceptedActionWait {
   readonly timeout: NodeJS.Timeout;
 }
 
+interface PendingTestWait {
+  readonly cancel: () => void;
+  readonly promise: Promise<unknown>;
+}
+
 /**
  * Watches test-only accepted queue records for one game/filter. It deliberately
  * retains history after a count wait resolves so callers can make exact
@@ -217,6 +222,7 @@ export class SocketGameTestEventUtils {
   private readonly lockService: GameActionLockService;
   private readonly queueService: GameActionQueueService;
   private readonly actionExecutor: GameActionExecutor;
+  private readonly pendingTestWaits = new Set<PendingTestWait>();
 
   public constructor(dependencies: SocketGameTestEventUtilsDependencies = {}) {
     this.lockService = dependencies.lockService ?? container.resolve(GameActionLockService);
@@ -251,7 +257,8 @@ export class SocketGameTestEventUtils {
       );
     }
 
-    return new Promise((resolve, reject) => {
+    let cancelWait = (): void => undefined;
+    const promise = new Promise<T>((resolve, reject) => {
       let timeoutId: NodeJS.Timeout | null = null;
       let settled = false;
 
@@ -333,6 +340,7 @@ export class SocketGameTestEventUtils {
           )
         );
       };
+      cancelWait = onAbort;
 
       const onTimeout = (): void => {
         settle(() =>
@@ -360,6 +368,8 @@ export class SocketGameTestEventUtils {
       signal?.addEventListener("abort", onAbort, { once: true });
       timeoutId = setTimeout(onTimeout, effectiveTimeout);
     });
+
+    return this.trackSocketWait(promise, () => cancelWait());
   }
 
   public async emitAndWaitForEvent<T = any>(
@@ -369,8 +379,38 @@ export class SocketGameTestEventUtils {
     timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
     predicate: (data: T) => boolean = () => true
   ): Promise<T> {
+    return this.runAndWaitForEvent(
+      socket,
+      event,
+      () => {
+        try {
+          emit();
+        } catch (error) {
+          const cause = toError(error);
+          throw new Error(
+            `Socket.IO emit failed while waiting for event "${event}" ` +
+              `${formatSocketContext(socket, socket.id)}: ${cause.message}`,
+            { cause }
+          );
+        }
+      },
+      timeout,
+      predicate
+    );
+  }
+
+  /**
+   * Arms an event wait around a bounded async operation and cancels the wait if
+   * that operation fails before the expected event arrives.
+   */
+  public async runAndWaitForEvent<T = any>(
+    socket: GameClientSocket,
+    event: string,
+    operation: () => void | Promise<void>,
+    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+    predicate: (data: T) => boolean = () => true
+  ): Promise<T> {
     const controller = new AbortController();
-    const socketId = socket.id;
     const eventPromise = this.waitForEventMatching(
       socket,
       event,
@@ -381,16 +421,7 @@ export class SocketGameTestEventUtils {
     void eventPromise.catch(() => undefined);
 
     try {
-      try {
-        emit();
-      } catch (error) {
-        const cause = toError(error);
-        throw new Error(
-          `Socket.IO emit failed while waiting for event "${event}" ` +
-            `${formatSocketContext(socket, socketId)}: ${cause.message}`,
-          { cause }
-        );
-      }
+      await operation();
       return await eventPromise;
     } finally {
       controller.abort();
@@ -401,7 +432,8 @@ export class SocketGameTestEventUtils {
   public waitForNoEvent(
     socket: GameClientSocket,
     event: string,
-    timeout: number = TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS
+    timeout: number = TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,
+    signal?: AbortSignal
   ): Promise<void> {
     const effectiveTimeout = Math.min(timeout, TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS);
     const socketId = socket.id;
@@ -413,7 +445,8 @@ export class SocketGameTestEventUtils {
       );
     }
 
-    return new Promise((resolve, reject) => {
+    let cancelWait = (): void => undefined;
+    const promise = new Promise<void>((resolve, reject) => {
       let timeoutId: NodeJS.Timeout | null = null;
       let settled = false;
 
@@ -429,6 +462,7 @@ export class SocketGameTestEventUtils {
         if (event !== "disconnect") {
           socket.removeListener("disconnect", onDisconnect);
         }
+        signal?.removeEventListener("abort", onAbort);
       };
 
       const settle = (action: () => void): void => {
@@ -475,9 +509,25 @@ export class SocketGameTestEventUtils {
         );
       };
 
+      const onAbort = (): void => {
+        settle(() =>
+          reject(
+            new Error(
+              `Socket.IO no-event wait aborted for "${event}" ${formatSocketContext(socket, socketId)}`
+            )
+          )
+        );
+      };
+      cancelWait = onAbort;
+
       const onTimeout = (): void => {
         settle(resolve);
       };
+
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
 
       socket.once(event, onEvent);
       if (event !== "connect_error") {
@@ -486,8 +536,22 @@ export class SocketGameTestEventUtils {
       if (event !== "disconnect") {
         socket.once("disconnect", onDisconnect);
       }
+      signal?.addEventListener("abort", onAbort, { once: true });
       timeoutId = setTimeout(onTimeout, effectiveTimeout);
     });
+
+    return this.trackSocketWait(promise, () => cancelWait());
+  }
+
+  public async cancelPendingEventWaits(): Promise<number> {
+    const pendingWaits = [...this.pendingTestWaits];
+
+    for (const wait of pendingWaits) {
+      wait.cancel();
+    }
+    await Promise.allSettled(pendingWaits.map((wait) => wait.promise));
+
+    return pendingWaits.length;
   }
 
   public createAcceptedActionProbe(filter: AcceptedActionFilter): AcceptedActionProbe {
@@ -544,19 +608,22 @@ export class SocketGameTestEventUtils {
    * successfully completed the atomic Redis enqueue, not that executor entry
    * was reached.
    */
-  public async waitForSubmittedActions(
+  public waitForSubmittedActions(
     gameId: string,
     expectedCount: number,
     actionType?: GameActionType,
     timeout: number = TEST_TIMEOUTS.ACTION_QUEUE_WAIT_MS
   ): Promise<void> {
     const probe = this.createAcceptedActionProbe({ gameId, actionType });
-
-    try {
-      await probe.waitForCount(expectedCount, timeout);
-    } finally {
-      probe.dispose();
-    }
+    const wait = (async () => {
+      try {
+        await probe.waitForCount(expectedCount, timeout);
+      } finally {
+        probe.dispose();
+      }
+    })();
+    void wait.catch(() => undefined);
+    return this.trackPendingWait(wait, () => probe.dispose());
   }
 
   private installActionLifecycleObservers(): void {
@@ -565,6 +632,22 @@ export class SocketGameTestEventUtils {
     this.instrumentQueueActionAndTryStartProcessor();
     this.instrumentLockRelease();
     this.instrumentDrainAndReacquire();
+  }
+
+  private trackSocketWait<T>(promise: Promise<T>, cancel: () => void): Promise<T> {
+    return this.trackPendingWait(promise, cancel);
+  }
+
+  private trackPendingWait<T>(promise: Promise<T>, cancel: () => void): Promise<T> {
+    const pendingWait: PendingTestWait = { cancel, promise };
+    this.pendingTestWaits.add(pendingWait);
+
+    void promise.then(
+      () => this.pendingTestWaits.delete(pendingWait),
+      () => this.pendingTestWaits.delete(pendingWait)
+    );
+
+    return promise;
   }
 
   private instrumentExecutorSubmitAction(): void {

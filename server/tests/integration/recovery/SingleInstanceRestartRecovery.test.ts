@@ -25,6 +25,7 @@ import {
   TestLogger
 } from "tests/integration/recovery/SingleInstanceRestartRecoveryFixtures";
 import { TestEnvironment } from "tests/TestEnvironment";
+import { teardownTestAppResources } from "tests/TestApp";
 
 describe("SingleInstanceRestartRecovery real Redis integration", () => {
   let logger: TestLogger;
@@ -66,16 +67,29 @@ describe("SingleInstanceRestartRecovery real Redis integration", () => {
     io = undefined;
     testEnvironment = undefined;
 
+    const teardownFailures: unknown[] = [];
     try {
-      await RedisConfig.disconnect();
+      await teardownTestAppResources(
+        currentIo ? () => closeSocketIoServer(currentIo) : undefined,
+        currentTestEnvironment
+      );
+    } catch (error) {
+      teardownFailures.push(error);
+    }
+
+    try {
+      container.reset();
+    } catch (error) {
+      teardownFailures.push(error);
     } finally {
-      try {
-        await closeSocketIoServer(currentIo);
-      } finally {
-        await currentTestEnvironment?.teardown();
-        container.reset();
-        delete process.env.STARTUP_RECOVERY_ENABLED;
-      }
+      delete process.env.STARTUP_RECOVERY_ENABLED;
+    }
+
+    if (teardownFailures.length === 1) {
+      throw teardownFailures[0];
+    }
+    if (teardownFailures.length > 1) {
+      throw new AggregateError(teardownFailures, "Single-instance recovery test teardown failed");
     }
   });
 

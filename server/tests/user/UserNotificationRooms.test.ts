@@ -11,7 +11,7 @@ import { UserChangeBroadcastData } from "domain/types/socket/events/SocketEventI
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
+import { bootstrapTestApp, teardownTestAppResources } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
@@ -30,9 +30,9 @@ describe("User Notification Rooms Tests", () => {
     await testEnv.setup();
     // Use default test port (3000) as in other socket tests
     const boot = await bootstrapTestApp(testEnv.getDatabase());
+    cleanup = boot.cleanup;
     app = boot.app;
     userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
     serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     utils = new SocketGameTestUtils(serverUrl);
   });
@@ -42,12 +42,7 @@ describe("User Notification Rooms Tests", () => {
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await teardownTestAppResources(cleanup, testEnv);
   });
 
   describe("User Change Notifications During Gameplay", () => {

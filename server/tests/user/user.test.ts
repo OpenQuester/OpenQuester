@@ -8,7 +8,7 @@ import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
+import { bootstrapTestApp, teardownTestAppResources } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
@@ -54,11 +54,11 @@ describe("UserRestApiController", () => {
     testEnv = new TestEnvironment(logger);
     await testEnv.setup();
     const boot = await bootstrapTestApp(testEnv.getDatabase());
+    cleanup = boot.cleanup; // Save cleanup function from bootstrapTestApp
     app = boot.app;
     dataSource = boot.dataSource;
     userRepo = dataSource.getRepository<User>("User");
     permRepo = dataSource.getRepository<Permission>("Permission");
-    cleanup = boot.cleanup; // Save cleanup function from bootstrapTestApp
   });
 
   afterEach(async () => {
@@ -74,12 +74,7 @@ describe("UserRestApiController", () => {
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup(); // Ensure Redis is disconnected
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await teardownTestAppResources(cleanup, testEnv);
   });
 
   beforeEach(async () => {

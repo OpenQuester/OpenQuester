@@ -9,7 +9,7 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { ChatMessageInputData } from "domain/types/socket/chat/ChatMessageInputData";
 import { ChatMessageBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
-import { EventJournal } from "tests/e2e/scenario/EventJournal";
+import { withEventJournal } from "tests/e2e/scenario/EventJournal";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import {
   GameClientSocket,
@@ -21,11 +21,9 @@ async function waitForChatMessageWithText(
   socket: GameClientSocket,
   message: string
 ): Promise<ChatMessageBroadcastData> {
-  const journal = new EventJournal();
-  const actor = { label: "chat-recipient", socket };
-  journal.attach(actor);
-
-  try {
+  return withEventJournal(async (journal) => {
+    const actor = { label: "chat-recipient", socket };
+    journal.attach(actor);
     const record = await journal.expectEvent<[ChatMessageBroadcastData]>({
       actor,
       direction: "inbound",
@@ -35,9 +33,7 @@ async function waitForChatMessageWithText(
       description: `chat message ${JSON.stringify(message)}`
     });
     return record.args[0];
-  } finally {
-    await journal.dispose();
-  }
+  });
 }
 
 async function sendChatMessageAndWait(
@@ -56,11 +52,9 @@ async function waitForChatMessagesWithTexts(
   socket: GameClientSocket,
   expectedMessages: readonly string[]
 ): Promise<ChatMessageBroadcastData[]> {
-  const journal = new EventJournal();
-  const actor = { label: "chat-burst-recipient", socket };
-  journal.attach(actor);
-
-  try {
+  return withEventJournal(async (journal) => {
+    const actor = { label: "chat-burst-recipient", socket };
+    journal.attach(actor);
     const records = await Promise.all(
       expectedMessages.map((message) =>
         journal.expectEvent<[ChatMessageBroadcastData]>({
@@ -74,9 +68,7 @@ async function waitForChatMessagesWithTexts(
       )
     );
     return records.map((record) => record.args[0]);
-  } finally {
-    await journal.dispose();
-  }
+  });
 }
 
 describe("Socket Game Chat Tests", () => {

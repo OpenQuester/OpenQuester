@@ -207,7 +207,7 @@ export class TestUtils {
     return false;
   }
 
-  public async waitForEvent<T = any>(
+  public waitForEvent<T = any>(
     socket: GameClientSocket,
     event: string,
     timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS

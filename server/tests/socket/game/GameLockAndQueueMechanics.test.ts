@@ -64,12 +64,15 @@ import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 const QUEUE_BURST_SIZE = 20;
 const QUEUE_DRAIN_BUDGET_MS = 500;
+const NO_TEST_FAILURE = Symbol("NO_TEST_FAILURE");
 
 interface EventCollector<T> {
   promise: Promise<T[]>;
   stop: () => void;
   count: () => number;
 }
+
+type EventCollectorCleanup = Pick<EventCollector<unknown>, "stop">;
 
 interface CollectedSocketEvent<T> {
   event: SocketIOGameEvents;
@@ -141,8 +144,9 @@ function collectEvents<T>(
 ): EventCollector<T> {
   const received: T[] = [];
   let timeoutId: NodeJS.Timeout | null = null;
-  let resolved = false;
+  let settled = false;
   let stopped = false;
+  let rejectPromise: (error: Error) => void = () => undefined;
 
   const cleanup = (handler: (data: T) => void): void => {
     if (timeoutId) {
@@ -162,8 +166,8 @@ function collectEvents<T>(
 
       received.push(data);
 
-      if (!resolved && received.length >= expectedCount) {
-        resolved = true;
+      if (!settled && received.length >= expectedCount) {
+        settled = true;
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
@@ -173,9 +177,11 @@ function collectEvents<T>(
     };
 
     handlerRef = handler;
+    rejectPromise = reject;
 
     timeoutId = setTimeout(() => {
       stopped = true;
+      settled = true;
       cleanup(handler);
       reject(
         new Error(
@@ -187,12 +193,26 @@ function collectEvents<T>(
     socket.on(event, handler);
   });
 
+  void promise.catch(() => undefined);
+
   return {
     promise,
     stop: () => {
+      if (stopped) {
+        return;
+      }
+
       stopped = true;
       if (handlerRef) {
         cleanup(handlerRef);
+      }
+      if (!settled) {
+        settled = true;
+        rejectPromise(
+          new Error(
+            `Stopped waiting for ${expectedCount} ${event} events; received ${received.length}`
+          )
+        );
       }
     },
     count: () => received.length
@@ -207,8 +227,9 @@ function collectSocketEvents<T>(
 ): EventCollector<CollectedSocketEvent<T>> {
   const received: Array<CollectedSocketEvent<T>> = [];
   let timeoutId: NodeJS.Timeout | null = null;
-  let resolved = false;
+  let settled = false;
   let stopped = false;
+  let rejectPromise: (error: Error) => void = () => undefined;
   const handlerRefs: Array<{ event: SocketIOGameEvents; handler: (data: T) => void }> = [];
 
   const cleanup = (): void => {
@@ -223,6 +244,8 @@ function collectSocketEvents<T>(
   };
 
   const promise = new Promise<Array<CollectedSocketEvent<T>>>((resolve, reject) => {
+    rejectPromise = reject;
+
     for (const event of events) {
       const handler = (data: T): void => {
         if (stopped) {
@@ -231,8 +254,8 @@ function collectSocketEvents<T>(
 
         received.push({ event, data });
 
-        if (!resolved && received.length >= expectedCount) {
-          resolved = true;
+        if (!settled && received.length >= expectedCount) {
+          settled = true;
           if (timeoutId) {
             clearTimeout(timeoutId);
             timeoutId = null;
@@ -247,6 +270,7 @@ function collectSocketEvents<T>(
 
     timeoutId = setTimeout(() => {
       stopped = true;
+      settled = true;
       cleanup();
       reject(
         new Error(`Timeout waiting for ${expectedCount} socket events; received ${received.length}`)
@@ -254,15 +278,161 @@ function collectSocketEvents<T>(
     }, timeout);
   });
 
+  void promise.catch(() => undefined);
+
   return {
     promise,
     stop: () => {
+      if (stopped) {
+        return;
+      }
+
       stopped = true;
       cleanup();
+      if (!settled) {
+        settled = true;
+        rejectPromise(
+          new Error(
+            `Stopped waiting for ${expectedCount} socket events; received ${received.length}`
+          )
+        );
+      }
     },
     count: () => received.length
   };
 }
+
+async function releaseHeldGameLock(
+  lockService: Pick<GameActionLockService, "releaseLock">,
+  gameId: string,
+  lockToken: string
+): Promise<string> {
+  if (!lockToken) {
+    return "";
+  }
+
+  const released = await lockService.releaseLock(gameId, lockToken);
+  if (!released) {
+    throw new Error(`Game lock release lost ownership for game ${gameId}`);
+  }
+
+  return "";
+}
+
+async function finishTestCleanup(
+  primaryFailure: unknown,
+  collectors: ReadonlyArray<EventCollectorCleanup | undefined>,
+  releaseLock?: () => Promise<void>
+): Promise<void> {
+  const failures: unknown[] = primaryFailure === NO_TEST_FAILURE ? [] : [primaryFailure];
+
+  for (const [index, collector] of collectors.entries()) {
+    if (!collector) {
+      continue;
+    }
+
+    try {
+      collector.stop();
+    } catch (error) {
+      failures.push(new Error(`Event collector ${index + 1} cleanup failed`, { cause: error }));
+    }
+  }
+
+  if (releaseLock) {
+    try {
+      await releaseLock();
+    } catch (error) {
+      failures.push(new Error("Held game lock cleanup failed", { cause: error }));
+    }
+  }
+
+  if (failures.length === 1) {
+    throw failures[0];
+  }
+  if (failures.length > 1) {
+    throw new AggregateError(failures, "Test cleanup completed with failures");
+  }
+}
+
+describe("Game lock test cleanup helpers", () => {
+  it("settles unfinished collector promises when cleanup stops them", async () => {
+    const socket = {
+      on: () => undefined,
+      removeListener: () => undefined
+    } as unknown as GameClientSocket;
+    const eventCollector = collectEvents(
+      socket,
+      SocketIOGameEvents.QUESTION_ANSWER,
+      1,
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+    );
+    const socketEventCollector = collectSocketEvents(
+      socket,
+      [SocketIOGameEvents.QUESTION_ANSWER],
+      1,
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+    );
+
+    eventCollector.stop();
+    socketEventCollector.stop();
+
+    await expect(eventCollector.promise).rejects.toThrow("Stopped waiting for 1");
+    await expect(socketEventCollector.promise).rejects.toThrow(
+      "Stopped waiting for 1 socket events"
+    );
+  });
+
+  it("preserves primary and cleanup failures while finishing cleanup in order", async () => {
+    const primaryFailure = new Error("primary failure");
+    const collectorFailure = new Error("collector failure");
+    const releaseFailure = new Error("release failure");
+    const cleanupOrder: string[] = [];
+    let thrown: unknown;
+
+    try {
+      await finishTestCleanup(
+        primaryFailure,
+        [
+          {
+            stop: () => {
+              cleanupOrder.push("collector 1");
+              throw collectorFailure;
+            }
+          },
+          {
+            stop: () => {
+              cleanupOrder.push("collector 2");
+            }
+          }
+        ],
+        async () => {
+          cleanupOrder.push("release");
+          throw releaseFailure;
+        }
+      );
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(cleanupOrder).toEqual(["collector 1", "collector 2", "release"]);
+    expect(thrown).toBeInstanceOf(AggregateError);
+    const failures = (thrown as AggregateError).errors;
+    expect(failures).toHaveLength(3);
+    expect(failures[0]).toBe(primaryFailure);
+    expect((failures[1] as Error).cause).toBe(collectorFailure);
+    expect((failures[2] as Error).cause).toBe(releaseFailure);
+  });
+
+  it("requires confirmed lock ownership before clearing the token", async () => {
+    await expect(
+      releaseHeldGameLock({ releaseLock: async () => false }, "game-id", "lock-token")
+    ).rejects.toThrow("Game lock release lost ownership for game game-id");
+
+    await expect(
+      releaseHeldGameLock({ releaseLock: async () => true }, "game-id", "lock-token")
+    ).resolves.toBe("");
+  });
+});
 
 describe("Game Lock and Queue Mechanics", () => {
   let suite: SocketGameTestSuite | undefined;
@@ -499,6 +669,7 @@ describe("Game Lock and Queue Mechanics", () => {
       const { showmanSocket, playerSockets, gameId } = setup;
 
       let answerEvents: EventCollector<{ userId: number }> | null = null;
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -532,8 +703,10 @@ describe("Game Lock and Queue Mechanics", () => {
         const gameState = await utils.getGameState(gameId);
         expect(gameState!.answeringPlayer).toBe(answers[0].userId);
         expect(gameState!.questionState).toBe(QuestionState.ANSWERING);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        answerEvents?.stop();
+        await finishTestCleanup(primaryFailure, [answerEvents ?? undefined]);
       }
     });
 
@@ -544,6 +717,7 @@ describe("Game Lock and Queue Mechanics", () => {
       let showmanSubmittedEvents: EventCollector<AnswerSubmittedBroadcastData> | null = null;
       let otherPlayerSubmittedEvents: EventCollector<AnswerSubmittedBroadcastData> | null = null;
       let spectatorSubmittedEvents: EventCollector<AnswerSubmittedBroadcastData> | null = null;
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -594,10 +768,14 @@ describe("Game Lock and Queue Mechanics", () => {
 
         const gameState = await utils.getGameState(gameId);
         expect(gameState!.questionState).toBe(QuestionState.ANSWERING);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanSubmittedEvents?.stop();
-        otherPlayerSubmittedEvents?.stop();
-        spectatorSubmittedEvents?.stop();
+        await finishTestCleanup(primaryFailure, [
+          showmanSubmittedEvents ?? undefined,
+          otherPlayerSubmittedEvents ?? undefined,
+          spectatorSubmittedEvents ?? undefined
+        ]);
       }
     });
 
@@ -606,6 +784,7 @@ describe("Game Lock and Queue Mechanics", () => {
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
       let answerResultEvents: EventCollector<QuestionAnswerResultEventPayload> | null = null;
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -643,8 +822,10 @@ describe("Game Lock and Queue Mechanics", () => {
         const game = await utils.getGameFromGameService(gameId);
         const reviewedPlayer = game.players.find((player) => player.meta.id === playerUsers[0].id);
         expect(reviewedPlayer!.score).toBe(-400);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        answerResultEvents?.stop();
+        await finishTestCleanup(primaryFailure, [answerResultEvents ?? undefined]);
       }
     });
 
@@ -699,6 +880,7 @@ describe("Game Lock and Queue Mechanics", () => {
       let showmanSkipEvents: EventCollector<QuestionSkipBroadcastData> | null = null;
       let playerSkipEvents: EventCollector<QuestionSkipBroadcastData> | null = null;
       let spectatorSkipEvents: EventCollector<QuestionSkipBroadcastData> | null = null;
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -749,10 +931,14 @@ describe("Game Lock and Queue Mechanics", () => {
         const gameState = await utils.getGameState(gameId);
         expect(gameState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
         expect(gameState!.skippedPlayers).toBeNull();
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanSkipEvents?.stop();
-        playerSkipEvents?.stop();
-        spectatorSkipEvents?.stop();
+        await finishTestCleanup(primaryFailure, [
+          showmanSkipEvents ?? undefined,
+          playerSkipEvents ?? undefined,
+          spectatorSkipEvents ?? undefined
+        ]);
       }
     });
 
@@ -767,6 +953,7 @@ describe("Game Lock and Queue Mechanics", () => {
         CollectedSocketEvent<QuestionSkipBroadcastData | QuestionUnskipBroadcastData>
       > | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -836,8 +1023,7 @@ describe("Game Lock and Queue Mechanics", () => {
           QuestionSkipBroadcastData | QuestionUnskipBroadcastData
         >(spectatorSockets[0], skipEvents, skipToggleSequence.length);
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         drainTriggerAction.socket.emit(drainTriggerAction.event);
@@ -874,12 +1060,16 @@ describe("Game Lock and Queue Mechanics", () => {
           expect.arrayContaining([playerUsers[0].id, playerUsers[1].id])
         );
         expect(gameState!.skippedPlayers).not.toContain(playerUsers[2].id);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanSkipEvents?.stop();
-        spectatorSkipEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanSkipEvents ?? undefined, spectatorSkipEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
   });
@@ -890,6 +1080,7 @@ describe("Game Lock and Queue Mechanics", () => {
       const { showmanSocket, playerSockets, gameId } = setup;
 
       let leaveEvents: EventCollector<GameLeaveBroadcastData> | null = null;
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -926,8 +1117,10 @@ describe("Game Lock and Queue Mechanics", () => {
 
         const playerIds = connectedPlayers.map((p) => p.meta.id);
         expect(playerIds).not.toContain(targetPlayer.meta.id);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        leaveEvents?.stop();
+        await finishTestCleanup(primaryFailure, [leaveEvents ?? undefined]);
       }
     });
   });
@@ -981,6 +1174,7 @@ describe("Game Lock and Queue Mechanics", () => {
       let spectatorStatusEvents: EventCollector<MediaDownloadStatusBroadcastData> | null = null;
       let questionRevealEvents: EventCollector<GameQuestionDataEventPayload> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -1040,8 +1234,7 @@ describe("Game Lock and Queue Mechanics", () => {
         );
         expect(questionRevealEvents.count()).toBe(0);
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         drainTriggerAction.socket.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
@@ -1076,13 +1269,20 @@ describe("Game Lock and Queue Mechanics", () => {
 
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.SHOWING);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanStatusEvents?.stop();
-        spectatorStatusEvents?.stop();
-        questionRevealEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [
+            showmanStatusEvents ?? undefined,
+            spectatorStatusEvents ?? undefined,
+            questionRevealEvents ?? undefined
+          ],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
   });
@@ -1100,6 +1300,7 @@ describe("Game Lock and Queue Mechanics", () => {
       > | null = null;
       let questionRevealEvents: EventCollector<GameQuestionDataEventPayload> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -1158,8 +1359,7 @@ describe("Game Lock and Queue Mechanics", () => {
           TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
@@ -1210,13 +1410,20 @@ describe("Game Lock and Queue Mechanics", () => {
         );
         expect(activePlayersReady).toBe(true);
         expect(scoredPlayer?.score).toBe(drainTriggerScore);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanDrainEvents?.stop();
-        spectatorDrainEvents?.stop();
-        questionRevealEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [
+            showmanDrainEvents ?? undefined,
+            spectatorDrainEvents ?? undefined,
+            questionRevealEvents ?? undefined
+          ],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
 
@@ -1239,6 +1446,7 @@ describe("Game Lock and Queue Mechanics", () => {
         >
       > | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -1301,8 +1509,7 @@ describe("Game Lock and Queue Mechanics", () => {
           TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
@@ -1358,12 +1565,16 @@ describe("Game Lock and Queue Mechanics", () => {
           (player) => player.meta.id === playerUsers[0].id
         );
         expect(scoredPlayer?.score).toBe(drainTriggerScore);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanDrainEvents?.stop();
-        spectatorDrainEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanDrainEvents ?? undefined, spectatorDrainEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
 
@@ -1388,6 +1599,7 @@ describe("Game Lock and Queue Mechanics", () => {
         >
       > | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -1461,8 +1673,7 @@ describe("Game Lock and Queue Mechanics", () => {
           TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
@@ -1522,12 +1733,16 @@ describe("Game Lock and Queue Mechanics", () => {
           (player) => player.meta.id === playerUsers[0].id
         );
         expect(scoredPlayer?.score).toBe(drainTriggerScore);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanDrainEvents?.stop();
-        spectatorDrainEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanDrainEvents ?? undefined, spectatorDrainEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
 
@@ -1537,6 +1752,7 @@ describe("Game Lock and Queue Mechanics", () => {
 
       let scoreEvents: EventCollector<PlayerScoreChangeBroadcastData> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -1573,8 +1789,7 @@ describe("Game Lock and Queue Mechanics", () => {
           TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         await testUtils.expireTimerAndWaitForAction(
           gameId,
@@ -1589,11 +1804,12 @@ describe("Game Lock and Queue Mechanics", () => {
 
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        scoreEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(primaryFailure, [scoreEvents ?? undefined], async () => {
+          lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+        });
       }
     });
 
@@ -1603,6 +1819,7 @@ describe("Game Lock and Queue Mechanics", () => {
 
       let scoreEvents: EventCollector<PlayerScoreChangeBroadcastData> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -1636,8 +1853,7 @@ describe("Game Lock and Queue Mechanics", () => {
           1
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
           playerId: player.meta.id,
@@ -1655,11 +1871,12 @@ describe("Game Lock and Queue Mechanics", () => {
 
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        scoreEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(primaryFailure, [scoreEvents ?? undefined], async () => {
+          lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+        });
       }
     });
 
@@ -1674,6 +1891,7 @@ describe("Game Lock and Queue Mechanics", () => {
         CollectedSocketEvent<QuestionAnswerResultEventPayload | PlayerScoreChangeBroadcastData>
       > | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -1710,8 +1928,7 @@ describe("Game Lock and Queue Mechanics", () => {
           QuestionAnswerResultEventPayload | PlayerScoreChangeBroadcastData
         >(spectatorSockets[0], drainEvents, 2, TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS);
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
@@ -1756,12 +1973,16 @@ describe("Game Lock and Queue Mechanics", () => {
           (player) => player.meta.id === playerUsers[0].id
         );
         expect(finalPlayer?.score).toBe(drainTriggerScore);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        playerDrainEvents?.stop();
-        spectatorDrainEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [playerDrainEvents ?? undefined, spectatorDrainEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
   });
@@ -1774,6 +1995,7 @@ describe("Game Lock and Queue Mechanics", () => {
       let showmanTurnEvents: EventCollector<TurnPlayerChangeBroadcastData> | null = null;
       let spectatorTurnEvents: EventCollector<TurnPlayerChangeBroadcastData> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -1806,8 +2028,7 @@ describe("Game Lock and Queue Mechanics", () => {
           QUEUE_BURST_SIZE
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, drainTriggerAction);
@@ -1825,12 +2046,16 @@ describe("Game Lock and Queue Mechanics", () => {
 
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.currentTurnPlayerId).toBe(drainTriggerAction.newTurnPlayerId);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanTurnEvents?.stop();
-        spectatorTurnEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanTurnEvents ?? undefined, spectatorTurnEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
 
@@ -1841,6 +2066,7 @@ describe("Game Lock and Queue Mechanics", () => {
       let playerSlotEvents: EventCollector<PlayerSlotChangeBroadcastData> | null = null;
       let spectatorSlotEvents: EventCollector<PlayerSlotChangeBroadcastData> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         const targetPlayerId = playerUsers[0].id;
@@ -1872,8 +2098,7 @@ describe("Game Lock and Queue Mechanics", () => {
           QUEUE_BURST_SIZE
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         playerSockets[0].emit(SocketIOGameEvents.PLAYER_SLOT_CHANGE, drainTriggerAction);
@@ -1905,12 +2130,16 @@ describe("Game Lock and Queue Mechanics", () => {
           (player) => player.meta.id === targetPlayerId
         );
         expect(syncedTargetPlayer?.slot).toBe(drainTriggerAction.targetSlot);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        playerSlotEvents?.stop();
-        spectatorSlotEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [playerSlotEvents ?? undefined, spectatorSlotEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
 
@@ -1921,6 +2150,7 @@ describe("Game Lock and Queue Mechanics", () => {
       let showmanRestrictionEvents: EventCollector<PlayerRestrictionBroadcastData> | null = null;
       let spectatorRestrictionEvents: EventCollector<PlayerRestrictionBroadcastData> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         const targetPlayerId = playerUsers[0].id;
@@ -1955,8 +2185,7 @@ describe("Game Lock and Queue Mechanics", () => {
           QUEUE_BURST_SIZE
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         showmanSocket.emit(SocketIOGameEvents.PLAYER_RESTRICTED, drainTriggerAction);
@@ -1977,12 +2206,16 @@ describe("Game Lock and Queue Mechanics", () => {
         expect(targetPlayer?.isMuted).toBe(drainTriggerAction.muted);
         expect(targetPlayer?.isRestricted).toBe(false);
         expect(targetPlayer?.isBanned).toBe(false);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanRestrictionEvents?.stop();
-        spectatorRestrictionEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanRestrictionEvents ?? undefined, spectatorRestrictionEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
 
@@ -1993,6 +2226,7 @@ describe("Game Lock and Queue Mechanics", () => {
       let showmanRoleEvents: EventCollector<PlayerRoleChangeBroadcastData> | null = null;
       let spectatorRoleEvents: EventCollector<PlayerRoleChangeBroadcastData> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         const targetPlayerId = playerUsers[0].id;
@@ -2025,8 +2259,7 @@ describe("Game Lock and Queue Mechanics", () => {
           QUEUE_BURST_SIZE
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, drainTriggerAction);
@@ -2058,12 +2291,16 @@ describe("Game Lock and Queue Mechanics", () => {
           (player) => player.meta.id === targetPlayerId
         );
         expect(syncedTargetPlayer?.role).toBe(drainTriggerAction.newRole);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanRoleEvents?.stop();
-        spectatorRoleEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanRoleEvents ?? undefined, spectatorRoleEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
   });
@@ -2080,6 +2317,7 @@ describe("Game Lock and Queue Mechanics", () => {
         CollectedSocketEvent<PlayerReadinessBroadcastData>
       > | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         const player0ReadyAction = {
@@ -2153,8 +2391,7 @@ describe("Game Lock and Queue Mechanics", () => {
           readinessSequence.length
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         drainTriggerAction.socket.emit(drainTriggerAction.event);
@@ -2191,12 +2428,16 @@ describe("Game Lock and Queue Mechanics", () => {
         );
         expect(gameState!.readyPlayers).not.toContain(playerUsers[2].id);
         expect(gameState!.currentRound).toBeNull();
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanReadinessEvents?.stop();
-        spectatorReadinessEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanReadinessEvents ?? undefined, spectatorReadinessEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
   });
@@ -2212,6 +2453,7 @@ describe("Game Lock and Queue Mechanics", () => {
       let showmanBidEvents: EventCollector<FinalBidSubmitOutputData> | null = null;
       let spectatorBidEvents: EventCollector<FinalBidSubmitOutputData> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         const biddingPhasePromise = testUtils.waitForEvent(
@@ -2281,8 +2523,7 @@ describe("Game Lock and Queue Mechanics", () => {
           )
         ];
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         drainTriggerAction.socket.emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
@@ -2311,12 +2552,16 @@ describe("Game Lock and Queue Mechanics", () => {
         expect(finalState.finalRoundData?.bids[playerUsers[0].id]).toBe(800);
         expect(finalState.finalRoundData?.bids[playerUsers[1].id]).toBe(600);
         expect(Object.keys(finalState.finalRoundData?.bids ?? {})).toHaveLength(2);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanBidEvents?.stop();
-        spectatorBidEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanBidEvents ?? undefined, spectatorBidEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
 
@@ -2344,6 +2589,7 @@ describe("Game Lock and Queue Mechanics", () => {
         >
       > | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         const biddingPhasePromise = testUtils.waitForEvent(
@@ -2403,8 +2649,7 @@ describe("Game Lock and Queue Mechanics", () => {
           TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
@@ -2465,12 +2710,16 @@ describe("Game Lock and Queue Mechanics", () => {
           (player) => player.meta.id === playerUsers[0].id
         );
         expect(scoredPlayer?.score).toBe(drainTriggerScore);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanDrainEvents?.stop();
-        spectatorDrainEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanDrainEvents ?? undefined, spectatorDrainEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
 
@@ -2498,6 +2747,7 @@ describe("Game Lock and Queue Mechanics", () => {
         >
       > | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         const biddingPhasePromise = testUtils.waitForEvent(
@@ -2590,8 +2840,7 @@ describe("Game Lock and Queue Mechanics", () => {
           TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         showmanSocket.emit(SocketIOGameEvents.SCORE_CHANGED, {
@@ -2660,12 +2909,16 @@ describe("Game Lock and Queue Mechanics", () => {
           (player) => player.meta.id === playerUsers[0].id
         );
         expect(scoredPlayer?.score).toBe(drainTriggerScore);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanDrainEvents?.stop();
-        spectatorDrainEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanDrainEvents ?? undefined, spectatorDrainEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
 
@@ -2679,6 +2932,7 @@ describe("Game Lock and Queue Mechanics", () => {
       let showmanReviewEvents: EventCollector<FinalAnswerReviewOutputData> | null = null;
       let spectatorReviewEvents: EventCollector<FinalAnswerReviewOutputData> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         const biddingPhasePromise = testUtils.waitForEvent(
@@ -2759,8 +3013,7 @@ describe("Game Lock and Queue Mechanics", () => {
           1
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         showmanSocket.emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, duplicateReviewAction);
@@ -2800,12 +3053,16 @@ describe("Game Lock and Queue Mechanics", () => {
         const unreviewedPlayer = game.getPlayer(playerUsers[1].id, { fetchDisconnected: false });
         expect(reviewedPlayer?.score).toBe(2300);
         expect(unreviewedPlayer?.score).toBe(1200);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanReviewEvents?.stop();
-        spectatorReviewEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanReviewEvents ?? undefined, spectatorReviewEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
 
@@ -2819,6 +3076,7 @@ describe("Game Lock and Queue Mechanics", () => {
       let showmanAnswerEvents: EventCollector<FinalAnswerSubmitOutputData> | null = null;
       let spectatorAnswerEvents: EventCollector<FinalAnswerSubmitOutputData> | null = null;
       let lockToken = "";
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         const biddingPhasePromise = testUtils.waitForEvent(
@@ -2878,8 +3136,7 @@ describe("Game Lock and Queue Mechanics", () => {
           1
         );
 
-        await lockService.releaseLock(gameId, lockToken);
-        lockToken = "";
+        lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
         const startedAt = Date.now();
         playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
@@ -2908,12 +3165,16 @@ describe("Game Lock and Queue Mechanics", () => {
           playerId: playerUsers[0].id,
           answer: answerTexts[0]
         });
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        showmanAnswerEvents?.stop();
-        spectatorAnswerEvents?.stop();
-        if (lockToken) {
-          await lockService.releaseLock(gameId, lockToken);
-        }
+        await finishTestCleanup(
+          primaryFailure,
+          [showmanAnswerEvents ?? undefined, spectatorAnswerEvents ?? undefined],
+          async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          }
+        );
       }
     });
   });
@@ -2924,6 +3185,7 @@ describe("Game Lock and Queue Mechanics", () => {
       const { showmanSocket, playerSockets, gameId } = setup;
 
       let scoreEvents: EventCollector<PlayerScoreChangeBroadcastData> | null = null;
+      let primaryFailure: unknown = NO_TEST_FAILURE;
 
       try {
         await utils.startGame(showmanSocket);
@@ -2960,8 +3222,10 @@ describe("Game Lock and Queue Mechanics", () => {
         const scoreGame = await utils.getGameFromGameService(gameId);
         const finalPlayer = scoreGame.players.find((p) => p.meta.id === player.meta.id)!;
         expect(finalPlayer.score).toBe(scores[scores.length - 1]);
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        scoreEvents?.stop();
+        await finishTestCleanup(primaryFailure, [scoreEvents ?? undefined]);
       }
     });
   });

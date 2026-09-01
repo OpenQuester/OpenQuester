@@ -40,8 +40,34 @@ interface TestAppBootstrapResult {
   cleanup: () => Promise<void>;
 }
 
+interface TestEnvironmentCleanup {
+  teardown: () => Promise<void>;
+}
+
 const DEFAULT_API_STARTUP_TIMEOUT_MS = 5000;
 const DEFAULT_API_SHUTDOWN_TIMEOUT_MS = 2000;
+
+/**
+ * Shuts down the app before disposing its shared database/Redis environment.
+ * Both stages always run, and neither failure can hide the other.
+ */
+export async function teardownTestAppResources(
+  cleanup: (() => Promise<void>) | undefined,
+  testEnvironment: TestEnvironmentCleanup | undefined
+): Promise<void> {
+  const errors: Error[] = [];
+
+  if (cleanup) {
+    await collectCleanupFailure(errors, "Test app cleanup", cleanup);
+  }
+  if (testEnvironment) {
+    await collectCleanupFailure(errors, "Test environment teardown", async () => {
+      await testEnvironment.teardown();
+    });
+  }
+
+  throwIfCleanupFailed("Test app resource teardown failed", errors);
+}
 
 export async function bootstrapTestApp(
   testDataSource: DataSource,
@@ -390,10 +416,44 @@ async function withTimeout<T>(
 
 function toCleanupError(label: string, error: unknown): Error {
   if (error instanceof Error) {
-    return new Error(`${label} failed: ${error.message}`, { cause: error });
+    return new Error(`${label} failed: ${formatErrorMessage(error)}`, { cause: error });
   }
 
   return new Error(`${label} failed: ${String(error)}`);
+}
+
+async function collectCleanupFailure(
+  errors: Error[],
+  label: string,
+  action: () => Promise<void>
+): Promise<void> {
+  try {
+    await action();
+  } catch (error) {
+    errors.push(toCleanupError(label, error));
+  }
+}
+
+function formatErrorMessage(error: unknown): string {
+  if (hasNestedErrors(error)) {
+    return [formatPrimaryErrorMessage(error), ...error.errors.map(formatErrorMessage)]
+      .filter(Boolean)
+      .join("; ");
+  }
+
+  return error instanceof Error ? error.message : String(error);
+}
+
+function hasNestedErrors(error: unknown): error is { message?: unknown; errors: unknown[] } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    Array.isArray((error as { errors?: unknown }).errors)
+  );
+}
+
+function formatPrimaryErrorMessage(error: { message?: unknown }): string {
+  return typeof error.message === "string" ? error.message : String(error);
 }
 
 function combineErrors(message: string, errors: Error[]): Error {

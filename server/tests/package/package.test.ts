@@ -12,7 +12,7 @@ import { User } from "infrastructure/database/models/User";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { ValueUtils } from "domain/utils/ValueUtils";
-import { bootstrapTestApp } from "tests/TestApp";
+import { bootstrapTestApp, teardownTestAppResources } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { PackageUtils } from "tests/utils/PackageUtils";
 import { TestUtils } from "tests/utils/TestUtils";
@@ -112,14 +112,7 @@ describe("PackageRestApiController", () => {
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) {
-        await cleanup();
-      }
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await teardownTestAppResources(cleanup, testEnv);
   });
 
   beforeEach(async () => {

@@ -293,6 +293,18 @@ describe("SocketGameTestFlowUtils reliability", () => {
     expect(predicate({ playerId: 2 })).toBe(true);
   });
 
+  it("returns a rejected promise when a readiness wait cannot be armed", async () => {
+    const { flow, eventUtils } = createFixture();
+    const failure = new Error("socket is disconnected");
+    eventUtils.waitForEventMatching.mockImplementation(() => {
+      throw failure;
+    });
+
+    const wait = flow.waitForPlayerReady(createSocket("game-1"), 2);
+
+    await expect(wait).rejects.toBe(failure);
+  });
+
   it("does not swallow a missing show-answer event when state requires it", async () => {
     const { flow, stateUtils, eventUtils } = createFixture();
     const showman = createSocket("game-1");
