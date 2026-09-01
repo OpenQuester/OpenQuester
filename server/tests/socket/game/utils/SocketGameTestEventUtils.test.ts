@@ -6,7 +6,9 @@ import { type GameActionLockService } from "application/services/lock/GameAction
 import { type GameActionQueueService } from "application/services/queue/GameActionQueueService";
 import { GameActionType } from "domain/enums/GameActionType";
 import { type GameAction } from "domain/types/action/GameAction";
+import { PlayerRole } from "domain/types/game/PlayerRole";
 import { SocketGameTestEventUtils } from "tests/socket/game/utils/SocketGameTestEventUtils";
+import { type GameClientSocket } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 const GAME_ID = "game-1";
 
@@ -40,6 +42,13 @@ class ControlledExecutor {
   public submitAction = async (_action: GameAction): Promise<unknown> => ({ success: true });
 }
 
+class FakeGameClientSocket extends EventEmitter {
+  public connected = true;
+  public id: string | undefined = "socket-1";
+  public gameId: string | undefined = GAME_ID;
+  public role: PlayerRole | undefined = PlayerRole.PLAYER;
+}
+
 interface Fixture {
   readonly utils: SocketGameTestEventUtils;
   readonly queue: ControlledQueueService;
@@ -51,6 +60,160 @@ afterEach(() => {
 });
 
 describe("SocketGameTestEventUtils", () => {
+  it("arms before emitting and clears only owned listeners and timers after success", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const socket = new FakeGameClientSocket();
+    const unrelated = jest.fn();
+    socket.on("target", unrelated);
+
+    const result = await fixture.utils.emitAndWaitForEvent<{ ok: boolean }>(
+      socket as unknown as GameClientSocket,
+      "target",
+      () => {
+        expect(socket.listenerCount("target")).toBe(2);
+        socket.emit("target", { ok: true });
+      },
+      25
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(unrelated).toHaveBeenCalledTimes(1);
+    expect(socket.listenerCount("target")).toBe(1);
+    expect(socket.listenerCount("disconnect")).toBe(0);
+    expect(socket.listenerCount("connect_error")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("settles once and removes owned listeners before a late event after timeout", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const socket = new FakeGameClientSocket();
+    const unrelated = jest.fn();
+    socket.on("target", unrelated);
+    const wait = fixture.utils.waitForEvent(socket as unknown as GameClientSocket, "target", 25);
+    const outcome = wait.then(
+      () => "resolved" as const,
+      (error: unknown) => error
+    );
+
+    await jest.advanceTimersByTimeAsync(25);
+    const timeoutError = await outcome;
+    expect(timeoutError).toBeInstanceOf(Error);
+    expect((timeoutError as Error).message).toContain("Timed out after 25ms");
+    expect((timeoutError as Error).message).toContain('gameId="game-1"');
+    expect((timeoutError as Error).message).toContain('socketId="socket-1"');
+    expect(socket.listenerCount("target")).toBe(1);
+    expect(socket.listenerCount("disconnect")).toBe(0);
+    expect(socket.listenerCount("connect_error")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+
+    socket.emit("target", { late: true });
+    expect(unrelated).toHaveBeenCalledWith({ late: true });
+    expect(await outcome).toBe(timeoutError);
+  });
+
+  it("keeps a predicate wait armed across non-matching events", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const socket = new FakeGameClientSocket();
+    const wait = fixture.utils.waitForEventMatching<{ playerId: number }>(
+      socket as unknown as GameClientSocket,
+      "ready",
+      (data) => data.playerId === 2,
+      25
+    );
+    let resolved = false;
+    void wait.then(() => {
+      resolved = true;
+    });
+
+    socket.emit("ready", { playerId: 1 });
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+    expect(socket.listenerCount("ready")).toBe(1);
+
+    socket.emit("ready", { playerId: 2 });
+    await expect(wait).resolves.toEqual({ playerId: 2 });
+    expect(socket.listenerCount("ready")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("rejects on disconnect with preserved socket context and no wait leaks", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const socket = new FakeGameClientSocket();
+    const wait = fixture.utils.waitForEvent(socket as unknown as GameClientSocket, "target", 25);
+
+    socket.connected = false;
+    socket.id = undefined;
+    socket.emit("disconnect", "transport close");
+
+    await expect(wait).rejects.toThrow(
+      /disconnected.*socketId="socket-1".*reason="transport close"/
+    );
+    expect(socket.listenerCount("target")).toBe(0);
+    expect(socket.listenerCount("disconnect")).toBe(0);
+    expect(socket.listenerCount("connect_error")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("rejects on connect_error and clears the event and disconnect listeners", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const socket = new FakeGameClientSocket();
+    const wait = fixture.utils.waitForEvent(socket as unknown as GameClientSocket, "target", 25);
+
+    socket.emit("connect_error", new Error("connection refused"));
+
+    await expect(wait).rejects.toThrow(/connect_error.*socketId="socket-1"/);
+    expect(socket.listenerCount("target")).toBe(0);
+    expect(socket.listenerCount("disconnect")).toBe(0);
+    expect(socket.listenerCount("connect_error")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("cancels its armed wait when the emit callback throws", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const socket = new FakeGameClientSocket();
+
+    await expect(
+      fixture.utils.emitAndWaitForEvent(
+        socket as unknown as GameClientSocket,
+        "target",
+        () => {
+          throw new Error("emit failed");
+        },
+        25
+      )
+    ).rejects.toThrow("emit failed");
+
+    expect(socket.listenerCount("target")).toBe(0);
+    expect(socket.listenerCount("disconnect")).toBe(0);
+    expect(socket.listenerCount("connect_error")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("cleans a no-event wait before accepting later traffic", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const socket = new FakeGameClientSocket();
+    const unrelated = jest.fn();
+    socket.on("quiet", unrelated);
+    const wait = fixture.utils.waitForNoEvent(socket as unknown as GameClientSocket, "quiet", 25);
+
+    await jest.advanceTimersByTimeAsync(25);
+    await expect(wait).resolves.toBeUndefined();
+    expect(socket.listenerCount("quiet")).toBe(1);
+    expect(socket.listenerCount("disconnect")).toBe(0);
+    expect(socket.listenerCount("connect_error")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+
+    socket.emit("quiet", "late");
+    expect(unrelated).toHaveBeenCalledWith("late");
+  });
+
   it("does not resolve an accepted-action probe while atomic enqueue is pending", async () => {
     const fixture = createFixture();
     const deferred = createDeferred<unknown>();
@@ -125,9 +288,9 @@ describe("SocketGameTestEventUtils", () => {
     const probe = fixture.utils.createAcceptedActionProbe({ gameId: GAME_ID });
     const wait = probe.waitForCount(1);
 
-    await expect(fixture.queue.queueActionAndTryStartProcessor(createAction("rejected"))).rejects.toThrow(
-      "atomic enqueue failed"
-    );
+    await expect(
+      fixture.queue.queueActionAndTryStartProcessor(createAction("rejected"))
+    ).rejects.toThrow("atomic enqueue failed");
     expect(probe.records()).toHaveLength(0);
 
     probe.dispose();
@@ -212,12 +375,10 @@ describe("SocketGameTestEventUtils", () => {
     const fixture = createFixture();
     const staleQueueRead = createDeferred<number>();
     const queueReadStarted = createDeferred<void>();
-    jest
-      .spyOn(fixture.queue, "getQueueLength")
-      .mockImplementationOnce(async () => {
-        queueReadStarted.resolve();
-        return staleQueueRead.promise;
-      });
+    jest.spyOn(fixture.queue, "getQueueLength").mockImplementationOnce(async () => {
+      queueReadStarted.resolve();
+      return staleQueueRead.promise;
+    });
 
     const drain = fixture.utils.waitForActionsComplete(GAME_ID);
     let drained = false;
@@ -298,6 +459,34 @@ describe("SocketGameTestEventUtils", () => {
     await enqueue;
   });
 
+  it("rejects at the deadline and removes its listener when a condition read hangs", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const queueRead = createDeferred<number>();
+    jest.spyOn(fixture.queue, "getQueueLength").mockImplementation(() => queueRead.promise);
+    const eventEmitter = getActionEventEmitter();
+    const listenerCount = eventEmitter.listenerCount(GAME_ID);
+
+    const wait = fixture.utils.waitForQueueLengthAtLeast(GAME_ID, 1, 25);
+    const outcome = wait.then(
+      () => "resolved" as const,
+      (error: unknown) => error
+    );
+    await Promise.resolve();
+    expect(eventEmitter.listenerCount(GAME_ID)).toBe(listenerCount + 1);
+
+    await jest.advanceTimersByTimeAsync(25);
+    const timeoutError = await outcome;
+    expect(timeoutError).toBeInstanceOf(Error);
+    expect((timeoutError as Error).message).toContain("current length is unavailable");
+    expect(eventEmitter.listenerCount(GAME_ID)).toBe(listenerCount);
+
+    await fixture.lock.releaseLock(GAME_ID, "late-event");
+    queueRead.resolve(1);
+    await Promise.resolve();
+    expect(await outcome).toBe(timeoutError);
+  });
+
   it("keeps legacy submitted waits scoped to accepted enqueues and cleans their listeners", async () => {
     jest.useFakeTimers();
     const fixture = createFixture();
@@ -348,11 +537,7 @@ function createFixture(): Fixture {
   return { utils, queue, lock };
 }
 
-function createAction(
-  id: string,
-  playerId = 1,
-  socketId = "socket-1"
-): GameAction {
+function createAction(id: string, playerId = 1, socketId = "socket-1"): GameAction {
   return {
     id,
     type: GameActionType.MEDIA_DOWNLOADED,

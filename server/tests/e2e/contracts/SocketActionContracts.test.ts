@@ -12,36 +12,6 @@ const logger = {
   warn: jest.fn()
 } as unknown as ILogger;
 
-const buildActionHandlerDeps = (
-  registry: GameActionHandlerRegistry
-): Parameters<typeof configureActionHandlers>[0] =>
-  ({
-    registry,
-    socketGameValidationService: {},
-    socketIOChatService: {},
-    socketGameTimerService: {},
-    secretQuestionService: {},
-    stakeQuestionService: {},
-    playerGameStatsService: {},
-    gameStatisticsCollectorService: {},
-    userService: {},
-    socketChatRepository: {},
-    gameProgressionCoordinator: {},
-    gameService: {},
-    timerExpirationService: {},
-    phaseTransitionRouter: {},
-    playerLeaveService: {},
-    transitionResourceService: {},
-    packageStore: {},
-    logger
-  }) as Parameters<typeof configureActionHandlers>[0];
-
-const configureRegistry = (): GameActionHandlerRegistry => {
-  const registry = new GameActionHandlerRegistry(logger);
-  configureActionHandlers(buildActionHandlerDeps(registry));
-  return registry;
-};
-
 describe("socket action contracts", () => {
   it("has one socket action entry per socket event", () => {
     const events = SOCKET_ACTION_MAP.map((entry) => entry.event);
@@ -50,7 +20,27 @@ describe("socket action contracts", () => {
   });
 
   it("registers handlers for every mapped socket action", () => {
-    const registry = configureRegistry();
+    const registry = new GameActionHandlerRegistry(logger);
+    configureActionHandlers({
+      registry,
+      socketGameValidationService: {},
+      socketIOChatService: {},
+      socketGameTimerService: {},
+      secretQuestionService: {},
+      stakeQuestionService: {},
+      playerGameStatsService: {},
+      gameStatisticsCollectorService: {},
+      userService: {},
+      socketChatRepository: {},
+      gameProgressionCoordinator: {},
+      gameService: {},
+      timerExpirationService: {},
+      phaseTransitionRouter: {},
+      playerLeaveService: {},
+      transitionResourceService: {},
+      packageStore: {},
+      logger
+    } as Parameters<typeof configureActionHandlers>[0]);
 
     for (const entry of SOCKET_ACTION_MAP) {
       expect(registry.has(entry.actionType)).toBe(true);

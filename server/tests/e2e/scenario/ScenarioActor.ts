@@ -8,13 +8,7 @@ export interface ScenarioActorOptions {
   readonly namespace?: string;
   readonly userId?: number;
   readonly gameId?: string;
-  readonly journal?: EventJournal;
-}
-
-export interface EmitManyOptions<TPayload> {
-  readonly count: number;
-  readonly event: string;
-  readonly payloadFactory?: (index: number) => TPayload | undefined;
+  readonly journal: EventJournal;
 }
 
 /**
@@ -30,7 +24,7 @@ export class ScenarioActor {
   public readonly namespace: string;
   public readonly userId: number | undefined;
   public readonly gameId: string | undefined;
-  private readonly journal: EventJournal | undefined;
+  private readonly journal: EventJournal;
 
   public constructor(options: ScenarioActorOptions) {
     this.label = options.label;
@@ -42,8 +36,10 @@ export class ScenarioActor {
   }
 
   public emit<TPayload = unknown>(event: string, payload?: TPayload): void {
+    this.assertConnected(`emit Socket.IO event "${event}"`);
+
     const args = payload === undefined ? [] : [payload];
-    this.journal?.recordOutgoing(this, event, args);
+    this.journal.recordOutgoing(this, event, args);
 
     if (payload === undefined) {
       this.socket.emit(event);
@@ -53,7 +49,18 @@ export class ScenarioActor {
     this.socket.emit(event, payload);
   }
 
-  public emitMany<TPayload = unknown>(options: EmitManyOptions<TPayload>): void {
+  /** Records the client-side transport close before the socket id disappears. */
+  public disconnect(): void {
+    this.assertConnected("disconnect");
+    this.journal.recordOutgoing(this, "disconnect", []);
+    this.socket.disconnect();
+  }
+
+  public emitMany<TPayload = unknown>(options: {
+    readonly count: number;
+    readonly event: string;
+    readonly payloadFactory?: (index: number) => TPayload | undefined;
+  }): void {
     for (let index = 0; index < options.count; index += 1) {
       this.emit(options.event, options.payloadFactory?.(index));
     }
@@ -63,7 +70,15 @@ export class ScenarioActor {
     return this.socket.id;
   }
 
-  public get connected(): boolean {
-    return this.socket.connected;
+  private assertConnected(action: string): void {
+    if (this.socket.connected) {
+      return;
+    }
+
+    throw new Error(
+      `Cannot ${action} from disconnected scenario actor ` +
+        `(actor="${this.label}", namespace="${this.namespace}", ` +
+        `socketId="${this.socket.id ?? "unknown"}", gameId="${this.gameId ?? "unknown"}")`
+    );
   }
 }

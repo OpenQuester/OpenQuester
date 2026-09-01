@@ -1,3 +1,4 @@
+import { SOCKET_GAME_NAMESPACE } from "domain/constants/socket";
 import { SocketRedisUserData } from "domain/types/user/SocketRedisUserData";
 import { type Express } from "express";
 import { User } from "infrastructure/database/models/User";
@@ -7,11 +8,13 @@ import request from "supertest";
 import { container } from "tsyringe";
 import { Repository } from "typeorm";
 import { GameClientSocket } from "./SocketIOGameTestUtils";
+import { connectSocket } from "tests/e2e/harness/SocketTestWait";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 export class SocketGameTestUserUtils {
   private socketUserDataService = container.resolve(SocketUserDataService);
   private readonly serverUrl: string;
+  private _ownedSockets: Set<GameClientSocket> | undefined;
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl;
@@ -87,34 +90,12 @@ export class SocketGameTestUserUtils {
 
     const socket = Client(this.serverUrl, {
       transports: ["websocket"],
-      autoConnect: true,
+      autoConnect: false,
       reconnection: false
     }) as GameClientSocket;
 
-    // Wait for connection
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(
-          new Error(
-            `[Socket Debug] Connection timeout after ${TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS}ms`
-          )
-        );
-      }, TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS);
-
-      socket.on("connect", async () => {
-        clearTimeout(timeout);
-        try {
-          await this.authenticateSocket(app, socket, cookie);
-          resolve();
-        } catch (error) {
-          reject(error);
-        }
-      });
-
-      socket.on("connect_error", (error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
+    await this.connectOwnedSocket(socket, "new-game-user", async () => {
+      await this.authenticateSocket(app, socket, cookie);
     });
 
     return { socket, user, cookie };
@@ -132,34 +113,12 @@ export class SocketGameTestUserUtils {
 
     const socket = Client(this.serverUrl, {
       transports: ["websocket"],
-      autoConnect: true,
+      autoConnect: false,
       reconnection: false
     }) as GameClientSocket;
 
-    // Wait for connection
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(
-          new Error(
-            `[Socket Debug] Connection timeout after ${TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS}ms`
-          )
-        );
-      }, TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS);
-
-      socket.on("connect", async () => {
-        clearTimeout(timeout);
-        try {
-          await this.authenticateSocket(app, socket, cookie);
-          resolve();
-        } catch (error) {
-          reject(error);
-        }
-      });
-
-      socket.on("connect_error", (error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
+    await this.connectOwnedSocket(socket, `existing-game-user-${userId}`, async () => {
+      await this.authenticateSocket(app, socket, cookie);
     });
 
     return { socket, cookie };
@@ -168,32 +127,65 @@ export class SocketGameTestUserUtils {
   public async createUnauthenticatedGameClient(): Promise<GameClientSocket> {
     const socket = Client(this.serverUrl, {
       transports: ["websocket"],
-      autoConnect: true,
+      autoConnect: false,
       reconnection: false
     }) as GameClientSocket;
 
-    // Wait for connection without authentication
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(
-          new Error(
-            `[Socket Debug] Connection timeout after ${TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS}ms`
-          )
-        );
-      }, TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS);
-
-      socket.on("connect", () => {
-        clearTimeout(timeout);
-        resolve();
-      });
-
-      socket.on("connect_error", (error) => {
-        clearTimeout(timeout);
-        reject(error);
-      });
-    });
+    await this.connectOwnedSocket(socket, "unauthenticated-game-user");
 
     return socket;
+  }
+
+  private async connectOwnedSocket(
+    socket: GameClientSocket,
+    client: string,
+    authenticate?: () => Promise<void>
+  ): Promise<void> {
+    this.ownedSockets.add(socket);
+
+    try {
+      await connectSocket(socket, {
+        client,
+        namespace: SOCKET_GAME_NAMESPACE,
+        serverUrl: this.serverUrl,
+        timeoutMs: TEST_TIMEOUTS.SOCKET_CONNECT_TIMEOUT_MS
+      });
+      await authenticate?.();
+    } catch (error) {
+      const setupFailure = toError(error);
+      const cleanupFailures: Error[] = [];
+
+      try {
+        socket.close();
+      } catch (cleanupError) {
+        cleanupFailures.push(toCleanupError("Socket close", cleanupError));
+      }
+      try {
+        socket.removeAllListeners();
+      } catch (cleanupError) {
+        cleanupFailures.push(toCleanupError("Socket listener removal", cleanupError));
+      }
+
+      if (cleanupFailures.length === 0) {
+        this.releaseSocket(socket);
+        throw setupFailure;
+      }
+
+      throw new AggregateError(
+        [setupFailure, ...cleanupFailures],
+        `Socket client setup and cleanup failed: ${[setupFailure, ...cleanupFailures]
+          .map((failure) => failure.message)
+          .join("; ")}`
+      );
+    }
+  }
+
+  public getOwnedSockets(): readonly GameClientSocket[] {
+    return [...this.ownedSockets];
+  }
+
+  public releaseSocket(socket: GameClientSocket): void {
+    this.ownedSockets.delete(socket);
   }
 
   public async getSocketUserData(socket: GameClientSocket): Promise<SocketRedisUserData | null> {
@@ -215,4 +207,17 @@ export class SocketGameTestUserUtils {
   public async getPlayerUserIdFromSocket(socket: GameClientSocket): Promise<number> {
     return this.getUserIdFromSocket(socket);
   }
+
+  private get ownedSockets(): Set<GameClientSocket> {
+    return (this._ownedSockets ??= new Set());
+  }
+}
+
+function toCleanupError(label: string, error: unknown): Error {
+  const cause = toError(error);
+  return new Error(`${label} failed: ${cause.message}`, { cause });
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }

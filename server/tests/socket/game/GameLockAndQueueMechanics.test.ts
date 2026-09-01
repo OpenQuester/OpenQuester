@@ -1,12 +1,17 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { container } from "tsyringe";
 import { Repository } from "typeorm";
 
-import { SYSTEM_PLAYER_ID } from "domain/constants/game";
+import {
+  GAME_QUESTION_ANSWER_TIME,
+  MEDIA_DOWNLOAD_TIMEOUT,
+  SYSTEM_PLAYER_ID
+} from "domain/constants/game";
 import { GameActionType } from "domain/enums/GameActionType";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
+import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -48,14 +53,12 @@ import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { SecretQuestionTransferBroadcastData } from "domain/types/socket/game/SecretQuestionTransferData";
 import { GameActionLockService } from "application/services/lock/GameActionLockService";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
 import {
   GameClientSocket,
   SocketGameTestUtils
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
+import { TEST_MEDIA_FILE_MD5 } from "tests/utils/PackageUtils";
 import { TestUtils } from "tests/utils/TestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
@@ -71,6 +74,63 @@ interface EventCollector<T> {
 interface CollectedSocketEvent<T> {
   event: SocketIOGameEvents;
   data: T;
+}
+
+type MediaQuestionFiles = NonNullable<PackageQuestionDTO["questionFiles"]>;
+
+interface MediaQuestionPreloadPayload {
+  readonly questionId: number;
+  readonly questionFiles: MediaQuestionFiles;
+  readonly timer: GameQuestionDataEventPayload["timer"];
+}
+
+function expectMediaQuestionFiles(files: MediaQuestionFiles | undefined): void {
+  expect(files).toHaveLength(1);
+  expect(files).toEqual([
+    expect.objectContaining({
+      displayTime: null,
+      order: 0,
+      file: expect.objectContaining({
+        md5: TEST_MEDIA_FILE_MD5,
+        type: PackageFileType.IMAGE
+      })
+    })
+  ]);
+}
+
+function expectFreshTimer(
+  timer: GameQuestionDataEventPayload["timer"],
+  expectedDurationMs: number
+): void {
+  expect(timer).toEqual(
+    expect.objectContaining({
+      durationMs: expectedDurationMs,
+      elapsedMs: 0,
+      resumedAt: null
+    })
+  );
+  expect(Number.isNaN(Date.parse(String(timer.startedAt)))).toBe(false);
+}
+
+function expectMediaQuestionPreload(
+  preload: MediaQuestionPreloadPayload,
+  questionId: number
+): void {
+  expect(preload.questionId).toBe(questionId);
+  expectMediaQuestionFiles(preload.questionFiles);
+  expectFreshTimer(preload.timer, MEDIA_DOWNLOAD_TIMEOUT);
+}
+
+function expectMediaQuestionReveal(reveal: GameQuestionDataEventPayload, questionId: number): void {
+  expect(reveal.data).toEqual(
+    expect.objectContaining({
+      id: questionId,
+      text: "Simple question text",
+      answerText: "Simple answer"
+    })
+  );
+  expectMediaQuestionFiles(reveal.data.questionFiles ?? undefined);
+  expectFreshTimer(reveal.timer, GAME_QUESTION_ANSWER_TIME);
 }
 
 function collectEvents<T>(
@@ -173,7 +233,10 @@ function collectSocketEvents<T>(
 
         if (!resolved && received.length >= expectedCount) {
           resolved = true;
-          cleanup();
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
           resolve(received);
         }
       };
@@ -202,41 +265,28 @@ function collectSocketEvents<T>(
 }
 
 describe("Game Lock and Queue Mechanics", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite | undefined;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
   let testUtils: TestUtils;
   let lockService: GameActionLockService;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
-    testUtils = new TestUtils(app, userRepo, serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
+    testUtils = suite.testUtils;
     lockService = container.resolve(GameActionLockService);
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      if (cleanup) await cleanup();
-      await testEnv.teardown();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
   describe("Concurrent Player Leave", () => {
@@ -244,145 +294,133 @@ describe("Game Lock and Queue Mechanics", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        await utils.startGame(showmanSocket);
+      await utils.startGame(showmanSocket);
 
-        const leftUserIds: number[] = [];
+      const leftUserIds: number[] = [];
 
-        // Serialize leave emissions to avoid RPUSH/LLEN race condition
-        // in the action queue (pre-existing edge case, not migration-related)
-        const leavePromise1 = utils.waitForEvent<GameLeaveBroadcastData>(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
-        playerSockets[0].emit(SocketIOGameEvents.LEAVE);
-        const leaveData1 = await leavePromise1;
-        leftUserIds.push(leaveData1.user);
+      // Serialize leave emissions to avoid RPUSH/LLEN race condition
+      // in the action queue (pre-existing edge case, not migration-related)
+      const leavePromise1 = utils.waitForEvent<GameLeaveBroadcastData>(
+        showmanSocket,
+        SocketIOGameEvents.LEAVE
+      );
+      playerSockets[0].emit(SocketIOGameEvents.LEAVE);
+      const leaveData1 = await leavePromise1;
+      leftUserIds.push(leaveData1.user);
 
-        const leavePromise2 = utils.waitForEvent<GameLeaveBroadcastData>(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
-        playerSockets[1].emit(SocketIOGameEvents.LEAVE);
-        const leaveData2 = await leavePromise2;
-        leftUserIds.push(leaveData2.user);
+      const leavePromise2 = utils.waitForEvent<GameLeaveBroadcastData>(
+        showmanSocket,
+        SocketIOGameEvents.LEAVE
+      );
+      playerSockets[1].emit(SocketIOGameEvents.LEAVE);
+      const leaveData2 = await leavePromise2;
+      leftUserIds.push(leaveData2.user);
 
-        expect(leftUserIds).toHaveLength(2);
+      expect(leftUserIds).toHaveLength(2);
 
-        // Verify both players are gone from game
-        const game = await utils.getGameFromGameService(setup.gameId);
-        expect(game).toBeDefined();
+      // Verify both players are gone from game
+      const game = await utils.getGameFromGameService(setup.gameId);
+      expect(game).toBeDefined();
 
-        const connectedPlayers = game.players.filter(
-          (p) => p.gameStatus !== PlayerGameStatus.DISCONNECTED
-        );
-        const remainingPlayerIds = connectedPlayers.map((p) => p.meta.id);
+      const connectedPlayers = game.players.filter(
+        (p) => p.gameStatus !== PlayerGameStatus.DISCONNECTED
+      );
+      const remainingPlayerIds = connectedPlayers.map((p) => p.meta.id);
 
-        leftUserIds.forEach((userId) => {
-          expect(remainingPlayerIds).not.toContain(userId);
-        });
+      leftUserIds.forEach((userId) => {
+        expect(remainingPlayerIds).not.toContain(userId);
+      });
 
-        // One showman + one player should remain connected (2 total)
-        expect(connectedPlayers.length).toBe(2);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // One showman + one player should remain connected (2 total)
+      expect(connectedPlayers.length).toBe(2);
     });
 
     it("should handle three players leaving in rapid succession", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        await utils.startGame(showmanSocket);
+      await utils.startGame(showmanSocket);
 
-        const leftUserIds: number[] = [];
+      const leftUserIds: number[] = [];
 
-        // Serialize leave emissions to avoid RPUSH/LLEN race condition
-        for (let i = 0; i < 3; i++) {
-          const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.LEAVE
-          );
-          playerSockets[i].emit(SocketIOGameEvents.LEAVE);
-          const leaveData = await leavePromise;
-          leftUserIds.push(leaveData.user);
-        }
-
-        expect(leftUserIds).toHaveLength(3);
-
-        // Verify only one player remains
-        const game = await utils.getGameFromGameService(setup.gameId);
-        expect(game).toBeDefined();
-
-        const connectedPlayers = game.players.filter(
-          (p) => p.gameStatus !== PlayerGameStatus.DISCONNECTED
+      // Serialize leave emissions to avoid RPUSH/LLEN race condition
+      for (let i = 0; i < 3; i++) {
+        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
         );
-
-        // Only showman should remain (1 total)
-        expect(connectedPlayers.length).toBe(1);
-        expect(connectedPlayers[0].role).toBe(PlayerRole.SHOWMAN);
-
-        const remainingPlayerIds = connectedPlayers.map((p) => p.meta.id);
-
-        leftUserIds.forEach((userId) => {
-          expect(remainingPlayerIds).not.toContain(userId);
-        });
-      } finally {
-        await utils.cleanupGameClients(setup);
+        playerSockets[i].emit(SocketIOGameEvents.LEAVE);
+        const leaveData = await leavePromise;
+        leftUserIds.push(leaveData.user);
       }
+
+      expect(leftUserIds).toHaveLength(3);
+
+      // Verify only one player remains
+      const game = await utils.getGameFromGameService(setup.gameId);
+      expect(game).toBeDefined();
+
+      const connectedPlayers = game.players.filter(
+        (p) => p.gameStatus !== PlayerGameStatus.DISCONNECTED
+      );
+
+      // Only showman should remain (1 total)
+      expect(connectedPlayers.length).toBe(1);
+      expect(connectedPlayers[0].role).toBe(PlayerRole.SHOWMAN);
+
+      const remainingPlayerIds = connectedPlayers.map((p) => p.meta.id);
+
+      leftUserIds.forEach((userId) => {
+        expect(remainingPlayerIds).not.toContain(userId);
+      });
     });
 
     it("should handle player leave during active question", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        await utils.startGame(showmanSocket);
+      await utils.startGame(showmanSocket);
 
-        // Pick a question to enter answering phase
-        const questionDataPromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.QUESTION_DATA
-        );
-        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-        await questionDataPromise;
+      // Pick a question to enter answering phase
+      const questionDataPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.QUESTION_DATA
+      );
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      await questionDataPromise;
 
-        // Verify we're in SHOWING state
-        const gameState = await utils.getGameState(setup.gameId);
-        expect(gameState!.questionState).toBe(QuestionState.SHOWING);
+      // Verify we're in SHOWING state
+      const gameState = await utils.getGameState(setup.gameId);
+      expect(gameState!.questionState).toBe(QuestionState.SHOWING);
 
-        const leftUserIds: number[] = [];
+      const leftUserIds: number[] = [];
 
-        // Serialize leave emissions to avoid RPUSH/LLEN race condition
-        const leavePromise1 = utils.waitForEvent<GameLeaveBroadcastData>(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
-        playerSockets[0].emit(SocketIOGameEvents.LEAVE);
-        const leaveData1 = await leavePromise1;
-        leftUserIds.push(leaveData1.user);
+      // Serialize leave emissions to avoid RPUSH/LLEN race condition
+      const leavePromise1 = utils.waitForEvent<GameLeaveBroadcastData>(
+        showmanSocket,
+        SocketIOGameEvents.LEAVE
+      );
+      playerSockets[0].emit(SocketIOGameEvents.LEAVE);
+      const leaveData1 = await leavePromise1;
+      leftUserIds.push(leaveData1.user);
 
-        const leavePromise2 = utils.waitForEvent<GameLeaveBroadcastData>(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
-        playerSockets[1].emit(SocketIOGameEvents.LEAVE);
-        const leaveData2 = await leavePromise2;
-        leftUserIds.push(leaveData2.user);
+      const leavePromise2 = utils.waitForEvent<GameLeaveBroadcastData>(
+        showmanSocket,
+        SocketIOGameEvents.LEAVE
+      );
+      playerSockets[1].emit(SocketIOGameEvents.LEAVE);
+      const leaveData2 = await leavePromise2;
+      leftUserIds.push(leaveData2.user);
 
-        expect(leftUserIds).toHaveLength(2);
+      expect(leftUserIds).toHaveLength(2);
 
-        // Verify both players left (only showman remains)
-        const game = await utils.getGameFromGameService(setup.gameId);
-        const connectedPlayers = game.players.filter(
-          (p) => p.gameStatus !== PlayerGameStatus.DISCONNECTED
-        );
-        expect(connectedPlayers.length).toBe(1);
-        expect(connectedPlayers[0].role).toBe(PlayerRole.SHOWMAN);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify both players left (only showman remains)
+      const game = await utils.getGameFromGameService(setup.gameId);
+      const connectedPlayers = game.players.filter(
+        (p) => p.gameStatus !== PlayerGameStatus.DISCONNECTED
+      );
+      expect(connectedPlayers.length).toBe(1);
+      expect(connectedPlayers[0].role).toBe(PlayerRole.SHOWMAN);
     });
   });
 
@@ -391,73 +429,69 @@ describe("Game Lock and Queue Mechanics", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        await utils.startGame(showmanSocket);
+      await utils.startGame(showmanSocket);
 
-        // Pick question and wait for question data
-        const questionDataPromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.QUESTION_DATA
-        );
-        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-        await questionDataPromise;
+      // Pick question and wait for question data
+      const questionDataPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.QUESTION_DATA
+      );
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      await questionDataPromise;
 
-        // Verify we're in SHOWING state before actions
-        let gameState = await utils.getGameState(setup.gameId);
-        expect(gameState!.questionState).toBe(QuestionState.SHOWING);
+      // Verify we're in SHOWING state before actions
+      let gameState = await utils.getGameState(setup.gameId);
+      expect(gameState!.questionState).toBe(QuestionState.SHOWING);
 
-        // Setup event listeners for answer result and answer-show-start
-        const answerResultPromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.ANSWER_RESULT
-        );
-        const answerShowStartPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.ANSWER_SHOW_START
-        );
+      // Setup event listeners for answer result and answer-show-start
+      const answerResultPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.ANSWER_RESULT
+      );
+      const answerShowStartPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.ANSWER_SHOW_START
+      );
 
-        // Serialize: first submit answer, wait for it to be processed,
-        // then submit review to avoid RPUSH/LLEN race condition
-        const answerPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_ANSWER);
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER, {});
-        const answer = await answerPromise;
+      // Serialize: first submit answer, wait for it to be processed,
+      // then submit review to avoid RPUSH/LLEN race condition
+      const answerPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_ANSWER);
+      playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER, {});
+      const answer = await answerPromise;
 
-        // Now submit the review after the answer has been processed
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-          scoreResult: 400,
-          answerType: AnswerResultType.CORRECT
-        });
+      // Now submit the review after the answer has been processed
+      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scoreResult: 400,
+        answerType: AnswerResultType.CORRECT
+      });
 
-        // Wait for answer result and answer-show-start to ensure
-        // the server has fully transitioned to SHOWING_ANSWER state
-        // and released the lock before we send skip-show-answer
-        const answerResult = await answerResultPromise;
-        await answerShowStartPromise;
+      // Wait for answer result and answer-show-start to ensure
+      // the server has fully transitioned to SHOWING_ANSWER state
+      // and released the lock before we send skip-show-answer
+      const answerResult = await answerResultPromise;
+      await answerShowStartPromise;
 
-        // Skip show answer phase — this also waits for ANSWER_SHOW_END
-        await utils.skipShowAnswer(showmanSocket);
+      // Skip show answer phase — this also waits for ANSWER_SHOW_END
+      await utils.skipShowAnswer(showmanSocket);
 
-        // ANSWER_SHOW_END received from skipShowAnswer above
-        const questionFinish = true;
+      // ANSWER_SHOW_END received from skipShowAnswer above
+      const questionFinish = true;
 
-        // Verify all events were received
-        expect(answer).toBeDefined();
-        expect(answerResult).toBeDefined();
-        expect(answerResult.answerResult.answerType).toBe(AnswerResultType.CORRECT);
-        expect(questionFinish).toBeDefined();
+      // Verify all events were received
+      expect(answer).toBeDefined();
+      expect(answerResult).toBeDefined();
+      expect(answerResult.answerResult.answerType).toBe(AnswerResultType.CORRECT);
+      expect(questionFinish).toBeDefined();
 
-        // Verify player score was updated correctly
-        const game = await utils.getGameFromGameService(setup.gameId);
-        const player = game.players.find((p) => p.role === PlayerRole.PLAYER);
-        expect(player).toBeDefined();
-        expect(player!.score).toBe(400);
+      // Verify player score was updated correctly
+      const game = await utils.getGameFromGameService(setup.gameId);
+      const player = game.players.find((p) => p.role === PlayerRole.PLAYER);
+      expect(player).toBeDefined();
+      expect(player!.score).toBe(400);
 
-        // Verify question state transitioned correctly through the queue
-        gameState = await utils.getGameState(setup.gameId);
-        expect(gameState!.questionState).toBe(QuestionState.CHOOSING);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify question state transitioned correctly through the queue
+      gameState = await utils.getGameState(setup.gameId);
+      expect(gameState!.questionState).toBe(QuestionState.CHOOSING);
     });
 
     it("should handle multiple rapid answer attempts (only first succeeds)", async () => {
@@ -500,7 +534,6 @@ describe("Game Lock and Queue Mechanics", () => {
         expect(gameState!.questionState).toBe(QuestionState.ANSWERING);
       } finally {
         answerEvents?.stop();
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -565,7 +598,6 @@ describe("Game Lock and Queue Mechanics", () => {
         showmanSubmittedEvents?.stop();
         otherPlayerSubmittedEvents?.stop();
         spectatorSubmittedEvents?.stop();
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -613,7 +645,6 @@ describe("Game Lock and Queue Mechanics", () => {
         expect(reviewedPlayer!.score).toBe(-400);
       } finally {
         answerResultEvents?.stop();
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -621,46 +652,42 @@ describe("Game Lock and Queue Mechanics", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        await utils.startGame(showmanSocket);
+      await utils.startGame(showmanSocket);
 
-        // Pick question
-        const questionDataPromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.QUESTION_DATA
-        );
-        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-        await questionDataPromise;
+      // Pick question
+      const questionDataPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.QUESTION_DATA
+      );
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      await questionDataPromise;
 
-        // Serialize: first submit answer, wait for it to be processed,
-        // then submit leave to avoid RPUSH/LLEN race condition
-        const answerPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_ANSWER);
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER, {});
-        const answerData = await answerPromise;
+      // Serialize: first submit answer, wait for it to be processed,
+      // then submit leave to avoid RPUSH/LLEN race condition
+      const answerPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.QUESTION_ANSWER);
+      playerSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER, {});
+      const answerData = await answerPromise;
 
-        const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
-        playerSockets[1].emit(SocketIOGameEvents.LEAVE);
-        const leaveData = await leavePromise;
+      const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+      playerSockets[1].emit(SocketIOGameEvents.LEAVE);
+      const leaveData = await leavePromise;
 
-        expect(answerData).toBeDefined();
-        expect(leaveData).toBeDefined();
+      expect(answerData).toBeDefined();
+      expect(leaveData).toBeDefined();
 
-        // Verify game state is consistent
-        const game = await utils.getGameFromGameService(setup.gameId);
-        const gameState = await utils.getGameState(setup.gameId);
-        const connectedPlayers = game.players.filter(
-          (p) => p.gameStatus !== PlayerGameStatus.DISCONNECTED
-        );
+      // Verify game state is consistent
+      const game = await utils.getGameFromGameService(setup.gameId);
+      const gameState = await utils.getGameState(setup.gameId);
+      const connectedPlayers = game.players.filter(
+        (p) => p.gameStatus !== PlayerGameStatus.DISCONNECTED
+      );
 
-        // Showman + one remaining player = 2 (player 1 left)
-        expect(connectedPlayers.length).toBe(2);
+      // Showman + one remaining player = 2 (player 1 left)
+      expect(connectedPlayers.length).toBe(2);
 
-        // The answer from player 0 should have been processed (state: ANSWERING)
-        expect(gameState!.questionState).toBe(QuestionState.ANSWERING);
-        expect(gameState!.answeringPlayer).toBe(answerData.userId);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // The answer from player 0 should have been processed (state: ANSWERING)
+      expect(gameState!.questionState).toBe(QuestionState.ANSWERING);
+      expect(gameState!.answeringPlayer).toBe(answerData.userId);
     });
   });
 
@@ -726,7 +753,6 @@ describe("Game Lock and Queue Mechanics", () => {
         showmanSkipEvents?.stop();
         playerSkipEvents?.stop();
         spectatorSkipEvents?.stop();
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -854,7 +880,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
   });
@@ -903,7 +928,6 @@ describe("Game Lock and Queue Mechanics", () => {
         expect(playerIds).not.toContain(targetPlayer.meta.id);
       } finally {
         leaveEvents?.stop();
-        await utils.cleanupGameClients(setup);
       }
     });
   });
@@ -913,67 +937,75 @@ describe("Game Lock and Queue Mechanics", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        await utils.startGame(showmanSocket);
+      await utils.startGame(showmanSocket);
 
-        // Verify we're in CHOOSING state
-        let gameState = await utils.getGameState(setup.gameId);
-        expect(gameState!.questionState).toBe(QuestionState.CHOOSING);
+      // Verify we're in CHOOSING state
+      let gameState = await utils.getGameState(setup.gameId);
+      expect(gameState!.questionState).toBe(QuestionState.CHOOSING);
 
-        // Pause and pick question simultaneously
-        const pausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_PAUSE);
+      // Pause and pick question simultaneously
+      const pausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_PAUSE);
 
-        showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
+      showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
 
-        await pausePromise;
+      await pausePromise;
 
-        // Verify game is paused
-        gameState = await utils.getGameState(setup.gameId);
-        expect(gameState!.isPaused).toBe(true);
+      // Verify game is paused
+      gameState = await utils.getGameState(setup.gameId);
+      expect(gameState!.isPaused).toBe(true);
 
-        // Unpause
-        const unpausePromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.GAME_UNPAUSE
-        );
-        showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
-        await unpausePromise;
+      // Unpause
+      const unpausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_UNPAUSE);
+      showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
+      await unpausePromise;
 
-        // Now picking should work
-        const questionDataPromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.QUESTION_DATA
-        );
-        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-        await questionDataPromise;
+      // Now picking should work
+      const questionDataPromise = utils.waitForEvent(
+        playerSockets[0],
+        SocketIOGameEvents.QUESTION_DATA
+      );
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      await questionDataPromise;
 
-        gameState = await utils.getGameState(setup.gameId);
-        expect(gameState!.currentQuestion).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      gameState = await utils.getGameState(setup.gameId);
+      expect(gameState!.currentQuestion).toBeDefined();
     });
   });
 
   describe("Queued Media Download", () => {
     it("should drain media download confirmations in FIFO order through the showing transition", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1);
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1, true, 0, true);
       const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } = setup;
 
       let showmanStatusEvents: EventCollector<MediaDownloadStatusBroadcastData> | null = null;
       let spectatorStatusEvents: EventCollector<MediaDownloadStatusBroadcastData> | null = null;
+      let questionRevealEvents: EventCollector<GameQuestionDataEventPayload> | null = null;
       let lockToken = "";
 
       try {
         await utils.startGame(showmanSocket);
 
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
-        const questionDataPromise = utils.waitForEvent(
-          playerSockets[0],
+        questionRevealEvents = collectEvents<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA,
+          1,
+          TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
+        );
+        void questionRevealEvents.promise.catch(() => undefined);
+        const preloadPromise = utils.waitForEvent<MediaQuestionPreloadPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_PICK
+        );
+        const noQuestionDataPromise = utils.waitForNoEvent(
+          showmanSocket,
           SocketIOGameEvents.QUESTION_DATA
         );
         showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-        await questionDataPromise;
+        const [preload] = await Promise.all([preloadPromise, noQuestionDataPromise]);
+
+        expectMediaQuestionPreload(preload, questionId);
+        expect(questionRevealEvents.count()).toBe(0);
 
         const mediaDownloadState = await utils.getGameState(gameId);
         expect(mediaDownloadState!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
@@ -1006,6 +1038,7 @@ describe("Game Lock and Queue Mechanics", () => {
           SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
           mediaDownloadActions.length
         );
+        expect(questionRevealEvents.count()).toBe(0);
 
         await lockService.releaseLock(gameId, lockToken);
         lockToken = "";
@@ -1013,9 +1046,10 @@ describe("Game Lock and Queue Mechanics", () => {
         const startedAt = Date.now();
         drainTriggerAction.socket.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
 
-        const [showmanStatuses, spectatorStatuses] = await Promise.all([
+        const [showmanStatuses, spectatorStatuses, [questionReveal]] = await Promise.all([
           showmanStatusEvents.promise,
-          spectatorStatusEvents.promise
+          spectatorStatusEvents.promise,
+          questionRevealEvents.promise
         ]);
         await utils.waitForActionsComplete(gameId);
         const durationMs = Date.now() - startedAt;
@@ -1036,6 +1070,8 @@ describe("Game Lock and Queue Mechanics", () => {
 
         expect(statusOrder(showmanStatuses)).toEqual(expectedStatusOrder);
         expect(statusOrder(spectatorStatuses)).toEqual(expectedStatusOrder);
+        expectMediaQuestionReveal(questionReveal, questionId);
+        expect(questionRevealEvents.count()).toBe(1);
         expect(durationMs).toBeLessThanOrEqual(QUEUE_DRAIN_BUDGET_MS);
 
         const finalState = await utils.getGameState(gameId);
@@ -1043,18 +1079,18 @@ describe("Game Lock and Queue Mechanics", () => {
       } finally {
         showmanStatusEvents?.stop();
         spectatorStatusEvents?.stop();
+        questionRevealEvents?.stop();
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
   });
 
   describe("Timer Expiration Queue Drain", () => {
     it("should process a queued media download timer expiration before the drain-trigger action", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
-      const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } = setup;
+      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1, true, 0, true);
+      const { showmanSocket, spectatorSockets, gameId, playerUsers } = setup;
 
       let showmanDrainEvents: EventCollector<
         CollectedSocketEvent<MediaDownloadStatusBroadcastData | PlayerScoreChangeBroadcastData>
@@ -1062,18 +1098,33 @@ describe("Game Lock and Queue Mechanics", () => {
       let spectatorDrainEvents: EventCollector<
         CollectedSocketEvent<MediaDownloadStatusBroadcastData | PlayerScoreChangeBroadcastData>
       > | null = null;
+      let questionRevealEvents: EventCollector<GameQuestionDataEventPayload> | null = null;
       let lockToken = "";
 
       try {
         await utils.startGame(showmanSocket);
 
         const questionId = await utils.getFirstAvailableQuestionId(gameId);
-        const questionDataPromise = utils.waitForEvent(
-          playerSockets[0],
+        questionRevealEvents = collectEvents<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA,
+          1,
+          TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
+        );
+        void questionRevealEvents.promise.catch(() => undefined);
+        const preloadPromise = utils.waitForEvent<MediaQuestionPreloadPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_PICK
+        );
+        const noQuestionDataPromise = utils.waitForNoEvent(
+          showmanSocket,
           SocketIOGameEvents.QUESTION_DATA
         );
         showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-        await questionDataPromise;
+        const [preload] = await Promise.all([preloadPromise, noQuestionDataPromise]);
+
+        expectMediaQuestionPreload(preload, questionId);
+        expect(questionRevealEvents.count()).toBe(0);
 
         const mediaDownloadState = await utils.getGameState(gameId);
         expect(mediaDownloadState!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
@@ -1087,6 +1138,7 @@ describe("Game Lock and Queue Mechanics", () => {
           GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED
         );
         await utils.waitForQueueLengthAtLeast(gameId, 1);
+        expect(questionRevealEvents.count()).toBe(0);
 
         const drainTriggerScore = 333;
         const drainEvents = [
@@ -1115,9 +1167,10 @@ describe("Game Lock and Queue Mechanics", () => {
           newScore: drainTriggerScore
         });
 
-        const [showmanEvents, spectatorEvents] = await Promise.all([
+        const [showmanEvents, spectatorEvents, [questionReveal]] = await Promise.all([
           showmanDrainEvents.promise,
-          spectatorDrainEvents.promise
+          spectatorDrainEvents.promise,
+          questionRevealEvents.promise
         ]);
         await utils.waitForActionsComplete(gameId);
         const durationMs = Date.now() - startedAt;
@@ -1130,6 +1183,8 @@ describe("Game Lock and Queue Mechanics", () => {
 
         expect(eventOrder(showmanEvents)).toEqual(drainEvents);
         expect(eventOrder(spectatorEvents)).toEqual(drainEvents);
+        expectMediaQuestionReveal(questionReveal, questionId);
+        expect(questionRevealEvents.count()).toBe(1);
 
         const timeoutStatus = showmanEvents[0].data as MediaDownloadStatusBroadcastData;
         expect(timeoutStatus.playerId).toBe(SYSTEM_PLAYER_ID);
@@ -1158,10 +1213,10 @@ describe("Game Lock and Queue Mechanics", () => {
       } finally {
         showmanDrainEvents?.stop();
         spectatorDrainEvents?.stop();
+        questionRevealEvents?.stop();
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -1309,7 +1364,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -1474,7 +1528,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -1541,7 +1594,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -1608,7 +1660,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -1711,7 +1762,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
   });
@@ -1781,7 +1831,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -1862,7 +1911,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -1935,7 +1983,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -2017,7 +2064,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
   });
@@ -2151,7 +2197,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
   });
@@ -2272,7 +2317,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -2427,7 +2471,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -2623,7 +2666,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -2764,7 +2806,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
 
@@ -2873,7 +2914,6 @@ describe("Game Lock and Queue Mechanics", () => {
         if (lockToken) {
           await lockService.releaseLock(gameId, lockToken);
         }
-        await utils.cleanupGameClients(setup);
       }
     });
   });
@@ -2922,7 +2962,6 @@ describe("Game Lock and Queue Mechanics", () => {
         expect(finalPlayer.score).toBe(scores[scores.length - 1]);
       } finally {
         scoreEvents?.stop();
-        await utils.cleanupGameClients(setup);
       }
     });
   });

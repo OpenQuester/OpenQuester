@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
@@ -14,44 +7,28 @@ import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 describe("Auto-Skip Question Flow Tests", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
   describe("Secret Question Auto-Skip", () => {
@@ -60,45 +37,37 @@ describe("Auto-Skip Question Flow Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 0);
       const { showmanSocket, gameId } = setup;
 
-      try {
-        // Start the game
-        await utils.startGame(showmanSocket);
+      // Start the game
+      await utils.startGame(showmanSocket);
 
-        // Find a secret question
-        const secretQuestion = await utils.findQuestionByType(
-          PackageQuestionType.SECRET,
-          gameId
-        );
+      // Find a secret question
+      const secretQuestion = await utils.findQuestionByType(PackageQuestionType.SECRET, gameId);
 
-        expect(secretQuestion).toBeDefined();
-        expect(secretQuestion!.id).toBeGreaterThan(0);
+      expect(secretQuestion).toBeDefined();
+      expect(secretQuestion!.id).toBeGreaterThan(0);
 
-        // Set up listener for question data (which should come immediately when auto-skipping)
-        const questionDataPromise =
-          utils.waitForEvent<GameQuestionDataEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_DATA,
-            5000
-          );
+      // Set up listener for question data (which should come immediately when auto-skipping)
+      const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.QUESTION_DATA,
+        5000
+      );
 
-        // Pick the secret question
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: secretQuestion!.id,
-        });
+      // Pick the secret question
+      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: secretQuestion!.id
+      });
 
-        const questionData = await questionDataPromise;
+      const questionData = await questionDataPromise;
 
-        // Verify we got the question data directly (skipped transfer phase)
-        expect(questionData.data.id).toBe(secretQuestion!.id);
-        expect(questionData.data.type).toBe(PackageQuestionType.SECRET);
+      // Verify we got the question data directly (skipped transfer phase)
+      expect(questionData.data.id).toBe(secretQuestion!.id);
+      expect(questionData.data.type).toBe(PackageQuestionType.SECRET);
 
-        // Verify the game state shows SHOWING (not SECRET_TRANSFER)
-        const finalState = await utils.getGameState(gameId);
-        expect(finalState!.questionState).toBe(QuestionState.SHOWING);
-        expect(finalState!.secretQuestionData).toBeNull();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify the game state shows SHOWING (not SECRET_TRANSFER)
+      const finalState = await utils.getGameState(gameId);
+      expect(finalState!.questionState).toBe(QuestionState.SHOWING);
+      expect(finalState!.secretQuestionData).toBeNull();
     });
   });
 
@@ -108,45 +77,37 @@ describe("Auto-Skip Question Flow Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 0);
       const { showmanSocket, gameId } = setup;
 
-      try {
-        // Start the game
-        await utils.startGame(showmanSocket);
+      // Start the game
+      await utils.startGame(showmanSocket);
 
-        // Find a stake question
-        const stakeQuestion = await utils.findQuestionByType(
-          PackageQuestionType.STAKE,
-          gameId
-        );
+      // Find a stake question
+      const stakeQuestion = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
 
-        expect(stakeQuestion).toBeDefined();
-        expect(stakeQuestion!.id).toBeGreaterThan(0);
+      expect(stakeQuestion).toBeDefined();
+      expect(stakeQuestion!.id).toBeGreaterThan(0);
 
-        // Set up listener for question data (which should come immediately when auto-skipping)
-        const questionDataPromise =
-          utils.waitForEvent<GameQuestionDataEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_DATA,
-            5000
-          );
+      // Set up listener for question data (which should come immediately when auto-skipping)
+      const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.QUESTION_DATA,
+        5000
+      );
 
-        // Pick the stake question
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: stakeQuestion!.id,
-        });
+      // Pick the stake question
+      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: stakeQuestion!.id
+      });
 
-        const questionData = await questionDataPromise;
+      const questionData = await questionDataPromise;
 
-        // Verify we got the question data directly (skipped bidding phase)
-        expect(questionData.data.id).toBe(stakeQuestion!.id);
-        expect(questionData.data.type).toBe(PackageQuestionType.STAKE);
+      // Verify we got the question data directly (skipped bidding phase)
+      expect(questionData.data.id).toBe(stakeQuestion!.id);
+      expect(questionData.data.type).toBe(PackageQuestionType.STAKE);
 
-        // Verify the game state shows SHOWING (not BIDDING)
-        // Logic: No players - show as simple question in SHOWING state
-        const finalState = await utils.getGameState(gameId);
-        expect(finalState!.questionState).toBe(QuestionState.SHOWING);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify the game state shows SHOWING (not BIDDING)
+      // Logic: No players - show as simple question in SHOWING state
+      const finalState = await utils.getGameState(gameId);
+      expect(finalState!.questionState).toBe(QuestionState.SHOWING);
     });
   });
 });

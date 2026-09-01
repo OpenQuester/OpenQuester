@@ -1,62 +1,36 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   type GameStartBroadcastData,
-  type PlayerReadinessBroadcastData,
+  type PlayerReadinessBroadcastData
 } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 describe("SocketIOGameReady", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
+  });
+
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      if (cleanup) await cleanup();
-      await testEnv.teardown();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
-  });
-
-  beforeEach(async () => {
-    await testEnv.clearRedis();
-    userRepo = testEnv.getDatabase().getRepository(User);
+    await suite?.stop();
   });
 
   describe("Player Ready Functionality", () => {
@@ -64,199 +38,152 @@ describe("SocketIOGameReady", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { playerSockets, showmanSocket } = setup;
 
-      try {
-        // Listen for ready event on showman socket
-        const readyEventPromise = utils.waitForPlayerReady(showmanSocket);
+      // Listen for ready event on showman socket
+      const readyEventPromise = utils.waitForPlayerReady(showmanSocket);
 
-        // Player sets ready
-        await utils.setPlayerReady(playerSockets[0]);
+      // Player sets ready
+      await utils.setPlayerReady(playerSockets[0]);
 
-        // Verify the event was broadcasted correctly
-        const readyData = await readyEventPromise;
-        expect(readyData.playerId).toBe(setup.playerUsers[0].id);
-        expect(readyData.isReady).toBe(true);
-        expect(readyData.readyPlayers).toContain(setup.playerUsers[0].id);
-        expect(readyData.autoStartTriggered).toBe(true); // Single player should trigger auto-start
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify the event was broadcasted correctly
+      const readyData = await readyEventPromise;
+      expect(readyData.playerId).toBe(setup.playerUsers[0].id);
+      expect(readyData.isReady).toBe(true);
+      expect(readyData.readyPlayers).toContain(setup.playerUsers[0].id);
+      expect(readyData.autoStartTriggered).toBe(true); // Single player should trigger auto-start
     });
 
     it("should allow player to set unready state", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0); // Use 2 players so auto-start doesn't trigger
       const { playerSockets, showmanSocket } = setup;
 
-      try {
-        // First set player ready
-        await utils.setPlayerReady(playerSockets[0]);
+      // First set player ready
+      await utils.setPlayerReady(playerSockets[0]);
 
-        // Listen for unready event on showman socket
-        const unreadyEventPromise = utils.waitForPlayerUnready(showmanSocket);
+      // Listen for unready event on showman socket
+      const unreadyEventPromise = utils.waitForPlayerUnready(showmanSocket);
 
-        // Player sets unready
-        await utils.setPlayerUnready(playerSockets[0]);
+      // Player sets unready
+      await utils.setPlayerUnready(playerSockets[0]);
 
-        // Verify the event was broadcasted correctly
-        const unreadyData = await unreadyEventPromise;
-        expect(unreadyData.playerId).toBe(setup.playerUsers[0].id);
-        expect(unreadyData.isReady).toBe(false);
-        expect(unreadyData.readyPlayers).not.toContain(setup.playerUsers[0].id);
-        expect(unreadyData.autoStartTriggered).toBe(false);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify the event was broadcasted correctly
+      const unreadyData = await unreadyEventPromise;
+      expect(unreadyData.playerId).toBe(setup.playerUsers[0].id);
+      expect(unreadyData.isReady).toBe(false);
+      expect(unreadyData.readyPlayers).not.toContain(setup.playerUsers[0].id);
+      expect(unreadyData.autoStartTriggered).toBe(false);
     });
 
     it("should trigger auto-start when all players are ready", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1);
       const { playerSockets, showmanSocket, spectatorSockets } = setup;
 
-      try {
-        await utils.setPlayerReady(playerSockets[0]);
-        await utils.setPlayerReady(playerSockets[1]);
+      await utils.setPlayerReady(playerSockets[0]);
+      await utils.setPlayerReady(playerSockets[1]);
 
-        await utils.waitForNoEvent(showmanSocket, SocketIOGameEvents.START);
+      await utils.waitForNoEvent(showmanSocket, SocketIOGameEvents.START);
 
-        const finalReadyOnShowmanPromise = utils.waitForEvent<PlayerReadinessBroadcastData>(
-          showmanSocket,
-          SocketIOGameEvents.PLAYER_READY
+      const finalReadyOnShowmanPromise = utils.waitForEvent<PlayerReadinessBroadcastData>(
+        showmanSocket,
+        SocketIOGameEvents.PLAYER_READY
+      );
+      const finalReadyOnSpectatorPromise = utils.waitForEvent<PlayerReadinessBroadcastData>(
+        spectatorSockets[0],
+        SocketIOGameEvents.PLAYER_READY
+      );
+      const startPromises = [showmanSocket, ...playerSockets, spectatorSockets[0]].map((socket) =>
+        utils.waitForEvent<GameStartBroadcastData>(socket, SocketIOGameEvents.START)
+      );
+
+      await utils.setPlayerReady(playerSockets[2]);
+
+      const [finalReadyOnShowman, finalReadyOnSpectator, ...startEvents] = await Promise.all([
+        finalReadyOnShowmanPromise,
+        finalReadyOnSpectatorPromise,
+        ...startPromises
+      ]);
+
+      for (const readyData of [finalReadyOnShowman, finalReadyOnSpectator]) {
+        expect(readyData.playerId).toBe(setup.playerUsers[2].id);
+        expect(readyData.isReady).toBe(true);
+        expect(readyData.autoStartTriggered).toBe(true);
+        expect(readyData.readyPlayers).toEqual(
+          expect.arrayContaining(setup.playerUsers.map((user) => user.id))
         );
-        const finalReadyOnSpectatorPromise = utils.waitForEvent<PlayerReadinessBroadcastData>(
-          spectatorSockets[0],
-          SocketIOGameEvents.PLAYER_READY
-        );
-        const startPromises = [showmanSocket, ...playerSockets, spectatorSockets[0]].map((socket) =>
-          utils.waitForEvent<GameStartBroadcastData>(socket, SocketIOGameEvents.START)
-        );
-
-        await utils.setPlayerReady(playerSockets[2]);
-
-        const [finalReadyOnShowman, finalReadyOnSpectator, ...startEvents] = await Promise.all([
-          finalReadyOnShowmanPromise,
-          finalReadyOnSpectatorPromise,
-          ...startPromises,
-        ]);
-
-        for (const readyData of [finalReadyOnShowman, finalReadyOnSpectator]) {
-          expect(readyData.playerId).toBe(setup.playerUsers[2].id);
-          expect(readyData.isReady).toBe(true);
-          expect(readyData.autoStartTriggered).toBe(true);
-          expect(readyData.readyPlayers).toEqual(
-            expect.arrayContaining(setup.playerUsers.map((user) => user.id))
-          );
-        }
-
-        for (const startData of startEvents) {
-          expect(startData.currentRound).toBeDefined();
-          expect(startData.currentRound.order).toBe(0);
-        }
-
-        const gameState = await utils.getGameState(setup.gameId);
-        expect(gameState?.currentRound?.order).toBe(0);
-        expect(gameState?.readyPlayers).toBeNull();
-      } finally {
-        await utils.cleanupGameClients(setup);
       }
+
+      for (const startData of startEvents) {
+        expect(startData.currentRound).toBeDefined();
+        expect(startData.currentRound.order).toBe(0);
+      }
+
+      const gameState = await utils.getGameState(setup.gameId);
+      expect(gameState?.currentRound?.order).toBe(0);
+      expect(gameState?.readyPlayers).toBeNull();
     });
 
     it("should not count showman as required for ready state", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { playerSockets, showmanSocket } = setup;
 
-      try {
-        let gameStarted = false;
+      const startPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.START);
 
-        // Listen for game start event
-        showmanSocket.on(SocketIOGameEvents.START, () => {
-          gameStarted = true;
-        });
+      // Single player ready should trigger auto-start
+      await utils.setPlayerReady(playerSockets[0]);
 
-        const startPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.START
-        );
-
-        // Single player ready should trigger auto-start
-        await utils.setPlayerReady(playerSockets[0]);
-
-        await startPromise;
-
-        expect(gameStarted).toBe(true);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      expect(await startPromise).toBeDefined();
     });
 
     it("should remove player from ready list when they leave", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0); // Use 3 players so auto-start doesn't trigger with 2
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        // Set two players ready (but not all three, so no auto-start)
+      // Set two players ready (but not all three, so no auto-start)
 
-        const readyPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.PLAYER_READY
-        );
-        await utils.setPlayerReady(playerSockets[0]);
-        await readyPromise;
+      const readyPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.PLAYER_READY);
+      await utils.setPlayerReady(playerSockets[0]);
+      await readyPromise;
 
-        const readyPromise2 = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.PLAYER_READY
-        );
-        await utils.setPlayerReady(playerSockets[1]);
-        await readyPromise2;
+      const readyPromise2 = utils.waitForEvent(showmanSocket, SocketIOGameEvents.PLAYER_READY);
+      await utils.setPlayerReady(playerSockets[1]);
+      await readyPromise2;
 
-        // Verify initial state
-        const beforeLeave = await utils.getGameState(setup.gameId);
+      // Verify initial state
+      const beforeLeave = await utils.getGameState(setup.gameId);
 
-        // Ensure we have both players ready before proceeding
-        expect(beforeLeave?.readyPlayers).toBeDefined();
-        expect(beforeLeave!.readyPlayers).toHaveLength(2);
-        expect(beforeLeave!.readyPlayers).toContain(setup.playerUsers[0].id);
-        expect(beforeLeave!.readyPlayers).toContain(setup.playerUsers[1].id);
+      // Ensure we have both players ready before proceeding
+      expect(beforeLeave?.readyPlayers).toBeDefined();
+      expect(beforeLeave!.readyPlayers).toHaveLength(2);
+      expect(beforeLeave!.readyPlayers).toContain(setup.playerUsers[0].id);
+      expect(beforeLeave!.readyPlayers).toContain(setup.playerUsers[1].id);
 
-        const leavePromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
-        // First player disconnects (which triggers ready state cleanup)
-        await utils.disconnectAndCleanup(playerSockets[0]);
+      const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+      // First player disconnects (which triggers ready state cleanup)
+      await utils.disconnectAndCleanup(playerSockets[0]);
 
-        await leavePromise;
+      await leavePromise;
 
-        const gameState = await utils.getGameState(setup.gameId);
+      const gameState = await utils.getGameState(setup.gameId);
 
-        // Check game state - should only have second player ready
-        expect(gameState?.readyPlayers).toBeDefined();
-        expect(gameState!.readyPlayers).toHaveLength(1);
-        expect(gameState!.readyPlayers).toContain(setup.playerUsers[1].id);
-        expect(gameState!.readyPlayers).not.toContain(setup.playerUsers[0].id);
-      } finally {
-        // Remove the disconnected socket from cleanup since we already handled it
-        setup.playerSockets.splice(0, 1);
-        await utils.cleanupGameClients(setup);
-      }
+      // Check game state - should only have second player ready
+      expect(gameState?.readyPlayers).toBeDefined();
+      expect(gameState!.readyPlayers).toHaveLength(1);
+      expect(gameState!.readyPlayers).toContain(setup.playerUsers[1].id);
+      expect(gameState!.readyPlayers).not.toContain(setup.playerUsers[0].id);
     });
 
     it("should clear ready state when game starts manually", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { playerSockets, showmanSocket } = setup;
 
-      try {
-        // Set one player ready (but not all)
-        await utils.setPlayerReady(playerSockets[0]);
+      // Set one player ready (but not all)
+      await utils.setPlayerReady(playerSockets[0]);
 
-        // Showman starts game manually
-        await utils.startGame(showmanSocket);
+      // Showman starts game manually
+      await utils.startGame(showmanSocket);
 
-        // Check game state - ready list should be cleared
-        const gameState = await utils.getGameState(setup.gameId);
-        expect(gameState?.readyPlayers).toBeNull();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Check game state - ready list should be cleared
+      const gameState = await utils.getGameState(setup.gameId);
+      expect(gameState?.readyPlayers).toBeNull();
     });
   });
 
@@ -265,100 +192,63 @@ describe("SocketIOGameReady", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
       const { spectatorSockets } = setup;
 
-      try {
-        // Spectator tries to set ready
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Test timeout"));
-          }, 2000);
+      const errorPromise = utils.waitForEvent<{ message: string }>(
+        spectatorSockets[0],
+        SocketIOEvents.ERROR
+      );
 
-          spectatorSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
-            clearTimeout(timeout);
-            expect(error.message).toBeDefined();
-            expect(error.message).toContain("player"); // Should mention only players can set ready
-            resolve();
-          });
+      // Spectator tries to set ready
+      spectatorSockets[0].emit(SocketIOGameEvents.PLAYER_READY);
+      const error = await errorPromise;
 
-          spectatorSockets[0].emit(SocketIOGameEvents.PLAYER_READY);
-        });
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      expect(error.message).toBeDefined();
+      expect(error.message).toContain("player"); // Should mention only players can set ready
     });
 
     it("should reject showman trying to set ready", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket } = setup;
 
-      try {
-        // Showman tries to set ready
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Test timeout"));
-          }, 2000);
+      const errorPromise = utils.waitForEvent<{ message: string }>(
+        showmanSocket,
+        SocketIOEvents.ERROR
+      );
 
-          showmanSocket.on(SocketIOEvents.ERROR, (error: any) => {
-            clearTimeout(timeout);
-            expect(error.message).toBeDefined();
-            expect(error.message).toContain("player"); // Should mention only players can set ready
-            resolve();
-          });
+      // Showman tries to set ready
+      showmanSocket.emit(SocketIOGameEvents.PLAYER_READY);
+      const error = await errorPromise;
 
-          showmanSocket.emit(SocketIOGameEvents.PLAYER_READY);
-        });
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      expect(error.message).toBeDefined();
+      expect(error.message).toContain("player"); // Should mention only players can set ready
     });
 
     it("should reject players trying to set ready when game is started", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { playerSockets, showmanSocket } = setup;
 
-      try {
-        // Start the game
-        await utils.startGame(showmanSocket);
+      // Start the game
+      await utils.startGame(showmanSocket);
 
-        // Player tries to set ready after game started
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Test timeout"));
-          }, 2000);
+      const errorPromise = utils.waitForEvent<{ message: string }>(
+        playerSockets[0],
+        SocketIOEvents.ERROR
+      );
 
-          playerSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
-            clearTimeout(timeout);
-            expect(error.message).toContain("already started");
-            resolve();
-          });
+      // Player tries to set ready after game started
+      playerSockets[0].emit(SocketIOGameEvents.PLAYER_READY);
 
-          playerSockets[0].emit(SocketIOGameEvents.PLAYER_READY);
-        });
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      expect((await errorPromise).message).toContain("already started");
     });
 
     it("should reject players not in a game trying to set ready", async () => {
       const { socket: outsider } = await utils.createGameClient(app, userRepo);
 
-      try {
-        // Outsider tries to set ready
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Test timeout"));
-          }, 2000);
+      const errorPromise = utils.waitForEvent<{ message: string }>(outsider, SocketIOEvents.ERROR);
 
-          outsider.on(SocketIOEvents.ERROR, (error: any) => {
-            clearTimeout(timeout);
-            expect(error.message).toBeDefined();
-            resolve();
-          });
+      // Outsider tries to set ready
+      outsider.emit(SocketIOGameEvents.PLAYER_READY);
 
-          outsider.emit(SocketIOGameEvents.PLAYER_READY);
-        });
-      } finally {
-        await utils.disconnectAndCleanup(outsider);
-      }
+      expect((await errorPromise).message).toBeDefined();
     });
   });
 
@@ -367,63 +257,46 @@ describe("SocketIOGameReady", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
       const { playerSockets } = setup;
 
-      try {
-        // Player 0 goes ready
-        await utils.setPlayerReady(playerSockets[0]);
+      // Player 0 goes ready
+      await utils.setPlayerReady(playerSockets[0]);
 
-        let gameState = await utils.getGameState(setup.gameId);
-        expect(gameState?.readyPlayers).toContain(setup.playerUsers[0].id);
+      let gameState = await utils.getGameState(setup.gameId);
+      expect(gameState?.readyPlayers).toContain(setup.playerUsers[0].id);
 
-        // Player 1 goes ready
-        await utils.setPlayerReady(playerSockets[1]);
+      // Player 1 goes ready
+      await utils.setPlayerReady(playerSockets[1]);
 
-        gameState = await utils.getGameState(setup.gameId);
-        expect(gameState?.readyPlayers).toHaveLength(2);
+      gameState = await utils.getGameState(setup.gameId);
+      expect(gameState?.readyPlayers).toHaveLength(2);
 
-        // Player 0 goes unready
-        await utils.setPlayerUnready(playerSockets[0]);
+      // Player 0 goes unready
+      await utils.setPlayerUnready(playerSockets[0]);
 
-        gameState = await utils.getGameState(setup.gameId);
-        expect(gameState?.readyPlayers).toHaveLength(1);
-        expect(gameState?.readyPlayers).toContain(setup.playerUsers[1].id);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      gameState = await utils.getGameState(setup.gameId);
+      expect(gameState?.readyPlayers).toHaveLength(1);
+      expect(gameState?.readyPlayers).toContain(setup.playerUsers[1].id);
     });
 
     it("should maintain ready state consistency during player joins/leaves", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0); // Use 3 players so no auto-start
       const { playerSockets } = setup;
 
-      try {
-        // Set two players ready (but not all, so no auto-start)
-        await utils.setPlayerReady(playerSockets[0]);
-        await utils.setPlayerReady(playerSockets[1]);
+      // Set two players ready (but not all, so no auto-start)
+      await utils.setPlayerReady(playerSockets[0]);
+      await utils.setPlayerReady(playerSockets[1]);
 
-        // Add a new player
-        const { socket: newPlayer } = await utils.createGameClient(
-          app,
-          userRepo
-        );
-        await utils.joinGame(newPlayer, setup.gameId, PlayerRole.PLAYER);
+      // Add a new player
+      const { socket: newPlayer } = await utils.createGameClient(app, userRepo);
+      await utils.joinGame(newPlayer, setup.gameId, PlayerRole.PLAYER);
 
-        // Verify ready state is preserved for existing players
-        const gameStateAfterJoin = await utils.getGameState(setup.gameId);
-        expect(gameStateAfterJoin?.readyPlayers).toHaveLength(2);
-        expect(gameStateAfterJoin?.readyPlayers).toContain(
-          setup.playerUsers[0].id
-        );
-        expect(gameStateAfterJoin?.readyPlayers).toContain(
-          setup.playerUsers[1].id
-        );
+      // Verify ready state is preserved for existing players
+      const gameStateAfterJoin = await utils.getGameState(setup.gameId);
+      expect(gameStateAfterJoin?.readyPlayers).toHaveLength(2);
+      expect(gameStateAfterJoin?.readyPlayers).toContain(setup.playerUsers[0].id);
+      expect(gameStateAfterJoin?.readyPlayers).toContain(setup.playerUsers[1].id);
 
-        // New player should not be ready
-        expect(await utils.areAllPlayersReady(setup.gameId)).toBe(false);
-
-        await utils.disconnectAndCleanup(newPlayer);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // New player should not be ready
+      expect(await utils.areAllPlayersReady(setup.gameId)).toBe(false);
     });
   });
 });

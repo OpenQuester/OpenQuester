@@ -124,7 +124,7 @@ npm run build
 For behavior changes, add/run focused Jest tests. For full confidence with infra available:
 
 ```bash
-npm test
+npm run test:pipeline
 ```
 
 If client contract changes, from `client/`:

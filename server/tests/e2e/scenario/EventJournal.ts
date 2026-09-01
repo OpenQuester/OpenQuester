@@ -108,22 +108,6 @@ export class EventJournal {
     this.attachments.set(actor.label, { actor, handler });
   }
 
-  public detach(actorLabel: string): void {
-    const attachment = this.attachments.get(actorLabel);
-    if (!attachment) {
-      return;
-    }
-
-    attachment.actor.socket.offAny(attachment.handler);
-    this.attachments.delete(actorLabel);
-  }
-
-  public detachAll(): void {
-    for (const actorLabel of [...this.attachments.keys()]) {
-      this.detach(actorLabel);
-    }
-  }
-
   public mark(): number {
     this.assertNotDisposed();
     return this.nextSequence - 1;
@@ -131,12 +115,6 @@ export class EventJournal {
 
   public snapshot(): readonly EventRecord[] {
     return this.records.map(copyEventRecord);
-  }
-
-  public recordsFor(actor: JournalActor): readonly EventRecord[] {
-    return this.records
-      .filter((record) => record.actorLabel === actor.label)
-      .map(copyEventRecord);
   }
 
   public recordOutgoing(actor: JournalActor, event: string, args: readonly unknown[]): void {
@@ -151,10 +129,10 @@ export class EventJournal {
     try {
       const existing = this.findMatchingRecord(expectation);
       if (existing) {
-        return Promise.resolve(existing);
+        return Promise.resolve(copyEventRecord(existing));
       }
     } catch (error) {
-      return Promise.reject(this.toPredicateError(error, expectation));
+      return observeRejection(Promise.reject(this.toPredicateError(error, expectation)));
     }
 
     const waitId = this.allocateWaitId();
@@ -185,12 +163,14 @@ export class EventJournal {
     this.assertNotDisposed();
 
     try {
-      const existing = this.findMatchingRecord(this.toEventExpectation(expectation));
+      const existing = this.findMatchingRecord(expectation);
       if (existing) {
-        return Promise.reject(new Error(this.formatUnexpectedEvent(existing, expectation)));
+        return observeRejection(
+          Promise.reject(new Error(this.formatUnexpectedEvent(existing, expectation)))
+        );
       }
     } catch (error) {
-      return Promise.reject(this.toPredicateError(error, expectation));
+      return observeRejection(Promise.reject(this.toPredicateError(error, expectation)));
     }
 
     const waitId = this.allocateWaitId();
@@ -251,11 +231,6 @@ export class EventJournal {
       wait.deferred.reject(this.createDisposedError("no-event", wait.expectation));
     }
 
-    await Promise.allSettled([
-      ...eventWaits.map((wait) => wait.deferred.promise),
-      ...noEventWaits.map((wait) => wait.deferred.promise)
-    ]);
-
     if (infrastructureFailures.length > 0) {
       throw new AggregateError(
         infrastructureFailures,
@@ -282,7 +257,7 @@ export class EventJournal {
 
     clearTimeout(wait.timeout);
     this.eventWaits.delete(wait.id);
-    wait.deferred.resolve(record);
+    wait.deferred.resolve(copyEventRecord(record));
   }
 
   private rejectEventWait<TArgs extends readonly unknown[]>(
@@ -311,20 +286,6 @@ export class EventJournal {
     wait.deferred.reject(error);
   }
 
-  private toEventExpectation<TArgs extends readonly unknown[]>(
-    expectation: NoEventExpectation<TArgs>
-  ): EventExpectation<TArgs> {
-    return {
-      actor: expectation.actor,
-      direction: expectation.direction,
-      event: expectation.event,
-      timeoutMs: expectation.durationMs,
-      afterSequence: expectation.afterSequence,
-      predicate: expectation.predicate,
-      description: expectation.description
-    };
-  }
-
   private record(
     actor: JournalActor,
     direction: EventDirection,
@@ -337,7 +298,7 @@ export class EventJournal {
       sequence: this.nextSequence,
       direction,
       event,
-      args,
+      args: args.map(copyEventArgument),
       actorLabel: actor.label,
       namespace: actor.namespace ?? "unknown",
       socketId: actor.socket.id,
@@ -377,7 +338,7 @@ export class EventJournal {
   }
 
   private findMatchingRecord<TArgs extends readonly unknown[]>(
-    expectation: EventExpectation<TArgs>
+    expectation: EventExpectation<TArgs> | NoEventExpectation<TArgs>
   ): EventRecord<TArgs> | undefined {
     for (const record of this.records) {
       if (this.matches(record, expectation)) {
@@ -457,7 +418,9 @@ export class EventJournal {
   }
 
   private formatLastRecords(limit = 10): string {
-    return JSON.stringify(this.records.slice(-limit).map((record) => this.recordToDebugObject(record)));
+    return JSON.stringify(
+      this.records.slice(-limit).map((record) => this.recordToDebugObject(record))
+    );
   }
 
   private formatRecord(record: EventRecord): string {
@@ -488,12 +451,19 @@ export class EventJournal {
 function createDeferred<T>(): Deferred<T> {
   let resolve: (value: T) => void = () => undefined;
   let reject: (error: Error) => void = () => undefined;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
+  const promise = observeRejection(
+    new Promise<T>((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise;
+      reject = rejectPromise;
+    })
+  );
 
   return { promise, resolve, reject };
+}
+
+function observeRejection<T>(promise: Promise<T>): Promise<T> {
+  void promise.catch(() => undefined);
+  return promise;
 }
 
 export function copyEventRecord<TArgs extends readonly unknown[]>(

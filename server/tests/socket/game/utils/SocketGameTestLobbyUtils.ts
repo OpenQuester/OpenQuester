@@ -17,29 +17,22 @@ import { User } from "infrastructure/database/models/User";
 import request from "supertest";
 import { PackageUtils } from "tests/utils/PackageUtils";
 import { Repository } from "typeorm";
-import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
 import { GameClientSocket, GameTestSetup } from "./SocketIOGameTestUtils";
 
-export interface SocketGameTestLobbyUtilsDependencies {
-  readonly socketGameContextService?: Pick<SocketGameContextService, "getGameIdForSocket">;
-}
-
 export class SocketGameTestLobbyUtils {
-  private packageUtils: PackageUtils;
-  private socketGameContextService: Pick<SocketGameContextService, "getGameIdForSocket">;
+  private readonly packageUtils = new PackageUtils();
 
   constructor(
     private userUtils: SocketGameTestUserUtils,
     private eventUtils: SocketGameTestEventUtils,
-    dependencies: SocketGameTestLobbyUtilsDependencies = {}
-  ) {
-    this.packageUtils = new PackageUtils();
-    this.socketGameContextService =
-      dependencies.socketGameContextService ?? container.resolve(SocketGameContextService);
-  }
+    private socketGameContextService: Pick<
+      SocketGameContextService,
+      "getGameIdForSocket"
+    > = container.resolve(SocketGameContextService)
+  ) {}
 
   public async setupGameTestEnvironment(
     userRepo: Repository<User>,
@@ -47,7 +40,8 @@ export class SocketGameTestLobbyUtils {
     playerCount: number,
     spectatorCount: number,
     includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0
+    additionalSimpleQuestions: number = 0,
+    includeMediaQuestionFiles: boolean = false
   ): Promise<GameTestSetup> {
     const createdSockets: GameClientSocket[] = [];
     const playerSockets: GameClientSocket[] = [];
@@ -63,7 +57,8 @@ export class SocketGameTestLobbyUtils {
         app,
         userRepo,
         includeFinalRound,
-        additionalSimpleQuestions
+        additionalSimpleQuestions,
+        includeMediaQuestionFiles
       );
       createdSockets.push(showmanSocket);
 
@@ -93,7 +88,7 @@ export class SocketGameTestLobbyUtils {
         playerUsers
       };
     } catch (error) {
-      this.rethrowSetupFailure(error, createdSockets);
+      return this.rethrowSetupFailure(error, createdSockets);
     }
   }
 
@@ -101,7 +96,8 @@ export class SocketGameTestLobbyUtils {
     app: Express,
     userRepo: Repository<User>,
     includeFinalRound: boolean = true,
-    additionalSimpleQuestions: number = 0
+    additionalSimpleQuestions: number = 0,
+    includeMediaQuestionFiles: boolean = false
   ): Promise<{
     socket: GameClientSocket;
     gameId: string;
@@ -118,7 +114,8 @@ export class SocketGameTestLobbyUtils {
           username: user.username
         },
         includeFinalRound,
-        additionalSimpleQuestions
+        additionalSimpleQuestions,
+        includeMediaQuestionFiles
       );
 
       const packageRes = await request(app)
@@ -149,7 +146,9 @@ export class SocketGameTestLobbyUtils {
       const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
 
       if (gameRes.status !== 200) {
-        throw new Error(`Failed to create game: ${gameRes.status} - ${JSON.stringify(gameRes.body)}`);
+        throw new Error(
+          `Failed to create game: ${gameRes.status} - ${JSON.stringify(gameRes.body)}`
+        );
       }
 
       const createdGame = gameRes.body;
@@ -160,7 +159,7 @@ export class SocketGameTestLobbyUtils {
 
       return { socket, gameId, user };
     } catch (error) {
-      this.rethrowSetupFailure(error, [socket]);
+      return this.rethrowSetupFailure(error, [socket]);
     }
   }
 
@@ -177,24 +176,11 @@ export class SocketGameTestLobbyUtils {
     gameId: string,
     role: PlayerRole
   ): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const joinData: GameJoinInputData = {
-        gameId,
-        role,
-        targetSlot: null,
-        password: null
-      };
-      const timeout = setTimeout(() => {
-        socket.removeAllListeners(SocketIOGameEvents.GAME_DATA);
-        reject(new Error(`GAME_DATA not received within timeout (gameId=${gameId} role=${role})`));
-      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
-      socket.once(SocketIOGameEvents.GAME_DATA, () => {
-        clearTimeout(timeout);
-        socket.gameId = gameId;
-        socket.role = role;
-        resolve();
-      });
-      socket.emit(SocketIOGameEvents.JOIN, joinData);
+    await this.joinWithData(socket, {
+      gameId,
+      role,
+      targetSlot: null,
+      password: null
     });
   }
 
@@ -204,24 +190,11 @@ export class SocketGameTestLobbyUtils {
     role: PlayerRole,
     password?: string
   ): Promise<GameJoinOutputData> {
-    return new Promise<GameJoinOutputData>((resolve, reject) => {
-      const joinData: GameJoinInputData = {
-        gameId,
-        role,
-        targetSlot: null,
-        password
-      };
-      const timeout = setTimeout(() => {
-        socket.removeAllListeners(SocketIOGameEvents.GAME_DATA);
-        reject(new Error(`GAME_DATA not received within timeout (gameId=${gameId} role=${role})`));
-      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
-      socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
-        clearTimeout(timeout);
-        socket.gameId = gameId;
-        socket.role = role;
-        resolve(gameData);
-      });
-      socket.emit(SocketIOGameEvents.JOIN, joinData);
+    return this.joinWithData(socket, {
+      gameId,
+      role,
+      targetSlot: null,
+      password
     });
   }
 
@@ -234,23 +207,24 @@ export class SocketGameTestLobbyUtils {
     role: PlayerRole,
     password?: string
   ): Promise<ErrorEventPayload> {
-    return new Promise<ErrorEventPayload>((resolve, reject) => {
-      const joinData: GameJoinInputData = {
-        gameId,
-        role,
-        targetSlot: null,
-        password
-      };
-      socket.once("error", (error: ErrorEventPayload) => {
-        resolve(error);
-      });
-      socket.emit(SocketIOGameEvents.JOIN, joinData);
-      // Timeout in case no error is received
-      setTimeout(
-        () => reject(new Error("Expected error but none received")),
-        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+    const joinData: GameJoinInputData = {
+      gameId,
+      role,
+      targetSlot: null,
+      password
+    };
+
+    try {
+      return await this.eventUtils.emitAndWaitForEvent<ErrorEventPayload>(socket, "error", () =>
+        socket.emit(SocketIOGameEvents.JOIN, joinData)
       );
-    });
+    } catch (error) {
+      throw new Error(
+        `Expected join error for game ${gameId} as ${role} on socket ${socket.id ?? "unknown"}: ` +
+          toError(error).message,
+        { cause: toError(error) }
+      );
+    }
   }
 
   /**
@@ -262,24 +236,7 @@ export class SocketGameTestLobbyUtils {
     role: PlayerRole,
     targetSlot: number | null
   ): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const joinData: GameJoinInputData = { gameId, role, targetSlot };
-      const timeout = setTimeout(() => {
-        socket.removeAllListeners(SocketIOGameEvents.GAME_DATA);
-        reject(
-          new Error(
-            `GAME_DATA not received within timeout (gameId=${gameId} role=${role} slot=${targetSlot})`
-          )
-        );
-      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
-      socket.once(SocketIOGameEvents.GAME_DATA, () => {
-        clearTimeout(timeout);
-        socket.gameId = gameId;
-        socket.role = role;
-        resolve();
-      });
-      socket.emit(SocketIOGameEvents.JOIN, joinData);
-    });
+    await this.joinWithData(socket, { gameId, role, targetSlot });
   }
 
   /**
@@ -290,41 +247,41 @@ export class SocketGameTestLobbyUtils {
     gameId: string,
     role: PlayerRole,
     targetSlot: number | null
-  ): Promise<any> {
-    return new Promise<any>((resolve, reject) => {
-      const joinData: GameJoinInputData = { gameId, role, targetSlot };
-      const timeout = setTimeout(() => {
-        socket.removeAllListeners(SocketIOGameEvents.GAME_DATA);
-        reject(
-          new Error(
-            `GAME_DATA not received within timeout (gameId=${gameId} role=${role} slot=${targetSlot})`
-          )
-        );
-      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
-      socket.once(SocketIOGameEvents.GAME_DATA, (gameData) => {
-        clearTimeout(timeout);
-        socket.gameId = gameId;
-        socket.role = role;
-        resolve(gameData);
-      });
-      socket.emit(SocketIOGameEvents.JOIN, joinData);
-    });
+  ): Promise<GameJoinOutputData> {
+    return this.joinWithData(socket, { gameId, role, targetSlot });
   }
 
   public async leaveGame(socket: GameClientSocket): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        socket.removeAllListeners(SocketIOGameEvents.LEAVE);
-        reject(new Error("LEAVE event not received within timeout"));
-      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
-      socket.once(SocketIOGameEvents.LEAVE, () => {
-        clearTimeout(timeout);
-        socket.gameId = undefined;
-        socket.role = undefined;
-        resolve();
-      });
-      socket.emit(SocketIOGameEvents.LEAVE);
+    const gameId = socket.gameId;
+    if (!gameId) {
+      await this.eventUtils.emitAndWaitForEvent(socket, SocketIOGameEvents.LEAVE, () =>
+        socket.emit(SocketIOGameEvents.LEAVE)
+      );
+      socket.role = undefined;
+      return;
+    }
+
+    const probe = this.eventUtils.createAcceptedActionProbe({
+      gameId,
+      actionType: GameActionType.LEAVE,
+      socketId: socket.id
     });
+    const accepted = probe.waitForCount(1);
+    const leaveEvent = this.eventUtils.emitAndWaitForEvent(socket, SocketIOGameEvents.LEAVE, () =>
+      socket.emit(SocketIOGameEvents.LEAVE)
+    );
+    void accepted.catch(() => undefined);
+    void leaveEvent.catch(() => undefined);
+
+    try {
+      await Promise.all([accepted, leaveEvent]);
+      await this.eventUtils.waitForActionsComplete(gameId);
+      socket.gameId = undefined;
+      socket.role = undefined;
+    } finally {
+      probe.dispose();
+      await Promise.allSettled([accepted, leaveEvent]);
+    }
   }
 
   public async disconnectAndCleanup(
@@ -339,47 +296,104 @@ export class SocketGameTestLobbyUtils {
 
     if (!shouldWaitForDisconnectAction) {
       this.closeClientSocket(socket);
+      this.userUtils.releaseSocket(socket);
       return;
     }
 
-    const disconnectActionPromise = this.eventUtils.waitForSubmittedActions(
+    const probe = this.eventUtils.createAcceptedActionProbe({
       gameId,
-      1,
-      GameActionType.DISCONNECT
-    );
+      actionType: GameActionType.DISCONNECT,
+      socketId: socket.id
+    });
+    const disconnectAction = probe.waitForCount(1);
+    void disconnectAction.catch(() => undefined);
 
-    this.closeClientSocket(socket);
+    try {
+      this.closeClientSocket(socket);
+      await disconnectAction;
+      await this.eventUtils.waitForActionsComplete(gameId);
+      this.userUtils.releaseSocket(socket);
+    } finally {
+      probe.dispose();
+      await Promise.allSettled([disconnectAction]);
+    }
+  }
 
-    await disconnectActionPromise;
-    await this.eventUtils.waitForActionsComplete(gameId);
+  public async cleanupOwnedClients(): Promise<void> {
+    await this.cleanupSocketGroups(this.userUtils.getOwnedSockets());
+  }
+
+  private async cleanupSocketGroups(sockets: readonly GameClientSocket[]): Promise<void> {
+    const cleanupFailures: Error[] = [];
+    const socketsByGame = new Map<string | undefined, GameClientSocket[]>();
+
+    for (const socket of sockets) {
+      let gameId = socket.gameId;
+      if (!gameId && socket.connected && socket.id) {
+        try {
+          gameId = (await this.socketGameContextService.getGameIdForSocket(socket.id)) ?? undefined;
+        } catch (error) {
+          cleanupFailures.push(
+            toCleanupError(`Owned socket game discovery for ${socket.id}`, error)
+          );
+        }
+      }
+
+      const group = socketsByGame.get(gameId) ?? [];
+      group.push(socket);
+      socketsByGame.set(gameId, group);
+    }
+
+    for (const [gameId, sockets] of socketsByGame) {
+      await collectCleanupFailure(
+        cleanupFailures,
+        `Owned client cleanup for game ${gameId ?? "unassigned"}`,
+        async () => {
+          await this.cleanupClientGroup(gameId, sockets);
+        }
+      );
+    }
+
+    throwIfCleanupFailed("Owned Socket.IO client cleanup failed", cleanupFailures);
   }
 
   public async cleanupGameClients(setup: GameTestSetup): Promise<void> {
     const sockets = [setup.showmanSocket, ...setup.playerSockets, ...setup.spectatorSockets];
+    await this.cleanupClientGroup(setup.gameId, sockets);
+  }
+
+  private async cleanupClientGroup(
+    gameId: string | undefined,
+    sockets: readonly GameClientSocket[]
+  ): Promise<void> {
     const cleanupFailures: Error[] = [];
 
-    await collectCleanupFailure(cleanupFailures, "Initial action drain", async () => {
-      await this.eventUtils.waitForActionsComplete(setup.gameId);
-    });
+    if (gameId) {
+      await collectCleanupFailure(cleanupFailures, "Initial action drain", async () => {
+        await this.eventUtils.waitForActionsComplete(gameId);
+      });
+    }
 
     const socketsWithServerGameSession: GameClientSocket[] = [];
-    for (const socket of sockets) {
-      try {
-        if (await this.hasServerGameSession(socket, setup.gameId)) {
-          socketsWithServerGameSession.push(socket);
+    if (gameId) {
+      for (const socket of sockets) {
+        try {
+          if (await this.hasServerGameSession(socket, gameId)) {
+            socketsWithServerGameSession.push(socket);
+          }
+        } catch (error) {
+          cleanupFailures.push(
+            toCleanupError(`Server session discovery for socket ${socket.id ?? "unknown"}`, error)
+          );
         }
-      } catch (error) {
-        cleanupFailures.push(
-          toCleanupError(`Server session discovery for socket ${socket.id ?? "unknown"}`, error)
-        );
       }
     }
 
     let disconnectActionsPromise: Promise<void> | undefined;
-    if (socketsWithServerGameSession.length > 0) {
+    if (gameId && socketsWithServerGameSession.length > 0) {
       try {
         disconnectActionsPromise = this.eventUtils.waitForSubmittedActions(
-          setup.gameId,
+          gameId,
           socketsWithServerGameSession.length,
           GameActionType.DISCONNECT
         );
@@ -392,7 +406,9 @@ export class SocketGameTestLobbyUtils {
       try {
         this.closeClientSocket(socket);
       } catch (error) {
-        cleanupFailures.push(toCleanupError(`Client socket close for ${socket.id ?? "unknown"}`, error));
+        cleanupFailures.push(
+          toCleanupError(`Client socket close for ${socket.id ?? "unknown"}`, error)
+        );
       }
     }
 
@@ -402,11 +418,16 @@ export class SocketGameTestLobbyUtils {
       });
     }
 
-    await collectCleanupFailure(cleanupFailures, "Final action drain", async () => {
-      await this.eventUtils.waitForActionsComplete(setup.gameId);
-    });
+    if (gameId) {
+      await collectCleanupFailure(cleanupFailures, "Final action drain", async () => {
+        await this.eventUtils.waitForActionsComplete(gameId);
+      });
+    }
 
-    throwIfCleanupFailed(cleanupFailures);
+    throwIfCleanupFailed("Socket.IO client cleanup failed", cleanupFailures);
+    for (const socket of sockets) {
+      this.userUtils.releaseSocket(socket);
+    }
   }
 
   private async hasServerGameSession(socket: GameClientSocket, gameId: string): Promise<boolean> {
@@ -423,30 +444,24 @@ export class SocketGameTestLobbyUtils {
     return serverGameId === gameId;
   }
 
-  private rethrowSetupFailure(error: unknown, sockets: readonly GameClientSocket[]): never {
+  private async rethrowSetupFailure(
+    error: unknown,
+    sockets: readonly GameClientSocket[]
+  ): Promise<never> {
     const setupFailure = error instanceof Error ? error : new Error(String(error));
-    const cleanupFailures: Error[] = [];
 
-    for (const socket of sockets) {
-      try {
-        this.closeClientSocket(socket);
-      } catch (cleanupError) {
-        cleanupFailures.push(
-          toCleanupError(`Partial setup socket close for ${socket.id ?? "unknown"}`, cleanupError)
-        );
-      }
+    try {
+      await this.cleanupSocketGroups(sockets);
+    } catch (cleanupError) {
+      const cleanupFailure = toCleanupError("Partial game setup cleanup", cleanupError);
+      throw new AggregateError(
+        [setupFailure, cleanupFailure],
+        `Game test environment setup and cleanup failed: ${setupFailure.message}; ` +
+          cleanupFailure.message
+      );
     }
 
-    if (cleanupFailures.length === 0) {
-      throw setupFailure;
-    }
-
-    throw new AggregateError(
-      [setupFailure, ...cleanupFailures],
-      `Game test environment setup and cleanup failed: ${[setupFailure, ...cleanupFailures]
-        .map((failure) => failure.message)
-        .join("; ")}`
-    );
+    throw setupFailure;
   }
 
   private closeClientSocket(socket: GameClientSocket): void {
@@ -491,38 +506,40 @@ export class SocketGameTestLobbyUtils {
   }
 
   public async startGame(showmanSocket: GameClientSocket): Promise<GameStartEventPayload> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        showmanSocket.removeAllListeners(SocketIOGameEvents.START);
-        reject(new Error("START event not received within timeout"));
-      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
-      showmanSocket.once(SocketIOGameEvents.START, (data) => {
-        clearTimeout(timeout);
-        resolve(data);
-      });
-      showmanSocket.emit(SocketIOGameEvents.START);
-    });
+    return this.eventUtils.emitAndWaitForEvent<GameStartEventPayload>(
+      showmanSocket,
+      SocketIOGameEvents.START,
+      () => showmanSocket.emit(SocketIOGameEvents.START)
+    );
   }
 
   public async pauseGame(showmanSocket: GameClientSocket): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Timeout waiting for GAME_PAUSE event"));
-      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
+    await this.eventUtils.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.GAME_PAUSE, () =>
+      showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {})
+    );
+  }
 
-      const cleanup = () => {
-        clearTimeout(timeout);
-        showmanSocket.removeListener(SocketIOGameEvents.GAME_PAUSE, onPause);
-      };
-
-      const onPause = () => {
-        cleanup();
-        resolve();
-      };
-
-      showmanSocket.once(SocketIOGameEvents.GAME_PAUSE, onPause);
-      showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
-    });
+  private async joinWithData(
+    socket: GameClientSocket,
+    joinData: GameJoinInputData
+  ): Promise<GameJoinOutputData> {
+    try {
+      const gameData = await this.eventUtils.emitAndWaitForEvent<GameJoinOutputData>(
+        socket,
+        SocketIOGameEvents.GAME_DATA,
+        () => socket.emit(SocketIOGameEvents.JOIN, joinData)
+      );
+      socket.gameId = joinData.gameId;
+      socket.role = joinData.role;
+      return gameData;
+    } catch (error) {
+      throw new Error(
+        `Failed to join game ${joinData.gameId} as ${joinData.role} ` +
+          `(slot=${joinData.targetSlot ?? "default"}, socketId=${socket.id ?? "unknown"}): ` +
+          toError(error).message,
+        { cause: toError(error) }
+      );
+    }
   }
 }
 
@@ -538,18 +555,22 @@ async function collectCleanupFailure(
   }
 }
 
-function throwIfCleanupFailed(failures: Error[]): void {
+function toCleanupError(label: string, error: unknown): Error {
+  const cause = toError(error);
+  return new Error(`${label} failed: ${cause.message}`, { cause });
+}
+
+function throwIfCleanupFailed(message: string, failures: Error[]): void {
   if (failures.length === 0) {
     return;
   }
 
   throw new AggregateError(
     failures,
-    `Socket.IO client cleanup failed: ${failures.map((failure) => failure.message).join("; ")}`
+    `${message}: ${failures.map((failure) => failure.message).join("; ")}`
   );
 }
 
-function toCleanupError(label: string, error: unknown): Error {
-  const cause = error instanceof Error ? error : new Error(String(error));
-  return new Error(`${label} failed: ${cause.message}`, { cause });
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }

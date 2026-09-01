@@ -1,51 +1,32 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { GameActionType } from "domain/enums/GameActionType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import {
   StakeBidSubmitInputData,
   StakeBidSubmitOutputData,
-  StakeBidType,
+  StakeBidType
 } from "domain/types/socket/events/game/StakeQuestionEventData";
 import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
 import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import {
-  GameTestSetup,
-  SocketGameTestUtils,
-} from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { GameTestSetup, SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { TestUtils } from "tests/utils/TestUtils";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 
 describe("Stake Question Flow Tests", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
   let testUtils: TestUtils;
-  let logger: ILogger;
 
   /**
    * Flexible preparation function for stake question tests
@@ -62,22 +43,16 @@ describe("Stake Question Flow Tests", () => {
   ): Promise<{
     setup: GameTestSetup;
     stakeQuestionId: number;
-    cleanup: () => Promise<void>;
   }> {
     const {
       playerCount = 3,
       showmanIndex = 0,
       playerScores = [500, 600, 400], // Default scores that work well with default maxPrice 400
       shouldPickQuestion = true,
-      pickerIndex = 0,
+      pickerIndex = 0
     } = options;
 
-    const setup = await utils.setupGameTestEnvironment(
-      userRepo,
-      app,
-      playerCount,
-      showmanIndex
-    );
+    const setup = await utils.setupGameTestEnvironment(userRepo, app, playerCount, showmanIndex);
     const { showmanSocket, gameId, playerUsers } = setup;
 
     await utils.startGame(showmanSocket);
@@ -89,59 +64,46 @@ describe("Stake Question Flow Tests", () => {
     }
 
     // Set current turn player to the picker
-    await utils.setCurrentTurnPlayer(
-      showmanSocket,
-      playerUsers[pickerIndex].id
-    );
+    await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[pickerIndex].id);
 
     // Get STAKE question ID
-    const stakeQuestionId = await utils.getQuestionIdByType(
-      gameId,
-      PackageQuestionType.STAKE
-    );
+    const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
     if (shouldPickQuestion) {
-      // Pick the stake question
-      setup.playerSockets[pickerIndex].emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: stakeQuestionId,
-      });
-
-      // Wait for stake question to be picked
-      await utils.waitForEvent(
+      const stakeQuestionPickedPromise = utils.waitForEvent(
         showmanSocket,
         SocketIOGameEvents.STAKE_QUESTION_PICKED
       );
+
+      // Pick the stake question
+      setup.playerSockets[pickerIndex].emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: stakeQuestionId
+      });
+
+      // Wait for stake question to be picked
+      await stakeQuestionPickedPromise;
     }
 
     return {
       setup,
-      stakeQuestionId,
-      cleanup: () => utils.cleanupGameClients(setup),
+      stakeQuestionId
     };
   }
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
-    testUtils = new TestUtils(app, userRepo, serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
+    testUtils = suite.testUtils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    if (cleanup) {
-      await cleanup();
-    }
-    await testEnv.teardown();
+    await suite?.stop();
   });
 
   describe("STAKE Question Selection", () => {
@@ -149,117 +111,95 @@ describe("Stake Question Flow Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
-        // Start game
-        await utils.startGame(showmanSocket);
+      // Start game
+      await utils.startGame(showmanSocket);
 
-        // Set player scores to make player[0] the current turn player
-        await utils.setPlayerScore(gameId, playerUsers[0].id, 100); // Lowest score - current turn player
-        await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
-        await utils.setPlayerScore(gameId, playerUsers[2].id, 400);
+      // Set player scores to make player[0] the current turn player
+      await utils.setPlayerScore(gameId, playerUsers[0].id, 100); // Lowest score - current turn player
+      await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
+      await utils.setPlayerScore(gameId, playerUsers[2].id, 400);
 
-        // Explicitly set current turn player to player[0]
-        await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
+      // Explicitly set current turn player to player[0]
+      await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
-        // Get STAKE question ID
-        const stakeQuestionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.STAKE
-        );
+      // Get STAKE question ID
+      const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
-        // Listen for stake question picked event
-        const stakePickedPromise =
-          utils.waitForEvent<StakeQuestionPickedBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_QUESTION_PICKED
-          );
+      // Listen for stake question picked event
+      const stakePickedPromise = utils.waitForEvent<StakeQuestionPickedBroadcastData>(
+        showmanSocket,
+        SocketIOGameEvents.STAKE_QUESTION_PICKED
+      );
 
-        // Player 0 (current turn player) picks STAKE question
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: stakeQuestionId,
-        });
+      // Player 0 (current turn player) picks STAKE question
+      playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: stakeQuestionId
+      });
 
-        const stakeData = await stakePickedPromise;
+      const stakeData = await stakePickedPromise;
 
-        expect(stakeData).toBeDefined();
-        expect(stakeData.pickerPlayerId).toBe(
-          await utils.getUserIdFromSocket(playerSockets[0])
-        );
-        expect(stakeData.questionId).toBe(stakeQuestionId);
-        expect(stakeData.maxPrice).toBe(400); // From PackageUtils STAKE question
-        expect(stakeData.biddingOrder).toHaveLength(3);
-        expect(stakeData.biddingOrder[0]).toBe(
-          await utils.getUserIdFromSocket(playerSockets[0])
-        );
-        expect(stakeData.timer).toBeDefined();
-        expect(stakeData.timer.durationMs).toBe(30000); // 30 seconds per bid
+      expect(stakeData).toBeDefined();
+      expect(stakeData.pickerPlayerId).toBe(await utils.getUserIdFromSocket(playerSockets[0]));
+      expect(stakeData.questionId).toBe(stakeQuestionId);
+      expect(stakeData.maxPrice).toBe(400); // From PackageUtils STAKE question
+      expect(stakeData.biddingOrder).toHaveLength(3);
+      expect(stakeData.biddingOrder[0]).toBe(await utils.getUserIdFromSocket(playerSockets[0]));
+      expect(stakeData.timer).toBeDefined();
+      expect(stakeData.timer.durationMs).toBe(30000); // 30 seconds per bid
 
-        // Verify game state is in bidding mode
-        const gameState = await utils.getGameState(gameId);
-        expect(gameState?.questionState).toBe(QuestionState.BIDDING);
-        expect(gameState?.stakeQuestionData).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify game state is in bidding mode
+      const gameState = await utils.getGameState(gameId);
+      expect(gameState?.questionState).toBe(QuestionState.BIDDING);
+      expect(gameState?.stakeQuestionData).toBeDefined();
     });
 
     it("should handle showman picking STAKE question (random first bidder)", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
       const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
-        // Start game
-        await utils.startGame(showmanSocket);
+      // Start game
+      await utils.startGame(showmanSocket);
 
-        // Set player scores to make player[0] have lowest score if game logic determines current turn player
-        await utils.setPlayerScore(gameId, playerUsers[0].id, 100);
-        await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
-        await utils.setPlayerScore(gameId, playerUsers[2].id, 400);
+      // Set player scores to make player[0] have lowest score if game logic determines current turn player
+      await utils.setPlayerScore(gameId, playerUsers[0].id, 100);
+      await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
+      await utils.setPlayerScore(gameId, playerUsers[2].id, 400);
 
-        // Get STAKE question ID
-        const stakeQuestionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.STAKE
-        );
+      // Get STAKE question ID
+      const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
-        // Listen for stake question picked event
-        const stakePickedPromise =
-          utils.waitForEvent<StakeQuestionPickedBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_QUESTION_PICKED
-          );
+      // Listen for stake question picked event
+      const stakePickedPromise = utils.waitForEvent<StakeQuestionPickedBroadcastData>(
+        showmanSocket,
+        SocketIOGameEvents.STAKE_QUESTION_PICKED
+      );
 
-        // Showman picks STAKE question
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: stakeQuestionId,
-        });
+      // Showman picks STAKE question
+      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: stakeQuestionId
+      });
 
-        const stakeData = await stakePickedPromise;
+      const stakeData = await stakePickedPromise;
 
-        expect(stakeData).toBeDefined();
-        expect(stakeData.pickerPlayerId).toBe(
-          await utils.getUserIdFromSocket(showmanSocket)
-        );
-        expect(stakeData.questionId).toBe(stakeQuestionId);
-        expect(stakeData.maxPrice).toBe(400); // From PackageUtils STAKE question
-        expect(stakeData.biddingOrder).toHaveLength(3);
-        // When showman picks, first bidder should be one of the players (we can't test randomness)
-        expect(stakeData.biddingOrder[0]).toBeDefined();
-        expect([
-          await utils.getUserIdFromSocket(playerSockets[0]),
-          await utils.getUserIdFromSocket(playerSockets[1]),
-          await utils.getUserIdFromSocket(playerSockets[2]),
-        ]).toContain(stakeData.biddingOrder[0]);
-        expect(stakeData.timer).toBeDefined();
-        expect(stakeData.timer.durationMs).toBe(30000); // 30 seconds per bid
+      expect(stakeData).toBeDefined();
+      expect(stakeData.pickerPlayerId).toBe(await utils.getUserIdFromSocket(showmanSocket));
+      expect(stakeData.questionId).toBe(stakeQuestionId);
+      expect(stakeData.maxPrice).toBe(400); // From PackageUtils STAKE question
+      expect(stakeData.biddingOrder).toHaveLength(3);
+      // When showman picks, first bidder should be one of the players (we can't test randomness)
+      expect(stakeData.biddingOrder[0]).toBeDefined();
+      expect([
+        await utils.getUserIdFromSocket(playerSockets[0]),
+        await utils.getUserIdFromSocket(playerSockets[1]),
+        await utils.getUserIdFromSocket(playerSockets[2])
+      ]).toContain(stakeData.biddingOrder[0]);
+      expect(stakeData.timer).toBeDefined();
+      expect(stakeData.timer.durationMs).toBe(30000); // 30 seconds per bid
 
-        // Verify game state is in bidding mode
-        const gameState = await utils.getGameState(gameId);
-        expect(gameState?.questionState).toBe(QuestionState.BIDDING);
-        expect(gameState?.stakeQuestionData).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify game state is in bidding mode
+      const gameState = await utils.getGameState(gameId);
+      expect(gameState?.questionState).toBe(QuestionState.BIDDING);
+      expect(gameState?.stakeQuestionData).toBeDefined();
     });
 
     it("should fallback to showing with role-filtered question data when no players can bid", async () => {
@@ -267,48 +207,38 @@ describe("Stake Question Flow Tests", () => {
       const { showmanSocket, spectatorSockets, gameId } = setup;
       const spectatorSocket = spectatorSockets[0];
 
-      try {
-        await utils.startGame(showmanSocket);
+      await utils.startGame(showmanSocket);
 
-        const stakeQuestionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.STAKE
-        );
+      const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
-        const questionDataPromises = [
-          utils.waitForEvent<GameQuestionDataEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_DATA
-          ),
-          utils.waitForEvent<GameQuestionDataEventPayload>(
-            spectatorSocket,
-            SocketIOGameEvents.QUESTION_DATA
-          )
-        ];
+      const questionDataPromises = [
+        utils.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        ),
+        utils.waitForEvent<GameQuestionDataEventPayload>(
+          spectatorSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        )
+      ];
 
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: stakeQuestionId,
-        });
+      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: stakeQuestionId
+      });
 
-        const [showmanQuestionData, spectatorQuestionData] =
-          await Promise.all(questionDataPromises);
+      const [showmanQuestionData, spectatorQuestionData] = await Promise.all(questionDataPromises);
 
-        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
-          "Stake answer"
-        );
-        expect("answerText" in spectatorQuestionData.data).toBe(false);
-        expect(showmanQuestionData.timer).toBeDefined();
-        expect(spectatorQuestionData.timer).toEqual(showmanQuestionData.timer);
-        expect(showmanQuestionData.questionEligiblePlayers).toEqual([]);
-        expect(spectatorQuestionData.questionEligiblePlayers).toEqual([]);
+      expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe("Stake answer");
+      expect("answerText" in spectatorQuestionData.data).toBe(false);
+      expect(showmanQuestionData.timer).toBeDefined();
+      expect(spectatorQuestionData.timer).toEqual(showmanQuestionData.timer);
+      expect(showmanQuestionData.questionEligiblePlayers).toEqual([]);
+      expect(spectatorQuestionData.questionEligiblePlayers).toEqual([]);
 
-        const showingState = await utils.getGameState(gameId);
-        expect(showingState!.questionState).toBe(QuestionState.SHOWING);
-        expect(showingState!.stakeQuestionData).toBeNull();
-        expect(showingState!.currentQuestion).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      const showingState = await utils.getGameState(gameId);
+      expect(showingState!.questionState).toBe(QuestionState.SHOWING);
+      expect(showingState!.stakeQuestionData).toBeNull();
+      expect(showingState!.currentQuestion).toBeDefined();
     });
 
     describe("Sequential Bidding Process", () => {
@@ -328,25 +258,20 @@ describe("Stake Question Flow Tests", () => {
         // Explicitly set current turn player to player[0] (score changes don't auto-update turn player)
         await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
-        stakeQuestionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.STAKE
+        stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
+
+        const stakeQuestionPickedPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_PICKED
         );
 
         // Player 0 (current turn player) starts stake question
         setup.playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: stakeQuestionId,
+          questionId: stakeQuestionId
         });
 
         // Wait for stake question to be picked
-        await utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_QUESTION_PICKED
-        );
-      });
-
-      afterEach(async () => {
-        await utils.cleanupGameClients(setup);
+        await stakeQuestionPickedPromise;
       });
 
       it("should allow valid numerical bids from current bidder", async () => {
@@ -360,19 +285,15 @@ describe("Stake Question Flow Tests", () => {
         // Player 0 (picker/first bidder) bids 250 (must be >= question price of 200)
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
-          bidAmount: 250,
+          bidAmount: 250
         } as StakeBidSubmitInputData);
 
         const result = await bidPromise;
-        expect(result.playerId).toBe(
-          await utils.getUserIdFromSocket(playerSockets[0])
-        );
+        expect(result.playerId).toBe(await utils.getUserIdFromSocket(playerSockets[0]));
         expect(result.bidAmount).toBe(250);
         expect(result.bidType).toBe(StakeBidType.NORMAL);
         expect(result.isPhaseComplete).toBe(false);
-        expect(result.nextBidderId).toBe(
-          await utils.getUserIdFromSocket(playerSockets[1])
-        );
+        expect(result.nextBidderId).toBe(await utils.getUserIdFromSocket(playerSockets[1]));
         expect(result.timer).toBeDefined();
         expect(result.timer?.durationMs).toBe(30000); // 30 seconds for next bid
       });
@@ -390,21 +311,20 @@ describe("Stake Question Flow Tests", () => {
         // Explicitly set current turn player to player[0] (score changes don't auto-update turn player)
         await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
-        stakeQuestionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.STAKE
+        stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
+
+        const stakeQuestionPickedPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_PICKED
         );
 
         // Player 0 (current turn player) starts stake question
         setup.playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: stakeQuestionId,
+          questionId: stakeQuestionId
         });
 
         // Wait for stake question to be picked
-        await utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_QUESTION_PICKED
-        );
+        await stakeQuestionPickedPromise;
 
         // First, player 0 must place a bid (can't pass as first bidder)
         const firstBidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
@@ -414,7 +334,7 @@ describe("Stake Question Flow Tests", () => {
 
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
-          bidAmount: 250,
+          bidAmount: 250
         } as StakeBidSubmitInputData);
 
         await firstBidPromise;
@@ -427,356 +347,304 @@ describe("Stake Question Flow Tests", () => {
 
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.PASS,
-          bidAmount: null,
+          bidAmount: null
         } as StakeBidSubmitInputData);
 
         const result = await passPromise;
-        expect(result.playerId).toBe(
-          await utils.getUserIdFromSocket(playerSockets[1])
-        );
+        expect(result.playerId).toBe(await utils.getUserIdFromSocket(playerSockets[1]));
         expect(result.bidAmount).toBe(null);
         expect(result.bidType).toBe(StakeBidType.PASS);
-        expect(result.nextBidderId).toBe(
-          await utils.getUserIdFromSocket(playerSockets[2])
-        );
+        expect(result.nextBidderId).toBe(await utils.getUserIdFromSocket(playerSockets[2]));
       });
 
       it("should reject bid from non-current bidder", async () => {
         // Use default setup with proper scores
-        const { setup, cleanup } = await _prepare({
+        const { setup } = await _prepare({
           playerScores: [500, 600, 400],
           shouldPickQuestion: true,
-          pickerIndex: 0,
+          pickerIndex: 0
         });
 
-        try {
-          const { playerSockets } = setup;
+        const { playerSockets } = setup;
 
-          // Listen for error on the socket making the invalid bid (Player 1)
-          const errorPromise = utils.waitForEvent(
-            playerSockets[1],
-            SocketIOEvents.ERROR
-          );
+        // Listen for error on the socket making the invalid bid (Player 1)
+        const errorPromise = utils.waitForEvent(playerSockets[1], SocketIOEvents.ERROR);
 
-          // Player 1 tries to bid when it's Player 0's turn
-          playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.NORMAL,
-            bidAmount: 250,
-          });
+        // Player 1 tries to bid when it's Player 0's turn
+        playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250
+        });
 
-          const error = await errorPromise;
-          expect(error.message).toContain("turn");
-        } finally {
-          await cleanup();
-        }
+        const error = await errorPromise;
+        expect(error.message).toContain("turn");
       });
 
       it("should reject bid lower than current highest", async () => {
         // Setup separate test with independent setup
-        const { setup, cleanup } = await _prepare({
+        const { setup } = await _prepare({
           playerScores: [500, 600, 400],
           shouldPickQuestion: true,
-          pickerIndex: 0,
+          pickerIndex: 0
         });
 
-        try {
-          const { playerSockets, showmanSocket } = setup;
+        const { playerSockets, showmanSocket } = setup;
 
-          // Player 0 bids 250 (must be >= question price of 200)
-          playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.NORMAL,
-            bidAmount: 250,
-          });
+        // Player 0 bids 250 (must be >= question price of 200)
+        const firstBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250
+        });
 
-          await utils.waitForEvent(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT
-          );
+        await firstBidPromise;
 
-          // Listen for error on Player 1's socket (the one making the invalid bid)
-          const errorPromise = utils.waitForEvent(
-            playerSockets[1],
-            SocketIOEvents.ERROR
-          );
+        // Listen for error on Player 1's socket (the one making the invalid bid)
+        const errorPromise = utils.waitForEvent(playerSockets[1], SocketIOEvents.ERROR);
 
-          // Player 1 tries to bid lower
-          playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.NORMAL,
-            bidAmount: 50,
-          });
+        // Player 1 tries to bid lower
+        playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 50
+        });
 
-          const error = await errorPromise;
-          expect(error.message).toMatch(/bid|low/i);
-        } finally {
-          await cleanup();
-        }
+        const error = await errorPromise;
+        expect(error.message).toMatch(/bid|low/i);
       });
 
       it("should reject bid exceeding player score", async () => {
         // Setup with specific scores to test this scenario
-        const { setup, cleanup } = await _prepare({
+        const { setup } = await _prepare({
           playerScores: [500, 350, 280], // Higher score for picker to avoid automatic bid
           shouldPickQuestion: true,
-          pickerIndex: 0,
+          pickerIndex: 0
         });
 
-        try {
-          const { playerSockets, showmanSocket } = setup;
+        const { playerSockets, showmanSocket } = setup;
 
-          // First bid something to get to Player 2's turn (score: 250)
-          playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.NORMAL,
-            bidAmount: 250,
-          });
-          await utils.waitForEvent(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT
-          );
+        // First bid something to get to Player 2's turn (score: 250)
+        const firstBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250
+        });
+        await firstBidPromise;
 
-          playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.NORMAL,
-            bidAmount: 260,
-          });
-          await utils.waitForEvent(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT
-          );
-          // Listen for error on Player 2's socket (the one making the invalid bid)
-          const errorPromise = utils.waitForEvent(
-            playerSockets[2],
-            SocketIOEvents.ERROR
-          );
+        const secondBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 260
+        });
+        await secondBidPromise;
+        // Listen for error on Player 2's socket (the one making the invalid bid)
+        const errorPromise = utils.waitForEvent(playerSockets[2], SocketIOEvents.ERROR);
 
-          // Player 2 (score: 250) tries to bid more than they have
-          playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.NORMAL,
-            bidAmount: 300, // Exceeds their score of 280
-          });
+        // Player 2 (score: 250) tries to bid more than they have
+        playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 300 // Exceeds their score of 280
+        });
 
-          const error = await errorPromise;
-          expect(error.message).toMatch(/score|insufficient/i);
-        } finally {
-          await cleanup();
-        }
+        const error = await errorPromise;
+        expect(error.message).toMatch(/score|insufficient/i);
       });
 
       it("should reject bid when player score is lower than current highest bid", async () => {
         // Setup with specific scores for this validation test
-        const { setup, cleanup } = await _prepare({
+        const { setup } = await _prepare({
           playerScores: [400, 450, 350], // Player 2 has lowest score (350)
           shouldPickQuestion: true,
-          pickerIndex: 0,
+          pickerIndex: 0
         });
 
-        try {
-          const { playerSockets, showmanSocket } = setup;
+        const { playerSockets, showmanSocket } = setup;
 
-          // Player[0] bids 350
-          playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.NORMAL,
-            bidAmount: 350,
-          });
-          let bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT
-          );
+        // Player[0] bids 350
+        const firstBidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 350
+        });
+        let bidResult = await firstBidPromise;
 
-          expect(bidResult.bidType).toBe(StakeBidType.NORMAL);
-          expect(bidResult.bidAmount).toBe(350);
+        expect(bidResult.bidType).toBe(StakeBidType.NORMAL);
+        expect(bidResult.bidAmount).toBe(350);
 
-          // Player[1] bids 360 (now highest bid)
-          playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.NORMAL,
-            bidAmount: 360,
-          });
+        // Player[1] bids 360 (now highest bid)
+        const secondBidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 360
+        });
 
-          bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT
-          );
+        bidResult = await secondBidPromise;
 
-          expect(bidResult.bidType).toBe(StakeBidType.NORMAL);
-          expect(bidResult.bidAmount).toBe(360);
+        expect(bidResult.bidType).toBe(StakeBidType.NORMAL);
+        expect(bidResult.bidAmount).toBe(360);
 
-          // Player 2 tries ALL_IN (score 350) but current highest bid is 360
-          // This should FAIL because 350 <= 360 (current highest bid)
-          const errorPromise = utils.waitForEvent(
-            playerSockets[2],
-            SocketIOEvents.ERROR
-          );
+        // Player 2 tries ALL_IN (score 350) but current highest bid is 360
+        // This should FAIL because 350 <= 360 (current highest bid)
+        const errorPromise = utils.waitForEvent(playerSockets[2], SocketIOEvents.ERROR);
 
-          playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.ALL_IN,
-            bidAmount: null,
-          });
+        playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.ALL_IN,
+          bidAmount: null
+        });
 
-          const errorResult = await errorPromise;
-          // Player is auto-skipped because they cannot beat the high bid, so it's not their turn
-          expect(errorResult.message).toContain("It's not your turn");
-        } finally {
-          await cleanup();
-        }
+        const errorResult = await errorPromise;
+        // Player is auto-skipped because they cannot beat the high bid, so it's not their turn
+        expect(errorResult.message).toContain("It's not your turn");
       });
 
       it("should restrict bidding to all-in or pass after someone bids all-in", async () => {
         // Setup with scores where someone can go ALL_IN but NOT reach maxPrice (to avoid auto-win)
         // MaxPrice is 400, so Player[1] ALL_IN with 300 score won't trigger auto-win
-        const { setup, cleanup } = await _prepare({
+        const { setup } = await _prepare({
           playerScores: [450, 300, 350], // Player[1] has 300 < maxPrice for ALL_IN without auto-win
           shouldPickQuestion: true,
-          pickerIndex: 0, // Player 0 with 450 score picks and starts bidding
+          pickerIndex: 0 // Player 0 with 450 score picks and starts bidding
         });
 
-        try {
-          const { playerSockets, showmanSocket } = setup;
+        const { playerSockets, showmanSocket } = setup;
 
-          // Player[0] starts with a small bid (must be >= question price of 200)
-          playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.NORMAL,
-            bidAmount: 250,
-          });
-          let bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT
-          );
+        // Player[0] starts with a small bid (must be >= question price of 200)
+        const firstBidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250
+        });
+        let bidResult = await firstBidPromise;
 
-          expect(bidResult.bidType).toBe(StakeBidType.NORMAL);
-          expect(bidResult.bidAmount).toBe(250);
+        expect(bidResult.bidType).toBe(StakeBidType.NORMAL);
+        expect(bidResult.bidAmount).toBe(250);
 
-          // Player[1] goes ALL_IN (300 score, which is less than maxPrice 400)
-          playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.ALL_IN,
-            bidAmount: null,
-          });
+        // Player[1] goes ALL_IN (300 score, which is less than maxPrice 400)
+        const allInPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.ALL_IN,
+          bidAmount: null
+        });
 
-          bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT
-          );
+        bidResult = await allInPromise;
 
-          expect(bidResult.bidType).toBe(StakeBidType.ALL_IN);
-          expect(bidResult.bidAmount).toBe(300); // Player[1]'s full score
-          expect(bidResult.isPhaseComplete).toBe(false); // Should continue to next bidder
-          expect(bidResult.nextBidderId).toBe(
-            await utils.getUserIdFromSocket(playerSockets[2])
-          );
+        expect(bidResult.bidType).toBe(StakeBidType.ALL_IN);
+        expect(bidResult.bidAmount).toBe(300); // Player[1]'s full score
+        expect(bidResult.isPhaseComplete).toBe(false); // Should continue to next bidder
+        expect(bidResult.nextBidderId).toBe(await utils.getUserIdFromSocket(playerSockets[2]));
 
-          // Now Player[2] should only be able to ALL_IN or PASS (not regular numeric bids)
-          // Test 1: Player[2] tries to make a regular numeric bid - should be REJECTED
-          const errorPromise = utils.waitForEvent(
-            playerSockets[2],
-            SocketIOEvents.ERROR
-          );
+        // Now Player[2] should only be able to ALL_IN or PASS (not regular numeric bids)
+        // Test 1: Player[2] tries to make a regular numeric bid - should be REJECTED
+        const errorPromise = utils.waitForEvent(playerSockets[2], SocketIOEvents.ERROR);
 
-          playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.NORMAL,
-            bidAmount: 350, // Regular numeric bid
-          });
+        playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 350 // Regular numeric bid
+        });
 
-          const errorResult = await errorPromise;
-          expect(errorResult.message).toMatch(
-            /all.?in.*only|must.*all.?in.*pass|all.?in.*pass.*only/i
-          );
+        const errorResult = await errorPromise;
+        expect(errorResult.message).toMatch(
+          /all.?in.*only|must.*all.?in.*pass|all.?in.*pass.*only/i
+        );
 
-          // Test 2: Player[2] can still PASS
-          playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.PASS,
-            bidAmount: null,
-          });
+        // Test 2: Player[2] can still PASS
+        const playerTwoPassPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.PASS,
+          bidAmount: null
+        });
 
-          bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT
-          );
+        bidResult = await playerTwoPassPromise;
 
-          expect(bidResult.bidType).toBe(StakeBidType.PASS);
-          expect(bidResult.bidAmount).toBe(null);
+        expect(bidResult.bidType).toBe(StakeBidType.PASS);
+        expect(bidResult.bidAmount).toBe(null);
 
-          // Test 3: Player[0] gets another turn and can only ALL_IN (since their score is 300 < current highest 400)
-          // They should be able to pass though
-          playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.PASS,
-            bidAmount: null,
-          });
+        // Test 3: Player[0] gets another turn and can only ALL_IN (since their score is 300 < current highest 400)
+        // They should be able to pass though
+        const playerZeroPassPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.PASS,
+          bidAmount: null
+        });
 
-          bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT
-          );
+        bidResult = await playerZeroPassPromise;
 
-          expect(bidResult.bidType).toBe(StakeBidType.PASS);
-          expect(bidResult.isPhaseComplete).toBe(true); // All players passed, Player[1] wins
-        } finally {
-          await cleanup();
-        }
+        expect(bidResult.bidType).toBe(StakeBidType.PASS);
+        expect(bidResult.isPhaseComplete).toBe(true); // All players passed, Player[1] wins
       });
 
       it("should reject bids from player who joined after stake bidding started", async () => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
         const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-        try {
-          await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-          await utils.setPlayerScore(gameId, playerUsers[0].id, 100);
-          await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
-          await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
+        await utils.setPlayerScore(gameId, playerUsers[0].id, 100);
+        await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
+        await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
-          const stakeQuestionId = await utils.getQuestionIdByType(
-            gameId,
-            PackageQuestionType.STAKE
-          );
+        const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
-          const stakePickedPromise =
-            utils.waitForEvent<StakeQuestionPickedBroadcastData>(
-              showmanSocket,
-              SocketIOGameEvents.STAKE_QUESTION_PICKED
-            );
+        const stakePickedPromise = utils.waitForEvent<StakeQuestionPickedBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_PICKED
+        );
 
-          playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-            questionId: stakeQuestionId,
-          });
+        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestionId
+        });
 
-          await stakePickedPromise;
+        await stakePickedPromise;
 
-          const { socket: lateJoinerSocket, user: lateJoinerUser } =
-            await utils.createGameClient(app, userRepo);
+        const { socket: lateJoinerSocket, user: lateJoinerUser } = await utils.createGameClient(
+          app,
+          userRepo
+        );
 
-          try {
-            await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
-            await utils.waitForActionsComplete(gameId);
+        await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
+        await utils.waitForActionsComplete(gameId);
 
-            const game = await utils.getGameFromGameService(gameId);
-            expect(
-              game.gameState.questionEligiblePlayers?.includes(
-                lateJoinerUser.id
-              )
-            ).toBe(false);
+        const game = await utils.getGameFromGameService(gameId);
+        expect(game.gameState.questionEligiblePlayers?.includes(lateJoinerUser.id)).toBe(false);
 
-            const errorPromise = new Promise<string>((resolve, reject) => {
-              const timeout = setTimeout(() => {
-                reject(new Error("No error received - bid was allowed"));
-              }, 3000);
+        const errorPromise = utils.waitForEvent<{ message: string }>(
+          lateJoinerSocket,
+          SocketIOEvents.ERROR
+        );
 
-              lateJoinerSocket.once(SocketIOEvents.ERROR, (error: any) => {
-                clearTimeout(timeout);
-                resolve(error.message);
-              });
-            });
+        lateJoinerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 100
+        } satisfies StakeBidSubmitInputData);
 
-            lateJoinerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-              bidType: StakeBidType.NORMAL,
-              bidAmount: 100,
-            } satisfies StakeBidSubmitInputData);
-
-            const errorMessage = await errorPromise;
-            expect(errorMessage.toLowerCase()).toContain("cannot participate");
-          } finally {
-            await utils.disconnectAndCleanup(lateJoinerSocket);
-          }
-        } finally {
-          await utils.cleanupGameClients(setup);
-        }
+        const error = await errorPromise;
+        expect(error.message.toLowerCase()).toContain("cannot participate");
       });
     });
 
@@ -797,24 +665,19 @@ describe("Stake Question Flow Tests", () => {
         // Explicitly set current turn player to player[0] (score changes don't auto-update turn player)
         await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
-        stakeQuestionId = await utils.getQuestionIdByType(
-          gameId,
-          PackageQuestionType.STAKE
+        stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
+
+        const stakeQuestionPickedPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_PICKED
         );
 
         // Player 0 (current turn player) starts stake question
         setup.playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: stakeQuestionId,
+          questionId: stakeQuestionId
         });
 
-        await utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_QUESTION_PICKED
-        );
-      });
-
-      afterEach(async () => {
-        await utils.cleanupGameClients(setup);
+        await stakeQuestionPickedPromise;
       });
 
       it("should complete bidding and announce winner", async () => {
@@ -830,133 +693,73 @@ describe("Stake Question Flow Tests", () => {
           SocketIOGameEvents.STAKE_QUESTION_WINNER
         );
 
-        const showmanQuestionDataPromise =
-          utils.waitForEvent<GameQuestionDataEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_DATA
-          );
-        const playerQuestionDataPromise =
-          utils.waitForEvent<GameQuestionDataEventPayload>(
-            playerSockets[0],
-            SocketIOGameEvents.QUESTION_DATA
-          );
+        const showmanQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const playerQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_DATA
+        );
 
         // Complete all bids: Player 0 -> 250, Player 1 -> 350, Player 2 -> pass, Player 0 -> pass (could outbid but chooses not to)
+        const firstBidPromise = utils.waitForEventMatching<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT,
+          (data) => data.playerId === player0Id && data.bidAmount === 250
+        );
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
-          bidAmount: 250,
+          bidAmount: 250
         });
 
         // Wait for Player 0's specific bid response
-        await new Promise<StakeBidSubmitOutputData>((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            reject(new Error("Timeout waiting for Player 0's bid response"));
-          }, 5000);
+        await firstBidPromise;
 
-          const handler = (data: StakeBidSubmitOutputData) => {
-            if (data.playerId === player0Id && data.bidAmount === 250) {
-              clearTimeout(timeoutId);
-              showmanSocket.removeListener(
-                SocketIOGameEvents.STAKE_BID_SUBMIT,
-                handler
-              );
-              resolve(data);
-            }
-          };
-
-          showmanSocket.on(SocketIOGameEvents.STAKE_BID_SUBMIT, handler);
-        });
-
+        const secondBidPromise = utils.waitForEventMatching<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT,
+          (data) => data.playerId === player1Id && data.bidAmount === 350
+        );
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
-          bidAmount: 350,
+          bidAmount: 350
         });
 
         // Wait for Player 1's specific bid response
-        await new Promise<StakeBidSubmitOutputData>((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            reject(new Error("Timeout waiting for Player 1's bid response"));
-          }, 5000);
+        await secondBidPromise;
 
-          const handler = (data: StakeBidSubmitOutputData) => {
-            if (data.playerId === player1Id && data.bidAmount === 350) {
-              clearTimeout(timeoutId);
-              showmanSocket.removeListener(
-                SocketIOGameEvents.STAKE_BID_SUBMIT,
-                handler
-              );
-              resolve(data);
-            }
-          };
-
-          showmanSocket.on(SocketIOGameEvents.STAKE_BID_SUBMIT, handler);
-        });
-
+        const playerTwoPassPromise = utils.waitForEventMatching<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT,
+          (data) => data.playerId === player2Id && data.bidType === StakeBidType.PASS
+        );
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.PASS,
-          bidAmount: null,
+          bidAmount: null
         });
 
         // Wait for Player 2's specific pass response
-        await new Promise<StakeBidSubmitOutputData>((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            reject(new Error("Timeout waiting for Player 2's pass response"));
-          }, 5000);
-
-          const handler = (data: StakeBidSubmitOutputData) => {
-            if (
-              data.playerId === player2Id &&
-              data.bidType === StakeBidType.PASS
-            ) {
-              clearTimeout(timeoutId);
-              showmanSocket.removeListener(
-                SocketIOGameEvents.STAKE_BID_SUBMIT,
-                handler
-              );
-              resolve(data);
-            }
-          };
-
-          showmanSocket.on(SocketIOGameEvents.STAKE_BID_SUBMIT, handler);
-        });
+        await playerTwoPassPromise;
 
         // Player 0 gets another chance but passes (completing the round)
+        const playerZeroPassPromise = utils.waitForEventMatching<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT,
+          (data) => data.playerId === player0Id && data.bidType === StakeBidType.PASS
+        );
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.PASS,
-          bidAmount: null,
+          bidAmount: null
         });
 
         // Wait for Player 0's final pass bid to be processed - this should complete the phase
-        await new Promise<StakeBidSubmitOutputData>((resolve, reject) => {
-          const timeoutId = setTimeout(() => {
-            reject(
-              new Error("Timeout waiting for Player 0's final pass response")
-            );
-          }, 5000);
-
-          const handler = (data: StakeBidSubmitOutputData) => {
-            if (
-              data.playerId === player0Id &&
-              data.bidType === StakeBidType.PASS
-            ) {
-              clearTimeout(timeoutId);
-              showmanSocket.removeListener(
-                SocketIOGameEvents.STAKE_BID_SUBMIT,
-                handler
-              );
-              resolve(data);
-            }
-          };
-
-          showmanSocket.on(SocketIOGameEvents.STAKE_BID_SUBMIT, handler);
-        });
+        await playerZeroPassPromise;
 
         // Should announce Player 1 as winner with bid 350
         const winnerData = await winnerPromise;
 
-        expect(winnerData.winnerPlayerId).toBe(
-          await utils.getUserIdFromSocket(playerSockets[1])
-        );
+        expect(winnerData.winnerPlayerId).toBe(await utils.getUserIdFromSocket(playerSockets[1]));
         expect(winnerData.finalBid).toBe(350);
 
         // Question data should be sent separately and filtered by role.
@@ -966,9 +769,7 @@ describe("Stake Question Flow Tests", () => {
         ]);
         expect(showmanQuestionData.data).toBeDefined();
         expect(showmanQuestionData.data.text).toContain("Stake question");
-        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
-          "Stake answer"
-        );
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe("Stake answer");
         expect("answerText" in playerQuestionData.data).toBe(false);
 
         // Verify answer timer is included in question data event
@@ -982,121 +783,96 @@ describe("Stake Question Flow Tests", () => {
       });
 
       it("should complete bidding on timer expiration with role-filtered question data", async () => {
-        const { setup, cleanup } = await _prepare({
+        const { setup } = await _prepare({
           playerCount: 2,
           playerScores: [500, 300],
           shouldPickQuestion: true,
-          pickerIndex: 0,
+          pickerIndex: 0
         });
 
-        try {
-          const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-          const firstTimeoutBidPromise =
-            utils.waitForEvent<StakeBidSubmitOutputData>(
-              showmanSocket,
-              SocketIOGameEvents.STAKE_BID_SUBMIT
-            );
+        const firstTimeoutBidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
 
-          await testUtils.expireTimerAndWaitForAction(
-            gameId,
-            GameActionType.TIMER_BIDDING_EXPIRED
-          );
+        await testUtils.expireTimerAndWaitForAction(gameId, GameActionType.TIMER_BIDDING_EXPIRED);
 
-          const firstTimeoutBid = await firstTimeoutBidPromise;
-          expect(firstTimeoutBid.playerId).toBe(playerUsers[0].id);
-          expect(firstTimeoutBid.bidType).toBe(StakeBidType.NORMAL);
-          expect(firstTimeoutBid.bidAmount).toBe(200);
-          expect(firstTimeoutBid.isPhaseComplete).toBe(false);
-          expect(firstTimeoutBid.nextBidderId).toBe(playerUsers[1].id);
-          expect(firstTimeoutBid.timer).toBeDefined();
+        const firstTimeoutBid = await firstTimeoutBidPromise;
+        expect(firstTimeoutBid.playerId).toBe(playerUsers[0].id);
+        expect(firstTimeoutBid.bidType).toBe(StakeBidType.NORMAL);
+        expect(firstTimeoutBid.bidAmount).toBe(200);
+        expect(firstTimeoutBid.isPhaseComplete).toBe(false);
+        expect(firstTimeoutBid.nextBidderId).toBe(playerUsers[1].id);
+        expect(firstTimeoutBid.timer).toBeDefined();
 
-          const secondTimeoutBidPromise =
-            utils.waitForEvent<StakeBidSubmitOutputData>(
-              showmanSocket,
-              SocketIOGameEvents.STAKE_BID_SUBMIT
-            );
-          const winnerPromise = utils.waitForEvent<StakeQuestionWinnerEventData>(
-            showmanSocket,
-            SocketIOGameEvents.STAKE_QUESTION_WINNER
-          );
-          const showmanQuestionDataPromise =
-            utils.waitForEvent<GameQuestionDataEventPayload>(
-              showmanSocket,
-              SocketIOGameEvents.QUESTION_DATA
-            );
-          const playerQuestionDataPromise =
-            utils.waitForEvent<GameQuestionDataEventPayload>(
-              playerSockets[1],
-              SocketIOGameEvents.QUESTION_DATA
-            );
+        const secondTimeoutBidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        const winnerPromise = utils.waitForEvent<StakeQuestionWinnerEventData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_WINNER
+        );
+        const showmanQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const playerQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+          playerSockets[1],
+          SocketIOGameEvents.QUESTION_DATA
+        );
 
-          await testUtils.expireTimerAndWaitForAction(
-            gameId,
-            GameActionType.TIMER_BIDDING_EXPIRED
-          );
+        await testUtils.expireTimerAndWaitForAction(gameId, GameActionType.TIMER_BIDDING_EXPIRED);
 
-          const secondTimeoutBid = await secondTimeoutBidPromise;
-          expect(secondTimeoutBid.playerId).toBe(playerUsers[1].id);
-          expect(secondTimeoutBid.bidType).toBe(StakeBidType.PASS);
-          expect(secondTimeoutBid.bidAmount).toBeNull();
-          expect(secondTimeoutBid.isPhaseComplete).toBe(true);
-          expect(secondTimeoutBid.nextBidderId).toBeNull();
-          expect(secondTimeoutBid.timer).toBeUndefined();
+        const secondTimeoutBid = await secondTimeoutBidPromise;
+        expect(secondTimeoutBid.playerId).toBe(playerUsers[1].id);
+        expect(secondTimeoutBid.bidType).toBe(StakeBidType.PASS);
+        expect(secondTimeoutBid.bidAmount).toBeNull();
+        expect(secondTimeoutBid.isPhaseComplete).toBe(true);
+        expect(secondTimeoutBid.nextBidderId).toBeNull();
+        expect(secondTimeoutBid.timer).toBeUndefined();
 
-          const winnerData = await winnerPromise;
-          expect(winnerData.winnerPlayerId).toBe(playerUsers[0].id);
-          expect(winnerData.finalBid).toBe(200);
+        const winnerData = await winnerPromise;
+        expect(winnerData.winnerPlayerId).toBe(playerUsers[0].id);
+        expect(winnerData.finalBid).toBe(200);
 
-          const [showmanQuestionData, playerQuestionData] = await Promise.all([
-            showmanQuestionDataPromise,
-            playerQuestionDataPromise
-          ]);
-          expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe(
-            "Stake answer"
-          );
-          expect("answerText" in playerQuestionData.data).toBe(false);
-          expect(showmanQuestionData.timer.durationMs).toBeGreaterThan(0);
-          expect(playerQuestionData.timer).toEqual(showmanQuestionData.timer);
+        const [showmanQuestionData, playerQuestionData] = await Promise.all([
+          showmanQuestionDataPromise,
+          playerQuestionDataPromise
+        ]);
+        expect((showmanQuestionData.data as PackageQuestionDTO).answerText).toBe("Stake answer");
+        expect("answerText" in playerQuestionData.data).toBe(false);
+        expect(showmanQuestionData.timer.durationMs).toBeGreaterThan(0);
+        expect(playerQuestionData.timer).toEqual(showmanQuestionData.timer);
 
-          const answeringState = await utils.getGameState(gameId);
-          expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
-          expect(answeringState!.answeringPlayer).toBe(playerUsers[0].id);
-        } finally {
-          await cleanup();
-        }
+        const answeringState = await utils.getGameState(gameId);
+        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(answeringState!.answeringPlayer).toBe(playerUsers[0].id);
       });
 
       it("should reject first bidder attempt to pass", async () => {
         // Use separate setup for this test
-        const { setup, cleanup } = await _prepare({
+        const { setup } = await _prepare({
           playerScores: [500, 600, 400],
           shouldPickQuestion: true,
-          pickerIndex: 0,
+          pickerIndex: 0
         });
 
-        try {
-          const { playerSockets } = setup;
+        const { playerSockets } = setup;
 
-          // Listen for error on Player 0's socket (the one making the invalid bid)
-          const errorPromise = utils.waitForEvent(
-            playerSockets[0],
-            SocketIOEvents.ERROR
-          );
+        // Listen for error on Player 0's socket (the one making the invalid bid)
+        const errorPromise = utils.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
 
-          // First bidder (player 0) tries to pass - should be rejected
-          playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-            bidType: StakeBidType.PASS,
-            bidAmount: null,
-          });
+        // First bidder (player 0) tries to pass - should be rejected
+        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.PASS,
+          bidAmount: null
+        });
 
-          const error = await errorPromise;
-          expect(error.message).toMatch(
-            /first.*bidder|cannot.*pass|must.*bid/i
-          );
-        } finally {
-          await cleanup();
-        }
+        const error = await errorPromise;
+        expect(error.message).toMatch(/first.*bidder|cannot.*pass|must.*bid/i);
       });
 
       it("should handle single highest bidder scenario", async () => {
@@ -1108,39 +884,40 @@ describe("Stake Question Flow Tests", () => {
         );
 
         // Player 0 bids 250 (must be >= question price of 200), others pass
+        const firstBidPromise = utils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
         playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
-          bidAmount: 250,
+          bidAmount: 250
         });
-        await utils.waitForEvent(
+        await firstBidPromise;
+
+        const firstPassPromise = utils.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT
         );
-
         playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.PASS,
-          bidAmount: null,
+          bidAmount: null
         });
-        await utils.waitForEvent(
+        await firstPassPromise;
+
+        const finalPassPromise = utils.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT
         );
-
         playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.PASS,
-          bidAmount: null,
+          bidAmount: null
         });
 
         // Wait for the final pass bid to be processed
-        await utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_BID_SUBMIT
-        );
+        await finalPassPromise;
 
         const winnerData = await winnerPromise;
-        expect(winnerData.winnerPlayerId).toBe(
-          await utils.getUserIdFromSocket(playerSockets[0])
-        );
+        expect(winnerData.winnerPlayerId).toBe(await utils.getUserIdFromSocket(playerSockets[0]));
         expect(winnerData.finalBid).toBe(250);
       });
     });

@@ -1,70 +1,38 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import { GameNextRoundEventPayload } from "domain/types/socket/events/game/GameNextRoundEventPayload";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 describe("Socket Game Flow Tests", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
   it("should set currentTurnPlayerId to the player with the lowest score on simple round start", async () => {
     // Setup a game with 3 players and two simple rounds (no final round)
-    const setup = await utils.setupGameTestEnvironment(
-      userRepo,
-      app,
-      3,
-      0,
-      false
-    );
+    const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0, false);
     const { showmanSocket } = setup;
 
     // Start the game
@@ -87,8 +55,6 @@ describe("Socket Game Flow Tests", () => {
     // The player with the lowest score (-5) should be the currentTurnPlayerId
     expect(gameState.currentRound!.type).toBe(PackageRoundType.SIMPLE);
     expect(gameState.currentTurnPlayerId).toBe(setup.playerUsers[1].id);
-
-    await utils.cleanupGameClients(setup);
   });
 
   describe("Game Joining Flow", () => {
@@ -98,8 +64,6 @@ describe("Socket Game Flow Tests", () => {
       expect(setup.gameId).toBeDefined();
       expect(setup.showmanSocket).toBeDefined();
       expect(setup.playerSockets).toHaveLength(1);
-
-      await utils.cleanupGameClients(setup);
     });
 
     it("should allow spectator joining", async () => {
@@ -112,8 +76,6 @@ describe("Socket Game Flow Tests", () => {
 
       const spectator = setup.spectatorSockets[0];
       expect(spectator).toBeDefined();
-
-      await utils.cleanupGameClients(setup);
     });
   });
 
@@ -122,90 +84,45 @@ describe("Socket Game Flow Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { playerSockets, showmanSocket } = setup;
 
-      return new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
+      const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
 
-        // Listen for leave event on other sockets
-        showmanSocket.on(SocketIOGameEvents.LEAVE, (data: any) => {
-          clearTimeout(timeout);
-          expect(data).toBeDefined();
-          resolve();
-        });
+      // Player leaves the game
+      await utils.leaveGame(playerSockets[0]);
 
-        // Player leaves the game
-        void utils.leaveGame(playerSockets[0]).catch((err) => {
-          clearTimeout(timeout);
-          reject(err);
-        });
-      }).finally(async () => {
-        await utils.cleanupGameClients(setup);
-      });
+      expect(await leavePromise).toBeDefined();
     });
 
     it("should handle showman leaving", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      return new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
+      const leavePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.LEAVE);
 
-        // Listen for leave event on player socket
-        playerSockets[0].on(SocketIOGameEvents.LEAVE, (data: any) => {
-          clearTimeout(timeout);
-          expect(data).toBeDefined();
-          resolve();
-        });
+      // Showman leaves the game
+      await utils.leaveGame(showmanSocket);
 
-        // Showman leaves the game
-        void utils.leaveGame(showmanSocket).catch((err) => {
-          clearTimeout(timeout);
-          reject(err);
-        });
-      }).finally(async () => {
-        await utils.cleanupGameClients(setup);
-      });
+      expect(await leavePromise).toBeDefined();
     });
 
     it("should no-op when leaving after already leaving the game", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { playerSockets, showmanSocket } = setup;
 
-      try {
-        await utils.leaveGame(playerSockets[0]);
+      await utils.leaveGame(playerSockets[0]);
 
-        const playerSessionAfterLeave = await utils.getSocketUserData(playerSockets[0]);
-        expect(playerSessionAfterLeave?.gameId).toBeNull();
+      const playerSessionAfterLeave = await utils.getSocketUserData(playerSockets[0]);
+      expect(playerSessionAfterLeave?.gameId).toBeNull();
 
-        const noShowmanLeavePromise = utils.waitForNoEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
-        );
-        const noPlayerLeavePromise = utils.waitForNoEvent(
-          playerSockets[0],
-          SocketIOGameEvents.LEAVE
-        );
-        const noPlayerErrorPromise = utils.waitForNoEvent(
-          playerSockets[0],
-          SocketIOEvents.ERROR
-        );
+      const noShowmanLeavePromise = utils.waitForNoEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+      const noPlayerLeavePromise = utils.waitForNoEvent(playerSockets[0], SocketIOGameEvents.LEAVE);
+      const noPlayerErrorPromise = utils.waitForNoEvent(playerSockets[0], SocketIOEvents.ERROR);
 
-        playerSockets[0].emit(SocketIOGameEvents.LEAVE);
+      playerSockets[0].emit(SocketIOGameEvents.LEAVE);
 
-        await Promise.all([
-          noShowmanLeavePromise,
-          noPlayerLeavePromise,
-          noPlayerErrorPromise,
-        ]);
+      await Promise.all([noShowmanLeavePromise, noPlayerLeavePromise, noPlayerErrorPromise]);
 
-        const playerSessionAfterNoop = await utils.getSocketUserData(playerSockets[0]);
-        expect(playerSessionAfterNoop?.gameId).toBeNull();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      const playerSessionAfterNoop = await utils.getSocketUserData(playerSockets[0]);
+      expect(playerSessionAfterNoop?.gameId).toBeNull();
     });
   });
 
@@ -214,48 +131,30 @@ describe("Socket Game Flow Tests", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      return new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
+      const startPromise = utils.waitForEvent<{ currentRound: unknown }>(
+        playerSockets[0],
+        SocketIOGameEvents.START
+      );
 
-        // Listen for start event on player socket
-        playerSockets[0].on(SocketIOGameEvents.START, (data: any) => {
-          clearTimeout(timeout);
-          expect(data.currentRound).toBeDefined();
-          resolve();
-        });
+      // Start the game
+      await utils.startGame(showmanSocket);
 
-        // Start the game
-        void utils.startGame(showmanSocket).catch((err) => {
-          clearTimeout(timeout);
-          reject(err);
-        });
-      }).finally(async () => {
-        await utils.cleanupGameClients(setup);
-      });
+      expect((await startPromise).currentRound).toBeDefined();
     });
 
     it("should reject player to start the game", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { playerSockets } = setup;
 
-      return new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
+      const errorPromise = utils.waitForEvent<{ message: string }>(
+        playerSockets[0],
+        SocketIOEvents.ERROR
+      );
 
-        playerSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
-          clearTimeout(timeout);
-          expect(error.message).toBe("Only showman can start the game");
-          resolve();
-        });
+      // Try to start game as player
+      playerSockets[0].emit(SocketIOGameEvents.START, {});
 
-        // Try to start game as player
-        playerSockets[0].emit(SocketIOGameEvents.START, {});
-      }).finally(async () => {
-        await utils.cleanupGameClients(setup);
-      });
+      expect((await errorPromise).message).toBe("Only showman can start the game");
     });
   });
 });

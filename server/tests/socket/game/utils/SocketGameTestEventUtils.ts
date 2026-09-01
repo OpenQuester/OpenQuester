@@ -35,16 +35,13 @@ export interface AcceptedActionProbe {
   dispose(): void;
 }
 
-export interface SocketGameTestEventUtilsDependencies {
+interface SocketGameTestEventUtilsDependencies {
   readonly lockService?: GameActionLockService;
   readonly queueService?: GameActionQueueService;
   readonly actionExecutor?: GameActionExecutor;
 }
 
-type ActionLifecycleEventKind =
-  | "accepted-enqueue"
-  | "lock-released"
-  | "drain-progress";
+type ActionLifecycleEventKind = "accepted-enqueue" | "lock-released" | "drain-progress";
 
 interface ActionLifecycleEvent {
   readonly gameId: string;
@@ -54,13 +51,21 @@ interface ActionLifecycleEvent {
 
 type ActionLifecyclePredicate = (event?: ActionLifecycleEvent) => Promise<boolean>;
 
+interface ActionDrainSnapshot {
+  readonly generationBeforeReads: number;
+  readonly generationAfterReads: number;
+  readonly inFlightEnqueues: number;
+  readonly isLocked: boolean;
+  readonly queueLength: number;
+  readonly peekAction: GameAction | null;
+}
+
 interface PendingAcceptedActionWait {
   readonly id: number;
   readonly expectedCount: number;
   readonly resolve: () => void;
   readonly reject: (error: Error) => void;
   readonly timeout: NodeJS.Timeout;
-  readonly promise: Promise<void>;
 }
 
 /**
@@ -94,7 +99,9 @@ class AcceptedActionProbeImpl implements AcceptedActionProbe {
     this.assertNotDisposed();
 
     if (!Number.isInteger(expectedCount) || expectedCount < 1) {
-      throw new Error(`Expected accepted action count must be a positive integer, received ${expectedCount}`);
+      throw new Error(
+        `Expected accepted action count must be a positive integer, received ${expectedCount}`
+      );
     }
 
     if (this.acceptedRecords.length >= expectedCount) {
@@ -110,6 +117,7 @@ class AcceptedActionProbeImpl implements AcceptedActionProbe {
       resolveWait = resolve;
       rejectWait = reject;
     });
+    void promise.catch(() => undefined);
     const timeout = setTimeout(() => {
       const activeWait = this.waits.get(waitId);
       if (!activeWait) {
@@ -124,8 +132,7 @@ class AcceptedActionProbeImpl implements AcceptedActionProbe {
       expectedCount,
       resolve: resolveWait,
       reject: rejectWait,
-      timeout,
-      promise
+      timeout
     };
 
     this.waits.set(waitId, pendingWait);
@@ -152,8 +159,6 @@ class AcceptedActionProbeImpl implements AcceptedActionProbe {
       clearTimeout(wait.timeout);
       wait.reject(new Error(this.formatDisposedWait(wait.expectedCount)));
     }
-
-    void Promise.allSettled(pendingWaits.map((wait) => wait.promise));
   }
 
   private matches(record: AcceptedActionRecord): boolean {
@@ -220,61 +225,268 @@ export class SocketGameTestEventUtils {
     this.installActionLifecycleObservers();
   }
 
-  public async waitForEvent<T = any>(
+  public waitForEvent<T = any>(
     socket: GameClientSocket,
     event: string,
-    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
+    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+    signal?: AbortSignal
+  ): Promise<T> {
+    return this.waitForEventMatching(socket, event, () => true, timeout, signal);
+  }
+
+  public waitForEventMatching<T = any>(
+    socket: GameClientSocket,
+    event: string,
+    predicate: (data: T) => boolean,
+    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+    signal?: AbortSignal
   ): Promise<T> {
     const effectiveTimeout = Math.min(timeout, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
+    const socketId = socket.id;
+
+    if (socket.connected === false) {
+      throw new Error(
+        `Cannot wait for Socket.IO event "${event}" because the client is disconnected ` +
+          formatSocketContext(socket, socketId)
+      );
+    }
+
     return new Promise((resolve, reject) => {
       let timeoutId: NodeJS.Timeout | null = null;
+      let settled = false;
 
-      const handler = (data: T) => {
+      const cleanup = (): void => {
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
-        socket.removeListener(event, handler);
-        resolve(data);
+        socket.removeListener(event, onEvent);
+        if (event !== "connect_error") {
+          socket.removeListener("connect_error", onConnectError);
+        }
+        if (event !== "disconnect") {
+          socket.removeListener("disconnect", onDisconnect);
+        }
+        signal?.removeEventListener("abort", onAbort);
       };
 
-      const onTimeout = () => {
-        timeoutId = null;
-        socket.removeListener(event, handler);
-        reject(new Error(`Timeout waiting for event: ${event}`));
+      const settle = (action: () => void): void => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        cleanup();
+        action();
       };
 
+      const onEvent = (data: T): void => {
+        let matches: boolean;
+        try {
+          matches = predicate(data);
+        } catch (error) {
+          settle(() =>
+            reject(
+              new Error(
+                `Socket.IO event predicate failed for "${event}" ${formatSocketContext(socket, socketId)}`,
+                { cause: toError(error) }
+              )
+            )
+          );
+          return;
+        }
+
+        if (matches) {
+          settle(() => resolve(data));
+        }
+      };
+
+      const onConnectError = (error: Error): void => {
+        settle(() =>
+          reject(
+            new Error(
+              `Socket.IO connect_error while waiting for event "${event}" ` +
+                formatSocketContext(socket, socketId),
+              { cause: error }
+            )
+          )
+        );
+      };
+
+      const onDisconnect = (reason: string): void => {
+        settle(() =>
+          reject(
+            new Error(
+              `Socket.IO client disconnected while waiting for event "${event}" ` +
+                formatSocketContext(socket, socketId, `reason="${reason}"`)
+            )
+          )
+        );
+      };
+
+      const onAbort = (): void => {
+        settle(() =>
+          reject(
+            new Error(
+              `Socket.IO event wait aborted for "${event}" ${formatSocketContext(socket, socketId)}`
+            )
+          )
+        );
+      };
+
+      const onTimeout = (): void => {
+        settle(() =>
+          reject(
+            new Error(
+              `Timed out after ${effectiveTimeout}ms waiting for Socket.IO event "${event}" ` +
+                formatSocketContext(socket, socketId)
+            )
+          )
+        );
+      };
+
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+
+      socket.on(event, onEvent);
+      if (event !== "connect_error") {
+        socket.once("connect_error", onConnectError);
+      }
+      if (event !== "disconnect") {
+        socket.once("disconnect", onDisconnect);
+      }
+      signal?.addEventListener("abort", onAbort, { once: true });
       timeoutId = setTimeout(onTimeout, effectiveTimeout);
-      socket.once(event, handler);
     });
   }
 
-  public async waitForNoEvent(
+  public async emitAndWaitForEvent<T = any>(
+    socket: GameClientSocket,
+    event: string,
+    emit: () => void,
+    timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+    predicate: (data: T) => boolean = () => true
+  ): Promise<T> {
+    const controller = new AbortController();
+    const socketId = socket.id;
+    const eventPromise = this.waitForEventMatching(
+      socket,
+      event,
+      predicate,
+      timeout,
+      controller.signal
+    );
+    void eventPromise.catch(() => undefined);
+
+    try {
+      try {
+        emit();
+      } catch (error) {
+        const cause = toError(error);
+        throw new Error(
+          `Socket.IO emit failed while waiting for event "${event}" ` +
+            `${formatSocketContext(socket, socketId)}: ${cause.message}`,
+          { cause }
+        );
+      }
+      return await eventPromise;
+    } finally {
+      controller.abort();
+      await Promise.allSettled([eventPromise]);
+    }
+  }
+
+  public waitForNoEvent(
     socket: GameClientSocket,
     event: string,
     timeout: number = TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS
   ): Promise<void> {
     const effectiveTimeout = Math.min(timeout, TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS);
+    const socketId = socket.id;
+
+    if (socket.connected === false) {
+      throw new Error(
+        `Cannot assert absence of Socket.IO event "${event}" because the client is disconnected ` +
+          formatSocketContext(socket, socketId)
+      );
+    }
+
     return new Promise((resolve, reject) => {
       let timeoutId: NodeJS.Timeout | null = null;
+      let settled = false;
 
-      const handler = (data: unknown) => {
+      const cleanup = (): void => {
         if (timeoutId) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
-        socket.removeListener(event, handler);
-        reject(new Error(`Unexpected event received: ${event}. Data: ${JSON.stringify(data)}`));
+        socket.removeListener(event, onEvent);
+        if (event !== "connect_error") {
+          socket.removeListener("connect_error", onConnectError);
+        }
+        if (event !== "disconnect") {
+          socket.removeListener("disconnect", onDisconnect);
+        }
       };
 
-      const onTimeout = () => {
-        timeoutId = null;
-        socket.removeListener(event, handler);
-        resolve();
+      const settle = (action: () => void): void => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        cleanup();
+        action();
       };
 
+      const onEvent = (data: unknown): void => {
+        settle(() =>
+          reject(
+            new Error(
+              `Unexpected Socket.IO event "${event}" with data ${formatDebugValue(data)} ` +
+                formatSocketContext(socket, socketId)
+            )
+          )
+        );
+      };
+
+      const onConnectError = (error: Error): void => {
+        settle(() =>
+          reject(
+            new Error(
+              `Socket.IO connect_error while asserting absence of event "${event}" ` +
+                formatSocketContext(socket, socketId),
+              { cause: error }
+            )
+          )
+        );
+      };
+
+      const onDisconnect = (reason: string): void => {
+        settle(() =>
+          reject(
+            new Error(
+              `Socket.IO client disconnected while asserting absence of event "${event}" ` +
+                formatSocketContext(socket, socketId, `reason="${reason}"`)
+            )
+          )
+        );
+      };
+
+      const onTimeout = (): void => {
+        settle(resolve);
+      };
+
+      socket.once(event, onEvent);
+      if (event !== "connect_error") {
+        socket.once("connect_error", onConnectError);
+      }
+      if (event !== "disconnect") {
+        socket.once("disconnect", onDisconnect);
+      }
       timeoutId = setTimeout(onTimeout, effectiveTimeout);
-      socket.once(event, handler);
     });
   }
 
@@ -292,12 +504,16 @@ export class SocketGameTestEventUtils {
     timeout: number = TEST_TIMEOUTS.ACTION_QUEUE_WAIT_MS
   ): Promise<void> {
     const effectiveTimeout = Math.min(timeout, TEST_TIMEOUTS.ACTION_QUEUE_WAIT_MS);
+    let lastSnapshot: ActionDrainSnapshot | undefined;
 
     await this.waitForActionLifecycleCondition(
       gameId,
-      () => this.isActionDrainComplete(gameId),
+      async () => {
+        lastSnapshot = await this.readActionDrainSnapshot(gameId);
+        return this.isActionDrainComplete(lastSnapshot);
+      },
       effectiveTimeout,
-      () => this.buildActionDrainTimeoutMessage(gameId)
+      () => this.buildActionDrainTimeoutMessage(gameId, lastSnapshot)
     );
   }
 
@@ -307,15 +523,19 @@ export class SocketGameTestEventUtils {
     timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS
   ): Promise<void> {
     const effectiveTimeout = Math.min(timeout, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
+    let lastQueueLength: number | undefined;
 
     await this.waitForActionLifecycleCondition(
       gameId,
-      async () => (await this.queueService.getQueueLength(gameId)) >= expectedLength,
-      effectiveTimeout,
       async () => {
-        const queueLength = await this.queueService.getQueueLength(gameId);
-        return `Timed out waiting for queue length ${expectedLength}; current length is ${queueLength}`;
-      }
+        lastQueueLength = await this.queueService.getQueueLength(gameId);
+        return lastQueueLength >= expectedLength;
+      },
+      effectiveTimeout,
+      () =>
+        `Timed out waiting for queue length ${expectedLength}; current length is ${
+          lastQueueLength ?? "unavailable"
+        }`
     );
   }
 
@@ -450,7 +670,7 @@ export class SocketGameTestEventUtils {
     gameId: string,
     predicate: ActionLifecyclePredicate,
     timeout: number,
-    buildTimeoutMessage: () => Promise<string>
+    buildTimeoutMessage: () => string
   ): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       let timeoutId: NodeJS.Timeout | null = null;
@@ -479,34 +699,36 @@ export class SocketGameTestEventUtils {
         }
 
         try {
-          if (await predicate(event)) {
+          const matches = await predicate(event);
+          if (settled) {
+            return;
+          }
+
+          if (matches) {
             cleanup(handler);
             resolve();
           }
         } catch (error) {
+          if (settled) {
+            return;
+          }
+
           cleanup(handler);
           reject(error);
         }
       };
 
       const onTimeout = (): void => {
-        void buildTimeoutMessage()
-          .then((message) => {
-            if (settled) {
-              return;
-            }
+        if (settled) {
+          return;
+        }
 
-            cleanup(handler);
-            reject(new Error(message));
-          })
-          .catch((error) => {
-            if (settled) {
-              return;
-            }
-
-            cleanup(handler);
-            reject(error);
-          });
+        cleanup(handler);
+        try {
+          reject(new Error(buildTimeoutMessage()));
+        } catch (error) {
+          reject(error);
+        }
       };
 
       timeoutId = setTimeout(onTimeout, timeout);
@@ -515,35 +737,44 @@ export class SocketGameTestEventUtils {
     });
   }
 
-  private async isActionDrainComplete(gameId: string): Promise<boolean> {
+  private async readActionDrainSnapshot(gameId: string): Promise<ActionDrainSnapshot> {
     const generationBeforeReads = SocketGameTestEventUtils.getEnqueueGeneration(gameId);
-    const [isLocked, queueLength] = await Promise.all([
-      this.lockService.isLocked(gameId),
-      this.queueService.getQueueLength(gameId)
-    ]);
-    const generationAfterReads = SocketGameTestEventUtils.getEnqueueGeneration(gameId);
-
-    return (
-      generationBeforeReads === generationAfterReads &&
-      SocketGameTestEventUtils.getInFlightEnqueueCount(gameId) === 0 &&
-      queueLength === 0 &&
-      !isLocked
-    );
-  }
-
-  private async buildActionDrainTimeoutMessage(gameId: string): Promise<string> {
     const [isLocked, queueLength, peekAction] = await Promise.all([
       this.lockService.isLocked(gameId),
       this.queueService.getQueueLength(gameId),
       this.queueService.peekAction(gameId)
     ]);
+    const generationAfterReads = SocketGameTestEventUtils.getEnqueueGeneration(gameId);
 
-    return `Timed out waiting for game actions to complete: ${JSON.stringify({
-      gameId,
+    return {
+      generationBeforeReads,
+      generationAfterReads,
       inFlightEnqueues: SocketGameTestEventUtils.getInFlightEnqueueCount(gameId),
       isLocked,
       queueLength,
       peekAction
+    };
+  }
+
+  private isActionDrainComplete(snapshot: ActionDrainSnapshot): boolean {
+    return (
+      snapshot.generationBeforeReads === snapshot.generationAfterReads &&
+      snapshot.inFlightEnqueues === 0 &&
+      snapshot.queueLength === 0 &&
+      !snapshot.isLocked
+    );
+  }
+
+  private buildActionDrainTimeoutMessage(
+    gameId: string,
+    snapshot: ActionDrainSnapshot | undefined
+  ): string {
+    return `Timed out waiting for game actions to complete: ${JSON.stringify({
+      gameId,
+      ...(snapshot ?? {
+        inFlightEnqueues: SocketGameTestEventUtils.getInFlightEnqueueCount(gameId),
+        diagnostics: "unavailable"
+      })
     })}`;
   }
 
@@ -619,4 +850,28 @@ function toDebugRecord(record: AcceptedActionRecord): Record<string, unknown> {
     socketId: record.socketId,
     acceptedAt: record.acceptedAt.toISOString()
   };
+}
+
+function formatSocketContext(
+  socket: GameClientSocket,
+  socketId: string | undefined,
+  extra?: string
+): string {
+  const extraPart = extra ? `${extra}, ` : "";
+  return (
+    `(gameId="${socket.gameId ?? "unknown"}", socketId="${socketId ?? "unknown"}", ` +
+    `role="${socket.role ?? "unknown"}", ${extraPart}connected=${socket.connected})`
+  );
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+function formatDebugValue(value: unknown): string {
+  try {
+    return JSON.stringify(value) ?? String(value);
+  } catch {
+    return String(value);
+  }
 }

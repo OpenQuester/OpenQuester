@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it } from "@jest/globals";
 
+import { clearRedisKeys, type RedisCleanupClient } from "tests/utils/RedisTestUtils";
+import { assertSafeTestPostgresTarget } from "tests/TestEnvironment";
+import { getTestDbName, getTestRedisDb, TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import {
-  clearRedisKeys,
-  type RedisCleanupClient
-} from "tests/utils/RedisTestUtils";
-import { getTestRedisDb } from "tests/utils/TestTimeouts";
-import { resolveTestRedisSettings, setTestEnvDefaults } from "tests/utils/utils";
+  createTestAppDataSource,
+  resolveTestPostgresSettings,
+  resolveTestRedisSettings,
+  setTestEnvDefaults
+} from "tests/utils/utils";
 
 const originalEnvironment = { ...process.env };
 
@@ -51,6 +54,99 @@ afterEach(() => {
   restoreEnvironment();
 });
 
+describe("test environment PostgreSQL safety", () => {
+  it("resolves loopback PostgreSQL defaults and the generated worker database", () => {
+    expect(resolveTestPostgresSettings({})).toEqual({
+      host: "127.0.0.1",
+      port: "5432",
+      user: "postgres",
+      password: "postgres",
+      database: getTestDbName()
+    });
+  });
+
+  it("uses every explicit TEST_DB connection override", () => {
+    expect(
+      resolveTestPostgresSettings({
+        TEST_DB_HOST: "localhost",
+        TEST_DB_PORT: "5433",
+        TEST_DB_USER: "test-user",
+        TEST_DB_PASS: "test-password"
+      })
+    ).toEqual({
+      host: "localhost",
+      port: "5433",
+      user: "test-user",
+      password: "test-password",
+      database: getTestDbName()
+    });
+  });
+
+  it("bounds datasource connection and query lifecycle", () => {
+    const dataSource = createTestAppDataSource();
+
+    expect(dataSource.options).toMatchObject({
+      extra: {
+        connectionTimeoutMillis: TEST_TIMEOUTS.POSTGRES_LIFECYCLE_TIMEOUT_MS,
+        query_timeout: TEST_TIMEOUTS.POSTGRES_LIFECYCLE_TIMEOUT_MS,
+        statement_timeout: TEST_TIMEOUTS.POSTGRES_LIFECYCLE_TIMEOUT_MS
+      }
+    });
+  });
+
+  it("cannot inherit ordinary runtime PostgreSQL settings or an arbitrary database name", () => {
+    Object.assign(process.env, {
+      DB_HOST: "production.example.test",
+      DB_PORT: "9999",
+      DB_USER: "production-user",
+      DB_PASS: "production-password",
+      DB_NAME: "production",
+      TEST_DB_NAME: "arbitrary-test-database",
+      TEST_DB_NAME_PREFIX: "production"
+    });
+    delete process.env.TEST_DB_HOST;
+    delete process.env.TEST_DB_PORT;
+    delete process.env.TEST_DB_USER;
+    delete process.env.TEST_DB_PASS;
+
+    setTestEnvDefaults();
+
+    expect(process.env.DB_HOST).toBe("127.0.0.1");
+    expect(process.env.DB_PORT).toBe("5432");
+    expect(process.env.DB_USER).toBe("postgres");
+    expect(process.env.DB_PASS).toBe("postgres");
+    expect(process.env.DB_NAME).toBe(getTestDbName());
+  });
+
+  it.each([
+    ["non-test ENV", { ENV: "development", NODE_ENV: "test" }],
+    ["non-test NODE_ENV", { ENV: "test", NODE_ENV: "development" }]
+  ])("rejects %s", (_label, environment) => {
+    expect(() =>
+      assertSafeTestPostgresTarget({ host: "127.0.0.1", database: getTestDbName() }, environment)
+    ).toThrow("Unsafe PostgreSQL test target");
+  });
+
+  it("rejects non-loopback and non-generated database targets without exposing passwords", () => {
+    const password = "top-secret-password";
+    const target = {
+      ...resolveTestPostgresSettings({
+        TEST_DB_HOST: "postgres.example.test",
+        TEST_DB_PASS: password
+      }),
+      database: "production"
+    };
+
+    const error = captureSynchronousFailure(() =>
+      assertSafeTestPostgresTarget(target, safeEnvironment)
+    );
+
+    expect(error.message).toContain("host must be loopback");
+    expect(error.message).toContain("database must equal the generated worker database");
+    expect(error.message).not.toContain(password);
+  });
+});
+
 describe("test environment Redis safety", () => {
   it("resolves local Compose Redis defaults and the worker database", () => {
     delete process.env.TEST_REDIS_HOST;
@@ -86,6 +182,16 @@ describe("test environment Redis safety", () => {
     });
   });
 
+  it("uses Redis' default ACL user for a password-only test target", () => {
+    process.env.TEST_REDIS_USERNAME = "";
+    process.env.TEST_REDIS_PASSWORD = "test-password";
+
+    setTestEnvDefaults();
+
+    expect(process.env.REDIS_USERNAME).toBe("default");
+    expect(process.env.REDIS_PASSWORD).toBe("test-password");
+  });
+
   it("cannot inherit ordinary runtime Redis settings", () => {
     Object.assign(process.env, {
       REDIS_HOST: "unsafe.example.test",
@@ -112,21 +218,31 @@ describe("test environment Redis safety", () => {
   it.each([
     ["database zero", { host: "127.0.0.1", port: 6380, db: 0 }, safeEnvironment],
     ["non-loopback host", { host: "redis.example.test", port: 6380, db: 1 }, safeEnvironment],
-    ["non-test ENV", { host: "127.0.0.1", port: 6380, db: 1 }, { ENV: "development", NODE_ENV: "test" }],
-    ["non-test NODE_ENV", { host: "127.0.0.1", port: 6380, db: 1 }, { ENV: "test", NODE_ENV: "development" }]
+    [
+      "non-test ENV",
+      { host: "127.0.0.1", port: 6380, db: 1 },
+      { ENV: "development", NODE_ENV: "test" }
+    ],
+    [
+      "non-test NODE_ENV",
+      { host: "127.0.0.1", port: 6380, db: 1 },
+      { ENV: "test", NODE_ENV: "development" }
+    ]
   ])("rejects unsafe target: %s before inspecting keys", async (_label, options, environment) => {
     const client = new FakeRedisClient(options, ["key"]);
 
-    await expect(clearRedisKeys(client, environment)).rejects.toThrow("Unsafe Redis test cleanup target");
+    await expect(clearRedisKeys(client, environment)).rejects.toThrow(
+      "Unsafe Redis test cleanup target"
+    );
     expect(client.keysCalls).toBe(0);
     expect(client.deletedKeyBatches).toHaveLength(0);
   });
 
   it("deletes keys until the test database is empty", async () => {
-    const client = new FakeRedisClient(
-      { host: "127.0.0.1", port: 6380, db: 1 },
-      ["first", "second"]
-    );
+    const client = new FakeRedisClient({ host: "127.0.0.1", port: 6380, db: 1 }, [
+      "first",
+      "second"
+    ]);
 
     await clearRedisKeys(client, safeEnvironment);
 
@@ -156,6 +272,16 @@ describe("test environment Redis safety", () => {
 async function captureFailure(action: () => Promise<void>): Promise<Error> {
   try {
     await action();
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+
+  throw new Error("Expected action to fail");
+}
+
+function captureSynchronousFailure(action: () => void): Error {
+  try {
+    action();
   } catch (error) {
     return error instanceof Error ? error : new Error(String(error));
   }

@@ -40,10 +40,15 @@ export class TestUtils {
   private userRepo: Repository<User>;
   private app: Express;
 
-  constructor(app: Express, userRepo: Repository<User>, serverUrl: string) {
+  constructor(
+    app: Express,
+    userRepo: Repository<User>,
+    serverUrl: string,
+    socketGameTestUtils: SocketGameTestUtils = new SocketGameTestUtils(serverUrl)
+  ) {
     this.app = app;
     this.userRepo = userRepo;
-    this.socketGameTestUtils = new SocketGameTestUtils(serverUrl);
+    this.socketGameTestUtils = socketGameTestUtils;
     this.gameService = container.resolve(GameService);
   }
 
@@ -249,16 +254,11 @@ export class TestUtils {
    * Expire a game expiration warning key by reducing its TTL.
    *
    * @param gameId - The game ID for the warning key
-   * @param waitMs - Time to wait after expiration for event processing (default: 150ms)
    */
-  public async expireGameExpirationWarning(
-    gameId: string,
-    waitMs: number = TEST_TIMEOUTS.REDIS_EXPIRY_WAIT_MS
-  ): Promise<void> {
+  public async expireGameExpirationWarning(gameId: string): Promise<void> {
     const redisClient = RedisConfig.getClient();
     const warningKey = `${GAME_EXPIRATION_WARNING_NAMESPACE}:${gameId}`;
     await redisClient.pexpire(warningKey, 50);
-    await this.wait(waitMs);
   }
 
   public async createAndLoginUser(username: string): Promise<{ user: User; cookie: string }> {

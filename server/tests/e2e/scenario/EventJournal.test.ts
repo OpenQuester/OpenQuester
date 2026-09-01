@@ -9,11 +9,12 @@ import {
 } from "tests/e2e/scenario/EventJournal";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
-import { type ScenarioGameDriver } from "tests/e2e/scenario/ScenarioGameDriver";
 import { type AcceptedActionProbe } from "tests/socket/game/utils/SocketGameTestEventUtils";
+import { type SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 class FakeSocket extends EventEmitter {
   public id: string | undefined;
+  public connected = true;
   private readonly anyHandlers = new Set<(event: string, ...args: unknown[]) => void>();
 
   public constructor(id: string) {
@@ -97,12 +98,14 @@ describe("EventJournal", () => {
       payloadFactory: (index) => ({ index })
     });
 
-    const records = journal.snapshot().filter(
-      (record) =>
-        record.direction === "outbound" &&
-        record.event === "media-downloaded" &&
-        record.sequence > mark
-    );
+    const records = journal
+      .snapshot()
+      .filter(
+        (record) =>
+          record.direction === "outbound" &&
+          record.event === "media-downloaded" &&
+          record.sequence > mark
+      );
 
     expect(records).toHaveLength(15);
     expect(records.map((record) => (record.args[0] as { index: number }).index)).toEqual(
@@ -110,18 +113,65 @@ describe("EventJournal", () => {
     );
   });
 
-  it("keeps nested event payloads isolated from snapshot mutation", () => {
+  it("keeps nested event payloads isolated from source and snapshot mutation", async () => {
     const journal = new EventJournal();
     const actor = createActor(journal, "p1");
+    const payload = { player: { ready: false } };
 
-    fakeSocketOf(actor).emitInbound("status", { player: { ready: false } });
+    fakeSocketOf(actor).emitInbound("status", payload);
+    payload.player.ready = true;
+
+    const matched = await journal.expectEvent({
+      actor,
+      direction: "inbound",
+      event: "status",
+      timeoutMs: 100
+    });
+    expect((matched.args[0] as { player: { ready: boolean } }).player.ready).toBe(false);
+    (matched.args[0] as { player: { ready: boolean } }).player.ready = true;
 
     const snapshot = journal.snapshot();
+    expect((snapshot[0].args[0] as { player: { ready: boolean } }).player.ready).toBe(false);
     (snapshot[0].args[0] as { player: { ready: boolean } }).player.ready = true;
 
-    expect(
-      (journal.snapshot()[0].args[0] as { player: { ready: boolean } }).player.ready
-    ).toBe(false);
+    expect((journal.snapshot()[0].args[0] as { player: { ready: boolean } }).player.ready).toBe(
+      false
+    );
+  });
+
+  it("returns an isolated payload to a live event waiter", async () => {
+    const journal = new EventJournal();
+    const actor = createActor(journal, "p1");
+    const payload = { player: { ready: false } };
+    const wait = journal.expectEvent({
+      actor,
+      direction: "inbound",
+      event: "live-status",
+      timeoutMs: 100
+    });
+
+    fakeSocketOf(actor).emitInbound("live-status", payload);
+    payload.player.ready = true;
+
+    const matched = await wait;
+    expect((matched.args[0] as { player: { ready: boolean } }).player.ready).toBe(false);
+    (matched.args[0] as { player: { ready: boolean } }).player.ready = true;
+
+    expect((journal.snapshot()[0].args[0] as { player: { ready: boolean } }).player.ready).toBe(
+      false
+    );
+  });
+
+  it("rejects disconnected actor emits before recording an outbound command", () => {
+    const journal = new EventJournal();
+    const actor = createActor(journal, "p1");
+    fakeSocketOf(actor).connected = false;
+
+    expect(() => actor.emit("media-downloaded")).toThrow(
+      'Cannot emit Socket.IO event "media-downloaded" from disconnected scenario actor ' +
+        '(actor="p1", namespace="/game", socketId="p1-socket", gameId="game-1")'
+    );
+    expect(journal.snapshot()).toHaveLength(0);
   });
 
   it("rejects negative assertions for recorded and live matching events", async () => {
@@ -236,7 +286,7 @@ describe("EventJournal", () => {
     await jest.advanceTimersByTimeAsync(25);
 
     const error = await timeoutError;
-    expect(error?.message).toContain("Timed out after 25ms waiting for event \"missing\"");
+    expect(error?.message).toContain('Timed out after 25ms waiting for event "missing"');
     expect(error?.message).toContain("timeout context");
     expect(error?.message).toContain("afterSequence");
   });
@@ -268,7 +318,81 @@ describe("EventJournal", () => {
     process.removeListener("unhandledRejection", unhandledRejection);
   });
 
-  it("handles an abandoned broadcast expectation during scenario disposal", async () => {
+  it("fails successful completion when a forgotten positive expectation times out", async () => {
+    jest.useFakeTimers();
+    const scenario = new GameScenario();
+    const actor = scenario.addActor(toJournalActor("p1"));
+
+    void scenario.assert.inbound({
+      actor,
+      event: "missing-event",
+      timeoutMs: 25
+    });
+
+    const completion = expect(scenario.finish()).rejects.toThrow(
+      'Scenario expectation "inbound \\"missing-event\\" for actor \\"p1\\"" failed'
+    );
+    await jest.advanceTimersByTimeAsync(25);
+    await completion;
+  });
+
+  it("waits for a forgotten negative assertion before successful completion", async () => {
+    jest.useFakeTimers();
+    const scenario = new GameScenario();
+    const actor = scenario.addActor(toJournalActor("p1"));
+    let completed = false;
+
+    void scenario.assert.noInbound({
+      actor,
+      event: "forbidden-event",
+      durationMs: 25
+    });
+    const completion = scenario.finish().then(() => {
+      completed = true;
+    });
+
+    await jest.advanceTimersByTimeAsync(24);
+    expect(completed).toBe(false);
+    await jest.advanceTimersByTimeAsync(1);
+    await completion;
+    expect(completed).toBe(true);
+  });
+
+  it("fails a forgotten aggregate broadcast when one actor misses the event", async () => {
+    jest.useFakeTimers();
+    const scenario = new GameScenario();
+    const firstActor = scenario.addActor(toJournalActor("p1"));
+    const secondActor = scenario.addActor(toJournalActor("p2"));
+
+    void scenario.assert.broadcast({
+      actors: [firstActor, secondActor],
+      event: "status",
+      timeoutMs: 25
+    });
+    fakeSocketOf(firstActor).emitInbound("status", { ready: true });
+
+    const completion = expect(scenario.finish()).rejects.toThrow('"actor":"p2"');
+    await jest.advanceTimersByTimeAsync(25);
+    await completion;
+  });
+
+  it("surfaces a forgotten derived validation failure during successful completion", async () => {
+    const scenario = new GameScenario();
+    const actor = scenario.addActor(toJournalActor("p1"));
+    const event = scenario.assert.inbound({ actor, event: "status", timeoutMs: 100 });
+
+    void scenario.trackExpectation(
+      event.then(() => {
+        throw new Error("bad timer payload");
+      }),
+      "validated status payload"
+    );
+    fakeSocketOf(actor).emitInbound("status", { timer: null });
+
+    await expect(scenario.finish()).rejects.toThrow("bad timer payload");
+  });
+
+  it("cancels an abandoned broadcast during scenario abort without unhandled rejection", async () => {
     const scenario = new GameScenario();
     const actor = scenario.addActor({
       ...toJournalActor("p1")
@@ -283,7 +407,7 @@ describe("EventJournal", () => {
         timeoutMs: 100
       });
 
-      await scenario.dispose();
+      await scenario.abort();
       await Promise.resolve();
 
       expect(unhandledRejection).not.toHaveBeenCalled();
@@ -301,31 +425,29 @@ describe("EventJournal", () => {
 
     expect(() => journal.mark()).toThrow(EventJournalDisposedError);
     expect(() => journal.recordOutgoing(actor, "outbound", [])).toThrow(EventJournalDisposedError);
-    expect(() =>
-      journal.expectEvent({ event: "after-dispose", timeoutMs: 1 })
-    ).toThrow(EventJournalDisposedError);
-    expect(() =>
-      journal.expectNoEvent({ event: "after-dispose", durationMs: 1 })
-    ).toThrow(EventJournalDisposedError);
+    expect(() => journal.expectEvent({ event: "after-dispose", timeoutMs: 1 })).toThrow(
+      EventJournalDisposedError
+    );
+    expect(() => journal.expectNoEvent({ event: "after-dispose", durationMs: 1 })).toThrow(
+      EventJournalDisposedError
+    );
     expect(() => journal.attach(toJournalActor("p2"))).toThrow(EventJournalDisposedError);
     expect(() => staleInboundHandler?.("late", {})).toThrow(EventJournalDisposedError);
   });
 
-  it("rejects duplicate actor labels and detaching stops later inbound recording", async () => {
-    const journal = new EventJournal();
-    const actor = createActor(journal, "p1");
-
-    expect(() => journal.attach(toJournalActor("p1"))).toThrow("already attached");
-    journal.detach(actor.label);
-    fakeSocketOf(actor).emitInbound("detached", { value: true });
-    expect(journal.snapshot()).toHaveLength(0);
-
+  it("rejects duplicate actor labels", async () => {
     const scenario = new GameScenario();
-    scenario.addActor({ label: "duplicate", socket: new FakeSocket("duplicate-1") as unknown as Socket });
+    scenario.addActor({
+      label: "duplicate",
+      socket: new FakeSocket("duplicate-1") as unknown as Socket
+    });
     expect(() =>
-      scenario.addActor({ label: "duplicate", socket: new FakeSocket("duplicate-2") as unknown as Socket })
+      scenario.addActor({
+        label: "duplicate",
+        socket: new FakeSocket("duplicate-2") as unknown as Socket
+      })
     ).toThrow("already registered");
-    await scenario.dispose();
+    await scenario.abort();
   });
 
   it("disposes every accepted-action probe before the journal", async () => {
@@ -334,18 +456,38 @@ describe("EventJournal", () => {
       records: () => [],
       dispose: jest.fn()
     };
-    const driver = {
+    const utils = {
       createAcceptedActionProbe: () => probe
-    } as unknown as ScenarioGameDriver;
-    const scenario = new GameScenario(driver);
+    } as unknown as SocketGameTestUtils;
+    const scenario = new GameScenario(utils);
 
     scenario.createAcceptedActionProbe({ gameId: "game-1" });
-    await scenario.dispose();
+    await scenario.finish();
 
     expect(probe.dispose).toHaveBeenCalledTimes(1);
     expect(() => scenario.createAcceptedActionProbe({ gameId: "game-1" })).toThrow(
       "Game scenario is disposed"
     );
+  });
+
+  it("fails successful completion for a forgotten accepted-action wait", async () => {
+    const probe: AcceptedActionProbe = {
+      waitForCount: async () => {
+        throw new Error("accepted count timed out");
+      },
+      records: () => [],
+      dispose: jest.fn()
+    };
+    const utils = {
+      createAcceptedActionProbe: () => probe
+    } as unknown as SocketGameTestUtils;
+    const scenario = new GameScenario(utils);
+    const trackedProbe = scenario.createAcceptedActionProbe({ gameId: "game-1" });
+
+    void trackedProbe.waitForCount(1);
+
+    await expect(scenario.finish()).rejects.toThrow("accepted count timed out");
+    expect(probe.dispose).toHaveBeenCalledTimes(1);
   });
 });
 

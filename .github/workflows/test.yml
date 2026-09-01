@@ -30,30 +30,41 @@ jobs:
 
   test_server:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: pre_job
     if: ${{ needs.pre_job.outputs.should_run_server == 'true' }}
     services:
       postgres:
-        image: postgres:15
+        image: postgres:16.3-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
         ports:
           - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d test_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
       redis:
         image: redis:7
         ports:
           - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     env:
       NODE_ENV: test
       SESSION_SECRET: test_secret
       TEST_REDIS_HOST: 127.0.0.1
       TEST_REDIS_PORT: 6379
-      DB_HOST: localhost
-      DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASS: postgres
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_PORT: 5432
+      TEST_DB_USER: postgres
+      TEST_DB_PASS: postgres
     defaults:
       run:
         working-directory: ./server
@@ -67,10 +78,6 @@ jobs:
           cache-dependency-path: ./server/package-lock.json
       - run: npm ci
       - run: npm run lint
-      - run: |
-          until pg_isready -h localhost -p 5432; do sleep 1; done
-      - run: |
-          until docker run --rm --network host redis:7 redis-cli -h localhost -p 6379 ping; do sleep 1; done
       - run: npm run test:pipeline
 
   test_client:

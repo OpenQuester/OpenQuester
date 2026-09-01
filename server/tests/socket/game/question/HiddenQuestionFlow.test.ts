@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
@@ -15,44 +8,28 @@ import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 describe("Hidden Question Flow Tests", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
   describe("Hidden Question Behavior", () => {
@@ -61,57 +38,49 @@ describe("Hidden Question Flow Tests", () => {
       const { showmanSocket, playerSockets, gameId } = setup;
       const playerSocket = playerSockets[0];
 
-      try {
-        // Start game
-        await utils.startGame(showmanSocket);
+      // Start game
+      await utils.startGame(showmanSocket);
 
-        // Find a hidden question in the themes
-        const hiddenQuestion = await utils.findQuestionByType(
-          PackageQuestionType.HIDDEN,
-          gameId
-        );
+      // Find a hidden question in the themes
+      const hiddenQuestion = await utils.findQuestionByType(PackageQuestionType.HIDDEN, gameId);
 
-        expect(hiddenQuestion).toBeDefined();
-        expect(hiddenQuestion!.price).toBeNull(); // Price should be hidden in game state
+      expect(hiddenQuestion).toBeDefined();
+      expect(hiddenQuestion!.price).toBeNull(); // Price should be hidden in game state
 
-        // Get the actual question ID to pick
-        const hiddenQuestionId = hiddenQuestion!.id;
+      // Get the actual question ID to pick
+      const hiddenQuestionId = hiddenQuestion!.id;
 
-        const hiddenQuestionDataPromise =
-          utils.waitForEvent<GameQuestionDataEventPayload>(
-            playerSocket,
-            SocketIOGameEvents.QUESTION_DATA
-          );
+      const hiddenQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        playerSocket,
+        SocketIOGameEvents.QUESTION_DATA
+      );
 
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: hiddenQuestionId,
-        });
+      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: hiddenQuestionId
+      });
 
-        const hiddenQuestionData = await hiddenQuestionDataPromise;
+      const hiddenQuestionData = await hiddenQuestionDataPromise;
 
-        // Verify that the question data now reveals the actual price
-        expect(hiddenQuestionData.data).toBeDefined();
-        expect(hiddenQuestionData.data.price).toBeDefined();
-        expect(hiddenQuestionData.data.price).not.toBeNull();
-        expect(typeof hiddenQuestionData.data.price).toBe("number");
-        expect(hiddenQuestionData.data.price).toBeGreaterThan(0);
+      // Verify that the question data now reveals the actual price
+      expect(hiddenQuestionData.data).toBeDefined();
+      expect(hiddenQuestionData.data.price).toBeDefined();
+      expect(hiddenQuestionData.data.price).not.toBeNull();
+      expect(typeof hiddenQuestionData.data.price).toBe("number");
+      expect(hiddenQuestionData.data.price).toBeGreaterThan(0);
 
-        // Verify this is indeed a hidden question
-        expect(hiddenQuestionData.data.type).toBe(PackageQuestionType.HIDDEN);
-        expect(hiddenQuestionData.data.isHidden).toBe(true);
+      // Verify this is indeed a hidden question
+      expect(hiddenQuestionData.data.type).toBe(PackageQuestionType.HIDDEN);
+      expect(hiddenQuestionData.data.isHidden).toBe(true);
 
-        // Wait for media download phase and emit MEDIA_DOWNLOADED for the player
-        await utils.waitForMediaDownload(showmanSocket, playerSockets);
+      // Wait for media download phase and emit MEDIA_DOWNLOADED for the player
+      await utils.waitForMediaDownload(showmanSocket, playerSockets);
 
-        // Verify game state shows we're now showing the question
-        const showingGameState = await utils.getGameState(gameId);
-        expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);
-        expect(showingGameState!.currentQuestion).toBeDefined();
-        expect(showingGameState!.currentQuestion!.price).toBeDefined();
-        expect(showingGameState!.currentQuestion!.price).not.toBeNull();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify game state shows we're now showing the question
+      const showingGameState = await utils.getGameState(gameId);
+      expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);
+      expect(showingGameState!.currentQuestion).toBeDefined();
+      expect(showingGameState!.currentQuestion!.price).toBeDefined();
+      expect(showingGameState!.currentQuestion!.price).not.toBeNull();
     });
 
     it("should handle hidden question answer flow normally after revealing price", async () => {
@@ -119,44 +88,36 @@ describe("Hidden Question Flow Tests", () => {
       const { showmanSocket, playerSockets, gameId } = setup;
       const playerSocket = playerSockets[0];
 
-      try {
-        // Start game
-        await utils.startGame(showmanSocket);
+      // Start game
+      await utils.startGame(showmanSocket);
 
-        // Find and pick a hidden question using the helper method
-        const hiddenQuestionId = await utils.getFirstHiddenQuestionId(gameId);
-        await utils.pickQuestion(
-          showmanSocket,
-          hiddenQuestionId,
-          playerSockets
-        );
+      // Find and pick a hidden question using the helper method
+      const hiddenQuestionId = await utils.getFirstHiddenQuestionId(gameId);
+      await utils.pickQuestion(showmanSocket, hiddenQuestionId, playerSockets);
 
-        // Verify we can answer the hidden question normally
-        await utils.answerQuestion(playerSocket, showmanSocket);
+      // Verify we can answer the hidden question normally
+      await utils.answerQuestion(playerSocket, showmanSocket);
 
-        // Set up event listener for answer result
-        const answerResultPromise = utils.waitForEvent(
-          playerSocket,
-          SocketIOGameEvents.ANSWER_RESULT
-        );
+      // Set up event listener for answer result
+      const answerResultPromise = utils.waitForEvent(
+        playerSocket,
+        SocketIOGameEvents.ANSWER_RESULT
+      );
 
-        // Submit answer result from showman
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-          scoreResult: 100,
-          answerType: AnswerResultType.CORRECT,
-        });
+      // Submit answer result from showman
+      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scoreResult: 100,
+        answerType: AnswerResultType.CORRECT
+      });
 
-        // Wait for answer result
-        await answerResultPromise;
+      // Wait for answer result
+      await answerResultPromise;
 
-        // Skip show answer phase and wait for end
-        await utils.skipShowAnswer(showmanSocket);
+      // Skip show answer phase and wait for end
+      await utils.skipShowAnswer(showmanSocket);
 
-        const finalGameState = await utils.getGameState(gameId);
-        expect(finalGameState!.questionState).toBe(QuestionState.CHOOSING);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      const finalGameState = await utils.getGameState(gameId);
+      expect(finalGameState!.questionState).toBe(QuestionState.CHOOSING);
     });
 
     it("should show hidden question data to both showman and players when picked", async () => {
@@ -164,52 +125,43 @@ describe("Hidden Question Flow Tests", () => {
       const { showmanSocket, playerSockets, gameId } = setup;
       const playerSocket = playerSockets[0];
 
-      try {
-        // Start game
-        await utils.startGame(showmanSocket);
+      // Start game
+      await utils.startGame(showmanSocket);
 
-        // Find a hidden question
-        const hiddenQuestionId = await utils.getFirstHiddenQuestionId(gameId);
+      // Find a hidden question
+      const hiddenQuestionId = await utils.getFirstHiddenQuestionId(gameId);
 
-        // Set up promises to capture data sent to both showman and player
-        const showmanDataPromise = new Promise<GameQuestionDataEventPayload>(
-          (resolve) => {
-            showmanSocket.once(SocketIOGameEvents.QUESTION_DATA, resolve);
-          }
-        );
-        const playerDataPromise = new Promise<GameQuestionDataEventPayload>(
-          (resolve) => {
-            playerSocket.once(SocketIOGameEvents.QUESTION_DATA, resolve);
-          }
-        );
+      // Set up promises to capture data sent to both showman and player
+      const showmanDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        showmanSocket,
+        SocketIOGameEvents.QUESTION_DATA
+      );
+      const playerDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        playerSocket,
+        SocketIOGameEvents.QUESTION_DATA
+      );
 
-        // Pick the hidden question
-        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: hiddenQuestionId,
-        });
+      // Pick the hidden question
+      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: hiddenQuestionId
+      });
 
-        const [showmanData, playerData] = await Promise.all([
-          showmanDataPromise,
-          playerDataPromise,
-        ]);
+      const [showmanData, playerData] = await Promise.all([showmanDataPromise, playerDataPromise]);
 
-        // Both should receive question data with revealed price
-        expect(showmanData.data.price).toBeDefined();
-        expect(showmanData.data.price).not.toBeNull();
-        expect(playerData.data.price).toBeDefined();
-        expect(playerData.data.price).not.toBeNull();
+      // Both should receive question data with revealed price
+      expect(showmanData.data.price).toBeDefined();
+      expect(showmanData.data.price).not.toBeNull();
+      expect(playerData.data.price).toBeDefined();
+      expect(playerData.data.price).not.toBeNull();
 
-        // Prices should be the same
-        expect(showmanData.data.price).toBe(playerData.data.price);
+      // Prices should be the same
+      expect(showmanData.data.price).toBe(playerData.data.price);
 
-        // Both should recognize it as a hidden question
-        expect(showmanData.data.type).toBe(PackageQuestionType.HIDDEN);
-        expect(showmanData.data.isHidden).toBe(true);
-        expect(playerData.data.type).toBe(PackageQuestionType.HIDDEN);
-        expect(playerData.data.isHidden).toBe(true);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Both should recognize it as a hidden question
+      expect(showmanData.data.type).toBe(PackageQuestionType.HIDDEN);
+      expect(showmanData.data.isHidden).toBe(true);
+      expect(playerData.data.type).toBe(PackageQuestionType.HIDDEN);
+      expect(playerData.data.isHidden).toBe(true);
     });
   });
 
@@ -219,84 +171,71 @@ describe("Hidden Question Flow Tests", () => {
       const { showmanSocket, playerSockets, gameId } = setup;
       const playerSocket = playerSockets[0];
 
-      try {
-        // Start game
-        await utils.startGame(showmanSocket);
+      // Start game
+      await utils.startGame(showmanSocket);
 
-        const initialGameState = await utils.getGameState(gameId);
+      const initialGameState = await utils.getGameState(gameId);
 
-        // Find all hidden questions
-        const hiddenQuestions = await utils.findAllQuestionsByType(
-          initialGameState!,
-          PackageQuestionType.HIDDEN,
-          gameId
-        );
+      // Find all hidden questions
+      const hiddenQuestions = await utils.findAllQuestionsByType(
+        initialGameState!,
+        PackageQuestionType.HIDDEN,
+        gameId
+      );
 
-        if (hiddenQuestions.length < 2) {
-          console.warn(
-            "Test skipped: Not enough hidden questions in test package"
-          );
-          expect(false).toBe(true);
-          return;
-        }
-
-        // Verify all hidden questions have null prices initially
-        for (const hiddenQ of hiddenQuestions) {
-          expect(hiddenQ.price).toBeNull();
-        }
-
-        // Pick first hidden question and verify price is revealed
-        await utils.pickQuestion(
-          showmanSocket,
-          hiddenQuestions[0].id,
-          playerSockets
-        );
-
-        // Complete the first question
-        await utils.answerQuestion(playerSocket, showmanSocket);
-
-        // Set up listeners before emitting
-        const answerResultPromise = utils.waitForEvent(
-          playerSocket,
-          SocketIOGameEvents.ANSWER_RESULT
-        );
-        const answerShowStartPromise = utils.waitForEvent(
-          playerSocket,
-          SocketIOGameEvents.ANSWER_SHOW_START
-        );
-
-        showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-          scoreResult: 100,
-          answerType: AnswerResultType.CORRECT,
-        });
-
-        // Wait for answer result and show answer start before skipping
-        await answerResultPromise;
-        await answerShowStartPromise;
-
-        // Skip show answer phase
-        await utils.skipShowAnswer(showmanSocket);
-
-        // Verify we're back to choosing state
-        const afterFirstState = await utils.getGameState(gameId);
-        expect(afterFirstState!.questionState).toBe(QuestionState.CHOOSING);
-
-        // Check that remaining hidden questions still have null price in game state
-        const remainingHiddenQuestions = await utils.findAllQuestionsByType(
-          afterFirstState!,
-          PackageQuestionType.HIDDEN,
-          gameId
-        );
-
-        const unplayedHiddenQuestion = remainingHiddenQuestions.find(
-          (q) => !q.isPlayed
-        );
-        if (unplayedHiddenQuestion) {
-          expect(unplayedHiddenQuestion.price).toBeNull();
-        }
-      } finally {
-        await utils.cleanupGameClients(setup);
+      if (hiddenQuestions.length < 2) {
+        throw new Error("Expected at least two hidden questions in the test package");
       }
+
+      // Verify all hidden questions have null prices initially
+      for (const hiddenQ of hiddenQuestions) {
+        expect(hiddenQ.price).toBeNull();
+      }
+
+      // Pick first hidden question and verify price is revealed
+      await utils.pickQuestion(showmanSocket, hiddenQuestions[0].id, playerSockets);
+
+      // Complete the first question
+      await utils.answerQuestion(playerSocket, showmanSocket);
+
+      // Set up listeners before emitting
+      const answerResultPromise = utils.waitForEvent(
+        playerSocket,
+        SocketIOGameEvents.ANSWER_RESULT
+      );
+      const answerShowStartPromise = utils.waitForEvent(
+        playerSocket,
+        SocketIOGameEvents.ANSWER_SHOW_START
+      );
+
+      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+        scoreResult: 100,
+        answerType: AnswerResultType.CORRECT
+      });
+
+      // Wait for answer result and show answer start before skipping
+      await answerResultPromise;
+      await answerShowStartPromise;
+
+      // Skip show answer phase
+      await utils.skipShowAnswer(showmanSocket);
+
+      // Verify we're back to choosing state
+      const afterFirstState = await utils.getGameState(gameId);
+      expect(afterFirstState!.questionState).toBe(QuestionState.CHOOSING);
+
+      // Check that remaining hidden questions still have null price in game state
+      const remainingHiddenQuestions = await utils.findAllQuestionsByType(
+        afterFirstState!,
+        PackageQuestionType.HIDDEN,
+        gameId
+      );
+
+      const unplayedHiddenQuestion = remainingHiddenQuestions.find((q) => !q.isPlayed);
+      if (!unplayedHiddenQuestion) {
+        throw new Error("Expected an unplayed hidden question after completing the first one");
+      }
+      expect(unplayedHiddenQuestion.price).toBeNull();
     });
   });
 });

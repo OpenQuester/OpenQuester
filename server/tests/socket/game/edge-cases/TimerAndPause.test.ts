@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, afterEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { container } from "tsyringe";
 import { Repository } from "typeorm";
@@ -14,33 +7,21 @@ import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import { SYSTEM_PLAYER_ID, SYSTEM_SOCKET_ID } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameActionType } from "domain/enums/GameActionType";
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import {
-  type GameAction,
-  type GameActionResult
-} from "domain/types/action/GameAction";
+import { type GameAction, type GameActionResult } from "domain/types/action/GameAction";
 import { type TimerActionPayload } from "domain/types/action/TimerActionPayload";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { ValueUtils } from "domain/utils/ValueUtils";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 describe("Socket Timer and Pause Edge Cases", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
 
   async function submitTimerExpiration(
     gameId: string,
@@ -67,28 +48,18 @@ describe("Socket Timer and Pause Edge Cases", () => {
   }
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
   describe("Game Pause Edge Cases", () => {
@@ -96,286 +67,247 @@ describe("Socket Timer and Pause Edge Cases", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket } = setup;
 
-      try {
-        await utils.startGame(showmanSocket);
+      await utils.startGame(showmanSocket);
 
-        const choosingState = await utils.getGameState(setup.gameId);
-        expect(choosingState).toBeDefined();
-        expect(choosingState!.questionState).toBe(QuestionState.CHOOSING);
-        expect(choosingState!.timer).toBeNull();
+      const choosingState = await utils.getGameState(setup.gameId);
+      expect(choosingState).toBeDefined();
+      expect(choosingState!.questionState).toBe(QuestionState.CHOOSING);
+      expect(choosingState!.timer).toBeNull();
 
-        const result = await submitTimerExpiration(
-          setup.gameId,
-          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED,
-          QuestionState.CHOOSING
-        );
+      const result = await submitTimerExpiration(
+        setup.gameId,
+        GameActionType.TIMER_QUESTION_SHOWING_EXPIRED,
+        QuestionState.CHOOSING
+      );
 
-        expect(result.success).toBe(true);
-        const finalState = await utils.getGameState(setup.gameId);
-        expect(finalState).toBeDefined();
-        expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
-        expect(finalState!.timer).toBeNull();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      expect(result.success).toBe(true);
+      await utils.waitForActionsComplete(setup.gameId);
+      const finalState = await utils.getGameState(setup.gameId);
+      expect(finalState).toBeDefined();
+      expect(finalState!.questionState).toBe(QuestionState.CHOOSING);
+      expect(finalState!.timer).toBeNull();
     });
 
     it("should handle pausing game during question selection", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        // Start game and enter question selection phase
-        await utils.startGame(showmanSocket);
+      // Start game and enter question selection phase
+      await utils.startGame(showmanSocket);
 
-        // Game should be in CHOOSING state with no current question
-        const gameState = await utils.getGameState(setup.gameId);
-        expect(gameState).toBeDefined();
-        expect(gameState!.questionState).toBe(QuestionState.CHOOSING);
-        expect(gameState!.currentQuestion).toBeNull();
+      // Game should be in CHOOSING state with no current question
+      const gameState = await utils.getGameState(setup.gameId);
+      expect(gameState).toBeDefined();
+      expect(gameState!.questionState).toBe(QuestionState.CHOOSING);
+      expect(gameState!.currentQuestion).toBeNull();
 
-        // Pause game during selection phase
-        const pausePromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.GAME_PAUSE
-        );
-        showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
-        const pauseData = await pausePromise;
+      // Pause game during selection phase
+      const pausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_PAUSE);
+      showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
+      const pauseData = await pausePromise;
 
-        // Verify game is paused and timer state is preserved
-        expect(pauseData.timer).toBeDefined();
-        const pausedGameState = await utils.getGameState(setup.gameId);
-        expect(pausedGameState).toBeDefined();
-        expect(pausedGameState!.isPaused).toBe(true);
-        expect(pausedGameState!.questionState).toBe(QuestionState.CHOOSING);
+      // Verify game is paused and timer state is preserved
+      expect(pauseData.timer).toBeDefined();
+      const pausedGameState = await utils.getGameState(setup.gameId);
+      expect(pausedGameState).toBeDefined();
+      expect(pausedGameState!.isPaused).toBe(true);
+      expect(pausedGameState!.questionState).toBe(QuestionState.CHOOSING);
 
-        // Resume and verify continuation
-        const unpausePromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.GAME_UNPAUSE
-        );
-        showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
-        const unpauseData = await unpausePromise;
+      // Resume and verify continuation
+      const unpausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_UNPAUSE);
+      showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
+      const unpauseData = await unpausePromise;
 
-        expect(unpauseData.timer).toBeDefined();
-        const resumedGameState = await utils.getGameState(setup.gameId);
-        expect(resumedGameState).toBeDefined();
-        expect(resumedGameState!.isPaused).toBe(false);
-        expect(resumedGameState!.questionState).toBe(QuestionState.CHOOSING);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      expect(unpauseData.timer).toBeDefined();
+      const resumedGameState = await utils.getGameState(setup.gameId);
+      expect(resumedGameState).toBeDefined();
+      expect(resumedGameState!.isPaused).toBe(false);
+      expect(resumedGameState!.questionState).toBe(QuestionState.CHOOSING);
     });
 
     it("should handle pausing game during active answer period", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        // Present question and start answer timer
-        await utils.startGame(showmanSocket);
-        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      // Present question and start answer timer
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
-        // Verify game is in SHOWING state
-        const showingState = await utils.getGameState(setup.gameId);
-        expect(showingState).toBeDefined();
-        expect(showingState!.questionState).toBe(QuestionState.SHOWING);
-        expect(showingState!.currentQuestion).toBeDefined();
-        expect(showingState!.timer).toBeDefined();
+      // Verify game is in SHOWING state
+      const showingState = await utils.getGameState(setup.gameId);
+      expect(showingState).toBeDefined();
+      expect(showingState!.questionState).toBe(QuestionState.SHOWING);
+      expect(showingState!.currentQuestion).toBeDefined();
+      expect(showingState!.timer).toBeDefined();
 
-        // Player starts answering
-        await utils.answerQuestion(playerSockets[0], showmanSocket);
+      // Player starts answering
+      await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-        // Verify game is in ANSWERING state
-        const answeringState = await utils.getGameState(setup.gameId);
-        expect(answeringState).toBeDefined();
-        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
-        expect(answeringState!.answeringPlayer).toBeDefined();
+      // Verify game is in ANSWERING state
+      const answeringState = await utils.getGameState(setup.gameId);
+      expect(answeringState).toBeDefined();
+      expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+      expect(answeringState!.answeringPlayer).toBeDefined();
 
-        // Pause game mid-answer period
-        const pausePromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.GAME_PAUSE
-        );
-        showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
-        const pauseData = await pausePromise;
+      // Pause game mid-answer period
+      const pausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_PAUSE);
+      showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
+      const pauseData = await pausePromise;
 
-        // Verify answer timer pause and answer state preservation
-        expect(pauseData.timer).toBeDefined();
-        const pausedState = await utils.getGameState(setup.gameId);
-        expect(pausedState).toBeDefined();
-        expect(pausedState!.isPaused).toBe(true);
-        expect(pausedState!.questionState).toBe(QuestionState.ANSWERING);
-        expect(pausedState!.answeringPlayer).toBeDefined();
+      // Verify answer timer pause and answer state preservation
+      expect(pauseData.timer).toBeDefined();
+      const pausedState = await utils.getGameState(setup.gameId);
+      expect(pausedState).toBeDefined();
+      expect(pausedState!.isPaused).toBe(true);
+      expect(pausedState!.questionState).toBe(QuestionState.ANSWERING);
+      expect(pausedState!.answeringPlayer).toBeDefined();
 
-        // Resume and verify continuation
-        const unpausePromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.GAME_UNPAUSE
-        );
-        showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
-        const unpauseData = await unpausePromise;
+      // Resume and verify continuation
+      const unpausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_UNPAUSE);
+      showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
+      const unpauseData = await unpausePromise;
 
-        expect(unpauseData.timer).toBeDefined();
-        const resumedState = await utils.getGameState(setup.gameId);
-        expect(resumedState).toBeDefined();
-        expect(resumedState!.isPaused).toBe(false);
-        expect(resumedState!.questionState).toBe(QuestionState.ANSWERING);
-        expect(resumedState!.answeringPlayer).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      expect(unpauseData.timer).toBeDefined();
+      const resumedState = await utils.getGameState(setup.gameId);
+      expect(resumedState).toBeDefined();
+      expect(resumedState!.isPaused).toBe(false);
+      expect(resumedState!.questionState).toBe(QuestionState.ANSWERING);
+      expect(resumedState!.answeringPlayer).toBeDefined();
     });
 
     it("should ignore answer timer expiration while game is paused", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        await utils.startGame(showmanSocket);
-        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-        await utils.answerQuestion(playerSockets[0], showmanSocket);
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-        await utils.pauseGame(showmanSocket);
+      await utils.pauseGame(showmanSocket);
 
-        const pausedState = await utils.getGameState(setup.gameId);
-        expect(pausedState).toBeDefined();
-        expect(pausedState!.isPaused).toBe(true);
-        expect(pausedState!.questionState).toBe(QuestionState.ANSWERING);
-        expect(pausedState!.timer).toBeNull();
+      const pausedState = await utils.getGameState(setup.gameId);
+      expect(pausedState).toBeDefined();
+      expect(pausedState!.isPaused).toBe(true);
+      expect(pausedState!.questionState).toBe(QuestionState.ANSWERING);
+      expect(pausedState!.timer).toBeNull();
 
-        const result = await submitTimerExpiration(
-          setup.gameId,
-          GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED,
-          QuestionState.ANSWERING
-        );
+      const result = await submitTimerExpiration(
+        setup.gameId,
+        GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED,
+        QuestionState.ANSWERING
+      );
 
-        expect(result.success).toBe(true);
-        const finalState = await utils.getGameState(setup.gameId);
-        expect(finalState).toBeDefined();
-        expect(finalState!.isPaused).toBe(true);
-        expect(finalState!.questionState).toBe(QuestionState.ANSWERING);
-        expect(finalState!.answeringPlayer).toBe(pausedState!.answeringPlayer);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      expect(result.success).toBe(true);
+      await utils.waitForActionsComplete(setup.gameId);
+      const finalState = await utils.getGameState(setup.gameId);
+      expect(finalState).toBeDefined();
+      expect(finalState!.isPaused).toBe(true);
+      expect(finalState!.questionState).toBe(QuestionState.ANSWERING);
+      expect(finalState!.answeringPlayer).toBe(pausedState!.answeringPlayer);
     });
 
     it("should ignore saved showing timer action during answer period", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        await utils.startGame(showmanSocket);
-        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
-        await utils.answerQuestion(playerSockets[0], showmanSocket);
+      await utils.startGame(showmanSocket);
+      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+      await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-        const answeringState = await utils.getGameState(setup.gameId);
-        expect(answeringState).toBeDefined();
-        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
-        expect(answeringState!.timer).toBeDefined();
+      const answeringState = await utils.getGameState(setup.gameId);
+      expect(answeringState).toBeDefined();
+      expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+      expect(answeringState!.timer).toBeDefined();
 
-        const result = await submitTimerExpiration(
-          setup.gameId,
-          GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED,
-          QuestionState.ANSWERING,
-          timerKey(setup.gameId, QuestionState.SHOWING)
-        );
+      const result = await submitTimerExpiration(
+        setup.gameId,
+        GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED,
+        QuestionState.ANSWERING,
+        timerKey(setup.gameId, QuestionState.SHOWING)
+      );
 
-        expect(result.success).toBe(true);
-        const finalState = await utils.getGameState(setup.gameId);
-        expect(finalState).toBeDefined();
-        expect(finalState!.questionState).toBe(QuestionState.ANSWERING);
-        expect(finalState!.answeringPlayer).toBe(answeringState!.answeringPlayer);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      expect(result.success).toBe(true);
+      await utils.waitForActionsComplete(setup.gameId);
+      const finalState = await utils.getGameState(setup.gameId);
+      expect(finalState).toBeDefined();
+      expect(finalState!.questionState).toBe(QuestionState.ANSWERING);
+      expect(finalState!.answeringPlayer).toBe(answeringState!.answeringPlayer);
     });
 
     it("should ignore stake bidding timer expiration while game is paused", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
       const { showmanSocket, playerSockets, playerUsers } = setup;
 
-      try {
-        await utils.startGame(showmanSocket);
-        await utils.setPlayerScore(setup.gameId, playerUsers[0].id, 500);
-        await utils.setPlayerScore(setup.gameId, playerUsers[1].id, 300);
-        await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
+      await utils.startGame(showmanSocket);
+      await utils.setPlayerScore(setup.gameId, playerUsers[0].id, 500);
+      await utils.setPlayerScore(setup.gameId, playerUsers[1].id, 300);
+      await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
-        const stakeQuestionId = await utils.getQuestionIdByType(
-          setup.gameId,
-          PackageQuestionType.STAKE
-        );
-        const stakePickedPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_QUESTION_PICKED
-        );
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: stakeQuestionId
-        });
-        await stakePickedPromise;
+      const stakeQuestionId = await utils.getQuestionIdByType(
+        setup.gameId,
+        PackageQuestionType.STAKE
+      );
+      const stakePickedPromise = utils.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.STAKE_QUESTION_PICKED
+      );
+      playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+        questionId: stakeQuestionId
+      });
+      await stakePickedPromise;
 
-        const biddingState = await utils.getGameState(setup.gameId);
-        expect(biddingState).toBeDefined();
-        expect(biddingState!.questionState).toBe(QuestionState.BIDDING);
-        expect(biddingState!.timer).toBeDefined();
+      const biddingState = await utils.getGameState(setup.gameId);
+      expect(biddingState).toBeDefined();
+      expect(biddingState!.questionState).toBe(QuestionState.BIDDING);
+      expect(biddingState!.timer).toBeDefined();
 
-        await utils.pauseGame(showmanSocket);
+      await utils.pauseGame(showmanSocket);
 
-        const pausedState = await utils.getGameState(setup.gameId);
-        expect(pausedState).toBeDefined();
-        expect(pausedState!.isPaused).toBe(true);
-        expect(pausedState!.questionState).toBe(QuestionState.BIDDING);
-        expect(pausedState!.timer).toBeNull();
+      const pausedState = await utils.getGameState(setup.gameId);
+      expect(pausedState).toBeDefined();
+      expect(pausedState!.isPaused).toBe(true);
+      expect(pausedState!.questionState).toBe(QuestionState.BIDDING);
+      expect(pausedState!.timer).toBeNull();
 
-        const result = await submitTimerExpiration(
-          setup.gameId,
-          GameActionType.TIMER_BIDDING_EXPIRED,
-          QuestionState.BIDDING
-        );
+      const result = await submitTimerExpiration(
+        setup.gameId,
+        GameActionType.TIMER_BIDDING_EXPIRED,
+        QuestionState.BIDDING
+      );
 
-        expect(result.success).toBe(true);
-        const finalState = await utils.getGameState(setup.gameId);
-        expect(finalState).toBeDefined();
-        expect(finalState!.isPaused).toBe(true);
-        expect(finalState!.questionState).toBe(QuestionState.BIDDING);
-        expect(finalState!.stakeQuestionData).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      expect(result.success).toBe(true);
+      await utils.waitForActionsComplete(setup.gameId);
+      const finalState = await utils.getGameState(setup.gameId);
+      expect(finalState).toBeDefined();
+      expect(finalState!.isPaused).toBe(true);
+      expect(finalState!.questionState).toBe(QuestionState.BIDDING);
+      expect(finalState!.stakeQuestionData).toBeDefined();
     });
 
     it("should handle pausing already paused game", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket } = setup;
 
-      try {
-        // Start and pause game
-        await utils.startGame(showmanSocket);
-        await utils.pauseGame(showmanSocket);
+      // Start and pause game
+      await utils.startGame(showmanSocket);
+      await utils.pauseGame(showmanSocket);
 
-        const pausedState = await utils.getGameState(setup.gameId);
-        expect(pausedState).toBeDefined();
-        expect(pausedState!.isPaused).toBe(true);
+      const pausedState = await utils.getGameState(setup.gameId);
+      expect(pausedState).toBeDefined();
+      expect(pausedState!.isPaused).toBe(true);
 
-        // Send another PAUSE_GAME event - should emit error
-        const errorPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOEvents.ERROR
-        );
-        showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
-        const errorData = await errorPromise;
+      // Send another PAUSE_GAME event - should emit error
+      const errorPromise = utils.waitForEvent(showmanSocket, SocketIOEvents.ERROR);
+      showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE, {});
+      const errorData = await errorPromise;
 
-        // Verify error message
-        expect(errorData.message).toBe("Game is paused");
+      // Verify error message
+      expect(errorData.message).toBe("Game is paused");
 
-        // Verify game remains paused
-        const stillPausedState = await utils.getGameState(setup.gameId);
-        expect(stillPausedState).toBeDefined();
-        expect(stillPausedState!.isPaused).toBe(true);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify game remains paused
+      const stillPausedState = await utils.getGameState(setup.gameId);
+      expect(stillPausedState).toBeDefined();
+      expect(stillPausedState!.isPaused).toBe(true);
     });
   });
 
@@ -384,58 +316,55 @@ describe("Socket Timer and Pause Edge Cases", () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
 
-      try {
-        // Start game (not paused)
-        await utils.startGame(showmanSocket);
+      // Start game (not paused)
+      await utils.startGame(showmanSocket);
 
-        const gameState = await utils.getGameState(setup.gameId);
-        expect(gameState).toBeDefined();
-        expect(gameState!.isPaused).toBe(false);
+      const gameState = await utils.getGameState(setup.gameId);
+      expect(gameState).toBeDefined();
+      expect(gameState!.isPaused).toBe(false);
 
-        // Send RESUME_GAME event - should handle gracefully
-        const unpausePromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.GAME_UNPAUSE
-        );
-        showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
-        const unpauseData = await unpausePromise;
+      // Send RESUME_GAME event - should handle gracefully
+      const unpausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_UNPAUSE);
+      showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
+      const unpauseData = await unpausePromise;
 
-        // Verify appropriate handling - game remains unpaused
-        expect(unpauseData.timer).toBeDefined();
-        const stillUnpausedState = await utils.getGameState(setup.gameId);
-        expect(stillUnpausedState).toBeDefined();
-        expect(stillUnpausedState!.isPaused).toBe(false);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      // Verify appropriate handling - game remains unpaused
+      expect(unpauseData.timer).toBeDefined();
+      const stillUnpausedState = await utils.getGameState(setup.gameId);
+      expect(stillUnpausedState).toBeDefined();
+      expect(stillUnpausedState!.isPaused).toBe(false);
     });
 
     it("should handle multiple resume requests", async () => {
       const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
       const { showmanSocket, playerSockets } = setup;
 
+      // Pause game
+      await utils.startGame(showmanSocket);
+      await utils.pauseGame(showmanSocket);
+
+      const pausedState = await utils.getGameState(setup.gameId);
+      expect(pausedState).toBeDefined();
+      expect(pausedState!.isPaused).toBe(true);
+
+      // Send multiple RESUME_GAME events rapidly
+      const acceptedActions = utils.createAcceptedActionProbe({
+        gameId: setup.gameId,
+        actionType: GameActionType.UNPAUSE
+      });
+      const unpausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_UNPAUSE);
+
       try {
-        // Pause game
-        await utils.startGame(showmanSocket);
-        await utils.pauseGame(showmanSocket);
-
-        const pausedState = await utils.getGameState(setup.gameId);
-        expect(pausedState).toBeDefined();
-        expect(pausedState!.isPaused).toBe(true);
-
-        // Send multiple RESUME_GAME events rapidly
-        const unpausePromise = utils.waitForEvent(
-          playerSockets[0],
-          SocketIOGameEvents.GAME_UNPAUSE
-        );
-
         for (let i = 0; i < 5; i++) {
           showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
         }
 
+        const [unpauseData] = await Promise.all([unpausePromise, acceptedActions.waitForCount(5)]);
+        await utils.waitForActionsComplete(setup.gameId);
+
         // Verify single resume occurs
-        const unpauseData = await unpausePromise;
         expect(unpauseData.timer).toBeDefined();
+        expect(acceptedActions.records()).toHaveLength(5);
 
         // Verify game state consistency
         const resumedState = await utils.getGameState(setup.gameId);
@@ -443,12 +372,10 @@ describe("Socket Timer and Pause Edge Cases", () => {
         expect(resumedState!.isPaused).toBe(false);
 
         // Ensure game state is consistent
-        const finalGameFromService = await utils.getGameFromGameService(
-          setup.gameId
-        );
+        const finalGameFromService = await utils.getGameFromGameService(setup.gameId);
         expect(finalGameFromService.gameState.isPaused).toBe(false);
       } finally {
-        await utils.cleanupGameClients(setup);
+        acceptedActions.dispose();
       }
     });
   });

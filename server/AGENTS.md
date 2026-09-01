@@ -1,6 +1,7 @@
 # server/AGENTS.md — backend source of truth
 
-Use this file for all changes under `server/`. The root `AGENTS.md` is only a router; this file owns backend architecture and coding rules.
+Use this file for all changes under `server/`. The root `AGENTS.md` is only a router; this file owns
+backend architecture and coding rules.
 
 ## Runtime and commands
 
@@ -17,15 +18,16 @@ npm run test:pipeline      # concise Jest result; requires PostgreSQL + Redis
 npm run test:pipeline -- path/to/test.ts -t "test name" --runInBand
 ```
 
-Before running or debugging backend tests, read
-`.agents/skills/backend-test-runner/SKILL.md`. Normal verification must use
-`test:pipeline`. Detailed output is allowed only for one isolated test, and
-every direct/manual Jest command outside `npm run` must include `--forceExit`.
+Before running or debugging backend tests, read `.agents/skills/backend-test-runner/SKILL.md`.
+Normal verification must use `test:pipeline`. Detailed output is allowed only for one isolated test,
+and every direct/manual Jest command outside `npm run` must include `--forceExit`.
 
-Test dependencies: PostgreSQL and Redis. Local infra is started from `server/` with:
+Test dependencies: PostgreSQL and Redis. Create `server/.env.pg` from
+`server/docs/env_examples/env.pg.example.md` with credentials matching the test defaults, then start
+only the required local services from `server/`:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres oq-redis
 ```
 
 ## Architecture layers
@@ -39,12 +41,18 @@ shared/     -> dependency-neutral config, DI tokens, logging contracts, context 
 
 Layer responsibilities:
 
-- `domain/` — pure logic, entities, enums, DTOs, mappers, validators, errors, state machine. No I/O and no imports from application/infrastructure/presentation.
-- `application/` — use cases, orchestration services, action executors, workers, jobs, ports, factories. No presentation imports and no Socket.IO/Express transport APIs.
-- `infrastructure/` — TypeORM/PostgreSQL, Redis, S3/MinIO, pino implementation, migrations, storage/database adapters.
-- `presentation/` — Express REST controllers, Socket.IO setup/dispatching, realtime adapter, middleware, Joi schemes. Do not import infrastructure directly.
-- `shared/` — DI tokens, config, logger contracts, request/socket context types. Must remain dependency-neutral.
-- `bootstrap/` — composition root; registers runtime objects, concrete adapters, repositories, action handlers, cron jobs, and translation setup.
+- `domain/` — pure logic, entities, enums, DTOs, mappers, validators, errors, state machine. No I/O
+  and no imports from application/infrastructure/presentation.
+- `application/` — use cases, orchestration services, action executors, workers, jobs, ports,
+  factories. No presentation imports and no Socket.IO/Express transport APIs.
+- `infrastructure/` — TypeORM/PostgreSQL, Redis, S3/MinIO, pino implementation, migrations,
+  storage/database adapters.
+- `presentation/` — Express REST controllers, Socket.IO setup/dispatching, realtime adapter,
+  middleware, Joi schemes. Do not import infrastructure directly.
+- `shared/` — DI tokens, config, logger contracts, request/socket context types. Must remain
+  dependency-neutral.
+- `bootstrap/` — composition root; registers runtime objects, concrete adapters, repositories,
+  action handlers, cron jobs, and translation setup.
 
 Path aliases are configured in `tsconfig.json` and Jest:
 
@@ -67,7 +75,11 @@ Current DI source of truth:
 - Runtime entry: `src/ServeApi.ts`
 - Action handler registration: `src/application/config/ActionHandlerConfig.ts`
 
-Use `@singleton()` for concrete services/adapters that are resolved by the tsyringe container. Use `@inject(DI_TOKENS.X)` for interfaces/ports and external runtime objects. Action handlers are currently registered manually in `ActionHandlerConfig.ts`; follow that pattern unless the task explicitly asks for a handler-registration refactor. Do not create a second container or revive legacy `application/Container.ts` patterns.
+Use `@singleton()` for concrete services/adapters that are resolved by the tsyringe container. Use
+`@inject(DI_TOKENS.X)` for interfaces/ports and external runtime objects. Action handlers are
+currently registered manually in `ActionHandlerConfig.ts`; follow that pattern unless the task
+explicitly asks for a handler-registration refactor. Do not create a second container or revive
+legacy `application/Container.ts` patterns.
 
 ## Socket/game action architecture
 
@@ -85,13 +97,20 @@ SocketIOInitializer
 
 Rules:
 
-- `SocketActionMap.ts` is the single source of truth for public socket event → `GameActionType` mappings.
-- Presentation validates/normalizes payloads and builds `GameAction` objects; it does not mutate game state.
-- Game-changing actions use `GameActionExecutor.submitAction(...)` and are serialized per game through the Redis queue/lock.
-- Only non-mutating actions, such as chat-style reads/broadcasts, may use `submitDirectAction(...)` and `directExecution: true`.
-- Use cases return `ActionHandlerResult` with `DataMutation[]`; they do not directly write Redis or emit Socket.IO.
-- Application realtime output goes through `application/ports/realtime/RealtimeGateway` or broadcast mutations, not direct Socket.IO imports.
-- Transport-specific socket context changes belong in presentation hooks only when the side effect is truly transport-level.
+- `SocketActionMap.ts` is the single source of truth for public socket event → `GameActionType`
+  mappings.
+- Presentation validates/normalizes payloads and builds `GameAction` objects; it does not mutate
+  game state.
+- Game-changing actions use `GameActionExecutor.submitAction(...)` and are serialized per game
+  through the Redis queue/lock.
+- Only non-mutating actions, such as chat-style reads/broadcasts, may use `submitDirectAction(...)`
+  and `directExecution: true`.
+- Use cases return `ActionHandlerResult` with `DataMutation[]`; they do not directly write Redis or
+  emit Socket.IO.
+- Application realtime output goes through `application/ports/realtime/RealtimeGateway` or broadcast
+  mutations, not direct Socket.IO imports.
+- Transport-specific socket context changes belong in presentation hooks only when the side effect
+  is truly transport-level.
 
 Before adding/changing a socket action, read:
 
@@ -111,7 +130,8 @@ Rules:
 - Validate request data with `RequestDataValidator` and Joi schemes from `presentation/schemes/`.
 - Delegate business logic to application services/use cases.
 - Return `HttpStatus` enum values where possible.
-- Do not put TypeORM entities, Socket.IO objects, or infrastructure clients on `req`; use `req.auth` for request identity.
+- Do not put TypeORM entities, Socket.IO objects, or infrastructure clients on `req`; use `req.auth`
+  for request identity.
 
 ## Domain and state-machine rules
 
@@ -120,8 +140,10 @@ The game is stateful and realtime. Small-looking changes can break fairness.
 When touching game state:
 
 - Inspect `domain/entities/game/Game.ts` and relevant domain logic/validators.
-- Preserve score clamps, No Risk behavior, eligibility rules, skipped/answered player semantics, timers, and final-round phase rules.
-- Update `docs/specs/game-state-matrix.md` or a feature-specific spec when a phase, role, CTA, timer, or disabled reason changes.
+- Preserve score clamps, No Risk behavior, eligibility rules, skipped/answered player semantics,
+  timers, and final-round phase rules.
+- Update `docs/specs/game-state-matrix.md` or a feature-specific spec when a phase, role, CTA,
+  timer, or disabled reason changes.
 - Add tests for race-sensitive behavior and invalid payloads.
 
 ## Error handling
@@ -129,16 +151,20 @@ When touching game state:
 Error hierarchy:
 
 - `BaseError`
-- `ClientError` — expected/user-facing, translated where needed, normally not logged as server failures.
+- `ClientError` — expected/user-facing, translated where needed, normally not logged as server
+  failures.
 - `ServerError` — internal/server-side, logged.
 - `ErrorController.resolveError(...)` centralizes resolution.
 
-Throw typed errors from services/repositories/use cases. Let `asyncHandler` + `errorMiddleware` + `ErrorController` handle REST responses. Socket dispatchers should emit resolved client errors to the origin socket.
+Throw typed errors from services/repositories/use cases. Let `asyncHandler` + `errorMiddleware` +
+`ErrorController` handle REST responses. Socket dispatchers should emit resolved client errors to
+the origin socket.
 
 ## Logging and metrics
 
 - Use `ILogger` abstraction, not direct `console.*`.
-- Include `LogPrefix` and useful context (`gameId`, `actionId`, `actionType`, `userId`, `socketId`) where available.
+- Include `LogPrefix` and useful context (`gameId`, `actionId`, `actionType`, `userId`, `socketId`)
+  where available.
 - Use `logger.performance(...)` for timed operations.
 - Avoid logging expected client errors as server failures.
 - Keep logs safe: no session secrets, raw passwords, tokens, or unnecessary PII.
@@ -148,24 +174,27 @@ Throw typed errors from services/repositories/use cases. Let `asyncHandler` + `e
 - Named exports only. No default exports.
 - No `index.ts` barrels or re-exports in server code.
 - Use `import type` for type-only imports.
-- Prefer `unknown` or typed records over `any`; if an existing boundary still allows `any`, do not spread it further.
+- Prefer `unknown` or typed records over `any`; if an existing boundary still allows `any`, do not
+  spread it further.
 - Public methods need explicit return types.
 - DTO contracts live in `domain/types/dto/` as interfaces when practical.
 
 ## Testing rules
 
 - Jest runs serially (`maxWorkers: 1`).
-- Follow `.agents/skills/backend-test-runner/SKILL.md` for the mandatory
-  concise-output, single-test diagnostic, and manual `--forceExit` rules.
-- For a new backend feature or behavior fix, follow
-  `.agents/skills/backend-smoke-tests/SKILL.md` to add one focused E2E smoke
-  case without creating smoke-test churn for behavior-neutral minor changes.
+- Follow `.agents/skills/backend-test-runner/SKILL.md` for the mandatory concise-output, single-test
+  diagnostic, and manual `--forceExit` rules.
+- For a new backend feature or behavior fix, follow `.agents/skills/backend-smoke-tests/SKILL.md` to
+  add one focused E2E smoke case without creating smoke-test churn for behavior-neutral minor
+  changes.
 - Use `tests/TestApp.ts` for integration setup.
-- For client-perspective Socket.IO scenario/journal tests, follow
-  `tests/e2e/README.md` for accepted-action, drain, disposal, and cleanup rules.
-- Timer tests must use `TestUtils.expireTimer()`; do not use `setTimeout` as a test synchronization mechanism.
+- For client-perspective Socket.IO scenario/journal tests, follow `tests/e2e/README.md` for
+  accepted-action, drain, disposal, and cleanup rules.
+- Timer tests must use `TestUtils.expireTimer()`; do not use `setTimeout` as a test synchronization
+  mechanism.
 - Do not increase test timeouts to hide missing events.
-- For socket/game changes, cover success, validation failure, permission/role failure, and queue-sensitive cases when applicable.
+- For socket/game changes, cover success, validation failure, permission/role failure, and
+  queue-sensitive cases when applicable.
 
 ## Important backend references
 
@@ -194,4 +223,5 @@ Do not follow older docs/snippets that mention these as current architecture:
 - `presentation/index.ts` as socket registration root
 - `domain/orchestrators/GameOrchestrator.ts`
 
-If a task intentionally reintroduces any of them, document the architecture decision and migration plan first.
+If a task intentionally reintroduces any of them, document the architecture decision and migration
+plan first.

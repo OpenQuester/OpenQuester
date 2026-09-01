@@ -16,7 +16,7 @@ export interface RedisCleanupClient {
   del(...keys: string[]): Promise<unknown>;
 }
 
-export interface RedisCleanupTarget {
+interface RedisCleanupTarget {
   readonly host: string;
   readonly port: number;
   readonly db: number;
@@ -31,7 +31,7 @@ type RedisCleanupEnvironment = {
  * Reads the target from the connected Redis client's resolved options rather
  * than environment strings that could differ from the client connection.
  */
-export function resolveRedisCleanupTarget(
+function resolveRedisCleanupTarget(
   client: Pick<RedisCleanupClient, "options">
 ): RedisCleanupTarget {
   return {
@@ -42,7 +42,7 @@ export function resolveRedisCleanupTarget(
 }
 
 /** Throws before a destructive Redis command can target an unsafe database. */
-export function assertSafeRedisCleanupTarget(
+function assertSafeRedisCleanupTarget(
   target: RedisCleanupTarget,
   env: RedisCleanupEnvironment = process.env as RedisCleanupEnvironment
 ): void {
@@ -107,18 +107,8 @@ export async function clearRedisKeys(
  * target validation without a broad call-site migration.
  */
 export class RedisTestUtils {
-  private static redisClient: Redis;
-
   private static getClient(): Redis {
-    if (!this.redisClient) {
-      this.redisClient = RedisConfig.getClient();
-    }
-
-    if (this.redisClient.status !== "ready" && this.redisClient.status !== "connecting") {
-      this.redisClient = RedisConfig.getClient();
-    }
-
-    return this.redisClient;
+    return RedisConfig.getClient();
   }
 
   public static async clearAllKeys(): Promise<void> {

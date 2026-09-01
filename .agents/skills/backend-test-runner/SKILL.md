@@ -25,6 +25,11 @@ Use this skill whenever backend tests are executed, whether as the main task or 
   ```
 
 - Treat pipeline output and its exit code as the source of truth for normal verification. The runner suppresses ordinary test stdout and exposes the result without flooding the agent context with logs.
+- The pipeline fails when Jest detects an open handle. Do not pass
+  `--forceExit`, `--no-detectOpenHandles`, or another argument that disables
+  this check; the runner rejects those options.
+- The runner also refuses a concurrent pipeline in the same checkout so two
+  processes cannot share and destructively reset the same test databases.
 - Do not use `npm test`, raw `jest`, `npx jest`, or a direct Node invocation of Jest for full-suite or multi-test verification.
 - Do not rerun a passing pipeline suite manually merely to obtain verbose output.
 

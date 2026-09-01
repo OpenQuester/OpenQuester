@@ -1,7 +1,7 @@
 import { expect } from "@jest/globals";
 
-import { type GameActionType } from "domain/enums/GameActionType";
 import { type QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { withTimeout } from "tests/e2e/harness/TestPromiseUtils";
 import {
   copyEventRecord,
   type EventDirection,
@@ -11,10 +11,11 @@ import {
   type NoEventExpectation
 } from "tests/e2e/scenario/EventJournal";
 import { type ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
-import { type ScenarioGameDriver } from "tests/e2e/scenario/ScenarioGameDriver";
+import { type SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
-export interface ScenarioAssertionsOptions {
-  readonly driver?: ScenarioGameDriver;
+interface ScenarioAssertionsOptions {
+  readonly utils?: SocketGameTestUtils;
   readonly expectEvent: <TArgs extends readonly unknown[] = readonly unknown[]>(
     expectation: EventExpectation<TArgs>
   ) => Promise<EventRecord<TArgs>>;
@@ -22,9 +23,10 @@ export interface ScenarioAssertionsOptions {
     expectation: NoEventExpectation<TArgs>
   ) => Promise<void>;
   readonly eventHistory: () => readonly EventRecord[];
+  readonly trackExpectation: <T>(expectation: Promise<T>, description: string) => Promise<T>;
 }
 
-export interface EventMatchOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
+interface EventMatchOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly actor: ScenarioActor;
   readonly event: string;
   readonly timeoutMs: number;
@@ -33,7 +35,7 @@ export interface EventMatchOptions<TArgs extends readonly unknown[] = readonly u
   readonly predicate?: EventPredicate<TArgs>;
 }
 
-export interface NoEventMatchOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
+interface NoEventMatchOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly actor?: ScenarioActor;
   readonly event: string;
   readonly durationMs: number;
@@ -42,14 +44,7 @@ export interface NoEventMatchOptions<TArgs extends readonly unknown[] = readonly
   readonly predicate?: EventPredicate<TArgs>;
 }
 
-export interface CommandCountOptions {
-  readonly actor?: ScenarioActor;
-  readonly event: string;
-  readonly afterSequence?: number;
-  readonly expectedCount: number;
-}
-
-export interface EventRecordQueryOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
+interface EventRecordQueryOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly actor?: ScenarioActor;
   readonly direction?: EventDirection;
   readonly event?: string;
@@ -57,13 +52,7 @@ export interface EventRecordQueryOptions<TArgs extends readonly unknown[] = read
   readonly predicate?: EventPredicate<TArgs>;
 }
 
-export interface DirectedEventCountOptions<TArgs extends readonly unknown[] = readonly unknown[]> extends EventRecordQueryOptions<TArgs> {
-  readonly direction: EventDirection;
-  readonly event: string;
-  readonly expectedCount: number;
-}
-
-export interface BroadcastOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
+interface BroadcastOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly actors: readonly ScenarioActor[];
   readonly event: string;
   readonly timeoutMs: number;
@@ -72,40 +61,52 @@ export interface BroadcastOptions<TArgs extends readonly unknown[] = readonly un
   readonly predicate?: EventPredicate<TArgs>;
 }
 
-export interface SubmittedActionsOptions {
-  readonly gameId: string;
+interface CommandCountOptions {
+  readonly actor?: ScenarioActor;
+  readonly event: string;
+  readonly afterSequence?: number;
   readonly expectedCount: number;
-  readonly actionType?: GameActionType;
-  readonly timeoutMs?: number;
 }
 
-export interface ActionsCompleteOptions {
+interface ActionsCompleteOptions {
   readonly gameId: string;
   readonly timeoutMs?: number;
 }
 
-export interface QuestionStateOptions {
+interface QuestionStateOptions {
   readonly gameId: string;
   readonly expectedState: QuestionState;
 }
 
-export interface PlayerMediaDownloadedOptions {
+interface PlayerMediaDownloadedOptions {
   readonly gameId: string;
   readonly actor: ScenarioActor;
   readonly expected: boolean;
 }
 
-export interface ActiveTimerDurationOptions {
+interface ActiveTimerDurationOptions {
   readonly gameId: string;
   readonly expectedDurationMs: number;
 }
 
+interface GameStateOptions {
+  readonly gameId: string;
+}
+
+interface DirectedEventCountOptions<
+  TArgs extends readonly unknown[] = readonly unknown[]
+> extends EventRecordQueryOptions<TArgs> {
+  readonly direction: EventDirection;
+  readonly event: string;
+  readonly expectedCount: number;
+}
+
 /**
- * Small assertion facade over EventJournal and the optional scenario driver.
+ * Small assertion facade over EventJournal.
  *
  * Scenario tests should prefer this class over raw journal predicates once a
  * repeated pattern appears. It keeps the test body readable while still using
- * the journal/driver as the source of truth.
+ * the journal as the source of truth.
  */
 export class ScenarioAssertions {
   public constructor(private readonly options: ScenarioAssertionsOptions) {}
@@ -113,25 +114,19 @@ export class ScenarioAssertions {
   public inbound<TArgs extends readonly unknown[] = readonly unknown[]>(
     options: EventMatchOptions<TArgs>
   ): Promise<EventRecord<TArgs>> {
-    return this.expectDirectedEvent("inbound", options);
-  }
-
-  public outbound<TArgs extends readonly unknown[] = readonly unknown[]>(
-    options: EventMatchOptions<TArgs>
-  ): Promise<EventRecord<TArgs>> {
-    return this.expectDirectedEvent("outbound", options);
+    return this.track(
+      this.expectDirectedEvent("inbound", options),
+      options.description ?? `inbound "${options.event}" for actor "${options.actor.label}"`
+    );
   }
 
   public noInbound<TArgs extends readonly unknown[] = readonly unknown[]>(
     options: NoEventMatchOptions<TArgs>
   ): Promise<void> {
-    return this.expectNoDirectedEvent("inbound", options);
-  }
-
-  public noOutbound<TArgs extends readonly unknown[] = readonly unknown[]>(
-    options: NoEventMatchOptions<TArgs>
-  ): Promise<void> {
-    return this.expectNoDirectedEvent("outbound", options);
+    return this.track(
+      this.expectNoDirectedEvent("inbound", options),
+      options.description ?? `no inbound "${options.event}"`
+    );
   }
 
   public broadcast<TArgs extends readonly unknown[] = readonly unknown[]>(
@@ -139,21 +134,24 @@ export class ScenarioAssertions {
   ): Promise<readonly EventRecord<TArgs>[]> {
     const expectation = Promise.all(
       options.actors.map((actor) =>
-        this.inbound({
+        this.expectDirectedEvent("inbound", {
           actor,
           event: options.event,
           timeoutMs: options.timeoutMs,
           afterSequence: options.afterSequence,
-          predicate: options.predicate,
-          description: options.description
+          description: options.description,
+          predicate: options.predicate
         })
       )
     );
 
-    // EventJournal.dispose() settles its raw waits. Keep an abandoned aggregate
-    // expectation observed as well, while preserving rejection for callers that await it.
-    void expectation.catch(() => undefined);
-    return expectation;
+    return this.track(
+      expectation,
+      options.description ??
+        `inbound broadcast "${options.event}" for actors ${options.actors
+          .map((actor) => `"${actor.label}"`)
+          .join(", ")}`
+    );
   }
 
   public expectOutboundCommandCount(options: CommandCountOptions): void {
@@ -201,38 +199,69 @@ export class ScenarioAssertions {
       .map((record) => copyEventRecord(record as EventRecord<TArgs>));
   }
 
-  public waitForSubmittedActions(options: SubmittedActionsOptions): Promise<void> {
-    return this.requireDriver().waitForSubmittedActions(options);
-  }
-
   public waitForActionsComplete(options: ActionsCompleteOptions): Promise<void> {
-    return this.requireDriver().waitForActionsComplete(options);
+    return this.track(
+      this.requireUtils().waitForActionsComplete(options.gameId, options.timeoutMs),
+      `actions complete for game "${options.gameId}"`
+    );
   }
 
-  public async questionState(options: QuestionStateOptions): Promise<void> {
-    const state = await this.requireDriver().getGameState(options.gameId);
+  public questionState(options: QuestionStateOptions): Promise<void> {
+    const description = `question state ${options.expectedState} for game "${options.gameId}"`;
+    return this.trackBoundedStateAssertion(
+      (async () => {
+        const state = await this.requireUtils().getGameState(options.gameId);
 
-    expect(state?.questionState).toBe(options.expectedState);
+        expect(state?.questionState).toBe(options.expectedState);
+      })(),
+      description
+    );
   }
 
-  public async playerMediaDownloaded(options: PlayerMediaDownloadedOptions): Promise<void> {
-    if (options.actor.userId === undefined) {
-      throw new Error(`Actor ${options.actor.label} does not have a userId`);
-    }
+  public playerMediaDownloaded(options: PlayerMediaDownloadedOptions): Promise<void> {
+    const description = `media readiness ${options.expected} for actor "${options.actor.label}"`;
+    return this.trackBoundedStateAssertion(
+      (async () => {
+        if (options.actor.userId === undefined) {
+          throw new Error(`Actor ${options.actor.label} does not have a userId`);
+        }
 
-    const mediaDownloaded = await this.requireDriver().getPlayerMediaDownloaded({
-      gameId: options.gameId,
-      playerId: options.actor.userId
-    });
+        const game = await this.requireUtils().getGameFromGameService(options.gameId);
+        const player = game.getPlayer(options.actor.userId, { fetchDisconnected: true });
 
-    expect(mediaDownloaded).toBe(options.expected);
+        if (!player) {
+          throw new Error(`Player ${options.actor.userId} not found in game ${options.gameId}`);
+        }
+
+        expect(Boolean(player.mediaDownloaded)).toBe(options.expected);
+      })(),
+      description
+    );
   }
 
-  public async activeTimerDuration(options: ActiveTimerDurationOptions): Promise<void> {
-    const state = await this.requireDriver().getGameState(options.gameId);
+  public activeTimerDuration(options: ActiveTimerDurationOptions): Promise<void> {
+    const description = `active timer ${options.expectedDurationMs}ms for game "${options.gameId}"`;
+    return this.trackBoundedStateAssertion(
+      (async () => {
+        const state = await this.requireUtils().getGameState(options.gameId);
 
-    expect(state?.timer).not.toBeNull();
-    expect(state?.timer?.durationMs).toBe(options.expectedDurationMs);
+        expect(state?.timer).not.toBeNull();
+        expect(state?.timer?.durationMs).toBe(options.expectedDurationMs);
+      })(),
+      description
+    );
+  }
+
+  public noActiveTimer(options: GameStateOptions): Promise<void> {
+    const description = `no active timer for game "${options.gameId}"`;
+    return this.trackBoundedStateAssertion(
+      (async () => {
+        const state = await this.requireUtils().getGameState(options.gameId);
+
+        expect(state?.timer).toBeNull();
+      })(),
+      description
+    );
   }
 
   private expectDirectedEvent<TArgs extends readonly unknown[]>(
@@ -265,12 +294,23 @@ export class ScenarioAssertions {
     });
   }
 
-  private requireDriver(): ScenarioGameDriver {
-    if (!this.options.driver) {
-      throw new Error("Scenario driver is required for action/state assertions");
+  private requireUtils(): SocketGameTestUtils {
+    if (!this.options.utils) {
+      throw new Error("Socket game test utilities are required for state assertions");
     }
 
-    return this.options.driver;
+    return this.options.utils;
+  }
+
+  private track<T>(expectation: Promise<T>, description: string): Promise<T> {
+    return this.options.trackExpectation(expectation, description);
+  }
+
+  private trackBoundedStateAssertion(assertion: Promise<void>, description: string): Promise<void> {
+    return this.track(
+      withTimeout(assertion, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS, description),
+      description
+    );
   }
 }
 
