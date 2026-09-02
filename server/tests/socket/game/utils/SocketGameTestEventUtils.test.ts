@@ -13,6 +13,7 @@ import {
   type GameClientSocket,
   type SocketGameTestUtils
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 const GAME_ID = "game-1";
 
@@ -122,7 +123,7 @@ describe("SocketGameTestEventUtils", () => {
     );
     const failure = expect(operation).rejects.toThrow('operation producing "target"');
 
-    await jest.advanceTimersByTimeAsync(25);
+    await jest.advanceTimersByTimeAsync(25 + TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
     await failure;
     await expect(scenario.finish()).rejects.toThrow('operation producing "target"');
     unfinished.resolve();

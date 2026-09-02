@@ -28,6 +28,10 @@ self-tests into gameplay scenarios, and it does not add Flutter/browser E2E cove
   database, and logger environment and preserves failures from both stages.
 - Use `runAndWaitForEvent` when a multi-step operation is expected to produce a terminal event; it
   arms the listener first and cancels that wait if an earlier step fails.
+- A terminal timeout must not hide a prerequisite failure from that operation. The terminal keeps
+  its original deadline; the operation has that requested budget plus one shared event-wait budget
+  to settle and report its own failure first. A late terminal event still fails, and a hung
+  operation fails its named operation deadline.
 - Await every event assertion. The shared event utility observes and cancels unfinished waits before
   client cleanup so a primary failure cannot leak listeners, timers, or secondary timeout noise.
   Lint rejects floating or unused waits, and the transport policy rejects explicit `void` escapes.

@@ -1,7 +1,11 @@
 import { type Socket } from "socket.io-client";
 
 import { withTimeout } from "tests/e2e/harness/TestPromiseUtils";
-import { EventJournal, EventJournalAbortedError } from "tests/e2e/scenario/EventJournal";
+import {
+  EventJournal,
+  EventJournalAbortedError,
+  EventJournalDisposedError
+} from "tests/e2e/scenario/EventJournal";
 import { ScenarioActor, type ScenarioActorOptions } from "tests/e2e/scenario/ScenarioActor";
 import { ScenarioAssertions } from "tests/e2e/scenario/ScenarioAssertions";
 import {
@@ -42,6 +46,7 @@ export class GameScenario {
   private readonly acceptedActionProbes = new Set<AcceptedActionProbe>();
   private readonly expectations: TrackedExpectation[] = [];
   private readonly completionAssertions: (() => void)[] = [];
+  private readonly operationAborters = new Set<() => void>();
   private readonly journal = new EventJournal();
   private completionMode: ScenarioCompletionMode | undefined;
   private completionPromise: Promise<void> | undefined;
@@ -184,17 +189,40 @@ export class GameScenario {
     const actor = this.actor(socket);
     const controller = new AbortController();
     const eventPromise = this.createEventWait(actor, event, timeout, predicate, controller.signal);
+    const eventOutcome = eventPromise.then(
+      (value) => ({ failed: false as const, value }),
+      (error: unknown) => ({ failed: true as const, error })
+    );
+    let abortOperation = (): void => undefined;
+    const operationAborted = new Promise<Error>((resolve) => {
+      abortOperation = () =>
+        resolve(
+          new EventJournalDisposedError(
+            `Game scenario aborted while waiting for operation producing "${event}" for actor "${actor.label}"`
+          )
+        );
+      this.operationAborters.add(abortOperation);
+    });
     const expectation = (async (): Promise<T> => {
       try {
-        const result = await withTimeout(
-          Promise.all([eventPromise, operation()]),
-          timeout,
+        const operationPromise = Promise.resolve(operation());
+        const abortFailure = operationAborted.then((error) => {
+          throw error;
+        });
+        // Keep the terminal deadline unchanged, but let an inner bounded step
+        // report its primary failure before a derivative terminal timeout.
+        await withTimeout(
+          Promise.race([operationPromise, abortFailure]),
+          timeout + TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
           `operation producing "${event}" for actor "${actor.label}"`
         );
-        return result[0];
+        const result = await eventOutcome;
+        if (result.failed) throw result.error;
+        return result.value;
       } finally {
+        this.operationAborters.delete(abortOperation);
         controller.abort();
-        await Promise.allSettled([eventPromise]);
+        await eventOutcome;
       }
     })();
     return this.trackExpectation(
@@ -343,6 +371,10 @@ export class GameScenario {
 
     this.disposed = true;
     this.completionMode = mode;
+    if (mode === "abort") {
+      for (const abortOperation of this.operationAborters) abortOperation();
+      this.operationAborters.clear();
+    }
     this.completionPromise = this.completeInternal(mode);
     return this.completionPromise;
   }

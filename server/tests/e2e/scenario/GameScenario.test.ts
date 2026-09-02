@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { EventEmitter } from "events";
 import { type Socket } from "socket.io-client";
 
-import { EventJournalAbortedError } from "tests/e2e/scenario/EventJournal";
+import { createControlledPromise } from "tests/e2e/harness/TestPromiseUtils";
+import {
+  EventJournalAbortedError,
+  EventJournalDisposedError
+} from "tests/e2e/scenario/EventJournal";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
 
 class FakeSocket extends EventEmitter {
@@ -234,6 +238,80 @@ describe("GameScenario transport API", () => {
     expect(jest.getTimerCount()).toBe(0);
     expect(socket.journalListenerCount()).toBe(0);
   });
+
+  it("prefers the operation failure even after its terminal event has timed out", async () => {
+    jest.useFakeTimers();
+    const scenario = new GameScenario();
+    const socket = new FakeSocket();
+    const operation = createControlledPromise<void>();
+    const primary = new Error("missing question preload");
+    const result = scenario
+      .runAndWaitForEvent(socket.asSocket(), "terminal", () => operation.promise, 25)
+      .then(
+        () => undefined,
+        (error: unknown) => error
+      );
+
+    await jest.advanceTimersByTimeAsync(26);
+    operation.reject(primary);
+
+    expect(await result).toBe(primary);
+    await scenario.abort();
+    expect(jest.getTimerCount()).toBe(0);
+    expect(socket.journalListenerCount()).toBe(0);
+  });
+
+  it("still fails the terminal deadline when the operation later succeeds and emits", async () => {
+    jest.useFakeTimers();
+    const scenario = new GameScenario();
+    const socket = new FakeSocket();
+    const operation = createControlledPromise<void>();
+    const result = scenario
+      .runAndWaitForEvent(socket.asSocket(), "terminal", () => operation.promise, 25)
+      .then(
+        () => undefined,
+        (error: unknown) => error
+      );
+
+    await jest.advanceTimersByTimeAsync(26);
+    socket.receive("terminal", { tooLate: true });
+    operation.resolve();
+
+    expect(await result).toEqual(
+      expect.objectContaining({
+        message: expect.stringContaining('Timed out after 25ms waiting for event "terminal"')
+      })
+    );
+    await scenario.abort();
+    expect(jest.getTimerCount()).toBe(0);
+    expect(socket.journalListenerCount()).toBe(0);
+  });
+
+  it.each(["pending", "received", "timed-out"])(
+    "aborts an opaque unfinished operation with terminal %s without waiting for its diagnostic deadline",
+    async (terminalState) => {
+      jest.useFakeTimers();
+      const scenario = new GameScenario();
+      const socket = new FakeSocket();
+      const operation = createControlledPromise<void>();
+      const result = scenario
+        .runAndWaitForEvent(socket.asSocket(), "terminal", () => operation.promise, 25)
+        .then(
+          () => undefined,
+          (error: unknown) => error
+        );
+
+      if (terminalState === "received") socket.receive("terminal", { ok: true });
+      if (terminalState === "timed-out") await jest.advanceTimersByTimeAsync(26);
+
+      await scenario.abort();
+
+      expect(await result).toBeInstanceOf(EventJournalDisposedError);
+      expect(jest.getTimerCount()).toBe(0);
+      expect(socket.journalListenerCount()).toBe(0);
+      operation.resolve();
+    }
+  );
 
   it("tracks forgotten payload waits until scenario completion", async () => {
     jest.useFakeTimers();
