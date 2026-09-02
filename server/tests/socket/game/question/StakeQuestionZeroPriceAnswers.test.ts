@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
-import request from "supertest";
+import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { Repository } from "typeorm";
 
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
@@ -96,7 +96,7 @@ describe("Stake Question Zero Price Answer Tests", () => {
       ]
     };
 
-    const packageRes = await request(app)
+    const packageRes = await createHttpTestClient(suite.serverUrl)
       .post("/v1/packages")
       .set("Cookie", cookie)
       .send({ content: packageData });
@@ -130,7 +130,10 @@ describe("Stake Question Zero Price Answer Tests", () => {
       maxPlayers: 10
     };
 
-    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+    const gameRes = await createHttpTestClient(suite.serverUrl)
+      .post("/v1/games")
+      .set("Cookie", cookie)
+      .send(gameData);
 
     if (gameRes.status !== 200) {
       throw new Error(`Failed to create game: ${gameRes.status} - ${JSON.stringify(gameRes.body)}`);
@@ -182,11 +185,11 @@ describe("Stake Question Zero Price Answer Tests", () => {
   ): Promise<void> {
     const { showmanSocket, playerSockets } = setup;
 
-    const stakeQuestionPickedPromise = utils.waitForEvent(
+    const stakeQuestionPickedPromise = suite.currentScenario.waitForEvent(
       showmanSocket,
       SocketIOGameEvents.STAKE_QUESTION_PICKED
     );
-    playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+    suite.currentScenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
       questionId: stakeQuestionId
     });
 
@@ -217,12 +220,12 @@ describe("Stake Question Zero Price Answer Tests", () => {
     hasWinner: boolean;
     winnerPlayerId?: number;
   }> {
-    const player0BidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+    const player0BidPromise = suite.currentScenario.waitForEvent<StakeBidSubmitOutputData>(
       showmanSocket,
       SocketIOGameEvents.STAKE_BID_SUBMIT,
       2000
     );
-    playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+    suite.currentScenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
       bidType: StakeBidType.NORMAL,
       bidAmount: 1
     });
@@ -230,12 +233,12 @@ describe("Stake Question Zero Price Answer Tests", () => {
     const player0BidResult = await player0BidPromise;
 
     if (!player0BidResult.isPhaseComplete) {
-      const player1BidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+      const player1BidPromise = suite.currentScenario.waitForEvent<StakeBidSubmitOutputData>(
         showmanSocket,
         SocketIOGameEvents.STAKE_BID_SUBMIT,
         2000
       );
-      playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+      suite.currentScenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
         bidType: StakeBidType.PASS,
         bidAmount: null
       });
@@ -243,12 +246,12 @@ describe("Stake Question Zero Price Answer Tests", () => {
       const player1BidResult = await player1BidPromise;
 
       if (!player1BidResult.isPhaseComplete) {
-        const player2BidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+        const player2BidPromise = suite.currentScenario.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT,
           2000
         );
-        playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        suite.currentScenario.actor(playerSockets[2]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.PASS,
           bidAmount: null
         });
@@ -286,118 +289,124 @@ describe("Stake Question Zero Price Answer Tests", () => {
 
   describe("Zero Price Stake Question Answer Scenarios", () => {
     it("should finish question when correct answer is submitted", async () => {
-      const { setup, stakeQuestionId } = await setupZeroPriceStakeTest();
-      const { showmanSocket, playerSockets } = setup;
+      await suite.scenario(async (scenario) => {
+        const { setup, stakeQuestionId } = await setupZeroPriceStakeTest();
+        const { showmanSocket, playerSockets } = setup;
 
-      await completeZeroPriceStakeBidding(setup, stakeQuestionId);
+        await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
-      const answerSubmittedPromise = utils.waitForEvent<AnswerSubmittedBroadcastData>(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_SUBMITTED
-      );
-      playerSockets[0].emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
-        answerText: "Test answer"
-      } as AnswerSubmittedInputData);
+        const answerSubmittedPromise = scenario.waitForEvent<AnswerSubmittedBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SUBMITTED
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+          answerText: "Test answer"
+        } as AnswerSubmittedInputData);
 
-      await answerSubmittedPromise;
+        await answerSubmittedPromise;
 
-      const answerResultPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_RESULT
-      );
+        const answerResultPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
 
-      const showAnswerPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_SHOW_START
-      );
+        const showAnswerPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
 
-      const questionFinishPromise = utils.waitForEvent<QuestionFinishEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.QUESTION_FINISH
-      );
+        const questionFinishPromise = scenario.waitForEvent<QuestionFinishEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_FINISH
+        );
 
-      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-        scoreResult: 100,
-        answerType: AnswerResultType.CORRECT
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: 100,
+          answerType: AnswerResultType.CORRECT
+        });
+
+        await answerResultPromise;
+        await showAnswerPromise;
+        const questionData = await questionFinishPromise;
+
+        await utils.skipShowAnswer(showmanSocket);
+
+        expect(questionData).toBeDefined();
+        expect(questionData.answerText).toBeDefined();
+        expect(questionData.nextTurnPlayerId).toBeDefined();
+
+        const gameState = await utils.getGameState(setup.gameId);
+        expect(gameState?.questionState).toBe(QuestionState.CHOOSING);
+        expect(gameState?.currentQuestion).toBeNull();
       });
-
-      await answerResultPromise;
-      await showAnswerPromise;
-      const questionData = await questionFinishPromise;
-
-      await utils.skipShowAnswer(showmanSocket);
-
-      expect(questionData).toBeDefined();
-      expect(questionData.answerText).toBeDefined();
-      expect(questionData.nextTurnPlayerId).toBeDefined();
-
-      const gameState = await utils.getGameState(setup.gameId);
-      expect(gameState?.questionState).toBe(QuestionState.CHOOSING);
-      expect(gameState?.currentQuestion).toBeNull();
     });
 
     it("should continue showing question when wrong answer is submitted", async () => {
-      const { setup, stakeQuestionId } = await setupZeroPriceStakeTest();
-      const { showmanSocket, playerSockets } = setup;
+      await suite.scenario(async (scenario) => {
+        const { setup, stakeQuestionId } = await setupZeroPriceStakeTest();
+        const { showmanSocket, playerSockets } = setup;
 
-      await completeZeroPriceStakeBidding(setup, stakeQuestionId);
+        await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
-      const answerSubmittedPromise = utils.waitForEvent<AnswerSubmittedBroadcastData>(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_SUBMITTED
-      );
-      playerSockets[0].emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
-        answerText: "Wrong answer"
-      } as AnswerSubmittedInputData);
+        const answerSubmittedPromise = scenario.waitForEvent<AnswerSubmittedBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SUBMITTED
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
+          answerText: "Wrong answer"
+        } as AnswerSubmittedInputData);
 
-      await answerSubmittedPromise;
+        await answerSubmittedPromise;
 
-      const answerShowStartPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_SHOW_START
-      );
-      const answerResultPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_RESULT
-      );
+        const answerShowStartPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
+        const answerResultPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
 
-      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-        scoreResult: -100,
-        answerType: AnswerResultType.WRONG
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: -100,
+          answerType: AnswerResultType.WRONG
+        });
+
+        await answerResultPromise;
+        await answerShowStartPromise;
+
+        const gameState = await utils.getGameState(setup.gameId);
+        expect(gameState?.questionState).toBe(QuestionState.SHOWING_ANSWER);
+        expect(gameState?.currentQuestion).toBeNull();
+        expect(gameState?.answeringPlayer).toBeNull();
       });
-
-      await answerResultPromise;
-      await answerShowStartPromise;
-
-      const gameState = await utils.getGameState(setup.gameId);
-      expect(gameState?.questionState).toBe(QuestionState.SHOWING_ANSWER);
-      expect(gameState?.currentQuestion).toBeNull();
-      expect(gameState?.answeringPlayer).toBeNull();
     });
 
     it("should treat skip as give up (wrong answer) during stake question answering phase", async () => {
-      const { setup, stakeQuestionId } = await setupZeroPriceStakeTest();
-      const { playerSockets, showmanSocket } = setup;
+      await suite.scenario(async (scenario) => {
+        const { setup, stakeQuestionId } = await setupZeroPriceStakeTest();
+        const { playerSockets, showmanSocket } = setup;
 
-      await completeZeroPriceStakeBidding(setup, stakeQuestionId);
+        await completeZeroPriceStakeBidding(setup, stakeQuestionId);
 
-      // Listen for answer result
-      const answerResultPromise = utils.waitForEvent<QuestionAnswerResultEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_RESULT
-      );
+        // Listen for answer result
+        const answerResultPromise = scenario.waitForEvent<QuestionAnswerResultEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
 
-      // Emit skip (give up)
-      playerSockets[0].emit(SocketIOGameEvents.QUESTION_SKIP, {});
+        // Emit skip (give up)
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
-      const answerResult = await answerResultPromise;
+        const answerResult = await answerResultPromise;
 
-      // Skip on stake question is treated as wrong answer (give up)
-      expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
+        // Skip on stake question is treated as wrong answer (give up)
+        expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
 
-      // Game should transition to SHOWING_ANSWER
-      const gameState = await utils.getGameState(setup.gameId);
-      expect(gameState?.questionState).toBe(QuestionState.SHOWING_ANSWER);
+        // Game should transition to SHOWING_ANSWER
+        const gameState = await utils.getGameState(setup.gameId);
+        expect(gameState?.questionState).toBe(QuestionState.SHOWING_ANSWER);
+      });
     });
   });
 });

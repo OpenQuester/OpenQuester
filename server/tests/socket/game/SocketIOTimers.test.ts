@@ -38,171 +38,177 @@ describe("SocketIOTimers", () => {
 
   describe("Standard Round Timers", () => {
     it("should handle answer timer expiration with wrong answer", async () => {
-      const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async () => {
+        const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      // Start game and pick a question
-      await socketUtils.startGame(showmanSocket);
-      await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
+        // Start game and pick a question
+        await socketUtils.startGame(showmanSocket);
+        await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
 
-      // Player starts answering to get into ANSWERING state
-      await socketUtils.answerQuestion(playerSockets[0], showmanSocket);
+        // Player starts answering to get into ANSWERING state
+        await socketUtils.answerQuestion(playerSockets[0], showmanSocket);
 
-      // Verify game is in ANSWERING state with timer
-      const answeringState = await socketUtils.getGameState(gameId);
-      expect(answeringState).toBeDefined();
-      expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
-      expect(answeringState!.answeringPlayer).toBeDefined();
-      expect(answeringState!.timer).toBeDefined();
+        // Verify game is in ANSWERING state with timer
+        const answeringState = await socketUtils.getGameState(gameId);
+        expect(answeringState).toBeDefined();
+        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(answeringState!.answeringPlayer).toBeDefined();
+        expect(answeringState!.timer).toBeDefined();
 
-      // Set up event listener for answer result
-      const answerResultPromise = socketUtils.waitForEvent<QuestionAnswerResultEventPayload>(
-        playerSockets[0],
-        SocketIOGameEvents.ANSWER_RESULT,
-        1000
-      );
+        // Set up event listener for answer result
+        const answerResultPromise = socketUtils.waitForEvent<QuestionAnswerResultEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_RESULT,
+          1000
+        );
 
-      // Expire the timer to trigger automatic wrong answer
-      await testUtils.expireTimerAndWaitForAction(
-        gameId,
-        GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED
-      );
+        // Expire the timer to trigger automatic wrong answer
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_ANSWERING_EXPIRED
+        );
 
-      const answerResult = await answerResultPromise;
-      await socketUtils.waitForActionsComplete(gameId);
+        const answerResult = await answerResultPromise;
+        await socketUtils.waitForActionsComplete(gameId);
 
-      // Verify the auto-timeout resulted in wrong answer
-      expect(answerResult).toBeDefined();
-      expect(answerResult.answerResult).toBeDefined();
-      expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
-      expect(answerResult.answerResult.result).toBeLessThan(0);
+        // Verify the auto-timeout resulted in wrong answer
+        expect(answerResult).toBeDefined();
+        expect(answerResult.answerResult).toBeDefined();
+        expect(answerResult.answerResult.answerType).toBe(AnswerResultType.WRONG);
+        expect(answerResult.answerResult.result).toBeLessThan(0);
 
-      // Verify game state left ANSWERING and answering player is cleared
-      const finalState = await socketUtils.getGameState(gameId);
-      expect(finalState!.answeringPlayer).toBeNull();
+        // Verify game state left ANSWERING and answering player is cleared
+        const finalState = await socketUtils.getGameState(gameId);
+        expect(finalState!.answeringPlayer).toBeNull();
+      });
     });
 
     it("should handle showing timer expiration leading to next round", async () => {
-      const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async () => {
+        const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      // Start game
-      await socketUtils.startGame(showmanSocket);
+        // Start game
+        await socketUtils.startGame(showmanSocket);
 
-      // Pick a question to get into SHOWING state
-      await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
+        // Pick a question to get into SHOWING state
+        await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
 
-      // Verify game is in SHOWING state
-      const showingState = await socketUtils.getGameState(gameId);
-      expect(showingState!.questionState).toBe(QuestionState.SHOWING);
+        // Verify game is in SHOWING state
+        const showingState = await socketUtils.getGameState(gameId);
+        expect(showingState!.questionState).toBe(QuestionState.SHOWING);
 
-      // NOW mark all other questions as played to simulate end of round scenario
-      const game = await socketUtils.getGameFromGameService(gameId);
-      if (game.gameState.currentRound) {
-        const themes = game.gameState.currentRound.themes;
-        for (let themeIdx = 0; themeIdx < themes.length; themeIdx++) {
-          const theme = themes[themeIdx];
-          for (let qIdx = 0; qIdx < theme.questions.length; qIdx++) {
-            // Mark all questions as played except the currently playing one
-            const currentQ = game.gameState.currentQuestion;
-            if (currentQ && theme.questions[qIdx].id !== currentQ.id) {
-              theme.questions[qIdx].isPlayed = true;
+        // NOW mark all other questions as played to simulate end of round scenario
+        const game = await socketUtils.getGameFromGameService(gameId);
+        if (game.gameState.currentRound) {
+          const themes = game.gameState.currentRound.themes;
+          for (let themeIdx = 0; themeIdx < themes.length; themeIdx++) {
+            const theme = themes[themeIdx];
+            for (let qIdx = 0; qIdx < theme.questions.length; qIdx++) {
+              // Mark all questions as played except the currently playing one
+              const currentQ = game.gameState.currentQuestion;
+              if (currentQ && theme.questions[qIdx].id !== currentQ.id) {
+                theme.questions[qIdx].isPlayed = true;
+              }
             }
           }
         }
-      }
-      await socketUtils.updateGame(game);
+        await socketUtils.updateGame(game);
 
-      // Verify all questions except current are played
-      const updatedState = await socketUtils.getGameState(gameId);
-      const currentQuestion = updatedState!.currentQuestion;
-      expect(currentQuestion).not.toBeNull();
+        // Verify all questions except current are played
+        const updatedState = await socketUtils.getGameState(gameId);
+        const currentQuestion = updatedState!.currentQuestion;
+        expect(currentQuestion).not.toBeNull();
 
-      // Set up event listener BEFORE expiring timer to avoid race condition
-      const answerShowStartPromise = socketUtils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_SHOW_START,
-        2000
-      );
+        // Set up event listener BEFORE expiring timer to avoid race condition
+        const answerShowStartPromise = socketUtils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START,
+          2000
+        );
 
-      // Expire showing timer - this should trigger transition to SHOWING_ANSWER
-      await testUtils.expireTimerAndWaitForAction(
-        gameId,
-        GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
-      );
+        // Expire showing timer - this should trigger transition to SHOWING_ANSWER
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
 
-      // Wait for transition to SHOWING_ANSWER
-      await answerShowStartPromise;
+        // Wait for transition to SHOWING_ANSWER
+        await answerShowStartPromise;
 
-      // Verify game state after first timer expiration
-      const showingAnswerState = await socketUtils.getGameState(gameId);
-      expect(showingAnswerState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
+        // Verify game state after first timer expiration
+        const showingAnswerState = await socketUtils.getGameState(gameId);
+        expect(showingAnswerState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
 
-      // Verify all questions are now marked as played (including the current one)
-      const allPlayed = showingAnswerState!.currentRound!.themes.every((theme) =>
-        theme.questions.every((q) => q.isPlayed)
-      );
-      expect(allPlayed).toBe(true);
+        // Verify all questions are now marked as played (including the current one)
+        const allPlayed = showingAnswerState!.currentRound!.themes.every((theme) =>
+          theme.questions.every((q) => q.isPlayed)
+        );
+        expect(allPlayed).toBe(true);
 
-      // Verify timer is set for SHOWING_ANSWER
-      expect(showingAnswerState!.timer).toBeDefined();
-      expect(showingAnswerState!.timer!.durationMs).toBeGreaterThan(0);
+        // Verify timer is set for SHOWING_ANSWER
+        expect(showingAnswerState!.timer).toBeDefined();
+        expect(showingAnswerState!.timer!.durationMs).toBeGreaterThan(0);
 
-      // Set up event listener for next round BEFORE expiring timer
-      const nextRoundPromise = socketUtils.waitForEvent<GameNextRoundEventPayload>(
-        playerSockets[0],
-        SocketIOGameEvents.NEXT_ROUND,
-        2000
-      );
+        // Set up event listener for next round BEFORE expiring timer
+        const nextRoundPromise = socketUtils.waitForEvent<GameNextRoundEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.NEXT_ROUND,
+          2000
+        );
 
-      // Expire SHOWING_ANSWER timer - this should trigger round progression
-      await testUtils.expireTimerAndWaitForAction(
-        gameId,
-        GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
-      );
+        // Expire SHOWING_ANSWER timer - this should trigger round progression
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
 
-      // Wait for round progression
-      const nextRound = await nextRoundPromise;
+        // Wait for round progression
+        const nextRound = await nextRoundPromise;
 
-      // Verify round progression occurred
-      expect(nextRound).toBeDefined();
-      expect(nextRound.gameState).toBeDefined();
-      expect(nextRound.gameState.currentRound).toBeDefined();
-      expect(nextRound.gameState.currentRound!.order).toBeGreaterThan(0);
+        // Verify round progression occurred
+        expect(nextRound).toBeDefined();
+        expect(nextRound.gameState).toBeDefined();
+        expect(nextRound.gameState.currentRound).toBeDefined();
+        expect(nextRound.gameState.currentRound!.order).toBeGreaterThan(0);
+      });
     });
 
     it("should handle showing timer expiration with question finish", async () => {
-      const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async () => {
+        const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      // Start game and pick a question to get to SHOWING state
-      await socketUtils.startGame(showmanSocket);
-      await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
+        // Start game and pick a question to get to SHOWING state
+        await socketUtils.startGame(showmanSocket);
+        await socketUtils.pickQuestion(showmanSocket, undefined, playerSockets);
 
-      // Verify game is in SHOWING state
-      const showingState = await socketUtils.getGameState(gameId);
-      expect(showingState!.questionState).toBe(QuestionState.SHOWING);
+        // Verify game is in SHOWING state
+        const showingState = await socketUtils.getGameState(gameId);
+        expect(showingState!.questionState).toBe(QuestionState.SHOWING);
 
-      // Set up event listener for question finish (normal showing timer expiration)
-      const questionFinishPromise = socketUtils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.QUESTION_FINISH,
-        1000
-      );
+        // Set up event listener for question finish (normal showing timer expiration)
+        const questionFinishPromise = socketUtils.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_FINISH,
+          1000
+        );
 
-      // Expire showing timer - this should trigger question finish and return to choosing
-      await testUtils.expireTimerAndWaitForAction(
-        gameId,
-        GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
-      );
+        // Expire showing timer - this should trigger question finish and return to choosing
+        await testUtils.expireTimerAndWaitForAction(
+          gameId,
+          GameActionType.TIMER_QUESTION_SHOWING_EXPIRED
+        );
 
-      // Verify question finish event was received
-      await questionFinishPromise;
+        // Verify question finish event was received
+        await questionFinishPromise;
 
-      // Verify game returned to SHOWING_ANSWER state
-      const finalState = await socketUtils.getGameState(gameId);
-      expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
-      expect(finalState!.currentQuestion).toBeNull();
+        // Verify game returned to SHOWING_ANSWER state
+        const finalState = await socketUtils.getGameState(gameId);
+        expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
+        expect(finalState!.currentQuestion).toBeNull();
+      });
     });
   });
 });

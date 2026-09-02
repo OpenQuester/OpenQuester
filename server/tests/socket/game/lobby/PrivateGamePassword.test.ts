@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
-import request from "supertest";
+import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { Repository } from "typeorm";
 
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
@@ -35,407 +35,447 @@ describe("PrivateGamePassword", () => {
   });
 
   it("should auto-generate a 4-character password for private game without password", async () => {
-    const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
+    await suite.scenario(async () => {
+      const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
 
-    // Create a test package
-    const packageData = packageUtils.createTestPackageData(
-      {
-        id: user.id,
-        username: user.username
-      },
-      false,
-      0
-    );
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username
+        },
+        false,
+        0
+      );
 
-    const packageRes = await request(app)
-      .post("/v1/packages")
-      .set("Cookie", cookie)
-      .send({ content: packageData });
+      const packageRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
 
-    expect(packageRes.status).toBe(200);
-    const createdPackage = packageRes.body;
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
 
-    // Create private game without password
-    const gameData: GameCreateDTO = {
-      title: "Private Game Test",
-      packageId: createdPackage.id,
-      isPrivate: true,
-      ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10
-    };
+      // Create private game without password
+      const gameData: GameCreateDTO = {
+        title: "Private Game Test",
+        packageId: createdPackage.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10
+      };
 
-    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+      const gameRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
 
-    expect(gameRes.status).toBe(200);
-    const createdGame = gameRes.body;
-    const gameId = createdGame.id;
+      expect(gameRes.status).toBe(200);
+      const createdGame = gameRes.body;
+      const gameId = createdGame.id;
 
-    // Join the game to access gameState
-    const gameDataReceived = await utils.joinSpecificGameWithData(
-      socket,
-      gameId,
-      PlayerRole.SHOWMAN
-    );
+      // Join the game to access gameState
+      const gameDataReceived = await utils.joinSpecificGameWithData(
+        socket,
+        gameId,
+        PlayerRole.SHOWMAN
+      );
 
-    // Verify password was auto-generated
-    expect(gameDataReceived.gameState.password).toBeDefined();
-    expect(gameDataReceived.gameState.password).toHaveLength(4);
-    expect(gameDataReceived.gameState.password).toMatch(/^[A-Z]+$/);
+      // Verify password was auto-generated
+      expect(gameDataReceived.gameState.password).toBeDefined();
+      expect(gameDataReceived.gameState.password).toHaveLength(4);
+      expect(gameDataReceived.gameState.password).toMatch(/^[A-Z]+$/);
 
-    // Clean up
-    await utils.deleteGame(app, gameId, [cookie]);
+      // Clean up
+      await utils.deleteGame(app, gameId, [cookie]);
+    });
   });
 
   it("should use custom password for private game when provided", async () => {
-    const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
+    await suite.scenario(async () => {
+      const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
 
-    // Create a test package
-    const packageData = packageUtils.createTestPackageData(
-      {
-        id: user.id,
-        username: user.username
-      },
-      false,
-      0
-    );
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username
+        },
+        false,
+        0
+      );
 
-    const packageRes = await request(app)
-      .post("/v1/packages")
-      .set("Cookie", cookie)
-      .send({ content: packageData });
+      const packageRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
 
-    expect(packageRes.status).toBe(200);
-    const createdPackage = packageRes.body;
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
 
-    // Create private game with custom password
-    const customPassword = "Pass_123-Xyz";
-    const gameData: GameCreateDTO = {
-      title: "Private Game Test",
-      packageId: createdPackage.id,
-      isPrivate: true,
-      ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10,
-      password: customPassword
-    };
+      // Create private game with custom password
+      const customPassword = "Pass_123-Xyz";
+      const gameData: GameCreateDTO = {
+        title: "Private Game Test",
+        packageId: createdPackage.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10,
+        password: customPassword
+      };
 
-    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+      const gameRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
 
-    expect(gameRes.status).toBe(200);
-    const createdGame = gameRes.body;
-    const gameId = createdGame.id;
+      expect(gameRes.status).toBe(200);
+      const createdGame = gameRes.body;
+      const gameId = createdGame.id;
 
-    // Join the game to access gameState
-    const gameDataReceived = await utils.joinSpecificGameWithData(
-      socket,
-      gameId,
-      PlayerRole.SHOWMAN
-    );
+      // Join the game to access gameState
+      const gameDataReceived = await utils.joinSpecificGameWithData(
+        socket,
+        gameId,
+        PlayerRole.SHOWMAN
+      );
 
-    // Verify custom password is used
-    expect(gameDataReceived.gameState.password).toBe(customPassword);
+      // Verify custom password is used
+      expect(gameDataReceived.gameState.password).toBe(customPassword);
 
-    // Clean up
-    await utils.deleteGame(app, gameId, [cookie]);
+      // Clean up
+      await utils.deleteGame(app, gameId, [cookie]);
+    });
   });
 
   it("should not set password for non-private games", async () => {
-    const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
+    await suite.scenario(async () => {
+      const { socket, user, cookie } = await utils.createGameClient(app, userRepo);
 
-    // Create a test package
-    const packageData = packageUtils.createTestPackageData(
-      {
-        id: user.id,
-        username: user.username
-      },
-      false,
-      0
-    );
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username
+        },
+        false,
+        0
+      );
 
-    const packageRes = await request(app)
-      .post("/v1/packages")
-      .set("Cookie", cookie)
-      .send({ content: packageData });
+      const packageRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
 
-    expect(packageRes.status).toBe(200);
-    const createdPackage = packageRes.body;
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
 
-    // Create non-private game
-    const gameData: GameCreateDTO = {
-      title: "Public Game Test",
-      packageId: createdPackage.id,
-      isPrivate: false,
-      ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10
-    };
+      // Create non-private game
+      const gameData: GameCreateDTO = {
+        title: "Public Game Test",
+        packageId: createdPackage.id,
+        isPrivate: false,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10
+      };
 
-    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+      const gameRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
 
-    expect(gameRes.status).toBe(200);
-    const createdGame = gameRes.body;
-    const gameId = createdGame.id;
+      expect(gameRes.status).toBe(200);
+      const createdGame = gameRes.body;
+      const gameId = createdGame.id;
 
-    // Join the game to access gameState
-    const gameDataReceived = await utils.joinSpecificGameWithData(
-      socket,
-      gameId,
-      PlayerRole.SHOWMAN
-    );
+      // Join the game to access gameState
+      const gameDataReceived = await utils.joinSpecificGameWithData(
+        socket,
+        gameId,
+        PlayerRole.SHOWMAN
+      );
 
-    // Verify password is not set for public games
-    expect(gameDataReceived.gameState.password).toBeNull();
+      // Verify password is not set for public games
+      expect(gameDataReceived.gameState.password).toBeNull();
 
-    // Clean up
-    await utils.deleteGame(app, gameId, [cookie]);
+      // Clean up
+      await utils.deleteGame(app, gameId, [cookie]);
+    });
   });
 
   it("should reject password with invalid characters", async () => {
-    const username = `testuser_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const { user, cookie } = await utils.createAndLoginUser(userRepo, app, username);
+    await suite.scenario(async () => {
+      const username = `testuser_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const { user, cookie } = await utils.createAndLoginUser(userRepo, app, username);
 
-    // Create a test package
-    const packageData = packageUtils.createTestPackageData(
-      {
-        id: user.id,
-        username: user.username
-      },
-      false,
-      0
-    );
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username
+        },
+        false,
+        0
+      );
 
-    const packageRes = await request(app)
-      .post("/v1/packages")
-      .set("Cookie", cookie)
-      .send({ content: packageData });
+      const packageRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
 
-    expect(packageRes.status).toBe(200);
-    const createdPackage = packageRes.body;
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
 
-    // Try to create game with invalid password (contains emoji/special chars)
-    const gameData: GameCreateDTO = {
-      title: "Private Game Test",
-      packageId: createdPackage.id,
-      isPrivate: true,
-      ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10,
-      password: "Pass🎮123"
-    };
+      // Try to create game with invalid password (contains emoji/special chars)
+      const gameData: GameCreateDTO = {
+        title: "Private Game Test",
+        packageId: createdPackage.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10,
+        password: "Pass🎮123"
+      };
 
-    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+      const gameRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
 
-    // Should return validation error
-    expect(gameRes.status).toBe(400);
+      // Should return validation error
+      expect(gameRes.status).toBe(400);
+    });
   });
 
   it("should reject password longer than 16 characters", async () => {
-    const username = `testuser_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const { user, cookie } = await utils.createAndLoginUser(userRepo, app, username);
+    await suite.scenario(async () => {
+      const username = `testuser_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const { user, cookie } = await utils.createAndLoginUser(userRepo, app, username);
 
-    // Create a test package
-    const packageData = packageUtils.createTestPackageData(
-      {
-        id: user.id,
-        username: user.username
-      },
-      false,
-      0
-    );
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username
+        },
+        false,
+        0
+      );
 
-    const packageRes = await request(app)
-      .post("/v1/packages")
-      .set("Cookie", cookie)
-      .send({ content: packageData });
+      const packageRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
 
-    expect(packageRes.status).toBe(200);
-    const createdPackage = packageRes.body;
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
 
-    // Try to create game with too long password
-    const gameData: GameCreateDTO = {
-      title: "Private Game Test",
-      packageId: createdPackage.id,
-      isPrivate: true,
-      ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10,
-      password: "ThisPasswordIsTooLong"
-    };
+      // Try to create game with too long password
+      const gameData: GameCreateDTO = {
+        title: "Private Game Test",
+        packageId: createdPackage.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10,
+        password: "ThisPasswordIsTooLong"
+      };
 
-    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+      const gameRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
 
-    // Should return validation error
-    expect(gameRes.status).toBe(400);
+      // Should return validation error
+      expect(gameRes.status).toBe(400);
+    });
   });
 
   it("should allow joining private game with correct password", async () => {
-    const { socket: hostSocket, user, cookie } = await utils.createGameClient(app, userRepo);
-    const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
+    await suite.scenario(async () => {
+      const { socket: hostSocket, user, cookie } = await utils.createGameClient(app, userRepo);
+      const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
 
-    // Create a test package
-    const packageData = packageUtils.createTestPackageData(
-      {
-        id: user.id,
-        username: user.username
-      },
-      false,
-      0
-    );
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username
+        },
+        false,
+        0
+      );
 
-    const packageRes = await request(app)
-      .post("/v1/packages")
-      .set("Cookie", cookie)
-      .send({ content: packageData });
+      const packageRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
 
-    expect(packageRes.status).toBe(200);
-    const createdPackage = packageRes.body;
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
 
-    // Create private game with custom password
-    const customPassword = "Test123";
-    const gameData: GameCreateDTO = {
-      title: "Private Game Test",
-      packageId: createdPackage.id,
-      isPrivate: true,
-      ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10,
-      password: customPassword
-    };
+      // Create private game with custom password
+      const customPassword = "Test123";
+      const gameData: GameCreateDTO = {
+        title: "Private Game Test",
+        packageId: createdPackage.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10,
+        password: customPassword
+      };
 
-    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+      const gameRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
 
-    expect(gameRes.status).toBe(200);
-    const createdGame = gameRes.body;
-    const gameId = createdGame.id;
+      expect(gameRes.status).toBe(200);
+      const createdGame = gameRes.body;
+      const gameId = createdGame.id;
 
-    // Host joins first
-    await utils.joinSpecificGameWithData(hostSocket, gameId, PlayerRole.SHOWMAN, customPassword);
+      // Host joins first
+      await utils.joinSpecificGameWithData(hostSocket, gameId, PlayerRole.SHOWMAN, customPassword);
 
-    // Player joins with correct password
-    const gameDataReceived = await utils.joinSpecificGameWithData(
-      playerSocket,
-      gameId,
-      PlayerRole.PLAYER,
-      customPassword
-    );
+      // Player joins with correct password
+      const gameDataReceived = await utils.joinSpecificGameWithData(
+        playerSocket,
+        gameId,
+        PlayerRole.PLAYER,
+        customPassword
+      );
 
-    // Verify join was successful
-    expect(gameDataReceived).toBeDefined();
-    expect(gameDataReceived.gameState.password).toBe(customPassword);
+      // Verify join was successful
+      expect(gameDataReceived).toBeDefined();
+      expect(gameDataReceived.gameState.password).toBe(customPassword);
 
-    // Clean up
-    await utils.deleteGame(app, gameId, [cookie]);
+      // Clean up
+      await utils.deleteGame(app, gameId, [cookie]);
+    });
   });
 
   it("should reject joining private game with incorrect password", async () => {
-    const { socket: hostSocket, user, cookie } = await utils.createGameClient(app, userRepo);
-    const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
+    await suite.scenario(async () => {
+      const { socket: hostSocket, user, cookie } = await utils.createGameClient(app, userRepo);
+      const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
 
-    // Create a test package
-    const packageData = packageUtils.createTestPackageData(
-      {
-        id: user.id,
-        username: user.username
-      },
-      false,
-      0
-    );
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username
+        },
+        false,
+        0
+      );
 
-    const packageRes = await request(app)
-      .post("/v1/packages")
-      .set("Cookie", cookie)
-      .send({ content: packageData });
+      const packageRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
 
-    expect(packageRes.status).toBe(200);
-    const createdPackage = packageRes.body;
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
 
-    // Create private game with custom password
-    const customPassword = "Test123";
-    const gameData: GameCreateDTO = {
-      title: "Private Game Test",
-      packageId: createdPackage.id,
-      isPrivate: true,
-      ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10,
-      password: customPassword
-    };
+      // Create private game with custom password
+      const customPassword = "Test123";
+      const gameData: GameCreateDTO = {
+        title: "Private Game Test",
+        packageId: createdPackage.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10,
+        password: customPassword
+      };
 
-    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+      const gameRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
 
-    expect(gameRes.status).toBe(200);
-    const createdGame = gameRes.body;
-    const gameId = createdGame.id;
+      expect(gameRes.status).toBe(200);
+      const createdGame = gameRes.body;
+      const gameId = createdGame.id;
 
-    // Host joins first
-    await utils.joinSpecificGameWithData(hostSocket, gameId, PlayerRole.SHOWMAN, customPassword);
+      // Host joins first
+      await utils.joinSpecificGameWithData(hostSocket, gameId, PlayerRole.SHOWMAN, customPassword);
 
-    // Player tries to join with incorrect password
-    const errorResult = await utils.joinGameWithPasswordExpectError(
-      playerSocket,
-      gameId,
-      PlayerRole.PLAYER,
-      "WrongPass"
-    );
+      // Player tries to join with incorrect password
+      const errorResult = await utils.joinGameWithPasswordExpectError(
+        playerSocket,
+        gameId,
+        PlayerRole.PLAYER,
+        "WrongPass"
+      );
 
-    // Verify error was received
-    expect(errorResult).toBeDefined();
-    expect(errorResult.message.toLowerCase()).toContain("incorrect");
-    expect(errorResult.message.toLowerCase()).toContain("password");
+      // Verify error was received
+      expect(errorResult).toBeDefined();
+      expect(errorResult.message.toLowerCase()).toContain("incorrect");
+      expect(errorResult.message.toLowerCase()).toContain("password");
 
-    // Clean up
-    await utils.deleteGame(app, gameId, [cookie]);
+      // Clean up
+      await utils.deleteGame(app, gameId, [cookie]);
+    });
   });
 
   it("should reject joining private game without password", async () => {
-    const { socket: hostSocket, user, cookie } = await utils.createGameClient(app, userRepo);
-    const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
+    await suite.scenario(async () => {
+      const { socket: hostSocket, user, cookie } = await utils.createGameClient(app, userRepo);
+      const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
 
-    // Create a test package
-    const packageData = packageUtils.createTestPackageData(
-      {
-        id: user.id,
-        username: user.username
-      },
-      false,
-      0
-    );
+      // Create a test package
+      const packageData = packageUtils.createTestPackageData(
+        {
+          id: user.id,
+          username: user.username
+        },
+        false,
+        0
+      );
 
-    const packageRes = await request(app)
-      .post("/v1/packages")
-      .set("Cookie", cookie)
-      .send({ content: packageData });
+      const packageRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/packages")
+        .set("Cookie", cookie)
+        .send({ content: packageData });
 
-    expect(packageRes.status).toBe(200);
-    const createdPackage = packageRes.body;
+      expect(packageRes.status).toBe(200);
+      const createdPackage = packageRes.body;
 
-    // Create private game with custom password
-    const customPassword = "Test123";
-    const gameData: GameCreateDTO = {
-      title: "Private Game Test",
-      packageId: createdPackage.id,
-      isPrivate: true,
-      ageRestriction: AgeRestriction.NONE,
-      maxPlayers: 10,
-      password: customPassword
-    };
+      // Create private game with custom password
+      const customPassword = "Test123";
+      const gameData: GameCreateDTO = {
+        title: "Private Game Test",
+        packageId: createdPackage.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10,
+        password: customPassword
+      };
 
-    const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+      const gameRes = await createHttpTestClient(suite.serverUrl)
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
 
-    expect(gameRes.status).toBe(200);
-    const createdGame = gameRes.body;
-    const gameId = createdGame.id;
+      expect(gameRes.status).toBe(200);
+      const createdGame = gameRes.body;
+      const gameId = createdGame.id;
 
-    // Host joins first
-    await utils.joinSpecificGameWithData(hostSocket, gameId, PlayerRole.SHOWMAN, customPassword);
+      // Host joins first
+      await utils.joinSpecificGameWithData(hostSocket, gameId, PlayerRole.SHOWMAN, customPassword);
 
-    // Player tries to join without password
-    const errorResult = await utils.joinGameWithPasswordExpectError(
-      playerSocket,
-      gameId,
-      PlayerRole.PLAYER
-    );
+      // Player tries to join without password
+      const errorResult = await utils.joinGameWithPasswordExpectError(
+        playerSocket,
+        gameId,
+        PlayerRole.PLAYER
+      );
 
-    // Verify error was received
-    expect(errorResult).toBeDefined();
-    expect(errorResult.message.toLowerCase()).toContain("incorrect");
-    expect(errorResult.message.toLowerCase()).toContain("password");
+      // Verify error was received
+      expect(errorResult).toBeDefined();
+      expect(errorResult.message.toLowerCase()).toContain("incorrect");
+      expect(errorResult.message.toLowerCase()).toContain("password");
 
-    // Clean up
-    await utils.deleteGame(app, gameId, [cookie]);
+      // Clean up
+      await utils.deleteGame(app, gameId, [cookie]);
+    });
   });
 });

@@ -40,244 +40,260 @@ describe("Turn Player Change Validation Edge Cases", () => {
 
   describe("Turn Change to Non-Existent Player", () => {
     it("should reject turn change to non-existent player ID", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, gameId } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Non-existent player ID
-      const nonExistentPlayerId = 999999;
+        // Non-existent player ID
+        const nonExistentPlayerId = 999999;
 
-      // Wait for error
-      const errorPromise = utils.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
+        // Wait for error
+        const errorPromise = scenario.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
 
-      showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
-        newTurnPlayerId: nonExistentPlayerId
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
+          newTurnPlayerId: nonExistentPlayerId
+        });
+
+        const error = await errorPromise;
+        expect(error.message).toContain("Player not found");
+
+        // Verify current turn player is unchanged
+        const gameState = await utils.getGameState(gameId);
+        expect(gameState!.currentTurnPlayerId).not.toBe(nonExistentPlayerId);
       });
-
-      const error = await errorPromise;
-      expect(error.message).toContain("Player not found");
-
-      // Verify current turn player is unchanged
-      const gameState = await utils.getGameState(gameId);
-      expect(gameState!.currentTurnPlayerId).not.toBe(nonExistentPlayerId);
     });
 
     it("should reject turn change to player not in this game", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, gameId } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Create a user who is not in this game
-      const { user: outsideUser } = await utils.createGameClient(app, userRepo);
+        // Create a user who is not in this game
+        const { user: outsideUser } = await utils.createGameClient(app, userRepo);
 
-      // Wait for error
-      const errorPromise = utils.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
+        // Wait for error
+        const errorPromise = scenario.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
 
-      showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
-        newTurnPlayerId: outsideUser.id
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
+          newTurnPlayerId: outsideUser.id
+        });
+
+        const error = await errorPromise;
+        expect(error.message).toContain("Player not found");
+
+        // Verify current turn player is unchanged
+        const gameState = await utils.getGameState(gameId);
+        expect(gameState!.currentTurnPlayerId).not.toBe(outsideUser.id);
       });
-
-      const error = await errorPromise;
-      expect(error.message).toContain("Player not found");
-
-      // Verify current turn player is unchanged
-      const gameState = await utils.getGameState(gameId);
-      expect(gameState!.currentTurnPlayerId).not.toBe(outsideUser.id);
     });
   });
 
   describe("Turn Change to Spectator", () => {
     it("should reject turn change to spectator", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
-      const { showmanSocket, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 1);
+        const { showmanSocket, gameId } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Get the spectator from game - they should have been created as part of setup
-      const game = await utils.getGameFromGameService(gameId);
-      const spectator = game.players.find((p) => p.role === PlayerRole.SPECTATOR);
-      expect(spectator).toBeDefined();
+        // Get the spectator from game - they should have been created as part of setup
+        const game = await utils.getGameFromGameService(gameId);
+        const spectator = game.players.find((p) => p.role === PlayerRole.SPECTATOR);
+        expect(spectator).toBeDefined();
 
-      // Wait for error when trying to set turn to spectator
-      const errorPromise = utils.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
+        // Wait for error when trying to set turn to spectator
+        const errorPromise = scenario.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
 
-      showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
-        newTurnPlayerId: spectator!.meta.id
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
+          newTurnPlayerId: spectator!.meta.id
+        });
+
+        const error = await errorPromise;
+        expect(error.message).toContain("Player not found");
+
+        // Verify turn is still on a valid player
+        const gameState = await utils.getGameState(gameId);
+        expect(gameState!.currentTurnPlayerId).not.toBe(spectator!.meta.id);
       });
-
-      const error = await errorPromise;
-      expect(error.message).toContain("Player not found");
-
-      // Verify turn is still on a valid player
-      const gameState = await utils.getGameState(gameId);
-      expect(gameState!.currentTurnPlayerId).not.toBe(spectator!.meta.id);
     });
 
     it("should reject turn change to player who was restricted to spectator", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
-      const { showmanSocket, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+        const { showmanSocket, gameId, playerUsers } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Restrict player 0 to spectator
-      const restrictionPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.PLAYER_RESTRICTED
-      );
+        // Restrict player 0 to spectator
+        const restrictionPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.PLAYER_RESTRICTED
+        );
 
-      showmanSocket.emit(SocketIOGameEvents.PLAYER_RESTRICTED, {
-        playerId: playerUsers[0].id,
-        muted: false,
-        restricted: true,
-        banned: false
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_RESTRICTED, {
+          playerId: playerUsers[0].id,
+          muted: false,
+          restricted: true,
+          banned: false
+        });
+
+        await restrictionPromise;
+
+        // Wait for error when trying to set turn to restricted player
+        const errorPromise = scenario.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
+
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
+          newTurnPlayerId: playerUsers[0].id
+        });
+
+        const error = await errorPromise;
+        expect(error.message).toContain("Player not found");
+
+        // Turn should NOT be on the restricted player
+        const gameState = await utils.getGameState(gameId);
+        expect(gameState!.currentTurnPlayerId).not.toBe(playerUsers[0].id);
       });
-
-      await restrictionPromise;
-
-      // Wait for error when trying to set turn to restricted player
-      const errorPromise = utils.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
-
-      showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
-        newTurnPlayerId: playerUsers[0].id
-      });
-
-      const error = await errorPromise;
-      expect(error.message).toContain("Player not found");
-
-      // Turn should NOT be on the restricted player
-      const gameState = await utils.getGameState(gameId);
-      expect(gameState!.currentTurnPlayerId).not.toBe(playerUsers[0].id);
     });
   });
 
   describe("Turn Change to Disconnected Player", () => {
     it("should reject turn change to disconnected player", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Get current turn player to make sure we don't pick them for disconnect
-      const gameStateBefore = await utils.getGameState(gameId);
-      const currentTurn = gameStateBefore!.currentTurnPlayerId;
+        // Get current turn player to make sure we don't pick them for disconnect
+        const gameStateBefore = await utils.getGameState(gameId);
+        const currentTurn = gameStateBefore!.currentTurnPlayerId;
 
-      // Find a player who is NOT the current turn player to disconnect
-      const playerToDisconnect = playerUsers.find((u) => u.id !== currentTurn)!;
-      const playerIndex = playerUsers.indexOf(playerToDisconnect);
+        // Find a player who is NOT the current turn player to disconnect
+        const playerToDisconnect = playerUsers.find((u) => u.id !== currentTurn)!;
+        const playerIndex = playerUsers.indexOf(playerToDisconnect);
 
-      // Wait for leave event after disconnect (disconnect triggers LEAVE event)
-      const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE, 3000);
+        // Wait for leave event after disconnect (disconnect triggers LEAVE event)
+        const leavePromise = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE, 3000);
 
-      // Disconnect this player (simulate connection drop)
-      playerSockets[playerIndex].disconnect();
+        // Disconnect this player (simulate connection drop)
+        scenario.actor(playerSockets[playerIndex]).disconnect();
 
-      await leavePromise;
+        await leavePromise;
 
-      // Verify player is actually disconnected
-      const game = await utils.getGameFromGameService(gameId);
-      const player = game.getPlayer(playerToDisconnect.id, {
-        fetchDisconnected: true
+        // Verify player is actually disconnected
+        const game = await utils.getGameFromGameService(gameId);
+        const player = game.getPlayer(playerToDisconnect.id, {
+          fetchDisconnected: true
+        });
+        expect(player?.gameStatus).toBe(PlayerGameStatus.DISCONNECTED);
+
+        // Wait for error when trying to set turn to disconnected player
+        const errorPromise = scenario.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
+
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
+          newTurnPlayerId: playerToDisconnect.id
+        });
+
+        const error = await errorPromise;
+        expect(error.message).toContain("Player not found");
+
+        // Verify turn was NOT changed to disconnected player
+        const gameStateAfter = await utils.getGameState(gameId);
+        expect(gameStateAfter!.currentTurnPlayerId).not.toBe(playerToDisconnect.id);
       });
-      expect(player?.gameStatus).toBe(PlayerGameStatus.DISCONNECTED);
-
-      // Wait for error when trying to set turn to disconnected player
-      const errorPromise = utils.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
-
-      showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
-        newTurnPlayerId: playerToDisconnect.id
-      });
-
-      const error = await errorPromise;
-      expect(error.message).toContain("Player not found");
-
-      // Verify turn was NOT changed to disconnected player
-      const gameStateAfter = await utils.getGameState(gameId);
-      expect(gameStateAfter!.currentTurnPlayerId).not.toBe(playerToDisconnect.id);
     });
 
     it("should reject turn change to player who left the game", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Get current turn player to make sure we don't pick them for leave
-      const gameStateBefore = await utils.getGameState(gameId);
-      const currentTurn = gameStateBefore!.currentTurnPlayerId;
+        // Get current turn player to make sure we don't pick them for leave
+        const gameStateBefore = await utils.getGameState(gameId);
+        const currentTurn = gameStateBefore!.currentTurnPlayerId;
 
-      // Find a player who is NOT the current turn player
-      const playerToLeave = playerUsers.find((u) => u.id !== currentTurn)!;
-      const playerIndex = playerUsers.indexOf(playerToLeave);
+        // Find a player who is NOT the current turn player
+        const playerToLeave = playerUsers.find((u) => u.id !== currentTurn)!;
+        const playerIndex = playerUsers.indexOf(playerToLeave);
 
-      // Player leaves the game
-      const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+        // Player leaves the game
+        const leavePromise = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
 
-      playerSockets[playerIndex].emit(SocketIOGameEvents.LEAVE);
-      await leavePromise;
+        scenario.actor(playerSockets[playerIndex]).emit(SocketIOGameEvents.LEAVE);
+        await leavePromise;
 
-      // Wait for error when trying to set turn to player who left
-      const errorPromise = utils.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
+        // Wait for error when trying to set turn to player who left
+        const errorPromise = scenario.waitForEvent(showmanSocket, SocketIOEvents.ERROR, 2000);
 
-      showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
-        newTurnPlayerId: playerToLeave.id
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
+          newTurnPlayerId: playerToLeave.id
+        });
+
+        const error = await errorPromise;
+        expect(error.message).toContain("Player not found");
+
+        // Verify turn was NOT changed to the player who left
+        const gameStateAfter = await utils.getGameState(gameId);
+        expect(gameStateAfter!.currentTurnPlayerId).not.toBe(playerToLeave.id);
       });
-
-      const error = await errorPromise;
-      expect(error.message).toContain("Player not found");
-
-      // Verify turn was NOT changed to the player who left
-      const gameStateAfter = await utils.getGameState(gameId);
-      expect(gameStateAfter!.currentTurnPlayerId).not.toBe(playerToLeave.id);
     });
   });
 
   describe("Valid Turn Changes", () => {
     it("should allow turn change to valid active player", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, gameId, playerUsers } = setup;
+      await suite.scenario(async () => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, gameId, playerUsers } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Get the other player (not current turn)
-      const gameStateBefore = await utils.getGameState(gameId);
-      const currentTurn = gameStateBefore!.currentTurnPlayerId;
-      const otherPlayer = playerUsers.find((u) => u.id !== currentTurn)!;
+        // Get the other player (not current turn)
+        const gameStateBefore = await utils.getGameState(gameId);
+        const currentTurn = gameStateBefore!.currentTurnPlayerId;
+        const otherPlayer = playerUsers.find((u) => u.id !== currentTurn)!;
 
-      // Set turn to other player
-      await utils.setCurrentTurnPlayer(showmanSocket, otherPlayer.id);
+        // Set turn to other player
+        await utils.setCurrentTurnPlayer(showmanSocket, otherPlayer.id);
 
-      // Verify turn was changed
-      const gameStateAfter = await utils.getGameState(gameId);
-      expect(gameStateAfter!.currentTurnPlayerId).toBe(otherPlayer.id);
+        // Verify turn was changed
+        const gameStateAfter = await utils.getGameState(gameId);
+        expect(gameStateAfter!.currentTurnPlayerId).toBe(otherPlayer.id);
+      });
     });
 
     it("should allow setting turn to null", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, gameId } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Verify we have a turn player
-      const gameStateBefore = await utils.getGameState(gameId);
-      expect(gameStateBefore!.currentTurnPlayerId).toBeDefined();
+        // Verify we have a turn player
+        const gameStateBefore = await utils.getGameState(gameId);
+        expect(gameStateBefore!.currentTurnPlayerId).toBeDefined();
 
-      // Set turn to null
-      const turnChangePromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.TURN_PLAYER_CHANGED
-      );
+        // Set turn to null
+        const turnChangePromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.TURN_PLAYER_CHANGED
+        );
 
-      showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
-        newTurnPlayerId: null
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
+          newTurnPlayerId: null
+        });
+
+        await turnChangePromise;
+
+        // Verify turn was set to null
+        const gameStateAfter = await utils.getGameState(gameId);
+        expect(gameStateAfter!.currentTurnPlayerId).toBeNull();
       });
-
-      await turnChangePromise;
-
-      // Verify turn was set to null
-      const gameStateAfter = await utils.getGameState(gameId);
-      expect(gameStateAfter!.currentTurnPlayerId).toBeNull();
     });
   });
 });

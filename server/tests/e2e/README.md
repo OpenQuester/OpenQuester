@@ -1,6 +1,21 @@
 # E2E Test Lifecycle Rules
 
-- Use `ServerTestHarness` for new E2E suites that need a running server.
+## Choose the right layer
+
+| Test behavior                                                                              | Writing mechanism                                                                                            |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| REST endpoints: users, permissions, mute, packages, search, admin logs                     | `ServerTestHarness` + `createHttpTestClient(harness.serverUrl)`                                              |
+| Gameplay and hybrid HTTP/Socket.IO behavior, including user notifications and game updates | `SocketGameTestSuite` + `suite.scenario(...)` + `GameScenario` assertions                                    |
+| Dedicated media coordination scenarios                                                     | `withMediaDownloadFlow(...)`, which owns a `GameScenario` and its assertions                                 |
+| Queue/repository/database/logger internals and harness self-tests                          | Focused unit/integration helpers appropriate to the component; do not pretend these are client E2E scenarios |
+
+The migration covers backend transport E2Es. It does not turn pure domain tests or infrastructure
+self-tests into gameplay scenarios, and it does not add Flutter/browser E2E coverage.
+
+## Shared lifecycle
+
+- Use `ServerTestHarness` for E2E suites that need a running server, either directly for HTTP or
+  through `SocketGameTestSuite` for realtime scenarios.
 - Exercise the real HTTP and Socket.IO transports through `serverUrl`.
 - All async waits must be named and bounded.
 - Timeout failures must include the operation or event, timeout duration, and actor/socket context.
@@ -8,7 +23,7 @@
 - After each transport scenario, call `harness.resetState()` only after flow/client cleanup; it
   rejects leaked sockets before clearing Redis so one case cannot contaminate the next.
 - Cleanup failures must fail the test run; do not catch and only log them.
-- Legacy suites that still call `bootstrapTestApp` directly must finish with
+- Internal integration tests that call `bootstrapTestApp` directly must finish with
   `teardownTestAppResources(cleanup, testEnv)`, which closes the app before its shared Redis,
   database, and logger environment and preserves failures from both stages.
 - Use `runAndWaitForEvent` when a multi-step operation is expected to produce a terminal event; it
@@ -27,16 +42,46 @@
 - PostgreSQL and Redis are required for transport E2E suites. Run focused checks through
   `npm run test:pipeline -- path/to/test.ts --runInBand`.
 
+## HTTP test rules
+
+- Start the harness with `{ apiPort: 0 }`; always use its resolved `serverUrl`, never an environment
+  port guess or `supertest(app)`.
+- Create `http = createHttpTestClient(harness.serverUrl)` in `beforeEach`. The stateless client
+  supports `.get`, `.post`, `.put`, `.patch`, `.delete`, `.head`, and `.options`, followed by the
+  existing `.query`, `.set`, `.send`, and `.expect` request assertions.
+- Every request has a deadline covering both response headers and the complete response body.
+  Transport errors name the HTTP method and URL. Do not disable deadlines to hide a stalled request.
+- Supply authentication explicitly with `.set("Cookie", cookie)`. The client does not retain a
+  cookie jar: logging in as an admin must not accidentally authenticate a later guest request.
+- Await each request and assert its status and relevant response fields. Keep persistence checks
+  when they prove a separate observable effect; do not replace HTTP calls with controller calls.
+- Per-case database fixtures remain suite-owned; finish them before `harness.resetState()`. Call
+  `await harness?.stop()` in `afterAll`, including after partial setup failure.
+- HTTP actions inside a realtime scenario use the same bounded client. Arm the corresponding
+  scenario event expectation before the HTTP mutation.
+
 ## Scenario and journal rules
 
-- Use `GameScenario`, `ScenarioActor`, `ScenarioAssertions`, and `EventJournal` for new
-  client-perspective game-flow tests.
-- Attach every relevant actor socket to the journal before emitting commands.
-- Prefer actor methods over raw `socket.emit` in scenario tests.
+- Wrap each gameplay or hybrid test body in `await suite.scenario(async (scenario) => { ... })`. The
+  wrapper finishes successful scenarios, aborts failed ones, and preserves assertion/disposal
+  failures. Use `await suite?.reset()` in `afterEach` and `await suite?.stop()` in `afterAll`.
+- Obtain actors with `scenario.actor(socket, optionalLabel)` and issue commands through
+  `scenario.actor(socket).emit(...)`. Actor identity belongs to a socket connection; reconnecting
+  creates a new generation instead of letting old events satisfy new assertions.
+- Suite-owned clients are attached to the active scenario automatically. Attach any separately
+  created relevant actor socket before emitting commands.
+- Use `scenario.waitForEvent`, `waitForEventMatching`, `waitForNoEvent`, `emitAndWaitForEvent`, and
+  `runAndWaitForEvent` for bounded expectations. Event waits inspect only records after
+  registration; an older event with the same name cannot satisfy a new wait.
+- Shared game-flow helpers route their internal waits through the active scenario too; using a
+  helper does not opt out of journal-backed assertions or failure ownership.
+- Use `ScenarioAssertions` for exact broadcasts, counts, history, and state assertions. Use
+  `scenario.collectEvents` or `collectSocketEvents` for bounded multi-event collections instead of
+  copied `.on`, `.once`, or timer-based collectors.
 - Use `scenario.mark()` before a burst of commands when assertions should only inspect new events.
-- Follow this sequence for every realtime step: **mark → arm accepted-action probe and event waits →
-  emit → await them together → drain → make exact history/state assertions**. Do not use queue drain
-  to prove an action was accepted before its atomic enqueue is observed.
+- For queued-action history/state checks, follow: **mark → arm accepted-action probe and event waits
+  → emit → await them together → drain → make exact history/state assertions**. Do not use queue
+  drain to prove an action was accepted before its atomic enqueue is observed.
 - An accepted action is one whose atomic Redis queue enqueue completed successfully. It is not
   merely an entry into `GameActionExecutor.submitAction`.
 - Predicate event expectations by actor/payload when the event can be broadcast more than once.
@@ -50,14 +95,14 @@
   window.
 - Scenario tests may emit bursts, such as duplicate or concurrent media-download commands, and
   assert the resulting journal history afterwards.
-- Actor labels are unique. Reconnect scenarios need an explicit connection generation design instead
-  of silently replacing an actor.
-- End a successful scenario with `scenario.finish()`. It waits for every tracked event, aggregate,
-  derived validation, state assertion, and accepted-action count, so a forgotten promise cannot make
-  the test pass.
-- End a scenario whose primary test body already failed with `scenario.abort()`. Abort cancels
-  pending waits before socket cleanup without replacing the primary failure with derivative
-  cancellation errors.
+- Actor labels are unique. `scenario.actor(...)` manages reconnect generations; do not manually
+  register a replacement using an existing label.
+- The suite wrapper ends a successful scenario with `scenario.finish()`. It waits for every tracked
+  event, aggregate, derived validation, state assertion, and accepted-action count, so a forgotten
+  promise cannot make the test pass.
+- The suite wrapper ends a scenario whose primary test body already failed with `scenario.abort()`.
+  Abort cancels pending waits before socket cleanup without replacing the primary failure with
+  derivative cancellation errors.
 - Track the complete derived or aggregate expectation, not only its underlying event wait.
   Accepted-action probe waits created by `GameScenario` are tracked automatically.
 
@@ -72,15 +117,24 @@
 - A flow helper must surface cleanup failures. If both the scenario and cleanup fail, preserve both
   errors in one aggregate.
 
-## Migration rule
+## Media test target and coverage boundary
 
-Media Download is the scenario/journal golden contract slice, including readiness, timeout,
-duplicate, leave, disconnect, kick, and restriction behavior. Its client contract is explicit:
+Media Download is the dedicated scenario/journal contract slice, including readiness, timeout,
+duplicate, leave, disconnect, kick, and restriction behavior. Its current **test target** is:
 `QUESTION_PICK` preloads media metadata, `QUESTION_DATA` remains absent while the readiness gate is
 closed, and the full question is revealed only after final readiness, timeout, or an equivalent
 gate-opening transition. A no-file question preloads an empty file list and auto-reveals without a
-client acknowledgement. Keep a backend mismatch red; do not weaken these assertions or reintroduce
-media coverage through the legacy socket helpers.
+client acknowledgement.
+
+This target is not a claim about the current server protocol: the existing implementation and
+`server/docs/media-download-sync.md` send `QUESTION_DATA` before client readiness. The separate
+preload/reveal expectation is therefore a known backend/test-contract mismatch. Keep it visible; do
+not change production rules or weaken expectations as part of a writing-mechanism migration.
+
+Media tests supply file metadata and simulate clients sending `MEDIA_DOWNLOADED`. They verify server
+coordination, event order, readiness gating, and timers. They do not download file bytes, execute
+Flutter media loading, or prove that the UI hides or plays media at the right time. Those claims
+require client-side coverage. Actual game-rule uncertainty must be resolved with the user.
 
 ## Static contract checks
 
@@ -89,9 +143,12 @@ and handler registration. It complements, but does not replace, real Socket.IO t
 coverage.
 
 `tests/e2e/contracts/SocketGameTransportPolicy.test.ts` keeps migrated gameplay suites on the shared
-lifecycle and rejects copied bootstrap/cleanup, warn-and-skip branches, and hand-written event
-timers outside the queue-mechanics stress collectors. It also rejects disabled/focused cases and
-catch-all branches that could turn an infrastructure failure into a passing assertion.
+scenario/lifecycle and rejects copied bootstrap/cleanup, warn-and-skip branches, and hand-written
+event timers. It also rejects disabled/focused cases and catch-all branches that could turn an
+infrastructure failure into a passing assertion.
 
-`tests/e2e/contracts/TestLifecyclePolicy.test.ts` keeps remaining direct test-app callers on the
+`tests/e2e/contracts/HttpTransportPolicy.test.ts` keeps HTTP and hybrid endpoint suites on their
+harness/scenario lifecycle and rejects direct unbounded HTTP requests and guessed server ports.
+
+`tests/e2e/contracts/TestLifecyclePolicy.test.ts` keeps internal direct test-app callers on the
 ordered teardown helper and rejects teardown failures that are caught and only logged.

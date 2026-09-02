@@ -74,15 +74,17 @@ describe("Stake Question Validation Tests", () => {
     const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
     if (shouldPickQuestion) {
-      const stakeQuestionPickedPromise = utils.waitForEvent(
+      const stakeQuestionPickedPromise = suite.currentScenario.waitForEvent(
         showmanSocket,
         SocketIOGameEvents.STAKE_QUESTION_PICKED
       );
 
       // Pick the stake question
-      setup.playerSockets[pickerIndex].emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: stakeQuestionId
-      });
+      suite.currentScenario
+        .actor(setup.playerSockets[pickerIndex])
+        .emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestionId
+        });
 
       // Wait for stake question to be picked
       await stakeQuestionPickedPromise;
@@ -96,297 +98,328 @@ describe("Stake Question Validation Tests", () => {
 
   describe("Normal numeric bids below question price should be rejected", () => {
     it("should reject normal numeric bid that is below question price", async () => {
-      // Setup: Player with sufficient score (1000) but tries to bid below question price (200)
-      const { setup } = await _prepare({
-        playerScores: [1000, 600, 400], // Player 0 has enough to bid properly
-        shouldPickQuestion: true,
-        pickerIndex: 0
+      await suite.scenario(async (scenario) => {
+        // Setup: Player with sufficient score (1000) but tries to bid below question price (200)
+        const { setup } = await _prepare({
+          playerScores: [1000, 600, 400], // Player 0 has enough to bid properly
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
+
+        const { playerSockets } = setup;
+
+        // Listen for error on Player 0's socket (the one making the invalid bid)
+        const errorPromise = scenario.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
+
+        // Player 0 tries to bid 150 (below question price of 200)
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 150 // Below question price of 200
+        } as StakeBidSubmitInputData);
+
+        // Should receive an error
+        const error = await errorPromise;
+        expect(error.message).toMatch(/below.*question.*price/i);
       });
-
-      const { playerSockets } = setup;
-
-      // Listen for error on Player 0's socket (the one making the invalid bid)
-      const errorPromise = utils.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
-
-      // Player 0 tries to bid 150 (below question price of 200)
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 150 // Below question price of 200
-      } as StakeBidSubmitInputData);
-
-      // Should receive an error
-      const error = await errorPromise;
-      expect(error.message).toMatch(/below.*question.*price/i);
     });
 
     it("should accept normal numeric bid equal to question price", async () => {
-      // Setup: Player with sufficient score tries to bid exactly the question price
-      const { setup } = await _prepare({
-        playerScores: [1000, 600, 400],
-        shouldPickQuestion: true,
-        pickerIndex: 0
+      await suite.scenario(async (scenario) => {
+        // Setup: Player with sufficient score tries to bid exactly the question price
+        const { setup } = await _prepare({
+          playerScores: [1000, 600, 400],
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
+
+        const { playerSockets, showmanSocket } = setup;
+
+        // Listen for successful bid submission
+        const bidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+
+        // Player 0 bids exactly the question price (200)
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 200 // Equal to question price
+        } as StakeBidSubmitInputData);
+
+        // Should succeed
+        const result = await bidPromise;
+        expect(result.bidAmount).toBe(200);
+        expect(result.bidType).toBe(StakeBidType.NORMAL);
       });
-
-      const { playerSockets, showmanSocket } = setup;
-
-      // Listen for successful bid submission
-      const bidPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_BID_SUBMIT);
-
-      // Player 0 bids exactly the question price (200)
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 200 // Equal to question price
-      } as StakeBidSubmitInputData);
-
-      // Should succeed
-      const result = await bidPromise;
-      expect(result.bidAmount).toBe(200);
-      expect(result.bidType).toBe(StakeBidType.NORMAL);
     });
 
     it("should accept normal numeric bid above question price", async () => {
-      // Setup: Player with sufficient score bids above question price
-      const { setup } = await _prepare({
-        playerScores: [1000, 600, 400],
-        shouldPickQuestion: true,
-        pickerIndex: 0
+      await suite.scenario(async (scenario) => {
+        // Setup: Player with sufficient score bids above question price
+        const { setup } = await _prepare({
+          playerScores: [1000, 600, 400],
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
+
+        const { playerSockets, showmanSocket } = setup;
+
+        // Listen for successful bid submission
+        const bidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+
+        // Player 0 bids above the question price
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250 // Above question price of 200
+        } as StakeBidSubmitInputData);
+
+        // Should succeed
+        const result = await bidPromise;
+        expect(result.bidAmount).toBe(250);
+        expect(result.bidType).toBe(StakeBidType.NORMAL);
       });
-
-      const { playerSockets, showmanSocket } = setup;
-
-      // Listen for successful bid submission
-      const bidPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_BID_SUBMIT);
-
-      // Player 0 bids above the question price
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 250 // Above question price of 200
-      } as StakeBidSubmitInputData);
-
-      // Should succeed
-      const result = await bidPromise;
-      expect(result.bidAmount).toBe(250);
-      expect(result.bidType).toBe(StakeBidType.NORMAL);
     });
   });
 
   describe("Players who already passed should not be able to bid again", () => {
     it("should reject any bid from player who already passed", async () => {
-      // Setup normal game and have a player pass, then try to bid again
-      const { setup } = await _prepare({
-        playerScores: [500, 600, 400],
-        shouldPickQuestion: true,
-        pickerIndex: 0
+      await suite.scenario(async (scenario) => {
+        // Setup normal game and have a player pass, then try to bid again
+        const { setup } = await _prepare({
+          playerScores: [500, 600, 400],
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
+
+        const { playerSockets, showmanSocket } = setup;
+
+        // Player 0 makes initial bid
+        const firstBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 220
+        } as StakeBidSubmitInputData);
+
+        await firstBidPromise;
+
+        // Player 1 passes
+        const passPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.PASS,
+          bidAmount: null
+        } as StakeBidSubmitInputData);
+
+        await passPromise;
+
+        // Player 2 makes a bid to continue the round
+        const secondBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 240
+        } as StakeBidSubmitInputData);
+
+        await secondBidPromise;
+
+        // Now it's back to Player 0's turn, but if Player 1 (who passed) tries to bid, it should fail
+        // Listen for error on Player 1's socket
+        const errorPromise = scenario.waitForEvent(playerSockets[1], SocketIOEvents.ERROR);
+
+        // Player 1 (who already passed) tries to bid again
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 260
+        } as StakeBidSubmitInputData);
+
+        // Should receive an error
+        const error = await errorPromise;
+        expect(error.message).toMatch(/already.*passed|cannot.*bid/i);
       });
-
-      const { playerSockets, showmanSocket } = setup;
-
-      // Player 0 makes initial bid
-      const firstBidPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_BID_SUBMIT
-      );
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 220
-      } as StakeBidSubmitInputData);
-
-      await firstBidPromise;
-
-      // Player 1 passes
-      const passPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_BID_SUBMIT);
-      playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.PASS,
-        bidAmount: null
-      } as StakeBidSubmitInputData);
-
-      await passPromise;
-
-      // Player 2 makes a bid to continue the round
-      const secondBidPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_BID_SUBMIT
-      );
-      playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 240
-      } as StakeBidSubmitInputData);
-
-      await secondBidPromise;
-
-      // Now it's back to Player 0's turn, but if Player 1 (who passed) tries to bid, it should fail
-      // Listen for error on Player 1's socket
-      const errorPromise = utils.waitForEvent(playerSockets[1], SocketIOEvents.ERROR);
-
-      // Player 1 (who already passed) tries to bid again
-      playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 260
-      } as StakeBidSubmitInputData);
-
-      // Should receive an error
-      const error = await errorPromise;
-      expect(error.message).toMatch(/already.*passed|cannot.*bid/i);
     });
 
     it("should reject ALL_IN bid from player who already passed", async () => {
-      // Similar setup but player tries ALL_IN after passing
-      const { setup } = await _prepare({
-        playerScores: [500, 600, 400],
-        shouldPickQuestion: true,
-        pickerIndex: 0
+      await suite.scenario(async (scenario) => {
+        // Similar setup but player tries ALL_IN after passing
+        const { setup } = await _prepare({
+          playerScores: [500, 600, 400],
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
+
+        const { playerSockets, showmanSocket } = setup;
+
+        // Player 0 makes initial bid
+        const firstBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 220
+        } as StakeBidSubmitInputData);
+
+        await firstBidPromise;
+
+        // Player 1 passes
+        const passPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.PASS,
+          bidAmount: null
+        } as StakeBidSubmitInputData);
+
+        await passPromise;
+
+        // Player 2 makes a bid
+        const secondBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 240
+        } as StakeBidSubmitInputData);
+
+        await secondBidPromise;
+
+        // Listen for error on Player 1's socket
+        const errorPromise = scenario.waitForEvent(playerSockets[1], SocketIOEvents.ERROR);
+
+        // Player 1 (who already passed) tries to go ALL_IN
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.ALL_IN,
+          bidAmount: null
+        } as StakeBidSubmitInputData);
+
+        // Should receive an error
+        const error = await errorPromise;
+        expect(error.message).toMatch(/already.*passed|cannot.*bid/i);
       });
-
-      const { playerSockets, showmanSocket } = setup;
-
-      // Player 0 makes initial bid
-      const firstBidPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_BID_SUBMIT
-      );
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 220
-      } as StakeBidSubmitInputData);
-
-      await firstBidPromise;
-
-      // Player 1 passes
-      const passPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_BID_SUBMIT);
-      playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.PASS,
-        bidAmount: null
-      } as StakeBidSubmitInputData);
-
-      await passPromise;
-
-      // Player 2 makes a bid
-      const secondBidPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_BID_SUBMIT
-      );
-      playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 240
-      } as StakeBidSubmitInputData);
-
-      await secondBidPromise;
-
-      // Listen for error on Player 1's socket
-      const errorPromise = utils.waitForEvent(playerSockets[1], SocketIOEvents.ERROR);
-
-      // Player 1 (who already passed) tries to go ALL_IN
-      playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.ALL_IN,
-        bidAmount: null
-      } as StakeBidSubmitInputData);
-
-      // Should receive an error
-      const error = await errorPromise;
-      expect(error.message).toMatch(/already.*passed|cannot.*bid/i);
     });
 
     it("should reject PASS bid from player who already passed", async () => {
-      // Player who already passed tries to pass again
-      const { setup } = await _prepare({
-        playerScores: [500, 600, 400],
-        shouldPickQuestion: true,
-        pickerIndex: 0
+      await suite.scenario(async (scenario) => {
+        // Player who already passed tries to pass again
+        const { setup } = await _prepare({
+          playerScores: [500, 600, 400],
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
+
+        const { playerSockets, showmanSocket } = setup;
+
+        // Player 0 makes initial bid
+        const firstBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 220
+        } as StakeBidSubmitInputData);
+
+        await firstBidPromise;
+
+        // Player 1 passes
+        const passPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.PASS,
+          bidAmount: null
+        } as StakeBidSubmitInputData);
+
+        await passPromise;
+
+        // Player 2 makes a bid
+        const secondBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 240
+        } as StakeBidSubmitInputData);
+
+        await secondBidPromise;
+
+        // Listen for error on Player 1's socket
+        const errorPromise = scenario.waitForEvent(playerSockets[1], SocketIOEvents.ERROR);
+
+        // Player 1 (who already passed) tries to pass again
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.PASS,
+          bidAmount: null
+        } as StakeBidSubmitInputData);
+
+        // Should receive an error
+        const error = await errorPromise;
+        expect(error.message).toMatch(/already.*passed|cannot.*bid/i);
       });
-
-      const { playerSockets, showmanSocket } = setup;
-
-      // Player 0 makes initial bid
-      const firstBidPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_BID_SUBMIT
-      );
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 220
-      } as StakeBidSubmitInputData);
-
-      await firstBidPromise;
-
-      // Player 1 passes
-      const passPromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_BID_SUBMIT);
-      playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.PASS,
-        bidAmount: null
-      } as StakeBidSubmitInputData);
-
-      await passPromise;
-
-      // Player 2 makes a bid
-      const secondBidPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_BID_SUBMIT
-      );
-      playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 240
-      } as StakeBidSubmitInputData);
-
-      await secondBidPromise;
-
-      // Listen for error on Player 1's socket
-      const errorPromise = utils.waitForEvent(playerSockets[1], SocketIOEvents.ERROR);
-
-      // Player 1 (who already passed) tries to pass again
-      playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.PASS,
-        bidAmount: null
-      } as StakeBidSubmitInputData);
-
-      // Should receive an error
-      const error = await errorPromise;
-      expect(error.message).toMatch(/already.*passed|cannot.*bid/i);
     });
   });
 
   describe("Edge cases validation", () => {
     it("should reject negative bid amounts", async () => {
-      const { setup } = await _prepare({
-        playerScores: [1000, 600, 400],
-        shouldPickQuestion: true,
-        pickerIndex: 0
+      await suite.scenario(async (scenario) => {
+        const { setup } = await _prepare({
+          playerScores: [1000, 600, 400],
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
+
+        const { playerSockets } = setup;
+
+        // Listen for error
+        const errorPromise = scenario.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
+
+        // Try negative bid
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: -100
+        } as StakeBidSubmitInputData);
+
+        const error = await errorPromise;
+        expect(error.message).toMatch(/ValidationError.*greater than or equal to 1/i);
       });
-
-      const { playerSockets } = setup;
-
-      // Listen for error
-      const errorPromise = utils.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
-
-      // Try negative bid
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: -100
-      } as StakeBidSubmitInputData);
-
-      const error = await errorPromise;
-      expect(error.message).toMatch(/ValidationError.*greater than or equal to 1/i);
     });
 
     it("should reject zero bid amounts", async () => {
-      const { setup } = await _prepare({
-        playerScores: [1000, 600, 400],
-        shouldPickQuestion: true,
-        pickerIndex: 0
+      await suite.scenario(async (scenario) => {
+        const { setup } = await _prepare({
+          playerScores: [1000, 600, 400],
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
+
+        const { playerSockets } = setup;
+
+        // Listen for error
+        const errorPromise = scenario.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
+
+        // Try zero bid
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 0
+        } as StakeBidSubmitInputData);
+
+        const error = await errorPromise;
+        expect(error.message).toMatch(/ValidationError.*greater than or equal to 1/i);
       });
-
-      const { playerSockets } = setup;
-
-      // Listen for error
-      const errorPromise = utils.waitForEvent(playerSockets[0], SocketIOEvents.ERROR);
-
-      // Try zero bid
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 0
-      } as StakeBidSubmitInputData);
-
-      const error = await errorPromise;
-      expect(error.message).toMatch(/ValidationError.*greater than or equal to 1/i);
     });
   });
 });

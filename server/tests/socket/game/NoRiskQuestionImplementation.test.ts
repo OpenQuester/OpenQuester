@@ -32,174 +32,180 @@ describe("NoRisk Question Implementation", () => {
 
   describe("NoRisk question prevents score loss on wrong answers", () => {
     it("should not decrease player score when answering NoRisk question incorrectly", async () => {
-      // Setup game with 1 player
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup game with 1 player
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      // Start the game
-      await utils.startGame(showmanSocket);
+        // Start the game
+        await utils.startGame(showmanSocket);
 
-      // Find and pick a NoRisk question
-      const noRiskQuestion = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
+        // Find and pick a NoRisk question
+        const noRiskQuestion = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
 
-      // Ensure NoRisk question exists (should always be available in test package)
-      expect(noRiskQuestion).toBeDefined();
-      expect(noRiskQuestion!.id).toBeGreaterThan(0);
+        // Ensure NoRisk question exists (should always be available in test package)
+        expect(noRiskQuestion).toBeDefined();
+        expect(noRiskQuestion!.id).toBeGreaterThan(0);
 
-      // Get player's initial score (should be 0)
-      const playerId = setup.playerUsers[0].id;
-      await utils.setPlayerScore(gameId, playerId, 0);
-      const initialScore = 0;
+        // Get player's initial score (should be 0)
+        const playerId = setup.playerUsers[0].id;
+        await utils.setPlayerScore(gameId, playerId, 0);
+        const initialScore = 0;
 
-      // Pick the NoRisk question and have player answer it
-      await utils.pickQuestion(showmanSocket, noRiskQuestion!.id, playerSockets);
-      await utils.answerQuestion(playerSockets[0], showmanSocket);
+        // Pick the NoRisk question and have player answer it
+        await utils.pickQuestion(showmanSocket, noRiskQuestion!.id, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-      const showAnswerStartPromise = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOGameEvents.ANSWER_SHOW_START,
-        2000
-      );
+        const showAnswerStartPromise = scenario.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START,
+          2000
+        );
 
-      // Set up event listener for answer result before showman reviews
-      const answerResultPromise = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOGameEvents.ANSWER_RESULT,
-        2000
-      );
+        // Set up event listener for answer result before showman reviews
+        const answerResultPromise = scenario.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_RESULT,
+          2000
+        );
 
-      // Showman reviews the answer as WRONG (negative score for NoRisk should not decrease score)
-      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-        scoreResult: -400, // Negative score (wrong answer)
-        answerType: AnswerResultType.WRONG
+        // Showman reviews the answer as WRONG (negative score for NoRisk should not decrease score)
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: -400, // Negative score (wrong answer)
+          answerType: AnswerResultType.WRONG
+        });
+
+        // Wait for answer result to be processed
+        await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
+
+        // Get the game state to check final player score
+        const game = await utils.getGameFromGameService(gameId);
+        const player = game.getPlayer(playerId, { fetchDisconnected: true });
+        const finalScore = player?.score || 0;
+
+        // With NoRisk, score should not decrease even with wrong answer
+        expect(finalScore).toBeGreaterThanOrEqual(initialScore);
       });
-
-      // Wait for answer result to be processed
-      await answerResultPromise;
-      await showAnswerStartPromise;
-      await utils.skipShowAnswer(showmanSocket);
-
-      // Get the game state to check final player score
-      const game = await utils.getGameFromGameService(gameId);
-      const player = game.getPlayer(playerId, { fetchDisconnected: true });
-      const finalScore = player?.score || 0;
-
-      // With NoRisk, score should not decrease even with wrong answer
-      expect(finalScore).toBeGreaterThanOrEqual(initialScore);
     });
 
     it("should allow player to gain score on correct NoRisk question answers", async () => {
-      // Setup game with 1 player
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup game with 1 player
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      // Start the game
-      await utils.startGame(showmanSocket);
+        // Start the game
+        await utils.startGame(showmanSocket);
 
-      // Find and pick a NoRisk question
-      const noRiskQuestion = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
+        // Find and pick a NoRisk question
+        const noRiskQuestion = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
 
-      // Ensure NoRisk question exists (should always be available in test package)
-      expect(noRiskQuestion).toBeDefined();
-      expect(noRiskQuestion!.id).toBeGreaterThan(0);
+        // Ensure NoRisk question exists (should always be available in test package)
+        expect(noRiskQuestion).toBeDefined();
+        expect(noRiskQuestion!.id).toBeGreaterThan(0);
 
-      // Set initial score
-      const playerId = setup.playerUsers[0].id;
-      await utils.setPlayerScore(gameId, playerId, 0);
-      const initialScore = 0;
+        // Set initial score
+        const playerId = setup.playerUsers[0].id;
+        await utils.setPlayerScore(gameId, playerId, 0);
+        const initialScore = 0;
 
-      // Pick the NoRisk question and have player answer it
-      await utils.pickQuestion(showmanSocket, noRiskQuestion!.id, playerSockets);
-      await utils.answerQuestion(playerSockets[0], showmanSocket);
+        // Pick the NoRisk question and have player answer it
+        await utils.pickQuestion(showmanSocket, noRiskQuestion!.id, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-      const showAnswerStartPromise = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOGameEvents.ANSWER_SHOW_START,
-        2000
-      );
+        const showAnswerStartPromise = scenario.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START,
+          2000
+        );
 
-      // Set up event listener for answer result before showman reviews
-      const answerResultPromise = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOGameEvents.ANSWER_RESULT,
-        2000
-      );
+        // Set up event listener for answer result before showman reviews
+        const answerResultPromise = scenario.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_RESULT,
+          2000
+        );
 
-      // Showman reviews the answer as CORRECT (positive score for NoRisk should work normally)
-      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-        scoreResult: 800, // Positive score (correct answer, NoRisk has priceMultiplier: 2)
-        answerType: AnswerResultType.CORRECT
+        // Showman reviews the answer as CORRECT (positive score for NoRisk should work normally)
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: 800, // Positive score (correct answer, NoRisk has priceMultiplier: 2)
+          answerType: AnswerResultType.CORRECT
+        });
+
+        // Wait for answer result to be processed
+        await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
+
+        // Get final score - NoRisk questions should still allow score gains
+        const game = await utils.getGameFromGameService(gameId);
+        const player = game.getPlayer(playerId, { fetchDisconnected: true });
+        const finalScore = player?.score || 0;
+
+        // Should be able to gain points for correct answers
+        expect(finalScore).toBe(initialScore + 800); // Should gain the full score for correct answer
       });
-
-      // Wait for answer result to be processed
-      await answerResultPromise;
-      await showAnswerStartPromise;
-      await utils.skipShowAnswer(showmanSocket);
-
-      // Get final score - NoRisk questions should still allow score gains
-      const game = await utils.getGameFromGameService(gameId);
-      const player = game.getPlayer(playerId, { fetchDisconnected: true });
-      const finalScore = player?.score || 0;
-
-      // Should be able to gain points for correct answers
-      expect(finalScore).toBe(initialScore + 800); // Should gain the full score for correct answer
     });
 
     it("should handle skip answers for NoRisk questions appropriately", async () => {
-      // Setup game with 1 player
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup game with 1 player
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      // Start the game
-      await utils.startGame(showmanSocket);
+        // Start the game
+        await utils.startGame(showmanSocket);
 
-      // Find and pick a NoRisk question
-      const noRiskQuestion = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
+        // Find and pick a NoRisk question
+        const noRiskQuestion = await utils.findQuestionByType(PackageQuestionType.NO_RISK, gameId);
 
-      // Ensure NoRisk question exists (should always be available in test package)
-      expect(noRiskQuestion).toBeDefined();
-      expect(noRiskQuestion!.id).toBeGreaterThan(0);
+        // Ensure NoRisk question exists (should always be available in test package)
+        expect(noRiskQuestion).toBeDefined();
+        expect(noRiskQuestion!.id).toBeGreaterThan(0);
 
-      // Set initial score
-      const playerId = setup.playerUsers[0].id;
-      const initialScore = 0;
-      await utils.setPlayerScore(gameId, playerId, initialScore);
+        // Set initial score
+        const playerId = setup.playerUsers[0].id;
+        const initialScore = 0;
+        await utils.setPlayerScore(gameId, playerId, initialScore);
 
-      // Pick the NoRisk question and have player answer it
-      await utils.pickQuestion(showmanSocket, noRiskQuestion!.id, playerSockets);
-      await utils.answerQuestion(playerSockets[0], showmanSocket);
+        // Pick the NoRisk question and have player answer it
+        await utils.pickQuestion(showmanSocket, noRiskQuestion!.id, playerSockets);
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-      const showAnswerStartPromise = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOGameEvents.ANSWER_SHOW_START,
-        2000
-      );
+        const showAnswerStartPromise = scenario.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_SHOW_START,
+          2000
+        );
 
-      // Set up event listener for answer result before showman reviews
-      const answerResultPromise = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOGameEvents.ANSWER_RESULT,
-        2000
-      );
+        // Set up event listener for answer result before showman reviews
+        const answerResultPromise = scenario.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.ANSWER_RESULT,
+          2000
+        );
 
-      // Showman reviews the answer as SKIP (score should remain unchanged)
-      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-        scoreResult: 0, // Zero score (skip)
-        answerType: AnswerResultType.SKIP
+        // Showman reviews the answer as SKIP (score should remain unchanged)
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: 0, // Zero score (skip)
+          answerType: AnswerResultType.SKIP
+        });
+
+        // Wait for answer result to be processed
+        await answerResultPromise;
+        await showAnswerStartPromise;
+        await utils.skipShowAnswer(showmanSocket);
+
+        // Verify score remains unchanged after skip
+        const game = await utils.getGameFromGameService(gameId);
+        const player = game.getPlayer(playerId, { fetchDisconnected: true });
+        const finalScore = player?.score || 0;
+
+        // Skip should not affect score regardless of question type
+        expect(finalScore).toBe(initialScore);
       });
-
-      // Wait for answer result to be processed
-      await answerResultPromise;
-      await showAnswerStartPromise;
-      await utils.skipShowAnswer(showmanSocket);
-
-      // Verify score remains unchanged after skip
-      const game = await utils.getGameFromGameService(gameId);
-      const player = game.getPlayer(playerId, { fetchDisconnected: true });
-      const finalScore = player?.score || 0;
-
-      // Skip should not affect score regardless of question type
-      expect(finalScore).toBe(initialScore);
     });
   });
 });

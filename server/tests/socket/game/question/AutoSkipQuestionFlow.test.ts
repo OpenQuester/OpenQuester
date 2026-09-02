@@ -33,81 +33,85 @@ describe("Auto-Skip Question Flow Tests", () => {
 
   describe("Secret Question Auto-Skip", () => {
     it("should skip secret question transfer phase when only showman is in game", async () => {
-      // Setup game with only showman (0 players, 0 spectators)
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 0);
-      const { showmanSocket, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup game with only showman (0 players, 0 spectators)
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 0);
+        const { showmanSocket, gameId } = setup;
 
-      // Start the game
-      await utils.startGame(showmanSocket);
+        // Start the game
+        await utils.startGame(showmanSocket);
 
-      // Find a secret question
-      const secretQuestion = await utils.findQuestionByType(PackageQuestionType.SECRET, gameId);
+        // Find a secret question
+        const secretQuestion = await utils.findQuestionByType(PackageQuestionType.SECRET, gameId);
 
-      expect(secretQuestion).toBeDefined();
-      expect(secretQuestion!.id).toBeGreaterThan(0);
+        expect(secretQuestion).toBeDefined();
+        expect(secretQuestion!.id).toBeGreaterThan(0);
 
-      // Set up listener for question data (which should come immediately when auto-skipping)
-      const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.QUESTION_DATA,
-        5000
-      );
+        // Set up listener for question data (which should come immediately when auto-skipping)
+        const questionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA,
+          5000
+        );
 
-      // Pick the secret question
-      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: secretQuestion!.id
+        // Pick the secret question
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: secretQuestion!.id
+        });
+
+        const questionData = await questionDataPromise;
+
+        // Verify we got the question data directly (skipped transfer phase)
+        expect(questionData.data.id).toBe(secretQuestion!.id);
+        expect(questionData.data.type).toBe(PackageQuestionType.SECRET);
+
+        // Verify the game state shows SHOWING (not SECRET_TRANSFER)
+        const finalState = await utils.getGameState(gameId);
+        expect(finalState!.questionState).toBe(QuestionState.SHOWING);
+        expect(finalState!.secretQuestionData).toBeNull();
       });
-
-      const questionData = await questionDataPromise;
-
-      // Verify we got the question data directly (skipped transfer phase)
-      expect(questionData.data.id).toBe(secretQuestion!.id);
-      expect(questionData.data.type).toBe(PackageQuestionType.SECRET);
-
-      // Verify the game state shows SHOWING (not SECRET_TRANSFER)
-      const finalState = await utils.getGameState(gameId);
-      expect(finalState!.questionState).toBe(QuestionState.SHOWING);
-      expect(finalState!.secretQuestionData).toBeNull();
     });
   });
 
   describe("Stake Question Auto-Skip", () => {
     it("should skip stake question bidding phase when only showman is in game", async () => {
-      // Setup game with only showman (0 players, 0 spectators)
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 0);
-      const { showmanSocket, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup game with only showman (0 players, 0 spectators)
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 0);
+        const { showmanSocket, gameId } = setup;
 
-      // Start the game
-      await utils.startGame(showmanSocket);
+        // Start the game
+        await utils.startGame(showmanSocket);
 
-      // Find a stake question
-      const stakeQuestion = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
+        // Find a stake question
+        const stakeQuestion = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
 
-      expect(stakeQuestion).toBeDefined();
-      expect(stakeQuestion!.id).toBeGreaterThan(0);
+        expect(stakeQuestion).toBeDefined();
+        expect(stakeQuestion!.id).toBeGreaterThan(0);
 
-      // Set up listener for question data (which should come immediately when auto-skipping)
-      const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.QUESTION_DATA,
-        5000
-      );
+        // Set up listener for question data (which should come immediately when auto-skipping)
+        const questionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA,
+          5000
+        );
 
-      // Pick the stake question
-      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: stakeQuestion!.id
+        // Pick the stake question
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestion!.id
+        });
+
+        const questionData = await questionDataPromise;
+
+        // Verify we got the question data directly (skipped bidding phase)
+        expect(questionData.data.id).toBe(stakeQuestion!.id);
+        expect(questionData.data.type).toBe(PackageQuestionType.STAKE);
+
+        // Verify the game state shows SHOWING (not BIDDING)
+        // Logic: No players - show as simple question in SHOWING state
+        const finalState = await utils.getGameState(gameId);
+        expect(finalState!.questionState).toBe(QuestionState.SHOWING);
       });
-
-      const questionData = await questionDataPromise;
-
-      // Verify we got the question data directly (skipped bidding phase)
-      expect(questionData.data.id).toBe(stakeQuestion!.id);
-      expect(questionData.data.type).toBe(PackageQuestionType.STAKE);
-
-      // Verify the game state shows SHOWING (not BIDDING)
-      // Logic: No players - show as simple question in SHOWING state
-      const finalState = await utils.getGameState(gameId);
-      expect(finalState!.questionState).toBe(QuestionState.SHOWING);
     });
   });
 });

@@ -34,23 +34,25 @@ describe("Game expiration notifications", () => {
   });
 
   it("should emit notification when game is about to expire", async () => {
-    const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
-    const { showmanSocket, gameId } = setup;
+    await suite.scenario(async () => {
+      const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 1, 0);
+      const { showmanSocket, gameId } = setup;
 
-    const notificationPromise = socketUtils.waitForEvent<NotificationBroadcastData>(
-      showmanSocket,
-      SocketIOEvents.NOTIFICATIONS,
-      1000
-    );
+      const notificationPromise = socketUtils.waitForEvent<NotificationBroadcastData>(
+        showmanSocket,
+        SocketIOEvents.NOTIFICATIONS,
+        1000
+      );
 
-    await testUtils.expireGameExpirationWarning(gameId);
+      await testUtils.expireGameExpirationWarning(gameId);
 
-    const notification = await notificationPromise;
-    expect(notification.type).toBe(NotificationType.GAME_EXPIRATION_WARNING);
-    expect(notification.data.gameId).toBe(gameId);
+      const notification = await notificationPromise;
+      expect(notification.type).toBe(NotificationType.GAME_EXPIRATION_WARNING);
+      expect(notification.data.gameId).toBe(gameId);
 
-    const expiresAt = new Date(notification.data.expiresAt);
-    expect(Number.isNaN(expiresAt.getTime())).toBe(false);
-    expect(expiresAt.getTime()).toBeGreaterThan(Date.now());
+      const expiresAt = new Date(notification.data.expiresAt);
+      expect(Number.isNaN(expiresAt.getTime())).toBe(false);
+      expect(expiresAt.getTime()).toBeGreaterThan(Date.now());
+    });
   });
 });

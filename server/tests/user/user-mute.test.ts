@@ -1,16 +1,10 @@
-import { type Express } from "express";
-import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
-import { USER_CACHE_KEY } from "domain/constants/cache";
 import { Permissions } from "domain/enums/Permissions";
-import { RedisConfig } from "shared/config/RedisConfig";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp, teardownTestAppResources } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
+import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 
 async function preparePermission(
@@ -52,46 +46,31 @@ async function createTargetUser(
 }
 
 describe("User Mute Functionality", () => {
-  let testEnv: TestEnvironment;
-  let app: Express;
+  let harness: ServerTestHarness;
+  let http: HttpTestClient;
   let dataSource: DataSource;
   let userRepo: Repository<User>;
   let permRepo: Repository<Permission>;
-  let cleanup: (() => Promise<void>) | undefined;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    cleanup = boot.cleanup;
-    app = boot.app;
-    dataSource = boot.dataSource;
+    harness = await ServerTestHarness.start({ apiPort: 0 });
+    dataSource = harness.dataSource;
     userRepo = dataSource.getRepository<User>("User");
     permRepo = dataSource.getRepository<Permission>("Permission");
   });
 
-  const clearUserCache = async (): Promise<void> => {
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys(`${USER_CACHE_KEY}:*`);
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
-  };
-
   afterEach(async () => {
-    await clearUserCache();
+    await harness.resetState();
   });
 
   afterAll(async () => {
-    await teardownTestAppResources(cleanup, testEnv);
+    await harness?.stop();
   });
 
   beforeEach(async () => {
+    http = createHttpTestClient(harness.serverUrl);
     await deleteAll(userRepo);
     await deleteAll(permRepo);
-    await clearUserCache();
   });
 
   describe("Mute Endpoints", () => {
@@ -106,7 +85,7 @@ describe("User Mute Functionality", () => {
       const targetUser = await createTargetUser(userRepo);
 
       // Login as admin
-      const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: adminUser.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
@@ -114,7 +93,7 @@ describe("User Mute Functionality", () => {
       // Mute target user for 1 hour from now
       const mutedUntil = new Date(Date.now() + 3600000); // 1 hour from now
 
-      const muteRes = await request(app)
+      const muteRes = await http
         .post(`/v1/admin/api/users/${targetUser.id}/mute`)
         .set("Cookie", cookies)
         .send({ mutedUntil: mutedUntil.toISOString() });
@@ -150,13 +129,13 @@ describe("User Mute Functionality", () => {
       await userRepo.save(targetUser);
 
       // Login as admin
-      const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: adminUser.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
 
       // Unmute target user
-      const unmuteRes = await request(app)
+      const unmuteRes = await http
         .post(`/v1/admin/api/users/${targetUser.id}/unmute`)
         .set("Cookie", cookies);
 
@@ -180,14 +159,14 @@ describe("User Mute Functionality", () => {
       const targetUser = await createTargetUser(userRepo);
 
       // Login as user without mute permission
-      const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: user.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
 
       // Try to mute (should fail)
       const mutedUntil = new Date(Date.now() + 3600000);
-      const muteRes = await request(app)
+      const muteRes = await http
         .post(`/v1/admin/api/users/${targetUser.id}/mute`)
         .set("Cookie", cookies)
         .send({ mutedUntil: mutedUntil.toISOString() });
@@ -210,13 +189,13 @@ describe("User Mute Functionality", () => {
       await userRepo.save(targetUser);
 
       // Login as user without mute permission
-      const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: user.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
 
       // Try to unmute (should fail)
-      const unmuteRes = await request(app)
+      const unmuteRes = await http
         .post(`/v1/admin/api/users/${targetUser.id}/unmute`)
         .set("Cookie", cookies);
 
@@ -231,14 +210,14 @@ describe("User Mute Functionality", () => {
       const adminUser = await createAdminUser(userRepo, [mutePerm]);
 
       // Login as admin
-      const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: adminUser.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
 
       // Try to mute non-existent user
       const mutedUntil = new Date(Date.now() + 3600000);
-      const muteRes = await request(app)
+      const muteRes = await http
         .post("/v1/admin/api/users/99999/mute")
         .set("Cookie", cookies)
         .send({ mutedUntil: mutedUntil.toISOString() });
@@ -257,13 +236,13 @@ describe("User Mute Functionality", () => {
       const targetUser = await createTargetUser(userRepo);
 
       // Login as admin
-      const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: adminUser.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
 
       // Try to mute with invalid date format
-      const muteRes = await request(app)
+      const muteRes = await http
         .post(`/v1/admin/api/users/${targetUser.id}/mute`)
         .set("Cookie", cookies)
         .send({ mutedUntil: "invalid-date" });
@@ -286,13 +265,13 @@ describe("User Mute Functionality", () => {
       await userRepo.save(user);
 
       // Login as this user
-      const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: user.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
 
       // Get user data
-      const meRes = await request(app).get("/v1/me").set("Cookie", cookies);
+      const meRes = await http.get("/v1/me").set("Cookie", cookies);
 
       expect(meRes.status).toBe(200);
       expect(meRes.body.mutedUntil).toBeDefined();
@@ -304,13 +283,13 @@ describe("User Mute Functionality", () => {
       const user = await createTargetUser(userRepo);
 
       // Login as this user
-      const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: user.id });
 
       expect(loginRes.status).toBe(200);
       const cookies = loginRes.headers["set-cookie"];
 
       // Get user data
-      const meRes = await request(app).get("/v1/me").set("Cookie", cookies);
+      const meRes = await http.get("/v1/me").set("Cookie", cookies);
 
       expect(meRes.status).toBe(200);
       expect(meRes.body.mutedUntil).toBeNull();

@@ -7,8 +7,12 @@ import { type GameActionQueueService } from "application/services/queue/GameActi
 import { GameActionType } from "domain/enums/GameActionType";
 import { type GameAction } from "domain/types/action/GameAction";
 import { PlayerRole } from "domain/types/game/PlayerRole";
+import { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { SocketGameTestEventUtils } from "tests/socket/game/utils/SocketGameTestEventUtils";
-import { type GameClientSocket } from "tests/socket/game/utils/SocketIOGameTestUtils";
+import {
+  type GameClientSocket,
+  type SocketGameTestUtils
+} from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 const GAME_ID = "game-1";
 
@@ -47,6 +51,25 @@ class FakeGameClientSocket extends EventEmitter {
   public id: string | undefined = "socket-1";
   public gameId: string | undefined = GAME_ID;
   public role: PlayerRole | undefined = PlayerRole.PLAYER;
+  private readonly inbound = new Set<(event: string, ...args: unknown[]) => void>();
+
+  public onAny(handler: (event: string, ...args: unknown[]) => void): void {
+    this.inbound.add(handler);
+  }
+
+  public offAny(handler: (event: string, ...args: unknown[]) => void): void {
+    this.inbound.delete(handler);
+  }
+
+  public receive(event: string, payload: unknown): void {
+    for (const handler of this.inbound) handler(event, payload);
+  }
+
+  public journalListenerCount(): number {
+    return (
+      this.inbound.size + this.listenerCount("disconnect") + this.listenerCount("connect_error")
+    );
+  }
 }
 
 interface Fixture {
@@ -60,6 +83,127 @@ afterEach(() => {
 });
 
 describe("SocketGameTestEventUtils", () => {
+  it("keeps a shared-helper operation failure owned after its terminal event arrives", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const scenario = useScenario(fixture);
+    const socket = new FakeGameClientSocket();
+
+    const operation = fixture.utils.runAndWaitForEvent(
+      socket as unknown as GameClientSocket,
+      "target",
+      async () => {
+        socket.receive("target", { ok: true });
+        throw new Error("operation failed after event");
+      },
+      25
+    );
+
+    await expect(operation).rejects.toThrow("operation failed after event");
+    await expect(scenario.finish()).rejects.toThrow("operation failed after event");
+    expect(socket.journalListenerCount()).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("bounds a shared-helper operation even when its terminal event has already arrived", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const scenario = useScenario(fixture);
+    const socket = new FakeGameClientSocket();
+    const unfinished = createDeferred<void>();
+    const operation = fixture.utils.runAndWaitForEvent(
+      socket as unknown as GameClientSocket,
+      "target",
+      () => {
+        socket.receive("target", { ok: true });
+        return unfinished.promise;
+      },
+      25
+    );
+    const failure = expect(operation).rejects.toThrow('operation producing "target"');
+
+    await jest.advanceTimersByTimeAsync(25);
+    await failure;
+    await expect(scenario.finish()).rejects.toThrow('operation producing "target"');
+    unfinished.resolve();
+    expect(socket.journalListenerCount()).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("owns successful accepted-action waits through the scenario without leaving observers", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const scenario = useScenario(fixture);
+    const events = getActionEventEmitter();
+    const initialListeners = events.listenerCount(GAME_ID);
+    const wait = fixture.utils.waitForSubmittedActions(
+      GAME_ID,
+      1,
+      GameActionType.MEDIA_DOWNLOADED,
+      25
+    );
+
+    await fixture.queue.queueActionAndTryStartProcessor(createAction("scenario-success"));
+    await wait;
+    await scenario.finish();
+    expect(events.listenerCount(GAME_ID)).toBe(initialListeners);
+    await expect(fixture.utils.cancelPendingEventWaits()).resolves.toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("fails scenario completion even if an accepted-action assertion rejection was caught", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const scenario = useScenario(fixture);
+    const events = getActionEventEmitter();
+    const initialListeners = events.listenerCount(GAME_ID);
+    const wait = fixture.utils.waitForSubmittedActions(
+      GAME_ID,
+      1,
+      GameActionType.MEDIA_DOWNLOADED,
+      25
+    );
+    // Deliberately consume the caller's rejection: scenario ownership must still fail completion.
+    const consumed = wait.catch(() => undefined);
+
+    await jest.advanceTimersByTimeAsync(25);
+    await consumed;
+    await expect(scenario.finish()).rejects.toThrow("accepted/enqueued actions");
+    expect(events.listenerCount(GAME_ID)).toBe(initialListeners);
+    await expect(fixture.utils.cancelPendingEventWaits()).resolves.toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("aborts pending shared accepted-action and event waits without leaking observers", async () => {
+    jest.useFakeTimers();
+    const fixture = createFixture();
+    const scenario = useScenario(fixture);
+    const socket = new FakeGameClientSocket();
+    const events = getActionEventEmitter();
+    const initialListeners = events.listenerCount(GAME_ID);
+    const accepted = fixture.utils.waitForSubmittedActions(
+      GAME_ID,
+      1,
+      GameActionType.MEDIA_DOWNLOADED,
+      25
+    );
+    const terminal = fixture.utils.runAndWaitForEvent(
+      socket as unknown as GameClientSocket,
+      "missing",
+      () => undefined,
+      25
+    );
+    const terminalFailure = expect(terminal).rejects.toThrow("disposed");
+
+    await scenario.abort();
+    await expect(accepted).rejects.toThrow("Accepted action probe disposed");
+    await terminalFailure;
+    expect(events.listenerCount(GAME_ID)).toBe(initialListeners);
+    expect(socket.journalListenerCount()).toBe(0);
+    await expect(fixture.utils.cancelPendingEventWaits()).resolves.toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
   it("arms before emitting and clears only owned listeners and timers after success", async () => {
     jest.useFakeTimers();
     const fixture = createFixture();
@@ -596,6 +740,15 @@ function createFixture(): Fixture {
   });
 
   return { utils, queue, lock };
+}
+
+function useScenario(fixture: Fixture): GameScenario {
+  const utils = {
+    createAcceptedActionProbe: fixture.utils.createAcceptedActionProbe.bind(fixture.utils)
+  } as unknown as SocketGameTestUtils;
+  const scenario = new GameScenario(utils);
+  fixture.utils.useScenario(scenario);
+  return scenario;
 }
 
 function createAction(id: string, playerId = 1, socketId = "socket-1"): GameAction {

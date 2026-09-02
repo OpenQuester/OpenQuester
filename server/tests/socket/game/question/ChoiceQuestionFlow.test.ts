@@ -35,265 +35,276 @@ describe("Choice Question Flow Tests", () => {
 
   describe("Choice Question Behavior", () => {
     it("should reveal question correctly", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
-      const playerSocket = playerSockets[0];
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
+        const playerSocket = playerSockets[0];
 
-      // Start game
-      await utils.startGame(showmanSocket);
+        // Start game
+        await utils.startGame(showmanSocket);
 
-      // Get initial game state and find a choice question
-      const initialGameState = await utils.getGameState(gameId);
-      expect(initialGameState).toBeDefined();
+        // Get initial game state and find a choice question
+        const initialGameState = await utils.getGameState(gameId);
+        expect(initialGameState).toBeDefined();
 
-      // For now, we'll manually find the choice question by looking for our test data
-      // This will be enhanced when we add proper Choice question detection
-      let choiceQuestionId: number | null = null;
+        // For now, we'll manually find the choice question by looking for our test data
+        // This will be enhanced when we add proper Choice question detection
+        let choiceQuestionId: number | null = null;
 
-      // Find choice question in the test data - it should be order 5 with price 300
-      if (initialGameState?.currentRound?.themes) {
-        for (const theme of initialGameState.currentRound.themes) {
-          for (const question of theme.questions) {
-            // Choice question has unique combination price 300 & order 5 in test data
-            if (question.price === 300 && question.order === 5 && !question.isPlayed) {
-              choiceQuestionId = question.id;
-              break;
+        // Find choice question in the test data - it should be order 5 with price 300
+        if (initialGameState?.currentRound?.themes) {
+          for (const theme of initialGameState.currentRound.themes) {
+            for (const question of theme.questions) {
+              // Choice question has unique combination price 300 & order 5 in test data
+              if (question.price === 300 && question.order === 5 && !question.isPlayed) {
+                choiceQuestionId = question.id;
+                break;
+              }
             }
+            if (choiceQuestionId) break;
           }
-          if (choiceQuestionId) break;
         }
-      }
 
-      expect(choiceQuestionId).toBeDefined();
-      expect(choiceQuestionId).not.toBeNull();
+        expect(choiceQuestionId).toBeDefined();
+        expect(choiceQuestionId).not.toBeNull();
 
-      // Set up promise to capture initial question data
-      const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
-        playerSocket,
-        SocketIOGameEvents.QUESTION_DATA
-      );
+        // Set up promise to capture initial question data
+        const questionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          playerSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
 
-      // Pick the choice question
-      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: choiceQuestionId
+        // Pick the choice question
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: choiceQuestionId
+        });
+
+        const questionData = await questionDataPromise;
+
+        // Verify initial question data is revealed
+        expect(questionData.data).toBeDefined();
+        expect(questionData.data.text).toBe("Choice question text");
+        expect(questionData.data.price).toBe(300);
+        expect(questionData.data.type).toBe(PackageQuestionType.CHOICE);
+
+        expect(questionData.data.showDelay).toBeDefined();
+        expect(questionData.data.answers).toBeDefined();
+        expect(questionData.data.answers?.length).toBe(4);
+
+        const downloadingGameState = await utils.getGameState(gameId);
+        expect(downloadingGameState!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
+        expect(downloadingGameState!.currentQuestion).toBeDefined();
+
+        const mediaStatusPromise = scenario.waitForEvent(
+          playerSocket,
+          SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS
+        );
+        scenario.actor(playerSocket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+        await mediaStatusPromise;
+
+        const showingGameState = await utils.getGameState(gameId);
+        expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);
+        expect(showingGameState!.currentQuestion).toBeDefined();
       });
-
-      const questionData = await questionDataPromise;
-
-      // Verify initial question data is revealed
-      expect(questionData.data).toBeDefined();
-      expect(questionData.data.text).toBe("Choice question text");
-      expect(questionData.data.price).toBe(300);
-      expect(questionData.data.type).toBe(PackageQuestionType.CHOICE);
-
-      expect(questionData.data.showDelay).toBeDefined();
-      expect(questionData.data.answers).toBeDefined();
-      expect(questionData.data.answers?.length).toBe(4);
-
-      const downloadingGameState = await utils.getGameState(gameId);
-      expect(downloadingGameState!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
-      expect(downloadingGameState!.currentQuestion).toBeDefined();
-
-      const mediaStatusPromise = utils.waitForEvent(
-        playerSocket,
-        SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS
-      );
-      playerSocket.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
-      await mediaStatusPromise;
-
-      const showingGameState = await utils.getGameState(gameId);
-      expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);
-      expect(showingGameState!.currentQuestion).toBeDefined();
     });
 
     it("should handle choice question answer flow with multiple choice selection", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
-      const playerSocket = playerSockets[0];
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
+        const playerSocket = playerSockets[0];
 
-      // Start game
-      await utils.startGame(showmanSocket);
+        // Start game
+        await utils.startGame(showmanSocket);
 
-      // Find a choice question using the test data pattern
-      let choiceQuestionId: number | null = null;
-      const initialGameState = await utils.getGameState(gameId);
+        // Find a choice question using the test data pattern
+        let choiceQuestionId: number | null = null;
+        const initialGameState = await utils.getGameState(gameId);
 
-      if (initialGameState?.currentRound?.themes) {
-        for (const theme of initialGameState.currentRound.themes) {
-          for (const question of theme.questions) {
-            if (question.price === 300 && question.order === 5 && !question.isPlayed) {
-              choiceQuestionId = question.id;
-              break;
+        if (initialGameState?.currentRound?.themes) {
+          for (const theme of initialGameState.currentRound.themes) {
+            for (const question of theme.questions) {
+              if (question.price === 300 && question.order === 5 && !question.isPlayed) {
+                choiceQuestionId = question.id;
+                break;
+              }
             }
+            if (choiceQuestionId) break;
           }
-          if (choiceQuestionId) break;
         }
-      }
 
-      expect(choiceQuestionId).not.toBeNull();
+        expect(choiceQuestionId).not.toBeNull();
 
-      // Pick the choice question using utils (handles media download phase)
-      await utils.pickQuestion(showmanSocket, choiceQuestionId!, playerSockets);
+        // Pick the choice question using utils (handles media download phase)
+        await utils.pickQuestion(showmanSocket, choiceQuestionId!, playerSockets);
 
-      // Verify we're in the showing state after picking
-      const showingGameState = await utils.getGameState(gameId);
-      expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);
-      expect(showingGameState!.currentQuestion).toBeDefined();
+        // Verify we're in the showing state after picking
+        const showingGameState = await utils.getGameState(gameId);
+        expect(showingGameState!.questionState).toBe(QuestionState.SHOWING);
+        expect(showingGameState!.currentQuestion).toBeDefined();
 
-      // Player answers the question
-      await utils.answerQuestion(playerSocket, showmanSocket);
+        // Player answers the question
+        await utils.answerQuestion(playerSocket, showmanSocket);
 
-      // Set up event listeners before emitting answer result
-      const answerResultPromise = utils.waitForEvent(
-        playerSocket,
-        SocketIOGameEvents.ANSWER_RESULT
-      );
+        // Set up event listeners before emitting answer result
+        const answerResultPromise = scenario.waitForEvent(
+          playerSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
 
-      const answerShowStartPromise = utils.waitForEvent(
-        playerSocket,
-        SocketIOGameEvents.ANSWER_SHOW_START
-      );
+        const answerShowStartPromise = scenario.waitForEvent(
+          playerSocket,
+          SocketIOGameEvents.ANSWER_SHOW_START
+        );
 
-      // Submit answer result from showman
-      showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-        scoreResult: 100,
-        answerType: AnswerResultType.CORRECT
+        // Submit answer result from showman
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: 100,
+          answerType: AnswerResultType.CORRECT
+        });
+
+        // Wait for answer result and show answer start
+        await answerResultPromise;
+        await answerShowStartPromise;
+
+        // Skip show answer phase
+        await utils.skipShowAnswer(showmanSocket);
+
+        const finalGameState = await utils.getGameState(gameId);
+        expect(finalGameState!.questionState).toBe(QuestionState.CHOOSING);
       });
-
-      // Wait for answer result and show answer start
-      await answerResultPromise;
-      await answerShowStartPromise;
-
-      // Skip show answer phase
-      await utils.skipShowAnswer(showmanSocket);
-
-      const finalGameState = await utils.getGameState(gameId);
-      expect(finalGameState!.questionState).toBe(QuestionState.CHOOSING);
     });
 
     it("should provide choice question data to both showman and players when picked", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
-      const playerSocket = playerSockets[0];
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
+        const playerSocket = playerSockets[0];
 
-      // Start game
-      await utils.startGame(showmanSocket);
+        // Start game
+        await utils.startGame(showmanSocket);
 
-      // Find choice question
-      let choiceQuestionId: number | null = null;
-      const initialGameState = await utils.getGameState(gameId);
+        // Find choice question
+        let choiceQuestionId: number | null = null;
+        const initialGameState = await utils.getGameState(gameId);
 
-      if (initialGameState?.currentRound?.themes) {
-        for (const theme of initialGameState.currentRound.themes) {
-          for (const question of theme.questions) {
-            if (question.price === 300 && question.order === 5 && !question.isPlayed) {
-              choiceQuestionId = question.id;
-              break;
+        if (initialGameState?.currentRound?.themes) {
+          for (const theme of initialGameState.currentRound.themes) {
+            for (const question of theme.questions) {
+              if (question.price === 300 && question.order === 5 && !question.isPlayed) {
+                choiceQuestionId = question.id;
+                break;
+              }
             }
+            if (choiceQuestionId) break;
           }
-          if (choiceQuestionId) break;
         }
-      }
 
-      expect(choiceQuestionId).not.toBeNull();
+        expect(choiceQuestionId).not.toBeNull();
 
-      // Set up promises to capture data sent to both showman and player
-      const showmanDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.QUESTION_DATA
-      );
-      const playerDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
-        playerSocket,
-        SocketIOGameEvents.QUESTION_DATA
-      );
+        // Set up promises to capture data sent to both showman and player
+        const showmanDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const playerDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          playerSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
 
-      // Pick the choice question
-      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: choiceQuestionId
+        // Pick the choice question
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: choiceQuestionId
+        });
+
+        const [showmanData, playerData] = await Promise.all([
+          showmanDataPromise,
+          playerDataPromise
+        ]);
+
+        // Both should receive question data
+        expect(showmanData.data.type).toBe(PackageQuestionType.CHOICE);
+        expect(showmanData.data.text).toBe("Choice question text");
+        expect(showmanData.data.showDelay).toBe(
+          TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS
+        );
+        expect(showmanData.data.answers).toBeDefined();
+        expect(showmanData.data.answers?.length).toBe(4);
+
+        expect(playerData.data.type).toBe(PackageQuestionType.CHOICE);
+        expect(playerData.data.text).toBe("Choice question text");
+        expect(playerData.data.showDelay).toBe(
+          TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS
+        );
+        expect(playerData.data.answers).toBeDefined();
+        expect(playerData.data.answers?.length).toBe(4);
+
+        // Verify the choices are structured correctly
+        const answers = showmanData.data.answers!;
+        expect(answers[0].text).toBe("Option A");
+        expect(answers[1].text).toBe("Option B");
+        expect(answers[2].text).toBe("Option C");
+        expect(answers[3].text).toBe("Option D");
+
+        // All answers should have proper order
+        for (let i = 0; i < answers.length; i++) {
+          expect(answers[i].order).toBe(i);
+        }
       });
-
-      const [showmanData, playerData] = await Promise.all([showmanDataPromise, playerDataPromise]);
-
-      // Both should receive question data
-      expect(showmanData.data.type).toBe(PackageQuestionType.CHOICE);
-      expect(showmanData.data.text).toBe("Choice question text");
-      expect(showmanData.data.showDelay).toBe(
-        TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS
-      );
-      expect(showmanData.data.answers).toBeDefined();
-      expect(showmanData.data.answers?.length).toBe(4);
-
-      expect(playerData.data.type).toBe(PackageQuestionType.CHOICE);
-      expect(playerData.data.text).toBe("Choice question text");
-      expect(playerData.data.showDelay).toBe(
-        TEST_TIMEOUTS.PACKAGE_QUESTION_SHOW_ANSWER_DURATION_MS
-      );
-      expect(playerData.data.answers).toBeDefined();
-      expect(playerData.data.answers?.length).toBe(4);
-
-      // Verify the choices are structured correctly
-      const answers = showmanData.data.answers!;
-      expect(answers[0].text).toBe("Option A");
-      expect(answers[1].text).toBe("Option B");
-      expect(answers[2].text).toBe("Option C");
-      expect(answers[3].text).toBe("Option D");
-
-      // All answers should have proper order
-      for (let i = 0; i < answers.length; i++) {
-        expect(answers[i].order).toBe(i);
-      }
     });
   });
 
   describe("Multiple Choice Questions", () => {
     it("should handle choice question with different number of options", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      // Start game
-      await utils.startGame(showmanSocket);
+        // Start game
+        await utils.startGame(showmanSocket);
 
-      // Find choice question and verify it has 4 options (from our test data)
-      let choiceQuestionId: number | null = null;
-      const initialGameState = await utils.getGameState(gameId);
+        // Find choice question and verify it has 4 options (from our test data)
+        let choiceQuestionId: number | null = null;
+        const initialGameState = await utils.getGameState(gameId);
 
-      if (initialGameState?.currentRound?.themes) {
-        for (const theme of initialGameState.currentRound.themes) {
-          for (const question of theme.questions) {
-            if (question.price === 300 && question.order === 5 && !question.isPlayed) {
-              choiceQuestionId = question.id;
-              break;
+        if (initialGameState?.currentRound?.themes) {
+          for (const theme of initialGameState.currentRound.themes) {
+            for (const question of theme.questions) {
+              if (question.price === 300 && question.order === 5 && !question.isPlayed) {
+                choiceQuestionId = question.id;
+                break;
+              }
             }
+            if (choiceQuestionId) break;
           }
-          if (choiceQuestionId) break;
         }
-      }
 
-      if (!choiceQuestionId) {
-        throw new Error("No choice question found in test package");
-      }
+        if (!choiceQuestionId) {
+          throw new Error("No choice question found in test package");
+        }
 
-      // Pick the choice question and verify structure
-      const questionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
-        playerSockets[0],
-        SocketIOGameEvents.QUESTION_DATA
-      );
+        // Pick the choice question and verify structure
+        const questionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
+          playerSockets[0],
+          SocketIOGameEvents.QUESTION_DATA
+        );
 
-      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: choiceQuestionId
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: choiceQuestionId
+        });
+        const questionData = await questionDataPromise;
+
+        expect(questionData.data.type).toBe(PackageQuestionType.CHOICE);
+        expect(questionData.data.answers).toBeDefined();
+        expect(questionData.data.answers?.length).toBe(4);
+
+        // Verify all options are present and ordered correctly
+        const answers = questionData.data.answers!;
+        expect(answers.find((a) => a.order === 0)?.text).toBe("Option A");
+        expect(answers.find((a) => a.order === 1)?.text).toBe("Option B");
+        expect(answers.find((a) => a.order === 2)?.text).toBe("Option C");
+        expect(answers.find((a) => a.order === 3)?.text).toBe("Option D");
       });
-      const questionData = await questionDataPromise;
-
-      expect(questionData.data.type).toBe(PackageQuestionType.CHOICE);
-      expect(questionData.data.answers).toBeDefined();
-      expect(questionData.data.answers?.length).toBe(4);
-
-      // Verify all options are present and ordered correctly
-      const answers = questionData.data.answers!;
-      expect(answers.find((a) => a.order === 0)?.text).toBe("Option A");
-      expect(answers.find((a) => a.order === 1)?.text).toBe("Option B");
-      expect(answers.find((a) => a.order === 2)?.text).toBe("Option C");
-      expect(answers.find((a) => a.order === 3)?.text).toBe("Option D");
     });
   });
 });

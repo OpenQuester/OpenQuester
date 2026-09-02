@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
-import request from "supertest";
+import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { Repository } from "typeorm";
 
 import { ClientResponse } from "domain/enums/ClientResponse";
@@ -35,7 +35,7 @@ describe("Empty game deletion on last user exit", () => {
 
   const expectGameRemovedFromLobbyIndexes = async (gameId: string): Promise<void> => {
     const { cookie } = await testUtils.createAndLoginUser(`lobby-index-${gameId}`);
-    const listRes = await request(app)
+    const listRes = await createHttpTestClient(suite.serverUrl)
       .get("/v1/games")
       .set("Cookie", cookie)
       .query({ limit: 10, offset: 0 });
@@ -53,52 +53,60 @@ describe("Empty game deletion on last user exit", () => {
   };
 
   it("should delete game when last user disconnects before game start", async () => {
-    const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 0, 0);
-    const { gameId, showmanSocket } = setup;
+    await suite.scenario(async () => {
+      const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 0, 0);
+      const { gameId, showmanSocket } = setup;
 
-    await socketUtils.disconnectAndCleanup(showmanSocket);
+      await socketUtils.disconnectAndCleanup(showmanSocket);
 
-    await expectGameEntityDeleted(gameId);
-    await expectGameRemovedFromLobbyIndexes(gameId);
+      await expectGameEntityDeleted(gameId);
+      await expectGameRemovedFromLobbyIndexes(gameId);
+    });
   });
 
   it("should delete game when last user disconnects after game is finished", async () => {
-    const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 0, 0);
-    const { gameId, showmanSocket } = setup;
+    await suite.scenario(async () => {
+      const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 0, 0);
+      const { gameId, showmanSocket } = setup;
 
-    const game = await testUtils.getGameEntity(gameId);
-    game.startedAt = new Date();
-    game.finish();
-    await testUtils.updateGame(game);
+      const game = await testUtils.getGameEntity(gameId);
+      game.startedAt = new Date();
+      game.finish();
+      await testUtils.updateGame(game);
 
-    await socketUtils.disconnectAndCleanup(showmanSocket);
+      await socketUtils.disconnectAndCleanup(showmanSocket);
 
-    await expectGameEntityDeleted(gameId);
-    await expectGameRemovedFromLobbyIndexes(gameId);
+      await expectGameEntityDeleted(gameId);
+      await expectGameRemovedFromLobbyIndexes(gameId);
+    });
   });
 
   it("should delete game when last user leaves before game start", async () => {
-    const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 0, 0);
-    const { gameId, showmanSocket } = setup;
+    await suite.scenario(async () => {
+      const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 0, 0);
+      const { gameId, showmanSocket } = setup;
 
-    await socketUtils.leaveGame(showmanSocket);
+      await socketUtils.leaveGame(showmanSocket);
 
-    await expectGameEntityDeleted(gameId);
-    await expectGameRemovedFromLobbyIndexes(gameId);
+      await expectGameEntityDeleted(gameId);
+      await expectGameRemovedFromLobbyIndexes(gameId);
+    });
   });
 
   it("should delete game when last user leaves after game is finished", async () => {
-    const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 0, 0);
-    const { gameId, showmanSocket } = setup;
+    await suite.scenario(async () => {
+      const setup = await socketUtils.setupGameTestEnvironment(userRepo, app, 0, 0);
+      const { gameId, showmanSocket } = setup;
 
-    const game = await testUtils.getGameEntity(gameId);
-    game.startedAt = new Date();
-    game.finish();
-    await testUtils.updateGame(game);
+      const game = await testUtils.getGameEntity(gameId);
+      game.startedAt = new Date();
+      game.finish();
+      await testUtils.updateGame(game);
 
-    await socketUtils.leaveGame(showmanSocket);
+      await socketUtils.leaveGame(showmanSocket);
 
-    await expectGameEntityDeleted(gameId);
-    await expectGameRemovedFromLobbyIndexes(gameId);
+      await expectGameEntityDeleted(gameId);
+      await expectGameRemovedFromLobbyIndexes(gameId);
+    });
   });
 });

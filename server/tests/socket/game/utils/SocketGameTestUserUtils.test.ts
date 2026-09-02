@@ -47,9 +47,16 @@ describe("SocketGameTestUserUtils connection ownership", () => {
     const user = { id: 7 } as User;
     jest.spyOn(utils, "createAndLoginUser").mockResolvedValue({ user, cookie: "session=new-user" });
     const authenticate = jest.spyOn(utils, "authenticateSocket").mockResolvedValue();
+    const observe = jest.fn((observed: unknown) => {
+      expect(observed).toBe(socket);
+      expect(socket.connected).toBe(false);
+      expect(authenticate).not.toHaveBeenCalled();
+    });
+    const stopObserving = utils.observeSockets(observe);
 
     const result = await utils.createGameClient({} as Express, {} as Repository<User>);
 
+    expect(observe).toHaveBeenCalledTimes(1);
     expect(result.socket).toBe(socket);
     expect(createSocket).toHaveBeenCalledWith(
       "http://127.0.0.1:3000/game",
@@ -61,6 +68,28 @@ describe("SocketGameTestUserUtils connection ownership", () => {
     expect(socket.listenerCount("connect")).toBe(0);
     expect(socket.listenerCount("connect_error")).toBe(0);
     expect(utils.getOwnedSockets()).toEqual([socket]);
+    stopObserving();
+  });
+
+  it("observes existing sockets and releases scenario ownership before the next scenario", async () => {
+    const socket = new FakeGameClientSocket();
+    jest.mocked(createSocket).mockReturnValue(socket as unknown as ReturnType<typeof createSocket>);
+    const utils = createUtilsWithoutContainer();
+    await utils.createUnauthenticatedGameClient();
+    const observe = jest.fn();
+    const stopObserving = utils.observeSockets(observe);
+
+    expect(observe).toHaveBeenCalledWith(socket);
+    expect(() => utils.observeSockets(jest.fn())).toThrow("already active");
+    stopObserving();
+
+    const nextObserver = jest.fn();
+    const stopNext = utils.observeSockets(nextObserver);
+    expect(nextObserver).toHaveBeenCalledTimes(1);
+    expect(observe).toHaveBeenCalledTimes(1);
+    stopNext();
+    await utils.createUnauthenticatedGameClient();
+    expect(nextObserver).toHaveBeenCalledTimes(1);
   });
 
   it("closes reconnect clients and removes listeners when authentication fails", async () => {

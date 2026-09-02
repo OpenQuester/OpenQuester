@@ -4,7 +4,7 @@ import { type Express } from "express";
 import { User } from "infrastructure/database/models/User";
 import { SocketUserDataService } from "application/services/socket/SocketUserDataService";
 import { io as Client } from "socket.io-client";
-import request from "supertest";
+import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { container } from "tsyringe";
 import { Repository } from "typeorm";
 import { GameClientSocket } from "./SocketIOGameTestUtils";
@@ -15,9 +15,24 @@ export class SocketGameTestUserUtils {
   private socketUserDataService = container.resolve(SocketUserDataService);
   private readonly serverUrl: string;
   private _ownedSockets: Set<GameClientSocket> | undefined;
+  private socketObserver: ((socket: GameClientSocket) => void) | undefined;
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl;
+  }
+
+  public get httpClient(): ReturnType<typeof createHttpTestClient> {
+    return createHttpTestClient(new URL(this.serverUrl).origin);
+  }
+
+  /** Attach the scenario before connection/authentication can produce events. */
+  public observeSockets(observer: (socket: GameClientSocket) => void): () => void {
+    if (this.socketObserver) throw new Error("A socket scenario observer is already active");
+    for (const socket of this.ownedSockets) observer(socket);
+    this.socketObserver = observer;
+    return () => {
+      this.socketObserver = undefined;
+    };
   }
 
   public async createAndLoginUser(
@@ -36,7 +51,7 @@ export class SocketGameTestUserUtils {
     await userRepo.save(user);
 
     // Login
-    const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
+    const loginRes = await this.httpClient.post("/v1/test/login").send({ userId: user.id });
 
     if (loginRes.status !== 200) {
       throw new Error(`Failed to login user ${username}: ${JSON.stringify(loginRes.body)}`);
@@ -52,7 +67,7 @@ export class SocketGameTestUserUtils {
 
   public async loginExistingUser(app: Express, userId: number): Promise<{ cookie: string }> {
     // Login existing user by ID
-    const loginRes = await request(app).post("/v1/test/login").send({ userId });
+    const loginRes = await this.httpClient.post("/v1/test/login").send({ userId });
 
     if (loginRes.status !== 200) {
       throw new Error(`Failed to login existing user ${userId}: ${JSON.stringify(loginRes.body)}`);
@@ -71,7 +86,7 @@ export class SocketGameTestUserUtils {
     socket: GameClientSocket,
     cookie: string
   ): Promise<void> {
-    const authRes = await request(app)
+    const authRes = await this.httpClient
       .post("/v1/auth/socket")
       .set("Cookie", cookie)
       .send({ socketId: socket.id });
@@ -144,6 +159,7 @@ export class SocketGameTestUserUtils {
     this.ownedSockets.add(socket);
 
     try {
+      this.socketObserver?.(socket);
       await connectSocket(socket, {
         client,
         namespace: SOCKET_GAME_NAMESPACE,

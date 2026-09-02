@@ -31,11 +31,12 @@ export type EventPredicate<TArgs extends readonly unknown[] = readonly unknown[]
 export interface EventExpectation<TArgs extends readonly unknown[] = readonly unknown[]> {
   readonly actor?: JournalActor;
   readonly direction?: EventDirection;
-  readonly event: string;
+  readonly event: string | readonly string[];
   readonly timeoutMs: number;
   readonly afterSequence?: number;
   readonly predicate?: EventPredicate<TArgs>;
   readonly description?: string;
+  readonly signal?: AbortSignal;
 }
 
 export interface NoEventExpectation<TArgs extends readonly unknown[] = readonly unknown[]> {
@@ -46,6 +47,7 @@ export interface NoEventExpectation<TArgs extends readonly unknown[] = readonly 
   readonly afterSequence?: number;
   readonly predicate?: EventPredicate<TArgs>;
   readonly description?: string;
+  readonly signal?: AbortSignal;
 }
 
 type OnAnyHandler = (event: string, ...args: unknown[]) => void;
@@ -54,6 +56,11 @@ type EventJournalCompletionMode = "finish" | "abort";
 interface JournalAttachment {
   readonly actor: JournalActor;
   readonly handler: OnAnyHandler;
+  readonly outgoingHandler?: OnAnyHandler;
+  readonly lifecycleHandlers: readonly {
+    event: "disconnect" | "connect_error";
+    handler: (...args: unknown[]) => void;
+  }[];
 }
 
 interface Deferred<T> {
@@ -67,6 +74,7 @@ interface PendingEventWait<TArgs extends readonly unknown[]> {
   readonly expectation: EventExpectation<TArgs>;
   readonly deferred: Deferred<EventRecord<TArgs>>;
   readonly timeout: NodeJS.Timeout;
+  readonly removeAbortHandler: () => void;
 }
 
 interface PendingNoEventWait<TArgs extends readonly unknown[]> {
@@ -74,12 +82,20 @@ interface PendingNoEventWait<TArgs extends readonly unknown[]> {
   readonly expectation: NoEventExpectation<TArgs>;
   readonly deferred: Deferred<void>;
   readonly timeout: NodeJS.Timeout;
+  readonly removeAbortHandler: () => void;
 }
 
 export class EventJournalDisposedError extends Error {
   public constructor(message: string) {
     super(message);
     this.name = "EventJournalDisposedError";
+  }
+}
+
+export class EventJournalAbortedError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "EventJournalAbortedError";
   }
 }
 
@@ -105,9 +121,42 @@ export class EventJournal {
     const handler: OnAnyHandler = (event: string, ...args: unknown[]) => {
       this.record(actor, "inbound", event, args);
     };
-
+    const outgoingHandler: OnAnyHandler | undefined =
+      typeof actor.socket.onAnyOutgoing === "function"
+        ? (event, ...args) => this.record(actor, "outbound", event, args)
+        : undefined;
+    const lifecycleHandlers: JournalAttachment["lifecycleHandlers"] =
+      typeof actor.socket.on === "function"
+        ? (["disconnect", "connect_error"] as const).map((event) => ({
+            event,
+            handler: (...args: unknown[]) => {
+              this.record(actor, "inbound", event, args);
+              this.rejectDisconnectedActorWaits(actor, event);
+            }
+          }))
+        : [];
     actor.socket.onAny(handler);
-    this.attachments.set(actor.label, { actor, handler });
+    if (outgoingHandler) {
+      actor.socket.onAnyOutgoing(outgoingHandler);
+    }
+    for (const lifecycle of lifecycleHandlers) {
+      actor.socket.on(lifecycle.event, lifecycle.handler);
+    }
+    this.attachments.set(actor.label, { actor, handler, outgoingHandler, lifecycleHandlers });
+  }
+
+  /** Stop observing an old connection generation while retaining its recorded history. */
+  public detach(actor: JournalActor): void {
+    const attachment = this.attachments.get(actor.label);
+    if (!attachment) return;
+
+    this.detachAttachment(attachment);
+    this.attachments.delete(actor.label);
+    this.rejectDisconnectedActorWaits(actor, "connection replaced");
+  }
+
+  public observesOutgoing(actor: JournalActor): boolean {
+    return this.attachments.get(actor.label)?.outgoingHandler !== undefined;
   }
 
   public mark(): number {
@@ -128,6 +177,10 @@ export class EventJournal {
   ): Promise<EventRecord<TArgs>> {
     this.assertNotDisposed();
 
+    if (expectation.signal?.aborted) {
+      return observeRejection(Promise.reject(this.createAbortedError(expectation)));
+    }
+
     try {
       const existing = this.findMatchingRecord(expectation);
       if (existing) {
@@ -146,13 +199,17 @@ export class EventJournal {
       }
 
       this.eventWaits.delete(waitId);
+      wait.removeAbortHandler();
       wait.deferred.reject(new Error(this.formatEventTimeout(wait.expectation)));
     }, expectation.timeoutMs);
     const wait: PendingEventWait<TArgs> = {
       id: waitId,
       expectation,
       deferred,
-      timeout
+      timeout,
+      removeAbortHandler: this.onAbort(expectation.signal, () => {
+        this.rejectEventWait(wait, this.createAbortedError(expectation));
+      })
     };
 
     this.eventWaits.set(waitId, wait as unknown as PendingEventWait<readonly unknown[]>);
@@ -163,6 +220,10 @@ export class EventJournal {
     expectation: NoEventExpectation<TArgs>
   ): Promise<void> {
     this.assertNotDisposed();
+
+    if (expectation.signal?.aborted) {
+      return observeRejection(Promise.reject(this.createAbortedError(expectation)));
+    }
 
     try {
       const existing = this.findMatchingRecord(expectation);
@@ -184,13 +245,17 @@ export class EventJournal {
       }
 
       this.noEventWaits.delete(waitId);
+      wait.removeAbortHandler();
       wait.deferred.resolve();
     }, expectation.durationMs);
     const wait: PendingNoEventWait<TArgs> = {
       id: waitId,
       expectation,
       deferred,
-      timeout
+      timeout,
+      removeAbortHandler: this.onAbort(expectation.signal, () => {
+        this.rejectNoEventWait(wait, this.createAbortedError(expectation));
+      })
     };
 
     this.noEventWaits.set(waitId, wait as PendingNoEventWait<readonly unknown[]>);
@@ -236,7 +301,7 @@ export class EventJournal {
 
     for (const [actorLabel, attachment] of [...this.attachments.entries()]) {
       try {
-        attachment.actor.socket.offAny(attachment.handler);
+        this.detachAttachment(attachment);
       } catch (error) {
         infrastructureFailures.push(toError(error));
       } finally {
@@ -251,10 +316,12 @@ export class EventJournal {
 
     for (const wait of eventWaits) {
       clearTimeout(wait.timeout);
+      wait.removeAbortHandler();
       wait.deferred.reject(this.createDisposedError("event", wait.expectation));
     }
     for (const wait of noEventWaits) {
       clearTimeout(wait.timeout);
+      wait.removeAbortHandler();
       wait.deferred.reject(this.createDisposedError("no-event", wait.expectation));
     }
 
@@ -274,6 +341,62 @@ export class EventJournal {
     return id;
   }
 
+  private detachAttachment(attachment: JournalAttachment): void {
+    const failures: Error[] = [];
+    const removals = [
+      () => attachment.actor.socket.offAny(attachment.handler),
+      ...attachment.lifecycleHandlers.map(
+        ({ event, handler }) =>
+          () =>
+            attachment.actor.socket.off(event, handler)
+      )
+    ];
+    if (attachment.outgoingHandler) {
+      removals.push(() => attachment.actor.socket.offAnyOutgoing(attachment.outgoingHandler));
+    }
+    for (const remove of removals) {
+      try {
+        remove();
+      } catch (error) {
+        failures.push(toError(error));
+      }
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `Cannot detach actor "${attachment.actor.label}": ${failures.map((error) => error.message).join("; ")}`
+      );
+    }
+  }
+
+  private onAbort(signal: AbortSignal | undefined, abort: () => void): () => void {
+    signal?.addEventListener("abort", abort, { once: true });
+    return () => signal?.removeEventListener("abort", abort);
+  }
+
+  private createAbortedError<TArgs extends readonly unknown[]>(
+    expectation: EventExpectation<TArgs> | NoEventExpectation<TArgs>
+  ): EventJournalAbortedError {
+    const reason = expectation.signal?.reason;
+    return new EventJournalAbortedError(
+      `Event journal wait aborted for "${expectation.event}" ${this.formatExpectationContext(expectation)}` +
+        (reason instanceof Error ? `: ${reason.message}` : "")
+    );
+  }
+
+  private rejectDisconnectedActorWaits(actor: JournalActor, event: string): void {
+    const error = new Error(
+      `Scenario actor "${actor.label}" disconnected (${event}, namespace="${actor.namespace ?? "unknown"}", ` +
+        `gameId="${actor.gameId ?? "unknown"}") lastEvents=${this.formatLastRecords()}`
+    );
+    for (const wait of [...this.eventWaits.values()]) {
+      if (wait.expectation.actor?.label === actor.label) this.rejectEventWait(wait, error);
+    }
+    for (const wait of [...this.noEventWaits.values()]) {
+      if (wait.expectation.actor?.label === actor.label) this.rejectNoEventWait(wait, error);
+    }
+  }
+
   private resolveEventWait<TArgs extends readonly unknown[]>(
     wait: PendingEventWait<TArgs>,
     record: EventRecord<TArgs>
@@ -283,6 +406,7 @@ export class EventJournal {
     }
 
     clearTimeout(wait.timeout);
+    wait.removeAbortHandler();
     this.eventWaits.delete(wait.id);
     wait.deferred.resolve(copyEventRecord(record));
   }
@@ -296,6 +420,7 @@ export class EventJournal {
     }
 
     clearTimeout(wait.timeout);
+    wait.removeAbortHandler();
     this.eventWaits.delete(wait.id);
     wait.deferred.reject(error);
   }
@@ -309,6 +434,7 @@ export class EventJournal {
     }
 
     clearTimeout(wait.timeout);
+    wait.removeAbortHandler();
     this.noEventWaits.delete(wait.id);
     wait.deferred.reject(error);
   }
@@ -380,7 +506,9 @@ export class EventJournal {
     record: EventRecord,
     expectation: EventExpectation<TArgs> | NoEventExpectation<TArgs>
   ): boolean {
-    if (record.event !== expectation.event) return false;
+    if (typeof expectation.event === "string") {
+      if (record.event !== expectation.event) return false;
+    } else if (!expectation.event.includes(record.event)) return false;
     if (expectation.direction && record.direction !== expectation.direction) return false;
     if (expectation.actor && record.actorLabel !== expectation.actor.label) return false;
     if (expectation.afterSequence !== undefined && record.sequence <= expectation.afterSequence) {
@@ -438,6 +566,9 @@ export class EventJournal {
     return JSON.stringify({
       description: expectation.description,
       actor: expectation.actor?.label,
+      socketId: expectation.actor?.socket.id,
+      namespace: expectation.actor?.namespace,
+      gameId: expectation.actor?.gameId,
       direction: expectation.direction,
       afterSequence: expectation.afterSequence,
       recordedEvents: this.records.length

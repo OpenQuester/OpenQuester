@@ -1,5 +1,3 @@
-import { type Express } from "express";
-import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
 import { Permissions } from "domain/enums/Permissions";
@@ -9,11 +7,9 @@ import { PaginatedResult } from "domain/types/pagination/PaginatedResult";
 import { Package } from "infrastructure/database/models/package/Package";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { ValueUtils } from "domain/utils/ValueUtils";
-import { bootstrapTestApp, teardownTestAppResources } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
+import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { PackageUtils } from "tests/utils/PackageUtils";
 import { TestUtils } from "tests/utils/TestUtils";
 import { deleteAll } from "tests/utils/TypeOrmTestUtils";
@@ -22,13 +18,13 @@ async function createPackages(
   count: number,
   packageUtils: PackageUtils,
   loginData: { user: User; cookie: string },
-  app: Express
+  http: HttpTestClient
 ) {
   for (let i = 0; i < count; i++) {
     const packageData = packageUtils.createTestPackageData(loginData.user, false);
 
     // Create package
-    await request(app)
+    await http
       .post("/v1/packages")
       .send({
         content: packageData
@@ -69,50 +65,38 @@ function getTimeOfStringDate(dateString: Date | string): number {
 }
 
 describe("PackageRestApiController", () => {
-  let testEnv: TestEnvironment;
-  let app: Express;
+  let harness: ServerTestHarness;
+  let http: HttpTestClient;
   let dataSource: DataSource;
   let userRepo: Repository<User>;
   let packageRepo: Repository<Package>;
   let permRepo: Repository<Permission>;
-  let cleanup: (() => Promise<void>) | undefined;
   let packageUtils: PackageUtils;
   let testUtils: TestUtils;
-  let serverUrl: string;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    // --- setup ---
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    dataSource = boot.dataSource;
-    cleanup = boot.cleanup;
-    // --- repositories ---
+    harness = await ServerTestHarness.start({ apiPort: 0 });
+    dataSource = harness.dataSource;
     userRepo = dataSource.getRepository<User>("User");
     packageRepo = dataSource.getRepository<Package>("Package");
     permRepo = dataSource.getRepository<Permission>("Permission");
-    // --- utils ---
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
     packageUtils = new PackageUtils();
-    testUtils = new TestUtils(app, userRepo, serverUrl);
+    testUtils = new TestUtils(harness.app, userRepo, harness.serverUrl);
   });
 
   beforeEach(async () => {
-    // Clear Redis cache to prevent stale user data from affecting tests
-    await testEnv.clearRedis();
+    http = createHttpTestClient(harness.serverUrl);
   });
 
   afterEach(async () => {
     await deleteAll(packageRepo);
     await deleteAll(userRepo);
     await deleteAll(permRepo);
+    await harness.resetState();
   });
 
   afterAll(async () => {
-    await teardownTestAppResources(cleanup, testEnv);
+    await harness?.stop();
   });
 
   beforeEach(async () => {
@@ -126,7 +110,7 @@ describe("PackageRestApiController", () => {
     const packageData = packageUtils.createTestPackageData(loginData.user, false);
 
     // Create package
-    const res = await request(app)
+    const res = await http
       .post("/v1/packages")
       .send({
         content: packageData
@@ -155,7 +139,7 @@ describe("PackageRestApiController", () => {
     const packageData = packageUtils.createTestPackageData(loginData.user, false);
 
     // Create package
-    const createRes = await request(app)
+    const createRes = await http
       .post("/v1/packages")
       .send({
         content: packageData
@@ -164,7 +148,7 @@ describe("PackageRestApiController", () => {
 
     // Get package
     const id = (createRes.body as unknown as PackageUploadResponse).id;
-    const res = await request(app).get(`/v1/packages/${id}`).set("Cookie", loginData.cookie);
+    const res = await http.get(`/v1/packages/${id}`).set("Cookie", loginData.cookie);
 
     const result = res.body as PackageDTO;
 
@@ -186,11 +170,11 @@ describe("PackageRestApiController", () => {
         user: loginData.user,
         cookie: loginData.cookie
       },
-      app
+      http
     );
 
     // Get package
-    const res = await request(app)
+    const res = await http
       .get(`/v1/packages/?limit=20&offset=0&sortBy=id`)
       .set("Cookie", loginData.cookie);
 
@@ -214,11 +198,11 @@ describe("PackageRestApiController", () => {
         user: loginData.user,
         cookie: loginData.cookie
       },
-      app
+      http
     );
 
     // Get package
-    const res = await request(app)
+    const res = await http
       .get(`/v1/packages/?limit=3&offset=0&sortBy=created_at&order=desc`)
       .set("Cookie", loginData.cookie);
 
@@ -242,7 +226,7 @@ describe("PackageRestApiController", () => {
       const packageData = packageUtils.createTestPackageData(loginData.user, false);
 
       // Create package
-      const createRes = await request(app)
+      const createRes = await http
         .post("/v1/packages")
         .send({
           content: packageData
@@ -252,13 +236,11 @@ describe("PackageRestApiController", () => {
       const packageId = createRes.body.id;
 
       // Verify package exists
-      const getRes = await request(app)
-        .get(`/v1/packages/${packageId}`)
-        .set("Cookie", loginData.cookie);
+      const getRes = await http.get(`/v1/packages/${packageId}`).set("Cookie", loginData.cookie);
       expect(getRes.status).toBe(200);
 
       // Delete package as author
-      const deleteRes = await request(app)
+      const deleteRes = await http
         .delete(`/v1/packages/${packageId}`)
         .set("Cookie", loginData.cookie);
 
@@ -266,7 +248,7 @@ describe("PackageRestApiController", () => {
       expect(deleteRes.body.message).toBe("Package deleted successfully");
 
       // Verify package is deleted
-      const getAfterDeleteRes = await request(app)
+      const getAfterDeleteRes = await http
         .get(`/v1/packages/${packageId}`)
         .set("Cookie", loginData.cookie);
 
@@ -279,7 +261,7 @@ describe("PackageRestApiController", () => {
       const authorData = await testUtils.createAndLoginUser("author");
       const packageData = packageUtils.createTestPackageData(authorData.user, false);
 
-      const createRes = await request(app)
+      const createRes = await http
         .post("/v1/packages")
         .send({
           content: packageData
@@ -295,14 +277,12 @@ describe("PackageRestApiController", () => {
       ]);
 
       // Login as this user using the standard test login
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: privilegedUser.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: privilegedUser.id });
       expect(loginRes.status).toBe(200);
       const privilegedCookie = loginRes.headers["set-cookie"];
 
       // Delete package with permission
-      const deleteRes = await request(app)
+      const deleteRes = await http
         .delete(`/v1/packages/${packageId}`)
         .set("Cookie", privilegedCookie);
 
@@ -310,7 +290,7 @@ describe("PackageRestApiController", () => {
       expect(deleteRes.body.message).toBe("Package deleted successfully");
 
       // Verify package is deleted
-      const getAfterDeleteRes = await request(app)
+      const getAfterDeleteRes = await http
         .get(`/v1/packages/${packageId}`)
         .set("Cookie", authorData.cookie);
       expect(getAfterDeleteRes.status).toBe(404);
@@ -322,7 +302,7 @@ describe("PackageRestApiController", () => {
       const authorData = await testUtils.createAndLoginUser("author");
       const packageData = packageUtils.createTestPackageData(authorData.user, false);
 
-      const createRes = await request(app)
+      const createRes = await http
         .post("/v1/packages")
         .send({
           content: packageData
@@ -334,13 +314,11 @@ describe("PackageRestApiController", () => {
       // Create user without DELETE_PACKAGE permission
       const unprivilegedUser = await createUserWithPermissions(userRepo, "unprivileged", []);
       // Login as this user
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: unprivilegedUser.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: unprivilegedUser.id });
       const unprivilegedCookie = loginRes.headers["set-cookie"];
 
       // Attempt to delete package without permission
-      const deleteRes = await request(app)
+      const deleteRes = await http
         .delete(`/v1/packages/${packageId}`)
         .set("Cookie", unprivilegedCookie);
 
@@ -348,7 +326,7 @@ describe("PackageRestApiController", () => {
       expect(deleteRes.body.error).toBe("You don't have permission to perform this action");
 
       // Verify package still exists
-      const getAfterDeleteRes = await request(app)
+      const getAfterDeleteRes = await http
         .get(`/v1/packages/${packageId}`)
         .set("Cookie", authorData.cookie);
       expect(getAfterDeleteRes.status).toBe(200);
@@ -359,7 +337,7 @@ describe("PackageRestApiController", () => {
       const authorData = await testUtils.createAndLoginUser("author");
       const packageData = packageUtils.createTestPackageData(authorData.user, false);
 
-      const createRes = await request(app)
+      const createRes = await http
         .post("/v1/packages")
         .send({
           content: packageData
@@ -369,13 +347,13 @@ describe("PackageRestApiController", () => {
       const packageId = createRes.body.id;
 
       // Attempt to delete package without authentication
-      const deleteRes = await request(app).delete(`/v1/packages/${packageId}`);
+      const deleteRes = await http.delete(`/v1/packages/${packageId}`);
 
       expect(deleteRes.status).toBe(401);
       expect(deleteRes.body.error).toBe("Access denied");
 
       // Verify package still exists
-      const getAfterDeleteRes = await request(app)
+      const getAfterDeleteRes = await http
         .get(`/v1/packages/${packageId}`)
         .set("Cookie", authorData.cookie);
       expect(getAfterDeleteRes.status).toBe(200);
@@ -388,15 +366,11 @@ describe("PackageRestApiController", () => {
         deletePermission
       ]);
       // Login as this user
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: privilegedUser.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: privilegedUser.id });
       const privilegedCookie = loginRes.headers["set-cookie"];
 
       // Attempt to delete non-existent package
-      const deleteRes = await request(app)
-        .delete(`/v1/packages/999999`)
-        .set("Cookie", privilegedCookie);
+      const deleteRes = await http.delete(`/v1/packages/999999`).set("Cookie", privilegedCookie);
 
       expect(deleteRes.status).toBe(404);
       expect(deleteRes.body.error).toBe("Package not found");
@@ -409,15 +383,11 @@ describe("PackageRestApiController", () => {
         deletePermission
       ]);
       // Login as this user
-      const loginRes = await request(app)
-        .post("/v1/test/login")
-        .send({ userId: privilegedUser.id });
+      const loginRes = await http.post("/v1/test/login").send({ userId: privilegedUser.id });
       const privilegedCookie = loginRes.headers["set-cookie"];
 
       // Attempt to delete package with invalid ID
-      const deleteRes = await request(app)
-        .delete(`/v1/packages/invalid`)
-        .set("Cookie", privilegedCookie);
+      const deleteRes = await http.delete(`/v1/packages/invalid`).set("Cookie", privilegedCookie);
 
       expect(deleteRes.status).toBe(400);
     });

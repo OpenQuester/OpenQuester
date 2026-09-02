@@ -5,6 +5,7 @@ import type { DataSource, Repository } from "typeorm";
 import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { TestUtils } from "tests/utils/TestUtils";
+import { GameScenario } from "tests/e2e/scenario/GameScenario";
 
 export class SocketGameTestSuite {
   public readonly app: Express;
@@ -14,6 +15,39 @@ export class SocketGameTestSuite {
   public readonly utils: SocketGameTestUtils;
   public readonly testUtils: TestUtils;
   private _stopPromise: Promise<void> | undefined;
+  private activeScenario: GameScenario | undefined;
+
+  public get currentScenario(): GameScenario {
+    if (!this.activeScenario) throw new Error("No active game scenario; use suite.scenario()");
+    return this.activeScenario;
+  }
+
+  /** Own assertions as well as resources, including failures after the callback returns. */
+  public async scenario<T>(run: (scenario: GameScenario) => Promise<T>): Promise<T> {
+    if (this.activeScenario) throw new Error("Overlapping game scenarios are not supported");
+    const scenario = new GameScenario(this.utils);
+    this.activeScenario = scenario;
+    let detach: (() => void) | undefined;
+    let result: T | undefined;
+    const failures: Error[] = [];
+    try {
+      detach = this.utils.useScenario(scenario);
+      result = await run(scenario);
+    } catch (error) {
+      failures.push(toLifecycleError("Game scenario", error));
+    }
+    try {
+      if (failures.length) await scenario.abort();
+      else await scenario.finish();
+    } catch (error) {
+      failures.push(toLifecycleError("Scenario assertions and disposal", error));
+    } finally {
+      detach?.();
+      this.activeScenario = undefined;
+    }
+    throwIfFailed("Game scenario failed", failures);
+    return result as T;
+  }
 
   private constructor(private readonly harness: ServerTestHarness) {
     this.app = harness.app;

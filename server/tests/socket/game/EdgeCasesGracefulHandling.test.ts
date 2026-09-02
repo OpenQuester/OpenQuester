@@ -36,245 +36,263 @@ describe("Edge Cases - Graceful Handling", () => {
 
   describe("Multiple Unpause Requests", () => {
     it("should handle unpausing already unpaused game gracefully", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      // Start game - not paused
-      await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        // Start game - not paused
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
-      // Get initial timer
-      const initialGameState = await utils.getGameState(gameId);
-      expect(initialGameState?.isPaused).toBe(false);
-      expect(initialGameState?.timer).toBeDefined();
+        // Get initial timer
+        const initialGameState = await utils.getGameState(gameId);
+        expect(initialGameState?.isPaused).toBe(false);
+        expect(initialGameState?.timer).toBeDefined();
 
-      // Unpause without prior pause (game is already unpaused)
-      // This should succeed without error - the timer will be null because
-      // there's no "paused" timer saved (paused timer uses different key)
-      const unpausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_UNPAUSE);
-      showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
-      const unpauseData = await unpausePromise;
+        // Unpause without prior pause (game is already unpaused)
+        // This should succeed without error - the timer will be null because
+        // there's no "paused" timer saved (paused timer uses different key)
+        const unpausePromise = scenario.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.GAME_UNPAUSE
+        );
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.GAME_UNPAUSE, {});
+        const unpauseData = await unpausePromise;
 
-      // Timer is null because no paused timer was saved
-      // This is expected behavior - the active timer continues normally
-      expect(unpauseData.timer).toBeNull();
+        // Timer is null because no paused timer was saved
+        // This is expected behavior - the active timer continues normally
+        expect(unpauseData.timer).toBeNull();
 
-      // Verify game state remains unpaused and consistent
-      const finalGameState = await utils.getGameState(gameId);
-      expect(finalGameState?.isPaused).toBe(false);
-      // The active timer in game state should still exist
-      expect(finalGameState?.timer).toBeDefined();
+        // Verify game state remains unpaused and consistent
+        const finalGameState = await utils.getGameState(gameId);
+        expect(finalGameState?.isPaused).toBe(false);
+        // The active timer in game state should still exist
+        expect(finalGameState?.timer).toBeDefined();
+      });
     });
   });
 
   describe("Player Disconnect During Answering", () => {
     it("should auto-handle answer as SKIP (0 points) when answering player disconnects", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
-      // Player 0 starts answering
-      await utils.answerQuestion(playerSockets[0], showmanSocket);
+        // Player 0 starts answering
+        await utils.answerQuestion(playerSockets[0], showmanSocket);
 
-      // Verify answering player is set
-      const answeringState = await utils.getGameState(gameId);
-      expect(answeringState?.answeringPlayer).toBe(playerUsers[0].id);
+        // Verify answering player is set
+        const answeringState = await utils.getGameState(gameId);
+        expect(answeringState?.answeringPlayer).toBe(playerUsers[0].id);
 
-      // Record initial score
-      const gameBefore = await utils.getGameFromGameService(gameId);
-      const playerBefore = gameBefore.getPlayer(playerUsers[0].id, {
-        fetchDisconnected: true
+        // Record initial score
+        const gameBefore = await utils.getGameFromGameService(gameId);
+        const playerBefore = gameBefore.getPlayer(playerUsers[0].id, {
+          fetchDisconnected: true
+        });
+        const initialScore = playerBefore?.score ?? 0;
+
+        // Set up listeners for auto-skip answer result BEFORE disconnecting
+        const answerResultPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
+
+        // Disconnect the answering player - this should auto-skip their answer
+        scenario.actor(playerSockets[0]).disconnect();
+
+        // Wait for answer result event (auto-skip)
+        const answerResult = await answerResultPromise;
+        expect(answerResult).toBeDefined();
+        expect(answerResult.answerResult).toBeDefined();
+        expect(answerResult.answerResult.result).toBe(0); // SKIP = 0 points
+        expect(answerResult.answerResult.answerType).toBe(AnswerResultType.SKIP);
+
+        // Verify player is now disconnected
+        const gameAfter = await utils.getGameFromGameService(gameId);
+        const disconnectedPlayer = gameAfter.getPlayer(playerUsers[0].id, {
+          fetchDisconnected: true
+        });
+        expect(disconnectedPlayer?.gameStatus).toBe(PlayerGameStatus.DISCONNECTED);
+
+        // Verify score is unchanged (SKIP = 0 points change)
+        expect(disconnectedPlayer?.score).toBe(initialScore);
+
+        // Verify game state is reset to SHOWING (question continues for other players)
+        expect(gameAfter.gameState.questionState).toBe(QuestionState.SHOWING);
+        expect(gameAfter.gameState.answeringPlayer).toBeNull();
       });
-      const initialScore = playerBefore?.score ?? 0;
-
-      // Set up listeners for auto-skip answer result BEFORE disconnecting
-      const answerResultPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_RESULT
-      );
-
-      // Disconnect the answering player - this should auto-skip their answer
-      playerSockets[0].disconnect();
-
-      // Wait for answer result event (auto-skip)
-      const answerResult = await answerResultPromise;
-      expect(answerResult).toBeDefined();
-      expect(answerResult.answerResult).toBeDefined();
-      expect(answerResult.answerResult.result).toBe(0); // SKIP = 0 points
-      expect(answerResult.answerResult.answerType).toBe(AnswerResultType.SKIP);
-
-      // Verify player is now disconnected
-      const gameAfter = await utils.getGameFromGameService(gameId);
-      const disconnectedPlayer = gameAfter.getPlayer(playerUsers[0].id, {
-        fetchDisconnected: true
-      });
-      expect(disconnectedPlayer?.gameStatus).toBe(PlayerGameStatus.DISCONNECTED);
-
-      // Verify score is unchanged (SKIP = 0 points change)
-      expect(disconnectedPlayer?.score).toBe(initialScore);
-
-      // Verify game state is reset to SHOWING (question continues for other players)
-      expect(gameAfter.gameState.questionState).toBe(QuestionState.SHOWING);
-      expect(gameAfter.gameState.answeringPlayer).toBeNull();
     });
   });
 
   describe("Next Round Timer Clearing", () => {
     it("should replace active timer when progressing to final round", async () => {
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0,
-        true // include final round
-      );
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          1,
+          0,
+          true // include final round
+        );
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Pick a question to create an active timer
-      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        // Pick a question to create an active timer
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
-      // Verify timer is active
-      const stateWithTimer = await utils.getGameState(gameId);
-      expect(stateWithTimer?.timer).toBeDefined();
-      expect(stateWithTimer?.questionState).toBe(QuestionState.SHOWING);
-      const showingTimerStartedAt = stateWithTimer?.timer?.startedAt;
+        // Verify timer is active
+        const stateWithTimer = await utils.getGameState(gameId);
+        expect(stateWithTimer?.timer).toBeDefined();
+        expect(stateWithTimer?.questionState).toBe(QuestionState.SHOWING);
+        const showingTimerStartedAt = stateWithTimer?.timer?.startedAt;
 
-      // Progress to next round (skipping current round)
-      const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.NEXT_ROUND
-      );
+        // Progress to next round (skipping current round)
+        const nextRoundPromise = scenario.waitForEvent<GameNextRoundEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.NEXT_ROUND
+        );
 
-      showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND);
-      const nextRoundData = await nextRoundPromise;
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.NEXT_ROUND);
+        const nextRoundData = await nextRoundPromise;
 
-      // Verify we're in next round
-      expect(nextRoundData.gameState.currentRound?.type).toBe(PackageRoundType.FINAL);
+        // Verify we're in next round
+        expect(nextRoundData.gameState.currentRound?.type).toBe(PackageRoundType.FINAL);
 
-      // Verify final round replaces the question timer with theme elimination timer
-      expect(nextRoundData.gameState.timer).toBeDefined();
-      expect(nextRoundData.gameState.timer?.durationMs).toBe(FINAL_ROUND_THEME_ELIMINATION_TIME);
-      expect(nextRoundData.gameState.timer?.startedAt).not.toBe(showingTimerStartedAt);
+        // Verify final round replaces the question timer with theme elimination timer
+        expect(nextRoundData.gameState.timer).toBeDefined();
+        expect(nextRoundData.gameState.timer?.durationMs).toBe(FINAL_ROUND_THEME_ELIMINATION_TIME);
+        expect(nextRoundData.gameState.timer?.startedAt).not.toBe(showingTimerStartedAt);
 
-      // Verify persisted state has the same fresh final-round timer
-      const game = await utils.getGameFromGameService(gameId);
-      expect(game.gameState.timer?.durationMs).toBe(FINAL_ROUND_THEME_ELIMINATION_TIME);
+        // Verify persisted state has the same fresh final-round timer
+        const game = await utils.getGameFromGameService(gameId);
+        expect(game.gameState.timer?.durationMs).toBe(FINAL_ROUND_THEME_ELIMINATION_TIME);
+      });
     });
   });
 
   describe("Final Round Turn Order - Showman Fallback", () => {
     it("should use showman in turn order when no eligible players exist", async () => {
-      // This test creates a game, starts it, has all players leave before final round,
-      // then verifies showman gets turn order
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        1,
-        0,
-        true // include final round
-      );
-      const { showmanSocket, playerSockets, gameId, showmanUser } = setup;
+      await suite.scenario(async (scenario) => {
+        // This test creates a game, starts it, has all players leave before final round,
+        // then verifies showman gets turn order
+        const setup = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          1,
+          0,
+          true // include final round
+        );
+        const { showmanSocket, playerSockets, gameId, showmanUser } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Player leaves the game
-      const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
-      playerSockets[0].emit(SocketIOGameEvents.LEAVE);
-      await leavePromise;
+        // Player leaves the game
+        const leavePromise = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE);
+        await leavePromise;
 
-      // Verify player left
-      const gameAfterLeave = await utils.getGameFromGameService(gameId);
-      const inGamePlayers = gameAfterLeave.getInGamePlayers();
-      expect(inGamePlayers.length).toBe(0);
+        // Verify player left
+        const gameAfterLeave = await utils.getGameFromGameService(gameId);
+        const inGamePlayers = gameAfterLeave.getInGamePlayers();
+        expect(inGamePlayers.length).toBe(0);
 
-      // Progress to final round
-      const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.NEXT_ROUND
-      );
+        // Progress to final round
+        const nextRoundPromise = scenario.waitForEvent<GameNextRoundEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.NEXT_ROUND
+        );
 
-      showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND);
-      const nextRoundData = await nextRoundPromise;
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.NEXT_ROUND);
+        const nextRoundData = await nextRoundPromise;
 
-      // Verify we're in final round
-      expect(nextRoundData.gameState.currentRound?.type).toBe(PackageRoundType.FINAL);
+        // Verify we're in final round
+        expect(nextRoundData.gameState.currentRound?.type).toBe(PackageRoundType.FINAL);
 
-      // Verify showman is in turn order (fallback when no players)
-      const finalRoundData = nextRoundData.gameState.finalRoundData;
-      expect(finalRoundData).toBeDefined();
-      expect(finalRoundData!.turnOrder).toBeDefined();
-      expect(finalRoundData!.turnOrder.length).toBe(1);
-      expect(finalRoundData!.turnOrder[0]).toBe(showmanUser.id);
+        // Verify showman is in turn order (fallback when no players)
+        const finalRoundData = nextRoundData.gameState.finalRoundData;
+        expect(finalRoundData).toBeDefined();
+        expect(finalRoundData!.turnOrder).toBeDefined();
+        expect(finalRoundData!.turnOrder.length).toBe(1);
+        expect(finalRoundData!.turnOrder[0]).toBe(showmanUser.id);
 
-      // Verify current turn player is showman
-      expect(nextRoundData.gameState.currentTurnPlayerId).toBe(showmanUser.id);
+        // Verify current turn player is showman
+        expect(nextRoundData.gameState.currentTurnPlayerId).toBe(showmanUser.id);
+      });
     });
 
     it("should use single player in turn order when only one player exists", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true);
-      const { showmanSocket, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0, true);
+        const { showmanSocket, playerUsers } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Progress to final round with single player
-      const nextRoundPromise = utils.waitForEvent<GameNextRoundEventPayload>(
-        showmanSocket,
-        SocketIOGameEvents.NEXT_ROUND
-      );
+        // Progress to final round with single player
+        const nextRoundPromise = scenario.waitForEvent<GameNextRoundEventPayload>(
+          showmanSocket,
+          SocketIOGameEvents.NEXT_ROUND
+        );
 
-      showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND);
-      const nextRoundData = await nextRoundPromise;
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.NEXT_ROUND);
+        const nextRoundData = await nextRoundPromise;
 
-      // Verify final round with single player in turn order
-      const finalRoundData = nextRoundData.gameState.finalRoundData;
-      expect(finalRoundData!.turnOrder.length).toBe(1);
-      expect(finalRoundData!.turnOrder[0]).toBe(playerUsers[0].id);
-      expect(nextRoundData.gameState.currentTurnPlayerId).toBe(playerUsers[0].id);
+        // Verify final round with single player in turn order
+        const finalRoundData = nextRoundData.gameState.finalRoundData;
+        expect(finalRoundData!.turnOrder.length).toBe(1);
+        expect(finalRoundData!.turnOrder[0]).toBe(playerUsers[0].id);
+        expect(nextRoundData.gameState.currentTurnPlayerId).toBe(playerUsers[0].id);
+      });
     });
   });
 
   describe("Player Disconnect During Pause", () => {
     it("should handle player disconnect while game is paused", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      await utils.startGame(showmanSocket);
-      await utils.pickQuestion(showmanSocket, undefined, playerSockets);
+        await utils.startGame(showmanSocket);
+        await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
-      // Pause the game
-      await utils.pauseGame(showmanSocket);
+        // Pause the game
+        await utils.pauseGame(showmanSocket);
 
-      // Verify game is paused
-      const pausedState = await utils.getGameState(gameId);
-      expect(pausedState?.isPaused).toBe(true);
+        // Verify game is paused
+        const pausedState = await utils.getGameState(gameId);
+        expect(pausedState?.isPaused).toBe(true);
 
-      // Player 0 disconnects while paused
-      const leavePromise = utils.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
-      playerSockets[0].disconnect();
-      await leavePromise;
+        // Player 0 disconnects while paused
+        const leavePromise = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+        scenario.actor(playerSockets[0]).disconnect();
+        await leavePromise;
 
-      // Game should still be paused
-      const stateAfterDisconnect = await utils.getGameState(gameId);
-      expect(stateAfterDisconnect?.isPaused).toBe(true);
+        // Game should still be paused
+        const stateAfterDisconnect = await utils.getGameState(gameId);
+        expect(stateAfterDisconnect?.isPaused).toBe(true);
 
-      // Unpause should still work
-      const unpausePromise = utils.waitForEvent(playerSockets[1], SocketIOGameEvents.GAME_UNPAUSE);
-      showmanSocket.emit(SocketIOGameEvents.GAME_UNPAUSE, {});
-      await unpausePromise;
+        // Unpause should still work
+        const unpausePromise = scenario.waitForEvent(
+          playerSockets[1],
+          SocketIOGameEvents.GAME_UNPAUSE
+        );
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.GAME_UNPAUSE, {});
+        await unpausePromise;
 
-      // Game continues without the disconnected player
-      const resumedState = await utils.getGameState(gameId);
-      expect(resumedState?.isPaused).toBe(false);
+        // Game continues without the disconnected player
+        const resumedState = await utils.getGameState(gameId);
+        expect(resumedState?.isPaused).toBe(false);
 
-      // Verify remaining player can still play
-      const game = await utils.getGameFromGameService(gameId);
-      const inGamePlayers = game.getInGamePlayers();
-      expect(inGamePlayers.length).toBe(1);
-      expect(inGamePlayers[0].meta.id).toBe(playerUsers[1].id);
+        // Verify remaining player can still play
+        const game = await utils.getGameFromGameService(gameId);
+        const inGamePlayers = game.getInGamePlayers();
+        expect(inGamePlayers.length).toBe(1);
+        expect(inGamePlayers[0].meta.id).toBe(playerUsers[1].id);
+      });
     });
   });
 });

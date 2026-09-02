@@ -7,6 +7,7 @@ import { GameActionQueueService } from "application/services/queue/GameActionQue
 import { GameActionType } from "domain/enums/GameActionType";
 import { type GameAction } from "domain/types/action/GameAction";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
+import type { GameScenario } from "tests/e2e/scenario/GameScenario";
 
 import { type GameClientSocket } from "./SocketIOGameTestUtils";
 
@@ -223,6 +224,11 @@ export class SocketGameTestEventUtils {
   private readonly queueService: GameActionQueueService;
   private readonly actionExecutor: GameActionExecutor;
   private readonly pendingTestWaits = new Set<PendingTestWait>();
+  private scenario: GameScenario | undefined;
+
+  public useScenario(scenario: GameScenario | undefined): void {
+    this.scenario = scenario;
+  }
 
   public constructor(dependencies: SocketGameTestEventUtilsDependencies = {}) {
     this.lockService = dependencies.lockService ?? container.resolve(GameActionLockService);
@@ -247,6 +253,9 @@ export class SocketGameTestEventUtils {
     timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
     signal?: AbortSignal
   ): Promise<T> {
+    if (this.scenario) {
+      return this.scenario.waitForEventMatching(socket, event, predicate, timeout, signal);
+    }
     const effectiveTimeout = Math.min(timeout, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
     const socketId = socket.id;
 
@@ -410,6 +419,9 @@ export class SocketGameTestEventUtils {
     timeout: number = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
     predicate: (data: T) => boolean = () => true
   ): Promise<T> {
+    if (this.scenario) {
+      return this.scenario.runAndWaitForEvent(socket, event, operation, timeout, predicate);
+    }
     const controller = new AbortController();
     const eventPromise = this.waitForEventMatching(
       socket,
@@ -435,6 +447,9 @@ export class SocketGameTestEventUtils {
     timeout: number = TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,
     signal?: AbortSignal
   ): Promise<void> {
+    if (this.scenario) {
+      return this.scenario.waitForNoEvent(socket, event, timeout, signal);
+    }
     const effectiveTimeout = Math.min(timeout, TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS);
     const socketId = socket.id;
 
@@ -614,7 +629,10 @@ export class SocketGameTestEventUtils {
     actionType?: GameActionType,
     timeout: number = TEST_TIMEOUTS.ACTION_QUEUE_WAIT_MS
   ): Promise<void> {
-    const probe = this.createAcceptedActionProbe({ gameId, actionType });
+    const scenario = this.scenario;
+    const probe = scenario
+      ? scenario.createAcceptedActionProbe({ gameId, actionType })
+      : this.createAcceptedActionProbe({ gameId, actionType });
     const wait = (async () => {
       try {
         await probe.waitForCount(expectedCount, timeout);
@@ -623,7 +641,13 @@ export class SocketGameTestEventUtils {
       }
     })();
     void wait.catch(() => undefined);
-    return this.trackPendingWait(wait, () => probe.dispose());
+    const trackedWait = this.trackPendingWait(wait, () => probe.dispose());
+    return scenario
+      ? scenario.trackExpectation(
+          trackedWait,
+          `${expectedCount} accepted/enqueued actions for game "${gameId}"`
+        )
+      : trackedWait;
   }
 
   private installActionLifecycleObservers(): void {

@@ -23,15 +23,17 @@ export class ScenarioActor {
   public readonly socket: Socket;
   public readonly namespace: string;
   public readonly userId: number | undefined;
-  public readonly gameId: string | undefined;
   private readonly journal: EventJournal;
+  private readonly initialGameId: string | undefined;
+  private connectionId: string | undefined;
 
   public constructor(options: ScenarioActorOptions) {
     this.label = options.label;
     this.socket = options.socket;
     this.namespace = options.namespace ?? "unknown";
     this.userId = options.userId;
-    this.gameId = options.gameId;
+    this.initialGameId = options.gameId;
+    this.connectionId = options.socket.id;
     this.journal = options.journal;
   }
 
@@ -39,7 +41,9 @@ export class ScenarioActor {
     this.assertConnected(`emit Socket.IO event "${event}"`);
 
     const args = payload === undefined ? [] : [payload];
-    this.journal.recordOutgoing(this, event, args);
+    if (!this.journal.observesOutgoing(this)) {
+      this.journal.recordOutgoing(this, event, args);
+    }
 
     if (payload === undefined) {
       this.socket.emit(event);
@@ -70,8 +74,14 @@ export class ScenarioActor {
     return this.socket.id;
   }
 
+  public get gameId(): string | undefined {
+    const socket = this.socket as Socket & { gameId?: string };
+    return "gameId" in socket ? socket.gameId : this.initialGameId;
+  }
+
   private assertConnected(action: string): void {
-    if (this.socket.connected) {
+    this.connectionId ??= this.socket.id;
+    if (this.socket.connected && this.socket.id === this.connectionId) {
       return;
     }
 

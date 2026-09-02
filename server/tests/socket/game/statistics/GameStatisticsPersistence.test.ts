@@ -42,71 +42,77 @@ describe("Game Statistics Persistence Tests", () => {
   });
 
   it("should record statistics to database when game ends", async () => {
-    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
-    const { showmanSocket, playerSockets } = setup;
+    await suite.scenario(async (scenario) => {
+      const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
+      const { showmanSocket, playerSockets } = setup;
 
-    await utils.startGame(showmanSocket);
-    await utils.progressToNextRound(showmanSocket);
+      await utils.startGame(showmanSocket);
+      await utils.progressToNextRound(showmanSocket);
 
-    const gameFinishedPromise = utils.waitForEvent<boolean>(
-      playerSockets[0],
-      SocketIOGameEvents.GAME_FINISHED
-    );
-    showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND, {});
+      const gameFinishedPromise = scenario.waitForEvent<boolean>(
+        playerSockets[0],
+        SocketIOGameEvents.GAME_FINISHED
+      );
+      scenario.actor(showmanSocket).emit(SocketIOGameEvents.NEXT_ROUND, {});
 
-    expect(await gameFinishedPromise).toBe(true);
-    await utils.waitForActionsComplete(setup.gameId);
-    await expectPersistedGameStatistics(gameStatsRepo);
+      expect(await gameFinishedPromise).toBe(true);
+      await utils.waitForActionsComplete(setup.gameId);
+      await expectPersistedGameStatistics(gameStatsRepo);
+    });
   });
 
   it("should record statistics to database when game ends via answer result", async () => {
-    // Setup game with 1 player
-    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
-    const { showmanSocket, playerSockets } = setup;
+    await suite.scenario(async (scenario) => {
+      // Setup game with 1 player
+      const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
+      const { showmanSocket, playerSockets } = setup;
 
-    await utils.startGame(showmanSocket);
-    await utils.progressToNextRound(showmanSocket);
+      await utils.startGame(showmanSocket);
+      await utils.progressToNextRound(showmanSocket);
 
-    const questionId = await utils.getFirstAvailableQuestionId(setup.gameId);
-    const gameFinished = await utils.runAndWaitForEvent<boolean>(
-      playerSockets[0],
-      SocketIOGameEvents.GAME_FINISHED,
-      () =>
-        utils.pickAndCompleteQuestion(
-          showmanSocket,
-          playerSockets,
-          questionId,
-          true,
-          AnswerResultType.CORRECT,
-          100,
-          0
-        )
-    );
+      const questionId = await utils.getFirstAvailableQuestionId(setup.gameId);
+      const gameFinished = await scenario.runAndWaitForEvent<boolean>(
+        playerSockets[0],
+        SocketIOGameEvents.GAME_FINISHED,
+        () =>
+          utils.pickAndCompleteQuestion(
+            showmanSocket,
+            playerSockets,
+            questionId,
+            true,
+            AnswerResultType.CORRECT,
+            100,
+            0
+          )
+      );
 
-    expect(gameFinished).toBe(true);
-    await utils.waitForActionsComplete(setup.gameId);
-    await expectPersistedGameStatistics(gameStatsRepo);
+      expect(gameFinished).toBe(true);
+      await utils.waitForActionsComplete(setup.gameId);
+      await expectPersistedGameStatistics(gameStatsRepo);
+    });
   });
 
   it("should record statistics to database when game ends via skip question force", async () => {
-    // Setup game with 1 player
-    const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
-    const { showmanSocket, playerSockets, gameId } = setup;
+    await suite.scenario(async (scenario) => {
+      // Setup game with 1 player
+      const setup = await utils.setupGameTestEnvironment(userRepo, _app, 1, 0, false);
+      const { showmanSocket, playerSockets, gameId } = setup;
 
-    await utils.startGame(showmanSocket);
+      await utils.startGame(showmanSocket);
 
-    await utils.progressToNextRound(showmanSocket);
+      await utils.progressToNextRound(showmanSocket);
 
-    const questionId = await utils.getFirstAvailableQuestionId(gameId);
-    const gameFinished = await utils.runAndWaitForEvent<boolean>(
-      playerSockets[0],
-      SocketIOGameEvents.GAME_FINISHED,
-      () => utils.pickAndCompleteQuestion(showmanSocket, playerSockets, questionId, false)
-    );
+      const questionId = await utils.getFirstAvailableQuestionId(gameId);
+      const gameFinished = await scenario.runAndWaitForEvent<boolean>(
+        playerSockets[0],
+        SocketIOGameEvents.GAME_FINISHED,
+        () => utils.pickAndCompleteQuestion(showmanSocket, playerSockets, questionId, false)
+      );
 
-    expect(gameFinished).toBe(true);
-    await utils.waitForActionsComplete(gameId);
-    await expectPersistedGameStatistics(gameStatsRepo);
+      expect(gameFinished).toBe(true);
+      await utils.waitForActionsComplete(gameId);
+      await expectPersistedGameStatistics(gameStatsRepo);
+    });
   });
 });
 

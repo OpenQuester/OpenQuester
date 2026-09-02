@@ -51,12 +51,87 @@ describe("Socket game transport suite policy", () => {
     ).toEqual([]);
   });
 
-  it("rejects hand-written event promises outside the bounded queue-mechanics collectors", () => {
+  it("rejects hand-written event promises including queue-mechanics collectors", () => {
     expect(
-      violatingPaths(
-        (suite) => /new Promise|setTimeout|\.on\(|\.once\(/.test(suite.source),
-        new Set(["GameLockAndQueueMechanics.test.ts"])
+      violatingPaths((suite) => /new Promise|setTimeout|\.on\(|\.once\(/.test(suite.source))
+    ).toEqual([]);
+  });
+
+  it("owns every gameplay test's assertions in a scenario, not just its resources", () => {
+    expect(violatingPaths((suite) => findUnscopedCases(suite).length > 0)).toEqual([]);
+  });
+
+  it("recognizes unscoped parameterized cases and Jest modifier chains", () => {
+    expect(
+      findUnscopedCases({
+        path: "ParameterizedFlow.test.ts",
+        source: [
+          'it.each([[1]])("array row", async () => {});',
+          'test.each`value\n${1}`("tagged row", async () => {});',
+          'it.concurrent.each([[1]])("concurrent row", async () => {});',
+          'test.failing.each([[1]])("failing row", async () => {});',
+          'it.skip.each([[1]])("skipped row", async () => {});',
+          'test.only.each([[1]])("focused row", async () => {});',
+          'test.concurrent("concurrent case", async () => {});'
+        ].join("\n")
+      })
+    ).toEqual([
+      '"array row"',
+      '"tagged row"',
+      '"concurrent row"',
+      '"failing row"',
+      '"skipped row"',
+      '"focused row"',
+      '"concurrent case"'
+    ]);
+  });
+
+  it("accepts scoped parameterized cases without treating their tables as test bodies", () => {
+    expect(
+      findUnscopedCases({
+        path: "ParameterizedFlow.test.ts",
+        source: [
+          'it.each([[1], [2]])("array %s", async () => suite.scenario(async () => {}));',
+          'test.each`value\n${1}`("tagged $value", async () => suite.scenario(async () => {}));',
+          'it.concurrent.each([[1]])("concurrent %s", async () => suite.scenario(async () => {}));'
+        ].join("\n")
+      })
+    ).toEqual([]);
+  });
+
+  it("rejects legacy event assertions and raw socket commands in transport tests", () => {
+    expect(
+      violatingPaths((suite) =>
+        /\b(?:utils|testUtils)\.(?:waitForEvent|waitForEventMatching|waitForNoEvent|waitForPlayerReady|waitForPlayerUnready|emitAndWaitForEvent|runAndWaitForEvent)\b/.test(
+          suite.source
+        )
       )
+    ).toEqual([]);
+    expect(
+      violatingPaths((suite) => {
+        const ast = ts.createSourceFile(suite.path, suite.source, ts.ScriptTarget.Latest, true);
+        let rawEmit = false;
+        const visit = (node: ts.Node): void => {
+          if (
+            ts.isCallExpression(node) &&
+            ts.isPropertyAccessExpression(node.expression) &&
+            node.expression.name.text === "emit"
+          ) {
+            const receiver = node.expression.expression;
+            if (
+              !(
+                ts.isCallExpression(receiver) &&
+                ts.isPropertyAccessExpression(receiver.expression) &&
+                receiver.expression.name.text === "actor"
+              )
+            )
+              rawEmit = true;
+          }
+          ts.forEachChild(node, visit);
+        };
+        visit(ast);
+        return rawEmit;
+      })
     ).toEqual([]);
   });
 
@@ -75,6 +150,51 @@ describe("Socket game transport suite policy", () => {
     ).toEqual(["waitForEvent", "waitForNoEvent"]);
   });
 });
+
+function findUnscopedCases(suite: TransportSuiteSource): readonly string[] {
+  const ast = ts.createSourceFile(suite.path, suite.source, ts.ScriptTarget.Latest, true);
+  const failures: string[] = [];
+  const visit = (node: ts.Node, helperUnitTest = false): void => {
+    if (ts.isCallExpression(node)) {
+      const definition = getJestDefinitionName(node);
+      const title = node.arguments[0];
+      if (
+        definition === "describe" &&
+        title &&
+        ts.isStringLiteral(title) &&
+        title.text === "Game lock test cleanup helpers" &&
+        basename(suite.path) === "GameLockAndQueueMechanics.test.ts"
+      )
+        helperUnitTest = true;
+      if (
+        (definition === "it" || definition === "test") &&
+        !helperUnitTest &&
+        !node.arguments[1]?.getText(ast).includes("suite.scenario(")
+      )
+        failures.push(title?.getText(ast) ?? "<missing test title>");
+    }
+    ts.forEachChild(node, (child) => visit(child, helperUnitTest));
+  };
+  visit(ast);
+  return failures;
+}
+
+function getJestDefinitionName(node: ts.CallExpression): string | undefined {
+  let expression: ts.Expression = node.expression;
+  if (ts.isCallExpression(expression) || ts.isTaggedTemplateExpression(expression)) {
+    const builder = ts.isCallExpression(expression) ? expression.expression : expression.tag;
+    if (!ts.isPropertyAccessExpression(builder) || builder.name.text !== "each") return;
+    expression = builder.expression;
+  } else if (ts.isPropertyAccessExpression(expression) && expression.name.text === "each") {
+    // it.each(rows) only binds the table; the surrounding call declares the actual case.
+    return;
+  }
+
+  while (ts.isPropertyAccessExpression(expression)) expression = expression.expression;
+  return ts.isIdentifier(expression) && ["it", "test", "describe"].includes(expression.text)
+    ? expression.text
+    : undefined;
+}
 
 interface VoidedTrackedWait {
   readonly method: string;

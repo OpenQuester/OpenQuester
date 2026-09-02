@@ -14,7 +14,6 @@ import {
 import { type Express } from "express";
 import { container } from "tsyringe";
 import { User } from "infrastructure/database/models/User";
-import request from "supertest";
 import { PackageUtils } from "tests/utils/PackageUtils";
 import { Repository } from "typeorm";
 
@@ -118,7 +117,7 @@ export class SocketGameTestLobbyUtils {
         includeMediaQuestionFiles
       );
 
-      const packageRes = await request(app)
+      const packageRes = await this.userUtils.httpClient
         .post("/v1/packages")
         .set("Cookie", cookie)
         .send({ content: packageData });
@@ -143,7 +142,10 @@ export class SocketGameTestLobbyUtils {
       };
 
       // Create the game via REST API
-      const gameRes = await request(app).post("/v1/games").set("Cookie", cookie).send(gameData);
+      const gameRes = await this.userUtils.httpClient
+        .post("/v1/games")
+        .set("Cookie", cookie)
+        .send(gameData);
 
       if (gameRes.status !== 200) {
         throw new Error(
@@ -496,7 +498,9 @@ export class SocketGameTestLobbyUtils {
   }
 
   public async deleteGame(app: Express, gameId: string, cookie: string[]): Promise<void> {
-    const deleteRes = await request(app).delete(`/v1/games/${gameId}`).set("Cookie", cookie);
+    const deleteRes = await this.userUtils.httpClient
+      .delete(`/v1/games/${gameId}`)
+      .set("Cookie", cookie);
 
     if (![HttpStatus.OK, HttpStatus.NO_CONTENT].includes(deleteRes.status)) {
       throw new Error(

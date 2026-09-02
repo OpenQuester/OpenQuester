@@ -30,6 +30,7 @@ import { SocketGameTestFlowUtils } from "./SocketGameTestFlowUtils";
 import { SocketGameTestLobbyUtils } from "./SocketGameTestLobbyUtils";
 import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
+import type { GameScenario } from "tests/e2e/scenario/GameScenario";
 
 export interface GameClientSocket extends ClientSocket {
   gameId?: string;
@@ -66,6 +67,16 @@ export class SocketGameTestUtils {
   }
 
   // --- Lobby / Setup Delegates ---
+
+  /** Shared flow helpers use the same journal as explicit scenario assertions. */
+  public useScenario(scenario: GameScenario): () => void {
+    const stopObserving = this.userUtils.observeSockets((socket) => scenario.actor(socket));
+    this.eventUtils.useScenario(scenario);
+    return () => {
+      this.eventUtils.useScenario(undefined);
+      stopObserving();
+    };
+  }
 
   public async joinGame(
     socket: GameClientSocket,

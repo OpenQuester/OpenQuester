@@ -38,312 +38,320 @@ describe("Special Question Type Player Leave Edge Cases", () => {
 
   describe("Secret Question - Answering Player Leaves", () => {
     it("should auto-complete secret question with 0 points when answering player leaves and lead to next state", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Find and pick a secret question
-      const secretQuestion = await utils.findQuestionByType(PackageQuestionType.SECRET, gameId);
-      expect(secretQuestion).toBeDefined();
+        // Find and pick a secret question
+        const secretQuestion = await utils.findQuestionByType(PackageQuestionType.SECRET, gameId);
+        expect(secretQuestion).toBeDefined();
 
-      const secretPickedPromise = utils.waitForEvent(
-        playerSockets[0],
-        SocketIOGameEvents.SECRET_QUESTION_PICKED
-      );
+        const secretPickedPromise = scenario.waitForEvent(
+          playerSockets[0],
+          SocketIOGameEvents.SECRET_QUESTION_PICKED
+        );
 
-      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: secretQuestion!.id
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: secretQuestion!.id
+        });
+        await secretPickedPromise;
+
+        // Showman transfers secret question to player 0
+        const showmanTransferPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.SECRET_QUESTION_TRANSFER
+        );
+        const questionDataPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
+          targetPlayerId: setup.playerUsers[0].id
+        });
+        await showmanTransferPromise;
+
+        // Now player 0 has the question and can start answering
+        await questionDataPromise;
+
+        const answeringState = await utils.getGameState(gameId);
+        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(answeringState!.answeringPlayer).toBe(setup.playerUsers[0].id);
+
+        // Wait for auto-answer result
+        const answerResultPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
+
+        // Answering player leaves
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE);
+
+        // Should get answer result with 0 points
+        const answerResultData = await answerResultPromise;
+        expect(answerResultData.answerResult.player).toBe(setup.playerUsers[0].id);
+        expect(answerResultData.answerResult.result).toBe(0);
+
+        // Verify secretQuestionData is cleared and state moved to SHOWING_ANSWER
+        // For secret questions, only one player can answer - if they leave, go to showing answer
+        const finalState = await utils.getGameState(gameId);
+        expect(finalState!.secretQuestionData).toBeNull();
+        expect(finalState!.answeringPlayer).toBeNull();
+        expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
       });
-      await secretPickedPromise;
-
-      // Showman transfers secret question to player 0
-      const showmanTransferPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.SECRET_QUESTION_TRANSFER
-      );
-      const questionDataPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.QUESTION_DATA
-      );
-
-      showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
-        targetPlayerId: setup.playerUsers[0].id
-      });
-      await showmanTransferPromise;
-
-      // Now player 0 has the question and can start answering
-      await questionDataPromise;
-
-      const answeringState = await utils.getGameState(gameId);
-      expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
-      expect(answeringState!.answeringPlayer).toBe(setup.playerUsers[0].id);
-
-      // Wait for auto-answer result
-      const answerResultPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_RESULT
-      );
-
-      // Answering player leaves
-      playerSockets[0].emit(SocketIOGameEvents.LEAVE);
-
-      // Should get answer result with 0 points
-      const answerResultData = await answerResultPromise;
-      expect(answerResultData.answerResult.player).toBe(setup.playerUsers[0].id);
-      expect(answerResultData.answerResult.result).toBe(0);
-
-      // Verify secretQuestionData is cleared and state moved to SHOWING_ANSWER
-      // For secret questions, only one player can answer - if they leave, go to showing answer
-      const finalState = await utils.getGameState(gameId);
-      expect(finalState!.secretQuestionData).toBeNull();
-      expect(finalState!.answeringPlayer).toBeNull();
-      expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
     });
   });
 
   describe("Stake Question - Answering Player Leaves", () => {
     it("should auto-complete stake question with 0 points when winner leaves before answering", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Set player scores - player 0 has lower score, player 1 has higher score
-      await utils.setPlayerScore(gameId, setup.playerUsers[0].id, 300);
-      await utils.setPlayerScore(gameId, setup.playerUsers[1].id, 400);
+        // Set player scores - player 0 has lower score, player 1 has higher score
+        await utils.setPlayerScore(gameId, setup.playerUsers[0].id, 300);
+        await utils.setPlayerScore(gameId, setup.playerUsers[1].id, 400);
 
-      // Set player 0 as current turn player so they can pick the question
-      await utils.setCurrentTurnPlayer(showmanSocket, setup.playerUsers[0].id);
+        // Set player 0 as current turn player so they can pick the question
+        await utils.setCurrentTurnPlayer(showmanSocket, setup.playerUsers[0].id);
 
-      // Find and pick a stake question
-      const stakeQuestion = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
-      expect(stakeQuestion).toBeDefined();
+        // Find and pick a stake question
+        const stakeQuestion = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
+        expect(stakeQuestion).toBeDefined();
 
-      const stakePickedPromise = utils.waitForEvent(
-        playerSockets[1],
-        SocketIOGameEvents.STAKE_QUESTION_PICKED
-      );
+        const stakePickedPromise = scenario.waitForEvent(
+          playerSockets[1],
+          SocketIOGameEvents.STAKE_QUESTION_PICKED
+        );
 
-      // Player 0 picks the stake question (as current turn player)
-      playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: stakeQuestion!.id
+        // Player 0 picks the stake question (as current turn player)
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestion!.id
+        });
+        await stakePickedPromise;
+
+        // Both players bid - player 0 (picker) goes all-in, player 1 passes
+        const stakeWinnerPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_WINNER
+        );
+
+        // Player 0 (picker) cannot pass as first bidder, so goes all-in
+        const firstBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.ALL_IN,
+          bidAmount: null
+        });
+        await firstBidPromise;
+
+        // Wait for question data with extended timeout
+        const questionDataPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+
+        // Player 1 passes
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.PASS,
+          bidAmount: null
+        });
+
+        const winnerData = await stakeWinnerPromise;
+        expect(winnerData.winnerPlayerId).toBe(setup.playerUsers[0].id); // Player 0 won
+
+        await questionDataPromise;
+
+        const answeringState = await utils.getGameState(gameId);
+        expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(answeringState!.answeringPlayer).toBe(setup.playerUsers[0].id);
+
+        // Wait for auto-answer result
+        const answerResultPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.ANSWER_RESULT
+        );
+
+        // Winner (player 0) leaves
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE);
+
+        // Should get answer result with 0 points
+        const answerResultData = await answerResultPromise;
+        expect(answerResultData.answerResult.player).toBe(setup.playerUsers[0].id);
+        expect(answerResultData.answerResult.result).toBe(0);
+
+        // Verify stakeQuestionData is cleared and state moved to SHOWING_ANSWER
+        // For stake questions, only the bid winner can answer - if they leave, go to showing answer
+        const finalState = await utils.getGameState(gameId);
+        expect(finalState!.stakeQuestionData).toBeNull();
+        expect(finalState!.answeringPlayer).toBeNull();
+        expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
       });
-      await stakePickedPromise;
-
-      // Both players bid - player 0 (picker) goes all-in, player 1 passes
-      const stakeWinnerPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_QUESTION_WINNER
-      );
-
-      // Player 0 (picker) cannot pass as first bidder, so goes all-in
-      const firstBidPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_BID_SUBMIT
-      );
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.ALL_IN,
-        bidAmount: null
-      });
-      await firstBidPromise;
-
-      // Wait for question data with extended timeout
-      const questionDataPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.QUESTION_DATA
-      );
-
-      // Player 1 passes
-      playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.PASS,
-        bidAmount: null
-      });
-
-      const winnerData = await stakeWinnerPromise;
-      expect(winnerData.winnerPlayerId).toBe(setup.playerUsers[0].id); // Player 0 won
-
-      await questionDataPromise;
-
-      const answeringState = await utils.getGameState(gameId);
-      expect(answeringState!.questionState).toBe(QuestionState.ANSWERING);
-      expect(answeringState!.answeringPlayer).toBe(setup.playerUsers[0].id);
-
-      // Wait for auto-answer result
-      const answerResultPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_RESULT
-      );
-
-      // Winner (player 0) leaves
-      playerSockets[0].emit(SocketIOGameEvents.LEAVE);
-
-      // Should get answer result with 0 points
-      const answerResultData = await answerResultPromise;
-      expect(answerResultData.answerResult.player).toBe(setup.playerUsers[0].id);
-      expect(answerResultData.answerResult.result).toBe(0);
-
-      // Verify stakeQuestionData is cleared and state moved to SHOWING_ANSWER
-      // For stake questions, only the bid winner can answer - if they leave, go to showing answer
-      const finalState = await utils.getGameState(gameId);
-      expect(finalState!.stakeQuestionData).toBeNull();
-      expect(finalState!.answeringPlayer).toBeNull();
-      expect(finalState!.questionState).toBe(QuestionState.SHOWING_ANSWER);
     });
   });
 
   describe("Stake Question - Player Leaves During Bidding", () => {
     it("should auto-bid nominal price when leaving completes bidding before any bid", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      await utils.setPlayerScore(gameId, playerUsers[0].id, 500);
-      await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
-      await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
+        await utils.setPlayerScore(gameId, playerUsers[0].id, 500);
+        await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
+        await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
-      const stakeQuestion = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
-      expect(stakeQuestion).toBeDefined();
+        const stakeQuestion = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
+        expect(stakeQuestion).toBeDefined();
 
-      const stakePickedPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_QUESTION_PICKED
-      );
+        const stakePickedPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_PICKED
+        );
 
-      playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: stakeQuestion!.id
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestion!.id
+        });
+        await stakePickedPromise;
+
+        const winnerPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_WINNER,
+          3000
+        );
+
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE);
+
+        const winnerData = await winnerPromise;
+        expect(winnerData.winnerPlayerId).toBe(playerUsers[1].id);
+        expect(winnerData.finalBid).toBe(200);
+
+        const gameState = await utils.getGameState(gameId);
+        expect(gameState!.stakeQuestionData?.highestBid).toBe(200);
       });
-      await stakePickedPromise;
-
-      const winnerPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_QUESTION_WINNER,
-        3000
-      );
-
-      playerSockets[0].emit(SocketIOGameEvents.LEAVE);
-
-      const winnerData = await winnerPromise;
-      expect(winnerData.winnerPlayerId).toBe(playerUsers[1].id);
-      expect(winnerData.finalBid).toBe(200);
-
-      const gameState = await utils.getGameState(gameId);
-      expect(gameState!.stakeQuestionData?.highestBid).toBe(200);
     });
 
     it("should auto-pass for leaving player during stake bidding and continue with remaining players", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1);
-      const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1);
+        const { showmanSocket, playerSockets, spectatorSockets, gameId, playerUsers } = setup;
 
-      await utils.startGame(showmanSocket);
+        await utils.startGame(showmanSocket);
 
-      // Set player scores - all players have enough to bid (question price is 200)
-      await utils.setPlayerScore(gameId, playerUsers[0].id, 500);
-      await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
-      await utils.setPlayerScore(gameId, playerUsers[2].id, 400);
+        // Set player scores - all players have enough to bid (question price is 200)
+        await utils.setPlayerScore(gameId, playerUsers[0].id, 500);
+        await utils.setPlayerScore(gameId, playerUsers[1].id, 600);
+        await utils.setPlayerScore(gameId, playerUsers[2].id, 400);
 
-      // Set player 0 as current turn player
-      await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
+        // Set player 0 as current turn player
+        await utils.setCurrentTurnPlayer(showmanSocket, playerUsers[0].id);
 
-      // Find and pick a stake question
-      const stakeQuestion = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
-      expect(stakeQuestion).toBeDefined();
+        // Find and pick a stake question
+        const stakeQuestion = await utils.findQuestionByType(PackageQuestionType.STAKE, gameId);
+        expect(stakeQuestion).toBeDefined();
 
-      const stakePickedPromise = utils.waitForEvent(
-        playerSockets[1],
-        SocketIOGameEvents.STAKE_QUESTION_PICKED
-      );
+        const stakePickedPromise = scenario.waitForEvent(
+          playerSockets[1],
+          SocketIOGameEvents.STAKE_QUESTION_PICKED
+        );
 
-      // Player 0 picks the stake question
-      playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: stakeQuestion!.id
+        // Player 0 picks the stake question
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestion!.id
+        });
+        await stakePickedPromise;
+
+        // Player 0 (picker) is first - they must bid (can't pass as first)
+        // Use NORMAL bid with amount >= question price (200)
+        const firstBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 200 // Must be at least question price
+        });
+        await firstBidPromise;
+
+        // Verify state before player leaves
+        const stateBeforeLeave = await utils.getGameState(gameId);
+        expect(stateBeforeLeave!.questionState).toBe(QuestionState.BIDDING);
+        expect(stateBeforeLeave!.stakeQuestionData).toBeDefined();
+
+        // Player 1 (next in line) leaves during their turn to bid
+        // This should trigger auto-pass for player 1
+        const autoBidOnShowmanPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        const autoBidOnSpectatorPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
+          spectatorSockets[0],
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        const leavePromise = scenario.waitForEvent<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE
+        );
+
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.LEAVE);
+
+        const [autoBidData, spectatorAutoBidData, leaveData] = await Promise.all([
+          autoBidOnShowmanPromise,
+          autoBidOnSpectatorPromise,
+          leavePromise
+        ]);
+
+        expect(leaveData.user).toBe(playerUsers[1].id);
+        expect(autoBidData).toMatchObject({
+          playerId: playerUsers[1].id,
+          bidAmount: null,
+          bidType: StakeBidType.PASS,
+          isPhaseComplete: false,
+          nextBidderId: playerUsers[2].id
+        });
+        expect(spectatorAutoBidData).toEqual(autoBidData);
+
+        const stateAfterLeave = await utils.getGameState(gameId);
+        expect(stateAfterLeave!.questionState).toBe(QuestionState.BIDDING);
+        expect(stateAfterLeave!.stakeQuestionData?.currentBidderIndex).toBe(2);
+
+        const stakeWinnerPromise = scenario.waitForEvent<StakeQuestionWinnerEventData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_WINNER
+        );
+        const spectatorQuestionDataPromise = scenario.waitForEvent(
+          spectatorSockets[0],
+          SocketIOGameEvents.QUESTION_DATA
+        );
+        const showmanQuestionDataPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_DATA
+        );
+
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.PASS,
+          bidAmount: null
+        });
+
+        const [winnerData] = await Promise.all([
+          stakeWinnerPromise,
+          spectatorQuestionDataPromise,
+          showmanQuestionDataPromise
+        ]);
+        expect(winnerData.winnerPlayerId).toBe(playerUsers[0].id);
+        expect(winnerData.finalBid).toBe(200);
+
+        const finalState = await utils.getGameState(gameId);
+        expect(finalState!.questionState).toBe(QuestionState.ANSWERING);
+        expect(finalState!.answeringPlayer).toBe(playerUsers[0].id);
       });
-      await stakePickedPromise;
-
-      // Player 0 (picker) is first - they must bid (can't pass as first)
-      // Use NORMAL bid with amount >= question price (200)
-      const firstBidPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_BID_SUBMIT
-      );
-      playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.NORMAL,
-        bidAmount: 200 // Must be at least question price
-      });
-      await firstBidPromise;
-
-      // Verify state before player leaves
-      const stateBeforeLeave = await utils.getGameState(gameId);
-      expect(stateBeforeLeave!.questionState).toBe(QuestionState.BIDDING);
-      expect(stateBeforeLeave!.stakeQuestionData).toBeDefined();
-
-      // Player 1 (next in line) leaves during their turn to bid
-      // This should trigger auto-pass for player 1
-      const autoBidOnShowmanPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_BID_SUBMIT
-      );
-      const autoBidOnSpectatorPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
-        spectatorSockets[0],
-        SocketIOGameEvents.STAKE_BID_SUBMIT
-      );
-      const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
-        showmanSocket,
-        SocketIOGameEvents.LEAVE
-      );
-
-      playerSockets[1].emit(SocketIOGameEvents.LEAVE);
-
-      const [autoBidData, spectatorAutoBidData, leaveData] = await Promise.all([
-        autoBidOnShowmanPromise,
-        autoBidOnSpectatorPromise,
-        leavePromise
-      ]);
-
-      expect(leaveData.user).toBe(playerUsers[1].id);
-      expect(autoBidData).toMatchObject({
-        playerId: playerUsers[1].id,
-        bidAmount: null,
-        bidType: StakeBidType.PASS,
-        isPhaseComplete: false,
-        nextBidderId: playerUsers[2].id
-      });
-      expect(spectatorAutoBidData).toEqual(autoBidData);
-
-      const stateAfterLeave = await utils.getGameState(gameId);
-      expect(stateAfterLeave!.questionState).toBe(QuestionState.BIDDING);
-      expect(stateAfterLeave!.stakeQuestionData?.currentBidderIndex).toBe(2);
-
-      const stakeWinnerPromise = utils.waitForEvent<StakeQuestionWinnerEventData>(
-        showmanSocket,
-        SocketIOGameEvents.STAKE_QUESTION_WINNER
-      );
-      const spectatorQuestionDataPromise = utils.waitForEvent(
-        spectatorSockets[0],
-        SocketIOGameEvents.QUESTION_DATA
-      );
-      const showmanQuestionDataPromise = utils.waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.QUESTION_DATA
-      );
-
-      playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-        bidType: StakeBidType.PASS,
-        bidAmount: null
-      });
-
-      const [winnerData] = await Promise.all([
-        stakeWinnerPromise,
-        spectatorQuestionDataPromise,
-        showmanQuestionDataPromise
-      ]);
-      expect(winnerData.winnerPlayerId).toBe(playerUsers[0].id);
-      expect(winnerData.finalBid).toBe(200);
-
-      const finalState = await utils.getGameState(gameId);
-      expect(finalState!.questionState).toBe(QuestionState.ANSWERING);
-      expect(finalState!.answeringPlayer).toBe(playerUsers[0].id);
     });
   });
 });

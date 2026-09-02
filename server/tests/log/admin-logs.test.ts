@@ -1,16 +1,11 @@
-import { type Express } from "express";
-import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
 import { Permissions } from "domain/enums/Permissions";
-import { RedisConfig } from "shared/config/RedisConfig";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
 import { LogTag } from "shared/logging/LogTag";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp, teardownTestAppResources } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
+import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { LogTestUtils, TestLogEntry } from "tests/utils/LogTestUtils";
 import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 
@@ -25,13 +20,11 @@ import { deleteAll } from "tests/utils/TypeOrmTestUtils";
  * - Edge cases (empty file, no matches)
  */
 describe("Admin Logs API", () => {
-  let testEnv: TestEnvironment;
-  let app: Express;
+  let harness: ServerTestHarness;
+  let http: HttpTestClient;
   let dataSource: DataSource;
   let userRepo: Repository<User>;
   let permRepo: Repository<Permission>;
-  let cleanup: (() => Promise<void>) | undefined;
-  let logger: ILogger;
   let logTestUtils: LogTestUtils;
 
   // Test data
@@ -53,18 +46,14 @@ describe("Admin Logs API", () => {
     logTestUtils = new LogTestUtils();
     logTestUtils.setup();
 
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    cleanup = boot.cleanup;
-    app = boot.app;
-    dataSource = boot.dataSource;
+    harness = await ServerTestHarness.start({ apiPort: 0 });
+    dataSource = harness.dataSource;
     userRepo = dataSource.getRepository<User>("User");
     permRepo = dataSource.getRepository<Permission>("Permission");
   });
 
   beforeEach(async () => {
+    http = createHttpTestClient(harness.serverUrl);
     // Clear data between tests
     await deleteAll(userRepo);
     await deleteAll(permRepo);
@@ -95,12 +84,10 @@ describe("Admin Logs API", () => {
     await userRepo.save(regularUser);
 
     // Login both users
-    const adminLoginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
+    const adminLoginRes = await http.post("/v1/test/login").send({ userId: adminUser.id });
     adminCookie = adminLoginRes.headers["set-cookie"];
 
-    const regularLoginRes = await request(app)
-      .post("/v1/test/login")
-      .send({ userId: regularUser.id });
+    const regularLoginRes = await http.post("/v1/test/login").send({ userId: regularUser.id });
     regularUserCookie = regularLoginRes.headers["set-cookie"];
   });
 
@@ -109,19 +96,14 @@ describe("Admin Logs API", () => {
     await deleteAll(permRepo);
     logTestUtils.clearLogFile();
 
-    // Clear Redis user cache to prevent stale cached users from affecting subsequent tests
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("cache:user:*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
+    await harness.resetState();
   });
 
   afterAll(async () => {
     let lifecycleError: unknown;
 
     try {
-      await teardownTestAppResources(cleanup, testEnv);
+      await harness?.stop();
     } catch (error) {
       lifecycleError = error;
     }
@@ -149,15 +131,13 @@ describe("Admin Logs API", () => {
 
   describe("Permission Enforcement", () => {
     it("should return 401 for unauthenticated request", async () => {
-      const res = await request(app).get("/v1/admin/api/system/logs");
+      const res = await http.get("/v1/admin/api/system/logs");
 
       expect(res.status).toBe(401);
     });
 
     it("should return 403 for user without VIEW_SYSTEM_LOGS permission", async () => {
-      const res = await request(app)
-        .get("/v1/admin/api/system/logs")
-        .set("Cookie", regularUserCookie);
+      const res = await http.get("/v1/admin/api/system/logs").set("Cookie", regularUserCookie);
 
       expect(res.status).toBe(403);
     });
@@ -165,7 +145,7 @@ describe("Admin Logs API", () => {
     it("should return 200 for user with VIEW_SYSTEM_LOGS permission", async () => {
       logTestUtils.createEmptyFile();
 
-      const res = await request(app).get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
+      const res = await http.get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
     });
@@ -178,7 +158,7 @@ describe("Admin Logs API", () => {
   describe("Edge Cases", () => {
     it("should return empty result when log file does not exist", async () => {
       // Don't create log file
-      const res = await request(app).get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
+      const res = await http.get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
       expect(res.body.logs).toEqual([]);
@@ -188,7 +168,7 @@ describe("Admin Logs API", () => {
     it("should return empty result when log file is empty", async () => {
       logTestUtils.createEmptyFile();
 
-      const res = await request(app).get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
+      const res = await http.get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
       expect(res.body.logs).toEqual([]);
@@ -203,9 +183,7 @@ describe("Admin Logs API", () => {
     it("should return all log entries when no filter applied", async () => {
       logTestUtils.writeEntries(sampleEntries);
 
-      const res = await request(app)
-        .get("/v1/admin/api/system/logs?limit=100")
-        .set("Cookie", adminCookie);
+      const res = await http.get("/v1/admin/api/system/logs?limit=100").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
       expect(res.body.logs.length).toBe(sampleEntries.length);
@@ -214,9 +192,7 @@ describe("Admin Logs API", () => {
     it("should return logs in reverse chronological order (newest first)", async () => {
       logTestUtils.writeEntries(sampleEntries);
 
-      const res = await request(app)
-        .get("/v1/admin/api/system/logs?limit=100")
-        .set("Cookie", adminCookie);
+      const res = await http.get("/v1/admin/api/system/logs?limit=100").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
       // First entry should be the newest (last in file)
@@ -236,7 +212,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by single level", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?levels=error&limit=100")
         .set("Cookie", adminCookie);
 
@@ -246,7 +222,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by multiple levels (comma-separated)", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?levels=error,warn&limit=100")
         .set("Cookie", adminCookie);
 
@@ -258,7 +234,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should return empty when level has no matches", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?levels=trace&limit=100")
         .set("Cookie", adminCookie);
 
@@ -267,7 +243,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should reject invalid level", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?levels=invalid_level")
         .set("Cookie", adminCookie);
 
@@ -285,7 +261,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by single tag", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?tags=game&limit=100")
         .set("Cookie", adminCookie);
 
@@ -297,7 +273,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by multiple tags (OR logic)", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?tags=db,redis&limit=100")
         .set("Cookie", adminCookie);
 
@@ -306,7 +282,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should return empty when tag has no matches", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?tags=media&limit=100")
         .set("Cookie", adminCookie);
 
@@ -315,7 +291,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should reject invalid tag", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?tags=invalid_tag")
         .set("Cookie", adminCookie);
 
@@ -333,7 +309,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by exact correlationId", async () => {
-      const res = await request(app)
+      const res = await http
         .get(
           "/v1/admin/api/system/logs?correlationId=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&limit=100"
         )
@@ -345,7 +321,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should return empty for non-existent correlationId", async () => {
-      const res = await request(app)
+      const res = await http
         .get(
           "/v1/admin/api/system/logs?correlationId=99999999-9999-4999-8999-999999999999&limit=100"
         )
@@ -356,7 +332,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should reject invalid UUID format", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?correlationId=not-a-uuid")
         .set("Cookie", adminCookie);
 
@@ -374,7 +350,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by exact gameId", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?gameId=ABCD&limit=100")
         .set("Cookie", adminCookie);
 
@@ -386,7 +362,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should return empty for non-existent gameId", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?gameId=ZZZZ&limit=100")
         .set("Cookie", adminCookie);
 
@@ -395,7 +371,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should reject invalid gameId format", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?gameId=invalid")
         .set("Cookie", adminCookie);
 
@@ -413,7 +389,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by userId", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?userId=1&limit=100")
         .set("Cookie", adminCookie);
 
@@ -425,7 +401,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should return empty for non-existent userId", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?userId=999&limit=100")
         .set("Cookie", adminCookie);
 
@@ -444,7 +420,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by since timestamp", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?since=2025-01-01T14:00:00.000Z&limit=100")
         .set("Cookie", adminCookie);
 
@@ -454,7 +430,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by until timestamp", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?until=2025-01-01T10:00:00.000Z&limit=100")
         .set("Cookie", adminCookie);
 
@@ -464,7 +440,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by time range (since + until)", async () => {
-      const res = await request(app)
+      const res = await http
         .get(
           "/v1/admin/api/system/logs?since=2025-01-01T10:00:00.000Z&until=2025-01-01T13:00:00.000Z&limit=100"
         )
@@ -476,7 +452,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should reject invalid ISO timestamp", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?since=not-a-date")
         .set("Cookie", adminCookie);
 
@@ -494,7 +470,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should search in message text (case-insensitive)", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?search=game&limit=100")
         .set("Cookie", adminCookie);
 
@@ -504,7 +480,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should match partial word", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?search=auth&limit=100")
         .set("Cookie", adminCookie);
 
@@ -514,7 +490,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should return empty for non-matching search", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?search=nonexistent&limit=100")
         .set("Cookie", adminCookie);
 
@@ -533,9 +509,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should respect limit parameter", async () => {
-      const res = await request(app)
-        .get("/v1/admin/api/system/logs?limit=3")
-        .set("Cookie", adminCookie);
+      const res = await http.get("/v1/admin/api/system/logs?limit=3").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
       expect(res.body.logs.length).toBe(3);
@@ -543,7 +517,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should respect offset parameter", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?offset=3&limit=100")
         .set("Cookie", adminCookie);
 
@@ -553,7 +527,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should combine offset and limit correctly", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?offset=2&limit=3")
         .set("Cookie", adminCookie);
 
@@ -567,7 +541,7 @@ describe("Admin Logs API", () => {
       const manyEntries = LogTestUtils.generateSequentialEntries(150);
       logTestUtils.writeEntries(manyEntries);
 
-      const res = await request(app).get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
+      const res = await http.get("/v1/admin/api/system/logs").set("Cookie", adminCookie);
 
       expect(res.status).toBe(200);
       expect(res.body.pagination.scanned).toBe(100); // Default limit
@@ -584,7 +558,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by level + tag", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?levels=info&tags=game&limit=100")
         .set("Cookie", adminCookie);
 
@@ -598,7 +572,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by gameId + userId", async () => {
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?gameId=ABCD&userId=1&limit=100")
         .set("Cookie", adminCookie);
 
@@ -609,7 +583,7 @@ describe("Admin Logs API", () => {
     });
 
     it("should filter by level + time range + search", async () => {
-      const res = await request(app)
+      const res = await http
         .get(
           "/v1/admin/api/system/logs?levels=info&since=2025-01-01T12:00:00.000Z&search=game&limit=100"
         )
@@ -654,7 +628,7 @@ describe("Admin Logs API", () => {
       ];
       logTestUtils.writeEntries(specificEntries);
 
-      const res = await request(app)
+      const res = await http
         .get(
           "/v1/admin/api/system/logs?" +
             "levels=info&" +
@@ -684,7 +658,7 @@ describe("Admin Logs API", () => {
     it("should include logs and pagination in response", async () => {
       logTestUtils.writeEntries(sampleEntries);
 
-      const res = await request(app)
+      const res = await http
         .get("/v1/admin/api/system/logs?levels=info&limit=5")
         .set("Cookie", adminCookie);
 
