@@ -34,7 +34,7 @@ describe("Socket game transport suite policy", () => {
   it("rejects copied lifecycle and cleanup that can mask the primary failure", () => {
     expect(
       violatingPaths((suite) =>
-        /bootstrapTestApp|new TestEnvironment|PinoLogger\.init|cleanupGameClients|new EventJournal|console\./.test(
+        /bootstrapTestApp|new TestEnvironment|PinoLogger\.init|cleanupGameClients|new EventJournal|console\.|\.catch\(\(\) => undefined\)/.test(
           suite.source
         )
       )

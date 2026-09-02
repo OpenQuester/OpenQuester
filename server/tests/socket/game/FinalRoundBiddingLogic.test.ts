@@ -46,8 +46,10 @@ describe("Final Round Bidding Logic", () => {
         )
       )
     );
-    void broadcasts.catch(() => undefined);
-    return broadcasts;
+    return suite.currentScenario.trackExpectation(
+      broadcasts,
+      `"${event}" broadcasts for players ${playerIds.join(", ")}`
+    );
   }
 
   describe("Basic Bidding Flow", () => {
