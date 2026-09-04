@@ -35,7 +35,7 @@ export function readTestSources(root: string, directory = root): readonly TestSo
     const path = resolve(directory, entry.name);
     if (entry.isDirectory()) return readTestSources(root, path);
     return entry.name.endsWith(".test.ts")
-      ? [{ path: relative(root, path).replaceAll("\\", "/"), source: readFileSync(path, "utf8") }]
+      ? [{ path: relative(root, path).replace(/\\/g, "/"), source: readFileSync(path, "utf8") }]
       : [];
   });
 }
@@ -157,7 +157,7 @@ export function findUnscopedCases(
       if (
         test?.name === "describe" &&
         test.title === '"Game lock test cleanup helpers"' &&
-        suite.path.replaceAll("\\", "/").endsWith("GameLockAndQueueMechanics.test.ts")
+        suite.path.replace(/\\/g, "/").endsWith("GameLockAndQueueMechanics.test.ts")
       )
         helperUnitTest = true;
       if (
