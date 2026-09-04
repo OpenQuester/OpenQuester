@@ -51,6 +51,21 @@ describe("SocketGameTestSuite lifecycle", () => {
     });
   });
 
+  it("preserves the primary failure when detach fails and releases the active scenario", async () => {
+    const suite = createSuite({
+      cleanupOwnedClients: async () => undefined,
+      detach: () => {
+        throw new Error("detach failed");
+      }
+    });
+    await expect(
+      suite.scenario(async () => {
+        throw new Error("primary failed");
+      })
+    ).rejects.toThrow(/primary failed.*detach failed/);
+    expect(() => suite.currentScenario).toThrow("No active game scenario");
+  });
+
   it("always attempts owned-client cleanup and state reset and aggregates both failures", async () => {
     const clientFailure = new Error("client cleanup failed");
     const resetFailure = new Error("state reset failed");

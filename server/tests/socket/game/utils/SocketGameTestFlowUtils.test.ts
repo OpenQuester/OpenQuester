@@ -1,4 +1,7 @@
-import { describe, expect, it, jest } from "@jest/globals";
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
+import { GameScenario } from "tests/e2e/scenario/GameScenario";
+import { createControlledPromise } from "tests/e2e/harness/TestPromiseUtils";
+import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 import { GAME_QUESTION_ANSWER_TIME, MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
 import { type Game } from "domain/entities/game/Game";
@@ -22,7 +25,32 @@ import { type SocketGameTestStateUtils } from "tests/socket/game/utils/SocketGam
 import { type GameClientSocket } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { type SocketGameTestUserUtils } from "tests/socket/game/utils/SocketGameTestUserUtils";
 
+afterEach(() => {
+  jest.useRealTimers();
+});
+
 describe("SocketGameTestFlowUtils reliability", () => {
+  it("owns a forgotten helper's validation after its QUESTION_DATA wait resolves", async () => {
+    const scenario = new GameScenario();
+    const { flow, stateUtils, showman, players } = createRegularMediaFixture(true, scenario);
+    stateUtils.getGameState.mockResolvedValue({ questionState: QuestionState.SHOWING });
+    void flow.pickQuestion(showman, 42, players);
+    await expect(scenario.finish()).rejects.toThrow("expected media_downloading");
+    players.forEach((player) => expect(player.emit).not.toHaveBeenCalled());
+  });
+
+  it("bounds a forgotten helper when its initial state dependency never returns", async () => {
+    jest.useFakeTimers();
+    const scenario = new GameScenario();
+    const { flow, stateUtils, showman, players } = createRegularMediaFixture(true, scenario);
+    stateUtils.getGame.mockReturnValue(createControlledPromise().promise);
+    void flow.pickQuestion(showman, 42, players);
+    const finished = expect(scenario.finish()).rejects.toThrow("getGame in game flow");
+    await jest.advanceTimersByTimeAsync(TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
+    await finished;
+    expect(jest.getTimerCount()).toBe(0);
+    expect(showman.emit).not.toHaveBeenCalled();
+  });
   it("rejects instead of silently skipping an unexpected media phase", async () => {
     const { flow, stateUtils } = createFixture();
     stateUtils.getGameState.mockResolvedValue({
@@ -445,6 +473,9 @@ interface Fixture {
     readonly getGame: jest.Mock<(gameId: string) => Promise<unknown>>;
   };
   readonly eventUtils: {
+    readonly trackExpectation: <T>(promise: Promise<T>, description: string) => Promise<T>;
+    readonly waitForSubmittedActions: jest.Mock<(...args: unknown[]) => Promise<void>>;
+    readonly waitForActionsComplete: jest.Mock<(...args: unknown[]) => Promise<void>>;
     readonly waitForEvent: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
     readonly waitForEventMatching: jest.Mock<(...args: unknown[]) => Promise<unknown>>;
     readonly waitForNoEvent: jest.Mock<(...args: unknown[]) => Promise<void>>;
@@ -457,12 +488,16 @@ interface Fixture {
   };
 }
 
-function createFixture(): Fixture {
+function createFixture(scenario?: GameScenario): Fixture {
   const stateUtils = {
     getGameState: jest.fn<(gameId: string) => Promise<unknown>>(),
     getGame: jest.fn<(gameId: string) => Promise<unknown>>()
   };
   const eventUtils = {
+    trackExpectation: <T>(promise: Promise<T>, description: string): Promise<T> =>
+      scenario ? scenario.trackExpectation(promise, description) : promise,
+    waitForSubmittedActions: jest.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
+    waitForActionsComplete: jest.fn<(...args: unknown[]) => Promise<void>>(async () => undefined),
     waitForEvent: jest.fn<(...args: unknown[]) => Promise<unknown>>(),
     waitForEventMatching: jest.fn<(...args: unknown[]) => Promise<unknown>>(),
     waitForNoEvent: jest.fn<(...args: unknown[]) => Promise<void>>(),
@@ -485,8 +520,8 @@ function createFixture(): Fixture {
   return { flow, stateUtils, eventUtils, userUtils };
 }
 
-function createRegularMediaFixture(hasFiles = true) {
-  const fixture = createFixture();
+function createRegularMediaFixture(hasFiles = true, scenario?: GameScenario) {
+  const fixture = createFixture(scenario);
   const { flow, stateUtils, eventUtils, userUtils } = fixture;
   const showman = createSocket("game-1", "showman");
   const players = [createSocket("game-1", "player-11"), createSocket("game-1", "player-12")];

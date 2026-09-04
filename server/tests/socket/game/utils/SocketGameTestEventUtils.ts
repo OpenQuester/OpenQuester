@@ -230,6 +230,15 @@ export class SocketGameTestEventUtils {
     this.scenario = scenario;
   }
 
+  /** Own the complete helper result, including assertions after its event wait resolves. */
+  public trackExpectation<T>(expectation: Promise<T>, description: string): Promise<T> {
+    if (this.scenario) return this.scenario.trackExpectation(expectation, description);
+    // Standalone helper callers still receive the original failure; observing it only avoids
+    // an unhandled rejection before their awaited prerequisite completes.
+    void expectation.catch(() => undefined);
+    return expectation;
+  }
+
   public constructor(dependencies: SocketGameTestEventUtilsDependencies = {}) {
     this.lockService = dependencies.lockService ?? container.resolve(GameActionLockService);
     this.queueService = dependencies.queueService ?? container.resolve(GameActionQueueService);

@@ -42,8 +42,13 @@ export class SocketGameTestSuite {
     } catch (error) {
       failures.push(toLifecycleError("Scenario assertions and disposal", error));
     } finally {
-      detach?.();
-      this.activeScenario = undefined;
+      try {
+        detach?.();
+      } catch (error) {
+        failures.push(toLifecycleError("Scenario helper detach", error));
+      } finally {
+        this.activeScenario = undefined;
+      }
     }
     throwIfFailed("Game scenario failed", failures);
     return result as T;

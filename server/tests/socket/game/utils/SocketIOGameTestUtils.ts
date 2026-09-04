@@ -232,41 +232,41 @@ export class SocketGameTestUtils {
     return this.lobbyUtils.startGame(showmanSocket);
   }
 
-  public async waitForMediaDownload(
+  public waitForMediaDownload(
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[]
   ): Promise<void> {
     return this.flowUtils.waitForMediaDownload(showmanSocket, playerSockets);
   }
 
-  public async pickQuestion(
+  public pickQuestion(
     showmanSocket: GameClientSocket,
     questionId?: number,
     playerSockets?: GameClientSocket[]
   ): Promise<void> {
-    await this.flowUtils.pickQuestion(showmanSocket, questionId, playerSockets);
+    return this.flowUtils.pickQuestion(showmanSocket, questionId, playerSockets);
   }
 
-  public async answerQuestion(
+  public answerQuestion(
     playerSocket: GameClientSocket,
     showmanSocket: GameClientSocket
   ): Promise<void> {
     return this.flowUtils.answerQuestion(playerSocket, showmanSocket);
   }
 
-  public async progressToNextRound(showmanSocket: GameClientSocket): Promise<void> {
+  public progressToNextRound(showmanSocket: GameClientSocket): Promise<void> {
     return this.flowUtils.progressToNextRound(showmanSocket);
   }
 
-  public async skipQuestion(showmanSocket: GameClientSocket): Promise<void> {
+  public skipQuestion(showmanSocket: GameClientSocket): Promise<void> {
     return this.flowUtils.skipQuestionForce(showmanSocket);
   }
 
-  public async skipShowAnswer(showmanSocket: GameClientSocket): Promise<void> {
+  public skipShowAnswer(showmanSocket: GameClientSocket): Promise<void> {
     return this.flowUtils.skipShowAnswer(showmanSocket);
   }
 
-  public async pickAndCompleteQuestion(
+  public pickAndCompleteQuestion(
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[],
     questionId?: number,

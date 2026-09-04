@@ -117,6 +117,50 @@ self-tests into gameplay scenarios, and it does not add Flutter/browser E2E cove
 - Track the complete derived or aggregate expectation, not only its underlying event wait.
   Accepted-action probe waits created by `GameScenario` are tracked automatically.
 
+### Short examples (inside a scenario)
+
+Positive action with a validated payload; track the `.then` result too:
+
+```ts
+const after = scenario.mark();
+const probe = scenario.createAcceptedActionProbe({ gameId, actionType });
+const accepted = probe.waitForCount(1);
+const received = scenario.trackExpectation(
+  scenario.assert.inbound({ actor, event, afterSequence: after, timeoutMs: 1500 })
+    .then(({ args: [payload] }) => expect(payload).toEqual(expected)),
+  "validated action response"
+);
+actor.emit(command, input);
+await Promise.all([accepted, received]);
+await scenario.assert.waitForActionsComplete({ gameId });
+scenario.assert.expectDirectedEventCount({ actor, direction: "inbound", event, afterSequence: after, expectedCount: 1 });
+```
+
+Negative and group assertions use explicit recipients. Arm before the action, then await:
+
+```ts
+const quiet = scenario.assert.noInbound({ actor, event: "error", afterSequence: scenario.mark(), durationMs: 200 });
+actor.emit(command, input);
+await quiet;
+
+const privateRecipients = [showman, spectator];
+const isolated = scenario.assert.noInboundMany({ actors: privateRecipients, event: "private-message", afterSequence: scenario.mark(), durationMs: 100 });
+player.emit(command, input);
+await isolated;
+```
+
+Expected disconnect is a positive event. Other live waits on that actor must fail:
+
+```ts
+const after = scenario.mark();
+const disconnected = scenario.assert.inbound({ actor, event: "disconnect", afterSequence: after, timeoutMs: 1500 });
+actor.disconnect();
+await disconnected;
+expect(scenario.assert.records({ actor, event: "disconnect", afterSequence: after })).toHaveLength(1);
+// For subsequent live assertions, use only the explicitly planned remaining actors.
+// After reconnect: scenario.actor(socket) supplies the new connection generation.
+```
+
 ## Flow helper rules
 
 - Use small flow helpers, such as `MediaDownloadFlow`, only after a pattern repeats.

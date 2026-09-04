@@ -3,11 +3,7 @@ import { container } from "tsyringe";
 import { type Repository } from "typeorm";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
-import {
-  MEDIA_DOWNLOAD_TIMEOUT,
-  SYSTEM_PLAYER_ID,
-  SYSTEM_SOCKET_ID
-} from "domain/constants/game";
+import { MEDIA_DOWNLOAD_TIMEOUT, SYSTEM_PLAYER_ID, SYSTEM_SOCKET_ID } from "domain/constants/game";
 import { timerKey } from "domain/constants/redisKeys";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -231,11 +227,26 @@ export class MediaDownloadFlow {
     await this.utils.startGame(this.setup.showmanSocket);
   }
 
-  public async pickMediaQuestion(): Promise<number> {
+  public pickMediaQuestion(): Promise<number> {
+    return this.scenario.trackExpectation(
+      this.pickMediaQuestionInternal(),
+      "pick and validate the media question before ACK"
+    );
+  }
+
+  private async pickMediaQuestionInternal(): Promise<number> {
     await this.startGame();
-    const questionId = await this.utils.getFirstAvailableQuestionId(this.gameId);
+    const questionId = await withTimeout(
+      this.utils.getFirstAvailableQuestionId(this.gameId),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "select media question fixture"
+    );
     this.currentQuestionId = questionId;
-    const question = await container.resolve(PackageStore).getQuestion(this.gameId, questionId);
+    const question = await withTimeout(
+      container.resolve(PackageStore).getQuestion(this.gameId, questionId),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "read media question fixture"
+    );
     expect(question?.id).toBe(questionId);
     this.expectedQuestionFiles = question?.questionFiles ?? [];
     assertMediaFixtureFiles(this.expectedQuestionFiles, this.includesMediaQuestionFiles);
@@ -395,13 +406,27 @@ export class MediaDownloadFlow {
       }
     };
 
-    return container.resolve(GameActionExecutor).submitAction(action);
+    return this.scenario.trackExpectation(
+      withTimeout(
+        container.resolve(GameActionExecutor).submitAction(action),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "submit stale media timeout"
+      ),
+      "stale media timeout result"
+    );
   }
 
-  public async expireMediaDownloadTimer(): Promise<void> {
-    await this.timerUtils.expireTimerAndWaitForAction(
-      this.gameId,
-      GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED
+  public expireMediaDownloadTimer(): Promise<void> {
+    return this.scenario.trackExpectation(
+      withTimeout(
+        this.timerUtils.expireTimerAndWaitForAction(
+          this.gameId,
+          GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED
+        ),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "expire media timer and accept its action"
+      ),
+      "media timer expiration"
     );
   }
 
@@ -618,13 +643,23 @@ export class MediaDownloadFlow {
     actors: readonly ScenarioActor[],
     afterSequence: number
   ): Promise<readonly MediaStatusRecord[]> {
-    return this.scenario.assert.broadcast<readonly [MediaDownloadStatusBroadcastData]>({
-      actors,
-      event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
-      timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
-      afterSequence,
-      predicate: (record) => record.args[0].allPlayersReady === true
-    });
+    return this.scenario.trackExpectation(
+      this.scenario.assert
+        .broadcast<readonly [MediaDownloadStatusBroadcastData]>({
+          actors,
+          event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+          timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+          afterSequence,
+          predicate: (record) => record.args[0].allPlayersReady === true
+        })
+        .then((records) => {
+          records.forEach(({ args: [status] }) =>
+            assertMediaDownloadStatus(status, status.playerId, true)
+          );
+          return records;
+        }),
+      "validated final readiness including its question timer"
+    );
   }
 
   public mediaStatusHistory(
