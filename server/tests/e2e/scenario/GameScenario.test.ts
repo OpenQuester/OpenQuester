@@ -39,7 +39,7 @@ class FakeSocket extends EventEmitter {
   }
 
   public receive(event: string, payload: unknown): void {
-    if (event === "disconnect" || event === "connect_error") {
+    if (event === "connect" || event === "disconnect" || event === "connect_error") {
       super.emit(event, payload);
       return;
     }
@@ -61,6 +61,7 @@ class FakeSocket extends EventEmitter {
     return (
       this.inbound.size +
       this.outbound.size +
+      this.listenerCount("connect") +
       this.listenerCount("disconnect") +
       this.listenerCount("connect_error")
     );
@@ -125,7 +126,7 @@ describe("GameScenario transport API", () => {
     socket.receive("reply", { ok: true });
 
     expect(reconnected.label).toBe("player#2");
-    expect(() => previous.emit("stale")).toThrow("disconnected scenario actor");
+    expect(() => previous.emit("stale")).toThrow("not attached to this journal");
     expect(scenario.assert.records({ event: "reply" })).toEqual([
       expect.objectContaining({ actorLabel: "player#2", socketId: "socket-2" })
     ]);
@@ -143,6 +144,144 @@ describe("GameScenario transport API", () => {
 
     await expect(wait).resolves.toEqual({ step: 2 });
     await scenario.finish();
+  });
+
+  it("rejects positive and negative assertions on an already disconnected actor", async () => {
+    const scenario = new GameScenario();
+    const socket = new FakeSocket();
+    const actor = scenario.actor(socket.asSocket(), "player");
+    socket.receive("status", { ready: true });
+    socket.disconnect();
+
+    expect(() => scenario.assert.noInbound({ actor, event: "forbidden", durationMs: 10 })).toThrow(
+      "disconnected scenario actor"
+    );
+    expect(() => scenario.assert.inbound({ actor, event: "status", timeoutMs: 10 })).toThrow(
+      "disconnected scenario actor"
+    );
+    expect(scenario.assert.records({ actor, event: "status" })).toHaveLength(1);
+    await scenario.finish();
+    expect(socket.journalListenerCount()).toBe(0);
+  });
+
+  it.each(["disconnect", "connect_error"])(
+    "rejects a group no-event assertion when a recipient reports %s",
+    async (event) => {
+      const scenario = new GameScenario();
+      const first = new FakeSocket();
+      const second = new FakeSocket();
+      second.id = "socket-2";
+      const actors = [scenario.actor(first.asSocket()), scenario.actor(second.asSocket())];
+      const quiet = scenario.assert.noInboundMany({ actors, event: "forbidden", durationMs: 100 });
+      second.receive(event, "transport failure");
+
+      await expect(quiet).rejects.toThrow("client-2");
+      await expect(scenario.finish()).rejects.toThrow("disconnected");
+      expect(first.journalListenerCount() + second.journalListenerCount()).toBe(0);
+    }
+  );
+
+  it("rejects empty, duplicate, and foreign recipients before arming group waits", async () => {
+    const scenario = new GameScenario();
+    const other = new GameScenario();
+    const socket = new FakeSocket();
+    const actor = scenario.actor(socket.asSocket());
+    const foreign = other.actor(new FakeSocket().asSocket());
+    const options = { event: "forbidden", durationMs: 10 };
+
+    expect(() => scenario.assert.noInboundMany({ ...options, actors: [] })).toThrow(
+      "unique actors"
+    );
+    expect(() => scenario.assert.noInboundMany({ ...options, actors: [actor, actor] })).toThrow(
+      "unique actors"
+    );
+    expect(() => scenario.assert.noInbound({ ...options, actor: foreign })).toThrow("not attached");
+    // Different labels ensure the ownership check, not duplicate-label validation, rejects this group.
+    const foreignNamed = other.actor(new FakeSocket().asSocket(), "foreign");
+    expect(() =>
+      scenario.assert.noInboundMany({ ...options, actors: [actor, foreignNamed] })
+    ).toThrow("not attached");
+    expect(() => scenario.assert.broadcast({ actors: [], event: "status", timeoutMs: 10 })).toThrow(
+      "unique actors"
+    );
+    await scenario.finish();
+    await other.finish();
+    expect(socket.journalListenerCount()).toBe(0);
+  });
+
+  it("does not silently drop a disconnected recipient from a no-event group", async () => {
+    const scenario = new GameScenario();
+    const socket = new FakeSocket();
+    const actor = scenario.actor(socket.asSocket());
+    socket.disconnect();
+    expect(() =>
+      scenario.assert.noInboundMany({ actors: [actor], event: "error", durationMs: 10 })
+    ).toThrow("disconnected");
+    await scenario.finish();
+  });
+
+  it("keeps the requested negative window beyond the default 100ms", async () => {
+    jest.useFakeTimers();
+    const scenario = new GameScenario();
+    const socket = new FakeSocket();
+    const quiet = scenario.waitForNoEvent(socket.asSocket(), "forbidden", 200);
+    await jest.advanceTimersByTimeAsync(150);
+    socket.receive("forbidden", { tooEarly: true });
+    await expect(quiet).rejects.toThrow("during 200ms");
+    await expect(scenario.finish()).rejects.toThrow("forbidden");
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it.each([0, -1, NaN, Infinity])("rejects invalid no-event duration %s", async (durationMs) => {
+    const scenario = new GameScenario();
+    const actor = scenario.actor(new FakeSocket().asSocket());
+    expect(() => scenario.assert.noInbound({ actor, event: "error", durationMs })).toThrow(
+      "positive finite number"
+    );
+    await scenario.finish();
+  });
+
+  it("records an expected disconnect before rejecting the actor's other waits", async () => {
+    const scenario = new GameScenario();
+    const socket = new FakeSocket();
+    const disconnect = scenario.waitForEvent(socket.asSocket(), "disconnect");
+    const quiet = scenario.waitForNoEvent(socket.asSocket(), "error");
+    socket.disconnect();
+    await expect(disconnect).resolves.toBe("io client disconnect");
+    await expect(quiet).rejects.toThrow("disconnected");
+    await scenario.abort();
+    expect(socket.journalListenerCount()).toBe(0);
+  });
+
+  it("binds the first connection before any actor use and rejects stale generations", async () => {
+    const scenario = new GameScenario();
+    const socket = new FakeSocket();
+    socket.id = undefined;
+    socket.connected = false;
+    const oldActor = scenario.actor(socket.asSocket(), "player");
+    socket.id = "first";
+    socket.connected = true;
+    socket.receive("connect", undefined);
+    socket.receive("status", "old");
+    socket.disconnect();
+    socket.id = "second";
+    socket.connected = true;
+    socket.receive("connect", undefined);
+
+    expect(() =>
+      scenario.assert.noInbound({ actor: oldActor, event: "error", durationMs: 10 })
+    ).toThrow("disconnected scenario actor");
+    const currentActor = scenario.actor(socket.asSocket());
+    expect(currentActor.label).toBe("player#2");
+    const status = scenario.assert.inbound({
+      actor: currentActor,
+      event: "status",
+      timeoutMs: 100
+    });
+    socket.receive("status", "new");
+    expect((await status).args).toEqual(["new"]);
+    await scenario.finish();
+    expect(socket.journalListenerCount()).toBe(0);
   });
 
   it("predicates live waits by the intended payload", async () => {

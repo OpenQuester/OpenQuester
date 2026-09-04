@@ -25,7 +25,6 @@ export class ScenarioActor {
   public readonly userId: number | undefined;
   private readonly journal: EventJournal;
   private readonly initialGameId: string | undefined;
-  private connectionId: string | undefined;
 
   public constructor(options: ScenarioActorOptions) {
     this.label = options.label;
@@ -33,7 +32,6 @@ export class ScenarioActor {
     this.namespace = options.namespace ?? "unknown";
     this.userId = options.userId;
     this.initialGameId = options.gameId;
-    this.connectionId = options.socket.id;
     this.journal = options.journal;
   }
 
@@ -80,15 +78,6 @@ export class ScenarioActor {
   }
 
   private assertConnected(action: string): void {
-    this.connectionId ??= this.socket.id;
-    if (this.socket.connected && this.socket.id === this.connectionId) {
-      return;
-    }
-
-    throw new Error(
-      `Cannot ${action} from disconnected scenario actor ` +
-        `(actor="${this.label}", namespace="${this.namespace}", ` +
-        `socketId="${this.socket.id ?? "unknown"}", gameId="${this.gameId ?? "unknown"}")`
-    );
+    this.journal.assertActorConnected(this, action);
   }
 }

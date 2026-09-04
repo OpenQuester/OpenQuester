@@ -85,7 +85,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       await expectPlayerDisconnected(flow, leavingPlayer, false);
       await flow.expectMediaReadiness([{ actor: readyPlayer, expected: true }]);
       await assertShowing(flow);
-      await flow.expectNoSocketErrors(afterLeave);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterLeave);
     });
   });
 
@@ -156,7 +156,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       await expectPlayerDisconnected(flow, disconnectingPlayer, false);
       await flow.expectMediaReadiness([{ actor: readyPlayer, expected: true }]);
       await assertShowing(flow);
-      await flow.expectNoSocketErrors(afterDisconnect);
+      await flow.expectNoSocketErrors(remainingRecipients, afterDisconnect);
     });
   });
 
@@ -209,7 +209,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       await expectPlayerDisconnected(flow, kickedPlayer, false);
       await flow.expectMediaReadiness([{ actor: readyPlayer, expected: true }]);
       await assertShowing(flow);
-      await flow.expectNoSocketErrors(afterKick);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterKick);
     });
   });
 
@@ -222,7 +222,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const afterLeave = flow.mark();
       const leaveProbe = flow.createAcceptedActorActionProbe(leavingPlayer, GameActionType.LEAVE);
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterLeave, leavingPlayer);
-      const noStatus = flow.expectNoMediaDownloadStatus(afterLeave);
+      const noStatus = flow.expectNoMediaDownloadStatus(flow.allRecipients, afterLeave);
 
       flow.emitPlayerLeave(leavingPlayer);
 
@@ -252,7 +252,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       ]);
       await assertMediaDownloading(flow);
       flow.assertNoQuestionReveal(flow.allRecipients, afterLeave);
-      await flow.expectNoSocketErrors(afterLeave);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterLeave);
     });
   });
 
@@ -265,7 +265,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const afterLeave = flow.mark();
       const leaveProbe = flow.createAcceptedActorActionProbe(leavingPlayer, GameActionType.LEAVE);
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterLeave, leavingPlayer);
-      const noStatus = flow.expectNoMediaDownloadStatus(afterLeave);
+      const noStatus = flow.expectNoMediaDownloadStatus(flow.allRecipients, afterLeave);
 
       flow.emitPlayerLeave(leavingPlayer);
 
@@ -318,7 +318,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
         { actor: remainingPlayer, expected: true }
       ]);
       await assertShowing(flow);
-      await flow.expectNoSocketErrors(afterFinalDownload);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterFinalDownload);
     });
   });
 
@@ -331,7 +331,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const afterLeave = flow.mark();
       const leaveProbe = flow.createAcceptedActorActionProbe(readyPlayer, GameActionType.LEAVE);
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterLeave, readyPlayer);
-      const noStatus = flow.expectNoMediaDownloadStatus(afterLeave);
+      const noStatus = flow.expectNoMediaDownloadStatus(flow.allRecipients, afterLeave);
 
       flow.emitPlayerLeave(readyPlayer);
 
@@ -357,7 +357,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       await flow.expectMediaReadiness([{ actor: waitingPlayer, expected: false }]);
       await assertMediaDownloading(flow);
       flow.assertNoQuestionReveal(flow.allRecipients, afterLeave);
-      await flow.expectNoSocketErrors(afterLeave);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterLeave);
     });
   });
 
@@ -375,7 +375,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
         afterFirstLeave,
         firstPlayer
       );
-      const noFirstStatus = flow.expectNoMediaDownloadStatus(afterFirstLeave);
+      const noFirstStatus = flow.expectNoMediaDownloadStatus(flow.allRecipients, afterFirstLeave);
 
       flow.emitPlayerLeave(firstPlayer);
 
@@ -427,7 +427,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       await expectPlayerDisconnected(flow, firstPlayer, false);
       await expectPlayerDisconnected(flow, secondPlayer, false);
       await assertShowing(flow);
-      await flow.expectNoSocketErrors(afterSecondLeave);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterSecondLeave);
     });
   });
 
@@ -459,7 +459,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       flow.assertExactQuestionRevealCount(flow.allRecipients, afterLeave, 1);
       await expectPlayerDisconnected(flow, onlyPlayer, false);
       await assertShowing(flow);
-      await flow.expectNoSocketErrors(afterLeave);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterLeave);
     });
   });
 
@@ -530,7 +530,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       });
       await flow.expectMediaReadiness([{ actor: readyPlayer, expected: true }]);
       await assertShowing(flow);
-      await flow.expectNoSocketErrors(afterRestriction);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterRestriction);
     });
   });
 
@@ -555,7 +555,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
         afterRestriction,
         restrictedPlayer
       );
-      const noStatus = flow.expectNoMediaDownloadStatus(afterRestriction);
+      const noStatus = flow.expectNoMediaDownloadStatus(flow.allRecipients, afterRestriction);
 
       flow.emitPlayerRestriction(restrictedPlayer);
 
@@ -606,7 +606,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       ]);
       await assertMediaDownloading(flow);
       flow.assertNoQuestionReveal(flow.allRecipients, afterRestriction);
-      await flow.expectNoSocketErrors(afterRestriction);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterRestriction);
     });
   });
 });

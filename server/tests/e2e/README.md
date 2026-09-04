@@ -95,8 +95,15 @@ self-tests into gameplay scenarios, and it does not add Flutter/browser E2E cove
 - Use `scenario.assert.expectOutboundCommandCount(...)` to prove command bursts were actually sent.
 - Use exact journal snapshots only after accepted actions, queue, and lock have drained; snapshots
   do not poll or provide synchronization.
-- Negative assertions must use bounded no-event waits and should explain the expected quiescence
-  window.
+- Negative assertions name their recipients: `noInbound({ actor, ... })` or
+  `noInboundMany({ actors, ... })`. Groups must be non-empty and contain unique, scenario-owned
+  actors. Never filter recipients by `socket.connected`: an unexpected disconnect must fail.
+- Live positive and negative waits require a connected actor from the current connection generation.
+  Disconnect, connect error, or replacement rejects its pending waits (and a group's aggregate). For
+  history after disconnect, use `records`/snapshot, not a live wait.
+- Arm an expected `disconnect` before triggering it; the journal records that event before rejecting
+  the actor's other waits. Negative windows default to 100 ms, but an explicit positive, finite
+  `durationMs` is observed in full, not truncated to the default.
 - Scenario tests may emit bursts, such as duplicate or concurrent media-download commands, and
   assert the resulting journal history afterwards.
 - Actor labels are unique. `scenario.actor(...)` manages reconnect generations; do not manually

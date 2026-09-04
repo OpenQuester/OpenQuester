@@ -16,6 +16,7 @@ import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
 interface ScenarioAssertionsOptions {
   readonly utils?: SocketGameTestUtils;
+  readonly validateActor: (actor: ScenarioActor) => void;
   readonly expectEvent: <TArgs extends readonly unknown[] = readonly unknown[]>(
     expectation: EventExpectation<TArgs>
   ) => Promise<EventRecord<TArgs>>;
@@ -36,12 +37,18 @@ interface EventMatchOptions<TArgs extends readonly unknown[] = readonly unknown[
 }
 
 interface NoEventMatchOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
-  readonly actor?: ScenarioActor;
+  readonly actor: ScenarioActor;
   readonly event: string;
   readonly durationMs: number;
   readonly afterSequence?: number;
   readonly description?: string;
   readonly predicate?: EventPredicate<TArgs>;
+}
+
+interface NoEventManyMatchOptions<
+  TArgs extends readonly unknown[] = readonly unknown[]
+> extends Omit<NoEventMatchOptions<TArgs>, "actor"> {
+  readonly actors: readonly ScenarioActor[];
 }
 
 interface EventRecordQueryOptions<TArgs extends readonly unknown[] = readonly unknown[]> {
@@ -132,6 +139,7 @@ export class ScenarioAssertions {
   public broadcast<TArgs extends readonly unknown[] = readonly unknown[]>(
     options: BroadcastOptions<TArgs>
   ): Promise<readonly EventRecord<TArgs>[]> {
+    this.requireRecipients(options.actors);
     const expectation = Promise.all(
       options.actors.map((actor) =>
         this.expectDirectedEvent("inbound", {
@@ -152,6 +160,26 @@ export class ScenarioAssertions {
           .map((actor) => `"${actor.label}"`)
           .join(", ")}`
     );
+  }
+
+  public noInboundMany<TArgs extends readonly unknown[] = readonly unknown[]>(
+    options: NoEventManyMatchOptions<TArgs>
+  ): Promise<void> {
+    this.requireRecipients(options.actors);
+    return this.track(
+      Promise.all(
+        options.actors.map((actor) => this.expectNoDirectedEvent("inbound", { ...options, actor }))
+      ).then(() => undefined),
+      options.description ??
+        `no inbound "${options.event}" for actors ${options.actors.map(({ label }) => label).join(", ")}`
+    );
+  }
+
+  private requireRecipients(actors: readonly ScenarioActor[]): void {
+    if (actors.length === 0 || new Set(actors.map(({ label }) => label)).size !== actors.length) {
+      throw new Error("Event assertions require a non-empty list of unique actors");
+    }
+    actors.forEach(this.options.validateActor);
   }
 
   public expectOutboundCommandCount(options: CommandCountOptions): void {

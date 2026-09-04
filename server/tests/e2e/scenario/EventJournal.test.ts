@@ -456,10 +456,10 @@ describe("EventJournal", () => {
 
     expect(() => journal.mark()).toThrow(EventJournalDisposedError);
     expect(() => journal.recordOutgoing(actor, "outbound", [])).toThrow(EventJournalDisposedError);
-    expect(() => journal.expectEvent({ event: "after-dispose", timeoutMs: 1 })).toThrow(
+    expect(() => journal.expectEvent({ actor, event: "after-dispose", timeoutMs: 1 })).toThrow(
       EventJournalDisposedError
     );
-    expect(() => journal.expectNoEvent({ event: "after-dispose", durationMs: 1 })).toThrow(
+    expect(() => journal.expectNoEvent({ actor, event: "after-dispose", durationMs: 1 })).toThrow(
       EventJournalDisposedError
     );
     expect(() => journal.attach(toJournalActor("p2"))).toThrow(EventJournalDisposedError);

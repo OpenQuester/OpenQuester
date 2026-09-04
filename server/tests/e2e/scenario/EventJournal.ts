@@ -29,7 +29,7 @@ export type EventPredicate<TArgs extends readonly unknown[] = readonly unknown[]
 ) => boolean;
 
 export interface EventExpectation<TArgs extends readonly unknown[] = readonly unknown[]> {
-  readonly actor?: JournalActor;
+  readonly actor: JournalActor;
   readonly direction?: EventDirection;
   readonly event: string | readonly string[];
   readonly timeoutMs: number;
@@ -40,7 +40,7 @@ export interface EventExpectation<TArgs extends readonly unknown[] = readonly un
 }
 
 export interface NoEventExpectation<TArgs extends readonly unknown[] = readonly unknown[]> {
-  readonly actor?: JournalActor;
+  readonly actor: JournalActor;
   readonly direction?: EventDirection;
   readonly event: string;
   readonly durationMs: number;
@@ -55,10 +55,11 @@ type EventJournalCompletionMode = "finish" | "abort";
 
 interface JournalAttachment {
   readonly actor: JournalActor;
+  connectionId: string | undefined;
   readonly handler: OnAnyHandler;
   readonly outgoingHandler?: OnAnyHandler;
   readonly lifecycleHandlers: readonly {
-    event: "disconnect" | "connect_error";
+    event: "connect" | "disconnect" | "connect_error";
     handler: (...args: unknown[]) => void;
   }[];
 }
@@ -127,9 +128,15 @@ export class EventJournal {
         : undefined;
     const lifecycleHandlers: JournalAttachment["lifecycleHandlers"] =
       typeof actor.socket.on === "function"
-        ? (["disconnect", "connect_error"] as const).map((event) => ({
+        ? (["connect", "disconnect", "connect_error"] as const).map((event) => ({
             event,
             handler: (...args: unknown[]) => {
+              if (event === "connect") {
+                if (this.connectionId(actor) !== actor.socket.id) {
+                  this.rejectDisconnectedActorWaits(actor, "connection replaced");
+                }
+                return;
+              }
               this.record(actor, "inbound", event, args);
               this.rejectDisconnectedActorWaits(actor, event);
             }
@@ -142,7 +149,37 @@ export class EventJournal {
     for (const lifecycle of lifecycleHandlers) {
       actor.socket.on(lifecycle.event, lifecycle.handler);
     }
-    this.attachments.set(actor.label, { actor, handler, outgoingHandler, lifecycleHandlers });
+    this.attachments.set(actor.label, {
+      actor,
+      connectionId: actor.socket.id,
+      handler,
+      outgoingHandler,
+      lifecycleHandlers
+    });
+  }
+
+  /** Bind once, including actors observed before their initial connection. */
+  public connectionId(actor: JournalActor): string | undefined {
+    const attachment = this.attachments.get(actor.label);
+    if (attachment?.actor !== actor) return undefined;
+    attachment.connectionId ??= actor.socket.id;
+    return attachment.connectionId;
+  }
+
+  public assertActorConnected(actor: JournalActor, action = "wait for events"): void {
+    this.assertNotDisposed();
+    if (!actor || this.attachments.get(actor.label)?.actor !== actor) {
+      throw new Error(
+        `Cannot ${action}: actor "${actor?.label ?? "missing"}" is not attached to this journal`
+      );
+    }
+    if (!actor.socket.connected || this.connectionId(actor) !== actor.socket.id) {
+      throw new Error(
+        `Cannot ${action} from disconnected scenario actor ` +
+          `(actor="${actor.label}", namespace="${actor.namespace ?? "unknown"}", ` +
+          `socketId="${actor.socket.id ?? "unknown"}", gameId="${actor.gameId ?? "unknown"}")`
+      );
+    }
   }
 
   /** Stop observing an old connection generation while retaining its recorded history. */
@@ -176,6 +213,8 @@ export class EventJournal {
     expectation: EventExpectation<TArgs>
   ): Promise<EventRecord<TArgs>> {
     this.assertNotDisposed();
+
+    this.assertActorConnected(expectation.actor);
 
     if (expectation.signal?.aborted) {
       return observeRejection(Promise.reject(this.createAbortedError(expectation)));
@@ -220,6 +259,10 @@ export class EventJournal {
     expectation: NoEventExpectation<TArgs>
   ): Promise<void> {
     this.assertNotDisposed();
+    this.assertActorConnected(expectation.actor);
+    if (!Number.isFinite(expectation.durationMs) || expectation.durationMs <= 0) {
+      throw new Error("No-event observation duration must be a positive finite number");
+    }
 
     if (expectation.signal?.aborted) {
       return observeRejection(Promise.reject(this.createAbortedError(expectation)));
@@ -446,6 +489,7 @@ export class EventJournal {
     args: readonly unknown[]
   ): void {
     this.assertNotDisposed();
+    this.connectionId(actor);
 
     const record: EventRecord = {
       sequence: this.nextSequence,
@@ -454,7 +498,7 @@ export class EventJournal {
       args: args.map(copyEventArgument),
       actorLabel: actor.label,
       namespace: actor.namespace ?? "unknown",
-      socketId: actor.socket.id,
+      socketId: actor.socket.id ?? this.connectionId(actor),
       userId: actor.userId,
       gameId: actor.gameId,
       recordedAt: new Date()

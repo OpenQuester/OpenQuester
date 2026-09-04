@@ -848,8 +848,13 @@ export class MediaDownloadFlow {
     expect(status!.sequence).toBeLessThan(questionData!.sequence);
   }
 
-  public expectNoMediaDownloadStatus(afterSequence: number, playerId?: number): Promise<void> {
-    return this.scenario.assert.noInbound<readonly [MediaDownloadStatusBroadcastData]>({
+  public expectNoMediaDownloadStatus(
+    actors: readonly ScenarioActor[],
+    afterSequence: number,
+    playerId?: number
+  ): Promise<void> {
+    return this.scenario.assert.noInboundMany<readonly [MediaDownloadStatusBroadcastData]>({
+      actors,
       event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
       durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,
       afterSequence,
@@ -860,8 +865,12 @@ export class MediaDownloadFlow {
     });
   }
 
-  public expectNoSocketErrors(afterSequence: number): Promise<void> {
-    return this.scenario.assert.noInbound({
+  public expectNoSocketErrors(
+    actors: readonly ScenarioActor[],
+    afterSequence: number
+  ): Promise<void> {
+    return this.scenario.assert.noInboundMany({
+      actors,
       event: "error",
       durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,
       afterSequence,

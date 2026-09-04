@@ -450,7 +450,10 @@ export class SocketGameTestEventUtils {
     if (this.scenario) {
       return this.scenario.waitForNoEvent(socket, event, timeout, signal);
     }
-    const effectiveTimeout = Math.min(timeout, TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS);
+    if (!Number.isFinite(timeout) || timeout <= 0) {
+      throw new Error("No-event observation duration must be a positive finite number");
+    }
+    const effectiveTimeout = timeout;
     const socketId = socket.id;
 
     if (socket.connected === false) {

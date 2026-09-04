@@ -73,7 +73,7 @@ describe("Media Download client-contract golden scenarios", () => {
       await flow.expectQuestionState(QuestionState.SHOWING);
       await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
       flow.assertCriticalEventOrder(player, afterQuestionPick);
-      await flow.expectNoSocketErrors(afterDownload);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterDownload);
     });
   });
 
@@ -114,7 +114,7 @@ describe("Media Download client-contract golden scenarios", () => {
       ]);
       await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
       await flow.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
-      await flow.expectNoSocketErrors(afterDownload);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterDownload);
     });
   });
 
@@ -178,7 +178,7 @@ describe("Media Download client-contract golden scenarios", () => {
       ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
       await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
-      await flow.expectNoSocketErrors(afterDownloadBurst);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterDownloadBurst);
     });
   });
 
@@ -242,7 +242,7 @@ describe("Media Download client-contract golden scenarios", () => {
       ]);
       await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
       await flow.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
-      await flow.expectNoSocketErrors(afterDuplicates);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterDuplicates);
 
       const afterRemainingDownload = flow.mark();
       const remainingProbe = flow.createAcceptedMediaDownloadProbe(remainingPlayer);
@@ -275,7 +275,7 @@ describe("Media Download client-contract golden scenarios", () => {
       ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
       await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
-      await flow.expectNoSocketErrors(afterRemainingDownload);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterRemainingDownload);
     });
   });
 
@@ -314,7 +314,7 @@ describe("Media Download client-contract golden scenarios", () => {
       ]);
       await flow.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
       await flow.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
-      await flow.expectNoSocketErrors(afterPartial);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterPartial);
 
       const afterTimerExpiry = flow.mark();
       const timeoutStatus = expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME);
@@ -338,7 +338,7 @@ describe("Media Download client-contract golden scenarios", () => {
       ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
       await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
-      await flow.expectNoSocketErrors(afterTimerExpiry);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterTimerExpiry);
     });
   });
 
@@ -368,7 +368,7 @@ describe("Media Download client-contract golden scenarios", () => {
       ]);
       await flow.expectQuestionState(QuestionState.SHOWING);
       await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
-      await flow.expectNoSocketErrors(afterTimerExpiry);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterTimerExpiry);
     });
   });
 
@@ -396,7 +396,11 @@ describe("Media Download client-contract golden scenarios", () => {
 
       const afterCompletion = flow.mark();
       const timeoutProbe = flow.createAcceptedMediaTimeoutProbe();
-      const noSystemStatus = flow.expectNoMediaDownloadStatus(afterCompletion, SYSTEM_PLAYER_ID);
+      const noSystemStatus = flow.expectNoMediaDownloadStatus(
+        flow.allRecipients,
+        afterCompletion,
+        SYSTEM_PLAYER_ID
+      );
       const result = await flow.submitStaleMediaTimeout(staleExpirationTime);
 
       expect(result.success).toBe(true);
@@ -407,7 +411,7 @@ describe("Media Download client-contract golden scenarios", () => {
       expect(timeoutProbe.records()).toHaveLength(1);
       await flow.expectQuestionState(QuestionState.SHOWING);
       await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
-      await flow.expectNoSocketErrors(afterCompletion);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterCompletion);
     });
   });
 
@@ -420,7 +424,7 @@ describe("Media Download client-contract golden scenarios", () => {
       const player = flow.player(0);
       const afterDownload = flow.mark();
       const probe = flow.createAcceptedMediaDownloadProbe(player);
-      const noStatus = flow.expectNoMediaDownloadStatus(afterDownload);
+      const noStatus = flow.expectNoMediaDownloadStatus(flow.allRecipients, afterDownload);
 
       flow.emitPlayerDownloaded(player);
 
@@ -437,7 +441,7 @@ describe("Media Download client-contract golden scenarios", () => {
       await flow.expectMediaReadiness([{ actor: player, expected: false }]);
       await flow.expectQuestionState(QuestionState.CHOOSING);
       await flow.expectNoActiveTimer();
-      await flow.expectNoSocketErrors(afterDownload);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterDownload);
     });
   });
 
@@ -453,7 +457,7 @@ describe("Media Download client-contract golden scenarios", () => {
         });
         await flow.expectQuestionState(QuestionState.SHOWING);
         await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
-        await flow.expectNoSocketErrors(afterQuestionPick);
+        await flow.expectNoSocketErrors(flow.allRecipients, afterQuestionPick);
       }
     );
   });

@@ -30,7 +30,6 @@ interface ActorConnection {
   readonly actor: ScenarioActor;
   readonly baseLabel: string;
   readonly generation: number;
-  socketId: string | undefined;
 }
 
 export interface ScenarioEventCollector<T> {
@@ -56,6 +55,7 @@ export class GameScenario {
   public constructor(private readonly utils?: SocketGameTestUtils) {
     this.assert = new ScenarioAssertions({
       utils: this.utils,
+      validateActor: (actor) => this.journal.assertActorConnected(actor),
       expectEvent: (expectation) => this.journal.expectEvent(expectation),
       expectNoEvent: (expectation) => this.journal.expectNoEvent(expectation),
       eventHistory: () => this.journal.snapshot(),
@@ -80,8 +80,7 @@ export class GameScenario {
     this.actors.set(actor.socket, {
       actor,
       baseLabel: actor.label,
-      generation: 1,
-      socketId: actor.socket.id
+      generation: 1
     });
 
     return actor;
@@ -92,8 +91,9 @@ export class GameScenario {
     this.assertNotDisposed();
     const previous = this.actors.get(socket);
     if (previous) {
-      if (previous.socketId === undefined) previous.socketId = socket.id;
-      if (socket.id === undefined || previous.socketId === socket.id) return previous.actor;
+      if (socket.id === undefined || this.journal.connectionId(previous.actor) === socket.id) {
+        return previous.actor;
+      }
 
       this.journal.detach(previous.actor);
       this.actors.delete(socket);
@@ -108,8 +108,7 @@ export class GameScenario {
       this.actors.set(socket, {
         actor,
         baseLabel: previous.baseLabel,
-        generation,
-        socketId: socket.id
+        generation
       });
       return actor;
     }
@@ -146,7 +145,7 @@ export class GameScenario {
     );
   }
 
-  /** Retains the shared no-event observation-window cap for migrated tests. */
+  /** Observe the entire requested window; shortening it can hide late unwanted events. */
   public waitForNoEvent(
     socket: Socket,
     event: string,
@@ -160,7 +159,7 @@ export class GameScenario {
         actor,
         direction: "inbound",
         event,
-        durationMs: Math.min(duration, TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS),
+        durationMs: duration,
         afterSequence: this.mark(),
         signal
       }),
@@ -476,9 +475,7 @@ export class GameScenario {
   }
 
   private requireConnected(actor: ScenarioActor, event: string): void {
-    if (actor.socket.connected === false) {
-      throw new Error(`Cannot wait for "${event}" from disconnected actor "${actor.label}"`);
-    }
+    this.journal.assertActorConnected(actor, `wait for "${event}"`);
   }
 
   private assertNotDisposed(): void {
