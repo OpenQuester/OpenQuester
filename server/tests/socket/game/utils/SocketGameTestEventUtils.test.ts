@@ -101,7 +101,7 @@ describe("SocketGameTestEventUtils", () => {
         25
       )
     ).resolves.toEqual({ ok: true });
-    const operation = jest.fn();
+    const operation = jest.fn<() => void>();
     const cancelled = utils.runAndWaitForEvent(
       socket as unknown as GameClientSocket,
       "target",
