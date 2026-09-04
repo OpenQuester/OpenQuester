@@ -33,10 +33,24 @@ The client build now defaults preview artifacts to the development API, rejects 
 
 ## Browser inspection
 
-Status: pending explicit approval to run Playwright/browser automation against the rebuilt preview.
+Status: completed against the deployed branch preview at 360 px, 768 px, and 1280 px widths.
 
-The visual comparison, responsive overflow review, interaction checks, accessibility scan, and screenshot evidence must be recorded here before release promotion.
+- Package discovery loaded real development API data without failed requests at every target width.
+- Mobile, tablet, and desktop screenshots confirm that package cards, search, filters, primary actions, and navigation remain visible without page-level horizontal overflow.
+- The sign-in route renders correctly at 360 px.
+- The shared Radix Select opens with the keyboard and displays the styled theme choices correctly.
+- The avatar input uses the branded picker rather than the browser's default file control.
+- The mobile editor keeps its unsaved state and all six package actions visible. The large question board remains intentionally horizontally scrollable on narrow screens.
+- The focused live-preview browser suite passed: 2 tests in 11.4 seconds.
+- The local application browser suite passed: 6 tests, with live-only cases skipped unless a preview URL is supplied.
+
+Screenshot evidence is generated under `client-web/test-results/` by `tests/e2e/live-preview.spec.ts` for package discovery, sign-in, settings/selects, and the mobile editor.
 
 ## Final result
 
-Blocked until browser inspection is approved and completed.
+The rebuilt web preview passes its client, server, contract, build, responsive, and live browser checks. Package discovery and the reported native-looking controls are fixed in the deployed preview.
+
+Two authentication deployment tasks remain outside the client artifact:
+
+- Deploy the server cookie-policy change before cross-site preview sessions can be shared with the development frontend.
+- Configure the development API's Discord client ID, client secret, web base URL, and exact callback URI in both the server environment and Discord developer portal. Until then, the live Discord start endpoint will continue returning HTTP 500.
