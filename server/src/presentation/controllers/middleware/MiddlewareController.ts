@@ -17,6 +17,23 @@ import { MetricsService } from "application/services/metrics/MetricsService";
 
 const CORS_PREFIX = LogPrefix.CORS;
 
+export function getSessionCookiePolicy(env: EnvType | string, apiDomain: string) {
+  const host = apiDomain.trim().toLowerCase().replace(/^\./, "");
+  const isLocalHost =
+    !host ||
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host === "127.0.0.1" ||
+    host === "0.0.0.0" ||
+    host === "::1";
+  const secure = env === EnvType.PROD || !isLocalHost;
+
+  return {
+    secure,
+    sameSite: secure ? ("none" as const) : ("lax" as const)
+  };
+}
+
 export class MiddlewareController {
   private readonly allowedHosts: string[];
   private readonly allOriginsAllowed: boolean = false;
@@ -104,7 +121,7 @@ export class MiddlewareController {
     // Trust first proxy to enable secure cookies
     this.ctx.app.set("trust proxy", 1);
 
-    const isProd = this.ctx.env.ENV === EnvType.PROD;
+    const cookiePolicy = getSessionCookiePolicy(this.ctx.env.ENV, this.ctx.env.API_DOMAIN);
     // Session
     this.ctx.app.use(
       session({
@@ -113,9 +130,9 @@ export class MiddlewareController {
         resave: false,
         saveUninitialized: false,
         cookie: {
-          secure: isProd,
+          secure: cookiePolicy.secure,
           maxAge: this.ctx.env.SESSION_MAX_AGE,
-          sameSite: isProd ? "none" : "lax",
+          sameSite: cookiePolicy.sameSite,
           domain: this.ctx.env.API_DOMAIN
         }
       })

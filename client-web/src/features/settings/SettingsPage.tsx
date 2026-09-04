@@ -14,6 +14,7 @@ import {
   type Theme,
   usePreferences,
 } from "../../shared/preferences";
+import { SelectField } from "../../shared/ui/SelectField";
 import styles from "../../shared/ui/ui.module.css";
 
 export function SettingsPage() {
@@ -151,52 +152,60 @@ export function SettingsPage() {
           <div className={styles.stack}>
             <label>
               <span>{t("settings.theme")}</span>
-              <select
+              <SelectField
                 value={preferences.theme}
-                onChange={(e) => preferences.setTheme(e.target.value as Theme)}
-              >
-                <option value="system">{t("settings.system")}</option>
-                <option value="light">{t("settings.light")}</option>
-                <option value="dark">{t("settings.dark")}</option>
-                <option value="pure-dark">{t("settings.pureDark")}</option>
-              </select>
+                ariaLabel={t("settings.theme")}
+                onValueChange={(value) => preferences.setTheme(value as Theme)}
+                options={[
+                  { value: "system", label: t("settings.system") },
+                  { value: "light", label: t("settings.light") },
+                  { value: "dark", label: t("settings.dark") },
+                  { value: "pure-dark", label: t("settings.pureDark") },
+                ]}
+              />
             </label>
             <label>
               <span>{t("settings.accent")}</span>
-              <select
+              <SelectField
                 value={preferences.accent}
-                onChange={(e) =>
-                  preferences.setAccent(e.target.value as Accent)
+                ariaLabel={t("settings.accent")}
+                onValueChange={(value) =>
+                  preferences.setAccent(value as Accent)
                 }
-              >
-                <option value="cyan">{t("settings.cyan")}</option>
-                <option value="violet">{t("settings.violet")}</option>
-                <option value="lime">{t("settings.lime")}</option>
-                <option value="coral">{t("settings.coral")}</option>
-              </select>
+                options={[
+                  { value: "cyan", label: t("settings.cyan") },
+                  { value: "violet", label: t("settings.violet") },
+                  { value: "lime", label: t("settings.lime") },
+                  { value: "coral", label: t("settings.coral") },
+                ]}
+              />
             </label>
             <label>
               <span>{t("settings.language")}</span>
-              <select
+              <SelectField
                 value={i18n.language}
-                onChange={(e) => setLanguage(e.target.value)}
-              >
-                <option value="en">{t("language.en")}</option>
-                <option value="uk">{t("language.uk")}</option>
-                <option value="ru">{t("language.ru")}</option>
-              </select>
+                ariaLabel={t("settings.language")}
+                onValueChange={setLanguage}
+                options={[
+                  { value: "en", label: t("language.en") },
+                  { value: "uk", label: t("language.uk") },
+                  { value: "ru", label: t("language.ru") },
+                ]}
+              />
             </label>
             <label>
               <span>{t("settings.board")}</span>
-              <select
+              <SelectField
                 value={preferences.boardLayout}
-                onChange={(e) =>
-                  preferences.setBoardLayout(e.target.value as BoardLayout)
+                ariaLabel={t("settings.board")}
+                onValueChange={(value) =>
+                  preferences.setBoardLayout(value as BoardLayout)
                 }
-              >
-                <option value="rows">{t("game.rows")}</option>
-                <option value="matrix">{t("game.matrix")}</option>
-              </select>
+                options={[
+                  { value: "rows", label: t("game.rows") },
+                  { value: "matrix", label: t("game.matrix") },
+                ]}
+              />
             </label>
             <label style={{ flexDirection: "row", alignItems: "center" }}>
               <input

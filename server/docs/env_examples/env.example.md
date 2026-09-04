@@ -15,8 +15,18 @@ SOCKET_IO_ADMIN_UI_PASSWORD=
 # Comma-separated list of admin emails that should receive all permissions on startup
 ADMIN_EMAILS=
 
-# Domain (full) to which cookie will be assigned
+# Domain (full) to which cookie will be assigned. Hosted domains automatically
+# use Secure; SameSite=None cookies so the Pages client can reuse API sessions.
 API_DOMAIN=
+
+# Browser client URL and server-owned Discord OAuth settings.
+# Preview example:
+# WEB_BASE_URL=https://openquester-dev.pages.dev
+# DISCORD_REDIRECT_URI=https://dev-api.openquester.app/v1/auth/oauth2/discord/callback
+WEB_BASE_URL=
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_REDIRECT_URI=
 
 ## DB variables
 DB_TYPE=

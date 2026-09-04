@@ -40,6 +40,7 @@ import {
   useGameStore,
 } from "../../shared/realtime/gameStore";
 import type { Player } from "../../shared/realtime/contracts";
+import { SelectField } from "../../shared/ui/SelectField";
 import ui from "../../shared/ui/ui.module.css";
 import styles from "./game.module.css";
 
@@ -109,13 +110,15 @@ export function GameJoinPage() {
         <div className={ui.stack}>
           <label>
             <span>{t("common.role")}</span>
-            <select
+            <SelectField
               value={role}
-              onChange={(e) => setRole(e.target.value as typeof role)}
-            >
-              <option value="player">{t("lobby.players")}</option>
-              <option value="spectator">{t("lobby.spectators")}</option>
-            </select>
+              onValueChange={(value) => setRole(value as typeof role)}
+              ariaLabel={t("common.role")}
+              options={[
+                { value: "player", label: t("lobby.players") },
+                { value: "spectator", label: t("lobby.spectators") },
+              ]}
+            />
           </label>
           <label>
             <span>

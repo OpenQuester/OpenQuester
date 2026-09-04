@@ -75,7 +75,7 @@ jobs:
       - name: Build React web
         working-directory: ./client-web
         env:
-          VITE_API_URL: ${{ vars.WEB_API_URL }}
+          VITE_API_URL: ${{ vars.WEB_API_URL || (inputs.DEPLOY_PROD && 'https://api.openquester.app' || 'https://dev-api.openquester.app') }}
         run: |
           npm ci
           npm run build

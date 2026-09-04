@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { api, unwrapPage } from "../../shared/api/client";
+import { SelectField } from "../../shared/ui/SelectField";
 import styles from "../../shared/ui/ui.module.css";
 
 export function CreateGamePage() {
@@ -59,18 +60,19 @@ export function CreateGamePage() {
           </label>
           <label>
             <span>{t("game.package")}</span>
-            <select
+            <SelectField
               value={packageId}
-              onChange={(event) => setPackageId(event.target.value)}
+              onValueChange={setPackageId}
+              ariaLabel={t("game.package")}
+              options={[
+                { value: "", label: "—" },
+                ...list.map((pack) => ({
+                  value: String(pack.id),
+                  label: pack.title,
+                })),
+              ]}
               required
-            >
-              <option value="">—</option>
-              {list.map((pack) => (
-                <option value={pack.id} key={pack.id}>
-                  {pack.title}
-                </option>
-              ))}
-            </select>
+            />
           </label>
           <div className={styles.twoCol}>
             <label>

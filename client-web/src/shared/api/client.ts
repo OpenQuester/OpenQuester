@@ -1,4 +1,6 @@
-export const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+const configuredApiBaseUrl = import.meta.env.VITE_API_URL?.trim();
+
+export const API_BASE_URL = configuredApiBaseUrl?.replace(/\/$/, "") ?? "";
 export const SESSION_EXPIRED_EVENT = "openquester:session-expired";
 
 export class ApiError extends Error {
@@ -36,6 +38,13 @@ export async function apiRequest<T>(
     throw new ApiError(body?.message ?? response.statusText, response.status);
   }
   if (response.status === 204) return undefined as T;
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    throw new ApiError(
+      "The web client received an invalid API response. Check the configured API URL.",
+      502,
+    );
+  }
   return (await response.json()) as T;
 }
 

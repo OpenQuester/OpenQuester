@@ -75,6 +75,65 @@ select,
 textarea {
   font: inherit;
 }
+input,
+select,
+textarea {
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: var(--surface);
+  color: var(--text);
+  transition:
+    border-color 0.16s,
+    background-color 0.16s,
+    box-shadow 0.16s;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--card);
+}
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+select {
+  cursor: pointer;
+}
+select option {
+  background: var(--card);
+  color: var(--text);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: auto;
+  padding: 0;
+  accent-color: var(--accent);
+}
+input[type="file"] {
+  padding: 5px;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button {
+  min-height: 30px;
+  margin-right: 10px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
 button,
 a {
   -webkit-tap-highlight-color: transparent;

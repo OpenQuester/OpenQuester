@@ -24,7 +24,7 @@ export function HomePage() {
   const packagesQuery = useQuery({
     queryKey: ["packages", "fresh"],
     queryFn: () =>
-      api.packages("limit=3&offset=0&sortBy=created_at&order=DESC"),
+      api.packages("limit=3&offset=0&sortBy=created_at&order=desc"),
     retry: false,
   });
   const serverGames = unwrapPage(gamesQuery.data);

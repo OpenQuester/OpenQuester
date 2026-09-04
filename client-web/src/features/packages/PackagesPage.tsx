@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { api, pageTotal, unwrapPage } from "../../shared/api/client";
+import { SelectField } from "../../shared/ui/SelectField";
 import styles from "../../shared/ui/ui.module.css";
 import { PackageCard } from "../games/HomePage";
 
@@ -20,7 +21,7 @@ export function PackagesPage() {
     queryKey: ["packages", search, mine, sort, language, page],
     queryFn: () =>
       api.packages(
-        `limit=${pageSize}&offset=${page * pageSize}&sortBy=${sort}&order=DESC${search ? `&title=${encodeURIComponent(search)}` : ""}${language ? `&language=${encodeURIComponent(language)}` : ""}${mine ? "&status=draft&mine=true" : ""}`,
+        `limit=${pageSize}&offset=${page * pageSize}&sortBy=${sort}&order=desc${search ? `&title=${encodeURIComponent(search)}` : ""}${language ? `&language=${encodeURIComponent(language)}` : ""}${mine ? "&status=draft&mine=true" : ""}`,
       ),
     retry: false,
   });
@@ -75,32 +76,35 @@ export function PackagesPage() {
         </div>
         <label className={styles.search}>
           <Filter size={15} />
-          <select
-            aria-label={t("packages.language")}
+          <SelectField
+            ariaLabel={t("packages.language")}
             value={language}
-            onChange={(event) => {
-              setLanguage(event.target.value);
+            onValueChange={(value) => {
+              setLanguage(value);
               resetPage();
             }}
-          >
-            <option value="">{t("packages.allLanguages")}</option>
-            <option value="en">{t("language.en")}</option>
-            <option value="uk">{t("language.uk")}</option>
-            <option value="ru">{t("language.ru")}</option>
-          </select>
+            options={[
+              { value: "", label: t("packages.allLanguages") },
+              { value: "en", label: t("language.en") },
+              { value: "uk", label: t("language.uk") },
+              { value: "ru", label: t("language.ru") },
+            ]}
+          />
         </label>
         <label className={styles.search}>
           <Filter size={15} />
-          <select
+          <SelectField
             value={sort}
-            onChange={(e) => {
-              setSort(e.target.value);
+            ariaLabel={t("packages.newest")}
+            onValueChange={(value) => {
+              setSort(value);
               resetPage();
             }}
-          >
-            <option value="created_at">{t("packages.newest")}</option>
-            <option value="updated_at">{t("packages.updated")}</option>
-          </select>
+            options={[
+              { value: "created_at", label: t("packages.newest") },
+              { value: "updated_at", label: t("packages.updated") },
+            ]}
+          />
         </label>
       </div>
       {query.isPending ? (

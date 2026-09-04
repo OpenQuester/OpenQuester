@@ -26,6 +26,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { api } from "../../shared/api/client";
+import { SelectField } from "../../shared/ui/SelectField";
 import ui from "../../shared/ui/ui.module.css";
 import styles from "./editor.module.css";
 import {
@@ -638,14 +639,16 @@ function PackageInspector() {
         </label>
         <label>
           <span>{t("settings.language")}</span>
-          <select
+          <SelectField
             value={store.document.language}
-            onChange={(e) => store.updatePackage({ language: e.target.value })}
-          >
-            <option value="en">{t("language.en")}</option>
-            <option value="uk">{t("language.uk")}</option>
-            <option value="ru">{t("language.ru")}</option>
-          </select>
+            ariaLabel={t("settings.language")}
+            onValueChange={(value) => store.updatePackage({ language: value })}
+            options={[
+              { value: "en", label: t("language.en") },
+              { value: "uk", label: t("language.uk") },
+              { value: "ru", label: t("language.ru") },
+            ]}
+          />
         </label>
       </div>
     </div>
@@ -669,17 +672,19 @@ function RoundInspector({ round }: { round: EditorRound }) {
         </label>
         <label>
           <span>{t("editor.type")}</span>
-          <select
+          <SelectField
             value={round.type}
-            onChange={(e) =>
+            ariaLabel={t("editor.type")}
+            onValueChange={(value) =>
               store.updateRound(round.id, {
-                type: e.target.value as EditorRound["type"],
+                type: value as EditorRound["type"],
               })
             }
-          >
-            <option value="standard">{t("common.standard")}</option>
-            <option value="final">{t("common.final")}</option>
-          </select>
+            options={[
+              { value: "standard", label: t("common.standard") },
+              { value: "final", label: t("common.final") },
+            ]}
+          />
         </label>
         <InspectorActions />
       </div>
@@ -775,21 +780,23 @@ function QuestionInspector({
       <div className={ui.stack}>
         <label>
           <span>{t("editor.type")}</span>
-          <select
+          <SelectField
             value={question.type}
-            onChange={(e) =>
+            ariaLabel={t("editor.type")}
+            onValueChange={(value) =>
               store.updateQuestion(round.id, theme.id, question.id, {
-                type: e.target.value as EditorQuestion["type"],
+                type: value as EditorQuestion["type"],
               })
             }
-          >
-            <option value="simple">{t("editor.simple")}</option>
-            <option value="choice">{t("editor.choice")}</option>
-            <option value="no-risk">{t("editor.noRisk")}</option>
-            <option value="stake">{t("editor.stake")}</option>
-            <option value="secret">{t("editor.secret")}</option>
-            <option value="hidden">{t("editor.hidden")}</option>
-          </select>
+            options={[
+              { value: "simple", label: t("editor.simple") },
+              { value: "choice", label: t("editor.choice") },
+              { value: "no-risk", label: t("editor.noRisk") },
+              { value: "stake", label: t("editor.stake") },
+              { value: "secret", label: t("editor.secret") },
+              { value: "hidden", label: t("editor.hidden") },
+            ]}
+          />
         </label>
         <label>
           <span>{t("editor.price")}</span>
