@@ -8,6 +8,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { type GameAction } from "domain/types/action/GameAction";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import type { GameScenario } from "tests/e2e/scenario/GameScenario";
+import { createControlledPromise, withTimeout } from "tests/e2e/harness/TestPromiseUtils";
 
 import { type GameClientSocket } from "./SocketIOGameTestUtils";
 
@@ -421,7 +422,7 @@ export class SocketGameTestEventUtils {
    * Arms an event wait around a bounded async operation and cancels the wait if
    * that operation fails before the expected event arrives.
    */
-  public async runAndWaitForEvent<T = any>(
+  public runAndWaitForEvent<T = any>(
     socket: GameClientSocket,
     event: string,
     operation: () => void | Promise<void>,
@@ -439,15 +440,43 @@ export class SocketGameTestEventUtils {
       timeout,
       controller.signal
     );
-    void eventPromise.catch(() => undefined);
-
-    try {
-      await operation();
-      return await eventPromise;
-    } finally {
+    const eventOutcome = eventPromise.then(
+      (value) => ({ failed: false as const, value }),
+      (error: unknown) => ({ failed: true as const, error })
+    );
+    const cancelled = createControlledPromise<never>();
+    const expectation = (async () => {
+      try {
+        // Same priority/deadline rule as GameScenario: the terminal deadline stays strict,
+        // while an earlier bounded step can report its own primary failure first.
+        await withTimeout(
+          Promise.race([
+            Promise.resolve().then(() => {
+              if (controller.signal.aborted)
+                throw new Error(`Socket.IO operation aborted for "${event}"`);
+              return operation();
+            }),
+            cancelled.promise
+          ]),
+          timeout + TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+          `operation producing "${event}" ${formatSocketContext(socket, socket.id)}`
+        );
+        const result = await eventOutcome;
+        if (result.failed) throw result.error;
+        return result.value;
+      } finally {
+        controller.abort();
+        await eventOutcome;
+      }
+    })();
+    return this.trackSocketWait(expectation, () => {
       controller.abort();
-      await Promise.allSettled([eventPromise]);
-    }
+      cancelled.reject(
+        new Error(
+          `Socket.IO operation aborted for "${event}" ${formatSocketContext(socket, socket.id)}`
+        )
+      );
+    });
   }
 
   public waitForNoEvent(

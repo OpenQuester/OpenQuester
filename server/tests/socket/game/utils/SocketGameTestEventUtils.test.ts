@@ -87,6 +87,94 @@ afterEach(() => {
 });
 
 describe("SocketGameTestEventUtils", () => {
+  it("accepts a correct standalone operation and does not start one cancelled before execution", async () => {
+    jest.useFakeTimers();
+    const { utils } = createFixture();
+    const socket = new FakeGameClientSocket();
+    await expect(
+      utils.runAndWaitForEvent(
+        socket as unknown as GameClientSocket,
+        "target",
+        () => {
+          socket.emit("target", { ok: true });
+        },
+        25
+      )
+    ).resolves.toEqual({ ok: true });
+    const operation = jest.fn();
+    const cancelled = utils.runAndWaitForEvent(
+      socket as unknown as GameClientSocket,
+      "target",
+      operation,
+      25
+    );
+    await utils.cancelPendingEventWaits();
+    await expect(cancelled).rejects.toThrow("operation aborted");
+    expect(operation).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it("bounds a standalone operation after its terminal event already arrived", async () => {
+    jest.useFakeTimers();
+    const { utils } = createFixture();
+    const socket = new FakeGameClientSocket();
+    const result = utils.runAndWaitForEvent(
+      socket as unknown as GameClientSocket,
+      "target",
+      async () => {
+        socket.emit("target", { ok: true });
+        await createDeferred<void>().promise;
+      },
+      25
+    );
+    const failure = expect(result).rejects.toThrow(/operation producing "target".*socket-1/);
+    await jest.advanceTimersByTimeAsync(25 + TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
+    await failure;
+    expect(socket.listenerCount("target")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it.each(["pending", "received", "timed-out"])(
+    "cancels a standalone hung operation with a %s terminal",
+    async (terminal) => {
+      jest.useFakeTimers();
+      const { utils } = createFixture();
+      const socket = new FakeGameClientSocket();
+      const result = utils.runAndWaitForEvent(
+        socket as unknown as GameClientSocket,
+        "target",
+        async () => {
+          if (terminal === "received") socket.emit("target", { ok: true });
+          await createDeferred<void>().promise;
+        },
+        25
+      );
+      await jest.advanceTimersByTimeAsync(terminal === "timed-out" ? 26 : 0);
+      await utils.cancelPendingEventWaits();
+      await expect(result).rejects.toThrow('operation aborted for "target"');
+      expect(socket.listenerCount("target")).toBe(0);
+      expect(jest.getTimerCount()).toBe(0);
+    }
+  );
+
+  it("preserves a standalone prerequisite failure after the terminal deadline", async () => {
+    jest.useFakeTimers();
+    const { utils } = createFixture();
+    const socket = new FakeGameClientSocket();
+    const operation = createDeferred<void>();
+    const result = utils.runAndWaitForEvent(
+      socket as unknown as GameClientSocket,
+      "target",
+      () => operation.promise,
+      25
+    );
+    await jest.advanceTimersByTimeAsync(26);
+    const primary = new Error("prerequisite failed");
+    operation.reject(primary);
+    await expect(result).rejects.toBe(primary);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
   it("keeps a shared-helper operation failure owned after its terminal event arrives", async () => {
     jest.useFakeTimers();
     const fixture = createFixture();
