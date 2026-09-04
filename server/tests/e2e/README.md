@@ -206,8 +206,9 @@ coverage.
 `tests/e2e/contracts/SocketGameTransportPolicy.test.ts` keeps migrated gameplay suites on the shared
 scenario/lifecycle and rejects copied bootstrap/cleanup, warn-and-skip branches, and hand-written
 event timers. TypeScript AST checks recognize Jest aliases, modifier chains, array and tagged-template
-`each` cases without matching comments/string fixtures. Focused, skipped, todo, failing, and concurrent
-transport definitions are rejected in gameplay, HTTP, hybrid, and dedicated media suites.
+`each` cases without matching comments/string fixtures. Focused, skipped, todo, and failing definitions
+are rejected across backend tests. Concurrent definitions are also rejected in gameplay, HTTP,
+hybrid, and dedicated media suites because they share transport state/lifecycle.
 Each gameplay/hybrid callback must return or await its `suite.scenario(...)` wrapper as its entire
 body; dedicated media uses `withMediaDownloadFlow(...)`. Put setup and assertions inside that wrapper,
 not beside it or inside an uncalled nested function.
@@ -220,3 +221,20 @@ exceptions in `TransportSuitePolicy.ts`; adding an endpoint test to that list is
 
 `tests/e2e/contracts/TestLifecyclePolicy.test.ts` keeps internal direct test-app callers on the
 ordered teardown helper and rejects teardown failures that are caught and only logged.
+
+## CI evidence and repeatability
+
+The backend job shows infrastructure self-tests, high-risk transport cases, and the full suite as
+separate steps. All retain their failure exit status. Its artifact contains the tested checkout's
+`commit.txt` and Jest JSON for every pass, including failed tests and open-handle evidence.
+
+Dispatch the `Test` workflow on the PR branch with `backend_reliability=true` to perform five
+consecutive high-risk passes and two full passes on one checkout. Every pass runs and has its own JSON;
+this is a repeatability check, not retry-until-green. Any failed pass keeps the step/job red. That
+backend-only dispatch does not run unrelated client checks.
+
+Classify failures by full test title, expected/actual behavior, environment/infra/test-expectation/
+backend-rule mismatch, whether the behavior was reached, and why it is fixed here or retained.
+An old red CI count is not an allowlist. Local missing PostgreSQL/Redis or log-write permissions are
+environment failures, never evidence of broken game rules. Controlled self-tests cannot replace a
+real transport run.
