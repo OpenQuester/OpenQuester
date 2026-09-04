@@ -7,6 +7,7 @@ This map helps agents pick the right files before editing. It is not a replaceme
 | Area | Purpose | First doc to read |
 |---|---|---|
 | `server/` | Backend API, realtime game server, Redis/PostgreSQL/S3, game state execution | `server/AGENTS.md` |
+| `client-web/` | React/Vite hosted browser client, package editor workers, generated TypeScript API | `client-web/AGENTS.md` |
 | `client/` | Flutter app, editor packages, SIQ import, compression, generated API usage | `client/AGENTS.md` |
 | `openapi/` | REST + Socket.IO public contract schema. Generated Dart code lives in `client/packages/openapi/`. | `openapi/AGENTS.md` |
 | `websites/` | Static docs/landing pages | nearby README/docs |
@@ -34,6 +35,9 @@ This map helps agents pick the right files before editing. It is not a replaceme
 
 | Need | Inspect first |
 |---|---|
+| Change hosted web route or screen | `client-web/src/features/`, `client-web/AGENTS.md` |
+| Change web socket handling | `client-web/src/shared/realtime/`, generated `client-web/src/shared/api/schema.d.ts` |
+| Change browser package editor | `client-web/src/features/editor/`, `docs/specs/package-validation-spec.md` |
 | Change gameplay screen | `client/apps/client/lib/src/features/game_*`, `.agents/skills/frontend-game-ui-state/SKILL.md`, `docs/specs/game-state-matrix.md` |
 | Change buzzer/answer UI | `client/apps/client/lib/src/features/game_question/`, `docs/specs/buzzer-state-machine.md` |
 | Change socket handling | `client/apps/client/lib/src/features/game_lobby/controllers/`, generated socket/event models in `client/packages/openapi/` |

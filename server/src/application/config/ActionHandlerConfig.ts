@@ -42,6 +42,7 @@ import { SkipQuestionForceUseCase } from "application/usecases/question/SkipQues
 import { SkipShowAnswerUseCase } from "application/usecases/question/SkipShowAnswerUseCase";
 import { StakeBidSubmitUseCase } from "application/usecases/question/StakeBidSubmitUseCase";
 import { ChatMessageUseCase } from "application/usecases/direct/ChatMessageUseCase";
+import { QuestionGuidanceUseCase } from "application/usecases/direct/QuestionGuidanceUseCase";
 import { DisconnectUseCase } from "application/usecases/system/DisconnectUseCase";
 import { TimerExpirationUseCase } from "application/usecases/timer/TimerExpirationUseCase";
 import { GameActionType } from "domain/enums/GameActionType";
@@ -160,11 +161,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
   // =====================================
   registry.register(
     GameActionType.QUESTION_PICK,
-    new QuestionPickUseCase(
-      packageStore,
-      phaseTransitionRouter,
-      transitionResourceService
-    )
+    new QuestionPickUseCase(packageStore, phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(
@@ -199,11 +196,7 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
 
   registry.register(
     GameActionType.SKIP_QUESTION_FORCE,
-    new SkipQuestionForceUseCase(
-      packageStore,
-      phaseTransitionRouter,
-      transitionResourceService
-    )
+    new SkipQuestionForceUseCase(packageStore, phaseTransitionRouter, transitionResourceService)
   );
 
   registry.register(
@@ -262,10 +255,9 @@ export function configureActionHandlers(deps: ActionHandlerConfigDeps): void {
     new MediaDownloadedUseCase(phaseTransitionRouter)
   );
 
-  registry.register(
-    GameActionType.CHAT_MESSAGE,
-    new ChatMessageUseCase(socketChatRepository)
-  );
+  registry.register(GameActionType.CHAT_MESSAGE, new ChatMessageUseCase(socketChatRepository));
+
+  registry.register(GameActionType.QUESTION_GUIDANCE, new QuestionGuidanceUseCase());
 
   // =====================================
   // Timer Handlers - single handler for all timer types

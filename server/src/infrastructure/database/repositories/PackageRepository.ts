@@ -27,7 +27,7 @@ import { StorageUtils } from "infrastructure/utils/StorageUtils";
 import { ValueUtils } from "domain/utils/ValueUtils";
 import { PackageSearchQueryHelper } from "infrastructure/database/repositories/PackageSearchQueryHelper";
 import { PackageTagRepository } from "infrastructure/database/repositories/PackageTagRepository";
-import { FileRepository } from "infrastructure/database/repositories/FileRepository";
+import { PackageStatus } from "domain/enums/package/PackageStatus";
 
 type OrderMapEntry =
   | "rounds"
@@ -46,8 +46,7 @@ export class PackageRepository {
     @inject(DI_TOKENS.Database) private readonly db: Database,
     @inject(DI_TOKENS.TypeORMPackageRepository)
     private readonly repository: Repository<Package>,
-    private readonly packageTagRepository: PackageTagRepository,
-    private readonly fileRepository: FileRepository
+    private readonly packageTagRepository: PackageTagRepository
   ) {
     //
   }
@@ -58,6 +57,16 @@ export class PackageRepository {
       select,
       relations
     });
+  }
+
+  public async setStatus(id: number, status: PackageStatus): Promise<Package> {
+    const entity = await this.repository.findOne({
+      where: { id },
+      relations: ["author", "logo", "tags"]
+    });
+    if (!entity) throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, 404);
+    entity.status = status;
+    return this.repository.save(entity);
   }
 
   public async search(searchOpts: PackageSearchOpts): Promise<PaginatedResult<Package[]>> {
@@ -110,6 +119,36 @@ export class PackageRepository {
     };
   }
 
+  public async getCountsForPackages(
+    packageIds: number[]
+  ): Promise<Map<number, { roundsCount: number; questionsCount: number }>> {
+    if (packageIds.length === 0) return new Map();
+    const rows = await this.repository
+      .createQueryBuilder("package")
+      .select("package.id", "packageId")
+      .addSelect("COUNT(DISTINCT round.id)", "roundCount")
+      .addSelect("COUNT(question.id)", "questionCount")
+      .leftJoin("package.rounds", "round")
+      .leftJoin("round.themes", "theme")
+      .leftJoin("theme.questions", "question")
+      .where("package.id IN (:...packageIds)", { packageIds })
+      .groupBy("package.id")
+      .getRawMany<{
+        packageId: string;
+        roundCount: string;
+        questionCount: string;
+      }>();
+    return new Map(
+      rows.map((row) => [
+        Number(row.packageId),
+        {
+          roundsCount: Number(row.roundCount),
+          questionsCount: Number(row.questionCount)
+        }
+      ])
+    );
+  }
+
   // TODO: Implement better errors handling
   /**
    * Creates package and all related data (rounds, themes etc.) in one transaction
@@ -119,7 +158,8 @@ export class PackageRepository {
    */
   public async create(
     packageData: PackageDTO,
-    author: User
+    author: User,
+    existingPackage?: Package
   ): Promise<{
     pack: Package;
     files: FileDTO[];
@@ -128,6 +168,44 @@ export class PackageRepository {
     const files: FileDTO[] = [];
 
     return this.db.dataSource.transaction(async (transaction) => {
+      const filesToSave: File[] = [];
+      const fileCache = new Map<string, File>();
+      const resolveFile = async (filename: string, deferSave: boolean): Promise<File> => {
+        const cached = fileCache.get(filename);
+        if (cached) return cached;
+        let entity = await transaction.getRepository(File).findOne({ where: { filename } });
+        if (!entity) {
+          entity = new File();
+          entity.import({
+            filename,
+            source: FileSource.S3,
+            created_at: new Date(),
+            path: StorageUtils.getFilePath(filename)
+          });
+          if (deferSave) filesToSave.push(entity);
+          else await transaction.save(entity);
+          files.push(entity.toDTO());
+        }
+        fileCache.set(filename, entity);
+        return entity;
+      };
+      if (existingPackage) {
+        await transaction
+          .createQueryBuilder()
+          .delete()
+          .from(PackageRound)
+          .where("package = :packageId", { packageId: existingPackage.id })
+          .execute();
+        await transaction
+          .createQueryBuilder()
+          .delete()
+          .from(FileUsage)
+          .where("package_id = :packageId", { packageId: existingPackage.id })
+          .execute();
+        await transaction.query(`DELETE FROM "packages_tags" WHERE "package" = $1`, [
+          existingPackage.id
+        ]);
+      }
       // Process Tags, fetch old and save new tags
       const tagNames = (packageData.tags || []).map((tagData) => tagData.tag);
 
@@ -154,30 +232,20 @@ export class PackageRepository {
       // Save logo info to DB before creating package
       let logoFile: File | null = null;
       if (packageData.logo?.file.md5) {
-        logoFile = await this.fileRepository.getFileByFilename(packageData.logo.file.md5);
-        if (!logoFile) {
-          logoFile = new File();
-          logoFile.import({
-            filename: packageData.logo.file.md5,
-            source: FileSource.S3,
-            created_at: new Date(),
-            path: StorageUtils.getFilePath(packageData.logo.file.md5)
-          });
-          await transaction.save(logoFile);
-          files.push(logoFile);
-        }
+        logoFile = await resolveFile(packageData.logo.file.md5, false);
       }
 
       // Create, import and save package
-      const pack = new Package();
+      const pack = existingPackage ?? new Package();
 
       pack.import({
         ageRestriction: packageData.ageRestriction,
-        createdAt: new Date(),
+        createdAt: existingPackage?.created_at ?? new Date(),
         author: author,
         title: packageData.title,
         description: packageData.description,
         language: packageData.language,
+        status: packageData.status,
         logo: logoFile,
         // Saved automatically because of cascade
         tags: tagEntities
@@ -201,7 +269,6 @@ export class PackageRepository {
       const questionsToSave: PackageQuestion[] = [];
       const questionFilesToSave: PackageQuestionFile[] = [];
       const answerFilesToSave: PackageAnswerFile[] = [];
-      const filesToSave: File[] = [];
       const fileUsagesToSave: FileUsage[] = [];
       const answersToSave: PackageQuestionChoiceAnswer[] = [];
 
@@ -320,13 +387,7 @@ export class PackageRepository {
                 });
               }
 
-              const fileEntity = new File();
-              fileEntity.import({
-                filename: questionFileData.file.md5,
-                source: FileSource.S3,
-                created_at: new Date(),
-                path: StorageUtils.getFilePath(questionFileData.file.md5)
-              });
+              const fileEntity = await resolveFile(questionFileData.file.md5, true);
 
               const questionFile = new PackageQuestionFile();
               questionFile.import({
@@ -338,7 +399,6 @@ export class PackageRepository {
               });
               orders.add(questionFileData.order);
 
-              filesToSave.push(fileEntity);
               questionFilesToSave.push(questionFile);
 
               const fileUsage = new FileUsage();
@@ -348,8 +408,6 @@ export class PackageRepository {
                 package: pack
               });
               fileUsagesToSave.push(fileUsage);
-
-              files.push(fileEntity.toDTO());
             }
             ordersMap.set("questionFiles", new Set());
 
@@ -368,13 +426,7 @@ export class PackageRepository {
                 });
               }
 
-              const fileEntity = new File();
-              fileEntity.import({
-                filename: answerFileData.file.md5,
-                source: FileSource.S3,
-                created_at: new Date(),
-                path: StorageUtils.getFilePath(answerFileData.file.md5)
-              });
+              const fileEntity = await resolveFile(answerFileData.file.md5, true);
 
               const answerFile = new PackageAnswerFile();
               answerFile.import({
@@ -386,7 +438,6 @@ export class PackageRepository {
               });
               orders.add(answerFileData.order);
 
-              filesToSave.push(fileEntity);
               answerFilesToSave.push(answerFile);
 
               const fileUsage = new FileUsage();
@@ -396,8 +447,6 @@ export class PackageRepository {
                 package: pack
               });
               fileUsagesToSave.push(fileUsage);
-
-              files.push(fileEntity.toDTO());
             }
             ordersMap.set("answerFiles", new Set());
 
@@ -419,15 +468,8 @@ export class PackageRepository {
               const answer = new PackageQuestionChoiceAnswer();
               let file = null;
               if (answerData.file) {
-                const fileEntity = new File();
-                fileEntity.import({
-                  filename: answerData.file.md5,
-                  source: FileSource.S3,
-                  created_at: new Date(),
-                  path: StorageUtils.getFilePath(answerData.file.md5)
-                });
+                const fileEntity = await resolveFile(answerData.file.md5, true);
                 file = fileEntity;
-                filesToSave.push(file);
 
                 const fileUsage = new FileUsage();
                 fileUsage.import({
@@ -436,8 +478,6 @@ export class PackageRepository {
                   package: pack
                 });
                 fileUsagesToSave.push(fileUsage);
-
-                files.push(file.toDTO());
               }
 
               const type = answerData.file?.type;
@@ -474,6 +514,14 @@ export class PackageRepository {
     });
   }
 
+  public async replace(
+    existingPackage: Package,
+    packageData: PackageDTO,
+    author: User
+  ): Promise<{ pack: Package; files: FileDTO[] }> {
+    return this.create(packageData, author, existingPackage);
+  }
+
   public async deletePackageData(packageId: number): Promise<{ filesDeletedFromDB: string[] }> {
     return this.db.dataSource.transaction(async (transaction) => {
       const packageEntity = await transaction.findOne(Package, {
@@ -506,11 +554,7 @@ export class PackageRepository {
         transaction,
         packageEntity.tags?.map((tag) => tag.id) ?? []
       );
-      const filesToDelete = this.resolveFilesToDelete(
-        packageId,
-        allFiles,
-        fileUsageByFilename
-      );
+      const filesToDelete = this.resolveFilesToDelete(packageId, allFiles, fileUsageByFilename);
       const tagsToDelete = this.resolveTagsToDelete(packageEntity, tagUsageCountsById);
       const fileIdsToDeleteUsage = this.resolveFileUsageIdsToDelete(
         packageEntity.id,

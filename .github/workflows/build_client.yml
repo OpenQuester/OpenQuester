@@ -47,13 +47,14 @@ jobs:
             client:
               - 'client/**'
               - 'openapi/**'
+              - 'client-web/**'
 
       - name: Check if we should force jobs to run
         id: should_force
         run: echo "should_force=${{ github.event_name == 'workflow_dispatch' || github.workflow == 'Release' || github.event_name == 'push' }}" >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build client (Web & Android)
+    name: Build clients (React Web & Android)
     needs: pre_job
     if: ${{ !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.pre_job.outputs.should_run == 'true' }}
     runs-on: ubuntu-latest
@@ -63,6 +64,21 @@ jobs:
     environment: ${{ inputs.DEPLOY_PROD && 'openquester (Production)' || 'openquester (Preview)' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Setup Node 24 for React web
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: ./client-web/package-lock.json
+
+      - name: Build React web
+        working-directory: ./client-web
+        env:
+          VITE_API_URL: ${{ vars.WEB_API_URL }}
+        run: |
+          npm ci
+          npm run build
 
       - name: Setup Java 17 + Gradle cache
         uses: actions/setup-java@v4
@@ -87,15 +103,11 @@ jobs:
           melos bootstrap
           melos run pre_build
 
-      - name: Build Web
-        working-directory: ./client/apps/client
-        run: flutter build web --no-web-resources-cdn --build-number $GITHUB_RUN_NUMBER --wasm
-
       - name: Publish Web Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: web-app
-          path: ./client/apps/client/build/web/
+          path: ./client-web/dist/
 
       - name: Publish to Cloudflare Pages (Preview)
         if: inputs.DEPLOY_PROD == false
@@ -104,7 +116,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          command: pages deploy ./client/apps/client/build/web/ --project-name=openquester-dev --branch ${{ github.ref_name }}
+          command: pages deploy ./client-web/dist/ --project-name=openquester-dev --branch ${{ github.ref_name }}
 
       - name: Purge Cloudflare cache
         if: inputs.DEPLOY_PROD == false

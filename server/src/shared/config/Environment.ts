@@ -43,6 +43,10 @@ export class Environment {
   public API_DOMAIN!: string;
   public API_PORT!: number;
   public CORS_ORIGINS!: string[];
+  public WEB_BASE_URL!: string;
+  public DISCORD_CLIENT_ID!: string;
+  public DISCORD_CLIENT_SECRET!: string;
+  public DISCORD_REDIRECT_URI!: string;
   public DB_TYPE!: string;
   public DB_NAME!: string;
   public DB_USER!: string;
@@ -206,6 +210,15 @@ export class Environment {
     this.loadRedis();
     this.API_DOMAIN = this.getEnvVar("API_DOMAIN", "string", "localhost");
     this.CORS_ORIGINS = this.getEnvVar("CORS_ORIGINS", "string", "*").split(",");
+    this.WEB_BASE_URL = this.getEnvVar("WEB_BASE_URL", "string", "http://localhost:5173", true);
+    this.DISCORD_CLIENT_ID = this.getEnvVar("DISCORD_CLIENT_ID", "string", "", true);
+    this.DISCORD_CLIENT_SECRET = this.getEnvVar("DISCORD_CLIENT_SECRET", "string", "", true);
+    this.DISCORD_REDIRECT_URI = this.getEnvVar(
+      "DISCORD_REDIRECT_URI",
+      "string",
+      `http://${this.API_DOMAIN}:${this.API_PORT}/v1/auth/oauth2/discord/callback`,
+      true
+    );
     this.SOCKET_IO_ADMIN_UI_ENABLE = this.getEnvVar("SOCKET_IO_ADMIN_UI_ENABLE", "boolean", false);
     this.SOCKET_IO_ADMIN_UI_USERNAME = this.getEnvVar(
       "SOCKET_IO_ADMIN_UI_USERNAME",
@@ -217,19 +230,14 @@ export class Environment {
       "string",
       "admin"
     );
-    const adminEmails = this.getEnvVar(
-      "ADMIN_EMAILS",
-      "string",
-      "",
-      true
-    ) as string | undefined;
+    const adminEmails = this.getEnvVar("ADMIN_EMAILS", "string", "", true) as string | undefined;
     this.ADMIN_EMAILS = [
       ...new Set(
         (adminEmails ?? "")
           .split(",")
           .map((email: string) => email.trim().toLowerCase())
           .filter((email: string) => email.length > 0)
-      ),
+      )
     ];
   }
 

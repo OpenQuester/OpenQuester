@@ -151,11 +151,7 @@ export class ServeApi {
 
       // Middlewares
       this._assertStartupCanContinue("HTTP middleware initialization");
-      await new MiddlewareController(
-        this._context,
-        this._redis,
-        this._metricsService
-      ).initialize();
+      await new MiddlewareController(this._context, this._redis, this._metricsService).initialize();
 
       this._assertStartupCanContinue("REST and Socket.IO controller initialization");
       this._attachControllers();
@@ -282,6 +278,7 @@ export class ServeApi {
       deps.fileService,
       deps.storage,
       deps.socketUserDataService,
+      this._context.env,
       this._context.logger
     );
     new PackageRestApiController(deps.app, deps.packageService, this._context.logger);
@@ -641,8 +638,7 @@ export class ServeApi {
 
   private _isBenignPreListenSocketIoCloseError(error: Error): boolean {
     return (
-      hasErrorCode(error, "ERR_SERVER_NOT_RUNNING") &&
-      error.message === "Server is not running."
+      hasErrorCode(error, "ERR_SERVER_NOT_RUNNING") && error.message === "Server is not running."
     );
   }
 

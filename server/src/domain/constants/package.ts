@@ -4,6 +4,8 @@ export type PackageSelectField =
   | "description"
   | "age_restriction"
   | "created_at"
+  | "updated_at"
+  | "status"
   | "language";
 
 export const PACKAGE_SELECT_FIELDS: PackageSelectField[] = [
@@ -12,6 +14,8 @@ export const PACKAGE_SELECT_FIELDS: PackageSelectField[] = [
   "description",
   "age_restriction",
   "created_at",
+  "updated_at",
+  "status",
   "language",
 ];
 

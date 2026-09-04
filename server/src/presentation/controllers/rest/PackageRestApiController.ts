@@ -30,6 +30,8 @@ export class PackageRestApiController {
     router.post("/", asyncHandler(this.uploadPackage));
     router.get("/", asyncHandler(this.listPackages));
     router.get("/:id", asyncHandler(this.getPackage));
+    router.patch("/:id", asyncHandler(this.updatePackage));
+    router.post("/:id/publish", asyncHandler(this.publishPackage));
     router.delete(
       "/:id",
       checkPackDeletePermissionMiddleware(
@@ -59,7 +61,7 @@ export class PackageRestApiController {
       packIdScheme()
     ).validate();
 
-    const data = await this.packageService.getPackage(validatedData.packageId);
+    const data = await this.packageService.getPackageForSession({ packageId: validatedData.packageId, sessionUserId: req.session.userId });
     return res.status(HttpStatus.OK).send(data);
   };
 
@@ -69,11 +71,41 @@ export class PackageRestApiController {
       req.query as unknown as PackageSearchOpts,
       packageSearchScheme()
     ).validate();
+    searchOpts.sessionUserId = req.session.userId;
 
     this._validateMinMaxRanges(searchOpts);
 
     const data = await this.packageService.searchPackages(searchOpts);
 
+    return res.status(HttpStatus.OK).send(data);
+  };
+
+  private updatePackage = async (req: Request, res: Response) => {
+    const validatedId = new RequestDataValidator<PackageInputDTO>(
+      { packageId: Number(req.params.id) },
+      packIdScheme()
+    ).validate();
+    const validatedData = new RequestDataValidator<{ content: PackageDTO }>(
+      req.body,
+      uploadPackageScheme()
+    ).validate();
+    const data = await this.packageService.updatePackageForSession({
+      packageId: validatedId.packageId,
+      sessionUserId: req.session.userId,
+      packageData: validatedData.content
+    });
+    return res.status(HttpStatus.OK).send(data);
+  };
+
+  private publishPackage = async (req: Request, res: Response) => {
+    const validatedId = new RequestDataValidator<PackageInputDTO>(
+      { packageId: Number(req.params.id) },
+      packIdScheme()
+    ).validate();
+    const data = await this.packageService.publishPackageForSession({
+      packageId: validatedId.packageId,
+      sessionUserId: req.session.userId
+    });
     return res.status(HttpStatus.OK).send(data);
   };
 

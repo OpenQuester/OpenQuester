@@ -7,6 +7,9 @@ declare module "express-session" {
   interface SessionData {
     userId: number;
     isGuest?: boolean;
+    oauthState?: string;
+    oauthReturnTo?: string;
+    oauthStateExpiresAt?: number;
   }
 }
 

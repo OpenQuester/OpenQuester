@@ -6,12 +6,14 @@ import {
   ManyToMany,
   ManyToOne,
   OneToMany,
-  PrimaryGeneratedColumn
+  PrimaryGeneratedColumn,
+  UpdateDateColumn
 } from "typeorm";
 
 import { ClientResponse } from "domain/enums/ClientResponse";
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
 import { PackageFileType } from "domain/enums/package/PackageFileType";
+import { PackageStatus } from "domain/enums/package/PackageStatus";
 import { ClientError } from "domain/errors/ClientError";
 import { PackageDTOOptions } from "domain/types/dto/package/options/PackageDTOOptions";
 import { PackageDTO } from "domain/types/dto/package/PackageDTO";
@@ -30,6 +32,7 @@ export interface PackageImport {
   author: User;
   logo?: File | null;
   tags: PackageTag[];
+  status?: PackageStatus;
 }
 
 @Entity("package")
@@ -42,6 +45,12 @@ export class Package {
 
   @Column({ nullable: false })
   created_at!: Date;
+
+  @UpdateDateColumn({ type: "timestamp" })
+  updated_at!: Date;
+
+  @Column({ type: "enum", enum: PackageStatus, default: PackageStatus.PUBLISHED })
+  status!: PackageStatus;
 
   @ManyToOne(() => User, (user) => user.packages, {
     onDelete: "SET NULL",
@@ -88,10 +97,9 @@ export class Package {
     this.age_restriction = data.ageRestriction;
     this.author = data.author;
     this.tags = data.tags;
+    this.status = data.status ?? PackageStatus.PUBLISHED;
 
-    if (data.logo) {
-      this.logo = data.logo;
-    }
+    this.logo = data.logo ?? null;
   }
 
   public logoDTO(fileUrlBuilder: IFileUrlBuilder, opts?: PackageDTOOptions) {
@@ -124,6 +132,8 @@ export class Package {
         username: this.author.username
       },
       createdAt: this.created_at,
+      updatedAt: this.updated_at,
+      status: this.status,
       description: this.description,
       language: this.language,
       logo: this.logoDTO(fileUrlBuilder),
@@ -142,7 +152,7 @@ export class Package {
         missing: "rounds:notLoaded"
       });
     }
-    if (this.rounds.length < 1) {
+    if (this.status === PackageStatus.PUBLISHED && this.rounds.length < 1) {
       throw new ClientError(ClientResponse.PACKAGE_CORRUPTED, undefined, {
         id: this.id,
         missing: "rounds"
@@ -163,6 +173,8 @@ export class Package {
         username: this.author.username
       },
       createdAt: this.created_at,
+      updatedAt: this.updated_at,
+      status: this.status,
       description: this.description,
       language: this.language,
       logo: logoDTO,

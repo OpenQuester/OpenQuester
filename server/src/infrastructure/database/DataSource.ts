@@ -60,6 +60,7 @@ import { AddMutePlayerPermission_0_21_0_1767095975972 as AddMutePlayerPermission
 import { AddMutedUntilToUser_0_21_0_1767095976000 as AddMutedUntilToUser } from "./migrations/0.21.0_Part2AddMutedUntilToUser_1767095976000";
 import { AddShowAnswerDurationToPackageQuestion_0_22_0_1766934959798 as AddShowAnswerDuration } from "./migrations/0.22.0_AddShowAnswerDurationToPackageQuestion_1766934959798";
 import { AddViewSystemLogsPermission_0_23_0_1767264810999 as AddViewLogsPerm } from "./migrations/0.23.0_AddViewSystemLogsPermission_1767264810999";
+import { AddPackagePublishingFields_0_24_0_1788489600000 as AddPackagePublishingFields } from "./migrations/0.24.0_AddPackagePublishingFields_1788489600000";
 
 function createBootstrapDataSourceLogger(): ILogger {
   const performanceLog: PerformanceLog = {
@@ -193,7 +194,8 @@ export const AppDataSource = new DataSource({
     AddMutePlayerPermission,
     AddMutedUntilToUser,
     AddShowAnswerDuration,
-    AddViewLogsPerm
+    AddViewLogsPerm,
+    AddPackagePublishingFields
   ],
   poolSize: env.DB_POOL_SIZE,
   migrationsRun: true,

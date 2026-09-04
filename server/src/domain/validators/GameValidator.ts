@@ -96,6 +96,14 @@ export class GameValidator {
     return this._validate<ChatMessageInputData>(data, schema);
   }
 
+  public static validateQuestionGuidance(data: { message: string; questionId?: number }) {
+    const schema = Joi.object({
+      message: Joi.string().required().min(1).max(255),
+      questionId: Joi.number().min(0).optional()
+    });
+    return this._validate<{ message: string; questionId?: number }>(data, schema);
+  }
+
   public static validatePickQuestion(data: QuestionPickInputData) {
     const schema = Joi.object<QuestionPickInputData>({
       questionId: Joi.number().min(0).required()

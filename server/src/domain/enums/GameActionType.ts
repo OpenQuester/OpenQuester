@@ -38,6 +38,7 @@ export enum GameActionType {
   // System
   DISCONNECT = "disconnect",
   CHAT_MESSAGE = "chat-message",
+  QUESTION_GUIDANCE = "question-guidance",
   MEDIA_DOWNLOADED = "media-downloaded",
 
   // Timer Expirations

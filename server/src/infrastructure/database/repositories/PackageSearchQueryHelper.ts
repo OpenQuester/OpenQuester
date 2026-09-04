@@ -28,7 +28,10 @@ export class PackageSearchQueryHelper {
       minRounds,
       maxRounds,
       minQuestions,
-      maxQuestions
+      maxQuestions,
+      status,
+      mine,
+      sessionUserId
     } = searchOpts;
 
     // Use subquery for stats filtering to maintain proper result set and leverage indexes
@@ -54,7 +57,10 @@ export class PackageSearchQueryHelper {
       language,
       authorId,
       tags,
-      ageRestriction
+      ageRestriction,
+      status,
+      mine,
+      sessionUserId
     });
 
     this._applySortingAndPagination(qb, {
@@ -81,7 +87,10 @@ export class PackageSearchQueryHelper {
       language,
       authorId,
       tags,
-      ageRestriction
+      ageRestriction,
+      status,
+      mine,
+      sessionUserId
     } = searchOpts;
 
     // Simple search without stats filtering - leverages indexes better
@@ -93,7 +102,10 @@ export class PackageSearchQueryHelper {
       language,
       authorId,
       tags,
-      ageRestriction
+      ageRestriction,
+      status,
+      mine,
+      sessionUserId
     });
 
     this._applySortingAndPagination(qb, {
@@ -119,9 +131,19 @@ export class PackageSearchQueryHelper {
       authorId?: number;
       tags?: string[];
       ageRestriction?: string;
+      status?: string;
+      mine?: boolean;
+      sessionUserId?: number;
     }
   ): void {
-    const { title, description, language, authorId, tags, ageRestriction } = filters;
+    const { title, description, language, authorId, tags, ageRestriction, status, mine, sessionUserId } = filters;
+
+    if (mine && sessionUserId) {
+      qb.andWhere("package.author = :sessionUserId", { sessionUserId });
+      if (status) qb.andWhere("package.status = :status", { status });
+    } else {
+      qb.andWhere("package.status = 'published'");
+    }
 
     // Text search using ILIKE with leading wildcard.
     // Note: Leading wildcard prevents GIN trigram index optimization for prefix matches,

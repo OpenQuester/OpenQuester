@@ -24,6 +24,9 @@ import { S3FileUrlBuilder } from "infrastructure/storage/S3FileUrlBuilder";
 import { ValueUtils } from "domain/utils/ValueUtils";
 import { PackageStorageService } from "application/services/package/PackageStorageService";
 import { UserSessionService } from "application/services/user/UserSessionService";
+import { PackageStatus } from "domain/enums/package/PackageStatus";
+import { PackageRoundType } from "domain/types/package/PackageRoundType";
+import { PackageQuestionType } from "domain/enums/package/QuestionType";
 
 /**
  * Service for package management operations.
@@ -75,13 +78,27 @@ export class PackageService {
     return this.packageRepository.getCountsForPackage(packageId);
   }
 
+  public async getPackageForSession(input: { packageId: number; sessionUserId?: number }) {
+    const pack = await this.getPackageRaw(input.packageId, undefined, PACKAGE_DETAILED_RELATIONS);
+    if (pack.status === PackageStatus.DRAFT && pack.author?.id !== input.sessionUserId) {
+      throw new ClientError(ClientResponse.PACKAGE_NOT_FOUND, HttpStatus.NOT_FOUND);
+    }
+    return pack.toDTO(this.fileUrlBuilder, { fetchIds: true });
+  }
+
   public async searchPackages(
     searchOpts: PackageSearchOpts
   ): Promise<PaginatedResult<Omit<PackageDTO, "rounds">[]>> {
     const paginatedList = await this.packageRepository.search(searchOpts);
+    const counts = await this.packageRepository.getCountsForPackages(
+      paginatedList.data.map((pack) => pack.id)
+    );
 
     const packageListItems = paginatedList.data.map((pack) => {
-      return pack.toSimpleDTO(this.fileUrlBuilder);
+      return {
+        ...pack.toSimpleDTO(this.fileUrlBuilder),
+        ...(counts.get(pack.id) ?? { roundsCount: 0, questionsCount: 0 })
+      };
     });
 
     return {
@@ -97,6 +114,10 @@ export class PackageService {
   ): Promise<PackageUploadResponse> {
     if (!author || !author.id) {
       throw new ClientError(ClientResponse.PACKAGE_AUTHOR_NOT_FOUND);
+    }
+
+    if (packageData.status !== PackageStatus.DRAFT) {
+      this.assertPublishable(packageData);
     }
 
     const { pack, files } = await this.packageRepository.create(packageData, author);
@@ -122,6 +143,93 @@ export class PackageService {
     }
 
     return this.uploadPackage(author, input.packageData, input.expiresIn);
+  }
+
+  public async updatePackageForSession(input: {
+    packageId: number;
+    sessionUserId: number | undefined;
+    packageData: PackageDTO;
+  }): Promise<PackageUploadResponse> {
+    const user = await this.userSessionService.getValidatedSessionUser({
+      sessionUserId: input.sessionUserId
+    });
+    const existing = await this.getPackageRaw(
+      input.packageId,
+      undefined,
+      PACKAGE_DETAILED_RELATIONS
+    );
+    if (
+      existing.author?.id !== user.id &&
+      !this.userSessionService.userHasPermission(user, Permissions.EDIT_PACKAGE)
+    ) {
+      throw new ClientError(ClientResponse.ACCESS_DENIED, HttpStatus.FORBIDDEN);
+    }
+    input.packageData.status = input.packageData.status ?? existing.status;
+    if (input.packageData.status !== PackageStatus.DRAFT) {
+      this.assertPublishable(input.packageData);
+    }
+    const { files } = await this.packageRepository.replace(existing, input.packageData, user);
+    const uploadLinks = await this.packageStorageService.generateUploadLinks(
+      files,
+      UPLOAD_PACKAGE_LINKS_EXPIRES_IN
+    );
+    return { id: input.packageId, uploadLinks };
+  }
+
+  public async publishPackageForSession(input: {
+    packageId: number;
+    sessionUserId: number | undefined;
+  }) {
+    const user = await this.userSessionService.getValidatedSessionUser({
+      sessionUserId: input.sessionUserId
+    });
+    const existing = await this.getPackageRaw(
+      input.packageId,
+      undefined,
+      PACKAGE_DETAILED_RELATIONS
+    );
+    if (
+      existing.author?.id !== user.id &&
+      !this.userSessionService.userHasPermission(user, Permissions.EDIT_PACKAGE)
+    ) {
+      throw new ClientError(ClientResponse.ACCESS_DENIED, HttpStatus.FORBIDDEN);
+    }
+    const dto = existing.toDTO(this.fileUrlBuilder, { fetchIds: true });
+    this.assertPublishable(dto);
+    await this.packageRepository.setStatus(input.packageId, PackageStatus.PUBLISHED);
+    return this.getPackage(input.packageId);
+  }
+
+  private assertPublishable(dto: PackageDTO): void {
+    const finalRounds = dto.rounds.filter((round) => round.type === PackageRoundType.FINAL);
+    const invalid =
+      !dto.title.trim() ||
+      dto.rounds.length === 0 ||
+      finalRounds.length > 1 ||
+      (finalRounds.length === 1 && dto.rounds.at(-1)?.type !== PackageRoundType.FINAL) ||
+      dto.rounds.some(
+        (round) =>
+          !round.name.trim() ||
+          round.themes.length === 0 ||
+          round.themes.some(
+            (theme) =>
+              !theme.name.trim() ||
+              theme.questions.length === 0 ||
+              (round.type === PackageRoundType.FINAL &&
+                (theme.questions.length !== 1 ||
+                  theme.questions[0]?.type !== PackageQuestionType.SIMPLE)) ||
+              theme.questions.some(
+                (question) =>
+                  !question.text?.trim() ||
+                  !question.answerText?.trim() ||
+                  (question.type === PackageQuestionType.CHOICE &&
+                    (!question.answers || question.answers.length < 2))
+              )
+          )
+      );
+    if (invalid) {
+      throw new ClientError(ClientResponse.PACKAGE_CORRUPTED, HttpStatus.BAD_REQUEST);
+    }
   }
 
   public async canDeletePackage(input: {

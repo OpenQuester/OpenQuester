@@ -277,6 +277,14 @@ export const SOCKET_ACTION_MAP: readonly SocketActionEntry[] = [
     directExecution: true
   },
   {
+    event: SocketIOEvents.QUESTION_GUIDANCE,
+    actionType: GameActionType.QUESTION_GUIDANCE,
+    gameIdStrategy: GameIdStrategy.FROM_SESSION,
+    inputValidator: (data) =>
+      GameValidator.validateQuestionGuidance(data as { message: string; questionId?: number }),
+    directExecution: true
+  },
+  {
     event: SocketIOEvents.DISCONNECT,
     actionType: GameActionType.DISCONNECT,
     gameIdStrategy: GameIdStrategy.FROM_SESSION,

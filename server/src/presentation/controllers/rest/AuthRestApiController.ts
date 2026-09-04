@@ -1,6 +1,7 @@
 import { type Express, type Request, type Response, Router } from "express";
 import Joi from "joi";
 import https, { type RequestOptions } from "node:https";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { type Namespace } from "socket.io";
 
 import { FileService } from "application/services/file/FileService";
@@ -31,6 +32,21 @@ import { S3StorageService } from "application/services/storage/S3StorageService"
 import { asyncHandler } from "presentation/middleware/asyncHandlerMiddleware";
 import { guestLoginScheme, socketAuthScheme } from "presentation/schemes/auth/authSchemes";
 import { RequestDataValidator } from "presentation/schemes/RequestDataValidator";
+import { type Environment } from "shared/config/Environment";
+
+export function sanitizeOAuthReturnTo(value: unknown): string {
+  return typeof value === "string" && value.startsWith("/") && !value.startsWith("//")
+    ? value
+    : "/";
+}
+
+export function oauthStateMatches(state: string, expected: string): boolean {
+  return (
+    state.length === expected.length &&
+    state.length > 0 &&
+    timingSafeEqual(Buffer.from(state), Buffer.from(expected))
+  );
+}
 
 export class AuthRestApiController {
   constructor(
@@ -41,6 +57,7 @@ export class AuthRestApiController {
     private readonly fileService: FileService,
     private readonly storage: S3StorageService,
     private readonly socketUserDataService: SocketUserDataService,
+    private readonly env: Environment,
     private readonly logger: ILogger
   ) {
     const router = Router();
@@ -50,8 +67,73 @@ export class AuthRestApiController {
     router.get("/logout", asyncHandler(this.logout));
     router.post("/socket", asyncHandler(this.socketAuth));
     router.post("/oauth2", asyncHandler(this.handleOauthLogin));
+    router.get("/oauth2/discord/start", asyncHandler(this.startDiscordBrowserLogin));
+    router.get("/oauth2/discord/callback", asyncHandler(this.handleDiscordBrowserCallback));
     router.post("/guest", asyncHandler(this.handleGuestLogin));
   }
+
+  private startDiscordBrowserLogin = async (req: Request, res: Response) => {
+    const clientId = this.env.DISCORD_CLIENT_ID;
+    const redirectUri = this.env.DISCORD_REDIRECT_URI;
+    if (!clientId || !redirectUri) {
+      throw new ServerError("Discord browser OAuth is not configured", HttpStatus.INTERNAL);
+    }
+    const returnTo = sanitizeOAuthReturnTo(req.query.returnTo);
+    const state = randomBytes(32).toString("base64url");
+    req.session.oauthState = state;
+    req.session.oauthReturnTo = returnTo;
+    req.session.oauthStateExpiresAt = Date.now() + 10 * 60 * 1000;
+    await new Promise<void>((resolve, reject) =>
+      req.session.save((error) => (error ? reject(error) : resolve()))
+    );
+    const authorization = new URL("https://discord.com/oauth2/authorize");
+    authorization.searchParams.set("client_id", clientId);
+    authorization.searchParams.set("redirect_uri", redirectUri);
+    authorization.searchParams.set("response_type", "code");
+    authorization.searchParams.set("scope", "identify email");
+    authorization.searchParams.set("state", state);
+    return res.redirect(authorization.toString());
+  };
+
+  private handleDiscordBrowserCallback = async (req: Request, res: Response) => {
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    const expected = req.session.oauthState ?? "";
+    const stateMatches = oauthStateMatches(state, expected);
+    if (!stateMatches || !code || (req.session.oauthStateExpiresAt ?? 0) < Date.now()) {
+      throw new ClientError("Invalid or expired OAuth state", HttpStatus.BAD_REQUEST);
+    }
+    const returnTo = req.session.oauthReturnTo ?? "/";
+    delete req.session.oauthState;
+    delete req.session.oauthReturnTo;
+    delete req.session.oauthStateExpiresAt;
+    const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: this.env.DISCORD_CLIENT_ID,
+        client_secret: this.env.DISCORD_CLIENT_SECRET,
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: this.env.DISCORD_REDIRECT_URI
+      })
+    });
+    const token = (await tokenResponse.json()) as { access_token?: string; token_type?: string };
+    if (!tokenResponse.ok || !token.access_token) {
+      throw new ClientError("Discord authorization code exchange failed", HttpStatus.BAD_REQUEST);
+    }
+    const userData = await this.getDiscordUser({
+      oauthProvider: EOauthProvider.DISCORD,
+      tokenSchema: token.token_type ?? "Bearer",
+      token: token.access_token
+    });
+    const webBase = this.env.WEB_BASE_URL.replace(/\/$/, "");
+    this.saveUserSession(req, res, userData, {
+      successMessage: "User logged in via Discord browser OAuth",
+      auditData: { provider: EOauthProvider.DISCORD },
+      redirectTo: `${webBase}/auth/discord/callback?returnTo=${encodeURIComponent(returnTo)}`
+    });
+  };
 
   private socketAuth = async (req: Request, res: Response) => {
     const authDTO = new RequestDataValidator<SocketAuthDTO>(req.body, socketAuthScheme).validate();
@@ -312,6 +394,7 @@ export class AuthRestApiController {
       successMessage: string;
       auditData: Record<string, any>;
       performanceLog?: PerformanceLog;
+      redirectTo?: string;
     }
   ): void {
     const clientIp = req.ip || req.socket.remoteAddress;
@@ -341,7 +424,11 @@ export class AuthRestApiController {
         loginTime: new Date()
       });
 
-      res.status(HttpStatus.OK).json(userData);
+      if (options.redirectTo) {
+        res.redirect(options.redirectTo);
+      } else {
+        res.status(HttpStatus.OK).json(userData);
+      }
     });
   }
 }

@@ -31,10 +31,88 @@
         "description": "Broadcast when REST game create/update/delete changes the lobby list."
       },
       "clientToServer": {
-        "schema": "#/components/schemas/SocketIOGameSendEvents"
+        "schema": "#/components/schemas/SocketIOGameSendEvents",
+        "eventPayloads": {
+          "join": "#/components/schemas/SocketIOGameJoinInput",
+          "user-leave": null,
+          "start": null,
+          "question-pick": "#/components/schemas/SocketIOQuestionPickEventInput",
+          "question-answer": null,
+          "answer-submitted": "#/components/schemas/SocketIOAnswerSubmittedInput",
+          "answer-result": "#/components/schemas/SocketIOAnswerResultInput",
+          "next-round": null,
+          "skip-question-force": null,
+          "skip-show-answer": null,
+          "game-pause": null,
+          "game-unpause": null,
+          "theme-eliminate": "#/components/schemas/SocketIOThemeEliminateInput",
+          "question-skip": null,
+          "question-unskip": null,
+          "player-ready": null,
+          "player-unready": null,
+          "player-kicked": "#/components/schemas/SocketIOPlayerKickInput",
+          "player-restricted": "#/components/schemas/SocketIOPlayerRestrictionInput",
+          "player-role-change": "#/components/schemas/SocketIOPlayerRoleChangeInput",
+          "score-changed": "#/components/schemas/SocketIOPlayerScoreChangeInput",
+          "player-slot-change": "#/components/schemas/SocketIOPlayerSlotChangeInput",
+          "turn-player-changed": "#/components/schemas/SocketIOTurnPlayerChangeInput",
+          "final-bid-submit": "#/components/schemas/SocketIOFinalBidSubmitInput",
+          "final-answer-submit": "#/components/schemas/SocketIOFinalAnswerSubmitInput",
+          "final-answer-review": "#/components/schemas/SocketIOFinalAnswerReviewInput",
+          "secret-question-transfer": "#/components/schemas/SocketIOSecretQuestionTransferInputData",
+          "stake-bid-submit": "#/components/schemas/StakeBidSubmitInputData",
+          "media-downloaded": null,
+          "chat-message": "#/components/schemas/SocketIOChatMessageContent",
+          "question-guidance": "#/components/schemas/SocketIOQuestionGuidanceEventPayload"
+        }
       },
       "serverToClient": {
-        "schema": "#/components/schemas/SocketIOGameReceiveEvents"
+        "schema": "#/components/schemas/SocketIOGameReceiveEvents",
+        "eventPayloads": {
+          "join": "#/components/schemas/SocketIOGameJoinReceivePayload",
+          "game-data": "#/components/schemas/SocketIOGameJoinEventPayload",
+          "start": "#/components/schemas/SocketIOGameStartEventPayload",
+          "user-leave": "#/components/schemas/SocketIOGameLeaveEventPayload",
+          "question-data": "#/components/schemas/SocketIOQuestionDataEventPayload",
+          "question-answer": "#/components/schemas/SocketIOQuestionAnswerEventPayload",
+          "question-finish": "#/components/schemas/SocketIOQuestionFinishEventPayload",
+          "answer-submitted": "#/components/schemas/SocketIOAnswerSubmittedInput",
+          "answer-result": "#/components/schemas/SocketIOAnswerResultEventPayload",
+          "answer-show-start": "#/components/schemas/SocketIOAnswerShowStartEventPayload",
+          "answer-show-end": "#/components/schemas/SocketIOAnswerShowEndEventPayload",
+          "next-round": "#/components/schemas/SocketIONextRoundEventPayload",
+          "game-finished": null,
+          "game-pause": "#/components/schemas/SocketIOGamePauseEventPayload",
+          "game-unpause": "#/components/schemas/SocketIOGameUnpauseEventPayload",
+          "theme-eliminate": "#/components/schemas/SocketIOThemeEliminatePayload",
+          "question-skip": "#/components/schemas/SocketIOGameSkipEventPayload",
+          "question-unskip": "#/components/schemas/SocketIOGameUnskipEventPayload",
+          "player-ready": "#/components/schemas/SocketIOPlayerReadinessEventPayload",
+          "player-unready": "#/components/schemas/SocketIOPlayerReadinessEventPayload",
+          "player-kicked": "#/components/schemas/SocketIOPlayerKickEventPayload",
+          "player-restricted": "#/components/schemas/SocketIOPlayerRestrictionEventPayload",
+          "player-role-change": "#/components/schemas/SocketIOPlayerRoleChangeEventPayload",
+          "score-changed": "#/components/schemas/SocketIOPlayerScoreChangeEventPayload",
+          "player-slot-change": "#/components/schemas/SocketIOPlayerSlotChangeEventPayload",
+          "turn-player-changed": "#/components/schemas/SocketIOTurnPlayerChangeEventPayload",
+          "final-bid-submit": "#/components/schemas/SocketIOFinalBidSubmitPayload",
+          "final-answer-submit": "#/components/schemas/SocketIOFinalAnswerSubmitPayload",
+          "final-answer-review": "#/components/schemas/SocketIOFinalAnswerReviewPayload",
+          "final-phase-complete": "#/components/schemas/SocketIOFinalPhaseCompletePayload",
+          "final-question-data": "#/components/schemas/SocketIOFinalQuestionEventDataPayload",
+          "final-submit-end": "#/components/schemas/SocketIOFinalSubmitEndPayload",
+          "final-auto-loss": "#/components/schemas/SocketIOFinalAutoLossEventPayload",
+          "secret-question-picked": "#/components/schemas/SocketIOSecretQuestionPickedEventPayload",
+          "secret-question-transfer": "#/components/schemas/SocketIOSecretQuestionTransferEventPayload",
+          "stake-question-picked": "#/components/schemas/SocketIOStakeQuestionPickedEventPayload",
+          "stake-bid-submit": "#/components/schemas/StakeBidSubmitOutputData",
+          "stake-question-winner": "#/components/schemas/SocketIOStakeQuestionWinnerEventPayload",
+          "media-download-status": "#/components/schemas/MediaDownloadStatusEventPayload",
+          "chat-message": "#/components/schemas/SocketIOChatMessageEventPayload",
+          "question-guidance": "#/components/schemas/SocketIOQuestionGuidanceEventPayload",
+          "notifications": "#/components/schemas/SocketIONotificationEventPayload",
+          "error": "#/components/schemas/SocketIOErrorEventPayload"
+        }
       },
       "system": {
         "schema": "#/components/schemas/SocketIOEvents"
@@ -320,6 +398,20 @@
             "schema": {
               "$ref": "#/components/schemas/PackageMaxQuestions"
             }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Draft filtering is only honored for the authenticated owner's packages",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/PackageStatus" }
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "description": "Restrict results to the authenticated package owner",
+            "required": false,
+            "schema": { "type": "boolean", "default": false }
           }
         ],
         "responses": {
@@ -438,6 +530,29 @@
               }
             }
           }
+        }
+      },
+      "patch": {
+        "summary": "Update an owned package draft",
+        "description": "Last-write-wins package update. Returns presigned upload URLs only for newly referenced media hashes.",
+        "tags": ["Packages"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PackageCreationInput" } } } },
+        "responses": {
+          "200": { "description": "Package updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PackageUploadResponse" } } } },
+          "403": { "description": "Not the owner", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PermissionDeniedResponse" } } } }
+        }
+      }
+    },
+    "/v1/packages/{id}/publish": {
+      "post": {
+        "summary": "Validate and publish an owned draft",
+        "tags": ["Packages"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+        "responses": {
+          "200": { "description": "Published package", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OqPackage" } } } },
+          "400": { "description": "Critical validation failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PackageCorruptedResponse" } } } },
+          "403": { "description": "Not the owner", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PermissionDeniedResponse" } } } }
         }
       }
     },
@@ -799,6 +914,25 @@
             }
           }
         }
+      }
+    },
+    "/v1/auth/oauth2/discord/start": {
+      "get": {
+        "summary": "Start server-owned Discord OAuth authorization",
+        "tags": ["Auth"],
+        "parameters": [{ "name": "returnTo", "in": "query", "required": false, "schema": { "type": "string", "default": "/" } }],
+        "responses": { "302": { "description": "Redirect to Discord with server-stored state" } }
+      }
+    },
+    "/v1/auth/oauth2/discord/callback": {
+      "get": {
+        "summary": "Complete Discord OAuth authorization and create a session",
+        "tags": ["Auth"],
+        "parameters": [
+          { "name": "code", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "state", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "302": { "description": "Redirect to an allowlisted web route after session creation" }, "400": { "description": "Invalid or expired state" } }
       }
     },
     "/v1/auth/guest": {
@@ -1841,6 +1975,11 @@
         },
         "required": ["content"]
       },
+      "PackageStatus": {
+        "type": "string",
+        "enum": ["draft", "published"],
+        "default": "published"
+      },
       "ResponseUser": {
         "type": "object",
         "properties": {
@@ -2318,6 +2457,21 @@
             "format": "date-time",
             "examples": ["2024-01-01T00:00:00Z"]
           },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PackageStatus"
+          },
+          "roundsCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "questionsCount": {
+            "type": "integer",
+            "minimum": 0
+          },
           "author": {
             "$ref": "#/components/schemas/ShortUserInfo"
           },
@@ -2402,6 +2556,13 @@
             "type": "string",
             "format": "date-time",
             "examples": ["2024-01-01T00:00:00Z"]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PackageStatus"
           },
           "author": {
             "$ref": "#/components/schemas/ShortUserInfo"
@@ -2700,7 +2861,7 @@
       },
       "PackagesSortBy": {
         "type": "string",
-        "enum": ["id", "title", "created_at", "author"],
+        "enum": ["id", "title", "created_at", "updated_at", "author"],
         "examples": ["created_at"],
         "default": "created_at"
       },
@@ -3551,6 +3712,9 @@
               "$ref": "#/components/schemas/PackageRound"
             },
             "description": "Rounds in the package"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PackageStatus"
           }
         },
         "required": ["ageRestriction", "rounds", "title"],
@@ -3822,6 +3986,26 @@
         },
         "required": ["chatMessages", "gameState", "meta", "players"]
       },
+      "SocketIOGameJoinReceivePayload": {
+        "description": "A full snapshot is sent to the joining socket, while the room receives the joined player.",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/SocketIOGameJoinEventPayload"
+          },
+          {
+            "$ref": "#/components/schemas/PlayerData"
+          }
+        ]
+      },
+      "SocketIOErrorEventPayload": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": ["message"]
+      },
       "SocketIOGameJoinMeta": {
         "type": "object",
         "properties": {
@@ -3839,11 +4023,14 @@
             "type": ["string", "null"],
             "enum": [
               "choosing",
+              "media_downloading",
               "theme_elimination",
               "bidding",
               "answering",
               "reviewing",
               "showing",
+              "showing_answer",
+              "secret_transfer",
               null
             ],
             "examples": ["choosing"]
@@ -4163,6 +4350,7 @@
           "connection",
           "games",
           "chat-message",
+          "question-guidance",
           "notifications"
         ],
         "examples": ["error"]
@@ -4204,7 +4392,8 @@
           "final-answer-review",
           "secret-question-transfer",
           "stake-bid-submit",
-          "media-downloaded"
+          "media-downloaded",
+          "question-guidance"
         ],
         "examples": ["join"]
       },
@@ -4251,9 +4440,19 @@
           "stake-bid-submit",
           "stake-question-winner",
           "media-download-status",
-          "notifications"
+          "notifications",
+          "question-guidance"
         ],
         "examples": ["join"]
+      },
+      "SocketIOQuestionGuidanceEventPayload": {
+        "type": "object",
+        "description": "Showman-authored, non-mutating question-type guidance broadcast to the room.",
+        "properties": {
+          "message": { "type": "string", "minLength": 1, "maxLength": 255 },
+          "questionId": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["message"]
       },
       "SocketIOGameSkipEventPayload": {
         "type": "object",

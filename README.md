@@ -183,8 +183,8 @@ For the latest features and updates, check our [GitHub Actions](https://github.c
 
 ### Frontend
 
-- **[Flutter](https://flutter.dev/)** - Cross-platform UI framework
-- **[Dart](https://dart.dev/)** - Programming language optimized for UI
+- **React + Vite + TypeScript** - Hosted browser client in `client-web/`
+- **Flutter + Dart** - Native Android, Windows, and Linux client in `client/`
 - **[Auto Route](https://pub.dev/packages/auto_route)** - Navigation and routing
 - **[GetIt](https://pub.dev/packages/get_it)** - Dependency injection
 
@@ -226,7 +226,7 @@ Quick steps:
 
 #### Prerequisites
 
-- **Node.js** 18+ and npm/yarn
+- **Node.js** 24 and npm for `client-web` (the server keeps its own runtime file)
 - **Flutter** 3.24+
 - **Docker** and Docker Compose (for backend development)
 - **PostgreSQL** 14+ (or use Docker)

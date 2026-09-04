@@ -30,6 +30,12 @@ Backend test rules:
 
 ## Frontend checks
 
+### React web
+
+Run from `client-web/`: `npm run generate:api:check`, `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test`, then `npm run build`. Run `npm run test:e2e` with PostgreSQL, Redis, MinIO, and the server available. Visual baselines cover 360px, 768px, and 1280px+ widths.
+
+### Flutter native
+
 Run from `client/`.
 
 | Change type | Minimum checks | Stronger checks |
