@@ -1,28 +1,10 @@
 import { describe, expect, it } from "@jest/globals";
-import { readdirSync, readFileSync } from "node:fs";
-import { relative, resolve } from "node:path";
+import { resolve } from "node:path";
+import { readTestSources, classifyTransportSuite, findUnscopedCases } from "./TransportSuitePolicy";
 
-interface TestSource {
-  readonly path: string;
-  readonly source: string;
-}
-
-const testsRoot = resolve(__dirname, "../..");
-const pureHttpPaths = [
-  "user/user.test.ts",
-  "user/user-permissions.test.ts",
-  "user/user-mute.test.ts",
-  "package/package.test.ts",
-  "package/package-search.test.ts",
-  "log/admin-logs.test.ts"
-];
-const hybridPaths = [
-  "user/UserNotificationRooms.test.ts",
-  "user/user-data-update.test.ts",
-  "game/game-update.test.ts"
-];
-const pureHttpSuites = pureHttpPaths.map(readSource);
-const hybridSuites = hybridPaths.map(readSource);
+const testSources = readTestSources(resolve(__dirname, "../.."));
+const pureHttpSuites = testSources.filter((suite) => classifyTransportSuite(suite) === "http");
+const hybridSuites = testSources.filter((suite) => classifyTransportSuite(suite) === "hybrid");
 
 describe("HTTP E2E transport policy", () => {
   it("uses the listening harness and bounded HTTP client for REST suites", () => {
@@ -43,11 +25,11 @@ describe("HTTP E2E transport policy", () => {
     expect(
       hybridSuites
         .filter(
-          ({ source }) =>
-            !source.includes("SocketGameTestSuite.start()") ||
-            !source.includes("suite.scenario(") ||
-            !source.includes("await suite?.reset()") ||
-            !source.includes("await suite?.stop()")
+          (suite) =>
+            findUnscopedCases(suite, "hybrid").length > 0 ||
+            !suite.source.includes("SocketGameTestSuite.start()") ||
+            !suite.source.includes("await suite?.reset()") ||
+            !suite.source.includes("await suite?.stop()")
         )
         .map(({ path }) => path)
     ).toEqual([]);
@@ -67,24 +49,10 @@ describe("HTTP E2E transport policy", () => {
 
   it("routes test HTTP requests through the bounded transport helper", () => {
     expect(
-      readTestSources(testsRoot)
+      testSources
         .filter(({ source }) => /from\s+["']supertest["']|\bfetch\s*\(/.test(source))
         .map(({ path }) => path)
         .sort()
     ).toEqual([]);
   });
 });
-
-function readSource(path: string): TestSource {
-  return { path, source: readFileSync(resolve(testsRoot, path), "utf8") };
-}
-
-function readTestSources(directory: string): readonly TestSource[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const entryPath = resolve(directory, entry.name);
-    if (entry.isDirectory()) {
-      return readTestSources(entryPath);
-    }
-    return entry.name.endsWith(".test.ts") ? [readSource(relative(testsRoot, entryPath))] : [];
-  });
-}

@@ -161,11 +161,18 @@ coverage.
 
 `tests/e2e/contracts/SocketGameTransportPolicy.test.ts` keeps migrated gameplay suites on the shared
 scenario/lifecycle and rejects copied bootstrap/cleanup, warn-and-skip branches, and hand-written
-event timers. It also rejects disabled/focused cases and catch-all branches that could turn an
-infrastructure failure into a passing assertion.
+event timers. TypeScript AST checks recognize Jest aliases, modifier chains, array and tagged-template
+`each` cases without matching comments/string fixtures. Focused, skipped, todo, failing, and concurrent
+transport definitions are rejected in gameplay, HTTP, hybrid, and dedicated media suites.
+Each gameplay/hybrid callback must return or await its `suite.scenario(...)` wrapper as its entire
+body; dedicated media uses `withMediaDownloadFlow(...)`. Put setup and assertions inside that wrapper,
+not beside it or inside an uncalled nested function.
 
 `tests/e2e/contracts/HttpTransportPolicy.test.ts` keeps HTTP and hybrid endpoint suites on their
 harness/scenario lifecycle and rejects direct unbounded HTTP requests and guessed server ports.
+Transport imports automatically classify new endpoint suites, or fail the classification check if
+they do not use a known transport lifecycle. Genuine infrastructure self-tests have explicit
+exceptions in `TransportSuitePolicy.ts`; adding an endpoint test to that list is not a migration.
 
 `tests/e2e/contracts/TestLifecyclePolicy.test.ts` keeps internal direct test-app callers on the
 ordered teardown helper and rejects teardown failures that are caught and only logged.

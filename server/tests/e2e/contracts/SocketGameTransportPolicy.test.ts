@@ -2,6 +2,12 @@ import { describe, expect, it } from "@jest/globals";
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, relative, resolve } from "node:path";
 import ts from "typescript";
+import {
+  classifyTransportSuite,
+  findUnscopedCases,
+  forbiddenJestDefinitions,
+  readTestSources
+} from "./TransportSuitePolicy";
 
 interface TransportSuiteSource {
   readonly path: string;
@@ -41,14 +47,8 @@ describe("Socket game transport suite policy", () => {
     ).toEqual([]);
   });
 
-  it("rejects disabled or focused cases and catch-all success branches", () => {
-    expect(
-      violatingPaths((suite) =>
-        /\.(?:skip|only|todo)\s*\(|\b(?:xit|xtest|xdescribe|fit|fdescribe)\s*\(|catch\s*\{/.test(
-          suite.source
-        )
-      )
-    ).toEqual([]);
+  it("rejects catch-all success branches", () => {
+    expect(violatingPaths((suite) => /catch\s*\{/.test(suite.source))).toEqual([]);
   });
 
   it("rejects hand-written event promises including queue-mechanics collectors", () => {
@@ -93,10 +93,126 @@ describe("Socket game transport suite policy", () => {
         source: [
           'it.each([[1], [2]])("array %s", async () => suite.scenario(async () => {}));',
           'test.each`value\n${1}`("tagged $value", async () => suite.scenario(async () => {}));',
-          'it.concurrent.each([[1]])("concurrent %s", async () => suite.scenario(async () => {}));'
+          'describe.each([[1]])("group %s", () => { it("case", () => suite.scenario(async () => {})); });'
         ].join("\n")
       })
     ).toEqual([]);
+  });
+
+  it("discovers every transport category and rejects unclassified transport imports", () => {
+    const suites = readTestSources(resolve(__dirname, "../.."));
+    expect(
+      suites
+        .filter((suite) => classifyTransportSuite(suite) === "unclassified")
+        .map(({ path }) => path)
+    ).toEqual([]);
+    for (const kind of ["gameplay", "http", "hybrid", "media"]) {
+      expect(suites.some((suite) => classifyTransportSuite(suite) === kind)).toBe(true);
+    }
+    expect(
+      classifyTransportSuite({
+        path: "new/NewEndpoint.test.ts",
+        source: 'import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";'
+      })
+    ).toBe("http");
+    expect(
+      classifyTransportSuite({
+        path: "new/NewHybrid.test.ts",
+        source: 'import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";'
+      })
+    ).toBe("hybrid");
+    expect(
+      classifyTransportSuite({
+        path: "new/RawSocket.test.ts",
+        source: 'import { io } from "socket.io-client";'
+      })
+    ).toBe("unclassified");
+  });
+
+  it("rejects disabled/focused/failing and concurrent definitions across all transport categories", () => {
+    const violations = readTestSources(resolve(__dirname, "../..")).flatMap((suite) => {
+      const kind = classifyTransportSuite(suite);
+      return kind && kind !== "self-test"
+        ? forbiddenJestDefinitions(suite).map((title) => `${suite.path}: ${title}`)
+        : [];
+    });
+    expect(violations).toEqual([]);
+  });
+
+  it.each([
+    'it.only.each([[1]])("case", () => {});',
+    'test.skip.each([[1]])("case", () => {});',
+    'describe.only.each([[1]])("case", () => {});',
+    'test.only.each`x\n${1}`("case", () => {});',
+    'it.skip.each`x\n${1}`("case", () => {});',
+    'test.failing.each([[1]])("case", () => {});',
+    'it.concurrent.each([[1]])("case", () => {});',
+    'test.todo("case");',
+    'fit("case", () => {});',
+    'xit("case", () => {});',
+    'xtest("case", () => {});',
+    'fdescribe("case", () => {});',
+    'xdescribe.each([[1]])("case", () => {});'
+  ])("rejects modifier-chain bypass: %s", (source) => {
+    expect(forbiddenJestDefinitions({ path: "Example.test.ts", source })).toEqual(['"case"']);
+  });
+
+  it("does not confuse comments/string fixtures or parameterized tables with Jest definitions", () => {
+    const source = [
+      '// it.only("comment", () => {});',
+      'const fixture = "test.skip.each([[1]])";',
+      'it.each(["it.only"] )("row %s", () => suite.scenario(async () => {}));',
+      'test.each`x\n${1}`("row $x", () => suite.scenario(async () => {}));',
+      'describe.each([[1]])("group", () => { test("case", () => suite.scenario(async () => {})); });'
+    ].join("\n");
+    expect(forbiddenJestDefinitions({ path: "Example.test.ts", source })).toEqual([]);
+    expect(findUnscopedCases({ path: "Example.test.ts", source })).toEqual([]);
+  });
+
+  it.each([
+    'it("case", async () => { suite.scenario(async () => {}); });',
+    'it("case", async () => { const fake = "suite.scenario("; });',
+    'it("case", async () => { function unused() { return suite.scenario(async () => {}); } });',
+    'it("case", async () => { if (false) await suite.scenario(async () => {}); });',
+    'it("case", async () => { await suite.scenario(async () => {}); expect(true).toBe(true); });',
+    'it("case", async () => { await Promise.resolve(); }); it("scoped", () => suite.scenario(async () => {}));'
+  ])("requires each complete callback to return or await its wrapper: %s", (source) => {
+    expect(findUnscopedCases({ path: "Example.test.ts", source })).toEqual(['"case"']);
+  });
+
+  it("accepts returned/awaited wrappers and applies the same case scope to dedicated media", () => {
+    expect(
+      findUnscopedCases({
+        path: "Example.test.ts",
+        source: [
+          'it("returned", () => { return suite.scenario(async () => {}); });',
+          'it("awaited", async () => { await suite.scenario(async () => {}); });'
+        ].join("\n")
+      })
+    ).toEqual([]);
+    expect(
+      findUnscopedCases(
+        {
+          path: "Media.test.ts",
+          source:
+            'test("case", async () => { await withMediaDownloadFlow(options, async () => {}); });'
+        },
+        "media"
+      )
+    ).toEqual([]);
+    expect(
+      findUnscopedCases(
+        {
+          path: "Media.test.ts",
+          source: 'test("case", async () => { withMediaDownloadFlow(options, async () => {}); });'
+        },
+        "media"
+      )
+    ).toEqual(['"case"']);
+    const media = readTestSources(resolve(__dirname, "../..")).filter(
+      (suite) => classifyTransportSuite(suite) === "media"
+    );
+    expect(media.flatMap((suite) => findUnscopedCases(suite, "media"))).toEqual([]);
   });
 
   it("rejects legacy event assertions and raw socket commands in transport tests", () => {
@@ -150,51 +266,6 @@ describe("Socket game transport suite policy", () => {
     ).toEqual(["waitForEvent", "waitForNoEvent"]);
   });
 });
-
-function findUnscopedCases(suite: TransportSuiteSource): readonly string[] {
-  const ast = ts.createSourceFile(suite.path, suite.source, ts.ScriptTarget.Latest, true);
-  const failures: string[] = [];
-  const visit = (node: ts.Node, helperUnitTest = false): void => {
-    if (ts.isCallExpression(node)) {
-      const definition = getJestDefinitionName(node);
-      const title = node.arguments[0];
-      if (
-        definition === "describe" &&
-        title &&
-        ts.isStringLiteral(title) &&
-        title.text === "Game lock test cleanup helpers" &&
-        basename(suite.path) === "GameLockAndQueueMechanics.test.ts"
-      )
-        helperUnitTest = true;
-      if (
-        (definition === "it" || definition === "test") &&
-        !helperUnitTest &&
-        !node.arguments[1]?.getText(ast).includes("suite.scenario(")
-      )
-        failures.push(title?.getText(ast) ?? "<missing test title>");
-    }
-    ts.forEachChild(node, (child) => visit(child, helperUnitTest));
-  };
-  visit(ast);
-  return failures;
-}
-
-function getJestDefinitionName(node: ts.CallExpression): string | undefined {
-  let expression: ts.Expression = node.expression;
-  if (ts.isCallExpression(expression) || ts.isTaggedTemplateExpression(expression)) {
-    const builder = ts.isCallExpression(expression) ? expression.expression : expression.tag;
-    if (!ts.isPropertyAccessExpression(builder) || builder.name.text !== "each") return;
-    expression = builder.expression;
-  } else if (ts.isPropertyAccessExpression(expression) && expression.name.text === "each") {
-    // it.each(rows) only binds the table; the surrounding call declares the actual case.
-    return;
-  }
-
-  while (ts.isPropertyAccessExpression(expression)) expression = expression.expression;
-  return ts.isIdentifier(expression) && ["it", "test", "describe"].includes(expression.text)
-    ? expression.text
-    : undefined;
-}
 
 interface VoidedTrackedWait {
   readonly method: string;
