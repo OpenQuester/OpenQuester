@@ -54,11 +54,10 @@ describe("Media Download client-contract departure and restriction scenarios", (
         expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
       );
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterLeave, leavingPlayer);
-      const questionReveal = flow.waitForQuestionReveal(flow.allRecipients, afterLeave);
 
       flow.emitPlayerLeave(leavingPlayer);
 
-      await Promise.all([leaveProbe.waitForCount(1), status, leave, questionReveal]);
+      await Promise.all([leaveProbe.waitForCount(1), status, leave]);
       await flow.waitForActionsComplete();
 
       assertAcceptedCommand(
@@ -76,7 +75,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
         afterLeave,
         1
       );
-      flow.assertExactQuestionRevealCount(flow.allRecipients, afterLeave, 1);
+      flow.assertNoAdditionalQuestionData(flow.allRecipients, afterLeave);
       assertExactInboundCounts(flow, flow.allRecipients, SocketIOGameEvents.LEAVE, afterLeave, 1);
       flow.assertInboundEventOrder(flow.showman, afterLeave, [
         SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
@@ -114,11 +113,10 @@ describe("Media Download client-contract departure and restriction scenarios", (
         afterDisconnect,
         disconnectingPlayer
       );
-      const questionReveal = flow.waitForQuestionReveal(remainingRecipients, afterDisconnect);
 
       flow.disconnectPlayer(disconnectingPlayer);
 
-      await Promise.all([disconnectProbe.waitForCount(1), status, leave, questionReveal]);
+      await Promise.all([disconnectProbe.waitForCount(1), status, leave]);
       await flow.waitForActionsComplete();
 
       flow.assertOutboundCommandCount(
@@ -141,7 +139,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
         afterDisconnect,
         1
       );
-      flow.assertExactQuestionRevealCount(remainingRecipients, afterDisconnect, 1);
+      flow.assertNoAdditionalQuestionData(remainingRecipients, afterDisconnect);
       assertExactInboundCounts(
         flow,
         remainingRecipients,
@@ -178,11 +176,10 @@ describe("Media Download client-contract departure and restriction scenarios", (
       );
       const kicked = flow.waitForKickBroadcast(flow.allRecipients, afterKick, kickedPlayer);
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterKick, kickedPlayer);
-      const questionReveal = flow.waitForQuestionReveal(flow.allRecipients, afterKick);
 
       flow.emitPlayerKick(kickedPlayer);
 
-      await Promise.all([kickProbe.waitForCount(1), status, kicked, leave, questionReveal]);
+      await Promise.all([kickProbe.waitForCount(1), status, kicked, leave]);
       await flow.waitForActionsComplete();
 
       assertAcceptedCommand(
@@ -200,7 +197,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       ]) {
         assertExactInboundCounts(flow, flow.allRecipients, event, afterKick, 1);
       }
-      flow.assertExactQuestionRevealCount(flow.allRecipients, afterKick, 1);
+      flow.assertNoAdditionalQuestionData(flow.allRecipients, afterKick);
       flow.assertInboundEventOrder(flow.showman, afterKick, [
         SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
         SocketIOGameEvents.PLAYER_KICKED,
@@ -251,7 +248,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
         { actor: remainingPlayer, expected: false }
       ]);
       await assertMediaDownloading(flow);
-      flow.assertNoQuestionReveal(flow.allRecipients, afterLeave);
+      flow.assertNoAdditionalQuestionData(flow.allRecipients, afterLeave);
       await flow.expectNoSocketErrors(flow.allRecipients, afterLeave);
     });
   });
@@ -280,7 +277,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
         afterLeave
       );
       await assertMediaDownloading(flow);
-      flow.assertNoQuestionReveal(flow.allRecipients, afterLeave);
+      flow.assertNoAdditionalQuestionData(flow.allRecipients, afterLeave);
 
       const activeRecipients = flow.allRecipients.filter((actor) => actor !== leavingPlayer);
       const afterFinalDownload = flow.mark();
@@ -290,11 +287,10 @@ describe("Media Download client-contract departure and restriction scenarios", (
         afterFinalDownload,
         expectedStatus(remainingPlayer.userId!, true, GAME_QUESTION_ANSWER_TIME)
       );
-      const questionReveal = flow.waitForQuestionReveal(activeRecipients, afterFinalDownload);
 
       flow.emitPlayerDownloaded(remainingPlayer);
 
-      await Promise.all([downloadProbe.waitForCount(1), status, questionReveal]);
+      await Promise.all([downloadProbe.waitForCount(1), status]);
       await flow.waitForActionsComplete();
 
       flow.assertOutboundMediaDownloadCommands({
@@ -311,8 +307,8 @@ describe("Media Download client-contract departure and restriction scenarios", (
         1
       );
       flow.assertExactMediaStatusCount(leavingPlayer, afterFinalDownload, 0);
-      flow.assertExactQuestionRevealCount(activeRecipients, afterFinalDownload, 1);
-      flow.assertExactQuestionRevealCount([leavingPlayer], afterFinalDownload, 0);
+      flow.assertNoAdditionalQuestionData(activeRecipients, afterFinalDownload);
+      flow.assertExactQuestionDataCount([leavingPlayer], afterFinalDownload, 0);
       await flow.expectMediaReadiness([
         { actor: readyPlayer, expected: true },
         { actor: remainingPlayer, expected: true }
@@ -356,7 +352,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       await expectPlayerDisconnected(flow, readyPlayer, true);
       await flow.expectMediaReadiness([{ actor: waitingPlayer, expected: false }]);
       await assertMediaDownloading(flow);
-      flow.assertNoQuestionReveal(flow.allRecipients, afterLeave);
+      flow.assertNoAdditionalQuestionData(flow.allRecipients, afterLeave);
       await flow.expectNoSocketErrors(flow.allRecipients, afterLeave);
     });
   });
@@ -394,16 +390,20 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const afterSecondLeave = flow.mark();
       const secondProbe = flow.createAcceptedActorActionProbe(secondPlayer, GameActionType.LEAVE);
       const remainingRecipients = flow.allRecipients.filter((actor) => actor !== firstPlayer);
+      const completed = flow.waitForMediaDownloadBroadcast(
+        remainingRecipients,
+        afterSecondLeave,
+        expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
+      );
       const secondLeave = flow.waitForLeaveBroadcast(
         remainingRecipients,
         afterSecondLeave,
         secondPlayer
       );
-      const questionReveal = flow.waitForQuestionReveal(remainingRecipients, afterSecondLeave);
 
       flow.emitPlayerLeave(secondPlayer);
 
-      await Promise.all([secondProbe.waitForCount(1), secondLeave, questionReveal]);
+      await Promise.all([secondProbe.waitForCount(1), secondLeave, completed]);
       await flow.waitForActionsComplete();
 
       assertAcceptedCommand(
@@ -422,8 +422,8 @@ describe("Media Download client-contract departure and restriction scenarios", (
         1
       );
       flow.assertExactInboundEventCount(firstPlayer, SocketIOGameEvents.LEAVE, afterSecondLeave, 0);
-      flow.assertExactQuestionRevealCount(remainingRecipients, afterSecondLeave, 1);
-      flow.assertExactQuestionRevealCount([firstPlayer], afterSecondLeave, 0);
+      flow.assertNoAdditionalQuestionData(remainingRecipients, afterSecondLeave);
+      flow.assertExactQuestionDataCount([firstPlayer], afterSecondLeave, 0);
       await expectPlayerDisconnected(flow, firstPlayer, false);
       await expectPlayerDisconnected(flow, secondPlayer, false);
       await assertShowing(flow);
@@ -440,11 +440,15 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const afterLeave = flow.mark();
       const leaveProbe = flow.createAcceptedActorActionProbe(onlyPlayer, GameActionType.LEAVE);
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterLeave, onlyPlayer);
-      const questionReveal = flow.waitForQuestionReveal(flow.allRecipients, afterLeave);
+      const completed = flow.waitForMediaDownloadBroadcast(
+        flow.allRecipients,
+        afterLeave,
+        expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
+      );
 
       flow.emitPlayerLeave(onlyPlayer);
 
-      await Promise.all([leaveProbe.waitForCount(1), leave, questionReveal]);
+      await Promise.all([leaveProbe.waitForCount(1), leave, completed]);
       await flow.waitForActionsComplete();
 
       assertAcceptedCommand(
@@ -456,7 +460,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
         afterLeave
       );
       assertExactInboundCounts(flow, flow.allRecipients, SocketIOGameEvents.LEAVE, afterLeave, 1);
-      flow.assertExactQuestionRevealCount(flow.allRecipients, afterLeave, 1);
+      flow.assertNoAdditionalQuestionData(flow.allRecipients, afterLeave);
       await expectPlayerDisconnected(flow, onlyPlayer, false);
       await assertShowing(flow);
       await flow.expectNoSocketErrors(flow.allRecipients, afterLeave);
@@ -489,17 +493,10 @@ describe("Media Download client-contract departure and restriction scenarios", (
         afterRestriction,
         expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
       );
-      const questionReveal = flow.waitForQuestionReveal(flow.allRecipients, afterRestriction);
 
       flow.emitPlayerRestriction(restrictedPlayer);
 
-      await Promise.all([
-        restrictionProbe.waitForCount(1),
-        restriction,
-        roleChange,
-        status,
-        questionReveal
-      ]);
+      await Promise.all([restrictionProbe.waitForCount(1), restriction, roleChange, status]);
       await flow.waitForActionsComplete();
 
       assertAcceptedCommand(
@@ -517,7 +514,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
       ]) {
         assertExactInboundCounts(flow, flow.allRecipients, event, afterRestriction, 1);
       }
-      flow.assertExactQuestionRevealCount(flow.allRecipients, afterRestriction, 1);
+      flow.assertNoAdditionalQuestionData(flow.allRecipients, afterRestriction);
       flow.assertInboundEventOrder(flow.showman, afterRestriction, [
         SocketIOGameEvents.PLAYER_RESTRICTED,
         SocketIOGameEvents.PLAYER_ROLE_CHANGE,
@@ -605,7 +602,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
         { actor: remainingPlayer, expected: false }
       ]);
       await assertMediaDownloading(flow);
-      flow.assertNoQuestionReveal(flow.allRecipients, afterRestriction);
+      flow.assertNoAdditionalQuestionData(flow.allRecipients, afterRestriction);
       await flow.expectNoSocketErrors(flow.allRecipients, afterRestriction);
     });
   });
@@ -646,7 +643,8 @@ async function preparePartialReadiness(flow: MediaDownloadFlow): Promise<{
     afterDownload,
     1
   );
-  flow.assertNoQuestionReveal(flow.allRecipients, afterDownload);
+  flow.assertNoAdditionalQuestionData(flow.allRecipients, afterDownload);
+  await flow.expectNoReadinessCompletion(flow.allRecipients, afterDownload);
   await flow.expectMediaReadiness([
     { actor: readyPlayer, expected: true },
     ...waitingPlayers.map((actor) => ({ actor, expected: false }))

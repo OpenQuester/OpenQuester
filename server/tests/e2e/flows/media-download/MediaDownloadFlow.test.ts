@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { type Repository } from "typeorm";
+import { container } from "tsyringe";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { type PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
 
 import { GAME_QUESTION_ANSWER_TIME, MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
 import { GameActionType } from "domain/enums/GameActionType";
@@ -25,6 +29,7 @@ import { TEST_MEDIA_FILE_MD5 } from "tests/utils/PackageUtils";
 
 interface FakeSocket {
   readonly id: string;
+  readonly nsp: string;
   readonly connected: boolean;
   readonly onAny: jest.Mock;
   readonly offAny: jest.Mock;
@@ -36,44 +41,132 @@ interface FakeSocket {
 
 afterEach(() => {
   jest.useRealTimers();
+  jest.restoreAllMocks();
 });
 
 describe("MediaDownloadFlow lifecycle", () => {
-  it("rejects a full question reveal before the media readiness gate opens", async () => {
-    const showmanSocket = createSocket("showman-socket");
-    const playerSocket = createSocket("player-socket");
-    const spectatorSocket = createSocket("spectator-socket");
-    const setup = createReadySetup(showmanSocket, playerSocket, spectatorSocket);
-    const acceptedProbe = {
+  it.each([
+    { defect: "none", expected: undefined },
+    { defect: "skipped media phase", expected: '"media_downloading"' },
+    { defect: "wrong active timer", expected: "10000" },
+    { defect: "wrong data timer", expected: "fresh 10000ms timer" },
+    { defect: "missing files", expected: "files mismatch" }
+  ])("validates question data and pre-ACK state ($defect)", async ({ defect, expected }) => {
+    const sockets = [
+      createSocket("showman-socket"),
+      createSocket("player-socket"),
+      createSocket("spectator-socket")
+    ];
+    const setup = createReadySetup(sockets[0], sockets[1], sockets[2]);
+    const probe = {
       waitForCount: jest.fn(async () => undefined),
       records: jest.fn(() => []),
       dispose: jest.fn()
     };
+    const detach = jest.fn();
     const utils = {
+      useScenario: jest.fn(() => detach),
       setupGameTestEnvironment: jest.fn(async () => setup),
       cleanupGameClients: jest.fn(async () => undefined),
       startGame: jest.fn(async () => undefined),
       getFirstAvailableQuestionId: jest.fn(async () => 42),
-      createAcceptedActionProbe: jest.fn(() => acceptedProbe),
+      getGameState: jest.fn(async () => ({
+        questionState:
+          defect === "skipped media phase"
+            ? QuestionState.SHOWING
+            : QuestionState.MEDIA_DOWNLOADING,
+        timer: createTimer(
+          defect === "wrong active timer" ? GAME_QUESTION_ANSWER_TIME : MEDIA_DOWNLOAD_TIMEOUT
+        )
+      })),
+      createAcceptedActionProbe: jest.fn(() => probe),
       waitForActionsComplete: jest.fn(async () => undefined)
     } as unknown as SocketGameTestUtils;
-    showmanSocket.emit.mockImplementation((...args: unknown[]) => {
-      const event = args[0];
-      if (event !== SocketIOGameEvents.QUESTION_PICK) {
-        return;
-      }
-
-      for (const socket of [showmanSocket, playerSocket, spectatorSocket]) {
-        emitInbound(socket, SocketIOGameEvents.QUESTION_PICK, createQuestionPreload(42));
-        emitInbound(socket, SocketIOGameEvents.QUESTION_DATA, createQuestionReveal(42));
+    jest.spyOn(container, "resolve").mockReturnValue({
+      getQuestion: jest.fn(async () => ({ id: 42, questionFiles: createQuestionFiles() }))
+    } as unknown as PackageStore);
+    sockets[0].emit.mockImplementation(() => {
+      for (const [index, socket] of sockets.entries()) {
+        const payload = createQuestionData(42, index === 0);
+        if (defect === "missing files") payload.data.questionFiles = [];
+        if (defect === "wrong data timer") payload.timer = createTimer(GAME_QUESTION_ANSWER_TIME);
+        emitInbound(socket, SocketIOGameEvents.QUESTION_DATA, payload);
       }
     });
 
-    await expect(
-      withMediaDownloadFlow(createOptions(utils), async (flow) => {
-        await flow.pickMediaQuestion();
+    const result = withMediaDownloadFlow(createOptions(utils), async (flow) => {
+      const mark = await flow.pickMediaQuestion();
+      flow.assertExactQuestionDataCount(flow.allRecipients, mark, 1);
+    });
+    if (expected) await expect(result).rejects.toThrow(expected);
+    else await expect(result).resolves.toBeUndefined();
+
+    expect(utils.useScenario).toHaveBeenCalledTimes(1);
+    expect(detach).toHaveBeenCalledTimes(1);
+    expect(detach.mock.invocationCallOrder[0]).toBeLessThan(
+      (utils.cleanupGameClients as jest.Mock).mock.invocationCallOrder[0]
+    );
+    expect(utils.cleanupGameClients).toHaveBeenCalledWith(setup);
+    expect(sockets[1].emit).not.toHaveBeenCalled();
+    expect(sockets[2].emit).not.toHaveBeenCalled();
+    sockets.forEach((socket) => expect(socket.offAny).toHaveBeenCalledTimes(1));
+  });
+
+  it.each(["single", "broadcast"] as const)(
+    "owns a forgotten derived %s validation, not just its event wait",
+    async (kind) => {
+      const sockets = [createSocket("showman"), createSocket("player"), createSocket("spectator")];
+      const setup = createReadySetup(sockets[0], sockets[1], sockets[2]);
+      const utils = {
+        useScenario: jest.fn(() => jest.fn()),
+        setupGameTestEnvironment: jest.fn(async () => setup),
+        cleanupGameClients: jest.fn(async () => undefined)
+      } as unknown as SocketGameTestUtils;
+      await expect(
+        withMediaDownloadFlow(createOptions(utils), async (flow) => {
+          const expected = {
+            playerId: 2,
+            allPlayersReady: true,
+            timerDurationMs: GAME_QUESTION_ANSWER_TIME
+          };
+          if (kind === "single")
+            void flow.waitForMediaDownloadStatus(flow.showman, flow.mark(), expected);
+          else void flow.waitForMediaDownloadBroadcast(flow.allRecipients, flow.mark(), expected);
+          sockets.forEach((socket) =>
+            emitInbound(socket, SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, {
+              playerId: 2,
+              mediaDownloaded: true,
+              allPlayersReady: true,
+              timer: createTimer(MEDIA_DOWNLOAD_TIMEOUT)
+            })
+          );
+        })
+      ).rejects.toThrow(`fresh ${GAME_QUESTION_ANSWER_TIME}ms timer`);
+      expect(utils.cleanupGameClients).toHaveBeenCalledWith(setup);
+    }
+  );
+
+  it("preserves primary, detach, and client cleanup failures", async () => {
+    const setup = createReadySetup(
+      createSocket("showman"),
+      createSocket("player"),
+      createSocket("spectator")
+    );
+    const utils = {
+      useScenario: jest.fn(() => () => {
+        throw new Error("detach failed");
+      }),
+      setupGameTestEnvironment: jest.fn(async () => setup),
+      cleanupGameClients: jest.fn(async () => {
+        throw new Error("clients failed");
       })
-    ).rejects.toThrow('Expected exactly 0 inbound "question-data" records');
+    } as unknown as SocketGameTestUtils;
+    await expect(
+      withMediaDownloadFlow(createOptions(utils), async () => {
+        throw new Error("primary failure");
+      })
+    ).rejects.toThrow(/primary failure.*detach failed.*clients failed/);
+    expect(utils.cleanupGameClients).toHaveBeenCalledWith(setup);
   });
 
   it("closes every created socket when actor construction fails after setup", async () => {
@@ -93,6 +186,7 @@ describe("MediaDownloadFlow lifecycle", () => {
       }
     });
     const utils = {
+      useScenario: jest.fn(() => jest.fn()),
       setupGameTestEnvironment: jest.fn(async () => setup),
       cleanupGameClients
     } as unknown as SocketGameTestUtils;
@@ -112,6 +206,7 @@ describe("MediaDownloadFlow lifecycle", () => {
     const setup = createReadySetup(showmanSocket, playerSocket, spectatorSocket);
     const cleanupGameClients = jest.fn(async () => undefined);
     const utils = {
+      useScenario: jest.fn(() => jest.fn()),
       setupGameTestEnvironment: jest.fn(async () => setup),
       cleanupGameClients
     } as unknown as SocketGameTestUtils;
@@ -153,6 +248,7 @@ describe("MediaDownloadFlow lifecycle", () => {
     );
     const cleanupGameClients = jest.fn(async () => undefined);
     const utils = {
+      useScenario: jest.fn(() => jest.fn()),
       setupGameTestEnvironment: jest.fn(async () => setup),
       cleanupGameClients
     } as unknown as SocketGameTestUtils;
@@ -183,6 +279,7 @@ describe("MediaDownloadFlow lifecycle", () => {
     );
     const cleanupGameClients = jest.fn(async () => undefined);
     const utils = {
+      useScenario: jest.fn(() => jest.fn()),
       setupGameTestEnvironment: jest.fn(async () => setup),
       cleanupGameClients,
       getGameState: jest.fn(() => new Promise(() => undefined))
@@ -212,6 +309,7 @@ describe("MediaDownloadFlow lifecycle", () => {
     };
     const createAcceptedActionProbe = jest.fn(() => acceptedProbe);
     const utils = {
+      useScenario: jest.fn(() => jest.fn()),
       setupGameTestEnvironment: jest.fn(async () => setup),
       cleanupGameClients: jest.fn(async () => undefined),
       createAcceptedActionProbe
@@ -304,6 +402,7 @@ function createReadySetup(
 function createSocket(id: string): FakeSocket {
   return {
     id,
+    nsp: "/games",
     connected: true,
     onAny: jest.fn(),
     offAny: jest.fn(),
@@ -334,29 +433,24 @@ function emitInbound(socket: FakeSocket, event: string, payload: unknown): void 
   handler(event, payload);
 }
 
-function createQuestionPreload(questionId: number): Record<string, unknown> {
+function createQuestionData(questionId: number, isShowman: boolean) {
   return {
-    questionId,
-    questionFiles: createQuestionFiles(),
+    data: {
+      id: questionId,
+      text: "Simple question text",
+      ...(isShowman ? { answerText: "Simple answer" } : {}),
+      questionFiles: createQuestionFiles()
+    } as PackageQuestionDTO,
     timer: createTimer(MEDIA_DOWNLOAD_TIMEOUT)
   };
 }
 
-function createQuestionReveal(questionId: number): Record<string, unknown> {
-  return {
-    data: {
-      id: questionId,
-      questionFiles: createQuestionFiles()
-    },
-    timer: createTimer(GAME_QUESTION_ANSWER_TIME)
-  };
-}
-
-function createQuestionFiles(): readonly Record<string, unknown>[] {
+function createQuestionFiles(): PackageQuestionFileDTO[] {
   return [
     {
       file: {
         md5: TEST_MEDIA_FILE_MD5,
+        link: `https://media.example.test/${TEST_MEDIA_FILE_MD5}`,
         type: PackageFileType.IMAGE
       },
       displayTime: null,
@@ -365,7 +459,7 @@ function createQuestionFiles(): readonly Record<string, unknown>[] {
   ];
 }
 
-function createTimer(durationMs: number): Record<string, unknown> {
+function createTimer(durationMs: number) {
   return {
     startedAt: new Date(),
     durationMs,

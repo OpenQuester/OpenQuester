@@ -4,7 +4,6 @@ import { type Repository } from "typeorm";
 
 import { GameActionExecutor } from "application/executors/GameActionExecutor";
 import {
-  GAME_QUESTION_ANSWER_TIME,
   MEDIA_DOWNLOAD_TIMEOUT,
   SYSTEM_PLAYER_ID,
   SYSTEM_SOCKET_ID
@@ -12,10 +11,8 @@ import {
 import { timerKey } from "domain/constants/redisKeys";
 import { GameActionType } from "domain/enums/GameActionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { type GameAction, type GameActionResult } from "domain/types/action/GameAction";
 import { type TimerActionPayload } from "domain/types/action/TimerActionPayload";
-import { type GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { type PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
@@ -43,15 +40,12 @@ import {
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 import { TestUtils } from "tests/utils/TestUtils";
-import { TEST_MEDIA_FILE_MD5 } from "tests/utils/PackageUtils";
-
-const GAME_NAMESPACE = "/game";
-
-interface MediaQuestionPreloadPayload {
-  readonly questionId: number;
-  readonly questionFiles: readonly PackageQuestionFileDTO[];
-  readonly timer: GameStateTimerDTO;
-}
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import {
+  assertMediaQuestionData,
+  assertMediaFixtureFiles,
+  assertMediaDownloadStatus
+} from "./MediaDownloadAssertions";
 
 export interface CreateMediaDownloadFlowOptions {
   readonly harness: ServerTestHarness;
@@ -98,6 +92,7 @@ export class MediaDownloadFlow {
   private completionMode: MediaDownloadFlowCompletionMode | undefined;
   private completionPromise: Promise<void> | undefined;
   private currentQuestionId: number | undefined;
+  private expectedQuestionFiles: readonly PackageQuestionFileDTO[] = [];
 
   private constructor(
     private readonly setup: GameTestSetup,
@@ -107,12 +102,14 @@ export class MediaDownloadFlow {
     public readonly showman: ScenarioActor,
     private readonly players: readonly ScenarioActor[],
     private readonly spectators: readonly ScenarioActor[],
-    private readonly includesMediaQuestionFiles: boolean
+    private readonly includesMediaQuestionFiles: boolean,
+    private readonly detachScenario: () => void
   ) {}
 
   public static async start(options: CreateMediaDownloadFlowOptions): Promise<MediaDownloadFlow> {
     let setup: GameTestSetup | undefined;
     let scenario: GameScenario | undefined;
+    let detachScenario: (() => void) | undefined;
 
     try {
       const createdSetup = await options.utils.setupGameTestEnvironment(
@@ -138,7 +135,6 @@ export class MediaDownloadFlow {
       const showman = createdScenario.addActor({
         label: "showman",
         socket: createdSetup.showmanSocket,
-        namespace: GAME_NAMESPACE,
         userId: createdSetup.showmanUser.id,
         gameId: createdSetup.gameId
       });
@@ -146,7 +142,6 @@ export class MediaDownloadFlow {
         createdScenario.addActor({
           label: `player-${index + 1}`,
           socket,
-          namespace: GAME_NAMESPACE,
           userId: createdSetup.playerUsers[index].id,
           gameId: createdSetup.gameId
         })
@@ -155,11 +150,11 @@ export class MediaDownloadFlow {
         createdScenario.addActor({
           label: `spectator-${index + 1}`,
           socket,
-          namespace: GAME_NAMESPACE,
           gameId: createdSetup.gameId
         })
       );
 
+      detachScenario = options.utils.useScenario(createdScenario);
       return new MediaDownloadFlow(
         createdSetup,
         options.utils,
@@ -168,7 +163,8 @@ export class MediaDownloadFlow {
         showman,
         players,
         spectators,
-        options.includeMediaQuestionFiles ?? true
+        options.includeMediaQuestionFiles ?? true,
+        detachScenario
       );
     } catch (error) {
       const failures = [toError(error)];
@@ -179,6 +175,12 @@ export class MediaDownloadFlow {
         } catch (cleanupError) {
           failures.push(toError(cleanupError));
         }
+      }
+
+      try {
+        detachScenario?.();
+      } catch (cleanupError) {
+        failures.push(toError(cleanupError));
       }
 
       if (setup) {
@@ -233,57 +235,39 @@ export class MediaDownloadFlow {
     await this.startGame();
     const questionId = await this.utils.getFirstAvailableQuestionId(this.gameId);
     this.currentQuestionId = questionId;
+    const question = await container.resolve(PackageStore).getQuestion(this.gameId, questionId);
+    expect(question?.id).toBe(questionId);
+    this.expectedQuestionFiles = question?.questionFiles ?? [];
+    assertMediaFixtureFiles(this.expectedQuestionFiles, this.includesMediaQuestionFiles);
     const afterQuestionPick = this.mark();
     const questionPickProbe = this.scenario.createAcceptedActionProbe({
       gameId: this.gameId,
       actionType: GameActionType.QUESTION_PICK
     });
-    const preloadReceived = this.scenario.assert
-      .broadcast<readonly [MediaQuestionPreloadPayload]>({
-        actors: this.allRecipients,
-        event: SocketIOGameEvents.QUESTION_PICK,
-        timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
-        afterSequence: afterQuestionPick,
-        predicate: ({ args: [payload] }) => payload.questionId === questionId
-      })
-      .then((records) => {
-        records.forEach(({ args: [payload] }) =>
-          this.assertCompleteQuestionPreload(payload, questionId)
-        );
-        return records;
-      });
-    const immediateReveal = this.includesMediaQuestionFiles
-      ? undefined
-      : this.waitForQuestionReveal(this.allRecipients, afterQuestionPick);
+    const questionData = this.waitForQuestionData(this.allRecipients, afterQuestionPick);
+    const accepted = questionPickProbe.waitForCount(1);
 
     this.showman.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
 
-    await Promise.all([
-      questionPickProbe.waitForCount(1),
-      preloadReceived,
-      ...(immediateReveal ? [immediateReveal] : [])
-    ]);
+    await Promise.all([accepted, questionData]);
     await this.waitForActionsComplete();
-
+    // Receiving valid links must not hide a skipped readiness barrier.
+    await this.expectQuestionState(QuestionState.MEDIA_DOWNLOADING);
+    await this.expectActiveTimerDuration(MEDIA_DOWNLOAD_TIMEOUT);
     for (const actor of this.allRecipients) {
       this.assertExactInboundEventCount(
         actor,
         SocketIOGameEvents.QUESTION_PICK,
         afterQuestionPick,
-        1
-      );
-      this.assertExactInboundEventCount(
-        actor,
-        SocketIOGameEvents.QUESTION_DATA,
-        afterQuestionPick,
-        this.includesMediaQuestionFiles ? 0 : 1
+        0
       );
     }
+    this.assertExactQuestionDataCount(this.allRecipients, afterQuestionPick, 1);
 
     return afterQuestionPick;
   }
 
-  public waitForQuestionReveal(
+  private waitForQuestionData(
     actors: readonly ScenarioActor[],
     afterSequence: number
   ): Promise<readonly EventRecord<readonly [GameQuestionDataEventPayload]>[]> {
@@ -298,22 +282,31 @@ export class MediaDownloadFlow {
           predicate: ({ args: [payload] }) => payload.data.id === questionId
         })
         .then((records) => {
-          records.forEach(({ args: [payload] }) =>
-            this.assertCompleteQuestionReveal(payload, questionId)
-          );
+          records.forEach(({ actorLabel, args: [payload] }) => {
+            assertMediaQuestionData(payload, questionId, this.expectedQuestionFiles);
+            expect(payload.data.text).toBe("Simple question text");
+            if (actorLabel === this.showman.label) {
+              expect(payload.data).toHaveProperty("answerText", "Simple answer");
+            } else {
+              expect(payload.data).not.toHaveProperty("answerText");
+            }
+          });
           return records;
         }),
-      `validated question reveal for actors ${actors.map((actor) => `"${actor.label}"`).join(", ")}`
+      `validated question data for actors ${actors.map((actor) => `"${actor.label}"`).join(", ")}`
     );
   }
 
-  public assertNoQuestionReveal(actors: readonly ScenarioActor[], afterSequence: number): void {
+  public assertNoAdditionalQuestionData(
+    actors: readonly ScenarioActor[],
+    afterSequence: number
+  ): void {
     actors.forEach((actor) =>
       this.assertExactInboundEventCount(actor, SocketIOGameEvents.QUESTION_DATA, afterSequence, 0)
     );
   }
 
-  public assertExactQuestionRevealCount(
+  public assertExactQuestionDataCount(
     actors: readonly ScenarioActor[],
     afterSequence: number,
     expectedCount: number
@@ -650,18 +643,12 @@ export class MediaDownloadFlow {
     record: MediaStatusRecord,
     expected: ExpectedMediaDownloadStatus
   ): void {
-    const data = record.args[0];
-
-    expect(data.playerId).toBe(expected.playerId);
-    expect(data.mediaDownloaded).toBe(true);
-    expect(data.allPlayersReady).toBe(expected.allPlayersReady);
-
-    if (expected.timerDurationMs === null) {
-      expect(data.timer).toBeNull();
-      return;
-    }
-
-    expect(data.timer).toEqual(expect.objectContaining({ durationMs: expected.timerDurationMs }));
+    assertMediaDownloadStatus(
+      record.args[0],
+      expected.playerId,
+      expected.allPlayersReady,
+      expected.timerDurationMs
+    );
   }
 
   public assertAllMediaStatuses(
@@ -814,12 +801,6 @@ export class MediaDownloadFlow {
 
   public assertCriticalEventOrder(actor: ScenarioActor, afterSequence: number): void {
     const records = this.scenario.assert.records({ afterSequence });
-    const preload = records.find(
-      (record) =>
-        record.actorLabel === actor.label &&
-        record.direction === "inbound" &&
-        record.event === SocketIOGameEvents.QUESTION_PICK
-    );
     const mediaDownloaded = records.find(
       (record) =>
         record.actorLabel === actor.label &&
@@ -839,13 +820,11 @@ export class MediaDownloadFlow {
         record.event === SocketIOGameEvents.QUESTION_DATA
     );
 
-    expect(preload).toBeDefined();
     expect(questionData).toBeDefined();
     expect(mediaDownloaded).toBeDefined();
     expect(status).toBeDefined();
-    expect(preload!.sequence).toBeLessThan(mediaDownloaded!.sequence);
+    expect(questionData!.sequence).toBeLessThan(mediaDownloaded!.sequence);
     expect(mediaDownloaded!.sequence).toBeLessThan(status!.sequence);
-    expect(status!.sequence).toBeLessThan(questionData!.sequence);
   }
 
   public expectNoMediaDownloadStatus(
@@ -862,6 +841,20 @@ export class MediaDownloadFlow {
       ...(playerId === undefined
         ? {}
         : { predicate: ({ args: [status] }) => status.playerId === playerId })
+    });
+  }
+
+  public expectNoReadinessCompletion(
+    actors: readonly ScenarioActor[],
+    afterSequence: number
+  ): Promise<void> {
+    return this.scenario.assert.noInboundMany<readonly [MediaDownloadStatusBroadcastData]>({
+      actors,
+      event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+      afterSequence,
+      durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,
+      predicate: ({ args: [status] }) => status.allPlayersReady,
+      description: "readiness must not complete while an active player is waiting"
     });
   }
 
@@ -912,6 +905,12 @@ export class MediaDownloadFlow {
     }
 
     try {
+      this.detachScenario();
+    } catch (error) {
+      failures.push(toError(error));
+    }
+
+    try {
       await this.utils.cleanupGameClients(this.setup);
     } catch (error) {
       failures.push(toError(error));
@@ -933,45 +932,6 @@ export class MediaDownloadFlow {
     }
 
     return actor.userId;
-  }
-
-  private assertCompleteQuestionPreload(
-    payload: MediaQuestionPreloadPayload,
-    questionId: number
-  ): void {
-    expect(payload.questionId).toBe(questionId);
-    expect(payload.timer).toEqual(expect.objectContaining({ durationMs: MEDIA_DOWNLOAD_TIMEOUT }));
-    this.expectQuestionFiles(payload.questionFiles);
-  }
-
-  private assertCompleteQuestionReveal(
-    payload: GameQuestionDataEventPayload,
-    questionId: number
-  ): void {
-    expect(payload.data.id).toBe(questionId);
-    expect(payload.timer).toEqual(
-      expect.objectContaining({ durationMs: GAME_QUESTION_ANSWER_TIME })
-    );
-    this.expectQuestionFiles(payload.data.questionFiles ?? []);
-  }
-
-  private expectQuestionFiles(files: readonly PackageQuestionFileDTO[]): void {
-    if (!this.includesMediaQuestionFiles) {
-      expect(files).toEqual([]);
-      return;
-    }
-
-    expect(files).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          file: expect.objectContaining({
-            md5: TEST_MEDIA_FILE_MD5,
-            type: PackageFileType.IMAGE
-          })
-        })
-      ])
-    );
-    expect(files).toHaveLength(1);
   }
 
   private requireCurrentQuestionId(): number {

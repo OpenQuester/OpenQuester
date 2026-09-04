@@ -128,19 +128,25 @@ self-tests into gameplay scenarios, and it does not add Flutter/browser E2E cove
 - A flow helper must surface cleanup failures. If both the scenario and cleanup fail, preserve both
   errors in one aggregate.
 
-## Media test target and coverage boundary
+## Current media protocol and coverage boundary
 
-Media Download is the dedicated scenario/journal contract slice, including readiness, timeout,
-duplicate, leave, disconnect, kick, and restriction behavior. Its current **test target** is:
-`QUESTION_PICK` preloads media metadata, `QUESTION_DATA` remains absent while the readiness gate is
-closed, and the full question is revealed only after final readiness, timeout, or an equivalent
-gate-opening transition. A no-file question preloads an empty file list and auto-reveals without a
-client acknowledgement.
+The contract follows [media download synchronization](../../docs/media-download-sync.md):
+outgoing `QUESTION_PICK` produces incoming `QUESTION_DATA` containing question/file data and the
+media timer. Before **any** readiness ACK, tests assert persisted `MEDIA_DOWNLOADING` and its active
+timer. A correct data payload with an already `SHOWING` state must fail; data arrival alone is not
+proof of the readiness barrier.
 
-This target is not a claim about the current server protocol: the existing implementation and
-`server/docs/media-download-sync.md` send `QUESTION_DATA` before client readiness. The separate
-preload/reveal expectation is therefore a known backend/test-contract mismatch. Keep it visible; do
-not change production rules or weaken expectations as part of a writing-mechanism migration.
+Partial player ACKs produce `MEDIA_DOWNLOAD_STATUS` with `allPlayersReady: false` and `timer: null`;
+the active media timer remains. The final active player's ACK (or media timeout) completes readiness,
+produces the question timer in the status, and enters `SHOWING`. Showman and spectators do not block
+readiness. No-file questions use the same backend handshake, with immediate simulated client ACKs.
+There is no inbound preload `QUESTION_PICK`, nor a second `QUESTION_DATA` on readiness completion.
+
+Dedicated scenarios preserve duplicate, concurrent, leave, disconnect, kick, restriction, stale
+timeout, and queue behavior. Shared payload checks compare common fields and file links; showman-only
+answers are checked separately, never by requiring different roles' full payloads to be equal.
+Controlled infrastructure self-tests prove that omitted phases, files, or correct timers fail the
+same helper that accepts a correct flow. Those self-tests are not evidence of backend health.
 
 Media tests supply file metadata and simulate clients sending `MEDIA_DOWNLOADED`. They verify server
 coordination, event order, readiness gating, and timers. They do not download file bytes, execute

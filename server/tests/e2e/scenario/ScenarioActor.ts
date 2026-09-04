@@ -29,7 +29,8 @@ export class ScenarioActor {
   public constructor(options: ScenarioActorOptions) {
     this.label = options.label;
     this.socket = options.socket;
-    this.namespace = options.namespace ?? "unknown";
+    this.namespace =
+      options.namespace ?? (options.socket as unknown as { nsp?: string }).nsp ?? "unknown";
     this.userId = options.userId;
     this.initialGameId = options.gameId;
     this.journal = options.journal;

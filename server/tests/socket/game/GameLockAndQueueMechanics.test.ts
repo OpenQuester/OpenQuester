@@ -11,7 +11,6 @@ import {
 import { GameActionType } from "domain/enums/GameActionType";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
-import { PackageFileType } from "domain/enums/package/PackageFileType";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
@@ -55,11 +54,18 @@ import { GameActionLockService } from "application/services/lock/GameActionLockS
 import { User } from "infrastructure/database/models/User";
 import {
   GameClientSocket,
+  type GameTestSetup,
   SocketGameTestUtils
 } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
-import { TEST_MEDIA_FILE_MD5 } from "tests/utils/PackageUtils";
+import { PackageStore } from "infrastructure/database/repositories/PackageStore";
+import {
+  assertFreshTimer,
+  assertMediaQuestionData,
+  assertMediaFixtureFiles,
+  assertMediaDownloadStatus
+} from "tests/e2e/flows/media-download/MediaDownloadAssertions";
 import { TestUtils } from "tests/utils/TestUtils";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
 
@@ -80,61 +86,71 @@ interface CollectedSocketEvent<T> {
   data: T;
 }
 
-type MediaQuestionFiles = NonNullable<PackageQuestionDTO["questionFiles"]>;
-
-interface MediaQuestionPreloadPayload {
-  readonly questionId: number;
-  readonly questionFiles: MediaQuestionFiles;
-  readonly timer: GameQuestionDataEventPayload["timer"];
-}
-
-function expectMediaQuestionFiles(files: MediaQuestionFiles | undefined): void {
-  expect(files).toHaveLength(1);
-  expect(files).toEqual([
-    expect.objectContaining({
-      displayTime: null,
-      order: 0,
-      file: expect.objectContaining({
-        md5: TEST_MEDIA_FILE_MD5,
-        type: PackageFileType.IMAGE
+async function pickQueuedMediaQuestion(
+  scenario: GameScenario,
+  utils: SocketGameTestUtils,
+  setup: GameTestSetup
+): Promise<number> {
+  const { gameId, showmanSocket, playerSockets, spectatorSockets } = setup;
+  const questionId = await utils.getFirstAvailableQuestionId(gameId);
+  const question = await container.resolve(PackageStore).getQuestion(gameId, questionId);
+  expect(question?.id).toBe(questionId);
+  const files = question?.questionFiles ?? [];
+  assertMediaFixtureFiles(files);
+  const afterPick = scenario.mark();
+  const probe = scenario.createAcceptedActionProbe({
+    gameId,
+    actionType: GameActionType.QUESTION_PICK
+  });
+  const accepted = probe.waitForCount(1);
+  const data = scenario.trackExpectation(
+    scenario.assert
+      .broadcast<readonly [GameQuestionDataEventPayload]>({
+        actors: [showmanSocket, ...playerSockets, ...spectatorSockets].map((socket) =>
+          scenario.actor(socket)
+        ),
+        event: SocketIOGameEvents.QUESTION_DATA,
+        timeoutMs: TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        afterSequence: afterPick
       })
-    })
-  ]);
-}
-
-function expectFreshTimer(
-  timer: GameQuestionDataEventPayload["timer"],
-  expectedDurationMs: number
-): void {
-  expect(timer).toEqual(
-    expect.objectContaining({
-      durationMs: expectedDurationMs,
-      elapsedMs: 0,
-      resumedAt: null
-    })
+      .then((records) => {
+        for (const record of records) {
+          assertMediaQuestionData(record.args[0], questionId, files);
+          expect(record.args[0].data.text).toBe("Simple question text");
+          if (record.actorLabel === scenario.actor(showmanSocket).label) {
+            expect(record.args[0].data).toHaveProperty("answerText", "Simple answer");
+          } else {
+            expect(record.args[0].data).not.toHaveProperty("answerText");
+          }
+        }
+      }),
+    "validated queued media question data"
   );
-  expect(Number.isNaN(Date.parse(String(timer.startedAt)))).toBe(false);
+  scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
+  await Promise.all([accepted, data]);
+  await scenario.assert.waitForActionsComplete({ gameId });
+  expect(probe.records()).toHaveLength(1);
+  const state = await utils.getGameState(gameId);
+  expect(state?.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
+  assertFreshTimer(state?.timer, MEDIA_DOWNLOAD_TIMEOUT, "queued media question");
+  assertSingleQuestionData(scenario, setup, afterPick);
+  return afterPick;
 }
 
-function expectMediaQuestionPreload(
-  preload: MediaQuestionPreloadPayload,
-  questionId: number
+function assertSingleQuestionData(
+  scenario: GameScenario,
+  setup: GameTestSetup,
+  afterSequence: number
 ): void {
-  expect(preload.questionId).toBe(questionId);
-  expectMediaQuestionFiles(preload.questionFiles);
-  expectFreshTimer(preload.timer, MEDIA_DOWNLOAD_TIMEOUT);
-}
-
-function expectMediaQuestionReveal(reveal: GameQuestionDataEventPayload, questionId: number): void {
-  expect(reveal.data).toEqual(
-    expect.objectContaining({
-      id: questionId,
-      text: "Simple question text",
-      answerText: "Simple answer"
-    })
-  );
-  expectMediaQuestionFiles(reveal.data.questionFiles ?? undefined);
-  expectFreshTimer(reveal.timer, GAME_QUESTION_ANSWER_TIME);
+  for (const socket of [setup.showmanSocket, ...setup.playerSockets, ...setup.spectatorSockets]) {
+    scenario.assert.expectDirectedEventCount({
+      actor: scenario.actor(socket),
+      direction: "inbound",
+      event: SocketIOGameEvents.QUESTION_DATA,
+      afterSequence,
+      expectedCount: 1
+    });
+  }
 }
 
 async function releaseHeldGameLock(
@@ -1043,36 +1059,13 @@ describe("Game Lock and Queue Mechanics", () => {
 
         let showmanStatusEvents: EventCollector<MediaDownloadStatusBroadcastData> | null = null;
         let spectatorStatusEvents: EventCollector<MediaDownloadStatusBroadcastData> | null = null;
-        let questionRevealEvents: EventCollector<GameQuestionDataEventPayload> | null = null;
         let lockToken = "";
         let primaryFailure: unknown = NO_TEST_FAILURE;
 
         try {
           await utils.startGame(showmanSocket);
 
-          const questionId = await utils.getFirstAvailableQuestionId(gameId);
-          questionRevealEvents = scenario.collectEvents<GameQuestionDataEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_DATA,
-            1,
-            TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
-          );
-          const preloadPromise = scenario.waitForEvent<MediaQuestionPreloadPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_PICK
-          );
-          const noQuestionDataPromise = scenario.waitForNoEvent(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_DATA
-          );
-          scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-          const [preload] = await Promise.all([preloadPromise, noQuestionDataPromise]);
-
-          expectMediaQuestionPreload(preload, questionId);
-          expect(questionRevealEvents.count()).toBe(0);
-
-          const mediaDownloadState = await utils.getGameState(gameId);
-          expect(mediaDownloadState!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
+          const afterQuestionPick = await pickQueuedMediaQuestion(scenario, utils, setup);
 
           const mediaDownloadActions = playerSockets.map((socket, index) => ({
             socket,
@@ -1085,6 +1078,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const afterDownload = scenario.mark();
+          const accepted = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.MEDIA_DOWNLOADED
+          });
+          const allAccepted = accepted.waitForCount(mediaDownloadActions.length);
           let queuedMediaDownloadCount = 0;
           for (const action of queuedMediaDownloadActions) {
             scenario.actor(action.socket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
@@ -1102,17 +1101,17 @@ describe("Game Lock and Queue Mechanics", () => {
             SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
             mediaDownloadActions.length
           );
-          expect(questionRevealEvents.count()).toBe(0);
+          assertSingleQuestionData(scenario, setup, afterQuestionPick);
 
           lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
           const startedAt = Date.now();
           scenario.actor(drainTriggerAction.socket).emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
 
-          const [showmanStatuses, spectatorStatuses, [questionReveal]] = await Promise.all([
+          const [showmanStatuses, spectatorStatuses] = await Promise.all([
             showmanStatusEvents.promise,
             spectatorStatusEvents.promise,
-            questionRevealEvents.promise
+            allAccepted
           ]);
           await utils.waitForActionsComplete(gameId);
           const durationMs = Date.now() - startedAt;
@@ -1133,22 +1132,42 @@ describe("Game Lock and Queue Mechanics", () => {
 
           expect(statusOrder(showmanStatuses)).toEqual(expectedStatusOrder);
           expect(statusOrder(spectatorStatuses)).toEqual(expectedStatusOrder);
-          expectMediaQuestionReveal(questionReveal, questionId);
-          expect(questionRevealEvents.count()).toBe(1);
+          for (const statuses of [showmanStatuses, spectatorStatuses]) {
+            statuses.forEach((status, index) =>
+              assertMediaDownloadStatus(
+                status,
+                mediaDownloadActions[index].playerId,
+                index === mediaDownloadActions.length - 1
+              )
+            );
+          }
+          expect(accepted.records()).toHaveLength(mediaDownloadActions.length);
+          scenario.assert.expectOutboundCommandCount({
+            event: SocketIOGameEvents.MEDIA_DOWNLOADED,
+            afterSequence: afterDownload,
+            expectedCount: mediaDownloadActions.length
+          });
+          for (const socket of [showmanSocket, spectatorSockets[0]]) {
+            scenario.assert.expectDirectedEventCount({
+              actor: scenario.actor(socket),
+              direction: "inbound",
+              event: SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+              afterSequence: afterDownload,
+              expectedCount: mediaDownloadActions.length
+            });
+          }
+          assertSingleQuestionData(scenario, setup, afterQuestionPick);
           expect(durationMs).toBeLessThanOrEqual(QUEUE_DRAIN_BUDGET_MS);
 
           const finalState = await utils.getGameState(gameId);
           expect(finalState!.questionState).toBe(QuestionState.SHOWING);
+          assertFreshTimer(finalState?.timer, GAME_QUESTION_ANSWER_TIME, "queue media completion");
         } catch (error) {
           primaryFailure = error;
         } finally {
           await finishTestCleanup(
             primaryFailure,
-            [
-              showmanStatusEvents ?? undefined,
-              spectatorStatusEvents ?? undefined,
-              questionRevealEvents ?? undefined
-            ],
+            [showmanStatusEvents ?? undefined, spectatorStatusEvents ?? undefined],
             async () => {
               lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
             }
@@ -1169,47 +1188,30 @@ describe("Game Lock and Queue Mechanics", () => {
         let spectatorDrainEvents: EventCollector<
           CollectedSocketEvent<MediaDownloadStatusBroadcastData | PlayerScoreChangeBroadcastData>
         > | null = null;
-        let questionRevealEvents: EventCollector<GameQuestionDataEventPayload> | null = null;
         let lockToken = "";
         let primaryFailure: unknown = NO_TEST_FAILURE;
 
         try {
           await utils.startGame(showmanSocket);
 
-          const questionId = await utils.getFirstAvailableQuestionId(gameId);
-          questionRevealEvents = scenario.collectEvents<GameQuestionDataEventPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_DATA,
-            1,
-            TEST_TIMEOUTS.SOCKET_TIMER_EVENT_WAIT_MS
-          );
-          const preloadPromise = scenario.waitForEvent<MediaQuestionPreloadPayload>(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_PICK
-          );
-          const noQuestionDataPromise = scenario.waitForNoEvent(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_DATA
-          );
-          scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-          const [preload] = await Promise.all([preloadPromise, noQuestionDataPromise]);
-
-          expectMediaQuestionPreload(preload, questionId);
-          expect(questionRevealEvents.count()).toBe(0);
-
-          const mediaDownloadState = await utils.getGameState(gameId);
-          expect(mediaDownloadState!.questionState).toBe(QuestionState.MEDIA_DOWNLOADING);
+          const afterQuestionPick = await pickQueuedMediaQuestion(scenario, utils, setup);
 
           const lock = await lockService.acquireLock(gameId);
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const timeoutProbe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED
+          });
+          const timeoutAccepted = timeoutProbe.waitForCount(1);
           await testUtils.expireTimerAndWaitForAction(
             gameId,
             GameActionType.TIMER_MEDIA_DOWNLOAD_EXPIRED
           );
+          await timeoutAccepted;
           await utils.waitForQueueLengthAtLeast(gameId, 1);
-          expect(questionRevealEvents.count()).toBe(0);
+          assertSingleQuestionData(scenario, setup, afterQuestionPick);
 
           const drainTriggerScore = 333;
           const drainEvents = [
@@ -1236,16 +1238,22 @@ describe("Game Lock and Queue Mechanics", () => {
 
           lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
 
+          const scoreProbe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_SCORE_CHANGE
+          });
+          const scoreAccepted = scoreProbe.waitForCount(1);
+          const afterScore = scenario.mark();
           const startedAt = Date.now();
           scenario.actor(showmanSocket).emit(SocketIOGameEvents.SCORE_CHANGED, {
             playerId: playerUsers[0].id,
             newScore: drainTriggerScore
           });
 
-          const [showmanEvents, spectatorEvents, [questionReveal]] = await Promise.all([
+          const [showmanEvents, spectatorEvents] = await Promise.all([
             showmanDrainEvents.promise,
             spectatorDrainEvents.promise,
-            questionRevealEvents.promise
+            scoreAccepted
           ]);
           await utils.waitForActionsComplete(gameId);
           const durationMs = Date.now() - startedAt;
@@ -1260,8 +1268,26 @@ describe("Game Lock and Queue Mechanics", () => {
 
           expect(eventOrder(showmanEvents)).toEqual(drainEvents);
           expect(eventOrder(spectatorEvents)).toEqual(drainEvents);
-          expectMediaQuestionReveal(questionReveal, questionId);
-          expect(questionRevealEvents.count()).toBe(1);
+          assertSingleQuestionData(scenario, setup, afterQuestionPick);
+          expect(timeoutProbe.records()).toHaveLength(1);
+          expect(scoreProbe.records()).toHaveLength(1);
+          scenario.assert.expectOutboundCommandCount({
+            actor: scenario.actor(showmanSocket),
+            event: SocketIOGameEvents.SCORE_CHANGED,
+            afterSequence: afterScore,
+            expectedCount: 1
+          });
+          for (const socket of [showmanSocket, spectatorSockets[0]]) {
+            for (const event of drainEvents) {
+              scenario.assert.expectDirectedEventCount({
+                actor: scenario.actor(socket),
+                direction: "inbound",
+                event,
+                afterSequence: afterQuestionPick,
+                expectedCount: 1
+              });
+            }
+          }
 
           const timeoutStatus = showmanEvents[0].data as MediaDownloadStatusBroadcastData;
           expect(timeoutStatus.playerId).toBe(SYSTEM_PLAYER_ID);
@@ -1269,6 +1295,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(timeoutStatus.allPlayersReady).toBe(true);
           expect(timeoutStatus.timer).toBeDefined();
           expect(timeoutStatus.timer).not.toBeNull();
+          assertMediaDownloadStatus(timeoutStatus, SYSTEM_PLAYER_ID, true);
+          assertMediaDownloadStatus(
+            spectatorEvents[0].data as MediaDownloadStatusBroadcastData,
+            SYSTEM_PLAYER_ID,
+            true
+          );
           expect(showmanEvents[1].data).toEqual({
             playerId: playerUsers[0].id,
             newScore: drainTriggerScore
@@ -1277,6 +1309,7 @@ describe("Game Lock and Queue Mechanics", () => {
 
           const finalState = await utils.getGameState(gameId);
           expect(finalState!.questionState).toBe(QuestionState.SHOWING);
+          assertFreshTimer(finalState?.timer, GAME_QUESTION_ANSWER_TIME, "queue media completion");
 
           const finalGame = await utils.getGameFromGameService(gameId);
           const activePlayersReady = finalGame.players
@@ -1292,11 +1325,7 @@ describe("Game Lock and Queue Mechanics", () => {
         } finally {
           await finishTestCleanup(
             primaryFailure,
-            [
-              showmanDrainEvents ?? undefined,
-              spectatorDrainEvents ?? undefined,
-              questionRevealEvents ?? undefined
-            ],
+            [showmanDrainEvents ?? undefined, spectatorDrainEvents ?? undefined],
             async () => {
               lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
             }

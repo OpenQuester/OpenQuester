@@ -6,6 +6,10 @@ media content for questions. The game remains in `MEDIA_DOWNLOADING` until all
 active players are ready or the media timeout expires, then transitions to
 `SHOWING` with the normal question timer.
 
+The readiness barrier includes only active players (`PLAYER` / `IN_GAME`), not
+the showman or spectators. Regular questions without files still use this
+handshake; the client sends its acknowledgement immediately.
+
 ## Event Flow Diagram
 
 ```
@@ -18,7 +22,7 @@ active players are ready or the media timeout expires, then transitions to
        │                                   │                                   │
        │  2. QUESTION_DATA event           │  2. QUESTION_DATA event           │
        │ <─────────────────────────────────┤──────────────────────────────────>│
-       │    (mediaDownloaded: false)       │    (mediaDownloaded: false)       │
+       │    (question data, media timer)    │    (question data, media timer)   │
        │                                   │                                   │
        │  3. Download/Load media           │                                   │  3. Download/Load media
        │     ⏳                            │                                   │     ⏳
@@ -67,10 +71,12 @@ Legend:
 
 3. **Event Flow**
    - When a question is picked, all players' `mediaDownloaded` status is reset to `false`
+   - Outgoing `QUESTION_PICK` receives personalized `QUESTION_DATA` with file links and the media timer
    - Client downloads/loads media and sends `MEDIA_DOWNLOADED` event
    - Server broadcasts `MEDIA_DOWNLOAD_STATUS` to all clients with `allPlayersReady` flag
    - All clients update their UI to show which players have downloaded media
    - When `allPlayersReady` is `true`, clients start media playback synchronously
+   - Readiness completion does not emit a second `QUESTION_DATA` or an inbound `QUESTION_PICK`
 
 3. **Timer semantics**
    - Picking a regular question starts the `MEDIA_DOWNLOAD_TIMEOUT` timer.

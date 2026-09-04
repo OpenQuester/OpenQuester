@@ -1,5 +1,3 @@
-import { isDeepStrictEqual } from "node:util";
-
 import { container } from "tsyringe";
 
 import { GAME_QUESTION_ANSWER_TIME, MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
@@ -8,10 +6,8 @@ import { Player } from "domain/entities/game/Player";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
 import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
-import { GameStateTimerDTO } from "domain/types/dto/game/state/GameStateTimerDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
-import { PackageQuestionFileDTO } from "domain/types/dto/package/PackageQuestionFileDTO";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
@@ -22,26 +18,20 @@ import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEvent
 import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
+import {
+  assertFreshTimer,
+  assertMediaQuestionData,
+  assertMediaDownloadStatus
+} from "tests/e2e/flows/media-download/MediaDownloadAssertions";
 
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
 import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
 import { GameClientSocket } from "./SocketIOGameTestUtils";
 
-interface MediaQuestionPreloadPayload {
-  readonly questionId: number;
-  readonly questionFiles: readonly PackageQuestionFileDTO[];
-  readonly timer: GameStateTimerDTO;
-}
-
 interface QuestionPickExpectation {
   readonly event: SocketIOGameEvents;
   readonly question: PackageQuestionDTO;
-}
-
-interface ArmedQuestionReveal {
-  readonly controller: AbortController;
-  readonly promise: Promise<GameQuestionDataEventPayload>;
 }
 
 export class SocketGameTestFlowUtils {
@@ -80,21 +70,7 @@ export class SocketGameTestFlowUtils {
       );
     }
 
-    const expectedFiles = currentQuestion.questionFiles ?? [];
-    const reveal = this._armQuestionReveal(showmanSocket, currentQuestion.id);
-
-    try {
-      await this._acknowledgeMediaDownload(showmanSocket, playerSockets);
-      this._assertQuestionReveal(await reveal.promise, currentQuestion.id, expectedFiles);
-      await this._expectQuestionState(
-        showmanSocket,
-        QuestionState.SHOWING,
-        "finish media download"
-      );
-    } finally {
-      reveal.controller.abort();
-      await Promise.allSettled([reveal.promise]);
-    }
+    await this._acknowledgeMediaDownload(showmanSocket, playerSockets);
   }
 
   private async _acknowledgeMediaDownload(
@@ -119,7 +95,14 @@ export class SocketGameTestFlowUtils {
 
       try {
         playerSocket.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
-        this._assertMediaDownloadStatus(await statusPromise, playerId, expectedAllPlayersReady);
+        assertMediaDownloadStatus(await statusPromise, playerId, expectedAllPlayersReady);
+        await this._expectQuestionState(
+          showmanSocket,
+          expectedAllPlayersReady ? QuestionState.SHOWING : QuestionState.MEDIA_DOWNLOADING,
+          expectedAllPlayersReady
+            ? "finish media download"
+            : "keep partial readiness in media download"
+        );
       } catch (error) {
         const failure = toError(error);
         const detail = failure.cause instanceof Error ? failure.cause : failure;
@@ -182,75 +165,32 @@ export class SocketGameTestFlowUtils {
     questionId: number,
     question: PackageQuestionDTO
   ): Promise<void> {
-    const expectedFiles = question.questionFiles ?? [];
-    const eventOrder: SocketIOGameEvents[] = [];
-    const preloadController = new AbortController();
-    const preloadPromise = this.eventUtils.waitForEventMatching<MediaQuestionPreloadPayload>(
+    const controller = new AbortController();
+    const questionData = this.eventUtils.waitForEventMatching<GameQuestionDataEventPayload>(
       showmanSocket,
-      SocketIOGameEvents.QUESTION_PICK,
-      (payload) => {
-        if (payload?.questionId !== questionId) {
-          return false;
-        }
-
-        eventOrder.push(SocketIOGameEvents.QUESTION_PICK);
-        return true;
-      },
+      SocketIOGameEvents.QUESTION_DATA,
+      (payload) => payload?.data?.id === questionId,
       TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
-      preloadController.signal
+      controller.signal
     );
-    const reveal = this._armQuestionReveal(showmanSocket, questionId, eventOrder);
-    const noRevealPromise =
-      expectedFiles.length > 0
-        ? this.eventUtils.waitForNoEvent(showmanSocket, SocketIOGameEvents.QUESTION_DATA)
-        : undefined;
-    void preloadPromise.catch(() => undefined);
-    void noRevealPromise?.catch(() => undefined);
+    void questionData.catch(() => undefined);
 
     try {
       showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
-
-      if (expectedFiles.length === 0) {
-        const [preload, questionReveal] = await Promise.all([preloadPromise, reveal.promise]);
-        this._assertQuestionPreload(preload, questionId, expectedFiles);
-        this._assertQuestionReveal(questionReveal, questionId, expectedFiles);
-        this._assertQuestionEventOrder(eventOrder);
-        await this._expectQuestionState(
-          showmanSocket,
-          QuestionState.SHOWING,
-          "auto-reveal a no-file question"
-        );
-        return;
-      }
-
-      const [preload] = await Promise.all([preloadPromise, noRevealPromise!]);
-      this._assertQuestionPreload(preload, questionId, expectedFiles);
+      assertMediaQuestionData(await questionData, questionId, question.questionFiles ?? []);
+      // QUESTION_DATA delivers the links, not proof that readiness has finished.
       await this._expectQuestionState(
         showmanSocket,
         QuestionState.MEDIA_DOWNLOADING,
         "wait for media readiness"
       );
-
-      if (playerSockets.length === 0) {
-        return;
+      if (playerSockets.length > 0) {
+        // No-file clients ACK immediately too; the backend uses the same handshake.
+        await this._acknowledgeMediaDownload(showmanSocket, playerSockets);
       }
-
-      await this._acknowledgeMediaDownload(showmanSocket, playerSockets);
-      this._assertQuestionReveal(await reveal.promise, questionId, expectedFiles);
-      this._assertQuestionEventOrder(eventOrder);
-      await this._expectQuestionState(
-        showmanSocket,
-        QuestionState.SHOWING,
-        "finish media download"
-      );
     } finally {
-      preloadController.abort();
-      reveal.controller.abort();
-      await Promise.allSettled([
-        preloadPromise,
-        reveal.promise,
-        ...(noRevealPromise ? [noRevealPromise] : [])
-      ]);
+      controller.abort();
+      await Promise.allSettled([questionData]);
     }
   }
 
@@ -320,31 +260,6 @@ export class SocketGameTestFlowUtils {
     return { event, question };
   }
 
-  private _armQuestionReveal(
-    showmanSocket: GameClientSocket,
-    questionId: number,
-    eventOrder?: SocketIOGameEvents[]
-  ): ArmedQuestionReveal {
-    const controller = new AbortController();
-    const promise = this.eventUtils.waitForEventMatching<GameQuestionDataEventPayload>(
-      showmanSocket,
-      SocketIOGameEvents.QUESTION_DATA,
-      (payload) => {
-        if (payload?.data?.id !== questionId) {
-          return false;
-        }
-
-        eventOrder?.push(SocketIOGameEvents.QUESTION_DATA);
-        return true;
-      },
-      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
-      controller.signal
-    );
-    void promise.catch(() => undefined);
-
-    return { controller, promise };
-  }
-
   private async _expectQuestionState(
     showmanSocket: GameClientSocket,
     expectedState: QuestionState,
@@ -365,111 +280,14 @@ export class SocketGameTestFlowUtils {
       );
     }
 
+    assertFreshTimer(
+      gameState.timer,
+      expectedState === QuestionState.MEDIA_DOWNLOADING
+        ? MEDIA_DOWNLOAD_TIMEOUT
+        : GAME_QUESTION_ANSWER_TIME,
+      operation
+    );
     return gameState;
-  }
-
-  private _assertQuestionPreload(
-    payload: MediaQuestionPreloadPayload,
-    questionId: number,
-    expectedFiles: readonly PackageQuestionFileDTO[]
-  ): void {
-    if (payload?.questionId !== questionId) {
-      throw new Error(
-        `Question preload expected questionId=${questionId}, received ${JSON.stringify(payload)}`
-      );
-    }
-
-    this._assertQuestionFiles(payload.questionFiles, expectedFiles, "preload");
-    this._assertTimer(payload.timer, MEDIA_DOWNLOAD_TIMEOUT, "question preload");
-  }
-
-  private _assertQuestionReveal(
-    payload: GameQuestionDataEventPayload,
-    questionId: number,
-    expectedFiles: readonly PackageQuestionFileDTO[]
-  ): void {
-    if (payload?.data?.id !== questionId) {
-      throw new Error(
-        `Question reveal expected questionId=${questionId}, received ${JSON.stringify(payload)}`
-      );
-    }
-
-    this._assertQuestionFiles(payload.data.questionFiles ?? [], expectedFiles, "reveal");
-    this._assertTimer(payload.timer, GAME_QUESTION_ANSWER_TIME, "question reveal");
-  }
-
-  private _assertQuestionFiles(
-    actualFiles: readonly PackageQuestionFileDTO[] | undefined,
-    expectedFiles: readonly PackageQuestionFileDTO[],
-    operation: string
-  ): void {
-    if (!isDeepStrictEqual(actualFiles, expectedFiles)) {
-      throw new Error(
-        `Question ${operation} files mismatch: expected ${JSON.stringify(expectedFiles)}, ` +
-          `received ${JSON.stringify(actualFiles)}`
-      );
-    }
-  }
-
-  private _assertMediaDownloadStatus(
-    status: MediaDownloadStatusBroadcastData,
-    playerId: number,
-    expectedAllPlayersReady: boolean
-  ): void {
-    if (
-      status?.playerId !== playerId ||
-      status.mediaDownloaded !== true ||
-      status.allPlayersReady !== expectedAllPlayersReady
-    ) {
-      throw new Error(
-        `expected playerId=${playerId}, mediaDownloaded=true, ` +
-          `allPlayersReady=${expectedAllPlayersReady}; received ${JSON.stringify(status)}`
-      );
-    }
-
-    if (expectedAllPlayersReady) {
-      this._assertTimer(
-        status.timer ?? undefined,
-        GAME_QUESTION_ANSWER_TIME,
-        "final media readiness"
-      );
-    } else if (status.timer !== null) {
-      throw new Error(
-        `Partial media readiness expected timer=null, received ${JSON.stringify(status.timer)}`
-      );
-    }
-  }
-
-  private _assertTimer(
-    timer: GameStateTimerDTO | undefined,
-    expectedDurationMs: number,
-    operation: string
-  ): void {
-    const startedAt = timer?.startedAt;
-    const startedAtMs =
-      startedAt instanceof Date ? startedAt.getTime() : Date.parse(String(startedAt));
-
-    if (
-      !timer ||
-      timer.durationMs !== expectedDurationMs ||
-      timer.elapsedMs !== 0 ||
-      timer.resumedAt !== null ||
-      Number.isNaN(startedAtMs)
-    ) {
-      throw new Error(
-        `${operation} expected a fresh ${expectedDurationMs}ms timer, received ${JSON.stringify(timer)}`
-      );
-    }
-  }
-
-  private _assertQuestionEventOrder(eventOrder: readonly SocketIOGameEvents[]): void {
-    const expectedOrder = [SocketIOGameEvents.QUESTION_PICK, SocketIOGameEvents.QUESTION_DATA];
-    if (!isDeepStrictEqual(eventOrder, expectedOrder)) {
-      throw new Error(
-        `Question events arrived out of order: expected ${JSON.stringify(expectedOrder)}, ` +
-          `received ${JSON.stringify(eventOrder)}`
-      );
-    }
   }
 
   // ============================================================================

@@ -76,157 +76,104 @@ describe("SocketGameTestFlowUtils reliability", () => {
     });
   });
 
-  it("enforces preload, closed gate, readiness, and reveal for a regular media question", async () => {
-    const { flow, stateUtils, eventUtils, userUtils } = createFixture();
-    const showman = createSocket("game-1");
-    const players = [createSocket("game-1", "player-11"), createSocket("game-1", "player-12")];
-    const questionFiles = createQuestionFiles();
-    const question = createQuestion(questionFiles);
-    stateUtils.getGame.mockResolvedValue({
-      gameState: { currentRound: {} }
-    } as Game);
-    stateUtils.getGameState
-      .mockResolvedValueOnce(mediaDownloadingState(question))
-      .mockResolvedValueOnce({ questionState: QuestionState.SHOWING });
-    userUtils.getUserIdFromSocket.mockResolvedValueOnce(11).mockResolvedValueOnce(12);
-    mockQuestionPickExpectation(flow, SocketIOGameEvents.QUESTION_PICK, question);
-    const events = createEventHarness(eventUtils);
-    (showman.emit as jest.Mock).mockImplementation((...args: unknown[]) => {
-      const event = args[0];
-      if (event === SocketIOGameEvents.QUESTION_PICK) {
-        events.emit(SocketIOGameEvents.QUESTION_PICK, questionPreload(42, questionFiles));
-        events.settleNoEvent(SocketIOGameEvents.QUESTION_DATA);
-      }
-    });
-    (players[0].emit as jest.Mock).mockImplementation((...args: unknown[]) => {
-      const event = args[0];
-      if (event === SocketIOGameEvents.MEDIA_DOWNLOADED) {
-        events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, mediaStatus(11, true, false));
-      }
-    });
-    (players[1].emit as jest.Mock).mockImplementation((...args: unknown[]) => {
-      const event = args[0];
-      if (event === SocketIOGameEvents.MEDIA_DOWNLOADED) {
-        events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, mediaStatus(12, true, true));
-        events.emit(SocketIOGameEvents.QUESTION_DATA, questionReveal(42, questionFiles));
-      }
-    });
-
-    await expect(flow.pickQuestion(showman, 42, players)).resolves.toBeUndefined();
-
-    expect(userUtils.getUserIdFromSocket).toHaveBeenNthCalledWith(1, players[0]);
-    expect(userUtils.getUserIdFromSocket).toHaveBeenNthCalledWith(2, players[1]);
-    expect(eventUtils.waitForNoEvent).toHaveBeenCalledWith(
-      showman,
-      SocketIOGameEvents.QUESTION_DATA
-    );
-    expect(eventUtils.waitForEventMatching).toHaveBeenCalledTimes(4);
-    expect(players[0].emit).toHaveBeenCalledWith(SocketIOGameEvents.MEDIA_DOWNLOADED);
-    expect(players[1].emit).toHaveBeenCalledWith(SocketIOGameEvents.MEDIA_DOWNLOADED);
-    expect(eventUtils.waitForEventMatching.mock.invocationCallOrder[0]).toBeLessThan(
-      (showman.emit as jest.Mock).mock.invocationCallOrder[0]
-    );
-    expect(eventUtils.waitForEventMatching.mock.invocationCallOrder[1]).toBeLessThan(
-      (showman.emit as jest.Mock).mock.invocationCallOrder[0]
-    );
-    expect(eventUtils.waitForNoEvent.mock.invocationCallOrder[0]).toBeLessThan(
-      (showman.emit as jest.Mock).mock.invocationCallOrder[0]
-    );
-    expect(eventUtils.waitForEventMatching.mock.invocationCallOrder[2]).toBeLessThan(
-      (players[0].emit as jest.Mock).mock.invocationCallOrder[0]
-    );
-    expect(eventUtils.waitForEventMatching.mock.invocationCallOrder[3]).toBeLessThan(
-      (players[1].emit as jest.Mock).mock.invocationCallOrder[0]
-    );
-    expect(eventUtils.emitAndWaitForEvent).not.toHaveBeenCalled();
-  });
-
-  it("rejects a full question reveal before the media gate opens", async () => {
-    const { flow, stateUtils, eventUtils } = createFixture();
-    const showman = createSocket("game-1");
-    const player = createSocket("game-1", "player-11");
-    const questionFiles = createQuestionFiles();
-    const question = createQuestion(questionFiles);
-    stateUtils.getGame.mockResolvedValue({
-      gameState: { currentRound: {} }
-    } as Game);
-    mockQuestionPickExpectation(flow, SocketIOGameEvents.QUESTION_PICK, question);
-    const events = createEventHarness(eventUtils);
-    (showman.emit as jest.Mock).mockImplementation((...args: unknown[]) => {
-      const event = args[0];
-      if (event === SocketIOGameEvents.QUESTION_PICK) {
-        events.emit(SocketIOGameEvents.QUESTION_PICK, questionPreload(42, questionFiles));
-        events.emit(SocketIOGameEvents.QUESTION_DATA, questionReveal(42, questionFiles));
-      }
-    });
-
-    await expect(flow.pickQuestion(showman, 42, [player])).rejects.toThrow(
-      'Unexpected Socket.IO event "question-data"'
-    );
-
-    expect(eventUtils.waitForNoEvent).toHaveBeenCalledTimes(1);
-    expect(player.emit).not.toHaveBeenCalled();
-  });
-
-  it("auto-reveals a no-file question without client acknowledgement", async () => {
-    const { flow, stateUtils, eventUtils } = createFixture();
-    const showman = createSocket("game-1");
-    const player = createSocket("game-1", "player-11");
-    const question = createQuestion([]);
-    stateUtils.getGame.mockResolvedValue({
-      gameState: { currentRound: {} }
-    } as Game);
-    stateUtils.getGameState.mockResolvedValue({
-      questionState: QuestionState.SHOWING
-    });
-    mockQuestionPickExpectation(flow, SocketIOGameEvents.QUESTION_PICK, question);
-    const events = createEventHarness(eventUtils);
-    (showman.emit as jest.Mock).mockImplementation((...args: unknown[]) => {
-      const event = args[0];
-      if (event === SocketIOGameEvents.QUESTION_PICK) {
-        events.emit(SocketIOGameEvents.QUESTION_PICK, questionPreload(42, []));
-        events.emit(SocketIOGameEvents.QUESTION_DATA, questionReveal(42, []));
-      }
-    });
-
-    await expect(flow.pickQuestion(showman, 42, [player])).resolves.toBeUndefined();
-
-    expect(eventUtils.waitForNoEvent).not.toHaveBeenCalled();
-    expect(player.emit).not.toHaveBeenCalled();
-  });
-
-  it("matches every media acknowledgement to exact readiness data", async () => {
-    const { flow, stateUtils, eventUtils, userUtils } = createFixture();
-    const showman = createSocket("game-1");
-    const players = [createSocket("game-1", "player-11"), createSocket("game-1", "player-12")];
-    const question = createQuestion(createQuestionFiles());
-    stateUtils.getGameState
-      .mockResolvedValueOnce(mediaDownloadingState(question))
-      .mockResolvedValueOnce({ questionState: QuestionState.SHOWING });
-    userUtils.getUserIdFromSocket.mockResolvedValueOnce(11).mockResolvedValueOnce(12);
-    const events = createEventHarness(eventUtils);
-    (players[0].emit as jest.Mock).mockImplementation((...args: unknown[]) => {
-      const event = args[0];
-      if (event === SocketIOGameEvents.MEDIA_DOWNLOADED) {
-        events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, mediaStatus(99, true, false));
-        events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, mediaStatus(11, true, false));
-      }
-    });
-    (players[1].emit as jest.Mock).mockImplementation((...args: unknown[]) => {
-      const event = args[0];
-      if (event === SocketIOGameEvents.MEDIA_DOWNLOADED) {
-        events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, mediaStatus(12, true, true));
-        events.emit(
-          SocketIOGameEvents.QUESTION_DATA,
-          questionReveal(42, question.questionFiles ?? [])
+  it.each([true, false])(
+    "uses QUESTION_DATA then player ACKs (has files: %s)",
+    async (hasFiles) => {
+      const { flow, showman, players, eventUtils, userUtils } = createRegularMediaFixture(hasFiles);
+      await expect(flow.pickQuestion(showman, 42, players)).resolves.toBeUndefined();
+      expect(eventUtils.waitForEventMatching).toHaveBeenCalledTimes(3);
+      expect(eventUtils.waitForEventMatching.mock.calls.map((call) => call[1])).toEqual([
+        SocketIOGameEvents.QUESTION_DATA,
+        SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+        SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS
+      ]);
+      for (const [index, player] of players.entries()) {
+        expect(userUtils.getUserIdFromSocket).toHaveBeenNthCalledWith(index + 1, player);
+        expect(player.emit).toHaveBeenCalledTimes(1);
+        expect(eventUtils.waitForEventMatching.mock.invocationCallOrder[index + 1]).toBeLessThan(
+          (player.emit as jest.Mock).mock.invocationCallOrder[0]
         );
       }
+      expect(eventUtils.waitForEventMatching.mock.invocationCallOrder[0]).toBeLessThan(
+        (showman.emit as jest.Mock).mock.invocationCallOrder[0]
+      );
+      expect(eventUtils.waitForNoEvent).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([
+    [
+      "skipped media phase",
+      QuestionState.SHOWING,
+      MEDIA_DOWNLOAD_TIMEOUT,
+      "expected media_downloading"
+    ],
+    [
+      "wrong active media timer",
+      QuestionState.MEDIA_DOWNLOADING,
+      GAME_QUESTION_ANSWER_TIME,
+      "fresh 10000ms timer"
+    ]
+  ])(
+    "rejects correct QUESTION_DATA with %s before sending any ACK",
+    async (_name, questionState, duration, message) => {
+      const { flow, showman, players, stateUtils, question } = createRegularMediaFixture();
+      stateUtils.getGameState.mockResolvedValue({
+        ...mediaDownloadingState(question),
+        questionState,
+        timer: timer(duration)
+      });
+      await expect(flow.pickQuestion(showman, 42, players)).rejects.toThrow(message);
+      players.forEach((player) => expect(player.emit).not.toHaveBeenCalled());
+    }
+  );
+
+  it.each(["missing files", "missing link", "wrong payload timer"] as const)(
+    "rejects %s in QUESTION_DATA",
+    async (defect) => {
+      const { flow, showman, players, events, question } = createRegularMediaFixture();
+      const data = questionData(42, question.questionFiles ?? []);
+      if (defect === "missing files") data.data.questionFiles = [];
+      if (defect === "missing link") {
+        data.data.questionFiles = createQuestionFiles().map((entry) => ({
+          ...entry,
+          file: { ...entry.file, link: undefined }
+        }));
+      }
+      if (defect === "wrong payload timer") data.timer = timer(GAME_QUESTION_ANSWER_TIME);
+      (showman.emit as jest.Mock).mockImplementation(() =>
+        events.emit(SocketIOGameEvents.QUESTION_DATA, data)
+      );
+      await expect(flow.pickQuestion(showman, 42, players)).rejects.toThrow(
+        defect === "wrong payload timer" ? "fresh 10000ms timer" : "files mismatch"
+      );
+      players.forEach((player) => expect(player.emit).not.toHaveBeenCalled());
+    }
+  );
+
+  it("rejects an early phase transition even if a partial status claims the barrier is still closed", async () => {
+    const { flow, showman, players, events, stateUtils, question } = createRegularMediaFixture();
+    (players[0].emit as jest.Mock).mockImplementation(() => {
+      stateUtils.getGameState.mockResolvedValue({
+        ...mediaDownloadingState(question),
+        questionState: QuestionState.SHOWING
+      });
+      events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, mediaStatus(11, true, false));
     });
+    await expect(flow.pickQuestion(showman, 42, players)).rejects.toThrow(
+      "expected media_downloading"
+    );
+    expect(players[1].emit).not.toHaveBeenCalled();
+  });
 
+  it("matches every acknowledgement to the requested player's status", async () => {
+    const { flow, showman, players, events } = createRegularMediaFixture();
+    (players[0].emit as jest.Mock).mockImplementation(() => {
+      events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, mediaStatus(99, true, false));
+      events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, mediaStatus(11, true, false));
+    });
     await expect(flow.waitForMediaDownload(showman, players)).resolves.toBeUndefined();
-
-    expect(players[0].emit).toHaveBeenCalledTimes(1);
-    expect(players[1].emit).toHaveBeenCalledTimes(1);
+    players.forEach((player) => expect(player.emit).toHaveBeenCalledTimes(1));
   });
 
   it.each([
@@ -247,36 +194,30 @@ describe("SocketGameTestFlowUtils reliability", () => {
       statuses: [mediaStatus(11, true, false), mediaStatus(12, true, false)],
       expectedMessage: "allPlayersReady=true",
       expectedEmitCounts: [1, 1]
+    },
+    {
+      name: "wrong final timer",
+      statuses: [
+        mediaStatus(11, true, false),
+        { ...mediaStatus(12, true, true), timer: timer(MEDIA_DOWNLOAD_TIMEOUT) }
+      ],
+      expectedMessage: `fresh ${GAME_QUESTION_ANSWER_TIME}ms timer`,
+      expectedEmitCounts: [1, 1]
     }
   ])("fails immediately on $name", async ({ statuses, expectedMessage, expectedEmitCounts }) => {
-    const { flow, stateUtils, eventUtils, userUtils } = createFixture();
-    const showman = createSocket("game-1");
-    const players = [createSocket("game-1", "player-11"), createSocket("game-1", "player-12")];
-    const question = createQuestion(createQuestionFiles());
-    stateUtils.getGameState.mockResolvedValue(mediaDownloadingState(question));
-    userUtils.getUserIdFromSocket.mockResolvedValueOnce(11).mockResolvedValueOnce(12);
-    const events = createEventHarness(eventUtils);
-    (players[0].emit as jest.Mock).mockImplementation((...args: unknown[]) => {
-      const event = args[0];
-      if (event === SocketIOGameEvents.MEDIA_DOWNLOADED && statuses[0]) {
-        events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, statuses[0]);
-      }
+    const { flow, showman, players, events, eventUtils } = createRegularMediaFixture();
+    players.forEach((player, index) => {
+      (player.emit as jest.Mock).mockImplementation(() =>
+        events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, statuses[index])
+      );
     });
-    (players[1].emit as jest.Mock).mockImplementation((...args: unknown[]) => {
-      const event = args[0];
-      if (event === SocketIOGameEvents.MEDIA_DOWNLOADED && statuses[1]) {
-        events.emit(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, statuses[1]);
-      }
-    });
-
     await expect(flow.waitForMediaDownload(showman, players)).rejects.toThrow(expectedMessage);
-
-    expect(players[0].emit).toHaveBeenCalledTimes(expectedEmitCounts[0]);
-    expect(players[1].emit).toHaveBeenCalledTimes(expectedEmitCounts[1]);
-    expect(eventUtils.waitForEventMatching).toHaveBeenCalledTimes(
-      1 + expectedEmitCounts[0] + expectedEmitCounts[1]
+    players.forEach((player, index) =>
+      expect(player.emit).toHaveBeenCalledTimes(expectedEmitCounts[index])
     );
-    expect(eventUtils.emitAndWaitForEvent).not.toHaveBeenCalled();
+    expect(eventUtils.waitForEventMatching).toHaveBeenCalledTimes(
+      expectedEmitCounts[0] + expectedEmitCounts[1]
+    );
   });
 
   it("uses a bounded predicate wait for the requested player readiness", async () => {
@@ -544,6 +485,38 @@ function createFixture(): Fixture {
   return { flow, stateUtils, eventUtils, userUtils };
 }
 
+function createRegularMediaFixture(hasFiles = true) {
+  const fixture = createFixture();
+  const { flow, stateUtils, eventUtils, userUtils } = fixture;
+  const showman = createSocket("game-1", "showman");
+  const players = [createSocket("game-1", "player-11"), createSocket("game-1", "player-12")];
+  const question = createQuestion(hasFiles ? createQuestionFiles() : []);
+  stateUtils.getGame.mockResolvedValue({ gameState: { currentRound: {} } });
+  stateUtils.getGameState.mockResolvedValue(mediaDownloadingState(question));
+  userUtils.getUserIdFromSocket.mockImplementation(async (socket) =>
+    socket === players[0] ? 11 : 12
+  );
+  mockQuestionPickExpectation(flow, SocketIOGameEvents.QUESTION_PICK, question);
+  const events = createEventHarness(eventUtils);
+  (showman.emit as jest.Mock).mockImplementation(() =>
+    events.emit(SocketIOGameEvents.QUESTION_DATA, questionData(42, question.questionFiles ?? []))
+  );
+  players.forEach((player, index) => {
+    (player.emit as jest.Mock).mockImplementation(() => {
+      if (index === players.length - 1)
+        stateUtils.getGameState.mockResolvedValue({
+          questionState: QuestionState.SHOWING,
+          timer: timer(GAME_QUESTION_ANSWER_TIME)
+        });
+      events.emit(
+        SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+        mediaStatus(index + 11, true, index === players.length - 1)
+      );
+    });
+  });
+  return { ...fixture, showman, players, events, question };
+}
+
 function createSocket(gameId: string, id = "socket"): GameClientSocket {
   return {
     id,
@@ -611,6 +584,7 @@ function createQuestionFiles(): readonly PackageQuestionFileDTO[] {
     {
       file: {
         md5: "media.png",
+        link: "https://media.example.test/media.png",
         type: PackageFileType.IMAGE
       },
       displayTime: null,
@@ -622,22 +596,12 @@ function createQuestionFiles(): readonly PackageQuestionFileDTO[] {
 function mediaDownloadingState(question: PackageQuestionDTO): Record<string, unknown> {
   return {
     questionState: QuestionState.MEDIA_DOWNLOADING,
-    currentQuestion: question
-  };
-}
-
-function questionPreload(
-  questionId: number,
-  questionFiles: readonly PackageQuestionFileDTO[]
-): Record<string, unknown> {
-  return {
-    questionId,
-    questionFiles,
+    currentQuestion: question,
     timer: timer(MEDIA_DOWNLOAD_TIMEOUT)
   };
 }
 
-function questionReveal(
+function questionData(
   questionId: number,
   questionFiles: readonly PackageQuestionFileDTO[]
 ): GameQuestionDataEventPayload {
@@ -646,7 +610,7 @@ function questionReveal(
       id: questionId,
       questionFiles
     } as PackageQuestionDTO,
-    timer: timer(GAME_QUESTION_ANSWER_TIME)
+    timer: timer(MEDIA_DOWNLOAD_TIMEOUT)
   };
 }
 
