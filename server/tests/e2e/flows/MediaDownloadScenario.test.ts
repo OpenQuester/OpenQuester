@@ -76,6 +76,24 @@ describe("Media Download client-contract golden scenarios", () => {
       await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
       flow.assertCriticalEventOrder(player, afterQuestionPick);
       await flow.expectNoSocketErrors(flow.allRecipients, afterDownload);
+
+      // A slower showman may finish loading after players have already started showing.
+      const afterLateAck = flow.mark();
+      const lateProbe = flow.createAcceptedMediaDownloadProbe(flow.showman);
+      const lateAccepted = lateProbe.waitForCount(1);
+      const noLateStatus = flow.expectNoMediaDownloadStatus(flow.allRecipients, afterLateAck);
+      flow.emitPlayerDownloaded(flow.showman);
+      await Promise.all([lateAccepted, noLateStatus]);
+      await flow.waitForActionsComplete();
+
+      flow.assertAcceptedMediaDownloadCount(lateProbe, 1, flow.showman);
+      await flow.expectMediaReadiness([
+        { actor: player, expected: true },
+        { actor: flow.showman, expected: false }
+      ]);
+      await flow.expectQuestionState(QuestionState.SHOWING);
+      await flow.expectActiveTimerDuration(GAME_QUESTION_ANSWER_TIME);
+      await flow.expectNoSocketErrors(flow.allRecipients, afterLateAck);
     });
   });
 

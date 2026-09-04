@@ -73,6 +73,7 @@ Legend:
    - When a question is picked, all players' `mediaDownloaded` status is reset to `false`
    - Outgoing `QUESTION_PICK` receives personalized `QUESTION_DATA` with file links and the media timer
    - Client downloads/loads media and sends `MEDIA_DOWNLOADED` event
+   - The server processes readiness only in `MEDIA_DOWNLOADING`. An ACK in any other phase is a successful no-op: no readiness change, persistence/timer mutation, or status broadcast. This also covers late ACKs after players have entered `SHOWING`.
    - Server broadcasts `MEDIA_DOWNLOAD_STATUS` to all clients with `allPlayersReady` flag
    - All clients update their UI to show which players have downloaded media
    - When `allPlayersReady` is `true`, clients start media playback synchronously

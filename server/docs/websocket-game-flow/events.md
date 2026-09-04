@@ -567,5 +567,6 @@ Notes:
 ### `chat-message`
 
 - Direction: **C→S**, **S→C**
-- Payload: `{ uuid, timestamp, user, message }`
+- Client payload: `{ message }`; server payload: `{ uuid, timestamp, user, message }`.
+- Leading/trailing whitespace is trimmed before validating the 1–255 character limit. Empty or whitespace-only input produces `error` for the sender and is neither stored nor broadcast. Internal whitespace is preserved.
 - Direct-execution event: it bypasses the game mutation queue, but the server still loads game/session context before broadcasting.

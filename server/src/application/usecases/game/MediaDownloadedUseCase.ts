@@ -33,6 +33,10 @@ export class MediaDownloadedUseCase
 
     const { game, currentPlayer } = ctx;
 
+    if (game.gameState.questionState !== QuestionState.MEDIA_DOWNLOADING) {
+      return { success: true, mutations: [] };
+    }
+
     currentPlayer.mediaDownloaded = true;
 
     const allPlayersReady = MediaDownloadLogic.areAllPlayersReady(game);
@@ -40,10 +44,7 @@ export class MediaDownloadedUseCase
     let transitionTimer = null;
     const transitionMutations: DataMutation[] = [];
 
-    if (
-      allPlayersReady &&
-      game.gameState.questionState === QuestionState.MEDIA_DOWNLOADING
-    ) {
+    if (allPlayersReady) {
       // Transition to showing question if all players are ready
       const transitionResult = await this.phaseTransitionRouter.tryTransition({
         game,
