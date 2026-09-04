@@ -383,7 +383,7 @@ describe("GameScenario transport API", () => {
     const scenario = new GameScenario();
     const socket = new FakeSocket();
     const operation = createControlledPromise<void>();
-    const primary = new Error("missing question preload");
+    const primary = new Error("missing question data");
     const result = scenario
       .runAndWaitForEvent(socket.asSocket(), "terminal", () => operation.promise, 25)
       .then(

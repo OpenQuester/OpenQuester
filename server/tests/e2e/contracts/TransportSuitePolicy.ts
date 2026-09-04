@@ -157,7 +157,7 @@ export function findUnscopedCases(
       if (
         test?.name === "describe" &&
         test.title === '"Game lock test cleanup helpers"' &&
-        suite.path.replace(/\\/g, "/").endsWith("GameLockAndQueueMechanics.test.ts")
+        suite.path.replace(/\\/g, "/").split("/").pop() === "GameLockAndQueueMechanics.test.ts"
       )
         helperUnitTest = true;
       if (

@@ -129,12 +129,12 @@ describe("Socket game transport suite policy", () => {
     ).toBe("unclassified");
   });
 
-  it("rejects disabled/focused/failing and concurrent definitions across all transport categories", () => {
+  it("rejects disabled/focused/failing backend definitions and concurrent transport definitions", () => {
     const violations = readTestSources(resolve(__dirname, "../..")).flatMap((suite) => {
       const kind = classifyTransportSuite(suite);
-      return kind && kind !== "self-test"
-        ? forbiddenJestDefinitions(suite).map((title) => `${suite.path}: ${title}`)
-        : [];
+      return forbiddenJestDefinitions(suite, Boolean(kind && kind !== "self-test")).map(
+        (title) => `${suite.path}: ${title}`
+      );
     });
     expect(violations).toEqual([]);
   });

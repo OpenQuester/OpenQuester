@@ -87,6 +87,7 @@ describe("SocketGameTestFlowUtils reliability", () => {
       )
       .mockResolvedValue({
         event: expectedEvent,
+        mediaHandshake: false,
         question: createQuestion(createQuestionFiles())
       });
 
@@ -531,7 +532,7 @@ function createRegularMediaFixture(hasFiles = true, scenario?: GameScenario) {
   userUtils.getUserIdFromSocket.mockImplementation(async (socket) =>
     socket === players[0] ? 11 : 12
   );
-  mockQuestionPickExpectation(flow, SocketIOGameEvents.QUESTION_PICK, question);
+  mockQuestionPickExpectation(flow, SocketIOGameEvents.QUESTION_DATA, question);
   const events = createEventHarness(eventUtils);
   (showman.emit as jest.Mock).mockImplementation(() =>
     events.emit(SocketIOGameEvents.QUESTION_DATA, questionData(42, question.questionFiles ?? []))
@@ -577,6 +578,7 @@ function mediaStatus(
 
 interface QuestionPickExpectation {
   readonly event: SocketIOGameEvents;
+  readonly mediaHandshake: boolean;
   readonly question: PackageQuestionDTO;
 }
 
@@ -595,7 +597,7 @@ function mockQuestionPickExpectation(
       },
       "_determineQuestionPickExpectation"
     )
-    .mockResolvedValue({ event, question });
+    .mockResolvedValue({ event, question, mediaHandshake: true });
 }
 
 function createQuestion(questionFiles: readonly PackageQuestionFileDTO[]): PackageQuestionDTO {
@@ -668,15 +670,10 @@ interface PendingEventWait {
 
 interface EventHarness {
   emit(event: SocketIOGameEvents, data: unknown): void;
-  settleNoEvent(event: SocketIOGameEvents): void;
 }
 
 function createEventHarness(eventUtils: Fixture["eventUtils"]): EventHarness {
   const eventWaits = new Map<string, PendingEventWait[]>();
-  const noEventWaits = new Map<
-    string,
-    Array<{ resolve: () => void; reject: (error: Error) => void }>
-  >();
 
   eventUtils.waitForEventMatching.mockImplementation((...args: unknown[]) => {
     const event = args[1] as string;
@@ -710,21 +707,8 @@ function createEventHarness(eventUtils: Fixture["eventUtils"]): EventHarness {
     });
   });
 
-  eventUtils.waitForNoEvent.mockImplementation((...args: unknown[]) => {
-    const event = args[1] as string;
-    return new Promise<void>((resolve, reject) => {
-      noEventWaits.set(event, [...(noEventWaits.get(event) ?? []), { resolve, reject }]);
-    });
-  });
-
   return {
     emit(event, data) {
-      const negativeWaits = noEventWaits.get(event) ?? [];
-      noEventWaits.delete(event);
-      negativeWaits.forEach(({ reject }) =>
-        reject(new Error(`Unexpected Socket.IO event "${event}" with data ${JSON.stringify(data)}`))
-      );
-
       for (const pending of [...(eventWaits.get(event) ?? [])]) {
         try {
           if (pending.predicate(data)) {
@@ -734,11 +718,6 @@ function createEventHarness(eventUtils: Fixture["eventUtils"]): EventHarness {
           pending.reject(error instanceof Error ? error : new Error(String(error)));
         }
       }
-    },
-    settleNoEvent(event) {
-      const waits = noEventWaits.get(event) ?? [];
-      noEventWaits.delete(event);
-      waits.forEach(({ resolve }) => resolve());
     }
   };
 }

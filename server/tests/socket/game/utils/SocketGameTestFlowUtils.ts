@@ -33,6 +33,7 @@ import { GameClientSocket } from "./SocketIOGameTestUtils";
 
 interface QuestionPickExpectation {
   readonly event: SocketIOGameEvents;
+  readonly mediaHandshake: boolean;
   readonly question: PackageQuestionDTO;
 }
 
@@ -180,7 +181,7 @@ export class SocketGameTestFlowUtils {
 
     const expectation = await this._determineQuestionPickExpectation(game, actualQuestionId);
 
-    if (expectation.event !== SocketIOGameEvents.QUESTION_PICK) {
+    if (!expectation.mediaHandshake) {
       await this.eventUtils.emitAndWaitForEvent(showmanSocket, expectation.event, () =>
         showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: actualQuestionId
@@ -292,13 +293,16 @@ export class SocketGameTestFlowUtils {
       throw new Error("Question not found in package");
     }
 
-    let event: SocketIOGameEvents = SocketIOGameEvents.QUESTION_PICK;
+    let event: SocketIOGameEvents = SocketIOGameEvents.QUESTION_DATA;
+    let mediaHandshake = true;
 
     switch (question.type) {
       case PackageQuestionType.STAKE:
+        mediaHandshake = false;
         event = SocketIOGameEvents.STAKE_QUESTION_PICKED;
         break;
       case PackageQuestionType.SECRET: {
+        mediaHandshake = false;
         const eligiblePlayers = game.players.filter(
           (p) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME
         ).length;
@@ -311,11 +315,11 @@ export class SocketGameTestFlowUtils {
         break;
       }
       default:
-        event = SocketIOGameEvents.QUESTION_PICK;
+        event = SocketIOGameEvents.QUESTION_DATA;
         break;
     }
 
-    return { event, question };
+    return { event, question, mediaHandshake };
   }
 
   private async _expectQuestionState(

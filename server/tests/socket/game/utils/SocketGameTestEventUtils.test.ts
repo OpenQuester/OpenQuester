@@ -68,7 +68,10 @@ class FakeGameClientSocket extends EventEmitter {
 
   public journalListenerCount(): number {
     return (
-      this.inbound.size + this.listenerCount("disconnect") + this.listenerCount("connect_error")
+      this.inbound.size +
+      this.listenerCount("connect") +
+      this.listenerCount("disconnect") +
+      this.listenerCount("connect_error")
     );
   }
 }
