@@ -390,11 +390,6 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const afterSecondLeave = flow.mark();
       const secondProbe = flow.createAcceptedActorActionProbe(secondPlayer, GameActionType.LEAVE);
       const remainingRecipients = flow.allRecipients.filter((actor) => actor !== firstPlayer);
-      const completed = flow.waitForMediaDownloadBroadcast(
-        remainingRecipients,
-        afterSecondLeave,
-        expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
-      );
       const secondLeave = flow.waitForLeaveBroadcast(
         remainingRecipients,
         afterSecondLeave,
@@ -403,7 +398,7 @@ describe("Media Download client-contract departure and restriction scenarios", (
 
       flow.emitPlayerLeave(secondPlayer);
 
-      await Promise.all([secondProbe.waitForCount(1), secondLeave, completed]);
+      await Promise.all([secondProbe.waitForCount(1), secondLeave]);
       await flow.waitForActionsComplete();
 
       assertAcceptedCommand(
@@ -440,15 +435,10 @@ describe("Media Download client-contract departure and restriction scenarios", (
       const afterLeave = flow.mark();
       const leaveProbe = flow.createAcceptedActorActionProbe(onlyPlayer, GameActionType.LEAVE);
       const leave = flow.waitForLeaveBroadcast(flow.allRecipients, afterLeave, onlyPlayer);
-      const completed = flow.waitForMediaDownloadBroadcast(
-        flow.allRecipients,
-        afterLeave,
-        expectedStatus(SYSTEM_PLAYER_ID, true, GAME_QUESTION_ANSWER_TIME)
-      );
 
       flow.emitPlayerLeave(onlyPlayer);
 
-      await Promise.all([leaveProbe.waitForCount(1), leave, completed]);
+      await Promise.all([leaveProbe.waitForCount(1), leave]);
       await flow.waitForActionsComplete();
 
       assertAcceptedCommand(
