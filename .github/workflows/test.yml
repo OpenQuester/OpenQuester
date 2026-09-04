@@ -77,8 +77,29 @@ jobs:
           cache: "npm"
           cache-dependency-path: ./server/package-lock.json
       - run: npm ci
+        id: install
+      - name: Prepare commit-bound test artifacts
+        run: |
+          mkdir -p test-results
+          git rev-parse HEAD > test-results/commit.txt
       - run: npm run lint
-      - run: npm run test:pipeline
+      - run: npm run build
+      - name: E2E infrastructure self-tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run test:pipeline -- tests/e2e/scenario tests/e2e/contracts tests/socket/game/utils tests/e2e/flows/media-download/MediaDownloadFlow.test.ts --runInBand --json --outputFile=test-results/infrastructure.json
+      - name: High-risk transport scenarios
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run test:pipeline -- tests/e2e/flows/MediaDownloadScenario.test.ts tests/e2e/flows/MediaDownloadEdgeScenario.test.ts tests/socket/game/GameLockAndQueueMechanics.test.ts tests/user/UserNotificationRooms.test.ts --runInBand --json --outputFile=test-results/high-risk.json
+      - name: Full backend test suite
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run test:pipeline -- --json --outputFile=test-results/full.json
+      - name: Preserve backend results (including failures)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: server/test-results/
+          if-no-files-found: error
 
   test_client:
     runs-on: ubuntu-latest
