@@ -503,6 +503,10 @@
   border-radius: 11px;
   background: var(--card);
 }
+.fileHint {
+  color: var(--faint);
+  font: 500 10px/1.5 var(--mono);
+}
 .formHeader {
   margin-bottom: 24px;
 }

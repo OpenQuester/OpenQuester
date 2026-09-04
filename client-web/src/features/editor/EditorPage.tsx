@@ -220,6 +220,7 @@ export function EditorPage() {
             onClick={store.undo}
             disabled={!store.undoStack.length}
             title={t("editor.undo")}
+            aria-label={t("editor.undo")}
           >
             <Undo2 size={15} />
           </button>
@@ -228,12 +229,14 @@ export function EditorPage() {
             onClick={store.redo}
             disabled={!store.redoStack.length}
             title={t("editor.redo")}
+            aria-label={t("editor.redo")}
           >
             <Redo2 size={15} />
           </button>
           <button
             className={ui.secondaryButton}
             onClick={() => importRef.current?.click()}
+            aria-label={t("editor.import")}
           >
             <FileUp size={15} />
             <span>{t("editor.import")}</span>
@@ -248,6 +251,7 @@ export function EditorPage() {
           <button
             className={ui.secondaryButton}
             onClick={() => void exportArchive()}
+            aria-label={t("editor.export")}
           >
             <Download size={15} />
             <span>{t("editor.export")}</span>
@@ -256,6 +260,7 @@ export function EditorPage() {
             className={ui.secondaryButton}
             onClick={() => save.mutate(false)}
             disabled={save.isPending}
+            aria-label={t("editor.saveDraft")}
           >
             <Save size={15} />
             <span>{t("editor.saveDraft")}</span>
@@ -264,6 +269,7 @@ export function EditorPage() {
             className={ui.primaryButton}
             onClick={() => save.mutate(true)}
             disabled={Boolean(critical.length) || save.isPending}
+            aria-label={t("editor.publish")}
           >
             <Upload size={15} />
             <span>{t("editor.publish")}</span>

@@ -225,6 +225,8 @@
   "settings.profile": "Profile",
   "settings.displayName": "Display name",
   "settings.avatar": "Profile picture",
+  "settings.chooseAvatar": "Choose image",
+  "settings.avatarHint": "PNG, JPEG, or WebP · maximum 8 MB",
   "settings.avatarInvalid": "Choose an image smaller than 8 MB.",
   "settings.avatarFailed": "The profile picture could not be uploaded.",
   "settings.appearance": "Appearance",

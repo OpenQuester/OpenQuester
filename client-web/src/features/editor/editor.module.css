@@ -349,15 +349,31 @@
 @media (max-width: 700px) {
   .editor {
     margin: -52px -14px -82px;
+    grid-template-rows: auto 1fr;
   }
   .topbar {
-    padding: 0 8px;
+    min-height: 108px;
+    padding: 8px;
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) auto;
+    gap: 8px;
   }
   .saveState {
-    display: none;
+    max-width: 76px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .topActions button span {
     display: none;
+  }
+  .titleInput {
+    min-width: 0;
+  }
+  .topActions {
+    width: 100%;
+    margin-left: 0;
+    grid-column: 1 / -1;
+    justify-content: flex-end;
   }
   .body {
     grid-template-columns: 1fr;

@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, LogOut } from "lucide-react";
+import { Check, ImageUp, LogOut } from "lucide-react";
 import { md5 } from "hash-wasm";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -29,6 +29,7 @@ export function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => applyPreferences(preferences), [preferences]);
   const update = useMutation({
     mutationFn: () => api.updateMe({ name }),
@@ -111,6 +112,8 @@ export function SettingsPage() {
                 />
               ) : null}
               <input
+                ref={avatarInputRef}
+                hidden
                 type="file"
                 accept="image/*"
                 disabled={!session.data || avatarProgress !== null}
@@ -120,6 +123,18 @@ export function SettingsPage() {
                   event.target.value = "";
                 }}
               />
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                disabled={!session.data || avatarProgress !== null}
+                onClick={() => avatarInputRef.current?.click()}
+              >
+                <ImageUp size={16} aria-hidden="true" />
+                {t("settings.chooseAvatar")}
+              </button>
+              <small className={styles.fileHint}>
+                {t("settings.avatarHint")}
+              </small>
               {avatarProgress !== null ? (
                 <progress value={avatarProgress} max={100} />
               ) : null}

@@ -38,7 +38,9 @@ test("public discovery and sign-in remain usable", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Find your next game" }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: /sign in/i })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Sign in", exact: true }),
+  ).toBeVisible();
   await page.goto("/sign-in");
   await expect(
     page.getByRole("heading", { name: "Welcome back" }),
@@ -62,8 +64,13 @@ test("authenticated creator can open editor and switch settings", async ({
   await expect(page.getByText("Unsaved changes")).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
   await page.goto("/settings");
-  await page.getByLabel("Theme").selectOption("pure-dark");
-  await page.getByLabel("Default board layout").selectOption("matrix");
+  await expect(
+    page.getByRole("button", { name: "Choose image" }),
+  ).toBeVisible();
+  await page.getByLabel("Theme").click();
+  await page.getByRole("option", { name: "Pure dark" }).click();
+  await page.getByLabel("Default board layout").click();
+  await page.getByRole("option", { name: "Matrix" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "pure-dark");
 });
 
