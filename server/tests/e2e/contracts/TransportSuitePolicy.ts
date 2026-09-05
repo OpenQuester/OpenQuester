@@ -27,7 +27,8 @@ const SELF_TESTS = new Set([
   "socket/game/utils/SocketGameTestEventUtils.test.ts",
   "socket/game/utils/SocketGameTestFlowUtils.test.ts",
   "socket/game/utils/SocketGameTestLobbyUtils.test.ts",
-  "socket/game/utils/SocketIOGameTestUtils.test.ts"
+  "socket/game/utils/SocketIOGameTestUtils.test.ts",
+  "socket/game/utils/QueueTestHelpers.test.ts"
 ]);
 
 export function readTestSources(root: string, directory = root): readonly TestSource[] {
@@ -212,24 +213,13 @@ export function findUnscopedCases(
   kind: TransportKind = "gameplay"
 ): readonly string[] {
   const failures: string[] = [];
-  const visit = (node: ts.Node, helperUnitTest = false): void => {
+  const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node)) {
       const test = definition(node);
-      if (
-        test?.name === "describe" &&
-        test.title === '"Game lock test cleanup helpers"' &&
-        suite.path.replace(/\\/g, "/").split("/").pop() === "GameLockAndQueueMechanics.test.ts"
-      )
-        helperUnitTest = true;
-      if (
-        test &&
-        test.name !== "describe" &&
-        !helperUnitTest &&
-        !scopedCallback(test.callback, kind)
-      )
+      if (test && test.name !== "describe" && !scopedCallback(test.callback, kind))
         failures.push(test.title);
     }
-    ts.forEachChild(node, (child) => visit(child, helperUnitTest));
+    ts.forEachChild(node, visit);
   };
   visit(parse(suite));
   return failures;

@@ -253,7 +253,7 @@ cases. These are the same focused selectors used by the backend CI job:
 
 ```bash
 npm run test:pipeline -- tests/e2e/scenario tests/e2e/contracts tests/socket/game/utils tests/e2e/harness/SocketClientTestUtils.test.ts tests/e2e/flows/media-download/MediaDownloadFlow.test.ts --runInBand
-npm run test:pipeline -- tests/e2e/flows/MediaDownloadScenario.test.ts tests/e2e/flows/MediaDownloadEdgeScenario.test.ts tests/socket/game/GameLockAndQueueMechanics.test.ts tests/user/UserNotificationRooms.test.ts --runInBand
+npm run test:pipeline -- tests/e2e/flows/MediaDownloadScenario.test.ts tests/e2e/flows/MediaDownloadEdgeScenario.test.ts tests/socket/game/queue tests/user/UserNotificationRooms.test.ts tests/socket/game/question/ChoiceQuestionFlow.test.ts --runInBand
 ```
 
 For broader backend changes, follow with lint/build and `npm run test:pipeline`.

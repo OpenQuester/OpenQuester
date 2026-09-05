@@ -101,6 +101,16 @@ describe("Socket game transport suite policy", () => {
     ).toEqual([]);
   });
 
+  it("does not exempt gameplay cases disguised as the former queue helper describe", () => {
+    expect(
+      findUnscopedCases({
+        path: "socket/game/GameLockAndQueueMechanics.test.ts",
+        source:
+          'describe("Game lock test cleanup helpers", () => { it("unowned", async () => {}); });'
+      })
+    ).toEqual(['"unowned"']);
+  });
+
   it("recognizes unscoped parameterized cases and Jest modifier chains", () => {
     expect(
       findUnscopedCases({

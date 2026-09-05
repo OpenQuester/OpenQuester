@@ -104,7 +104,7 @@ jobs:
           status=0
           for ((run=1; run<=RUNS; run++)); do
             code=0
-            npm run test:pipeline -- tests/e2e/flows/MediaDownloadScenario.test.ts tests/e2e/flows/MediaDownloadEdgeScenario.test.ts tests/socket/game/GameLockAndQueueMechanics.test.ts tests/user/UserNotificationRooms.test.ts --runInBand --json --outputFile="test-results/high-risk-$run.json" || code=$?
+            npm run test:pipeline -- tests/e2e/flows/MediaDownloadScenario.test.ts tests/e2e/flows/MediaDownloadEdgeScenario.test.ts tests/socket/game/queue tests/user/UserNotificationRooms.test.ts tests/socket/game/question/ChoiceQuestionFlow.test.ts --runInBand --json --outputFile="test-results/high-risk-$run.json" || code=$?
             echo "$code" > "test-results/high-risk-$run.exit-code"
             if ((code != 0)); then status=$code; fi
           done

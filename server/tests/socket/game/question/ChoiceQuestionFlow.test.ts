@@ -1,3 +1,9 @@
+import { AgeRestriction } from "domain/enums/game/AgeRestriction";
+import { HttpStatus } from "domain/enums/HttpStatus";
+import { GameCreateDTO } from "domain/types/dto/game/GameCreateDTO";
+import { PlayerRole } from "domain/types/game/PlayerRole";
+import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";
+import { PackageUtils } from "tests/utils/PackageUtils";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
@@ -43,30 +49,9 @@ describe("Choice Question Flow Tests", () => {
         // Start game
         await utils.startGame(showmanSocket);
 
-        // Get initial game state and find a choice question
-        const initialGameState = await utils.getGameState(gameId);
-        expect(initialGameState).toBeDefined();
-
-        // For now, we'll manually find the choice question by looking for our test data
-        // This will be enhanced when we add proper Choice question detection
-        let choiceQuestionId: number | null = null;
-
-        // Find choice question in the test data - it should be order 5 with price 300
-        if (initialGameState?.currentRound?.themes) {
-          for (const theme of initialGameState.currentRound.themes) {
-            for (const question of theme.questions) {
-              // Choice question has unique combination price 300 & order 5 in test data
-              if (question.price === 300 && question.order === 5 && !question.isPlayed) {
-                choiceQuestionId = question.id;
-                break;
-              }
-            }
-            if (choiceQuestionId) break;
-          }
-        }
-
-        expect(choiceQuestionId).toBeDefined();
-        expect(choiceQuestionId).not.toBeNull();
+        const choiceQuestion = await utils.findQuestionByType(PackageQuestionType.CHOICE, gameId);
+        expect(choiceQuestion).toBeDefined();
+        const choiceQuestionId = choiceQuestion!.id;
 
         // Set up promise to capture initial question data
         const questionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
@@ -117,23 +102,9 @@ describe("Choice Question Flow Tests", () => {
         // Start game
         await utils.startGame(showmanSocket);
 
-        // Find a choice question using the test data pattern
-        let choiceQuestionId: number | null = null;
-        const initialGameState = await utils.getGameState(gameId);
-
-        if (initialGameState?.currentRound?.themes) {
-          for (const theme of initialGameState.currentRound.themes) {
-            for (const question of theme.questions) {
-              if (question.price === 300 && question.order === 5 && !question.isPlayed) {
-                choiceQuestionId = question.id;
-                break;
-              }
-            }
-            if (choiceQuestionId) break;
-          }
-        }
-
-        expect(choiceQuestionId).not.toBeNull();
+        const choiceQuestion = await utils.findQuestionByType(PackageQuestionType.CHOICE, gameId);
+        expect(choiceQuestion).toBeDefined();
+        const choiceQuestionId = choiceQuestion!.id;
 
         // Pick the choice question using utils (handles media download phase)
         await utils.pickQuestion(showmanSocket, choiceQuestionId!, playerSockets);
@@ -184,23 +155,9 @@ describe("Choice Question Flow Tests", () => {
         // Start game
         await utils.startGame(showmanSocket);
 
-        // Find choice question
-        let choiceQuestionId: number | null = null;
-        const initialGameState = await utils.getGameState(gameId);
-
-        if (initialGameState?.currentRound?.themes) {
-          for (const theme of initialGameState.currentRound.themes) {
-            for (const question of theme.questions) {
-              if (question.price === 300 && question.order === 5 && !question.isPlayed) {
-                choiceQuestionId = question.id;
-                break;
-              }
-            }
-            if (choiceQuestionId) break;
-          }
-        }
-
-        expect(choiceQuestionId).not.toBeNull();
+        const choiceQuestion = await utils.findQuestionByType(PackageQuestionType.CHOICE, gameId);
+        expect(choiceQuestion).toBeDefined();
+        const choiceQuestionId = choiceQuestion!.id;
 
         // Set up promises to capture data sent to both showman and player
         const showmanDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
@@ -255,56 +212,66 @@ describe("Choice Question Flow Tests", () => {
   });
 
   describe("Multiple Choice Questions", () => {
-    it("should handle choice question with different number of options", async () => {
+    it.each([2, 4])("should handle choice question with %i options", async (optionCount) => {
       await suite.scenario(async (scenario) => {
-        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-        const { showmanSocket, playerSockets, gameId } = setup;
-
-        // Start game
+        const { showmanSocket, playerSocket, gameId, expectedOptions } =
+          await setupChoiceOptions(optionCount);
         await utils.startGame(showmanSocket);
-
-        // Find choice question and verify it has 4 options (from our test data)
-        let choiceQuestionId: number | null = null;
-        const initialGameState = await utils.getGameState(gameId);
-
-        if (initialGameState?.currentRound?.themes) {
-          for (const theme of initialGameState.currentRound.themes) {
-            for (const question of theme.questions) {
-              if (question.price === 300 && question.order === 5 && !question.isPlayed) {
-                choiceQuestionId = question.id;
-                break;
-              }
-            }
-            if (choiceQuestionId) break;
-          }
-        }
-
-        if (!choiceQuestionId) {
-          throw new Error("No choice question found in test package");
-        }
-
-        // Pick the choice question and verify structure
-        const questionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
-          playerSockets[0],
-          SocketIOGameEvents.QUESTION_DATA
+        const choiceQuestion = await utils.findQuestionByType(PackageQuestionType.CHOICE, gameId);
+        expect(choiceQuestion).toBeDefined();
+        const data = [showmanSocket, playerSocket].map((socket) =>
+          scenario.waitForEvent<GameQuestionDataEventPayload>(
+            socket,
+            SocketIOGameEvents.QUESTION_DATA
+          )
         );
-
-        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: choiceQuestionId
-        });
-        const questionData = await questionDataPromise;
-
-        expect(questionData.data.type).toBe(PackageQuestionType.CHOICE);
-        expect(questionData.data.answers).toBeDefined();
-        expect(questionData.data.answers?.length).toBe(4);
-
-        // Verify all options are present and ordered correctly
-        const answers = questionData.data.answers!;
-        expect(answers.find((a) => a.order === 0)?.text).toBe("Option A");
-        expect(answers.find((a) => a.order === 1)?.text).toBe("Option B");
-        expect(answers.find((a) => a.order === 2)?.text).toBe("Option C");
-        expect(answers.find((a) => a.order === 3)?.text).toBe("Option D");
+        await utils.pickQuestion(showmanSocket, choiceQuestion!.id, [playerSocket]);
+        for (const payload of await Promise.all(data)) {
+          expect(payload.data.type).toBe(PackageQuestionType.CHOICE);
+          expect(payload.data.answers).toBeDefined();
+          expect(payload.data.answers).toHaveLength(optionCount);
+          expect(payload.data.answers!.map(({ text, order }) => ({ text, order }))).toEqual(
+            expectedOptions
+          );
+        }
       });
     });
   });
+
+  async function setupChoiceOptions(optionCount: number) {
+    const { socket: showmanSocket, user, cookie } = await utils.createGameClient(app, userRepo);
+    const packageInput = new PackageUtils().createTestPackageData(user);
+    const question = packageInput.rounds
+      .flatMap(({ themes }) => themes)
+      .flatMap(({ questions }) => questions)
+      .find(({ type }) => type === PackageQuestionType.CHOICE);
+    if (!question) throw new Error("Choice fixture is missing its choice question");
+    const expectedOptions = ["Option A", "Option B", "Option C", "Option D"]
+      .slice(0, optionCount)
+      .map((text, order) => ({ text, order }));
+    question.answers = expectedOptions.map((option) => ({ ...option, file: null }));
+
+    const http = createHttpTestClient(suite.serverUrl);
+    const packageResponse = await http
+      .post("/v1/packages")
+      .set("Cookie", cookie)
+      .send({ content: packageInput })
+      .expect(HttpStatus.OK);
+    const gameResponse = await http
+      .post("/v1/games")
+      .set("Cookie", cookie)
+      .send({
+        title: "Choice options fixture",
+        packageId: packageResponse.body.id,
+        isPrivate: false,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10
+      } satisfies GameCreateDTO)
+      .expect(HttpStatus.OK);
+    const gameId: string = gameResponse.body.id;
+    await utils.joinSpecificGame(showmanSocket, gameId, PlayerRole.SHOWMAN);
+    const { socket: playerSocket } = await utils.createGameClient(app, userRepo);
+    await utils.joinSpecificGame(playerSocket, gameId, PlayerRole.PLAYER);
+    return { showmanSocket, playerSocket, gameId, expectedOptions };
+  }
 });
