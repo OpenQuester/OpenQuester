@@ -295,5 +295,10 @@
   "settings.tips": "Підказки у грі",
   "settings.tipsHint": "Рядок підказки вгорі ігрових екранів",
   "settings.lobbyWidth": "Обмежити ширину ігрового лобі",
-  "settings.lobbyWidthHint": "Зберігає читабельність поля на надшироких екранах"
+  "settings.lobbyWidthHint": "Зберігає читабельність поля на надшироких екранах",
+  "game.ageRestriction": "Віковий рейтинг",
+  "game.ageNone": "Без обмежень",
+  "game.private": "Приватна кімната",
+  "game.privateHint": "Приєднатися можна лише за посиланням і паролем",
+  "lobby.needPlayers": "Щоб почати, потрібен щонайменше один гравець."
 }

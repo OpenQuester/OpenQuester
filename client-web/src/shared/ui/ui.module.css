@@ -409,6 +409,22 @@
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
+.stack .search {
+  width: 100%;
+}
+.stack .search input,
+.stack .search .selectTrigger {
+  min-height: 40px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 0;
+}
+.stack .search input:focus,
+.stack .search .selectTrigger:focus {
+  border: 0;
+  box-shadow: none;
+}
 .selectTrigger {
   width: 100%;
   min-height: 42px;
@@ -880,9 +896,17 @@
   object-fit: cover;
   background: var(--raised);
 }
-.checkboxRow {
+.stack label.checkboxRow {
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--text);
+  font: 500 13px var(--display);
+  text-transform: none;
+  letter-spacing: normal;
+}
+.stack label.checkboxRow input {
+  margin-top: 2px;
 }
 .checkbox {
   width: 18px;

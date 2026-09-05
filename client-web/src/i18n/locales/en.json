@@ -295,5 +295,10 @@
   "settings.tips": "In-game tips",
   "settings.tipsHint": "The guidance line at the top of game screens",
   "settings.lobbyWidth": "Limit game lobby width",
-  "settings.lobbyWidthHint": "Keeps the board readable on ultrawide screens"
+  "settings.lobbyWidthHint": "Keeps the board readable on ultrawide screens",
+  "game.ageRestriction": "Age rating",
+  "game.ageNone": "No restriction",
+  "game.private": "Private room",
+  "game.privateHint": "Only people with the link and password can join",
+  "lobby.needPlayers": "At least one player must join before you can start."
 }

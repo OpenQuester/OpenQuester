@@ -36,18 +36,32 @@ export async function apiRequest<T>(
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     const body = (await response.json().catch(() => null)) as {
       message?: string;
+      error?: string;
     } | null;
-    throw new ApiError(body?.message ?? response.statusText, response.status);
+    throw new ApiError(
+      body?.message ||
+        body?.error ||
+        response.statusText ||
+        `Request failed (${response.status})`,
+      response.status,
+    );
   }
   if (response.status === 204) return undefined as T;
-  const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("application/json")) {
+  const contentType = (
+    response.headers.get("content-type") ?? ""
+  ).toLowerCase();
+  const text = await response.text();
+  // A successful response with no body is valid and carries no content type —
+  // /v1/auth/socket answers exactly that way, and treating it as an error
+  // aborted the socket handshake before `join` was ever emitted.
+  if (!text) return undefined as T;
+  if (!contentType.includes("application/json")) {
     throw new ApiError(
       "The web client received an invalid API response. Check the configured API URL.",
       502,
     );
   }
-  return (await response.json()) as T;
+  return JSON.parse(text) as T;
 }
 
 // These come from openapi/schema.json via `npm run generate:api`. Re-declaring
@@ -59,6 +73,8 @@ export type PackageSummary = components["schemas"]["PackageListItem"];
 export type PackageDetail = components["schemas"]["OqPackage"];
 export type PackageUploadResponse =
   components["schemas"]["PackageUploadResponse"];
+export type GameCreateData = components["schemas"]["GameCreateData"];
+export type AgeRestriction = components["schemas"]["AgeRestriction"];
 
 export type Paginated<T> = { data: T[]; pageInfo: { total: number } };
 
@@ -124,7 +140,7 @@ export const api = {
     ),
   game: (id: string) =>
     apiRequest<GameListItem>(`/v1/games/${encodeURIComponent(id)}`),
-  createGame: (body: Record<string, unknown>) =>
+  createGame: (body: GameCreateData) =>
     apiRequest<GameListItem>("/v1/games", {
       method: "POST",
       body: JSON.stringify(body),

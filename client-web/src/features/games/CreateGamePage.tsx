@@ -4,7 +4,12 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
-import { api, pageTotal, unwrapPage } from "../../shared/api/client";
+import {
+  type AgeRestriction,
+  api,
+  pageTotal,
+  unwrapPage,
+} from "../../shared/api/client";
 import { SelectField } from "../../shared/ui/SelectField";
 import styles from "../../shared/ui/ui.module.css";
 
@@ -44,13 +49,21 @@ export function CreateGamePage() {
   const [packageId, setPackageId] = useState(params.get("packageId") ?? "");
   const [password, setPassword] = useState("");
   const [maxPlayers, setMaxPlayers] = useState(8);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [ageRestriction, setAgeRestriction] = useState<AgeRestriction>("NONE");
   const mutation = useMutation({
+    // isPrivate and ageRestriction are required by the API. They were missing,
+    // so every attempt to create a room came back 400.
     mutationFn: () =>
       api.createGame({
         title,
         packageId: Number(packageId),
-        password: password || undefined,
         maxPlayers,
+        isPrivate,
+        ageRestriction,
+        // Omitted entirely when blank: the API validates it as a string and
+        // rejects an explicit null.
+        ...(password ? { password } : {}),
       }),
     onSuccess: (game) => navigate(`/games/${game.id}?role=showman`),
   });
@@ -137,6 +150,38 @@ export function CreateGamePage() {
                 min={2}
                 max={12}
               />
+            </label>
+          </div>
+          <div className={styles.twoCol}>
+            <label>
+              <span>{t("game.ageRestriction")}</span>
+              <SelectField
+                value={ageRestriction}
+                ariaLabel={t("game.ageRestriction")}
+                onValueChange={(value) =>
+                  setAgeRestriction(value as AgeRestriction)
+                }
+                options={[
+                  { value: "NONE", label: t("game.ageNone") },
+                  { value: "A12", label: "12+" },
+                  { value: "A16", label: "16+" },
+                  { value: "A18", label: "18+" },
+                ]}
+              />
+            </label>
+            <label className={styles.checkboxRow}>
+              <input
+                className={styles.checkbox}
+                type="checkbox"
+                checked={isPrivate}
+                onChange={(event) => setIsPrivate(event.target.checked)}
+              />
+              <span>
+                {t("game.private")}
+                <small className={styles.checkboxHint}>
+                  {t("game.privateHint")}
+                </small>
+              </span>
             </label>
           </div>
           <button

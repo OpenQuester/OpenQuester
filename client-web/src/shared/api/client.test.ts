@@ -26,6 +26,34 @@ describe("apiRequest", () => {
     );
   });
 
+  it("accepts a successful empty body, as socket auth returns", async () => {
+    // 200 with no body and no content-type. Rejecting it aborted the socket
+    // handshake before `join` was emitted, so no game could ever be joined.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(null, { status: 200 })),
+    );
+
+    await expect(
+      apiRequest("/v1/auth/socket", { method: "POST" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("surfaces the API's error field, not just message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json({ error: "Validation error" }, { status: 400 }),
+        ),
+    );
+
+    await expect(apiRequest("/v1/games")).rejects.toEqual(
+      new ApiError("Validation error", 400),
+    );
+  });
+
   it("returns JSON from a valid API response", async () => {
     vi.stubGlobal(
       "fetch",

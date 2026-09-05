@@ -573,14 +573,20 @@ function Lobby({
           </button>
         ) : null}
         {role === "showman" ? (
-          <button
-            className={ui.primaryButton}
-            disabled={playerCount < 1}
-            onClick={() => getGameSocket()?.emit("start")}
-          >
-            <Play size={16} />
-            {t("lobby.start")}
-          </button>
+          <>
+            <button
+              className={ui.primaryButton}
+              disabled={playerCount < 1}
+              onClick={() => getGameSocket()?.emit("start")}
+            >
+              <Play size={16} />
+              {t("lobby.start")}
+            </button>
+            {/* A dead button with no explanation reads as a broken app. */}
+            {playerCount < 1 ? (
+              <p className={ui.finePrint}>{t("lobby.needPlayers")}</p>
+            ) : null}
+          </>
         ) : (
           <p className={ui.finePrint}>{t("lobby.waiting")}</p>
         )}
