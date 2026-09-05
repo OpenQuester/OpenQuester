@@ -620,6 +620,45 @@ describe("SocketGameTestEventUtils", () => {
     probe.dispose();
   });
 
+  it.each([null, 0, 1, 2])(
+    "requires every command in a burst, including its final drain trigger (missing index: %s)",
+    async (missingIndex) => {
+      jest.useFakeTimers();
+      const fixture = createFixture();
+      const scenario = useScenario(fixture);
+      const emitter = getActionEventEmitter();
+      const listenersBefore = emitter.listenerCount(GAME_ID);
+      const probe = scenario.createAcceptedActionProbe({ gameId: GAME_ID });
+      const allAccepted = probe.waitForCount(3, 25);
+      const outcome =
+        missingIndex === null
+          ? expect(allAccepted).resolves.toBeUndefined()
+          : expect(allAccepted).rejects.toThrow("accepted/enqueued");
+
+      for (let index = 0; index < 3; index += 1) {
+        if (index !== missingIndex) {
+          await fixture.queue.queueActionAndTryStartProcessor(createAction(`burst-${index}`));
+        }
+      }
+      // Empty/unlocked is deliberately true even if a command never reached enqueue.
+      await fixture.utils.waitForActionsComplete(GAME_ID);
+      await jest.advanceTimersByTimeAsync(25);
+      await outcome;
+      if (missingIndex === null) {
+        expect(probe.records().map(({ actionId }) => actionId)).toEqual([
+          "burst-0",
+          "burst-1",
+          "burst-2"
+        ]);
+        await scenario.finish();
+      } else {
+        await expect(scenario.finish()).rejects.toThrow("accepted/enqueued");
+      }
+      expect(emitter.listenerCount(GAME_ID)).toBe(listenersBefore);
+      expect(jest.getTimerCount()).toBe(0);
+    }
+  );
+
   it("removes accepted-action listeners idempotently on probe disposal", async () => {
     const fixture = createFixture();
     const eventEmitter = getActionEventEmitter();

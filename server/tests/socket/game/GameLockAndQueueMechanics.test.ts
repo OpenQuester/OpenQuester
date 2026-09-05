@@ -12,7 +12,7 @@ import { GameActionType } from "domain/enums/GameActionType";
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { FinalAnswerLossReason } from "domain/enums/FinalRoundTypes";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
@@ -324,25 +324,32 @@ describe("Game Lock and Queue Mechanics", () => {
 
         await utils.startGame(showmanSocket);
 
-        const leftUserIds: number[] = [];
-
-        // Serialize leave emissions to avoid RPUSH/LLEN race condition
-        // in the action queue (pre-existing edge case, not migration-related)
-        const leavePromise1 = scenario.waitForEvent<GameLeaveBroadcastData>(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
+        const leaving = playerSockets.slice(0, 2);
+        const accepted = leaving.map((socket) =>
+          scenario
+            .createAcceptedActionProbe({
+              gameId: setup.gameId,
+              actionType: GameActionType.LEAVE,
+              socketId: socket.id
+            })
+            .waitForCount(1)
         );
-        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE);
-        const leaveData1 = await leavePromise1;
-        leftUserIds.push(leaveData1.user);
-
-        const leavePromise2 = scenario.waitForEvent<GameLeaveBroadcastData>(
+        const leaves = scenario.collectEvents<GameLeaveBroadcastData>(
           showmanSocket,
-          SocketIOGameEvents.LEAVE
+          SocketIOGameEvents.LEAVE,
+          2
         );
-        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.LEAVE);
-        const leaveData2 = await leavePromise2;
-        leftUserIds.push(leaveData2.user);
+        for (const socket of leaving) scenario.actor(socket).emit(SocketIOGameEvents.LEAVE);
+        await Promise.all(accepted);
+        const leftUserIds = (await leaves.promise).map(({ user }) => user);
+        await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+        expect(leaves.count()).toBe(2);
+        expect([...leftUserIds].sort((a, b) => a - b)).toEqual(
+          setup.playerUsers
+            .slice(0, 2)
+            .map(({ id }) => id)
+            .sort((a, b) => a - b)
+        );
 
         expect(leftUserIds).toHaveLength(2);
 
@@ -370,18 +377,28 @@ describe("Game Lock and Queue Mechanics", () => {
 
         await utils.startGame(showmanSocket);
 
-        const leftUserIds: number[] = [];
-
-        // Serialize leave emissions to avoid RPUSH/LLEN race condition
-        for (let i = 0; i < 3; i++) {
-          const leavePromise = scenario.waitForEvent<GameLeaveBroadcastData>(
-            showmanSocket,
-            SocketIOGameEvents.LEAVE
-          );
-          scenario.actor(playerSockets[i]).emit(SocketIOGameEvents.LEAVE);
-          const leaveData = await leavePromise;
-          leftUserIds.push(leaveData.user);
-        }
+        const accepted = playerSockets.map((socket) =>
+          scenario
+            .createAcceptedActionProbe({
+              gameId: setup.gameId,
+              actionType: GameActionType.LEAVE,
+              socketId: socket.id
+            })
+            .waitForCount(1)
+        );
+        const leaves = scenario.collectEvents<GameLeaveBroadcastData>(
+          showmanSocket,
+          SocketIOGameEvents.LEAVE,
+          3
+        );
+        for (const socket of playerSockets) scenario.actor(socket).emit(SocketIOGameEvents.LEAVE);
+        await Promise.all(accepted);
+        const leftUserIds = (await leaves.promise).map(({ user }) => user);
+        await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+        expect(leaves.count()).toBe(3);
+        expect([...leftUserIds].sort((a, b) => a - b)).toEqual(
+          setup.playerUsers.map(({ id }) => id).sort((a, b) => a - b)
+        );
 
         expect(leftUserIds).toHaveLength(3);
 
@@ -423,24 +440,28 @@ describe("Game Lock and Queue Mechanics", () => {
         const gameState = await utils.getGameState(setup.gameId);
         expect(gameState!.questionState).toBe(QuestionState.SHOWING);
 
-        const leftUserIds: number[] = [];
-
-        // Serialize leave emissions to avoid RPUSH/LLEN race condition
-        const leavePromise1 = scenario.waitForEvent<GameLeaveBroadcastData>(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
+        const accepted = playerSockets.map((socket) =>
+          scenario
+            .createAcceptedActionProbe({
+              gameId: setup.gameId,
+              actionType: GameActionType.LEAVE,
+              socketId: socket.id
+            })
+            .waitForCount(1)
         );
-        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE);
-        const leaveData1 = await leavePromise1;
-        leftUserIds.push(leaveData1.user);
-
-        const leavePromise2 = scenario.waitForEvent<GameLeaveBroadcastData>(
+        const leaves = scenario.collectEvents<GameLeaveBroadcastData>(
           showmanSocket,
-          SocketIOGameEvents.LEAVE
+          SocketIOGameEvents.LEAVE,
+          2
         );
-        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.LEAVE);
-        const leaveData2 = await leavePromise2;
-        leftUserIds.push(leaveData2.user);
+        for (const socket of playerSockets) scenario.actor(socket).emit(SocketIOGameEvents.LEAVE);
+        await Promise.all(accepted);
+        const leftUserIds = (await leaves.promise).map(({ user }) => user);
+        await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+        expect(leaves.count()).toBe(2);
+        expect([...leftUserIds].sort((a, b) => a - b)).toEqual(
+          setup.playerUsers.map(({ id }) => id).sort((a, b) => a - b)
+        );
 
         expect(leftUserIds).toHaveLength(2);
 
@@ -484,8 +505,7 @@ describe("Game Lock and Queue Mechanics", () => {
           SocketIOGameEvents.ANSWER_SHOW_START
         );
 
-        // Serialize: first submit answer, wait for it to be processed,
-        // then submit review to avoid RPUSH/LLEN race condition
+        // A review requires an established answering player.
         const answerPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.QUESTION_ANSWER
@@ -508,14 +528,10 @@ describe("Game Lock and Queue Mechanics", () => {
         // Skip show answer phase — this also waits for ANSWER_SHOW_END
         await utils.skipShowAnswer(showmanSocket);
 
-        // ANSWER_SHOW_END received from skipShowAnswer above
-        const questionFinish = true;
-
         // Verify all events were received
         expect(answer).toBeDefined();
         expect(answerResult).toBeDefined();
         expect(answerResult.answerResult.answerType).toBe(AnswerResultType.CORRECT);
-        expect(questionFinish).toBeDefined();
 
         // Verify player score was updated correctly
         const game = await utils.getGameFromGameService(setup.gameId);
@@ -553,13 +569,27 @@ describe("Game Lock and Queue Mechanics", () => {
             1
           );
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.QUESTION_ANSWER
+          });
+          const allAccepted = probe.waitForCount(playerSockets.length);
+
           // All three players try to answer simultaneously
           scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_ANSWER, {});
           scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.QUESTION_ANSWER, {});
           scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.QUESTION_ANSWER, {});
 
           const answers = await answerEvents.promise;
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(playerSockets.length);
+          expect(
+            probe
+              .records()
+              .map(({ socketId }) => socketId)
+              .sort()
+          ).toEqual(playerSockets.map(({ id }) => id).sort());
 
           // Only one answer should be accepted
           expect(answerEvents.count()).toBe(1);
@@ -618,6 +648,12 @@ describe("Game Lock and Queue Mechanics", () => {
             QUEUE_BURST_SIZE
           );
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.ANSWER_SUBMITTED
+          });
+          const allAccepted = probe.waitForCount(answerTexts.length);
+
           for (const answerText of answerTexts) {
             scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_SUBMITTED, {
               answerText
@@ -629,7 +665,9 @@ describe("Game Lock and Queue Mechanics", () => {
             otherPlayerSubmittedEvents.promise,
             spectatorSubmittedEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(answerTexts.length);
 
           expect(showmanEvents).toEqual(expectedEvents);
           expect(otherPlayerEvents).toEqual(expectedEvents);
@@ -673,6 +711,12 @@ describe("Game Lock and Queue Mechanics", () => {
             1
           );
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.ANSWER_RESULT
+          });
+          const allAccepted = probe.waitForCount(QUEUE_BURST_SIZE);
+
           for (let index = 0; index < QUEUE_BURST_SIZE; index += 1) {
             scenario.actor(showmanSocket).emit(SocketIOGameEvents.ANSWER_RESULT, {
               scoreResult: -400,
@@ -681,7 +725,9 @@ describe("Game Lock and Queue Mechanics", () => {
           }
 
           const [answerResult] = await answerResultEvents.promise;
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(QUEUE_BURST_SIZE);
 
           expect(answerResultEvents.count()).toBe(1);
           expect(answerResult.answerResult.player).toBe(playerUsers[0].id);
@@ -719,18 +765,46 @@ describe("Game Lock and Queue Mechanics", () => {
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
         await questionDataPromise;
 
-        // Serialize: first submit answer, wait for it to be processed,
-        // then submit leave to avoid RPUSH/LLEN race condition
+        const beforeCommands = scenario.mark();
+        const answerAccepted = scenario
+          .createAcceptedActionProbe({
+            gameId: setup.gameId,
+            actionType: GameActionType.QUESTION_ANSWER,
+            socketId: playerSockets[0].id
+          })
+          .waitForCount(1);
+        const leaveAccepted = scenario
+          .createAcceptedActionProbe({
+            gameId: setup.gameId,
+            actionType: GameActionType.LEAVE,
+            socketId: playerSockets[1].id
+          })
+          .waitForCount(1);
         const answerPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.QUESTION_ANSWER
         );
-        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_ANSWER, {});
-        const answerData = await answerPromise;
-
         const leavePromise = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_ANSWER, {});
         scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.LEAVE);
-        const leaveData = await leavePromise;
+        const [answerData, leaveData] = await Promise.all([
+          answerPromise,
+          leavePromise,
+          answerAccepted,
+          leaveAccepted
+        ]);
+        await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+        expect(answerData.userId).toBe(setup.playerUsers[0].id);
+        expect(leaveData.user).toBe(setup.playerUsers[1].id);
+        for (const event of [SocketIOGameEvents.QUESTION_ANSWER, SocketIOGameEvents.LEAVE]) {
+          scenario.assert.expectDirectedEventCount({
+            actor: scenario.actor(showmanSocket),
+            direction: "inbound",
+            event,
+            afterSequence: beforeCommands,
+            expectedCount: 1
+          });
+        }
 
         expect(answerData).toBeDefined();
         expect(leaveData).toBeDefined();
@@ -791,6 +865,12 @@ describe("Game Lock and Queue Mechanics", () => {
             SocketIOGameEvents.QUESTION_FINISH
           );
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.QUESTION_SKIP
+          });
+          const allAccepted = probe.waitForCount(playerSockets.length);
+
           for (const playerSocket of playerSockets) {
             scenario.actor(playerSocket).emit(SocketIOGameEvents.QUESTION_SKIP, {});
           }
@@ -801,7 +881,15 @@ describe("Game Lock and Queue Mechanics", () => {
             spectatorSkipEvents.promise,
             questionFinishPromise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(playerSockets.length);
+          expect(
+            probe
+              .records()
+              .map(({ socketId }) => socketId)
+              .sort()
+          ).toEqual(playerSockets.map(({ id }) => id).sort());
 
           expect(sortedSkippedPlayerIds(showmanSkips)).toEqual(expectedSortedPlayerIds);
           expect(sortedSkippedPlayerIds(playerSkips)).toEqual(expectedSortedPlayerIds);
@@ -890,6 +978,9 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const probe = scenario.createAcceptedActionProbe({ gameId });
+          const allAccepted = probe.waitForCount(skipToggleSequence.length);
+
           let queuedSkipToggleCount = 0;
           for (const action of queuedSkipToggleActions) {
             scenario.actor(action.socket).emit(action.event);
@@ -913,7 +1004,20 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanSkipEvents.promise,
             spectatorSkipEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(skipToggleSequence.length);
+          expect(
+            probe.records().map(({ actionType, playerId }) => ({ actionType, playerId }))
+          ).toEqual(
+            skipToggleSequence.map(({ event, playerId }) => ({
+              actionType:
+                event === SocketIOGameEvents.QUESTION_SKIP
+                  ? GameActionType.QUESTION_SKIP
+                  : GameActionType.QUESTION_UNSKIP,
+              playerId
+            }))
+          );
           const durationMs = Date.now() - startedAt;
 
           const expectedEventOrder = skipToggleSequence.map((action) => ({
@@ -962,13 +1066,30 @@ describe("Game Lock and Queue Mechanics", () => {
         const { showmanSocket, playerSockets, gameId } = setup;
 
         let leaveEvents: EventCollector<GameLeaveBroadcastData> | null = null;
+        let lockToken = "";
         let primaryFailure: unknown = NO_TEST_FAILURE;
 
         try {
           await utils.startGame(showmanSocket);
 
-          const game = await utils.getGameFromGameService(gameId);
-          const targetPlayer = game.players.find((p) => p.role === PlayerRole.PLAYER)!;
+          const targetPlayerId = setup.playerUsers[0].id;
+          const recipients = [showmanSocket, ...playerSockets].map((socket) =>
+            scenario.actor(socket)
+          );
+          const beforeCommands = scenario.mark();
+          const leaveProbe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.LEAVE,
+            socketId: playerSockets[0].id
+          });
+          const kickProbe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_KICK,
+            socketId: showmanSocket.id
+          });
+          const leaveAccepted = leaveProbe.waitForCount(1);
+          const kickAccepted = kickProbe.waitForCount(1);
+          const kickError = scenario.waitForEvent(showmanSocket, SocketIOEvents.ERROR);
 
           leaveEvents = scenario.collectEvents<GameLeaveBroadcastData>(
             showmanSocket,
@@ -976,14 +1097,29 @@ describe("Game Lock and Queue Mechanics", () => {
             1
           );
 
-          // Player leaves while showman kicks them (same player)
+          // Enqueue LEAVE first. Release does not drain: the real KICK is the trigger.
+          const lock = await lockService.acquireLock(gameId);
+          expect(lock.acquired).toBe(true);
+          lockToken = lock.token;
           scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE);
+          await leaveAccepted;
+          lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
           scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_KICKED, {
-            playerId: targetPlayer.meta.id
+            playerId: targetPlayerId
           });
 
-          await leaveEvents.promise;
+          const [leaves, error] = await Promise.all([leaveEvents.promise, kickError, kickAccepted]);
           await utils.waitForActionsComplete(gameId);
+          expect(leaves.map(({ user }) => user)).toEqual([targetPlayerId]);
+          expect(error.message).toBe("Player not found"); // PLAYER_NOT_FOUND after the queued LEAVE.
+          expect(leaveProbe.records()).toHaveLength(1);
+          expect(kickProbe.records()).toHaveLength(1);
+          await scenario.assert.noInboundMany({
+            actors: recipients,
+            event: SocketIOGameEvents.PLAYER_KICKED,
+            afterSequence: beforeCommands,
+            durationMs: 100
+          });
 
           // Only one leave event should be received
           expect(leaveEvents.count()).toBe(1);
@@ -998,17 +1134,19 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(connectedPlayers.length).toBe(2);
 
           const playerIds = connectedPlayers.map((p) => p.meta.id);
-          expect(playerIds).not.toContain(targetPlayer.meta.id);
+          expect(playerIds).not.toContain(targetPlayerId);
         } catch (error) {
           primaryFailure = error;
         } finally {
-          await finishTestCleanup(primaryFailure, [leaveEvents ?? undefined]);
+          await finishTestCleanup(primaryFailure, [leaveEvents ?? undefined], async () => {
+            lockToken = await releaseHeldGameLock(lockService, gameId, lockToken);
+          });
         }
       }));
   });
 
-  describe("Concurrent Game Pause and Actions", () => {
-    it("should handle pause during question selection", () =>
+  describe("Sequential Game Pause and Actions", () => {
+    it("should allow question selection after pause and unpause", () =>
       suite.scenario(async (scenario) => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
         const { showmanSocket, playerSockets } = setup;
@@ -1019,7 +1157,7 @@ describe("Game Lock and Queue Mechanics", () => {
         let gameState = await utils.getGameState(setup.gameId);
         expect(gameState!.questionState).toBe(QuestionState.CHOOSING);
 
-        // Pause and pick question simultaneously
+        // Pause and unpause must complete before question selection.
         const pausePromise = scenario.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_PAUSE);
 
         scenario.actor(showmanSocket).emit(SocketIOGameEvents.GAME_PAUSE, {});
@@ -1378,6 +1516,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(transferState!.questionState).toBe(QuestionState.SECRET_TRANSFER);
           expect(transferState!.timer).toBeDefined();
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_SCORE_CHANGE
+          });
+          const allAccepted = probe.waitForCount(1);
+
           const lock = await lockService.acquireLock(gameId);
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
@@ -1428,7 +1572,9 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanDrainEvents.promise,
             spectatorDrainEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(1);
           const durationMs = Date.now() - startedAt;
 
           const eventOrder = (
@@ -1546,6 +1692,12 @@ describe("Game Lock and Queue Mechanics", () => {
           const biddingState = await utils.getGameState(gameId);
           expect(biddingState!.questionState).toBe(QuestionState.BIDDING);
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_SCORE_CHANGE
+          });
+          const allAccepted = probe.waitForCount(1);
+
           const lock = await lockService.acquireLock(gameId);
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
@@ -1596,7 +1748,9 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanDrainEvents.promise,
             spectatorDrainEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(1);
           const durationMs = Date.now() - startedAt;
 
           const eventOrder = (
@@ -1681,6 +1835,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_SCORE_CHANGE
+          });
+          const allAccepted = probe.waitForCount(queuedScores.length);
+
           for (const newScore of queuedScores) {
             scenario.actor(showmanSocket).emit(SocketIOGameEvents.SCORE_CHANGED, {
               playerId: player.meta.id,
@@ -1710,7 +1870,9 @@ describe("Game Lock and Queue Mechanics", () => {
 
           const scoreBroadcasts = await scoreEvents.promise;
           await questionFinishPromise;
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(queuedScores.length);
 
           expect(scoreBroadcasts.map((event) => event.newScore)).toEqual(queuedScores);
 
@@ -1740,6 +1902,12 @@ describe("Game Lock and Queue Mechanics", () => {
 
           const showingState = await utils.getGameState(gameId);
           expect(showingState!.questionState).toBe(QuestionState.SHOWING);
+
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_SCORE_CHANGE
+          });
+          const allAccepted = probe.waitForCount(1);
 
           const lock = await lockService.acquireLock(gameId);
           expect(lock.acquired).toBe(true);
@@ -1775,7 +1943,9 @@ describe("Game Lock and Queue Mechanics", () => {
 
           await questionFinishPromise;
           const scoreBroadcasts = await scoreEvents.promise;
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(1);
 
           expect(scoreBroadcasts[0]).toEqual({
             playerId: player.meta.id,
@@ -1818,6 +1988,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(answeringState!.answeringPlayer).toBe(playerUsers[0].id);
           expect(answeringState!.timer).toBeDefined();
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_SCORE_CHANGE
+          });
+          const allAccepted = probe.waitForCount(1);
+
           const lock = await lockService.acquireLock(gameId);
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
@@ -1854,7 +2030,9 @@ describe("Game Lock and Queue Mechanics", () => {
             playerDrainEvents.promise,
             spectatorDrainEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(1);
           const durationMs = Date.now() - startedAt;
 
           const eventOrder = (
@@ -1927,6 +2105,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.TURN_PLAYER_CHANGE
+          });
+          const allAccepted = probe.waitForCount(turnPlayerSequence.length);
+
           let queuedTurnChangeCount = 0;
           for (const turnPlayerAction of queuedTurnPlayerActions) {
             scenario
@@ -1958,7 +2142,9 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanTurnEvents.promise,
             spectatorTurnEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(turnPlayerSequence.length);
           const durationMs = Date.now() - startedAt;
 
           expect(showmanEvents).toEqual(turnPlayerSequence);
@@ -2002,6 +2188,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_SLOT_CHANGE
+          });
+          const allAccepted = probe.waitForCount(slotSequence.length);
+
           let queuedSlotChangeCount = 0;
           for (const slotAction of queuedSlotActions) {
             scenario
@@ -2033,7 +2225,9 @@ describe("Game Lock and Queue Mechanics", () => {
             playerSlotEvents.promise,
             spectatorSlotEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(slotSequence.length);
           const durationMs = Date.now() - startedAt;
 
           const expectedSlotEvents = slotSequence.map(({ targetSlot }) => ({
@@ -2095,6 +2289,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_RESTRICTION
+          });
+          const allAccepted = probe.waitForCount(muteToggleSequence.length);
+
           let queuedMuteChangeCount = 0;
           for (const muteAction of queuedMuteActions) {
             scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_RESTRICTED, muteAction);
@@ -2124,7 +2324,9 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanRestrictionEvents.promise,
             spectatorRestrictionEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(muteToggleSequence.length);
           const durationMs = Date.now() - startedAt;
 
           expect(showmanEvents).toEqual(muteToggleSequence);
@@ -2172,6 +2374,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_ROLE_CHANGE
+          });
+          const allAccepted = probe.waitForCount(roleSequence.length);
+
           let queuedRoleChangeCount = 0;
           for (const roleAction of queuedRoleActions) {
             scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, roleAction);
@@ -2201,7 +2409,9 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanRoleEvents.promise,
             spectatorRoleEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(roleSequence.length);
           const durationMs = Date.now() - startedAt;
 
           const expectedRoleEvents = roleSequence.map(({ newRole }) => ({
@@ -2307,6 +2517,9 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const probe = scenario.createAcceptedActionProbe({ gameId });
+          const allAccepted = probe.waitForCount(readinessSequence.length);
+
           let queuedReadinessCount = 0;
           for (const action of queuedReadinessActions) {
             scenario.actor(action.socket).emit(action.event);
@@ -2334,7 +2547,20 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanReadinessEvents.promise,
             spectatorReadinessEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(readinessSequence.length);
+          expect(
+            probe.records().map(({ actionType, playerId }) => ({ actionType, playerId }))
+          ).toEqual(
+            readinessSequence.map(({ event, playerId }) => ({
+              actionType:
+                event === SocketIOGameEvents.PLAYER_READY
+                  ? GameActionType.PLAYER_READY
+                  : GameActionType.PLAYER_UNREADY,
+              playerId
+            }))
+          );
           const durationMs = Date.now() - startedAt;
 
           const expectedEventOrder = readinessSequence.map((action) => ({
@@ -2428,6 +2654,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.FINAL_BID_SUBMIT
+          });
+          const allAccepted = probe.waitForCount(bidSequence.length);
+
           let queuedBidCount = 0;
           for (const bidAction of queuedBidActions) {
             scenario.actor(bidAction.socket).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
@@ -2470,7 +2702,12 @@ describe("Game Lock and Queue Mechanics", () => {
             spectatorBidEvents.promise
           ]);
           await Promise.all(questionDataPromises);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(bidSequence.length);
+          expect(probe.records().map(({ playerId }) => playerId)).toEqual(
+            bidSequence.map(({ playerId }) => playerId)
+          );
           const durationMs = Date.now() - startedAt;
 
           const expectedBidEvents = bidSequence.slice(0, 2).map((bidAction) => ({
@@ -2539,6 +2776,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(biddingState.questionState).toBe(QuestionState.BIDDING);
           expect(biddingState.finalRoundData?.phase).toBe(FinalRoundPhase.BIDDING);
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_SCORE_CHANGE
+          });
+          const allAccepted = probe.waitForCount(1);
+
           const lock = await lockService.acquireLock(gameId);
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
@@ -2597,7 +2840,9 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanDrainEvents.promise,
             spectatorDrainEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(1);
           const durationMs = Date.now() - startedAt;
 
           const eventOrder = (
@@ -2728,6 +2973,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(answeringState.questionState).toBe(QuestionState.ANSWERING);
           expect(answeringState.finalRoundData?.phase).toBe(FinalRoundPhase.ANSWERING);
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_SCORE_CHANGE
+          });
+          const allAccepted = probe.waitForCount(1);
+
           const lock = await lockService.acquireLock(gameId);
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
@@ -2789,7 +3040,9 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanDrainEvents.promise,
             spectatorDrainEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(1);
           const durationMs = Date.now() - startedAt;
 
           const eventOrder = (
@@ -2931,6 +3184,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.FINAL_ANSWER_REVIEW
+          });
+          const allAccepted = probe.waitForCount(QUEUE_BURST_SIZE);
+
           for (
             let queuedReviewCount = 1;
             queuedReviewCount < QUEUE_BURST_SIZE;
@@ -2964,7 +3223,9 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanReviewEvents.promise,
             spectatorReviewEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(QUEUE_BURST_SIZE);
           const durationMs = Date.now() - startedAt;
 
           const expectedReview = {
@@ -3059,6 +3320,12 @@ describe("Game Lock and Queue Mechanics", () => {
           expect(lock.acquired).toBe(true);
           lockToken = lock.token;
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.FINAL_ANSWER_SUBMIT
+          });
+          const allAccepted = probe.waitForCount(answerTexts.length);
+
           let queuedAnswerCount = 0;
           for (const answerText of queuedAnswerTexts) {
             scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
@@ -3090,7 +3357,9 @@ describe("Game Lock and Queue Mechanics", () => {
             showmanAnswerEvents.promise,
             spectatorAnswerEvents.promise
           ]);
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(answerTexts.length);
           const durationMs = Date.now() - startedAt;
 
           const expectedSubmission = { playerId: playerUsers[0].id };
@@ -3147,6 +3416,12 @@ describe("Game Lock and Queue Mechanics", () => {
             QUEUE_BURST_SIZE
           );
 
+          const probe = scenario.createAcceptedActionProbe({
+            gameId,
+            actionType: GameActionType.PLAYER_SCORE_CHANGE
+          });
+          const allAccepted = probe.waitForCount(scores.length);
+
           const startedAt = Date.now();
           for (const newScore of scores) {
             scenario.actor(showmanSocket).emit(SocketIOGameEvents.SCORE_CHANGED, {
@@ -3156,7 +3431,9 @@ describe("Game Lock and Queue Mechanics", () => {
           }
 
           const receivedScores = await scoreEvents.promise;
+          await allAccepted;
           await utils.waitForActionsComplete(gameId);
+          expect(probe.records()).toHaveLength(scores.length);
           const durationMs = Date.now() - startedAt;
 
           expect(receivedScores.map((event) => event.newScore)).toEqual(scores);
