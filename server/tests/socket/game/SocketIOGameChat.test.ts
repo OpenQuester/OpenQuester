@@ -502,15 +502,15 @@ describe("Socket Game Chat Tests", () => {
               playerSocket,
               SocketIOEvents.ERROR
             );
-            const noBroadcast = scenario.assert.noInboundMany({
+            scenario.actor(playerSocket).emit(SocketIOEvents.CHAT_MESSAGE, { message });
+            const error = await messageError;
+            expect(error.message).toBeDefined();
+            await scenario.assert.noInboundMany({
               actors: recipients,
               event: SocketIOEvents.CHAT_MESSAGE,
               afterSequence: afterMessage,
               durationMs: 100
             });
-            scenario.actor(playerSocket).emit(SocketIOEvents.CHAT_MESSAGE, { message });
-            const [error] = await Promise.all([messageError, noBroadcast]);
-            expect(error.message).toBeDefined();
           }
         }));
 

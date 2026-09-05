@@ -101,6 +101,16 @@ self-tests into gameplay scenarios, and it does not add Flutter/browser E2E cove
 - Negative assertions name their recipients: `noInbound({ actor, ... })` or
   `noInboundMany({ actors, ... })`. Groups must be non-empty and contain unique, scenario-owned
   actors. Never filter recipients by `socket.connected`: an unexpected disconnect must fail.
+- For a command-related negative check, register recipients and mark **before** the command, arm
+  positive waits/acceptance, emit, await acceptance and processing, then start the negative check
+  with that original mark. It inspects both command history and a full post-completion delivery
+  window. A negative promise that expired while the command was still running proves nothing
+  about the rest of the command.
+- Use the actual causal boundary: accepted enqueue plus drain for queued actions; HTTP response,
+  sender error, or confirmed allowed delivery for direct actions. The silent repeated `LEAVE`
+  no-op has neither a response nor an enqueue: `suite.runAndWaitForSocketHandler(...)` observes
+  completion of the original server listener, with a deadline and listener restoration. It does
+  not replace client assertions or introduce a production acknowledgement.
 - Live positive and negative waits require a connected actor from the current connection generation.
   Disconnect, connect error, or replacement rejects its pending waits (and a group's aggregate). For
   history after disconnect, use `records`/snapshot, not a live wait.
@@ -139,17 +149,22 @@ await scenario.assert.waitForActionsComplete({ gameId });
 scenario.assert.expectDirectedEventCount({ actor, direction: "inbound", event, afterSequence: after, expectedCount: 1 });
 ```
 
-Negative and group assertions use explicit recipients. Arm before the action, then await:
+Negative and group assertions use explicit recipients, the pre-command mark, and a causal boundary:
 
 ```ts
-const quiet = scenario.assert.noInbound({ actor, event: "error", afterSequence: scenario.mark(), durationMs: 200 });
+const after = scenario.mark();
+const accepted = scenario.createAcceptedActionProbe({ gameId, actionType }).waitForCount(1);
 actor.emit(command, input);
-await quiet;
+await accepted;
+await scenario.assert.waitForActionsComplete({ gameId });
+await scenario.assert.noInbound({ actor, event: "error", afterSequence: after, durationMs: 200 });
 
 const privateRecipients = [showman, spectator];
-const isolated = scenario.assert.noInboundMany({ actors: privateRecipients, event: "private-message", afterSequence: scenario.mark(), durationMs: 100 });
+const beforeMessage = scenario.mark();
+const delivered = scenario.assert.inbound({ actor: allowedRecipient, event: "private-message", afterSequence: beforeMessage, timeoutMs: 1500 });
 player.emit(command, input);
-await isolated;
+await delivered; // Direct action: actual allowed delivery, not a fabricated Redis acceptance.
+await scenario.assert.noInboundMany({ actors: privateRecipients, event: "private-message", afterSequence: beforeMessage, durationMs: 100 });
 ```
 
 Expected disconnect is a positive event. Other live waits on that actor must fail:
@@ -236,7 +251,7 @@ Run from `server/`, starting with infrastructure and then the affected transport
 cases. These are the same focused selectors used by the backend CI job:
 
 ```bash
-npm run test:pipeline -- tests/e2e/scenario tests/e2e/contracts tests/socket/game/utils tests/e2e/flows/media-download/MediaDownloadFlow.test.ts --runInBand
+npm run test:pipeline -- tests/e2e/scenario tests/e2e/contracts tests/socket/game/utils tests/e2e/harness/SocketClientTestUtils.test.ts tests/e2e/flows/media-download/MediaDownloadFlow.test.ts --runInBand
 npm run test:pipeline -- tests/e2e/flows/MediaDownloadScenario.test.ts tests/e2e/flows/MediaDownloadEdgeScenario.test.ts tests/socket/game/GameLockAndQueueMechanics.test.ts tests/user/UserNotificationRooms.test.ts --runInBand
 ```
 

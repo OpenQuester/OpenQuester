@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, jest } from "@jest/globals";
 import { EventEmitter } from "events";
+import { type Socket as ServerSocket } from "socket.io";
 import { io as createSocket } from "socket.io-client";
 
 import { connectRootSocket } from "tests/e2e/harness/SocketClientTestUtils";
+import { runAndWaitForSocketHandler } from "tests/e2e/harness/SocketTestWait";
+import { createControlledPromise } from "tests/e2e/harness/TestPromiseUtils";
 
 jest.mock("socket.io-client", () => ({ io: jest.fn() }));
 
@@ -37,6 +40,7 @@ class FakeClientSocket extends EventEmitter {
 
 afterEach(() => {
   jest.clearAllMocks();
+  jest.useRealTimers();
 });
 
 describe("SocketClientTestUtils", () => {
@@ -68,5 +72,90 @@ describe("SocketClientTestUtils", () => {
 
     expect(socket.close).toHaveBeenCalledTimes(1);
     expect(socket.eventNames()).toEqual([]);
+  });
+});
+
+describe("Silent server handler completion", () => {
+  it("waits for the original async handler and restores its listeners", async () => {
+    jest.useFakeTimers();
+    const socket = Object.assign(new EventEmitter(), { id: "server", connected: true });
+    const processing = createControlledPromise<void>();
+    const handler = jest.fn(function (this: EventEmitter, input: unknown) {
+      expect(this).toBe(socket);
+      expect(input).toEqual({ id: 7 });
+      return processing.promise;
+    });
+    socket.on("command", handler);
+    let finished = false;
+    const completion = runAndWaitForSocketHandler(
+      socket as unknown as ServerSocket,
+      "command",
+      () => {
+        socket.emit("command", { id: 7 });
+      },
+      500
+    ).then(() => {
+      finished = true;
+    });
+    await jest.advanceTimersByTimeAsync(150);
+    expect(finished).toBe(false);
+    expect(handler).toHaveBeenCalledTimes(1);
+    processing.resolve();
+    await completion;
+    expect(finished).toBe(true);
+    expect(socket.listeners("command")).toEqual([handler]);
+    expect(socket.listenerCount("disconnect")).toBe(0);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it.each(["sync handler", "async handler", "emit", "disconnect", "timeout"])(
+    "fails on %s without leaking the observer or timer",
+    async (failure) => {
+      jest.useFakeTimers();
+      const socket = Object.assign(new EventEmitter(), { id: "server", connected: true });
+      const error = new Error(failure);
+      const handler = (): Promise<void> | void => {
+        if (failure === "sync handler") throw error;
+        if (failure === "async handler") return Promise.reject(error);
+      };
+      socket.on("command", handler);
+      const completion = runAndWaitForSocketHandler(
+        socket as unknown as ServerSocket,
+        "command",
+        () => {
+          if (failure === "emit") throw error;
+          if (failure === "disconnect") {
+            socket.connected = false;
+            socket.emit("disconnect");
+          } else if (failure !== "timeout") socket.emit("command");
+        },
+        50
+      );
+      const outcome = expect(completion).rejects.toThrow(
+        failure === "timeout" ? "Timed out after 50ms" : failure
+      );
+      await jest.advanceTimersByTimeAsync(50);
+      await outcome;
+      expect(socket.listeners("command")).toEqual([handler]);
+      expect(socket.listenerCount("disconnect")).toBe(0);
+      expect(jest.getTimerCount()).toBe(0);
+    }
+  );
+
+  it("rejects disconnected sockets and ambiguous handlers without sending a command", async () => {
+    const socket = Object.assign(new EventEmitter(), { id: "server", connected: false });
+    const operation = jest.fn();
+    const handler = (): void => undefined;
+    socket.on("command", handler);
+    await expect(
+      runAndWaitForSocketHandler(socket as unknown as ServerSocket, "command", operation, 50)
+    ).rejects.toThrow("one connected server handler");
+    socket.connected = true;
+    socket.on("command", handler);
+    await expect(
+      runAndWaitForSocketHandler(socket as unknown as ServerSocket, "command", operation, 50)
+    ).rejects.toThrow("one connected server handler");
+    expect(operation).not.toHaveBeenCalled();
+    expect(socket.listeners("command")).toEqual([handler, handler]);
   });
 });

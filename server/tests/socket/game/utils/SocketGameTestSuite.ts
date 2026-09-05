@@ -6,8 +6,27 @@ import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { TestUtils } from "tests/utils/TestUtils";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
+import { type ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
 
 export class SocketGameTestSuite {
+  public runAndWaitForSocketHandler(
+    actor: ScenarioActor,
+    event: string,
+    operation: () => void
+  ): Promise<void> {
+    if (
+      !actor.socket.connected ||
+      !actor.socketId ||
+      this.currentScenario.actor(actor.socket) !== actor
+    ) {
+      throw new Error(`Actor "${actor.label}" is disconnected, foreign, or stale`);
+    }
+    return this.currentScenario.trackExpectation(
+      this.harness.runAndWaitForSocketHandler(actor.namespace, actor.socketId, event, operation),
+      `real server handler "${event}" for actor "${actor.label}"`
+    );
+  }
+
   public readonly app: Express;
   public readonly dataSource: DataSource;
   public readonly userRepo: Repository<User>;

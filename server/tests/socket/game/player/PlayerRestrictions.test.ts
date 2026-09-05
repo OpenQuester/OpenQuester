@@ -4,6 +4,7 @@ import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { Repository } from "typeorm";
 
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GameActionType } from "domain/enums/GameActionType";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameLeaveEventPayload } from "domain/types/socket/events/game/GameLeaveEventPayload";
 import {
@@ -121,6 +122,12 @@ describe("PlayerRestrictions", () => {
       const targetPlayerId = setup.playerUsers[0].id;
       const targetPlayerSocket = setup.playerSockets[0];
       const spectatorSocket = setup.spectatorSockets[0];
+      const beforeRestriction = scenario.mark();
+      const restrictionProbe = scenario.createAcceptedActionProbe({
+        gameId: setup.gameId,
+        actionType: GameActionType.PLAYER_RESTRICTION,
+        socketId: setup.showmanSocket.id
+      });
 
       const restrictionEventPromise = scenario.waitForEvent<PlayerRestrictionBroadcastData>(
         setup.showmanSocket,
@@ -174,7 +181,14 @@ describe("PlayerRestrictions", () => {
         );
       }
 
-      await scenario.waitForNoEvent(setup.showmanSocket, SocketIOGameEvents.LEAVE);
+      await restrictionProbe.waitForCount(1);
+      await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+      await scenario.assert.noInbound({
+        actor: scenario.actor(setup.showmanSocket),
+        event: SocketIOGameEvents.LEAVE,
+        afterSequence: beforeRestriction,
+        durationMs: 100
+      });
 
       const game = await utils.getGameFromGameService(setup.gameId);
       const restrictedPlayer = game.getPlayer(targetPlayerId, {

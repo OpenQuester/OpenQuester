@@ -1,4 +1,61 @@
 import { type Socket } from "socket.io-client";
+import { type Socket as ServerSocket } from "socket.io";
+import { createControlledPromise, withTimeout } from "tests/e2e/harness/TestPromiseUtils";
+
+/**
+ * Observes the real dispatcher for a silent transport no-op (no response or enqueue).
+ * This is a causal boundary, not a replacement for client-visible assertions.
+ */
+export async function runAndWaitForSocketHandler(
+  socket: ServerSocket,
+  event: string,
+  operation: () => void,
+  timeoutMs: number
+): Promise<void> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error("Socket handler timeout must be a positive finite number");
+  }
+  const handlers = socket.listeners(event);
+  if (!socket.connected || handlers.length !== 1) {
+    throw new Error(
+      `Expected one connected server handler for "${event}" on socket "${socket.id}"`
+    );
+  }
+  const original = handlers[0];
+  const completed = createControlledPromise<void>();
+  const observed = (...args: unknown[]): void => {
+    try {
+      void Promise.resolve(original.apply(socket, args)).then(
+        () => completed.resolve(),
+        (error: unknown) => completed.reject(error)
+      );
+    } catch (error) {
+      completed.reject(error);
+    }
+  };
+  const onDisconnect = (): void =>
+    completed.reject(new Error(`Socket "${socket.id}" disconnected during "${event}"`));
+  // Own rejection before operation(), which may synchronously fail or disconnect.
+  const completion = withTimeout(
+    completed.promise,
+    timeoutMs,
+    `server handler "${event}" on socket "${socket.id}"`
+  );
+  void completion.catch(() => undefined);
+  try {
+    socket.off(event, original);
+    socket.on(event, observed);
+    socket.once("disconnect", onDisconnect);
+    operation();
+    await completion;
+  } finally {
+    completed.resolve();
+    await Promise.allSettled([completion]);
+    socket.off("disconnect", onDisconnect);
+    socket.off(event, observed);
+    socket.on(event, original);
+  }
+}
 
 interface SocketWaitContext {
   client: string;

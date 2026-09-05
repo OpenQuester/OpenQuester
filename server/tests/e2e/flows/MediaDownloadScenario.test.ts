@@ -81,10 +81,10 @@ describe("Media Download client-contract golden scenarios", () => {
       const afterLateAck = flow.mark();
       const lateProbe = flow.createAcceptedMediaDownloadProbe(flow.showman);
       const lateAccepted = lateProbe.waitForCount(1);
-      const noLateStatus = flow.expectNoMediaDownloadStatus(flow.allRecipients, afterLateAck);
       flow.emitPlayerDownloaded(flow.showman);
-      await Promise.all([lateAccepted, noLateStatus]);
+      await lateAccepted;
       await flow.waitForActionsComplete();
+      await flow.expectNoMediaDownloadStatus(flow.allRecipients, afterLateAck);
 
       flow.assertAcceptedMediaDownloadCount(lateProbe, 1, flow.showman);
       await flow.expectMediaReadiness([
@@ -414,17 +414,12 @@ describe("Media Download client-contract golden scenarios", () => {
 
       const afterCompletion = flow.mark();
       const timeoutProbe = flow.createAcceptedMediaTimeoutProbe();
-      const noSystemStatus = flow.expectNoMediaDownloadStatus(
-        flow.allRecipients,
-        afterCompletion,
-        SYSTEM_PLAYER_ID
-      );
       const result = await flow.submitStaleMediaTimeout(staleExpirationTime);
 
       expect(result.success).toBe(true);
       await timeoutProbe.waitForCount(1);
       await flow.waitForActionsComplete();
-      await noSystemStatus;
+      await flow.expectNoMediaDownloadStatus(flow.allRecipients, afterCompletion, SYSTEM_PLAYER_ID);
 
       expect(timeoutProbe.records()).toHaveLength(1);
       await flow.expectQuestionState(QuestionState.SHOWING);
@@ -442,13 +437,12 @@ describe("Media Download client-contract golden scenarios", () => {
       const player = flow.player(0);
       const afterDownload = flow.mark();
       const probe = flow.createAcceptedMediaDownloadProbe(player);
-      const noStatus = flow.expectNoMediaDownloadStatus(flow.allRecipients, afterDownload);
 
       flow.emitPlayerDownloaded(player);
 
       await probe.waitForCount(1);
       await flow.waitForActionsComplete();
-      await noStatus;
+      await flow.expectNoMediaDownloadStatus(flow.allRecipients, afterDownload);
 
       flow.assertOutboundMediaDownloadCommands({
         actor: player,
@@ -506,10 +500,10 @@ describe("Media Download client-contract golden scenarios", () => {
         afterAck,
         expectedStatus(flow.showman.userId!, false, null)
       );
-      const noCompletion = flow.expectNoReadinessCompletion(flow.allRecipients, afterAck);
       flow.emitPlayerDownloaded(flow.showman);
-      await Promise.all([accepted, status, noCompletion]);
+      await Promise.all([accepted, status]);
       await flow.waitForActionsComplete();
+      await flow.expectNoReadinessCompletion(flow.allRecipients, afterAck);
       flow.assertAcceptedMediaDownloadCount(probe, 1, flow.showman);
       flow.assertOutboundMediaDownloadCommands({
         actor: flow.showman,

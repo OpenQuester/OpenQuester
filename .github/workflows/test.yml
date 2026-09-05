@@ -95,7 +95,7 @@ jobs:
       - run: npm run build
       - name: E2E infrastructure self-tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run test:pipeline -- tests/e2e/scenario tests/e2e/contracts tests/socket/game/utils tests/e2e/flows/media-download/MediaDownloadFlow.test.ts --runInBand --json --outputFile=test-results/infrastructure.json
+        run: npm run test:pipeline -- tests/e2e/scenario tests/e2e/contracts tests/socket/game/utils tests/e2e/harness/SocketClientTestUtils.test.ts tests/e2e/flows/media-download/MediaDownloadFlow.test.ts --runInBand --json --outputFile=test-results/infrastructure.json
       - name: High-risk transport scenarios
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         env:

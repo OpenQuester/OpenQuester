@@ -8,6 +8,7 @@ import { bootstrapTestApp, createTestAppRuntime } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 import { waitForHttpListeningOrStartupFailure } from "tests/e2e/harness/HttpTestWait";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
+import { runAndWaitForSocketHandler } from "tests/e2e/harness/SocketTestWait";
 
 interface ServerTestHarnessOptions {
   apiPort?: number;
@@ -203,6 +204,17 @@ export class ServerTestHarness {
 
       socket.once("disconnect", onDisconnect);
     });
+  }
+
+  public runAndWaitForSocketHandler(
+    namespace: string,
+    socketId: string,
+    event: string,
+    operation: () => void
+  ): Promise<void> {
+    const socket = this.testApp.io.of(namespace).sockets.get(socketId);
+    if (!socket) throw new Error(`Server socket "${socketId}" is missing from "${namespace}"`);
+    return runAndWaitForSocketHandler(socket, event, operation, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
   }
 
   public stop(): Promise<void> {

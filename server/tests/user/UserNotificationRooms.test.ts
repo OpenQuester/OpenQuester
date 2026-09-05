@@ -76,7 +76,12 @@ describe("User Notification Rooms Tests", () => {
           app,
           game2Setup.playerUsers[0].id
         );
+        const isolatedPlayer = scenario.actor(game1Setup.playerSockets[0]);
         const beforeUpdate = scenario.mark();
+        const delivered = scenario.waitForEvent(
+          game2Setup.showmanSocket,
+          SocketIOUserEvents.USER_CHANGE
+        );
 
         await http
           .patch("/v1/me")
@@ -84,8 +89,12 @@ describe("User Notification Rooms Tests", () => {
           .send(updateData)
           .expect(HttpStatus.OK);
 
+        expect((await delivered).userData).toMatchObject({
+          id: game2Setup.playerUsers[0].id,
+          username: updateData.username
+        });
         await scenario.assert.noInbound({
-          actor: scenario.actor(game1Setup.playerSockets[0]),
+          actor: isolatedPlayer,
           event: SocketIOUserEvents.USER_CHANGE,
           afterSequence: beforeUpdate,
           durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,
@@ -142,7 +151,9 @@ describe("User Notification Rooms Tests", () => {
         };
 
         const { cookie: player2Cookie } = await utils.loginExistingUser(app, playerUsers[1].id);
+        const departedPlayer = scenario.actor(playerSockets[0]);
         const beforeUpdate = scenario.mark();
+        const delivered = scenario.waitForEvent(showmanSocket, SocketIOUserEvents.USER_CHANGE);
 
         await http
           .patch("/v1/me")
@@ -150,8 +161,12 @@ describe("User Notification Rooms Tests", () => {
           .send(updateData)
           .expect(HttpStatus.OK);
 
+        expect((await delivered).userData).toMatchObject({
+          id: playerUsers[1].id,
+          username: updateData.username
+        });
         await scenario.assert.noInbound({
-          actor: scenario.actor(playerSockets[0]),
+          actor: departedPlayer,
           event: SocketIOUserEvents.USER_CHANGE,
           afterSequence: beforeUpdate,
           durationMs: TEST_TIMEOUTS.SOCKET_NO_EVENT_WAIT_MS,

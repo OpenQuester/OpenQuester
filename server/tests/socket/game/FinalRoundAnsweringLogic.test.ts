@@ -1152,16 +1152,18 @@ describe("Final Round Answering Logic", () => {
         expect(answerIds).toHaveLength(2);
 
         // Review second answer first (testing any order)
+        const beforeFirstReview = scenario.mark();
+        const firstReviewProbe = scenario.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.FINAL_ANSWER_REVIEW,
+          socketId: showmanSocket.id
+        });
         const reviewPromise =
           suite.currentScenario.waitForEventMatching<FinalAnswerReviewOutputData>(
             showmanSocket,
             SocketIOGameEvents.FINAL_ANSWER_REVIEW,
             (data) => data.answerId === answerIds[1]
           );
-        const noGameFinishedPromise = suite.currentScenario.waitForNoEvent(
-          showmanSocket,
-          SocketIOGameEvents.GAME_FINISHED
-        );
 
         scenario.actor(showmanSocket).emit(SocketIOGameEvents.FINAL_ANSWER_REVIEW, {
           answerId: answerIds[1],
@@ -1176,7 +1178,14 @@ describe("Final Round Answering Logic", () => {
         });
 
         // Game should not finish yet
-        await noGameFinishedPromise;
+        await firstReviewProbe.waitForCount(1);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        await scenario.assert.noInbound({
+          actor: scenario.actor(showmanSocket),
+          event: SocketIOGameEvents.GAME_FINISHED,
+          afterSequence: beforeFirstReview,
+          durationMs: 100
+        });
 
         // Review first answer as correct
         const reviewPromise2 =

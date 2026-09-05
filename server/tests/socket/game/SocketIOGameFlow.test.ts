@@ -124,22 +124,28 @@ describe("Socket Game Flow Tests", () => {
         const playerSessionAfterLeave = await utils.getSocketUserData(playerSockets[0]);
         expect(playerSessionAfterLeave?.gameId).toBeNull();
 
-        const noShowmanLeavePromise = scenario.waitForNoEvent(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
+        const afterLeave = scenario.mark();
+        const player = scenario.actor(playerSockets[0]);
+        const recipients = [showmanSocket, ...playerSockets].map((socket) =>
+          scenario.actor(socket)
         );
-        const noPlayerLeavePromise = scenario.waitForNoEvent(
-          playerSockets[0],
-          SocketIOGameEvents.LEAVE
+        await suite.runAndWaitForSocketHandler(player, SocketIOGameEvents.LEAVE, () =>
+          scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE)
         );
-        const noPlayerErrorPromise = scenario.waitForNoEvent(
-          playerSockets[0],
-          SocketIOEvents.ERROR
-        );
-
-        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.LEAVE);
-
-        await Promise.all([noShowmanLeavePromise, noPlayerLeavePromise, noPlayerErrorPromise]);
+        await Promise.all([
+          scenario.assert.noInboundMany({
+            actors: recipients,
+            event: SocketIOGameEvents.LEAVE,
+            afterSequence: afterLeave,
+            durationMs: 100
+          }),
+          scenario.assert.noInbound({
+            actor: player,
+            event: SocketIOEvents.ERROR,
+            afterSequence: afterLeave,
+            durationMs: 100
+          })
+        ]);
 
         const playerSessionAfterNoop = await utils.getSocketUserData(playerSockets[0]);
         expect(playerSessionAfterNoop?.gameId).toBeNull();

@@ -3,6 +3,7 @@ import { type Express } from "express";
 import { Repository } from "typeorm";
 
 import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GameActionType } from "domain/enums/GameActionType";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import {
   type GameStartBroadcastData,
@@ -92,10 +93,24 @@ describe("SocketIOGameReady", () => {
         const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 1);
         const { playerSockets, showmanSocket, spectatorSockets } = setup;
 
+        const beforePartialReady = scenario.mark();
+        const partialReadyProbe = scenario.createAcceptedActionProbe({
+          gameId: setup.gameId,
+          actionType: GameActionType.PLAYER_READY
+        });
         await utils.setPlayerReady(playerSockets[0]);
         await utils.setPlayerReady(playerSockets[1]);
 
-        await scenario.waitForNoEvent(showmanSocket, SocketIOGameEvents.START);
+        await partialReadyProbe.waitForCount(2);
+        await scenario.assert.waitForActionsComplete({ gameId: setup.gameId });
+        await scenario.assert.noInboundMany({
+          actors: [showmanSocket, ...playerSockets, ...spectatorSockets].map((socket) =>
+            scenario.actor(socket)
+          ),
+          event: SocketIOGameEvents.START,
+          afterSequence: beforePartialReady,
+          durationMs: 100
+        });
 
         const finalReadyOnShowmanPromise = scenario.waitForEvent<PlayerReadinessBroadcastData>(
           showmanSocket,

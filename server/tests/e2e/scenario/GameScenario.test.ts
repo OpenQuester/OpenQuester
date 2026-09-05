@@ -232,6 +232,91 @@ describe("GameScenario transport API", () => {
     expect(jest.getTimerCount()).toBe(0);
   });
 
+  describe.each(["single", "group"])("causal %s negative assertions", (recipients) => {
+    it.each(["quiet", "during command", "after completion"])(
+      "checks command history and the complete delivery window: %s",
+      async (delivery) => {
+        jest.useFakeTimers();
+        const scenario = new GameScenario();
+        const sender = new FakeSocket();
+        const receiver = new FakeSocket();
+        receiver.id = "receiver";
+        const actors = [scenario.actor(sender.asSocket()), scenario.actor(receiver.asSocket())];
+        const beforeCommand = scenario.mark();
+        const operation = createControlledPromise<void>();
+        actors[0].emit("command");
+        setTimeout(() => operation.resolve(), 200);
+        await jest.advanceTimersByTimeAsync(150);
+        if (delivery === "during command") receiver.receive("forbidden", "late processing");
+        await jest.advanceTimersByTimeAsync(50);
+        await operation.promise;
+
+        const options = { event: "forbidden", afterSequence: beforeCommand, durationMs: 100 };
+        const quiet =
+          recipients === "single"
+            ? scenario.assert.noInbound({ ...options, actor: actors[1] })
+            : scenario.assert.noInboundMany({ ...options, actors });
+        const outcome =
+          delivery === "quiet"
+            ? expect(quiet).resolves.toBeUndefined()
+            : expect(quiet).rejects.toThrow('Unexpected event "forbidden"');
+        await jest.advanceTimersByTimeAsync(50);
+        if (delivery === "after completion") receiver.receive("forbidden", "late delivery");
+        await jest.advanceTimersByTimeAsync(50);
+        await outcome;
+        if (delivery === "quiet") await scenario.finish();
+        else await expect(scenario.finish()).rejects.toThrow("forbidden");
+        expect(jest.getTimerCount()).toBe(0);
+        expect(sender.journalListenerCount() + receiver.journalListenerCount()).toBe(0);
+      }
+    );
+
+    it.each(["during operation", "before final check", "during final window"])(
+      "cannot pass after disconnect %s",
+      async (disconnectAt) => {
+        jest.useFakeTimers();
+        const scenario = new GameScenario();
+        const sender = new FakeSocket();
+        const receiver = new FakeSocket();
+        receiver.id = "receiver";
+        const actors = [scenario.actor(sender.asSocket()), scenario.actor(receiver.asSocket())];
+        const afterSequence = scenario.mark();
+        actors[0].emit("command");
+        await jest.advanceTimersByTimeAsync(150);
+        if (disconnectAt === "during operation") receiver.disconnect();
+        await jest.advanceTimersByTimeAsync(50);
+        if (disconnectAt === "before final check") receiver.disconnect();
+        const check = (): Promise<void> =>
+          recipients === "single"
+            ? scenario.assert.noInbound({
+                actor: actors[1],
+                event: "error",
+                afterSequence,
+                durationMs: 100
+              })
+            : scenario.assert.noInboundMany({
+                actors,
+                event: "error",
+                afterSequence,
+                durationMs: 100
+              });
+
+        if (disconnectAt === "during final window") {
+          const quiet = check();
+          await jest.advanceTimersByTimeAsync(50);
+          receiver.disconnect();
+          await expect(quiet).rejects.toThrow("disconnected");
+          await expect(scenario.finish()).rejects.toThrow("disconnected");
+        } else {
+          expect(check).toThrow("disconnected");
+          await scenario.finish();
+        }
+        expect(jest.getTimerCount()).toBe(0);
+        expect(sender.journalListenerCount() + receiver.journalListenerCount()).toBe(0);
+      }
+    );
+  });
+
   it.each([0, -1, NaN, Infinity])("rejects invalid no-event duration %s", async (durationMs) => {
     const scenario = new GameScenario();
     const actor = scenario.actor(new FakeSocket().asSocket());

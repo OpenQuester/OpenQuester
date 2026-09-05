@@ -227,15 +227,24 @@ describe("Secret Question Flow Tests", () => {
             SocketIOGameEvents.ANSWER_RESULT
           )
         ];
-        const noQuestionSkipPromise = scenario.waitForNoEvent(
-          showmanSocket,
-          SocketIOGameEvents.QUESTION_SKIP
-        );
+        const beforeSkip = scenario.mark();
+        const skipProbe = scenario.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.QUESTION_SKIP,
+          socketId: answeringPlayerSocket.id
+        });
 
         scenario.actor(answeringPlayerSocket).emit(SocketIOGameEvents.QUESTION_SKIP, {});
 
         const answerResults = await Promise.all(answerResultPromises);
-        await noQuestionSkipPromise;
+        await skipProbe.waitForCount(1);
+        await scenario.assert.waitForActionsComplete({ gameId });
+        await scenario.assert.noInbound({
+          actor: scenario.actor(showmanSocket),
+          event: SocketIOGameEvents.QUESTION_SKIP,
+          afterSequence: beforeSkip,
+          durationMs: 100
+        });
 
         const expectedPenalty = -Math.max(1, secretQuestion!.price ?? 1);
         for (const answerResult of answerResults) {
