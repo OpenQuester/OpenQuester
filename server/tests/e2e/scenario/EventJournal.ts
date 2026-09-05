@@ -650,47 +650,6 @@ export class EventJournal {
   }
 }
 
-/** Runs a journal-backed assertion and preserves both scenario and disposal failures. */
-export async function withEventJournal<T>(
-  callback: (journal: EventJournal) => Promise<T>
-): Promise<T> {
-  const journal = new EventJournal();
-  let result: T | undefined;
-  let scenarioFailure: Error | undefined;
-
-  try {
-    result = await callback(journal);
-  } catch (error) {
-    scenarioFailure = toError(error);
-  }
-
-  let cleanupFailure: Error | undefined;
-  try {
-    if (scenarioFailure) {
-      await journal.dispose();
-    } else {
-      await journal.finish();
-    }
-  } catch (error) {
-    cleanupFailure = toError(error);
-  }
-
-  if (scenarioFailure && cleanupFailure) {
-    throw new AggregateError(
-      [scenarioFailure, cleanupFailure],
-      `Event journal scenario and cleanup both failed: ${scenarioFailure.message}; ${cleanupFailure.message}`
-    );
-  }
-  if (scenarioFailure) {
-    throw scenarioFailure;
-  }
-  if (cleanupFailure) {
-    throw cleanupFailure;
-  }
-
-  return result as T;
-}
-
 function createDeferred<T>(): Deferred<T> {
   let resolve: (value: T) => void = () => undefined;
   let reject: (error: Error) => void = () => undefined;

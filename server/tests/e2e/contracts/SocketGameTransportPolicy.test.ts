@@ -1,11 +1,11 @@
 import { describe, expect, it } from "@jest/globals";
-import { readdirSync, readFileSync } from "node:fs";
-import { basename, relative, resolve } from "node:path";
+import { resolve } from "node:path";
 import ts from "typescript";
 import {
   classifyTransportSuite,
   findUnscopedCases,
   forbiddenJestDefinitions,
+  forbiddenTransportMechanisms,
   readTestSources
 } from "./TransportSuitePolicy";
 
@@ -14,8 +14,13 @@ interface TransportSuiteSource {
   readonly source: string;
 }
 
-const socketGameRoot = resolve(__dirname, "../../socket/game");
-const transportSuites = readTransportSuites(socketGameRoot);
+const allTransportSuites = readTestSources(resolve(__dirname, "../..")).filter((suite) => {
+  const kind = classifyTransportSuite(suite);
+  return kind && kind !== "self-test" && kind !== "unclassified";
+});
+const transportSuites = allTransportSuites.filter(
+  (suite) => classifyTransportSuite(suite) !== "http"
+);
 const TRACKED_WAIT_METHODS = new Set([
   "waitForEvent",
   "waitForEventMatching",
@@ -30,35 +35,70 @@ describe("Socket game transport suite policy", () => {
     expect(
       violatingPaths(
         (suite) =>
-          !suite.source.includes("SocketGameTestSuite") ||
-          !suite.source.includes("await suite?.reset()") ||
-          !suite.source.includes("await suite?.stop()")
+          classifyTransportSuite(suite) !== "media" &&
+          (!suite.source.includes("SocketGameTestSuite") ||
+            !suite.source.includes("await suite?.reset()") ||
+            !suite.source.includes("await suite?.stop()"))
       )
     ).toEqual([]);
   });
 
   it("rejects copied lifecycle and cleanup that can mask the primary failure", () => {
     expect(
-      violatingPaths((suite) =>
-        /bootstrapTestApp|new TestEnvironment|PinoLogger\.init|cleanupGameClients|new EventJournal|console\.|\.catch\(\(\) => undefined\)/.test(
-          suite.source
-        )
+      allTransportSuites.flatMap((suite) =>
+        forbiddenTransportMechanisms(suite).map((reason) => `${suite.path}: ${reason}`)
       )
     ).toEqual([]);
   });
 
-  it("rejects catch-all success branches", () => {
-    expect(violatingPaths((suite) => /catch\s*\{/.test(suite.source))).toEqual([]);
-  });
-
-  it("rejects hand-written event promises including queue-mechanics collectors", () => {
+  it("owns every realtime case's assertions, not just its resources", () => {
     expect(
-      violatingPaths((suite) => /new Promise|setTimeout|\.on\(|\.once\(/.test(suite.source))
+      violatingPaths(
+        (suite) =>
+          findUnscopedCases(suite, classifyTransportSuite(suite) === "media" ? "media" : "gameplay")
+            .length > 0
+      )
     ).toEqual([]);
   });
 
-  it("owns every gameplay test's assertions in a scenario, not just its resources", () => {
-    expect(violatingPaths((suite) => findUnscopedCases(suite).length > 0)).toEqual([]);
+  it.each([
+    'import { EventJournal as RawJournal } from "tests/e2e/scenario/EventJournal";',
+    'import * as raw from "tests/e2e/scenario/EventJournal";',
+    "new EventJournal();",
+    "withEventJournal(async () => {});",
+    "bootstrapTestApp();",
+    "new TestEnvironment();",
+    "PinoLogger.init();",
+    "cleanupGameClients();",
+    "new Promise(() => {});",
+    "setTimeout(() => {}, 100);",
+    'socket.once("event", () => {});',
+    'socket.on("event", () => {});',
+    "try { action(); } catch {}",
+    "wait.catch(() => undefined);",
+    'console.warn("cleanup failed");'
+  ])("rejects lifecycle/journal bypass across transport categories: %s", (source) => {
+    for (const path of [
+      "socket/game/New.test.ts",
+      "user/Hybrid.test.ts",
+      "package/Http.test.ts",
+      "e2e/flows/Media.test.ts"
+    ]) {
+      expect(forbiddenTransportMechanisms({ path, source })).not.toEqual([]);
+    }
+  });
+
+  it("ignores lifecycle names in comments and string fixtures", () => {
+    expect(
+      forbiddenTransportMechanisms({
+        path: "Example.test.ts",
+        source: `
+      // new EventJournal(); socket.on("event", () => {});
+      const fixture = 'new Promise(() => {}); console.warn("x");';
+      it("valid", () => suite.scenario(async () => {}));
+    `
+      })
+    ).toEqual([]);
   });
 
   it("recognizes unscoped parameterized cases and Jest modifier chains", () => {
@@ -324,27 +364,9 @@ function getCalledMethodName(expression: ts.LeftHandSideExpression): string | un
   return undefined;
 }
 
-function readTransportSuites(directory: string): readonly TransportSuiteSource[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const entryPath = resolve(directory, entry.name);
-
-    if (entry.isDirectory()) {
-      return entry.name === "utils" ? [] : readTransportSuites(entryPath);
-    }
-    if (!entry.name.endsWith(".test.ts")) {
-      return [];
-    }
-
-    return [{ path: relative(socketGameRoot, entryPath), source: readFileSync(entryPath, "utf8") }];
-  });
-}
-
-function violatingPaths(
-  violates: (suite: TransportSuiteSource) => boolean,
-  allowedBasenames: ReadonlySet<string> = new Set()
-): readonly string[] {
+function violatingPaths(violates: (suite: TransportSuiteSource) => boolean): readonly string[] {
   return transportSuites
-    .filter((suite) => !allowedBasenames.has(basename(suite.path)) && violates(suite))
+    .filter(violates)
     .map((suite) => suite.path)
     .sort();
 }

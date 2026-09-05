@@ -5,8 +5,7 @@ import { type Socket } from "socket.io-client";
 import {
   EventJournal,
   EventJournalDisposedError,
-  type JournalActor,
-  withEventJournal
+  type JournalActor
 } from "tests/e2e/scenario/EventJournal";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
 import { ScenarioActor } from "tests/e2e/scenario/ScenarioActor";
@@ -317,36 +316,6 @@ describe("EventJournal", () => {
     await expect(negative).rejects.toBeInstanceOf(EventJournalDisposedError);
     expect(unhandledRejection).not.toHaveBeenCalled();
     process.removeListener("unhandledRejection", unhandledRejection);
-  });
-
-  it("preserves both a journal scenario failure and its disposal failure", async () => {
-    const scenarioFailure = new Error("scenario failed");
-    const disposalFailure = new Error("offAny failed");
-    const socket = new FakeSocket("failing-disposal");
-    jest.spyOn(socket, "offAny").mockImplementation(() => {
-      throw disposalFailure;
-    });
-
-    const failure = await withEventJournal(async (journal) => {
-      journal.attach({ label: "failing-disposal", socket: socket as unknown as Socket });
-      throw scenarioFailure;
-    }).catch((error: unknown) => error);
-
-    expect(failure).toBeInstanceOf(AggregateError);
-    expect((failure as AggregateError).errors[0]).toBe(scenarioFailure);
-    expect((failure as AggregateError).errors[1]).toBeInstanceOf(AggregateError);
-    expect(((failure as AggregateError).errors[1] as Error).message).toContain(
-      disposalFailure.message
-    );
-  });
-
-  it("fails successful journal scope completion when an assertion was forgotten", async () => {
-    await expect(
-      withEventJournal(async (journal) => {
-        const actor = createActor(journal, "p1");
-        void journal.expectEvent({ actor, event: "forgotten", timeoutMs: 100 });
-      })
-    ).rejects.toThrow("finished with pending assertions");
   });
 
   it("fails successful completion when a forgotten positive expectation times out", async () => {

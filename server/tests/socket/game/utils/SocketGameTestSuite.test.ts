@@ -1,11 +1,104 @@
-import { describe, expect, it, jest } from "@jest/globals";
+import { afterEach, describe, expect, it, jest } from "@jest/globals";
+import { EventEmitter } from "events";
+import { type Socket } from "socket.io-client";
 
 import type { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import type { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
 import { GameScenario } from "tests/e2e/scenario/GameScenario";
+import { flattenErrorMessages } from "tests/e2e/harness/TestPromiseUtils";
+
+class ObservedSocket extends EventEmitter {
+  public connected = true;
+  public nsp = "/games";
+  private readonly inbound = new Set<(event: string, ...args: unknown[]) => void>();
+  public constructor(public readonly id: string) {
+    super();
+  }
+  public onAny(listener: (event: string, ...args: unknown[]) => void): void {
+    this.inbound.add(listener);
+  }
+  public offAny(listener: (event: string, ...args: unknown[]) => void): void {
+    this.inbound.delete(listener);
+  }
+  public receive(event: string): void {
+    for (const listener of this.inbound) listener(event);
+  }
+  public get observerCount(): number {
+    return this.inbound.size + this.eventNames().length;
+  }
+  public asSocket(): Socket {
+    return this as unknown as Socket;
+  }
+}
+
+afterEach(() => {
+  jest.useRealTimers();
+});
 
 describe("SocketGameTestSuite lifecycle", () => {
+  it.each(["event", "derived", "aggregate"])(
+    "retains a forgotten %s rejection that settles before the callback returns",
+    async (kind) => {
+      jest.useFakeTimers();
+      const suite = createSuite({ cleanupOwnedClients: async () => undefined });
+      const first = new ObservedSocket("first");
+      const second = new ObservedSocket("second");
+      let callbackReturned = false;
+      const error = await captureFailure(() =>
+        suite.scenario(async (scenario) => {
+          const actors = [scenario.actor(first.asSocket()), scenario.actor(second.asSocket())];
+          if (kind === "aggregate") {
+            void scenario.assert.broadcast({ actors, event: "missing", timeoutMs: 25 });
+            first.receive("missing");
+          } else if (kind === "derived") {
+            void scenario.trackExpectation(
+              scenario.waitForEvent(first.asSocket(), "data", 25).then(() => {
+                throw new Error("derived payload rejected");
+              }),
+              "complete derived assertion"
+            );
+            first.receive("data");
+          } else {
+            void scenario.waitForEvent(first.asSocket(), "missing", 25);
+          }
+          await jest.advanceTimersByTimeAsync(25);
+          callbackReturned = true;
+        })
+      );
+      expect(callbackReturned).toBe(true);
+      expect(flattenErrorMessages(error).join(" ")).toContain(
+        kind === "derived" ? "derived payload rejected" : "missing"
+      );
+      expect(first.observerCount + second.observerCount).toBe(0);
+      expect(jest.getTimerCount()).toBe(0);
+      expect(() => suite.currentScenario).toThrow("No active game scenario");
+    }
+  );
+
+  it("preserves the primary failure and a real journal disposal failure", async () => {
+    const detach = jest.fn();
+    const suite = createSuite({ cleanupOwnedClients: async () => undefined, detach });
+    const socket = new ObservedSocket("disposal-failure");
+    const originalOffAny = socket.offAny.bind(socket);
+    jest.spyOn(socket, "offAny").mockImplementation((listener) => {
+      originalOffAny(listener);
+      throw new Error("offAny failed");
+    });
+    const primary = new Error("scenario failed");
+    const error = await captureFailure(() =>
+      suite.scenario(async (scenario) => {
+        scenario.actor(socket.asSocket());
+        throw primary;
+      })
+    );
+    expect(error).toBeInstanceOf(AggregateError);
+    expect((error as AggregateError).errors[0].cause).toBe(primary);
+    expect(flattenErrorMessages(error)).toContain("offAny failed");
+    expect(detach).toHaveBeenCalledTimes(1);
+    expect(socket.observerCount).toBe(0);
+  });
+
   it("fails a scenario when a tracked assertion was not awaited", async () => {
     const detach = jest.fn();
     const suite = createSuite({ cleanupOwnedClients: async () => undefined, detach });

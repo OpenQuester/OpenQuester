@@ -873,14 +873,15 @@ describe("Package Search API", () => {
         authorCookie: user1Cookie
       });
 
-      // Small delay to ensure different timestamps (10 ms delay is fine)
-      await new Promise((resolve) => setTimeout(resolve, 10));
-
       const id2 = await createPackage({
         title: "Second Package",
         author: user1,
         authorCookie: user1Cookie
       });
+
+      // The query sorts persisted timestamps; fixture dates must not depend on wall-clock spacing.
+      await packageRepo.update(id1, { created_at: new Date("2025-01-01T00:00:00Z") });
+      await packageRepo.update(id2, { created_at: new Date("2025-01-02T00:00:00Z") });
 
       const res = await http
         .get("/v1/packages")

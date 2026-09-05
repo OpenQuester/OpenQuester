@@ -44,6 +44,67 @@ function parse(suite: TestSource): ts.SourceFile {
   return ts.createSourceFile(suite.path, suite.source, ts.ScriptTarget.Latest, true);
 }
 
+/** Static lifecycle guard only; causal ordering and game rules need runtime assertions. */
+export function forbiddenTransportMechanisms(suite: TestSource): readonly string[] {
+  const failures: string[] = [];
+  const ast = parse(suite);
+  const reject = (node: ts.Node, reason: string): void => {
+    failures.push(
+      `line ${ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1}: ${reason}`
+    );
+  };
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      /(?:^|\/)EventJournal$/.test(node.moduleSpecifier.text)
+    ) {
+      reject(node, "direct journal access bypasses scenario assertion ownership");
+    }
+    if (
+      ts.isNewExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      ["EventJournal", "TestEnvironment", "Promise"].includes(node.expression.text)
+    ) {
+      reject(node, `hand-written ${node.expression.text}`);
+    }
+    if (ts.isCatchClause(node) && !node.variableDeclaration)
+      reject(node, "catch-all success branch");
+    if (ts.isCallExpression(node)) {
+      const call = member(node.expression);
+      const name = ts.isIdentifier(node.expression) ? node.expression.text : call?.name;
+      if (
+        name &&
+        ["bootstrapTestApp", "cleanupGameClients", "setTimeout", "withEventJournal"].includes(name)
+      ) {
+        reject(node, `copied lifecycle/wait: ${name}`);
+      }
+      if (call && ["on", "once"].includes(call.name)) reject(node, "hand-written event listener");
+      if (
+        call &&
+        ts.isIdentifier(call.receiver) &&
+        (call.receiver.text === "console" ||
+          (call.receiver.text === "PinoLogger" && call.name === "init"))
+      ) {
+        reject(node, "copied logging lifecycle or swallowed failure");
+      }
+      const callback = node.arguments[0];
+      if (
+        call?.name === "catch" &&
+        callback &&
+        ts.isArrowFunction(callback) &&
+        ts.isIdentifier(callback.body) &&
+        callback.body.text === "undefined"
+      ) {
+        reject(node, "swallowed rejection");
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(ast);
+  return failures;
+}
+
 /** Discover new endpoint suites by imports, not an allowlist that silently omits new files. */
 export function classifyTransportSuite(
   suite: TestSource

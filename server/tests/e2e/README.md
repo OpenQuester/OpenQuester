@@ -38,8 +38,9 @@ self-tests into gameplay scenarios, and it does not add Flutter/browser E2E cove
 - Await every event assertion. The shared event utility observes and cancels unfinished waits before
   client cleanup so a primary failure cannot leak listeners, timers, or secondary timeout noise.
   Lint rejects floating or unused waits, and the transport policy rejects explicit `void` escapes.
-- Use `withEventJournal` for direct journal-backed assertions so scenario and disposal failures are
-  both preserved.
+- `GameScenario` owns complete assertion promises and their settled outcomes. `EventJournal` only
+  records and waits; direct journal usage is restricted to infrastructure self-tests, not transport
+  suites. Do not add a second assertion-outcome owner or a separate journal wrapper.
 - Do not use direct sleeps for readiness, event delivery, or cleanup.
 - Do not copy lifecycle setup or teardown code into individual suites.
 - Do not add production hot-path instrumentation solely to support tests.
