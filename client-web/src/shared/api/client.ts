@@ -93,7 +93,9 @@ export type PackageQuery = {
 };
 
 /** Drops empty values so an unset filter never reaches the API as `&title=`. */
-function toQuery(params: Record<string, string | number | boolean | undefined>) {
+function toQuery(
+  params: Record<string, string | number | boolean | undefined>,
+) {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === "") continue;
@@ -117,7 +119,9 @@ export const api = {
     }),
   logout: () => apiRequest<void>("/v1/auth/logout", { method: "POST" }),
   games: ({ limit = 30, offset = 0 }: GameQuery = {}) =>
-    apiRequest<Paginated<GameListItem>>(`/v1/games?${toQuery({ limit, offset })}`),
+    apiRequest<Paginated<GameListItem>>(
+      `/v1/games?${toQuery({ limit, offset })}`,
+    ),
   game: (id: string) =>
     apiRequest<GameListItem>(`/v1/games/${encodeURIComponent(id)}`),
   createGame: (body: Record<string, unknown>) =>

@@ -93,9 +93,9 @@ let selfId: number | undefined;
 function hasSnapshot(value: unknown): value is JoinSnapshot {
   return Boolean(
     value &&
-      typeof value === "object" &&
-      "gameState" in value &&
-      "players" in value,
+    typeof value === "object" &&
+    "gameState" in value &&
+    "players" in value,
   );
 }
 
@@ -137,7 +137,7 @@ const handlers: EventHandlers = {
       applySnapshot(draft, payload);
       return;
     }
-    const player = payload as Player;
+    const player = payload;
     const existing = findPlayer(draft, player.meta.id);
     if (existing) Object.assign(existing, player);
     else draft.players.push(player);
@@ -332,7 +332,10 @@ const handlers: EventHandlers = {
     const stake = draft.gameState?.stakeQuestionData;
     if (!stake || !draft.gameState) return;
     stake.bids[String(payload.playerId)] = payload.bidAmount ?? null;
-    if (payload.bidType === "pass" && !stake.passedPlayers.includes(payload.playerId))
+    if (
+      payload.bidType === "pass" &&
+      !stake.passedPlayers.includes(payload.playerId)
+    )
       stake.passedPlayers.push(payload.playerId);
     if (
       payload.bidAmount != null &&
@@ -367,8 +370,7 @@ const handlers: EventHandlers = {
     if (!draft.gameState) return;
     if (draft.gameState.finalRoundData)
       draft.gameState.finalRoundData.phase = payload.nextPhase;
-    draft.gameState.questionState =
-      payload.nextPhase as GameState["questionState"];
+    draft.gameState.questionState = payload.nextPhase;
     draft.gameState.timer = payload.timer ?? null;
   },
 
@@ -391,7 +393,8 @@ const handlers: EventHandlers = {
         id: String(review.answerId),
         playerId: review.playerId,
         answer: review.answerText ?? "",
-        isCorrect: typeof review.isCorrect === "boolean" ? review.isCorrect : null,
+        isCorrect:
+          typeof review.isCorrect === "boolean" ? review.isCorrect : null,
         autoLoss: review.answerType === "auto_loss",
         submittedAt: new Date().toISOString(),
         reviewedAt: null,
@@ -489,8 +492,7 @@ export const useGameStore = create<GameStore>((set) => ({
         // socket.io hands payloads in as unknown, while each handler body is
         // typed against its own generated payload.
         const handler = handlers[event] as unknown as
-          | ((draft: GameDraft, payload: unknown) => void)
-          | undefined;
+          ((draft: GameDraft, payload: unknown) => void) | undefined;
         handler?.(draft, payload);
         if (RESOLVING_EVENTS.has(event)) draft.pendingAction = null;
       }),

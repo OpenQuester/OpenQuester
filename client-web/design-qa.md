@@ -28,13 +28,13 @@ Contrast ratios were computed for every token pair that carries text, in both
 themes and for all four accents. Every pair listed below now meets WCAG 2.1 AA
 (4.5:1 for body text):
 
-| Pair | Dark | Light |
-| --- | --- | --- |
-| `--accent` on `--bg` | 12.83 | 5.81 |
+| Pair                                       | Dark  | Light              |
+| ------------------------------------------ | ----- | ------------------ |
+| `--accent` on `--bg`                       | 12.83 | 5.81               |
 | `--accent` violet / lime / coral on `--bg` | ≥ 8.4 | 7.08 / 6.37 / 5.92 |
-| `--faint` on `--bg` | 6.57 | 5.06 |
-| `--faint` on `--card` | 5.92 | 5.48 |
-| `--dim` on `--card` | 6.87 | 7.80 |
+| `--faint` on `--bg`                        | 6.57  | 5.06               |
+| `--faint` on `--card`                      | 5.92  | 5.48               |
+| `--dim` on `--card`                        | 6.87  | 7.80               |
 
 `--accent-fill` keeps the saturated brand colour for button and chip
 backgrounds, where `--button-text` supplies the contrast.

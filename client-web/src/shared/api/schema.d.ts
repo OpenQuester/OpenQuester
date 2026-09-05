@@ -932,8 +932,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
+    get?: never;
+    put?: never;
     /** Logout user */
-    get: {
+    post: {
       parameters: {
         query?: never;
         header?: never;
@@ -953,8 +955,6 @@ export interface paths {
         };
       };
     };
-    put?: never;
-    post?: never;
     delete?: never;
     options?: never;
     head?: never;

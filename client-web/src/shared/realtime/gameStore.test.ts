@@ -77,16 +77,15 @@ describe("authoritative game state", () => {
       chatMessages: [],
     }) as JoinSnapshot;
 
-  const player = (id: number, name = `P${id}`): Player =>
-    ({
-      meta: { id, username: name, avatar: null },
-      role: "player",
-      score: 0,
-      status: "in-game",
-      mediaDownloaded: false,
-      restrictionData: { muted: false, restricted: false, banned: false },
-      slot: id,
-    }) as Player;
+  const player = (id: number, name = `P${id}`): Player => ({
+    meta: { id, username: name, avatar: null },
+    role: "player",
+    score: 0,
+    status: "in-game",
+    mediaDownloaded: false,
+    restrictionData: { muted: false, restricted: false, banned: false },
+    slot: id,
+  });
 
   it("subscribes to every event the generated contract declares", () => {
     // The hand-written list this replaced had drifted from the schema, which
@@ -109,7 +108,9 @@ describe("authoritative game state", () => {
 
   it("removes a kicked player and tells the local user it was them", () => {
     useGameStore.getState().setSelfId(7);
-    useGameStore.getState().replaceSnapshot(snapshotWith([player(7), player(8)]));
+    useGameStore
+      .getState()
+      .replaceSnapshot(snapshotWith([player(7), player(8)]));
     useGameStore.getState().applyEvent("player-kicked", { playerId: 8 });
     expect(useGameStore.getState().players.map((p) => p.meta.id)).toEqual([7]);
     expect(useGameStore.getState().removedFromGame).toBeNull();
@@ -120,7 +121,9 @@ describe("authoritative game state", () => {
 
   it("applies mute state to the named player only", () => {
     useGameStore.getState().setSelfId(7);
-    useGameStore.getState().replaceSnapshot(snapshotWith([player(7), player(8)]));
+    useGameStore
+      .getState()
+      .replaceSnapshot(snapshotWith([player(7), player(8)]));
     useGameStore.getState().applyEvent("player-restricted", {
       playerId: 8,
       muted: true,

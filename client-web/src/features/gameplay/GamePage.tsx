@@ -174,10 +174,7 @@ export function GamePage() {
   const connection = useGameStore((state) => state.connection);
   const preferences = usePreferences();
   const roleFromUrl = params.get("role") as
-    | "showman"
-    | "player"
-    | "spectator"
-    | null;
+    "showman" | "player" | "spectator" | null;
   const userId = session.data?.id;
   const removedFromGame = useGameStore((state) => state.removedFromGame);
   const setSelfId = useGameStore((state) => state.setSelfId);
@@ -278,7 +275,7 @@ export function GamePage() {
             className={ui.iconButton}
             onClick={() =>
               void navigator.clipboard.writeText(
-                `${location.origin}/j/${gameId}`,
+                `${window.location.origin}/j/${gameId}`,
               )
             }
             aria-label={t("lobby.copyInvite")}
@@ -318,11 +315,7 @@ export function GamePage() {
             awaitingMedia={gameState?.questionState === "media_downloading"}
           />
           {phase === "lobby" ? (
-            <Lobby
-              role={role}
-              players={players}
-              userId={session.data?.id}
-            />
+            <Lobby role={role} players={players} userId={session.data?.id} />
           ) : phase === "choosing" ? (
             <Board
               role={role}
@@ -330,7 +323,10 @@ export function GamePage() {
               onLayout={preferences.setBoardLayout}
             />
           ) : phase === "finished" ? (
-            <Results players={players} packageId={gameDetail.data?.package?.id} />
+            <Results
+              players={players}
+              packageId={gameDetail.data?.package?.id}
+            />
           ) : (
             <Question
               phase={phase}
@@ -386,7 +382,9 @@ function Guidance({
   return (
     <div className={styles.guidance} aria-live="polite">
       <span className={styles.guidanceRole}>
-        {isMyTurn ? t("game.yourTurn") : `${t("common.you")} · ${t(`common.${role}`)}`}
+        {isMyTurn
+          ? t("game.yourTurn")
+          : `${t("common.you")} · ${t(`common.${role}`)}`}
       </span>
       <span className={styles.guidanceBody}>
         {t(key, { name: turn })}
@@ -471,7 +469,11 @@ function PlayerRail({
   const seated = [...players]
     .filter((player) => player.role !== "spectator")
     // Slots are the seat order the server assigns; showman has none.
-    .sort((a, b) => (a.slot ?? Number.MAX_SAFE_INTEGER) - (b.slot ?? Number.MAX_SAFE_INTEGER));
+    .sort(
+      (a, b) =>
+        (a.slot ?? Number.MAX_SAFE_INTEGER) -
+        (b.slot ?? Number.MAX_SAFE_INTEGER),
+    );
   return (
     <div className={styles.playersRail}>
       {seated.map((player) => {
@@ -495,9 +497,7 @@ function PlayerRail({
               {disconnected ? (
                 <WifiOff size={12} aria-label={t("game.disconnected")} />
               ) : null}
-              {muted ? (
-                <MicOff size={12} aria-label={t("game.muted")} />
-              ) : null}
+              {muted ? <MicOff size={12} aria-label={t("game.muted")} /> : null}
               {loading ? (
                 <Download size={12} aria-label={t("game.mediaLoading")} />
               ) : null}
@@ -733,15 +733,9 @@ function Question({
       timeoutId = window.setTimeout(() => reject(new Error("timeout")), 15_000);
     });
     Promise.race([Promise.all(preload), timeout])
-      .then(
-        () =>
-          !cancelled &&
-          setMediaResult({ questionId, status: "ready" }),
-      )
+      .then(() => !cancelled && setMediaResult({ questionId, status: "ready" }))
       .catch(
-        () =>
-          !cancelled &&
-          setMediaResult({ questionId, status: "error" }),
+        () => !cancelled && setMediaResult({ questionId, status: "error" }),
       )
       .finally(() => {
         if (!cancelled) getGameSocket()?.emit("media-downloaded");
@@ -807,9 +801,7 @@ function Question({
             ? t("game.unknownValue")
             : `${atStake} ${t("common.points")}`}
       </span>
-      <h2>
-        {question?.text ?? t("game.questionUnavailable")}
-      </h2>
+      <h2>{question?.text ?? t("game.questionUnavailable")}</h2>
       {media.length ? (
         <div className={styles.questionMedia} aria-live="polite">
           {media.map(({ file }, index) =>
@@ -921,7 +913,9 @@ function Question({
           </button>
         </div>
       ) : null}
-      {role === "showman" ? <GuidanceComposer questionId={question?.id} /> : null}
+      {role === "showman" ? (
+        <GuidanceComposer questionId={question?.id} />
+      ) : null}
     </div>
   );
 }
@@ -931,14 +925,17 @@ function Question({
  * localised label of the button itself, which arrived as the word "Explain" in
  * whatever language the showman happened to be using.
  */
-function GuidanceComposer({ questionId }: { questionId?: number }) {
+function GuidanceComposer({ questionId }: { questionId?: number | null }) {
   const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const text = message.trim();
     if (!text) return;
-    getGameSocket()?.emit("question-guidance", { message: text, questionId });
+    getGameSocket()?.emit("question-guidance", {
+      message: text,
+      questionId: questionId ?? undefined,
+    });
     setMessage("");
   };
   return (
@@ -957,7 +954,7 @@ function GuidanceComposer({ questionId }: { questionId?: number }) {
   );
 }
 
-function preloadMedia(link: string | null | undefined, type: string) {
+function preloadMedia(link: string | null | undefined, type: string | null) {
   if (!link) return Promise.reject(new Error("missing media"));
   return new Promise<void>((resolve, reject) => {
     const element =
@@ -1247,7 +1244,8 @@ function Chat({ players, userId }: { players: Player[]; userId?: number }) {
   // Usernames change far less often than messages; one lookup map beats a
   // linear scan per message on every render.
   const names = useMemo(
-    () => new Map(players.map((player) => [player.meta.id, player.meta.username])),
+    () =>
+      new Map(players.map((player) => [player.meta.id, player.meta.username])),
     [players],
   );
   useEffect(() => {
@@ -1335,15 +1333,13 @@ function Results({
     );
   // Standard competition ranking: equal scores share a place, and the place
   // after a tie skips accordingly. Everyone on the top score gets the crown.
-  let place = 0;
-  let previousScore: number | null = null;
-  const places = sorted.map((player, index) => {
-    if (previousScore === null || player.score !== previousScore) {
-      place = index + 1;
-      previousScore = player.score;
-    }
-    return place;
-  });
+  const places: number[] = [];
+  for (let index = 0; index < sorted.length; index += 1) {
+    const previous = sorted[index - 1];
+    const current = sorted[index];
+    const tied = previous && current && current.score === previous.score;
+    places.push(tied ? (places[index - 1] ?? index + 1) : index + 1);
+  }
   return (
     <div className={styles.results}>
       <p className={ui.eyebrow}>{t("results.subtitle")}</p>

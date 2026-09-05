@@ -44,9 +44,7 @@ export function PackageDetailPage() {
         <ArrowLeft size={14} aria-hidden="true" /> {t("nav.back")}
       </Link>
       <header className={styles.detailHeader}>
-        {logo ? (
-          <img className={styles.detailArt} src={logo} alt="" />
-        ) : null}
+        {logo ? <img className={styles.detailArt} src={logo} alt="" /> : null}
         <div>
           <p className={styles.eyebrow}>
             {(item.language ?? t("packages.unknownLanguage")).toUpperCase()} ·{" "}

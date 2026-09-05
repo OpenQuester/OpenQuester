@@ -36,7 +36,7 @@ class AuthController extends ChangeNotifier {
   Future<void> logOut() async {
     if (!authorized) return;
     getIt<ProfileController>().user.value = null;
-    await getIt.get<Api>().api.auth.getV1AuthLogout();
+    await getIt.get<Api>().api.auth.postV1AuthLogout();
     notifyListeners();
   }
 }

@@ -1,8 +1,4 @@
-import {
-  keepPreviousData,
-  useMutation,
-  useQuery,
-} from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Gamepad2, Search } from "lucide-react";
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
