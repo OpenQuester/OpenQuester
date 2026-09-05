@@ -16,4 +16,12 @@ describe("browser OAuth safety", () => {
     expect(oauthStateMatches("wrong-state", "known-state")).toBe(false);
     expect(oauthStateMatches("", "")).toBe(false);
   });
+
+  it("rejects a multi-byte state instead of throwing on unequal buffers", () => {
+    // "éé" is 2 characters but 4 UTF-8 bytes; comparing on string length made
+    // timingSafeEqual throw a RangeError, turning a 400 into a 500.
+    expect(() => oauthStateMatches("éé", "abcd")).not.toThrow();
+    expect(oauthStateMatches("éé", "abcd")).toBe(false);
+    expect(oauthStateMatches("éé", "ab")).toBe(false);
+  });
 });

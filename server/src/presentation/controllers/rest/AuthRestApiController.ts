@@ -41,10 +41,15 @@ export function sanitizeOAuthReturnTo(value: unknown): string {
 }
 
 export function oauthStateMatches(state: string, expected: string): boolean {
+  // Compare byte lengths, not string lengths: timingSafeEqual throws a
+  // RangeError on unequal buffers, and a multi-byte `state` can match on
+  // string length while differing in bytes, turning a 400 into a 500.
+  const received = Buffer.from(state, "utf8");
+  const known = Buffer.from(expected, "utf8");
   return (
-    state.length === expected.length &&
-    state.length > 0 &&
-    timingSafeEqual(Buffer.from(state), Buffer.from(expected))
+    known.length > 0 &&
+    received.length === known.length &&
+    timingSafeEqual(received, known)
   );
 }
 
@@ -64,7 +69,9 @@ export class AuthRestApiController {
 
     this.app.use("/v1/auth", router);
 
-    router.get("/logout", asyncHandler(this.logout));
+    // POST, not GET: with SameSite=None session cookies a cross-site GET is a
+    // simple request that any page could fire to log the user out.
+    router.post("/logout", asyncHandler(this.logout));
     router.post("/socket", asyncHandler(this.socketAuth));
     router.post("/oauth2", asyncHandler(this.handleOauthLogin));
     router.get("/oauth2/discord/start", asyncHandler(this.startDiscordBrowserLogin));
@@ -75,7 +82,9 @@ export class AuthRestApiController {
   private startDiscordBrowserLogin = async (req: Request, res: Response) => {
     const clientId = this.env.DISCORD_CLIENT_ID;
     const redirectUri = this.env.DISCORD_REDIRECT_URI;
-    if (!clientId || !redirectUri) {
+    // Check every value the callback will need, so a half-configured
+    // deployment fails here rather than after the user has left for Discord.
+    if (!clientId || !redirectUri || !this.env.DISCORD_CLIENT_SECRET || !this.env.WEB_BASE_URL) {
       throw new ServerError("Discord browser OAuth is not configured", HttpStatus.INTERNAL);
     }
     const returnTo = sanitizeOAuthReturnTo(req.query.returnTo);
@@ -100,13 +109,16 @@ export class AuthRestApiController {
     const code = typeof req.query.code === "string" ? req.query.code : "";
     const expected = req.session.oauthState ?? "";
     const stateMatches = oauthStateMatches(state, expected);
-    if (!stateMatches || !code || (req.session.oauthStateExpiresAt ?? 0) < Date.now()) {
-      throw new ClientError("Invalid or expired OAuth state", HttpStatus.BAD_REQUEST);
-    }
     const returnTo = req.session.oauthReturnTo ?? "/";
+    const expiresAt = req.session.oauthStateExpiresAt ?? 0;
+    // Single-use in every outcome: a failed attempt must not leave the state
+    // in the session for an attacker to retry against.
     delete req.session.oauthState;
     delete req.session.oauthReturnTo;
     delete req.session.oauthStateExpiresAt;
+    if (!stateMatches || !code || expiresAt < Date.now()) {
+      throw new ClientError("Invalid or expired OAuth state", HttpStatus.BAD_REQUEST);
+    }
     const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -399,12 +411,12 @@ export class AuthRestApiController {
   ): void {
     const clientIp = req.ip || req.socket.remoteAddress;
 
-    req.session.userId = userData.id;
-    req.session.isGuest = userData.isGuest;
-
-    req.session.save((err) => {
-      if (err) {
-        this.logger.error(`Session save error: ${err}`, {
+    // Regenerate before assigning identity so a session id an attacker planted
+    // before login (the OAuth start endpoint hands one to any visitor) cannot
+    // become an authenticated session.
+    req.session.regenerate((regenerateError) => {
+      if (regenerateError) {
+        this.logger.error(`Session regenerate error: ${regenerateError}`, {
           prefix: LogPrefix.AUTH,
           userId: userData?.id,
           clientIp
@@ -413,22 +425,37 @@ export class AuthRestApiController {
         throw new ClientError(ClientResponse.SESSION_SAVING_ERROR);
       }
 
-      options.performanceLog?.finish();
+      req.session.userId = userData.id;
+      req.session.isGuest = userData.isGuest;
 
-      this.logger.audit(options.successMessage, {
-        prefix: LogPrefix.AUTH,
-        userId: userData?.id,
-        ...options.auditData,
-        clientIp,
-        userAgent: req.get("User-Agent"),
-        loginTime: new Date()
+      req.session.save((err) => {
+        if (err) {
+          this.logger.error(`Session save error: ${err}`, {
+            prefix: LogPrefix.AUTH,
+            userId: userData?.id,
+            clientIp
+          });
+          options.performanceLog?.finish();
+          throw new ClientError(ClientResponse.SESSION_SAVING_ERROR);
+        }
+
+        options.performanceLog?.finish();
+
+        this.logger.audit(options.successMessage, {
+          prefix: LogPrefix.AUTH,
+          userId: userData?.id,
+          ...options.auditData,
+          clientIp,
+          userAgent: req.get("User-Agent"),
+          loginTime: new Date()
+        });
+
+        if (options.redirectTo) {
+          res.redirect(options.redirectTo);
+        } else {
+          res.status(HttpStatus.OK).json(userData);
+        }
       });
-
-      if (options.redirectTo) {
-        res.redirect(options.redirectTo);
-      } else {
-        res.status(HttpStatus.OK).json(userData);
-      }
     });
   }
 }

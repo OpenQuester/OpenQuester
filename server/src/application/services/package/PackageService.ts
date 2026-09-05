@@ -164,7 +164,10 @@ export class PackageService {
     ) {
       throw new ClientError(ClientResponse.ACCESS_DENIED, HttpStatus.FORBIDDEN);
     }
-    input.packageData.status = input.packageData.status ?? existing.status;
+    // Status transitions belong to the publish endpoint only. An update never
+    // moves a package between draft and published, in either direction, so a
+    // client that omits or mis-sends the field cannot unpublish it by saving.
+    input.packageData.status = existing.status;
     if (input.packageData.status !== PackageStatus.DRAFT) {
       this.assertPublishable(input.packageData);
     }

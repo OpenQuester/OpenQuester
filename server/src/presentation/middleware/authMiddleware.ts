@@ -26,7 +26,7 @@ const isPublicEndpoint = (env: Environment, url: string, method: string): boolea
   const conditionalEndpoints = [
     { url: "v1/packages", method: "GET" },
     { url: "v1/games", method: "GET" },
-    { url: "v1/auth/logout", method: "GET" },
+    { url: "v1/auth/logout", method: "POST" },
     { url: "v1/auth/oauth2", method: "POST" },
     { url: "v1/auth/oauth2/discord/start", method: "GET" },
     { url: "v1/auth/oauth2/discord/callback", method: "GET" },

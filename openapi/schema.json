@@ -974,7 +974,7 @@
       }
     },
     "/v1/auth/logout": {
-      "get": {
+      "post": {
         "summary": "Logout user",
         "tags": ["Auth"],
         "responses": {

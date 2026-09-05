@@ -128,6 +128,37 @@ describe("PackageRestApiController", () => {
     await deleteAll(permRepo);
   });
 
+  it("keeps a published package published when it is updated", async () => {
+    // The web editor sent `status: "draft"` on every save, and the server
+    // honoured it, so editing a typo in a published pack silently removed it
+    // from public listings. Updates must never move a package between states.
+    const loginData = await testUtils.createAndLoginUser("publisher");
+    const packageData = packageUtils.createTestPackageData(loginData.user, false);
+
+    const created = await request(app)
+      .post("/v1/packages")
+      .send({ content: packageData })
+      .set("Cookie", loginData.cookie);
+    const packageId = (created.body as PackageUploadResponse).id;
+
+    await request(app)
+      .post(`/v1/packages/${packageId}/publish`)
+      .set("Cookie", loginData.cookie)
+      .expect(200);
+
+    const updated = await request(app)
+      .patch(`/v1/packages/${packageId}`)
+      .send({
+        content: { ...packageData, title: "Edited title", status: "draft" }
+      })
+      .set("Cookie", loginData.cookie);
+    expect(updated.status).toBe(200);
+
+    const stored = await packageRepo.findOne({ where: { id: packageId } });
+    expect(stored?.title).toBe("Edited title");
+    expect(stored?.status).toBe("published");
+  });
+
   it("should create package successfully", async () => {
     const loginData = await testUtils.createAndLoginUser("testuser");
     const packageData = packageUtils.createTestPackageData(loginData.user, false);
