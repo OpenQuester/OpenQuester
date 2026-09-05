@@ -62,6 +62,11 @@ server completes readiness. Timeout is a fallback, not download verification.
 Static inspection at backend PR #441 revision `8348d429` found these unresolved
 client gaps; this documentation update does not fix them:
 
+Rechecked at `ef7d56d6`; tracked separately in
+[Fix premature question reveal and image readiness ACK (#445)](https://github.com/OpenQuester/OpenQuester/issues/445).
+The issue contains slow-media verification steps and required controller/widget coverage;
+source inspection is not a manual UI reproduction.
+
 - `GameLobbyController._onQuestionPick` handles `QUESTION_DATA` and immediately
   calls `_showQuestion()`. `GameQuestionLayout` renders question text without a
   readiness condition, even though media widgets have waiting UI.

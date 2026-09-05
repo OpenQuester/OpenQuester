@@ -28,12 +28,17 @@ needs a new case.
    before emitting. For queued actions, acceptance means successful atomic Redis
    enqueue, not entry into `submitAction` or an empty queue.
 3. Await acceptance and relevant events, drain actions, then assert exact counts,
-   payloads, and persisted state. Preserve FIFO assertions for queue scenarios.
+   payloads, and persisted state. Confirm every burst command, including the final
+   drain trigger. Concurrent scenarios emit all independent commands before
+   awaiting replies; compare exact result sets unless enqueue order is controlled.
+   Release alone does not drain a held lock: retain the final real command.
 4. Await and track the complete derived/aggregate assertion, including `.then`
    validation. Public async helpers need internal deadlines and cancellation;
    tracking a never-settling promise is not a deadline.
 5. Let the wrapper finish or abort before helper detachment, client cleanup,
    state reset, and harness stop. Preserve primary failures and cleanup failures.
+   `GameScenario` is the only owner of assertion outcomes, including failures
+   settled before callback return. Do not use a journal directly in transport cases.
 
 Negative assertions require explicit recipients: `noInbound({ actor, ... })`
 or `noInboundMany({ actors, ... })`. Empty/duplicate groups, foreign/stale actors,
@@ -41,6 +46,13 @@ and unexpected disconnects must fail. Never filter by `socket.connected`.
 Explicit finite positive windows must be observed fully. Arm an intentional
 disconnect first; use history after disconnection and a new actor generation
 after reconnect.
+
+For command-related silence, save the mark before sending but perform the final
+negative check after processing, with that old mark and the full delivery window.
+An earlier negative promise can expire before the forbidden event. Use accepted
+enqueue plus drain for queued commands; HTTP response, sender error, or allowed
+delivery for direct actions. Do not fabricate Redis acceptance for direct actions.
+The README documents the narrow real-handler observer for a truly silent no-op.
 
 ## Media-specific proof
 
@@ -65,6 +77,9 @@ through `test:pipeline`. Use the README's CI repeatability procedure for broad
 reliability work, not retry-until-green. Do not add skips, focused tests,
 `.failing`, transport `.concurrent`, sleeps, longer timeouts, or policy exceptions
 to conceal a failure. New transport suites must be classified by the policy.
+Queue scenarios live in `server/tests/socket/game/queue/`; use the whole directory
+in focused selectors. Static policy checks ownership conventions, not causal or
+game semantics: retain correct-flow and controlled-defect runtime regressions.
 
 Record unique failures by full title, expected/actual result, whether the main
 behavior was reached, and environment / infrastructure / wrong test expectation /

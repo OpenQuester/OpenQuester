@@ -180,6 +180,30 @@ expect(scenario.assert.records({ actor, event: "disconnect", afterSequence: afte
 // After reconnect: scenario.actor(socket) supplies the new connection generation.
 ```
 
+Concurrent commands are emitted before awaiting earlier replies. Compare sets when independent
+sockets have no required mutual order:
+
+```ts
+const players = playerSockets.map((socket) => scenario.actor(socket));
+const accepted = players.map((actor) => scenario.createAcceptedActionProbe({
+  gameId, actionType: GameActionType.LEAVE, socketId: actor.socketId
+}).waitForCount(1));
+const leaves = scenario.collectEvents<GameLeaveBroadcastData>(showmanSocket, SocketIOGameEvents.LEAVE, players.length);
+for (const socket of playerSockets) scenario.actor(socket).emit(SocketIOGameEvents.LEAVE);
+await Promise.all(accepted);
+const received = await leaves.promise;
+await scenario.assert.waitForActionsComplete({ gameId });
+expect(leaves.count()).toBe(players.length);
+expect(received.map(({ user }) => user).sort((a, b) => a - b)).toEqual(expectedPlayerIds.slice().sort((a, b) => a - b));
+```
+
+FIFO tests control enqueue order under a held lock, then release and send the last real command
+to trigger processing. Release alone does not drain the queue. Confirm acceptance of the entire
+burst, including that last command, before drain/count/state checks. Keep lock cleanup in `finally`.
+Queue suites are split into `queue/ConcurrentGameplayCommands.test.ts`, `queue/RegularRoundQueue.test.ts`,
+and `queue/FinalRoundQueue.test.ts` under `tests/socket/game/`; lock/cleanup self-tests live in
+`tests/socket/game/utils/QueueTestHelpers.test.ts` and have no transport-policy exemption by describe name.
+
 ## Flow helper rules
 
 - Use small flow helpers, such as `MediaDownloadFlow`, only after a pattern repeats.
@@ -218,7 +242,8 @@ require client-side coverage. Actual game-rule uncertainty must be resolved with
 
 The media synchronization reference also records known Flutter gaps (early image
 ACKs and ungated question text). A green backend suite must not be reported as
-closing those client bugs. ACKs outside `MEDIA_DOWNLOADING`, including late ACKs
+closing those client bugs; the follow-up is [frontend issue #445](https://github.com/OpenQuester/OpenQuester/issues/445).
+ACKs outside `MEDIA_DOWNLOADING`, including late ACKs
 after `SHOWING`, must neither mutate readiness nor broadcast status.
 
 ## Static contract checks
@@ -236,6 +261,11 @@ hybrid, and dedicated media suites because they share transport state/lifecycle.
 Each gameplay/hybrid callback must return or await its `suite.scenario(...)` wrapper as its entire
 body; dedicated media uses `withMediaDownloadFlow(...)`. Put setup and assertions inside that wrapper,
 not beside it or inside an uncalled nested function.
+
+Lifecycle and direct-journal restrictions also cover hybrid and dedicated media suites; direct
+journal access is forbidden in HTTP transport cases too. AST lifecycle checks ignore comments
+and string fixtures. These guards cannot prove game semantics or the causal order of arbitrary
+asynchronous code: runtime assertions and controlled-defect regressions provide that evidence.
 
 `tests/e2e/contracts/HttpTransportPolicy.test.ts` keeps HTTP and hybrid endpoint suites on their
 harness/scenario lifecycle and rejects direct unbounded HTTP requests and guessed server ports.

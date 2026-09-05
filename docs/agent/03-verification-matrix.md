@@ -35,6 +35,15 @@ Backend test rules:
 - Follow `backend-e2e` and `server/tests/e2e/README.md` for transport writing and
   self-test → focused transport → full/repeatability sequencing. The README owns
   exact selectors and CI artifact instructions; do not maintain a failure allowlist.
+- For negative command assertions, keep the pre-command mark but run the final
+  historical + live-window check after the actual processing boundary. Test both
+  a quiet flow and a forbidden event later than the initial 100ms window; disconnect
+  must not count as silence. `GameScenario` owns complete assertion outcomes.
+- Concurrency evidence requires emitting independent commands before awaiting
+  their replies, acceptance of every command (including the last drain trigger),
+  and exact result IDs/counts. Controlled FIFO scenarios also assert enqueue order.
+  Queue transport coverage is in `server/tests/socket/game/queue/`; structural
+  policy checks and case-count comparisons do not prove these runtime properties.
 - Report the tested commit and the actual failing expectation, not just totals.
   Preserve Jest JSON and the real exit code when comparing runs. Missing services
   or log permissions are environment failures; do not classify them as game bugs.
@@ -68,6 +77,8 @@ Frontend quality notes:
 - Check whether CI actually executed the claimed tests. At revision `8348d429`,
   `.github/workflows/test.yml` disables the client `Run Tests` step with `if: false`;
   a green client build/analyze is not Flutter test evidence. Recheck on later revisions.
+  The remaining reveal/image-readiness work is tracked in
+  [frontend issue #445](https://github.com/OpenQuester/OpenQuester/issues/445).
 
 ## OpenAPI contract checks
 
