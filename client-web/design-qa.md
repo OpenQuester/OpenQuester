@@ -4,53 +4,62 @@
 
 OpenQuester redesign attachment, covering sign-in, discovery, creation, lobby, gameplay, results, packages, editor, and settings at 360 px, 768 px, and 1280 px widths.
 
-## Automated source checks
+## Scope of this record
 
-- Source logo and crown assets are used.
-- Space Grotesk and IBM Plex Mono are self-hosted.
-- Theme, accent, board layout, language, and reduced-motion preferences persist locally.
-- Feature UI strings route through localization with English fallback.
-- No CSS gradients or hand-drawn replacement icons are used.
+This file states only what has actually been checked, and in which theme. An
+earlier version reported localization, responsive behaviour and browser
+inspection as complete when they were not; that overstatement is what allowed a
+light-theme contrast failure and a 27% localization gap to ship past review.
 
-## Preview integration findings
+## Verified by automated check
 
-- The tested preview was built without an API base URL, so `/v1/*` requests returned the Pages SPA document instead of API JSON.
-- Package discovery also sent `order=DESC`, while the deployed API accepts lowercase `asc` or `desc` only.
-- The development API session cookie used `SameSite=Lax`; it could not be attached to credentialed requests from the cross-site `pages.dev` preview.
-- The Discord authorization start endpoint currently returns HTTP 500 because browser OAuth is not configured in the development API deployment.
-- CORS preflight from the tested Pages preview is accepted and allows credentials.
+- Locale parity: `npm run check:locales` fails the build when any locale is
+  missing a key that `en.json` defines. All three locales are currently in sync
+  at 288 keys.
+- Generated contracts: `npm run generate:api:check` fails on drift between
+  `openapi/schema.json` and the generated REST and socket types.
+- Socket coverage: the client subscribes to `GENERATED_SERVER_SOCKET_EVENTS`
+  rather than a hand-written list, so a new server event cannot go unhandled.
+- Environment: hosted CI builds are refused when `VITE_API_URL` is unset.
 
-The client build now defaults preview artifacts to the development API, rejects successful non-JSON API responses, and refuses hosted CI builds with no API URL. Package sort direction and the hosted development session-cookie policy are corrected. Native select elements were replaced with a styled, keyboard-accessible Radix Select primitive.
+## Verified by measurement
 
-## Automated verification
+Contrast ratios were computed for every token pair that carries text, in both
+themes and for all four accents. Every pair listed below now meets WCAG 2.1 AA
+(4.5:1 for body text):
 
-- Client generated-contract drift, formatting, lint, type checking, unit tests, and production build pass.
-- Client tests: 14 passed across 5 files.
-- Server schema validation, lint, build, and the complete existing server suite pass.
-- Server suite: 578 passed across 67 suites; the new hosted-cookie regression suite adds 8 passing cases.
-- The corrected package query returns HTTP 200 JSON from the development API.
-- Environment validation accepts the development API URL and intentionally rejects a hosted build with no API URL.
+| Pair | Dark | Light |
+| --- | --- | --- |
+| `--accent` on `--bg` | 12.83 | 5.81 |
+| `--accent` violet / lime / coral on `--bg` | ≥ 8.4 | 7.08 / 6.37 / 5.92 |
+| `--faint` on `--bg` | 6.57 | 5.06 |
+| `--faint` on `--card` | 5.92 | 5.48 |
+| `--dim` on `--card` | 6.87 | 7.80 |
 
-## Browser inspection
+`--accent-fill` keeps the saturated brand colour for button and chip
+backgrounds, where `--button-text` supplies the contrast.
 
-Status: completed against the deployed branch preview at 360 px, 768 px, and 1280 px widths.
+## Not yet verified
 
-- Package discovery loaded real development API data without failed requests at every target width.
-- Mobile, tablet, and desktop screenshots confirm that package cards, search, filters, primary actions, and navigation remain visible without page-level horizontal overflow.
-- The sign-in route renders correctly at 360 px.
-- The shared Radix Select opens with the keyboard and displays the styled theme choices correctly.
-- The avatar input uses the branded picker rather than the browser's default file control.
-- The mobile editor keeps its unsaved state and all six package actions visible. The large question board remains intentionally horizontally scrollable on narrow screens.
-- The focused live-preview browser suite passed: 2 tests in 11.4 seconds.
-- The local application browser suite passed: 6 tests, with live-only cases skipped unless a preview URL is supplied.
+These need a browser and a running API, and have not been re-run since the
+current round of changes:
 
-Screenshot evidence is generated under `client-web/test-results/` by `tests/e2e/live-preview.spec.ts` for package discovery, sign-in, settings/selects, and the mobile editor.
+- Visual comparison against the redesign artboards. The Claude Design project
+  was not reachable from the review session, so no screen has been diffed
+  against the intended design.
+- Responsive passes at 360 / 768 / 1280 px.
+- The mobile chat sheet, the mobile navigation active state, and the editor's
+  keyboard drag-and-drop, in a real browser with a screen reader.
+- Any end-to-end run: `npm test`, `npm run typecheck`, `npm run lint` and
+  `npm run test:e2e` have not been executed against the current tree.
 
-## Final result
+## Deployment tasks outside the client
 
-The rebuilt web preview passes its client, server, contract, build, responsive, and live browser checks. Package discovery and the reported native-looking controls are fixed in the deployed preview.
-
-Two authentication deployment tasks remain outside the client artifact:
-
-- Deploy the server cookie-policy change before cross-site preview sessions can be shared with the development frontend.
-- Configure the development API's Discord client ID, client secret, web base URL, and exact callback URI in both the server environment and Discord developer portal. Until then, the live Discord start endpoint will continue returning HTTP 500.
+- Deploy the server cookie-policy change before cross-site preview sessions can
+  be shared with the development frontend.
+- Configure the development API's `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`,
+  `WEB_BASE_URL` and the exact `DISCORD_REDIRECT_URI` in both the server
+  environment and the Discord developer portal. The start endpoint now fails
+  fast with a clear configuration error when any of these is missing.
+- `POST /v1/auth/logout` replaced the previous `GET`. Any client still calling
+  the `GET` form will receive a 404.

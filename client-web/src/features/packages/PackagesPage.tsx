@@ -1,28 +1,56 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Filter, Plus, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { api, pageTotal, unwrapPage } from "../../shared/api/client";
+import {
+  api,
+  type PackageQuery,
+  pageTotal,
+  unwrapPage,
+} from "../../shared/api/client";
 import { SelectField } from "../../shared/ui/SelectField";
 import styles from "../../shared/ui/ui.module.css";
 import { PackageCard } from "../games/HomePage";
+
+type PackagesSortBy = NonNullable<PackageQuery["sortBy"]>;
+
+/** Returns `value` only after it has stopped changing for `delay` ms. */
+function useDebounced<T>(value: T, delay: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const id = window.setTimeout(() => setSettled(value), delay);
+    return () => window.clearTimeout(id);
+  }, [value, delay]);
+  return settled;
+}
 
 export function PackagesPage() {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [mine, setMine] = useState(false);
-  const [sort, setSort] = useState("created_at");
+  const [sort, setSort] = useState<PackagesSortBy>("created_at");
   const [language, setLanguage] = useState("");
   const [page, setPage] = useState(0);
   const pageSize = 18;
+  // Typing is not a reason to hit the API; wait for a pause in it.
+  const debouncedSearch = useDebounced(search, 300);
   const query = useQuery({
-    queryKey: ["packages", search, mine, sort, language, page],
+    queryKey: ["packages", debouncedSearch, mine, sort, language, page],
     queryFn: () =>
-      api.packages(
-        `limit=${pageSize}&offset=${page * pageSize}&sortBy=${sort}&order=desc${search ? `&title=${encodeURIComponent(search)}` : ""}${language ? `&language=${encodeURIComponent(language)}` : ""}${mine ? "&status=draft&mine=true" : ""}`,
-      ),
+      api.packages({
+        limit: pageSize,
+        offset: page * pageSize,
+        sortBy: sort,
+        order: "desc",
+        title: debouncedSearch.trim() || undefined,
+        language: language || undefined,
+        // "Mine" means every package I own, draft and published alike.
+        mine: mine || undefined,
+      }),
+    // Hold the previous page on screen instead of flashing an empty grid.
+    placeholderData: keepPreviousData,
     retry: false,
   });
   const server = unwrapPage(query.data);
@@ -52,6 +80,7 @@ export function PackagesPage() {
               resetPage();
             }}
             placeholder={t("packages.search")}
+            aria-label={t("packages.search")}
           />
         </label>
         <div className={styles.segmented}>
@@ -97,7 +126,7 @@ export function PackagesPage() {
             value={sort}
             ariaLabel={t("packages.newest")}
             onValueChange={(value) => {
-              setSort(value);
+              setSort(value as PackagesSortBy);
               resetPage();
             }}
             options={[

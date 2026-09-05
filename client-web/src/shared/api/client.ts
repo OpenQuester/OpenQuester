@@ -1,3 +1,5 @@
+import type { components } from "./schema";
+
 const configuredApiBaseUrl = import.meta.env.VITE_API_URL?.trim();
 
 export const API_BASE_URL = configuredApiBaseUrl?.replace(/\/$/, "") ?? "";
@@ -48,61 +50,56 @@ export async function apiRequest<T>(
   return (await response.json()) as T;
 }
 
-export type User = {
-  id: number;
-  name?: string;
-  username?: string;
-  avatar?: string | null;
-  isGuest?: boolean;
-  permissions?: Array<{ name?: string } | string>;
-};
+// These come from openapi/schema.json via `npm run generate:api`. Re-declaring
+// them by hand is what let the game list read `playersCount` and `started`,
+// neither of which the API has ever sent.
+export type User = components["schemas"]["ResponseUser"];
+export type GameListItem = components["schemas"]["GameListItem"];
+export type PackageSummary = components["schemas"]["PackageListItem"];
+export type PackageDetail = components["schemas"]["OqPackage"];
+export type PackageUploadResponse =
+  components["schemas"]["PackageUploadResponse"];
 
-export type GameListItem = {
-  id: string;
-  title: string;
-  isPrivate?: boolean;
-  playersCount?: number;
-  maxPlayers?: number;
-  started?: boolean;
-  packageId?: number;
-  createdAt?: string;
-};
-
-export type PackageSummary = {
-  id: number;
-  title: string;
-  description?: string;
-  language?: string;
-  author?: { id?: number; username?: string; name?: string } | null;
-  roundsCount?: number;
-  questionsCount?: number;
-  logo?: string | null;
-  status?: "draft" | "published";
-  updatedAt?: string;
-};
-
-export type Paginated<T> =
-  | {
-      data?: T[];
-      items?: T[];
-      total?: number;
-      count?: number;
-      pageInfo?: { total?: number };
-    }
-  | T[];
+export type Paginated<T> = { data: T[]; pageInfo: { total: number } };
 
 export function unwrapPage<T>(page: Paginated<T> | undefined): T[] {
-  if (!page) return [];
-  if (Array.isArray(page)) return page;
-  return page.data ?? page.items ?? [];
+  return page?.data ?? [];
 }
 
 export function pageTotal<T>(page: Paginated<T> | undefined): number {
-  if (!page) return 0;
-  if (Array.isArray(page)) return page.length;
-  return (
-    page.pageInfo?.total ?? page.total ?? page.count ?? unwrapPage(page).length
-  );
+  return page?.pageInfo?.total ?? page?.data?.length ?? 0;
+}
+
+/** Players actually seated in a game, which the list endpoint sends as rows. */
+export function seatedPlayerCount(game: GameListItem): number {
+  return game.players.filter((player) => player.role === "player").length;
+}
+
+export function isGameStarted(game: GameListItem): boolean {
+  return Boolean(game.startedAt) && !game.finishedAt;
+}
+
+export type GameQuery = { limit?: number; offset?: number };
+
+export type PackageQuery = {
+  limit?: number;
+  offset?: number;
+  sortBy?: components["schemas"]["PackagesSortBy"];
+  order?: "asc" | "desc";
+  title?: string;
+  language?: string;
+  status?: components["schemas"]["PackageStatus"];
+  mine?: boolean;
+};
+
+/** Drops empty values so an unset filter never reaches the API as `&title=`. */
+function toQuery(params: Record<string, string | number | boolean | undefined>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === "") continue;
+    search.set(key, String(value));
+  }
+  return search.toString();
 }
 
 export const api = {
@@ -118,9 +115,9 @@ export const api = {
     apiRequest<{ url: string }>(`/v1/files/${encodeURIComponent(filename)}`, {
       method: "POST",
     }),
-  logout: () => apiRequest<void>("/v1/auth/logout"),
-  games: (query = "limit=30&offset=0") =>
-    apiRequest<Paginated<GameListItem>>(`/v1/games?${query}`),
+  logout: () => apiRequest<void>("/v1/auth/logout", { method: "POST" }),
+  games: ({ limit = 30, offset = 0 }: GameQuery = {}) =>
+    apiRequest<Paginated<GameListItem>>(`/v1/games?${toQuery({ limit, offset })}`),
   game: (id: string) =>
     apiRequest<GameListItem>(`/v1/games/${encodeURIComponent(id)}`),
   createGame: (body: Record<string, unknown>) =>
@@ -128,24 +125,27 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  packages: (query = "limit=30&offset=0") =>
-    apiRequest<Paginated<PackageSummary>>(`/v1/packages?${query}`),
-  package: <T = PackageSummary>(id: string | number) =>
+  packages: ({ limit = 30, offset = 0, ...rest }: PackageQuery = {}) =>
+    apiRequest<Paginated<PackageSummary>>(
+      `/v1/packages?${toQuery({ limit, offset, ...rest })}`,
+    ),
+  package: <T = PackageDetail>(id: string | number) =>
     apiRequest<T>(`/v1/packages/${encodeURIComponent(id)}`),
-  createPackage: <T>(body: unknown) =>
-    apiRequest<T>("/v1/packages", {
+  createPackage: (body: unknown) =>
+    apiRequest<PackageUploadResponse>("/v1/packages", {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  updatePackage: <T>(id: string | number, body: unknown) =>
-    apiRequest<T>(`/v1/packages/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    }),
-  publishPackage: <T>(id: string | number) =>
-    apiRequest<T>(`/v1/packages/${encodeURIComponent(id)}/publish`, {
-      method: "POST",
-    }),
+  updatePackage: (id: string | number, body: unknown) =>
+    apiRequest<PackageUploadResponse>(
+      `/v1/packages/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(body) },
+    ),
+  publishPackage: (id: string | number) =>
+    apiRequest<PackageDetail>(
+      `/v1/packages/${encodeURIComponent(id)}/publish`,
+      { method: "POST" },
+    ),
   authenticateSocket: (socketId: string) =>
     apiRequest<void>("/v1/auth/socket", {
       method: "POST",

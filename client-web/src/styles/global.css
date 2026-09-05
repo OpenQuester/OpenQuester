@@ -11,8 +11,13 @@
   --line-strong: #343b47;
   --text: #e9edf3;
   --dim: #98a1ad;
-  --faint: #5f6874;
+  /* Raised from #5f6874 (3.5:1) to clear 4.5:1 on --bg and --card. */
+  --faint: #8b95a3;
+  /* --accent paints text (eyebrows, links) as well as button fills, so each
+     theme needs its own value. --accent-fill stays the saturated brand colour
+     for backgrounds, where --button-text supplies the contrast. */
   --accent: #4de1ff;
+  --accent-fill: #4de1ff;
   --button-text: #041216;
   --ok: #7ce883;
   --error: #ff5c5c;
@@ -25,14 +30,17 @@
 }
 :root[data-accent="violet"] {
   --accent: #a78bfa;
+  --accent-fill: #a78bfa;
   --button-text: #110b1f;
 }
 :root[data-accent="lime"] {
   --accent: #a3e635;
+  --accent-fill: #a3e635;
   --button-text: #111904;
 }
 :root[data-accent="coral"] {
   --accent: #fb7185;
+  --accent-fill: #fb7185;
   --button-text: #21070c;
 }
 :root[data-theme="pure-dark"] {
@@ -53,8 +61,27 @@
   --line: #d8dde4;
   --line-strong: #b9c1cc;
   --text: #11161d;
-  --dim: #5f6874;
-  --faint: #8993a0;
+  --dim: #4a535f;
+  /* Was #8993a0 — 2.87:1 on --bg, below AA for the hints and fine print
+     that use it. */
+  --faint: #616a76;
+  /* The dark-theme accents run 1.4:1–2.5:1 on a near-white ground, which made
+     every eyebrow and text link unreadable in this theme. Each accent gets a
+     darkened text variant; --accent-fill keeps the bright brand colour for
+     button and chip backgrounds. */
+  --accent: #08697f;
+  --ok: #1f6b39;
+  --error: #b3261e;
+  --warning: #8a5a00;
+}
+:root[data-theme="light"][data-accent="violet"] {
+  --accent: #5b3bb5;
+}
+:root[data-theme="light"][data-accent="lime"] {
+  --accent: #4a6207;
+}
+:root[data-theme="light"][data-accent="coral"] {
+  --accent: #b32643;
 }
 * {
   box-sizing: border-box;

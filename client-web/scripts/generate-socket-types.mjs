@@ -14,7 +14,14 @@ function renderMap(name, payloads) {
   return `export type ${name} = {\n${lines.join("\n")}\n};`;
 }
 
-const output = `// Generated from openapi/schema.json x-socket-io metadata. Do not edit.\nimport type { components } from "../api/schema";\n\n${renderMap("GeneratedClientSocketPayloads", events.clientToServer.eventPayloads)}\n\n${renderMap("GeneratedServerSocketPayloads", events.serverToClient.eventPayloads)}\n`;
+function renderNames(name, payloads) {
+  const lines = Object.keys(payloads).map(
+    (event) => `  ${JSON.stringify(event)},`,
+  );
+  return `export const ${name} = [\n${lines.join("\n")}\n] as const;`;
+}
+
+const output = `// Generated from openapi/schema.json x-socket-io metadata. Do not edit.\nimport type { components } from "../api/schema";\n\n${renderMap("GeneratedClientSocketPayloads", events.clientToServer.eventPayloads)}\n\n${renderMap("GeneratedServerSocketPayloads", events.serverToClient.eventPayloads)}\n\n${renderNames("GENERATED_CLIENT_SOCKET_EVENTS", events.clientToServer.eventPayloads)}\n\n${renderNames("GENERATED_SERVER_SOCKET_EVENTS", events.serverToClient.eventPayloads)}\n`;
 
 writeFileSync(
   new URL("../src/shared/realtime/socket.generated.ts", import.meta.url),

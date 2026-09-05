@@ -331,7 +331,7 @@
   display: block;
   height: 100%;
   width: var(--progress);
-  background: var(--accent);
+  background: var(--accent-fill);
 }
 @media (max-width: 1050px) {
   .body {

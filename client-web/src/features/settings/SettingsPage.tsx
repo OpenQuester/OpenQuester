@@ -1,16 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, ImageUp, LogOut } from "lucide-react";
 import { md5 } from "hash-wasm";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { useSession } from "../auth/auth";
 import { api } from "../../shared/api/client";
 import {
-  applyPreferences,
   type Accent,
   type BoardLayout,
+  type Language,
   type Theme,
   usePreferences,
 } from "../../shared/preferences";
@@ -30,7 +30,6 @@ export function SettingsPage() {
   const [avatarProgress, setAvatarProgress] = useState<number | null>(null);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => applyPreferences(preferences), [preferences]);
   const update = useMutation({
     mutationFn: () => api.updateMe({ name }),
     onSuccess: (user) => {
@@ -41,7 +40,9 @@ export function SettingsPage() {
   const logout = useMutation({
     mutationFn: api.logout,
     onSuccess: () => {
-      queryClient.setQueryData(["session"], undefined);
+      // Clear every cached query, not just the session: package "mine" lists
+      // and game rows from the previous account must not survive a sign-out.
+      queryClient.clear();
       void navigate("/");
     },
   });
@@ -79,7 +80,7 @@ export function SettingsPage() {
     }
   };
   const setLanguage = (language: string) => {
-    localStorage.setItem("oq-language", language);
+    preferences.setLanguage(language as Language);
     void i18n.changeLanguage(language);
     setSaved(true);
   };
@@ -108,7 +109,7 @@ export function SettingsPage() {
                 <img
                   src={session.data.avatar}
                   alt=""
-                  style={{ width: 64, height: 64, borderRadius: "50%" }}
+                  className={styles.avatarPreview}
                 />
               ) : null}
               <input
@@ -198,7 +199,7 @@ export function SettingsPage() {
             <label>
               <span>{t("settings.language")}</span>
               <SelectField
-                value={i18n.language}
+                value={preferences.language}
                 ariaLabel={t("settings.language")}
                 onValueChange={setLanguage}
                 options={[
@@ -222,17 +223,47 @@ export function SettingsPage() {
                 ]}
               />
             </label>
-            <label style={{ flexDirection: "row", alignItems: "center" }}>
+            <label className={styles.checkboxRow}>
               <input
-                style={{ width: 18, minHeight: 18 }}
+                className={styles.checkbox}
                 type="checkbox"
                 checked={preferences.reducedMotion}
                 onChange={(e) => preferences.setReducedMotion(e.target.checked)}
               />
               <span>
                 {t("settings.motion")}
-                <small style={{ display: "block", color: "var(--faint)" }}>
+                <small className={styles.checkboxHint}>
                   {t("settings.motionHint")}
+                </small>
+              </span>
+            </label>
+            <label className={styles.checkboxRow}>
+              <input
+                className={styles.checkbox}
+                type="checkbox"
+                checked={preferences.inGameTips}
+                onChange={(e) => preferences.setInGameTips(e.target.checked)}
+              />
+              <span>
+                {t("settings.tips")}
+                <small className={styles.checkboxHint}>
+                  {t("settings.tipsHint")}
+                </small>
+              </span>
+            </label>
+            <label className={styles.checkboxRow}>
+              <input
+                className={styles.checkbox}
+                type="checkbox"
+                checked={preferences.limitLobbyWidth}
+                onChange={(e) =>
+                  preferences.setLimitLobbyWidth(e.target.checked)
+                }
+              />
+              <span>
+                {t("settings.lobbyWidth")}
+                <small className={styles.checkboxHint}>
+                  {t("settings.lobbyWidthHint")}
                 </small>
               </span>
             </label>
@@ -240,7 +271,7 @@ export function SettingsPage() {
         </section>
       </div>
       {session.data ? (
-        <section className={styles.formCard} style={{ marginTop: 14 }}>
+        <section className={`${styles.formCard} ${styles.accountCard}`}>
           <h2>{t("settings.account")}</h2>
           <button
             className={styles.dangerButton}

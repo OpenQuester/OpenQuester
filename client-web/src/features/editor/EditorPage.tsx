@@ -1,6 +1,7 @@
 import {
   DndContext,
   type DragEndEvent,
+  KeyboardSensor,
   PointerSensor,
   useDraggable,
   useDroppable,
@@ -46,8 +47,11 @@ export function EditorPage() {
   const replaceDocument = useEditorStore((state) => state.replace);
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
+  // A pointer sensor alone makes reordering rounds, themes and questions
+  // impossible without a mouse. The keyboard sensor is the intended pair.
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor),
   );
   const packageQuery = useQuery({
     queryKey: ["package", packageId, "editor"],
@@ -58,30 +62,25 @@ export function EditorPage() {
   const save = useMutation({
     mutationFn: async (publish: boolean) => {
       store.setSaving(true, 15);
-      const content = { ...toApiDocument(store.document), status: "draft" };
+      // Saving never changes the published state: a published package stays
+      // published, and publishing is the explicit separate step below.
+      const content = toApiDocument(store.document);
       const response = packageId
-        ? await api.updatePackage<{
-            id?: number;
-            uploadLinks?: Record<string, string>;
-          }>(packageId, { content })
-        : await api.createPackage<{
-            id?: number;
-            uploadLinks?: Record<string, string>;
-          }>({ content });
+        ? await api.updatePackage(packageId, { content })
+        : await api.createPackage({ content });
       store.setSaving(true, 85);
       await uploadReferencedMedia(
         store.document,
         response.uploadLinks ?? {},
         (progress) => store.setSaving(true, 85 + progress * 0.14),
       );
-      if (publish && (response as { id?: number }).id)
-        await api.publishPackage((response as { id: number }).id);
+      if (publish && response.id) await api.publishPackage(response.id);
       return response;
     },
     onSuccess: (response, publish) => {
-      store.markSaved(publish ? "published" : "draft");
-      const id = (response as { id?: number }).id;
-      if (!packageId && id) void navigate(`/editor/${id}`, { replace: true });
+      store.markSaved(publish ? "published" : undefined);
+      if (!packageId && response.id)
+        void navigate(`/editor/${response.id}`, { replace: true });
     },
     onError: () => store.setSaving(false),
   });
@@ -276,7 +275,23 @@ export function EditorPage() {
           </button>
         </div>
       </header>
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+      <DndContext
+        sensors={sensors}
+        onDragEnd={onDragEnd}
+        accessibility={{
+          announcements: {
+            onDragStart: ({ active }) =>
+              t("editor.dragStart", { name: String(active.id) }),
+            onDragOver: ({ over }) =>
+              over ? t("editor.dragOver", { name: String(over.id) }) : "",
+            onDragEnd: ({ over }) =>
+              over
+                ? t("editor.dragEnd", { name: String(over.id) })
+                : t("editor.dragCancel"),
+            onDragCancel: () => t("editor.dragCancel"),
+          },
+        }}
+      >
         <div className={styles.body}>
           <PackageTree />
           <main className={styles.workspace}>

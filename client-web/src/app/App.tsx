@@ -16,7 +16,7 @@ import {
 } from "../features/auth/auth";
 import { AppShell } from "./AppShell";
 import styles from "../shared/ui/ui.module.css";
-import { applyPreferences, usePreferences } from "../shared/preferences";
+import { watchPreferences, usePreferences } from "../shared/preferences";
 import { SESSION_EXPIRED_EVENT } from "../shared/api/client";
 
 const HomePage = lazy(() =>
@@ -61,12 +61,12 @@ const SettingsPage = lazy(() =>
 );
 
 export function App() {
-  const preferences = usePreferences();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  useEffect(() => applyPreferences(preferences), [preferences]);
+  // Single owner of the document-level theme/motion attributes.
+  useEffect(() => watchPreferences(usePreferences.getState), []);
   useEffect(() => {
     const sessionExpired = () => {
       queryClient.setQueryData(["session"], undefined);
@@ -142,7 +142,10 @@ function NotFoundPage() {
         <p className={styles.eyebrow}>404</p>
         <h1>{t("error.title")}</h1>
         <p className={styles.lede}>{t("error.body")}</p>
-        <Link className={styles.primaryButton} style={{ marginTop: 20 }} to="/">
+        <Link
+          className={`${styles.primaryButton} ${styles.spacedAction}`}
+          to="/"
+        >
           {t("error.home")}
         </Link>
       </div>

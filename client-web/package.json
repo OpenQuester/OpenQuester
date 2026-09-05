@@ -8,11 +8,12 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "npm run validate:env && npm run generate:api && tsc -b && vite build",
+    "build": "npm run validate:env && npm run check:locales && npm run generate:api && tsc -b && vite build",
     "preview": "vite preview",
     "generate:api": "openapi-typescript ../openapi/schema.json -o src/shared/api/schema.d.ts && node scripts/generate-socket-types.mjs && prettier --write src/shared/api/schema.d.ts src/shared/realtime/socket.generated.ts",
     "generate:api:check": "npm run generate:api && git diff --exit-code -- src/shared/api/schema.d.ts src/shared/realtime/socket.generated.ts",
     "validate:env": "node scripts/validate-env.mjs",
+    "check:locales": "node scripts/check-locales.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

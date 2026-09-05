@@ -70,16 +70,17 @@
 }
 .guidance {
   min-height: 54px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--card);
+  padding: 11px 18px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  text-align: center;
+  gap: 12px;
   color: var(--dim);
   font-size: 13px;
+  line-height: 1.45;
+  text-wrap: pretty;
 }
 .guidance strong {
   color: var(--text);
@@ -95,7 +96,7 @@
 .playerChip {
   min-width: 112px;
   display: grid;
-  grid-template-columns: 30px 1fr;
+  grid-template-columns: 30px 1fr auto;
   column-gap: 8px;
   align-items: center;
   padding: 8px 10px;
@@ -117,15 +118,33 @@
   place-items: center;
   color: var(--accent);
   font-weight: 700;
+  overflow: hidden;
+  flex: none;
+}
+.playerAvatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .playerChip strong {
   font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.playerChip span {
+.playerScore {
   color: var(--dim);
   font: 600 11px var(--mono);
+}
+.playerChip[data-disconnected] {
+  opacity: 0.55;
+}
+.playerFlags {
+  grid-row: 1/3;
+  grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--faint);
 }
 .boardWrap {
   flex: 1;
@@ -214,19 +233,31 @@
   margin: 25px 0 40px;
   letter-spacing: -0.03em;
 }
-.timer {
+.timerRow {
   width: min(420px, 80%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.timerValue {
+  color: var(--dim);
+  font: 600 12px var(--mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.timer {
+  flex: 1;
   height: 3px;
   background: var(--raised);
   overflow: hidden;
   border-radius: 9px;
-  margin-bottom: 24px;
 }
 .timer span {
   display: block;
   height: 100%;
   width: var(--remaining);
-  background: var(--accent);
+  background: var(--accent-fill);
   transition: width 0.2s linear;
 }
 .buzzButton {
@@ -293,16 +324,26 @@
   border-radius: 8px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   padding: 12px;
+}
+.seat strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.seat[data-disconnected] {
+  opacity: 0.55;
 }
 .seat strong {
   font-size: 13px;
 }
 .ready {
   color: var(--ok);
-  font: 600 9px var(--mono);
+  font: 600 11px var(--mono);
   text-transform: uppercase;
+  white-space: nowrap;
 }
 .lobbyAside {
   padding-left: 24px;
@@ -326,7 +367,32 @@
   border-bottom: 1px solid var(--line);
   font-weight: 700;
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 10px;
+}
+.sidePanel header span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+/* Only the narrow layout turns the panel into a sheet, so the toggle only
+   exists there. */
+.chatToggle {
+  display: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--dim);
+  cursor: pointer;
+  place-items: center;
+}
+.guidanceNote {
+  display: block;
+  margin-top: 6px;
+  color: var(--dim);
 }
 .messages {
   flex: 1;
@@ -433,6 +499,13 @@
   justify-content: center;
   gap: 9px;
 }
+/* The stake panel stacks quick bids over the custom-amount row. */
+.stakeActions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
 .phaseActions input {
   width: 140px;
   min-height: 42px;
@@ -513,7 +586,124 @@
   .seatGrid {
     grid-template-columns: 1fr;
   }
+  /* Chat is how the room talks between questions, so on phones it becomes a
+     collapsible bottom sheet rather than disappearing entirely. */
   .sidePanel {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    max-height: 68dvh;
+    border-radius: 12px 12px 0 0;
+    border-bottom: 0;
+    background: var(--card);
+    box-shadow: 0 -12px 34px #0006;
+  }
+  .sidePanel .messages,
+  .sidePanel .chatForm {
     display: none;
   }
+  .sidePanel[data-open] .messages {
+    display: flex;
+    max-height: 46dvh;
+  }
+  .sidePanel[data-open] .chatForm {
+    display: flex;
+  }
+  .chatToggle {
+    display: grid;
+  }
+  .gamePage {
+    padding-bottom: 76px;
+  }
+}
+
+.guidanceForm {
+  display: flex;
+  gap: 8px;
+  width: min(520px, 100%);
+  margin-top: 16px;
+}
+.guidanceForm input {
+  flex: 1;
+  min-width: 0;
+}
+
+.guidanceRole {
+  flex: none;
+  font: 600 11px var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.guidanceBody {
+  flex: 1;
+  min-width: 0;
+}
+.guidanceDismiss {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+}
+.guidanceDismiss:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.bidChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.bidChip {
+  min-height: 38px;
+  padding: 0 15px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--dim);
+  font: 600 13px var(--display);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.bidChip:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.bidChip[data-active] {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+.bidChip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.bidCustom {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.bidCustom input {
+  width: 140px;
+}
+.bidHint {
+  margin: 0;
+  color: var(--faint);
+  font: 500 11px var(--mono);
+}
+
+/* Ultrawide screens stretch the board until it is hard to scan; the cap is a
+   preference because some players want the full width. */
+:global(:root[data-limit-lobby-width="true"]) .gamePage {
+  width: min(1600px, 100%);
+  margin: 0 auto;
 }

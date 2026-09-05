@@ -7,12 +7,10 @@ import {
   Settings,
   UserRound,
 } from "lucide-react";
-import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, NavLink, Outlet } from "react-router-dom";
 
 import { useSession } from "../features/auth/auth";
-import { applyPreferences, usePreferences } from "../shared/preferences";
 import styles from "../shared/ui/ui.module.css";
 
 const nav: ReadonlyArray<{
@@ -34,11 +32,12 @@ function NavItems({ mobile = false }: { mobile?: boolean }) {
       key={to}
       to={to}
       end={end}
-      className={
-        mobile
-          ? undefined
-          : ({ isActive }) =>
-              `${styles.navLink} ${isActive ? styles.navLinkActive : ""}`
+      // The mobile bar previously got no class at all, so no tab ever showed
+      // as current. It keeps the active class; only the base class differs.
+      className={({ isActive }) =>
+        [mobile ? "" : styles.navLink, isActive ? styles.navLinkActive : ""]
+          .filter(Boolean)
+          .join(" ")
       }
     >
       <Icon aria-hidden="true" />
@@ -50,11 +49,6 @@ function NavItems({ mobile = false }: { mobile?: boolean }) {
 export function AppShell() {
   const { t } = useTranslation();
   const session = useSession();
-  const preferences = usePreferences();
-  useEffect(() => {
-    applyPreferences(preferences);
-  }, [preferences]);
-
   const displayName = session.data?.name ?? session.data?.username;
   return (
     <div className={styles.shell}>

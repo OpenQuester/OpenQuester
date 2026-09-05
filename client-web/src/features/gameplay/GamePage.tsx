@@ -3,12 +3,19 @@ import {
   CirclePause,
   CirclePlay,
   Copy,
+  ChevronDown,
+  ChevronUp,
+  Download,
   HelpCircle,
   LayoutGrid,
   List,
   LogOut,
   MessageSquare,
+  MicOff,
   Play,
+  SendHorizontal,
+  WifiOff,
+  X,
 } from "lucide-react";
 import {
   type FormEvent,
@@ -21,11 +28,15 @@ import {
 import { useTranslation } from "react-i18next";
 import {
   Link,
+  useLocation,
   useNavigate,
   useParams,
   useSearchParams,
 } from "react-router-dom";
 
+import { useQuery } from "@tanstack/react-query";
+
+import { api } from "../../shared/api/client";
 import { useSession } from "../auth/auth";
 import { type BoardLayout, usePreferences } from "../../shared/preferences";
 import {
@@ -133,9 +144,12 @@ export function GameJoinPage() {
           <button
             className={ui.primaryButton}
             onClick={() =>
-              void navigate(
-                `/games/${gameId}?role=${role}${password ? `&password=${encodeURIComponent(password)}` : ""}`,
-              )
+              // The room password travels in history state, never in the URL:
+              // a query string ends up in referrers, proxy logs and any link
+              // the player copies or screen-shares.
+              void navigate(`/games/${gameId}?role=${role}`, {
+                state: { password: password || null },
+              })
             }
           >
             {role === "player" ? t("game.join") : t("game.watch")}
@@ -149,24 +163,77 @@ export function GameJoinPage() {
 export function GamePage() {
   const { gameId = "" } = useParams();
   const [params] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const session = useSession();
-  const store = useGameStore();
+  const players = useGameStore((state) => state.players);
+  const gameState = useGameStore((state) => state.gameState);
+  const finished = useGameStore((state) => state.finished);
+  const title = useGameStore((state) => state.title);
+  const connection = useGameStore((state) => state.connection);
   const preferences = usePreferences();
   const roleFromUrl = params.get("role") as
-    "showman" | "player" | "spectator" | null;
+    | "showman"
+    | "player"
+    | "spectator"
+    | null;
+  const userId = session.data?.id;
+  const removedFromGame = useGameStore((state) => state.removedFromGame);
+  const setSelfId = useGameStore((state) => state.setSelfId);
+  useEffect(() => setSelfId(userId), [setSelfId, userId]);
+  const password = (location.state as { password?: string | null } | null)
+    ?.password;
+  // Older invite links carried the password in the query string. Honour one
+  // last time, then rewrite the URL so it leaves the address bar and history.
+  const legacyPassword = params.get("password");
   useEffect(() => {
-    if (!session.data || !gameId) return;
-    connectToGame(gameId, roleFromUrl ?? "player", params.get("password"));
+    if (legacyPassword === null) return;
+    const next = new URLSearchParams(params);
+    next.delete("password");
+    void navigate(
+      { pathname: location.pathname, search: next.toString() },
+      { replace: true, state: { password: legacyPassword } },
+    );
+  }, [legacyPassword, location.pathname, navigate, params]);
+  useEffect(() => {
+    if (!userId || !gameId || legacyPassword !== null) return;
+    connectToGame(gameId, roleFromUrl ?? "player", password ?? null);
     return () => disconnectFromGame();
-  }, [gameId, params, roleFromUrl, session.data]);
-  const role = getRole(store.players, session.data?.id);
-  const phase = derivePhase(store.gameState, store.finished);
+    // Keyed on the user id rather than the session object: a background
+    // session refetch returns a new object and would otherwise drop the
+    // socket and rejoin the game mid-round.
+  }, [gameId, legacyPassword, password, roleFromUrl, userId]);
+  // Only for the rematch link: the join snapshot carries the room title but
+  // not which package it is playing.
+  const gameDetail = useQuery({
+    queryKey: ["game", gameId],
+    queryFn: () => api.game(gameId),
+    enabled: Boolean(gameId),
+    retry: false,
+  });
+  const role = getRole(players, userId);
+  const phase = derivePhase(gameState, finished);
   const leave = () => {
     getGameSocket()?.emit("user-leave");
     void navigate("/");
   };
+  if (removedFromGame)
+    return (
+      <div className={ui.centerState}>
+        <div>
+          <h1>{t(`game.removed.${removedFromGame}.title`)}</h1>
+          <p className={ui.lede}>{t(`game.removed.${removedFromGame}.body`)}</p>
+          <Link
+            className={`${ui.primaryButton} ${ui.spacedAction}`}
+            to="/"
+            onClick={() => disconnectFromGame()}
+          >
+            {t("results.home")}
+          </Link>
+        </div>
+      </div>
+    );
   return (
     <div className={styles.gamePage}>
       <header className={styles.gameTop}>
@@ -178,7 +245,7 @@ export function GamePage() {
           >
             <LogOut size={16} />
           </button>
-          <h1>{store.title || `${t("common.room")} ${gameId}`}</h1>
+          <h1>{title || `${t("common.room")} ${gameId}`}</h1>
         </div>
         <div className={styles.phase} aria-live="polite">
           <strong>{t(`game.phase.${phase}`)}</strong>
@@ -192,14 +259,14 @@ export function GamePage() {
               className={ui.iconButton}
               onClick={() =>
                 getGameSocket()?.emit(
-                  store.gameState?.isPaused ? "game-unpause" : "game-pause",
+                  gameState?.isPaused ? "game-unpause" : "game-pause",
                 )
               }
               aria-label={
-                store.gameState?.isPaused ? t("game.resume") : t("game.pause")
+                gameState?.isPaused ? t("game.resume") : t("game.pause")
               }
             >
-              {store.gameState?.isPaused ? (
+              {gameState?.isPaused ? (
                 <CirclePlay size={16} />
               ) : (
                 <CirclePause size={16} />
@@ -220,9 +287,9 @@ export function GamePage() {
           </button>
         </div>
       </header>
-      {store.connection !== "connected" ? (
+      {connection !== "connected" ? (
         <div className={styles.connection}>
-          {store.connection === "reconnecting"
+          {connection === "reconnecting"
             ? t("game.reconnecting")
             : t("game.connectionLost")}
         </div>
@@ -237,18 +304,23 @@ export function GamePage() {
             }
           }}
         >
-          <Guidance phase={phase} role={role} players={store.players} />
+          <Guidance
+            phase={phase}
+            role={role}
+            players={players}
+            userId={userId}
+          />
           <PlayerRail
-            players={store.players}
+            players={players}
             activeId={
-              store.gameState?.answeringPlayer ??
-              store.gameState?.currentTurnPlayerId
+              gameState?.answeringPlayer ?? gameState?.currentTurnPlayerId
             }
+            awaitingMedia={gameState?.questionState === "media_downloading"}
           />
           {phase === "lobby" ? (
             <Lobby
               role={role}
-              players={store.players}
+              players={players}
               userId={session.data?.id}
             />
           ) : phase === "choosing" ? (
@@ -258,17 +330,17 @@ export function GamePage() {
               onLayout={preferences.setBoardLayout}
             />
           ) : phase === "finished" ? (
-            <Results players={store.players} />
+            <Results players={players} packageId={gameDetail.data?.package?.id} />
           ) : (
             <Question
               phase={phase}
               role={role}
               userId={session.data?.id}
-              players={store.players}
+              players={players}
             />
           )}
         </section>
-        <Chat players={store.players} />
+        <Chat players={players} userId={userId} />
       </div>
     </div>
   );
@@ -286,63 +358,153 @@ function Guidance({
   phase,
   role,
   players,
+  userId,
 }: {
   phase: Phase;
   role: string;
   players: Player[];
+  userId?: number;
 }) {
   const { t } = useTranslation();
+  // Subscribed, not read via getState(): the turn player changes mid-phase and
+  // a snapshot read here goes stale without re-rendering.
+  const state = useGameStore((store) => store.gameState);
+  const showmanGuidance = useGameStore((store) => store.guidance);
+  const turnPlayerId = state?.currentTurnPlayerId;
   const turn =
-    players.find(
-      (p) =>
-        p.meta.id === useGameStore.getState().gameState?.currentTurnPlayerId,
-    )?.meta.username ?? t("game.somePlayer");
-  const key =
-    role === "spectator"
-      ? "game.action.spectator"
-      : phase === "choosing"
-        ? role === "player"
-          ? "game.action.yourPick"
-          : "game.action.waitPick"
-        : phase === "buzzer"
-          ? "game.action.buzz"
-          : phase === "question"
-            ? "game.action.reading"
-            : "game.action.reading";
+    players.find((player) => player.meta.id === turnPlayerId)?.meta.username ??
+    t("game.somePlayer");
+  const isMyTurn = turnPlayerId != null && turnPlayerId === userId;
+  const key = guidanceKey({ phase, role, isMyTurn });
+  const inGameTips = usePreferences((preferences) => preferences.inGameTips);
+  const setInGameTips = usePreferences(
+    (preferences) => preferences.setInGameTips,
+  );
+  // The design gives the guidance line an eyebrow naming who you are right
+  // now, and a dismiss that points at the Settings toggle it maps to.
+  if (!inGameTips) return null;
   return (
-    <div className={styles.guidance}>
-      <strong>{t(`game.phase.${phase}`)}.</strong> {t(key, { name: turn })}
+    <div className={styles.guidance} aria-live="polite">
+      <span className={styles.guidanceRole}>
+        {isMyTurn ? t("game.yourTurn") : `${t("common.you")} · ${t(`common.${role}`)}`}
+      </span>
+      <span className={styles.guidanceBody}>
+        {t(key, { name: turn })}
+        {showmanGuidance ? (
+          <span className={styles.guidanceNote}>{showmanGuidance}</span>
+        ) : null}
+      </span>
+      <button
+        type="button"
+        className={styles.guidanceDismiss}
+        onClick={() => setInGameTips(false)}
+        title={t("game.hideTipsHint")}
+        aria-label={t("game.hideTips")}
+      >
+        <X size={14} aria-hidden="true" />
+      </button>
     </div>
+  );
+}
+
+/**
+ * Every phase and role resolves to a line that names the current state and
+ * either the primary action or what the room is waiting on.
+ */
+function guidanceKey(input: {
+  phase: Phase;
+  role: string;
+  isMyTurn: boolean;
+}): string {
+  const { phase, role, isMyTurn } = input;
+  if (role === "spectator") return "game.action.spectator";
+  const showman = role === "showman";
+  switch (phase) {
+    case "lobby":
+      return showman ? "game.action.startWhenReady" : "game.action.markReady";
+    case "choosing":
+      if (showman) return "game.action.waitPick";
+      return isMyTurn ? "game.action.yourPick" : "game.action.waitPick";
+    case "question":
+      return "game.action.reading";
+    case "buzzer":
+      return showman ? "game.action.waitBuzz" : "game.action.buzz";
+    case "answer":
+      return showman ? "game.action.judge" : "game.action.waitJudge";
+    case "stake":
+      return showman ? "game.action.waitBids" : "game.action.placeBid";
+    case "secret":
+      return showman ? "game.action.waitTransfer" : "game.action.transfer";
+    case "final":
+      return showman ? "game.action.finalShowman" : "game.action.finalPlayer";
+    case "pause":
+      return showman ? "game.action.resumeWhenReady" : "game.action.paused";
+    case "finished":
+      return "game.action.finished";
+    default:
+      return "game.action.reading";
+  }
+}
+
+function PlayerAvatar({ player }: { player: Player }) {
+  return (
+    <span className={styles.playerAvatar}>
+      {player.meta.avatar ? (
+        <img src={player.meta.avatar} alt="" />
+      ) : (
+        player.meta.username.slice(0, 1).toUpperCase()
+      )}
+    </span>
   );
 }
 
 function PlayerRail({
   players,
   activeId,
+  awaitingMedia,
 }: {
   players: Player[];
   activeId?: number | null;
+  awaitingMedia: boolean;
 }) {
+  const { t } = useTranslation();
+  const seated = [...players]
+    .filter((player) => player.role !== "spectator")
+    // Slots are the seat order the server assigns; showman has none.
+    .sort((a, b) => (a.slot ?? Number.MAX_SAFE_INTEGER) - (b.slot ?? Number.MAX_SAFE_INTEGER));
   return (
     <div className={styles.playersRail}>
-      {players
-        .filter((p) => p.role !== "spectator")
-        .map((player) => (
+      {seated.map((player) => {
+        const disconnected = player.status === "disconnected";
+        const muted = player.restrictionData?.muted;
+        const loading = awaitingMedia && !player.mediaDownloaded;
+        return (
           <div
             className={styles.playerChip}
             data-active={player.meta.id === activeId}
+            data-disconnected={disconnected || undefined}
             key={player.meta.id}
           >
-            <span className={styles.playerAvatar}>
-              {player.meta.username.slice(0, 1).toUpperCase()}
-            </span>
+            <PlayerAvatar player={player} />
             <strong>{player.meta.username}</strong>
-            <span>
+            <span className={styles.playerScore}>
               {player.score >= 0 ? "+" : ""}
               {player.score}
             </span>
+            <span className={styles.playerFlags}>
+              {disconnected ? (
+                <WifiOff size={12} aria-label={t("game.disconnected")} />
+              ) : null}
+              {muted ? (
+                <MicOff size={12} aria-label={t("game.muted")} />
+              ) : null}
+              {loading ? (
+                <Download size={12} aria-label={t("game.mediaLoading")} />
+              ) : null}
+            </span>
           </div>
-        ))}
+        );
+      })}
     </div>
   );
 }
@@ -366,18 +528,30 @@ function Lobby({
       <div>
         <h2>{t("lobby.players")}</h2>
         <div className={styles.seatGrid}>
-          {players
+          {[...players]
             .filter((p) => p.role !== "spectator")
+            .sort(
+              (a, b) =>
+                (a.slot ?? Number.MAX_SAFE_INTEGER) -
+                (b.slot ?? Number.MAX_SAFE_INTEGER),
+            )
             .map((p) => (
-              <div className={styles.seat} key={p.meta.id}>
+              <div
+                className={styles.seat}
+                key={p.meta.id}
+                data-disconnected={p.status === "disconnected" || undefined}
+              >
+                <PlayerAvatar player={p} />
                 <strong>
                   {p.meta.username}
                   {p.role === "showman" ? ` · ${t("common.showman")}` : ""}
                 </strong>
                 <span className={styles.ready}>
-                  {ready.includes(p.meta.id) || p.role === "showman"
-                    ? t("lobby.ready")
-                    : t("lobby.notReady")}
+                  {p.status === "disconnected"
+                    ? t("game.disconnected")
+                    : ready.includes(p.meta.id) || p.role === "showman"
+                      ? t("lobby.ready")
+                      : t("lobby.notReady")}
                 </span>
               </div>
             ))}
@@ -532,16 +706,9 @@ function Question({
     );
     return () => clearInterval(timer);
   }, [state?.timer]);
-  const question = state?.currentQuestion as {
-    id?: number;
-    text?: string;
-    questionText?: string;
-    price?: number;
-    answer?: string;
-    questionFiles?: Array<{
-      file: { link?: string | null; type: "image" | "audio" | "video" };
-    }> | null;
-  } | null;
+  // Straight from the generated contract. The hand-written shape this replaced
+  // also read a `questionText` field, which the API has never sent.
+  const question = state?.currentQuestion ?? null;
   const media = useMemo(
     () => question?.questionFiles ?? [],
     [question?.questionFiles],
@@ -557,7 +724,8 @@ function Question({
     if (next !== buzzer) setBuzzer(next);
   }, [buzzer, phase, role, setBuzzer, state, userId]);
   useEffect(() => {
-    if (state?.questionState !== "media_downloading" || !question?.id) return;
+    const questionId = question?.id;
+    if (state?.questionState !== "media_downloading" || !questionId) return;
     let cancelled = false;
     const preload = media.map(({ file }) => preloadMedia(file.link, file.type));
     let timeoutId: number | undefined;
@@ -568,12 +736,12 @@ function Question({
       .then(
         () =>
           !cancelled &&
-          setMediaResult({ questionId: question.id!, status: "ready" }),
+          setMediaResult({ questionId, status: "ready" }),
       )
       .catch(
         () =>
           !cancelled &&
-          setMediaResult({ questionId: question.id!, status: "error" }),
+          setMediaResult({ questionId, status: "error" }),
       )
       .finally(() => {
         if (!cancelled) getGameSocket()?.emit("media-downloaded");
@@ -587,24 +755,40 @@ function Question({
     mediaResult && mediaResult.questionId === question?.id
       ? mediaResult.status
       : "loading";
+  // What this answer is actually worth. A stake question scores the winning
+  // bid and a no-risk question its multiplied price, so the tile price alone
+  // awards the wrong amount on exactly the questions where it matters.
+  const atStake = useMemo((): number | null => {
+    const stake = state?.stakeQuestionData;
+    if (stake && stake.highestBid != null) return stake.highestBid;
+    if (question?.price != null) return question.price;
+    return null;
+  }, [question?.price, state?.stakeQuestionData]);
   const doBuzz = useCallback(() => buzz(), []);
+  // Space is the buzzer, but only while buzzing is actually possible and only
+  // when it is not already the activation key for whatever has focus. Claiming
+  // it unconditionally makes every button on the page unreachable by keyboard.
+  const buzzerArmed = phase === "buzzer" && role === "player";
   useEffect(() => {
+    if (!buzzerArmed) return;
     const handler = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || event.repeat) return;
+      const target = event.target;
       if (
-        event.code === "Space" &&
-        !(
-          event.target instanceof HTMLInputElement ||
-          event.target instanceof HTMLTextAreaElement ||
-          event.target instanceof HTMLSelectElement
-        )
-      ) {
-        event.preventDefault();
-        doBuzz();
-      }
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        target instanceof HTMLButtonElement ||
+        target instanceof HTMLAnchorElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      )
+        return;
+      event.preventDefault();
+      doBuzz();
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [doBuzz]);
+  }, [buzzerArmed, doBuzz]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (answer.trim()) {
@@ -619,18 +803,22 @@ function Question({
       <span className={styles.questionMeta}>
         {phase === "final"
           ? t("game.phase.final")
-          : `${question?.price ?? 500} ${t("common.points")}`}
+          : atStake === null
+            ? t("game.unknownValue")
+            : `${atStake} ${t("common.points")}`}
       </span>
       <h2>
-        {question?.questionText ??
-          question?.text ??
-          t("game.questionUnavailable")}
+        {question?.text ?? t("game.questionUnavailable")}
       </h2>
       {media.length ? (
         <div className={styles.questionMedia} aria-live="polite">
           {media.map(({ file }, index) =>
             file.type === "image" && file.link ? (
-              <img key={file.link} src={file.link} alt="" />
+              <img
+                key={file.link}
+                src={file.link}
+                alt={t("game.questionImage")}
+              />
             ) : file.type === "audio" && file.link ? (
               <audio key={file.link} src={file.link} controls preload="auto" />
             ) : file.link ? (
@@ -648,19 +836,21 @@ function Question({
         </div>
       ) : null}
       {state?.timer ? (
-        <div
-          className={styles.timer}
-          aria-label={t("common.seconds", {
-            count: Math.ceil(remaining / 1000),
-          })}
-        >
-          <span
-            style={
-              {
-                "--remaining": `${Math.min(100, (remaining / state.timer.durationMs) * 100)}%`,
-              } as React.CSSProperties
-            }
-          />
+        <div className={styles.timerRow}>
+          <div className={styles.timer} aria-hidden="true">
+            <span
+              style={
+                {
+                  "--remaining": `${Math.min(100, (remaining / state.timer.durationMs) * 100)}%`,
+                } as React.CSSProperties
+              }
+            />
+          </div>
+          {/* A bar alone tells nobody how long is left. The readout is the
+              accessible name and the visible countdown at once. */}
+          <output className={styles.timerValue} aria-live="off">
+            {t("common.seconds", { count: Math.ceil(remaining / 1000) })}
+          </output>
         </div>
       ) : null}
       {phase === "buzzer" && role === "player" ? (
@@ -705,7 +895,7 @@ function Question({
             className={ui.primaryButton}
             onClick={() =>
               getGameSocket()?.emit("answer-result", {
-                scoreResult: Math.abs(question?.price ?? 0),
+                scoreResult: Math.abs(atStake ?? 0),
                 answerType: "correct",
               })
             }
@@ -716,7 +906,7 @@ function Question({
             className={ui.dangerButton}
             onClick={() =>
               getGameSocket()?.emit("answer-result", {
-                scoreResult: -Math.abs(question?.price ?? 0),
+                scoreResult: -Math.abs(atStake ?? 0),
                 answerType: "wrong",
               })
             }
@@ -729,20 +919,41 @@ function Question({
           >
             {t("game.skip")}
           </button>
-          <button
-            className={ui.ghostButton}
-            onClick={() =>
-              getGameSocket()?.emit("question-guidance", {
-                message: t("game.explain"),
-                questionId: question?.id,
-              })
-            }
-          >
-            {t("game.explain")}
-          </button>
         </div>
       ) : null}
+      {role === "showman" ? <GuidanceComposer questionId={question?.id} /> : null}
     </div>
+  );
+}
+
+/**
+ * Guidance is showman-authored text broadcast to the room. It used to send the
+ * localised label of the button itself, which arrived as the word "Explain" in
+ * whatever language the showman happened to be using.
+ */
+function GuidanceComposer({ questionId }: { questionId?: number }) {
+  const { t } = useTranslation();
+  const [message, setMessage] = useState("");
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const text = message.trim();
+    if (!text) return;
+    getGameSocket()?.emit("question-guidance", { message: text, questionId });
+    setMessage("");
+  };
+  return (
+    <form className={styles.guidanceForm} onSubmit={submit}>
+      <input
+        value={message}
+        onChange={(event) => setMessage(event.target.value)}
+        placeholder={t("game.guidancePlaceholder")}
+        aria-label={t("game.guidanceLabel")}
+        maxLength={255}
+      />
+      <button className={ui.secondaryButton} disabled={!message.trim()}>
+        {t("game.sendGuidance")}
+      </button>
+    </form>
   );
 }
 
@@ -821,50 +1032,75 @@ function SpecialPhaseActions({
   if (phase === "stake" && role === "player") {
     const stake = state?.stakeQuestionData;
     const canBid = stake?.biddingOrder[stake.currentBidderIndex] === userId;
+    const minimum = (stake?.highestBid ?? 0) + 100;
+    const myScore =
+      players.find((player) => player.meta.id === userId)?.score ?? 0;
+    // The design leads with quick amounts and keeps the free-entry field for
+    // anything in between, rather than making every bid a typed number.
+    const quickBids = [minimum, minimum + 400, minimum + 900].filter(
+      (amount) => stake?.maxPrice == null || amount <= stake.maxPrice,
+    );
+    const submit = (bidType: "normal" | "pass" | "all-in", amount?: number) =>
+      getGameSocket()?.emit("stake-bid-submit", {
+        bidType,
+        bidAmount: bidType === "normal" ? (amount ?? bid) : null,
+      });
     return (
-      <div className={styles.phaseActions}>
-        <input
-          type="number"
-          min={1}
-          value={bid}
-          onChange={(event) => setBid(Number(event.target.value))}
-        />
-        <button
-          className={ui.primaryButton}
-          disabled={!canBid}
-          onClick={() =>
-            getGameSocket()?.emit("stake-bid-submit", {
-              bidType: "normal",
-              bidAmount: bid,
-            })
-          }
-        >
-          {t("game.placeBid")}
-        </button>
-        <button
-          className={ui.secondaryButton}
-          disabled={!canBid}
-          onClick={() =>
-            getGameSocket()?.emit("stake-bid-submit", {
-              bidType: "all-in",
-              bidAmount: null,
-            })
-          }
-        >
-          {t("game.allIn")}
-        </button>
-        <button
-          className={ui.ghostButton}
-          disabled={!canBid}
-          onClick={() =>
-            getGameSocket()?.emit("stake-bid-submit", {
-              bidType: "pass",
-              bidAmount: null,
-            })
-          }
-        >
-          {t("game.pass")}
-        </button>
+      <div className={styles.stakeActions}>
+        <div className={styles.bidChips}>
+          <button
+            className={styles.bidChip}
+            disabled={!canBid}
+            onClick={() => submit("pass")}
+          >
+            {t("game.pass")}
+          </button>
+          {quickBids.map((amount) => (
+            <button
+              key={amount}
+              className={styles.bidChip}
+              data-active={bid === amount || undefined}
+              disabled={!canBid}
+              onClick={() => {
+                setBid(amount);
+                submit("normal", amount);
+              }}
+            >
+              {amount}
+            </button>
+          ))}
+          <button
+            className={styles.bidChip}
+            disabled={!canBid || myScore <= 0}
+            onClick={() => submit("all-in")}
+            title={t("game.allInHint")}
+          >
+            {t("game.allIn")}
+          </button>
+        </div>
+        <div className={styles.bidCustom}>
+          <input
+            type="number"
+            min={minimum}
+            max={stake?.maxPrice ?? undefined}
+            value={bid}
+            aria-label={t("game.customBid")}
+            onChange={(event) => {
+              const next = Number(event.target.value);
+              if (Number.isFinite(next)) setBid(next);
+            }}
+          />
+          <button
+            className={ui.primaryButton}
+            disabled={!canBid || bid < minimum}
+            onClick={() => submit("normal")}
+          >
+            {t("game.placeBid")}
+          </button>
+        </div>
+        <p className={styles.bidHint}>
+          {t("game.bidMinimum", { amount: minimum })}
+        </p>
       </div>
     );
   }
@@ -1000,77 +1236,130 @@ function SpecialPhaseActions({
   return null;
 }
 
-function Chat({ players }: { players: Player[] }) {
+function Chat({ players, userId }: { players: Player[]; userId?: number }) {
   const { t } = useTranslation();
   const messages = useGameStore((s) => s.messages);
   const [message, setMessage] = useState("");
+  const [open, setOpen] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  const muted = players.find((player) => player.meta.id === userId)
+    ?.restrictionData?.muted;
+  // Usernames change far less often than messages; one lookup map beats a
+  // linear scan per message on every render.
+  const names = useMemo(
+    () => new Map(players.map((player) => [player.meta.id, player.meta.username])),
+    [players],
+  );
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    // Only follow along when the reader is already at the bottom, so scrolling
+    // back through history is not yanked away by an incoming message.
+    const atBottom =
+      list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+    if (atBottom) list.scrollTop = list.scrollHeight;
+  }, [messages]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (message.trim()) {
-      getGameSocket()?.emit("chat-message", { message: message.trim() });
-      setMessage("");
-    }
+    if (!message.trim() || muted) return;
+    getGameSocket()?.emit("chat-message", { message: message.trim() });
+    setMessage("");
   };
   return (
-    <aside className={styles.sidePanel}>
+    <aside className={styles.sidePanel} data-open={open || undefined}>
       <header>
         <span>
-          <MessageSquare size={15} /> {t("game.chat")}
+          <MessageSquare size={15} aria-hidden="true" /> {t("game.chat")}
         </span>
         <span className={ui.badge}>{messages.length}</span>
+        {/* Below the tablet breakpoint the panel is a sheet rather than a
+            column, so it needs its own control instead of being hidden. */}
+        <button
+          type="button"
+          className={styles.chatToggle}
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+        >
+          {open ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+          <span className={ui.srOnly}>{t("game.chat")}</span>
+        </button>
       </header>
-      <div className={styles.messages}>
-        {messages.map((item, index) => {
-          const user = players.find((p) => p.meta.id === item.user);
-          return (
-            <div className={styles.message} key={item.uuid ?? index}>
-              <strong>{user?.meta.username ?? t("common.player")}</strong>
-              <p>
-                {String(
-                  (item as { message?: string; content?: string }).message ??
-                    (item as { content?: string }).content ??
-                    "",
-                )}
-              </p>
-            </div>
-          );
-        })}
+      <div
+        className={styles.messages}
+        ref={listRef}
+        role="log"
+        aria-live="polite"
+        aria-label={t("game.chat")}
+      >
+        {messages.map((item, index) => (
+          <div className={styles.message} key={item.uuid ?? index}>
+            <strong>{names.get(item.user) ?? t("common.player")}</strong>
+            <p>{item.message}</p>
+          </div>
+        ))}
       </div>
       <form className={styles.chatForm} onSubmit={submit}>
         <input
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder={t("game.chatPlaceholder")}
+          placeholder={muted ? t("game.mutedHint") : t("game.chatPlaceholder")}
+          aria-label={t("game.chat")}
+          disabled={muted}
+          maxLength={500}
         />
-        <button className={ui.iconButton} aria-label={t("game.send")}>
-          →
+        <button
+          className={ui.iconButton}
+          aria-label={t("game.send")}
+          disabled={muted || !message.trim()}
+        >
+          <SendHorizontal size={15} aria-hidden="true" />
         </button>
       </form>
     </aside>
   );
 }
 
-function Results({ players }: { players: Player[] }) {
+function Results({
+  players,
+  packageId,
+}: {
+  players: Player[];
+  packageId?: number;
+}) {
   const { t } = useTranslation();
   const sorted = [...players]
     .filter((p) => p.role === "player")
-    .sort((a, b) => b.score - a.score);
+    .sort(
+      (a, b) =>
+        b.score - a.score || a.meta.username.localeCompare(b.meta.username),
+    );
+  // Standard competition ranking: equal scores share a place, and the place
+  // after a tie skips accordingly. Everyone on the top score gets the crown.
+  let place = 0;
+  let previousScore: number | null = null;
+  const places = sorted.map((player, index) => {
+    if (previousScore === null || player.score !== previousScore) {
+      place = index + 1;
+      previousScore = player.score;
+    }
+    return place;
+  });
   return (
     <div className={styles.results}>
       <p className={ui.eyebrow}>{t("results.subtitle")}</p>
       <h2>{t("results.title")}</h2>
       <div className={styles.podium}>
         {sorted.map((p, i) => (
-          <div className={styles.rank} key={p.meta.id}>
+          <div className={styles.rank} key={p.meta.id} data-place={places[i]}>
             <span>
-              {i === 0 ? (
+              {places[i] === 1 ? (
                 <img
                   className={styles.crown}
                   src="/assets/crown.svg"
                   alt={t("results.winner")}
                 />
               ) : (
-                `#${i + 1}`
+                `#${places[i]}`
               )}
             </span>
             <strong>{p.meta.username}</strong>
@@ -1079,7 +1368,12 @@ function Results({ players }: { players: Player[] }) {
         ))}
       </div>
       <div className={ui.toolbar}>
-        <Link className={ui.primaryButton} to="/games/new">
+        <Link
+          className={ui.primaryButton}
+          // Carry the package through so a rematch opens the create form
+          // already pointed at the pack the room just played.
+          to={packageId ? `/games/new?packageId=${packageId}` : "/games/new"}
+        >
           {t("results.rematch")}
         </Link>
         <Link className={ui.secondaryButton} to="/">
@@ -1100,29 +1394,14 @@ function TutorialButton() {
         </button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "#000a",
-            zIndex: 80,
-          }}
-        />
+        <Dialog.Overlay className={ui.dialogOverlay} />
         <Dialog.Content
-          style={{
-            position: "fixed",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%,-50%)",
-            width: "min(520px,calc(100% - 28px))",
-            background: "var(--card)",
-            border: "1px solid var(--line-strong)",
-            borderRadius: 12,
-            padding: 24,
-            zIndex: 81,
-          }}
+          className={ui.dialogContent}
+          aria-describedby={undefined}
         >
-          <Dialog.Title>{t("tutorial.title")}</Dialog.Title>
+          <Dialog.Title className={ui.dialogTitle}>
+            {t("tutorial.title")}
+          </Dialog.Title>
           <div className={ui.stack}>
             {["pick", "buzz", "score"].map((step, index) => (
               <div className={ui.card} key={step}>
@@ -1133,10 +1412,7 @@ function TutorialButton() {
             ))}
           </div>
           <Dialog.Close asChild>
-            <button
-              className={ui.primaryButton}
-              style={{ width: "100%", marginTop: 16 }}
-            >
+            <button className={`${ui.primaryButton} ${ui.dialogAction}`}>
               {t("common.continue")}
             </button>
           </Dialog.Close>

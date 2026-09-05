@@ -1,7 +1,8 @@
 import type { components } from "../api/schema";
-import type {
-  GeneratedClientSocketPayloads,
-  GeneratedServerSocketPayloads,
+import {
+  GENERATED_SERVER_SOCKET_EVENTS,
+  type GeneratedClientSocketPayloads,
+  type GeneratedServerSocketPayloads,
 } from "./socket.generated";
 
 export type Player = components["schemas"]["PlayerData"];
@@ -19,3 +20,14 @@ type EventHandlers<Payloads> = {
 
 export type ClientToServerEvents = EventHandlers<GeneratedClientSocketPayloads>;
 export type ServerToClientEvents = EventHandlers<GeneratedServerSocketPayloads>;
+
+export type ServerEvent = keyof GeneratedServerSocketPayloads;
+export type ServerPayload<Event extends ServerEvent> =
+  GeneratedServerSocketPayloads[Event];
+
+/**
+ * Every event the server can send, straight from the generated map. Subscribing
+ * from this list is what keeps a newly added server event from going unhandled.
+ */
+export const SERVER_EVENTS: readonly ServerEvent[] =
+  GENERATED_SERVER_SOCKET_EVENTS;
