@@ -1,29 +1,17 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
+import { GameActionType } from "domain/enums/GameActionType";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
 import { type PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { type GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
 import { type QuestionFinishEventPayload } from "domain/types/socket/events/game/QuestionFinishEventPayload";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 /**
  * Tests for mid-question join restriction feature.
@@ -33,51 +21,38 @@ import { TestEnvironment } from "tests/TestEnvironment";
  * edge cases where players could join, see the question being shown, and buzz in.
  */
 describe("Mid-Question Join Restriction", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
   describe("Players joining during active question state should see current data", () => {
     it("should send full question data to showman who rejoins during SHOWING state", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId, showmanUser } = setup;
-      let reconnectedShowmanSocket:
-        | Awaited<ReturnType<typeof utils.createSocketForExistingUser>>["socket"]
-        | null = null;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId, showmanUser } = setup;
+        let reconnectedShowmanSocket:
+          | Awaited<ReturnType<typeof utils.createSocketForExistingUser>>["socket"]
+          | null = null;
 
-      try {
         await utils.startGame(showmanSocket);
 
-        const initialQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        const initialQuestionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
           showmanSocket,
           SocketIOGameEvents.QUESTION_DATA
         );
@@ -87,13 +62,23 @@ describe("Mid-Question Join Restriction", () => {
         const initialAnswerText = (initialQuestionData.data as PackageQuestionDTO).answerText;
         expect(initialAnswerText).toBeDefined();
 
-        showmanSocket.disconnect();
-        await utils.waitForActionsComplete(gameId);
+        const disconnectProbe = utils.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.DISCONNECT,
+          socketId: showmanSocket.id!
+        });
+        try {
+          scenario.actor(showmanSocket).disconnect();
+          await disconnectProbe.waitForCount(1);
+          await utils.waitForActionsComplete(gameId);
+        } finally {
+          disconnectProbe.dispose();
+        }
 
         const reconnected = await utils.createSocketForExistingUser(app, showmanUser.id);
         reconnectedShowmanSocket = reconnected.socket;
 
-        const rejoinQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        const rejoinQuestionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
           reconnectedShowmanSocket,
           SocketIOGameEvents.QUESTION_DATA
         );
@@ -106,28 +91,21 @@ describe("Mid-Question Join Restriction", () => {
         const rejoinQuestionData = await rejoinQuestionDataPromise;
 
         expect(rejoinData.gameState.questionState).toBe(QuestionState.SHOWING);
-        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(
-          initialAnswerText
-        );
-      } finally {
-        if (reconnectedShowmanSocket) {
-          await utils.disconnectAndCleanup(reconnectedShowmanSocket);
-        }
-        await utils.cleanupGameClients(setup);
-      }
+        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(initialAnswerText);
+      });
     });
 
     it("should send full question data to showman who rejoins during ANSWERING state", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId, showmanUser, playerUsers } = setup;
-      let reconnectedShowmanSocket:
-        | Awaited<ReturnType<typeof utils.createSocketForExistingUser>>["socket"]
-        | null = null;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId, showmanUser, playerUsers } = setup;
+        let reconnectedShowmanSocket:
+          | Awaited<ReturnType<typeof utils.createSocketForExistingUser>>["socket"]
+          | null = null;
 
-      try {
         await utils.startGame(showmanSocket);
 
-        const initialQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        const initialQuestionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
           showmanSocket,
           SocketIOGameEvents.QUESTION_DATA
         );
@@ -142,13 +120,23 @@ describe("Mid-Question Join Restriction", () => {
         expect(answeringState?.questionState).toBe(QuestionState.ANSWERING);
         expect(answeringState?.answeringPlayer).toBe(playerUsers[0].id);
 
-        showmanSocket.disconnect();
-        await utils.waitForActionsComplete(gameId);
+        const disconnectProbe = utils.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.DISCONNECT,
+          socketId: showmanSocket.id!
+        });
+        try {
+          scenario.actor(showmanSocket).disconnect();
+          await disconnectProbe.waitForCount(1);
+          await utils.waitForActionsComplete(gameId);
+        } finally {
+          disconnectProbe.dispose();
+        }
 
         const reconnected = await utils.createSocketForExistingUser(app, showmanUser.id);
         reconnectedShowmanSocket = reconnected.socket;
 
-        const rejoinQuestionDataPromise = utils.waitForEvent<GameQuestionDataEventPayload>(
+        const rejoinQuestionDataPromise = scenario.waitForEvent<GameQuestionDataEventPayload>(
           reconnectedShowmanSocket,
           SocketIOGameEvents.QUESTION_DATA
         );
@@ -162,29 +150,21 @@ describe("Mid-Question Join Restriction", () => {
 
         expect(rejoinData.gameState.questionState).toBe(QuestionState.ANSWERING);
         expect(rejoinData.gameState.answeringPlayer).toBe(playerUsers[0].id);
-        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(
-          initialAnswerText
-        );
-      } finally {
-        if (reconnectedShowmanSocket) {
-          await utils.disconnectAndCleanup(reconnectedShowmanSocket);
-        }
-        await utils.cleanupGameClients(setup);
-      }
+        expect((rejoinQuestionData.data as PackageQuestionDTO).answerText).toBe(initialAnswerText);
+      });
     });
 
     it("should include answer reveal data when a player joins during SHOWING_ANSWER state", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
-      let lateJoinerSocket:
-        | Awaited<ReturnType<typeof utils.createGameClient>>["socket"]
-        | null = null;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
+        let lateJoinerSocket: Awaited<ReturnType<typeof utils.createGameClient>>["socket"] | null =
+          null;
 
-      try {
         await utils.startGame(showmanSocket);
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
-        const questionFinishPromise = utils.waitForEvent<QuestionFinishEventPayload>(
+        const questionFinishPromise = scenario.waitForEvent<QuestionFinishEventPayload>(
           playerSockets[0],
           SocketIOGameEvents.QUESTION_FINISH
         );
@@ -209,22 +189,17 @@ describe("Mid-Question Join Restriction", () => {
             nextTurnPlayerId: questionFinish.nextTurnPlayerId
           })
         );
-      } finally {
-        if (lateJoinerSocket) {
-          await utils.disconnectAndCleanup(lateJoinerSocket);
-        }
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Players joining during question should not be able to answer", () => {
     it("should reject answer attempt from player who joined during SHOWING state", async () => {
-      // Setup: 1 player + showman
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup: 1 player + showman
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         // Start game and pick question
         await utils.startGame(showmanSocket);
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
@@ -234,52 +209,40 @@ describe("Mid-Question Join Restriction", () => {
         expect(gameState?.questionState).toBe(QuestionState.SHOWING);
 
         // Create new player who joins mid-question
-        const { socket: lateJoinerSocket } = await utils.createGameClient(
-          app,
-          userRepo
+        const { socket: lateJoinerSocket } = await utils.createGameClient(app, userRepo);
+
+        const joinPromise = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.JOIN);
+        // Join the game as player during SHOWING state
+        await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
+
+        // Wait for join to complete
+        await joinPromise;
+
+        // Attempt to answer - should be rejected
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
+          lateJoinerSocket,
+          SocketIOEvents.ERROR
         );
 
-        try {
-          const joinPromise = utils.waitForEvent(
-            showmanSocket,
-            SocketIOGameEvents.JOIN
-          );
-          // Join the game as player during SHOWING state
-          await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
+        scenario.actor(lateJoinerSocket).emit(SocketIOGameEvents.QUESTION_ANSWER, {});
 
-          // Wait for join to complete
-          await joinPromise;
+        const errorData = await errorPromise;
+        const errorMessage = errorData.message;
 
-          // Attempt to answer - should be rejected
-          const errorPromise = utils.waitForEvent<{ message: string }>(
-            lateJoinerSocket,
-            SocketIOEvents.ERROR
-          );
-
-          lateJoinerSocket.emit(SocketIOGameEvents.QUESTION_ANSWER, {});
-
-          const errorData = await errorPromise;
-          const errorMessage = errorData.message;
-
-          // Expect specific error for mid-question join
-          expect(errorMessage.toLowerCase()).toContain("cannot answer");
-          expect(errorMessage.toLowerCase()).toContain(
-            "you will be able to answer the next question"
-          );
-        } finally {
-          await utils.disconnectAndCleanup(lateJoinerSocket);
-        }
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+        // Expect specific error for mid-question join
+        expect(errorMessage.toLowerCase()).toContain("cannot answer");
+        expect(errorMessage.toLowerCase()).toContain(
+          "you will be able to answer the next question"
+        );
+      });
     });
 
     it("should reject answer attempt from player who joined during ANSWERING state", async () => {
-      // Setup: 2 players + showman (one will answer, one joins late)
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async () => {
+        // Setup: 2 players + showman (one will answer, one joins late)
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         // Start game and pick question
         await utils.startGame(showmanSocket);
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
@@ -292,47 +255,35 @@ describe("Mid-Question Join Restriction", () => {
         expect(gameState?.questionState).toBe(QuestionState.ANSWERING);
 
         // Create new player who joins mid-question
-        const { socket: lateJoinerSocket } = await utils.createGameClient(
-          app,
-          userRepo
-        );
+        const { socket: lateJoinerSocket } = await utils.createGameClient(app, userRepo);
 
-        try {
-          // Join the game as player during ANSWERING state
-          await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
+        // Join the game as player during ANSWERING state
+        await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
 
-          // Wait for join to complete
-          await utils.waitForActionsComplete(gameId);
+        // Wait for join to complete
+        await utils.waitForActionsComplete(gameId);
 
-          // Verify the player cannot answer by checking questionEligiblePlayers
-          const updatedState = await utils.getGameState(gameId);
-          const game = await utils.getGameFromGameService(gameId);
-          const lateJoinerId = (await utils.getSocketUserData(lateJoinerSocket))
-            ?.id;
+        // Verify the player cannot answer by checking questionEligiblePlayers
+        const updatedState = await utils.getGameState(gameId);
+        const game = await utils.getGameFromGameService(gameId);
+        const lateJoinerId = (await utils.getSocketUserData(lateJoinerSocket))?.id;
 
-          expect(updatedState?.questionState).toBe(QuestionState.ANSWERING);
+        expect(updatedState?.questionState).toBe(QuestionState.ANSWERING);
 
-          // The late joiner should not be in the eligible players list
-          expect(game.gameState.questionEligiblePlayers).toBeDefined();
-          expect(
-            game.gameState.questionEligiblePlayers?.includes(lateJoinerId!)
-          ).toBe(false);
-        } finally {
-          await utils.disconnectAndCleanup(lateJoinerSocket);
-        }
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+        // The late joiner should not be in the eligible players list
+        expect(game.gameState.questionEligiblePlayers).toBeDefined();
+        expect(game.gameState.questionEligiblePlayers?.includes(lateJoinerId!)).toBe(false);
+      });
     });
   });
 
   describe("Player reconnection scenarios", () => {
     it("should allow reconnecting player to answer if they were present at question start", async () => {
-      // Setup: 1 player + showman
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup: 1 player + showman
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Start game and pick question
         await utils.startGame(showmanSocket);
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
@@ -342,150 +293,139 @@ describe("Mid-Question Join Restriction", () => {
         expect(gameState?.questionState).toBe(QuestionState.SHOWING);
 
         const game = await utils.getGameFromGameService(gameId);
-        expect(
-          game.gameState.questionEligiblePlayers?.includes(playerUsers[0].id)
-        ).toBe(true);
+        expect(game.gameState.questionEligiblePlayers?.includes(playerUsers[0].id)).toBe(true);
 
         // Simulate disconnect
         const originalPlayerId = playerUsers[0].id;
-        playerSockets[0].disconnect();
-
-        // Wait for disconnect to process
-        await utils.waitForActionsComplete(gameId);
+        const disconnectProbe = utils.createAcceptedActionProbe({
+          gameId,
+          actionType: GameActionType.DISCONNECT,
+          socketId: playerSockets[0].id!
+        });
+        try {
+          scenario.actor(playerSockets[0]).disconnect();
+          await disconnectProbe.waitForCount(1);
+          await utils.waitForActionsComplete(gameId);
+        } finally {
+          disconnectProbe.dispose();
+        }
 
         // Reconnect with same user
-        const { socket: reconnectedSocket } =
-          await utils.createSocketForExistingUser(app, originalPlayerId);
+        const { socket: reconnectedSocket } = await utils.createSocketForExistingUser(
+          app,
+          originalPlayerId
+        );
 
-        try {
-          // Rejoin the game
-          await utils.joinGame(reconnectedSocket, gameId, PlayerRole.PLAYER);
+        // Rejoin the game
+        await utils.joinGame(reconnectedSocket, gameId, PlayerRole.PLAYER);
 
-          // Wait for join to complete
-          await utils.waitForActionsComplete(gameId);
+        // Wait for join to complete
+        await utils.waitForActionsComplete(gameId);
 
-          // Should still be able to answer (was in eligible list)
-          const answerPromise = utils.waitForEvent(
-            showmanSocket,
-            SocketIOGameEvents.QUESTION_ANSWER
-          );
+        // Should still be able to answer (was in eligible list)
+        const answerPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.QUESTION_ANSWER
+        );
 
-          reconnectedSocket.emit(SocketIOGameEvents.QUESTION_ANSWER, {});
+        scenario.actor(reconnectedSocket).emit(SocketIOGameEvents.QUESTION_ANSWER, {});
 
-          await answerPromise;
+        await answerPromise;
 
-          // Verify answer was accepted
-          const updatedState = await utils.getGameState(gameId);
-          expect(updatedState?.questionState).toBe(QuestionState.ANSWERING);
-          expect(updatedState?.answeringPlayer).toBe(originalPlayerId);
-        } finally {
-          await utils.disconnectAndCleanup(reconnectedSocket);
-        }
-      } finally {
-        // Note: playerSockets[0] is already disconnected
-        await utils.disconnectAndCleanup(showmanSocket);
-      }
+        // Verify answer was accepted
+        const updatedState = await utils.getGameState(gameId);
+        expect(updatedState?.questionState).toBe(QuestionState.ANSWERING);
+        expect(updatedState?.answeringPlayer).toBe(originalPlayerId);
+      });
     });
   });
 
   describe("State reset on new question", () => {
     it("should clear eligibility restrictions when returning to CHOOSING state", async () => {
-      // Setup: 2 players initially (so we don't auto-advance to answering), will add late joiner
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        2, // 2 players needed to avoid auto-advance to ANSWERING
-        0,
-        true,
-        1 // Include additional simple question
-      );
-      const { showmanSocket, playerSockets, gameId } = setup;
+      await suite.scenario(async () => {
+        // Setup: 2 players initially (so we don't auto-advance to answering), will add late joiner
+        const setup = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          2, // 2 players needed to avoid auto-advance to ANSWERING
+          0,
+          true,
+          1 // Include additional simple question
+        );
+        const { showmanSocket, playerSockets, gameId } = setup;
 
-      try {
         // Start game and pick first question
         await utils.startGame(showmanSocket);
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Late joiner joins during question
-        const { socket: lateJoinerSocket, user: lateJoinerUser } =
-          await utils.createGameClient(app, userRepo);
+        const { socket: lateJoinerSocket, user: lateJoinerUser } = await utils.createGameClient(
+          app,
+          userRepo
+        );
 
-        try {
-          await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
-          await utils.waitForActionsComplete(gameId);
+        await utils.joinGame(lateJoinerSocket, gameId, PlayerRole.PLAYER);
+        await utils.waitForActionsComplete(gameId);
 
-          // Verify late joiner is NOT eligible for this question
-          const game = await utils.getGameFromGameService(gameId);
-          expect(
-            game.gameState.questionEligiblePlayers?.includes(lateJoinerUser.id)
-          ).toBe(false);
+        // Verify late joiner is NOT eligible for this question
+        const game = await utils.getGameFromGameService(gameId);
+        expect(game.gameState.questionEligiblePlayers?.includes(lateJoinerUser.id)).toBe(false);
 
-          // Complete the question (force skip)
-          await utils.skipQuestion(showmanSocket);
-          await utils.skipShowAnswer(showmanSocket);
+        // Complete the question (force skip)
+        await utils.skipQuestion(showmanSocket);
+        await utils.skipShowAnswer(showmanSocket);
 
-          // Wait for state to return to CHOOSING
-          await utils.waitForActionsComplete(gameId);
-          const stateAfterSkip = await utils.getGameState(gameId);
-          expect(stateAfterSkip?.questionState).toBe(QuestionState.CHOOSING);
+        // Wait for state to return to CHOOSING
+        await utils.waitForActionsComplete(gameId);
+        const stateAfterSkip = await utils.getGameState(gameId);
+        expect(stateAfterSkip?.questionState).toBe(QuestionState.CHOOSING);
 
-          // questionEligiblePlayers should be cleared
-          const gameAfterSkip = await utils.getGameFromGameService(gameId);
-          expect(gameAfterSkip.gameState.questionEligiblePlayers).toBeNull();
+        // questionEligiblePlayers should be cleared
+        const gameAfterSkip = await utils.getGameFromGameService(gameId);
+        expect(gameAfterSkip.gameState.questionEligiblePlayers).toBeNull();
 
-          // Pick another question - late joiner should now be eligible
-          // Use both player sockets for media download
-          const allPlayerSockets = [...playerSockets, lateJoinerSocket];
-          await utils.pickQuestion(showmanSocket, undefined, allPlayerSockets);
+        // Pick another question - late joiner should now be eligible
+        // Use both player sockets for media download
+        const allPlayerSockets = [...playerSockets, lateJoinerSocket];
+        await utils.pickQuestion(showmanSocket, undefined, allPlayerSockets);
 
-          // Verify late joiner IS eligible for new question
-          const gameNewQuestion = await utils.getGameFromGameService(gameId);
-          expect(
-            gameNewQuestion.gameState.questionEligiblePlayers?.includes(
-              lateJoinerUser.id
-            )
-          ).toBe(true);
-        } finally {
-          await utils.disconnectAndCleanup(lateJoinerSocket);
-        }
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+        // Verify late joiner IS eligible for new question
+        const gameNewQuestion = await utils.getGameFromGameService(gameId);
+        expect(gameNewQuestion.gameState.questionEligiblePlayers?.includes(lateJoinerUser.id)).toBe(
+          true
+        );
+      });
     });
   });
 
   describe("Role change scenarios", () => {
     it("should not allow spectator-turned-player to answer if changed mid-question", async () => {
-      // Setup: 1 player + 1 spectator + showman
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
-      const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup: 1 player + 1 spectator + showman
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 1);
+        const { showmanSocket, playerSockets, spectatorSockets, gameId } = setup;
 
-      try {
         // Start game and pick question
         await utils.startGame(showmanSocket);
         await utils.pickQuestion(showmanSocket, undefined, playerSockets);
 
         // Get spectator's user ID
-        const spectatorData = await utils.getSocketUserData(
-          spectatorSockets[0]
-        );
+        const spectatorData = await utils.getSocketUserData(spectatorSockets[0]);
         const spectatorUserId = spectatorData?.id;
 
         // Verify spectator is NOT in eligible list (was spectator at question start)
         const game = await utils.getGameFromGameService(gameId);
-        expect(
-          game.gameState.questionEligiblePlayers?.includes(spectatorUserId!)
-        ).toBe(false);
+        expect(game.gameState.questionEligiblePlayers?.includes(spectatorUserId!)).toBe(false);
 
         // Change spectator to player mid-question
-        const roleChangePromise = utils.waitForEvent(
+        const roleChangePromise = scenario.waitForEvent(
           spectatorSockets[0],
           SocketIOGameEvents.PLAYER_ROLE_CHANGE
         );
 
-        showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           playerId: spectatorUserId,
-          newRole: PlayerRole.PLAYER,
+          newRole: PlayerRole.PLAYER
         });
 
         await roleChangePromise;
@@ -494,24 +434,22 @@ describe("Mid-Question Join Restriction", () => {
         // Verify the role was actually changed
         const gameAfterRoleChange = await utils.getGameFromGameService(gameId);
         const changedPlayer = gameAfterRoleChange.getPlayer(spectatorUserId!, {
-          fetchDisconnected: false,
+          fetchDisconnected: false
         });
         expect(changedPlayer?.role).toBe(PlayerRole.PLAYER);
 
         // Verify player is still NOT in eligible list (even after role change)
         expect(
-          gameAfterRoleChange.gameState.questionEligiblePlayers?.includes(
-            spectatorUserId!
-          )
+          gameAfterRoleChange.gameState.questionEligiblePlayers?.includes(spectatorUserId!)
         ).toBe(false);
 
         // Attempt to answer - should be rejected because not in eligible list
-        const errorPromise = utils.waitForEvent<{ message: string }>(
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
           spectatorSockets[0],
           SocketIOEvents.ERROR
         );
 
-        spectatorSockets[0].emit(SocketIOGameEvents.QUESTION_ANSWER, {});
+        scenario.actor(spectatorSockets[0]).emit(SocketIOGameEvents.QUESTION_ANSWER, {});
 
         const errorData = await errorPromise;
         const errorMessage = errorData.message;
@@ -520,25 +458,23 @@ describe("Mid-Question Join Restriction", () => {
         expect(errorMessage.toLowerCase()).toContain(
           "you will be able to answer the next question"
         );
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Final round restrictions", () => {
     it("should not allow role change to PLAYER during final round", async () => {
-      // Setup: 2 players + 1 spectator, need final round
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        2,
-        1,
-        true // include final round
-      );
-      const { showmanSocket, spectatorSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup: 2 players + 1 spectator, need final round
+        const setup = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          2,
+          1,
+          true // include final round
+        );
+        const { showmanSocket, spectatorSockets, gameId } = setup;
 
-      try {
         // Start game
         await utils.startGame(showmanSocket);
 
@@ -551,44 +487,40 @@ describe("Mid-Question Join Restriction", () => {
         expect(gameState?.currentRound?.type).toBe("final");
 
         // Get spectator's user ID
-        const spectatorData = await utils.getSocketUserData(
-          spectatorSockets[0]
-        );
+        const spectatorData = await utils.getSocketUserData(spectatorSockets[0]);
         const spectatorUserId = spectatorData?.id;
 
         // Attempt to change spectator to player during final round - should fail
-        const errorPromise = utils.waitForEvent<{ message: string }>(
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
           spectatorSockets[0],
           SocketIOEvents.ERROR
         );
 
         // Spectator tries to change their own role to player
-        spectatorSockets[0].emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+        scenario.actor(spectatorSockets[0]).emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           playerId: spectatorUserId,
-          newRole: PlayerRole.PLAYER,
+          newRole: PlayerRole.PLAYER
         });
 
         const errorData = await errorPromise;
         const errorMessage = errorData.message;
         expect(errorMessage.toLowerCase()).toContain("cannot");
         expect(errorMessage.toLowerCase()).toContain("final");
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should not allow showman to change spectator to player during final round", async () => {
-      // Setup: 2 players + 1 spectator, need final round
-      const setup = await utils.setupGameTestEnvironment(
-        userRepo,
-        app,
-        2,
-        1,
-        true // include final round
-      );
-      const { showmanSocket, spectatorSockets, gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup: 2 players + 1 spectator, need final round
+        const setup = await utils.setupGameTestEnvironment(
+          userRepo,
+          app,
+          2,
+          1,
+          true // include final round
+        );
+        const { showmanSocket, spectatorSockets, gameId } = setup;
 
-      try {
         // Start game
         await utils.startGame(showmanSocket);
 
@@ -601,29 +533,25 @@ describe("Mid-Question Join Restriction", () => {
         expect(gameState?.currentRound?.type).toBe("final");
 
         // Get spectator's user ID
-        const spectatorData = await utils.getSocketUserData(
-          spectatorSockets[0]
-        );
+        const spectatorData = await utils.getSocketUserData(spectatorSockets[0]);
         const spectatorUserId = spectatorData?.id;
 
         // Showman attempts to change spectator to player - should fail
-        const errorPromise = utils.waitForEvent<{ message: string }>(
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
           showmanSocket,
           SocketIOEvents.ERROR
         );
 
-        showmanSocket.emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.PLAYER_ROLE_CHANGE, {
           playerId: spectatorUserId,
-          newRole: PlayerRole.PLAYER,
+          newRole: PlayerRole.PLAYER
         });
 
         const errorData = await errorPromise;
         const errorMessage = errorData.message;
         expect(errorMessage.toLowerCase()).toContain("cannot");
         expect(errorMessage.toLowerCase()).toContain("final");
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 });

@@ -26,9 +26,17 @@ interface RedisClientWithCommandQueue {
   commandQueue?: RedisCommandQueue;
 }
 
+export interface RedisDisconnectOptions {
+  strict?: boolean;
+}
+
 type RedisPubSubMethodName = "subscribe" | "psubscribe" | "unsubscribe" | "punsubscribe";
 type RedisPubSubMethod = (...args: unknown[]) => Promise<unknown>;
 type RedisClientWithPubSubMethods = Redis & Record<RedisPubSubMethodName, RedisPubSubMethod>;
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
 
 export class RedisConfig {
   private static _client: Redis;
@@ -124,75 +132,178 @@ export class RedisConfig {
     });
   }
 
-  public static async disconnect(): Promise<void> {
+  public static async disconnect(options: RedisDisconnectOptions = {}): Promise<void> {
     // Close duplicates first so no pub/sub callbacks race against root client shutdown.
     const clients = Array.from(this._clients).reverse();
-    for (const client of clients) {
-      await this.disconnectClient(client, "Redis connection");
+
+    if (!options.strict) {
+      for (const client of clients) {
+        await this.disconnectClient(client, "Redis connection", false);
+      }
+
+      this._resetClients();
+      return;
     }
 
-    this._client = undefined as unknown as Redis;
-    this._subClient = undefined as unknown as Redis;
-    this._clients.clear();
+    const failures: Error[] = [];
+
+    try {
+      const results = await Promise.allSettled(
+        clients.map((client, index) =>
+          this.disconnectClient(client, `Redis connection ${index + 1}/${clients.length}`, true)
+        )
+      );
+      for (const result of results) {
+        if (result.status === "rejected") {
+          failures.push(toError(result.reason));
+        }
+      }
+    } finally {
+      this._resetClients();
+    }
+
+    if (options.strict && failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `Redis disconnect failed: ${failures.map((failure) => failure.message).join("; ")}`
+      );
+    }
   }
 
   private static async disconnectClient(
     client: Redis | undefined,
-    errorMessage: string
+    errorMessage: string,
+    strict: boolean
   ): Promise<void> {
     if (!client || client.status === "end") {
       return;
     }
 
-    try {
-      this._closingClients.add(client);
-      await this._waitForPendingCommands(client);
-      const waitForClose = this._waitForClientClose(client);
+    const failures: Error[] = [];
+    this._closingClients.add(client);
 
-      if (client.status === "ready") {
-        await client.quit();
-        await waitForClose;
+    try {
+      await this._waitForPendingCommands(client, strict);
+    } catch (error) {
+      if (!strict) {
+        this._warnDisconnectFailure(errorMessage, error);
         return;
       }
+      failures.push(toError(error));
+    }
 
-      client.disconnect(false);
+    const waitForClose = this._waitForClientClose(client, strict);
+    const closeOutcome = waitForClose.then(
+      () => undefined,
+      (error: unknown) => toError(error)
+    );
+    let expectedDisconnectError = false;
+
+    try {
+      if (client.status === "ready") {
+        if (strict) {
+          await Promise.race([client.quit(), waitForClose]);
+        } else {
+          await client.quit();
+        }
+      } else {
+        client.disconnect(false);
+      }
       await waitForClose;
     } catch (error) {
-      if (this._isExpectedDisconnectError(error)) {
+      expectedDisconnectError = this._isExpectedDisconnectError(error);
+      if (!strict) {
+        if (!expectedDisconnectError) {
+          this._warnDisconnectFailure(errorMessage, error);
+        }
         return;
       }
 
-      this._logger?.warn(`${errorMessage} closed`, {
-        prefix: REDIS_PREFIX,
-        error: error instanceof Error ? error.message : String(error)
-      });
+      if (!expectedDisconnectError) {
+        failures.push(toError(error));
+      }
+
+      try {
+        client.disconnect(false);
+      } catch (disconnectError) {
+        if (!this._isExpectedDisconnectError(disconnectError)) {
+          failures.push(toError(disconnectError));
+        }
+      }
+    }
+
+    const closeError = await closeOutcome;
+    if (
+      closeError &&
+      closeError !== failures[failures.length - 1] &&
+      !expectedDisconnectError &&
+      !this._isExpectedDisconnectError(closeError)
+    ) {
+      failures.push(closeError);
+    }
+
+    if (strict && failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `${errorMessage} failed to close: ${failures.map((failure) => failure.message).join("; ")}`
+      );
     }
   }
 
-  private static async _waitForPendingCommands(client: Redis): Promise<void> {
-    const pendingCommands = this._getPendingCommandPromises(client);
+  private static async _waitForPendingCommands(client: Redis, strict = false): Promise<void> {
+    const pendingCommands = this._getPendingCommandPromises(client, strict);
     if (pendingCommands.length === 0) {
       return;
     }
 
-    await new Promise<void>((resolve) => {
-      let settled = false;
-      const finish = (): void => {
-        if (settled) {
-          return;
+    let timeout: NodeJS.Timeout | undefined;
+    const deadline = new Promise<undefined>((resolve, reject) => {
+      timeout = setTimeout(() => {
+        if (strict) {
+          reject(
+            new Error(
+              `Timed out after ${REDIS_DISCONNECT_TIMEOUT_MS}ms waiting for ` +
+                `${pendingCommands.length} pending Redis command(s) during disconnect`
+            )
+          );
+        } else {
+          resolve(undefined);
         }
-
-        settled = true;
-        clearTimeout(timeout);
-        resolve();
-      };
-
-      const timeout = setTimeout(finish, REDIS_DISCONNECT_TIMEOUT_MS);
-      void Promise.allSettled(pendingCommands).then(finish);
+      }, REDIS_DISCONNECT_TIMEOUT_MS);
     });
+    let results: PromiseSettledResult<unknown>[] | undefined;
+
+    try {
+      results = await Promise.race([Promise.allSettled(pendingCommands), deadline]);
+    } finally {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    }
+
+    if (!results) {
+      return;
+    }
+
+    const failures = results
+      .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+      .map((result) => result.reason)
+      .filter((error) => !this._isExpectedDisconnectError(error))
+      .map((error) => (error instanceof Error ? error : new Error(String(error))));
+
+    if (strict && failures.length > 0) {
+      throw new AggregateError(failures, "Redis pending commands failed during disconnect");
+    }
+
+    for (const error of failures) {
+      this._logger?.warn("Redis pending command failed during disconnect", {
+        prefix: REDIS_PREFIX,
+        error: error.message
+      });
+    }
   }
 
-  private static _getPendingCommandPromises(client: Redis): Promise<unknown>[] {
+  private static _getPendingCommandPromises(client: Redis, strict = false): Promise<unknown>[] {
     const queue = (client as unknown as RedisClientWithCommandQueue).commandQueue;
     if (!queue) {
       return [];
@@ -203,14 +314,16 @@ export class RedisConfig {
       const promise = queue.peekAt(index)?.command?.promise;
       if (promise) {
         promises.push(
-          promise.catch((error: unknown) => {
-            if (!this._isExpectedDisconnectError(error)) {
-              this._logger?.warn("Redis pending command failed during disconnect", {
-                prefix: REDIS_PREFIX,
-                error: error instanceof Error ? error.message : String(error)
-              });
-            }
-          })
+          strict
+            ? promise
+            : promise.catch((error: unknown) => {
+                if (!this._isExpectedDisconnectError(error)) {
+                  this._logger?.warn("Redis pending command failed during disconnect", {
+                    prefix: REDIS_PREFIX,
+                    error: error instanceof Error ? error.message : String(error)
+                  });
+                }
+              })
         );
       }
     }
@@ -218,22 +331,54 @@ export class RedisConfig {
     return promises;
   }
 
-  private static async _waitForClientClose(client: Redis): Promise<void> {
+  private static async _waitForClientClose(client: Redis, strict = false): Promise<void> {
     if (client.status === "end") {
       return;
     }
 
-    await new Promise<void>((resolve) => {
-      const cleanup = (): void => {
-        clearTimeout(timeout);
-        client.off("end", cleanup);
-        client.off("close", cleanup);
-        resolve();
-      };
-      const timeout = setTimeout(cleanup, REDIS_DISCONNECT_TIMEOUT_MS);
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const finish = (error?: Error): void => {
+        if (settled) {
+          return;
+        }
 
-      client.once("end", cleanup);
-      client.once("close", cleanup);
+        settled = true;
+        clearTimeout(timeout);
+        client.off("end", onClose);
+        client.off("close", onClose);
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      };
+      const onClose = (): void => finish();
+      const timeout = setTimeout(() => {
+        finish(
+          strict
+            ? new Error(
+                `Timed out after ${REDIS_DISCONNECT_TIMEOUT_MS}ms waiting for Redis client close`
+              )
+            : undefined
+        );
+      }, REDIS_DISCONNECT_TIMEOUT_MS);
+
+      client.once("end", onClose);
+      client.once("close", onClose);
+    });
+  }
+
+  private static _resetClients(): void {
+    this._client = undefined as unknown as Redis;
+    this._subClient = undefined as unknown as Redis;
+    this._clients.clear();
+  }
+
+  private static _warnDisconnectFailure(errorMessage: string, error: unknown): void {
+    this._logger?.warn(`${errorMessage} closed`, {
+      prefix: REDIS_PREFIX,
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 
@@ -282,10 +427,7 @@ export class RedisConfig {
     }) as Redis["duplicate"];
   }
 
-  private static _observePubSubCommandRejections(
-    client: Redis,
-    clientName: string
-  ): void {
+  private static _observePubSubCommandRejections(client: Redis, clientName: string): void {
     if (this._observedPubSubClients.has(client)) {
       return;
     }

@@ -1,79 +1,54 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-} from "@jest/globals";
+import { afterAll, beforeAll, afterEach, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
-import request from "supertest";
+import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
 
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { GameEvent, GameEventDTO } from "domain/types/dto/game/GameEventDTO";
 import { PlayerRole } from "domain/types/game/PlayerRole";
-import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { PackageUtils } from "tests/utils/PackageUtils";
 
 describe("Game REST update", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
-  let serverUrl: string;
+  let http: HttpTestClient;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
   const packageUtils = new PackageUtils();
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    cleanup = boot.cleanup;
-
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    utils = suite.utils;
+    http = createHttpTestClient(suite.serverUrl);
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
-  it("should update game and broadcast GameEventDTO to game room", async () => {
-    const userRepo = testEnv.getDatabase().getRepository(User);
+  it("should update game and broadcast GameEventDTO to game room", () =>
+    suite.scenario(async (scenario) => {
+      const userRepo = suite.userRepo;
 
-    const {
-      socket: showmanSocket,
-      user: showmanUser,
-      cookie: showmanCookie,
-    } = await utils.createGameClient(app, userRepo);
+      const {
+        socket: showmanSocket,
+        user: showmanUser,
+        cookie: showmanCookie
+      } = await utils.createGameClient(app, userRepo);
 
-    const { socket: playerSocket, cookie: playerCookie } =
-      await utils.createGameClient(app, userRepo);
+      const { socket: playerSocket, cookie: playerCookie } = await utils.createGameClient(
+        app,
+        userRepo
+      );
 
-    let gameId = "";
+      let gameId = "";
 
-    try {
       // Create package
       const packageData = packageUtils.createTestPackageData(
         { id: showmanUser.id, username: showmanUser.username },
@@ -81,7 +56,7 @@ describe("Game REST update", () => {
         0
       );
 
-      const packageRes = await request(app)
+      const packageRes = await http
         .post("/v1/packages")
         .set("Cookie", showmanCookie)
         .send({ content: packageData });
@@ -89,16 +64,13 @@ describe("Game REST update", () => {
       expect(packageRes.status).toBe(200);
 
       // Create game
-      const gameRes = await request(app)
-        .post("/v1/games")
-        .set("Cookie", showmanCookie)
-        .send({
-          title: "Update Test Game",
-          packageId: packageRes.body.id,
-          isPrivate: false,
-          ageRestriction: AgeRestriction.NONE,
-          maxPlayers: 10,
-        });
+      const gameRes = await http.post("/v1/games").set("Cookie", showmanCookie).send({
+        title: "Update Test Game",
+        packageId: packageRes.body.id,
+        isPrivate: false,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10
+      });
 
       expect(gameRes.status).toBe(200);
       gameId = gameRes.body.id;
@@ -107,30 +79,20 @@ describe("Game REST update", () => {
       await utils.joinGame(showmanSocket, gameId, PlayerRole.SHOWMAN);
       await utils.joinGame(playerSocket, gameId, PlayerRole.PLAYER);
 
-      const eventPromise = new Promise<GameEventDTO>((resolve, reject) => {
-        const timeout = setTimeout(
-          () =>
-            reject(new Error("Timed out waiting for game update broadcast")),
-          10000
-        );
-
-        playerSocket.once(SocketIOEvents.GAMES, (payload: GameEventDTO) => {
-          clearTimeout(timeout);
-          resolve(payload);
-        });
-      });
+      const eventPromise = scenario.waitForEventMatching<GameEventDTO>(
+        playerSocket,
+        SocketIOEvents.GAMES,
+        (payload) => payload.event === GameEvent.CHANGED && payload.data.id === gameId
+      );
 
       // Update game via REST
-      const updateRes = await request(app)
-        .patch(`/v1/games/${gameId}`)
-        .set("Cookie", showmanCookie)
-        .send({
-          title: "Updated Title",
-          isPrivate: true,
-          password: "MyPass_123",
-          ageRestriction: AgeRestriction.A16,
-          maxPlayers: 8,
-        });
+      const updateRes = await http.patch(`/v1/games/${gameId}`).set("Cookie", showmanCookie).send({
+        title: "Updated Title",
+        isPrivate: true,
+        password: "MyPass_123",
+        ageRestriction: AgeRestriction.A16,
+        maxPlayers: 8
+      });
 
       expect(updateRes.status).toBe(200);
       expect(updateRes.body.id).toBe(gameId);
@@ -148,31 +110,20 @@ describe("Game REST update", () => {
 
       // Sanity: player cookie is unused here, keep it to ensure auth isolation
       expect(playerCookie).toBeDefined();
-    } finally {
-      await utils.disconnectAndCleanup(showmanSocket);
-      await utils.disconnectAndCleanup(playerSocket);
+    }));
 
-      if (gameId) {
-        // Best-effort cleanup; game may already be expired in Redis in some cases
-        await request(app)
-          .delete(`/v1/games/${gameId}`)
-          .set("Cookie", showmanCookie);
-      }
-    }
-  });
+  it("should reject package change after game start", () =>
+    suite.scenario(async (scenario) => {
+      const userRepo = suite.userRepo;
 
-  it("should reject package change after game start", async () => {
-    const userRepo = testEnv.getDatabase().getRepository(User);
+      const {
+        socket: showmanSocket,
+        user: showmanUser,
+        cookie: showmanCookie
+      } = await utils.createGameClient(app, userRepo);
 
-    const {
-      socket: showmanSocket,
-      user: showmanUser,
-      cookie: showmanCookie,
-    } = await utils.createGameClient(app, userRepo);
+      let gameId = "";
 
-    let gameId = "";
-
-    try {
       // Create package #1
       const packageData1 = packageUtils.createTestPackageData(
         { id: showmanUser.id, username: showmanUser.username },
@@ -180,7 +131,7 @@ describe("Game REST update", () => {
         0
       );
 
-      const packageRes1 = await request(app)
+      const packageRes1 = await http
         .post("/v1/packages")
         .set("Cookie", showmanCookie)
         .send({ content: packageData1 });
@@ -194,7 +145,7 @@ describe("Game REST update", () => {
         1
       );
 
-      const packageRes2 = await request(app)
+      const packageRes2 = await http
         .post("/v1/packages")
         .set("Cookie", showmanCookie)
         .send({ content: packageData2 });
@@ -202,16 +153,13 @@ describe("Game REST update", () => {
       expect(packageRes2.status).toBe(200);
 
       // Create game
-      const gameRes = await request(app)
-        .post("/v1/games")
-        .set("Cookie", showmanCookie)
-        .send({
-          title: "Package Change Block Test",
-          packageId: packageRes1.body.id,
-          isPrivate: false,
-          ageRestriction: AgeRestriction.NONE,
-          maxPlayers: 10,
-        });
+      const gameRes = await http.post("/v1/games").set("Cookie", showmanCookie).send({
+        title: "Package Change Block Test",
+        packageId: packageRes1.body.id,
+        isPrivate: false,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10
+      });
 
       expect(gameRes.status).toBe(200);
       gameId = gameRes.body.id;
@@ -219,49 +167,36 @@ describe("Game REST update", () => {
       await utils.joinGame(showmanSocket, gameId, PlayerRole.SHOWMAN);
 
       // Start game
-      await new Promise<void>((resolve) => {
-        showmanSocket.once(SocketIOGameEvents.START, () => resolve());
-        showmanSocket.emit(SocketIOGameEvents.START);
+      await scenario.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.START, () =>
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.START)
+      );
+
+      const updateRes = await http.patch(`/v1/games/${gameId}`).set("Cookie", showmanCookie).send({
+        packageId: packageRes2.body.id
       });
 
-      const updateRes = await request(app)
-        .patch(`/v1/games/${gameId}`)
-        .set("Cookie", showmanCookie)
-        .send({
-          packageId: packageRes2.body.id,
-        });
-
       expect(updateRes.status).toBe(400);
-    } finally {
-      await utils.disconnectAndCleanup(showmanSocket);
+    }));
 
-      if (gameId) {
-        await request(app)
-          .delete(`/v1/games/${gameId}`)
-          .set("Cookie", showmanCookie);
-      }
-    }
-  });
+  it("should update package data before game start", () =>
+    suite.scenario(async () => {
+      const userRepo = suite.userRepo;
 
-  it("should update package data before game start", async () => {
-    const userRepo = testEnv.getDatabase().getRepository(User);
+      const {
+        socket: showmanSocket,
+        user: showmanUser,
+        cookie: showmanCookie
+      } = await utils.createGameClient(app, userRepo);
 
-    const {
-      socket: showmanSocket,
-      user: showmanUser,
-      cookie: showmanCookie,
-    } = await utils.createGameClient(app, userRepo);
+      let gameId = "";
 
-    let gameId = "";
-
-    try {
       const packageData1 = packageUtils.createTestPackageData(
         { id: showmanUser.id, username: showmanUser.username },
         false,
         0
       );
 
-      const packageRes1 = await request(app)
+      const packageRes1 = await http
         .post("/v1/packages")
         .set("Cookie", showmanCookie)
         .send({ content: packageData1 });
@@ -275,169 +210,124 @@ describe("Game REST update", () => {
       );
       packageData2.title = "Replacement Test Package";
 
-      const packageRes2 = await request(app)
+      const packageRes2 = await http
         .post("/v1/packages")
         .set("Cookie", showmanCookie)
         .send({ content: packageData2 });
 
       expect(packageRes2.status).toBe(200);
 
-      const gameRes = await request(app)
-        .post("/v1/games")
-        .set("Cookie", showmanCookie)
-        .send({
-          title: "Package Update Test",
-          packageId: packageRes1.body.id,
-          isPrivate: false,
-          ageRestriction: AgeRestriction.NONE,
-          maxPlayers: 10,
-        });
+      const gameRes = await http.post("/v1/games").set("Cookie", showmanCookie).send({
+        title: "Package Update Test",
+        packageId: packageRes1.body.id,
+        isPrivate: false,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10
+      });
 
       expect(gameRes.status).toBe(200);
       gameId = gameRes.body.id;
 
       await utils.joinGame(showmanSocket, gameId, PlayerRole.SHOWMAN);
 
-      const updateRes = await request(app)
-        .patch(`/v1/games/${gameId}`)
-        .set("Cookie", showmanCookie)
-        .send({
-          packageId: packageRes2.body.id,
-        });
+      const updateRes = await http.patch(`/v1/games/${gameId}`).set("Cookie", showmanCookie).send({
+        packageId: packageRes2.body.id
+      });
 
       expect(updateRes.status).toBe(200);
       expect(updateRes.body.package.id).toBe(packageRes2.body.id);
       expect(updateRes.body.package.title).toBe("Replacement Test Package");
       expect(updateRes.body.package.roundsCount).toBe(2);
       expect(updateRes.body.package.questionsCount).toBe(11);
-    } finally {
-      await utils.disconnectAndCleanup(showmanSocket);
+    }));
 
-      if (gameId) {
-        await request(app)
-          .delete(`/v1/games/${gameId}`)
-          .set("Cookie", showmanCookie);
-      }
-    }
-  });
+  it("should reject setting password for public game", () =>
+    suite.scenario(async () => {
+      const userRepo = suite.userRepo;
 
-  it("should reject setting password for public game", async () => {
-    const userRepo = testEnv.getDatabase().getRepository(User);
+      const {
+        socket: showmanSocket,
+        user: showmanUser,
+        cookie: showmanCookie
+      } = await utils.createGameClient(app, userRepo);
 
-    const {
-      socket: showmanSocket,
-      user: showmanUser,
-      cookie: showmanCookie,
-    } = await utils.createGameClient(app, userRepo);
+      let gameId = "";
 
-    let gameId = "";
-
-    try {
       const packageData = packageUtils.createTestPackageData(
         { id: showmanUser.id, username: showmanUser.username },
         false,
         0
       );
 
-      const packageRes = await request(app)
+      const packageRes = await http
         .post("/v1/packages")
         .set("Cookie", showmanCookie)
         .send({ content: packageData });
 
       expect(packageRes.status).toBe(200);
 
-      const gameRes = await request(app)
-        .post("/v1/games")
-        .set("Cookie", showmanCookie)
-        .send({
-          title: "Public Password Reject",
-          packageId: packageRes.body.id,
-          isPrivate: false,
-          ageRestriction: AgeRestriction.NONE,
-          maxPlayers: 10,
-        });
+      const gameRes = await http.post("/v1/games").set("Cookie", showmanCookie).send({
+        title: "Public Password Reject",
+        packageId: packageRes.body.id,
+        isPrivate: false,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10
+      });
 
       expect(gameRes.status).toBe(200);
       gameId = gameRes.body.id;
 
       await utils.joinGame(showmanSocket, gameId, PlayerRole.SHOWMAN);
 
-      const updateRes = await request(app)
-        .patch(`/v1/games/${gameId}`)
-        .set("Cookie", showmanCookie)
-        .send({
-          password: "SomePass_1",
-        });
+      const updateRes = await http.patch(`/v1/games/${gameId}`).set("Cookie", showmanCookie).send({
+        password: "SomePass_1"
+      });
 
       expect(updateRes.status).toBe(400);
-    } finally {
-      await utils.disconnectAndCleanup(showmanSocket);
+    }));
 
-      if (gameId) {
-        await request(app)
-          .delete(`/v1/games/${gameId}`)
-          .set("Cookie", showmanCookie);
-      }
-    }
-  });
+  it("should reject removing password for private game", () =>
+    suite.scenario(async () => {
+      const userRepo = suite.userRepo;
 
-  it("should reject removing password for private game", async () => {
-    const userRepo = testEnv.getDatabase().getRepository(User);
+      const {
+        socket: showmanSocket,
+        user: showmanUser,
+        cookie: showmanCookie
+      } = await utils.createGameClient(app, userRepo);
 
-    const {
-      socket: showmanSocket,
-      user: showmanUser,
-      cookie: showmanCookie,
-    } = await utils.createGameClient(app, userRepo);
+      let gameId = "";
 
-    let gameId = "";
-
-    try {
       const packageData = packageUtils.createTestPackageData(
         { id: showmanUser.id, username: showmanUser.username },
         false,
         0
       );
 
-      const packageRes = await request(app)
+      const packageRes = await http
         .post("/v1/packages")
         .set("Cookie", showmanCookie)
         .send({ content: packageData });
 
       expect(packageRes.status).toBe(200);
 
-      const gameRes = await request(app)
-        .post("/v1/games")
-        .set("Cookie", showmanCookie)
-        .send({
-          title: "Private Password Remove Reject",
-          packageId: packageRes.body.id,
-          isPrivate: true,
-          ageRestriction: AgeRestriction.NONE,
-          maxPlayers: 10,
-        });
+      const gameRes = await http.post("/v1/games").set("Cookie", showmanCookie).send({
+        title: "Private Password Remove Reject",
+        packageId: packageRes.body.id,
+        isPrivate: true,
+        ageRestriction: AgeRestriction.NONE,
+        maxPlayers: 10
+      });
 
       expect(gameRes.status).toBe(200);
       gameId = gameRes.body.id;
 
       await utils.joinGame(showmanSocket, gameId, PlayerRole.SHOWMAN);
 
-      const updateRes = await request(app)
-        .patch(`/v1/games/${gameId}`)
-        .set("Cookie", showmanCookie)
-        .send({
-          password: null,
-        });
+      const updateRes = await http.patch(`/v1/games/${gameId}`).set("Cookie", showmanCookie).send({
+        password: null
+      });
 
       expect(updateRes.status).toBe(400);
-    } finally {
-      await utils.disconnectAndCleanup(showmanSocket);
-
-      if (gameId) {
-        await request(app)
-          .delete(`/v1/games/${gameId}`)
-          .set("Cookie", showmanCookie);
-      }
-    }
-  });
+    }));
 });

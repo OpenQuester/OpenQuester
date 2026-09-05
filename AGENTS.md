@@ -82,7 +82,7 @@ Common checks:
 npm run validate:schema
 npm run lint
 npm run build
-npm test
+npm run test:pipeline
 
 # run from client/
 melos run pre_build

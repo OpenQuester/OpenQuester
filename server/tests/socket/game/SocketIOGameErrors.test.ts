@@ -1,246 +1,166 @@
-import { beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
-import request from "supertest";
+import { createHttpTestClient } from "tests/e2e/harness/HttpTestClient";
 import { Repository } from "typeorm";
 
 import { AgeRestriction } from "domain/enums/game/AgeRestriction";
-import {
-  SocketIOEvents,
-  SocketIOGameEvents,
-} from "domain/enums/SocketIOEvents";
+import { SocketIOEvents, SocketIOGameEvents } from "domain/enums/SocketIOEvents";
 import { PlayerRole } from "domain/types/game/PlayerRole";
 import { GameJoinInputData } from "domain/types/socket/events/SocketEventInterfaces";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 describe("Socket Game Error Tests", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
   }, 10000);
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      if (cleanup) await cleanup();
-      await testEnv.teardown();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
   describe("Game Join Errors", () => {
     it("should reject joining non-existent game", async () => {
-      const { socket: testSocket } = await utils.createGameClient(
-        app,
-        userRepo
-      );
+      await suite.scenario(async (scenario) => {
+        const { socket: testSocket } = await utils.createGameClient(app, userRepo);
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 8000);
-
-        testSocket.on(SocketIOEvents.ERROR, (error: any) => {
-          clearTimeout(timeout);
-          expect(error.message).toBe("Game with id 'XXXX' not found");
-          resolve();
-        });
-
-        testSocket.emit(
-          SocketIOGameEvents.JOIN,
-          {
-            gameId: "XXXX",
-            role: PlayerRole.PLAYER,
-          } as GameJoinInputData,
-          () => {
-            // Error will be handled by the error event listener
-          }
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
+          testSocket,
+          SocketIOEvents.ERROR
         );
-      }).finally(async () => {
-        await utils.disconnectAndCleanup(testSocket);
+
+        scenario.actor(testSocket).emit(SocketIOGameEvents.JOIN, {
+          gameId: "XXXX",
+          role: PlayerRole.PLAYER
+        } as GameJoinInputData);
+
+        expect((await errorPromise).message).toBe("Game with id 'XXXX' not found");
       });
     });
 
     it("should reject joining same game twice", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { playerSockets } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { playerSockets } = setup;
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
-
-        playerSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
-          clearTimeout(timeout);
-          expect(error.message).toBe("You are already in this game");
-          resolve();
-        });
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
+          playerSockets[0],
+          SocketIOEvents.ERROR
+        );
 
         // Try joining the same game again
-        playerSockets[0].emit(
-          SocketIOGameEvents.JOIN,
-          {
-            gameId: setup.gameId,
-            role: PlayerRole.PLAYER,
-          } as GameJoinInputData,
-          () => {
-            // Error will be handled by the error event listener
-          }
-        );
-      }).finally(async () => {
-        await utils.cleanupGameClients(setup);
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.JOIN, {
+          gameId: setup.gameId,
+          role: PlayerRole.PLAYER
+        } as GameJoinInputData);
+
+        expect((await errorPromise).message).toBe("You are already in this game");
       });
     });
   });
 
   describe("Connection Error Handling", () => {
     it("should handle multiple rapid join/leave requests", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 0);
-      const { gameId } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 0, 0);
+        const { gameId } = setup;
 
-      const clients = await Promise.all(
-        Array(5)
-          .fill(null)
-          .map(async () => {
-            return await utils.createGameClient(app, userRepo);
-          })
-      );
+        const clients = await Promise.all(
+          Array(5)
+            .fill(null)
+            .map(async () => {
+              return await utils.createGameClient(app, userRepo);
+            })
+        );
 
-      try {
         for (const client of clients) {
           await utils.joinGame(client.socket, gameId);
           await utils.leaveGame(client.socket);
-          client.socket.disconnect();
+          scenario.actor(client.socket).disconnect();
         }
 
         clients.forEach((client) => {
           expect(client.socket.connected).toBeFalsy();
         });
-      } finally {
-        await Promise.all(
-          clients.map(async (client) => {
-            await utils.disconnectAndCleanup(client.socket);
-          })
-        );
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should handle disconnection during game", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { playerSockets, showmanSocket } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { playerSockets, showmanSocket } = setup;
 
-      return new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
-
-        // Start listening for leave event before disconnecting
-        showmanSocket.on(SocketIOGameEvents.LEAVE, (data: any) => {
-          clearTimeout(timeout);
-          expect(data).toBeDefined();
-          resolve();
-        });
+        const leavePromise = scenario.waitForEvent(showmanSocket, SocketIOGameEvents.LEAVE);
 
         // Force disconnect a player
-        playerSockets[0].disconnect();
-      }).finally(async () => {
-        await utils.cleanupGameClients(setup);
+        scenario.actor(playerSockets[0]).disconnect();
+
+        expect(await leavePromise).toBeDefined();
       });
     });
   });
 
   describe("Game Action Errors", () => {
     it("should handle invalid question picks", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket } = setup;
 
-      // Start game
-      await utils.startGame(showmanSocket);
+        // Start game
+        await utils.startGame(showmanSocket);
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
-
-        showmanSocket.on(SocketIOEvents.ERROR, (error: any) => {
-          clearTimeout(timeout);
-          expect(error.message).toBeDefined();
-          resolve();
-        });
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
+          showmanSocket,
+          SocketIOEvents.ERROR
+        );
 
         // Try to pick invalid question
-        showmanSocket.emit(
-          SocketIOGameEvents.QUESTION_PICK,
-          { questionId: 9999 },
-          () => {
-            // Error will be handled by the error event listener
-          }
-        );
-      }).finally(async () => {
-        await utils.cleanupGameClients(setup);
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: 9999
+        });
+
+        expect((await errorPromise).message).toBeDefined();
       });
     });
 
     it("should handle unauthorized answer submissions", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
-      const { playerSockets } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 2, 0);
+        const { playerSockets } = setup;
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
-
-        playerSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
-          clearTimeout(timeout);
-          expect(error.message).toBeDefined();
-          resolve();
-        });
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
+          playerSockets[0],
+          SocketIOEvents.ERROR
+        );
 
         // Try to submit answer result as player
-        playerSockets[0].emit(
-          SocketIOGameEvents.ANSWER_RESULT,
-          {
-            scoreResult: 100,
-            answerType: "correct",
-          },
-          () => {
-            // Error will be handled by the error event listener
-          }
-        );
-      }).finally(async () => {
-        await utils.cleanupGameClients(setup);
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.ANSWER_RESULT, {
+          scoreResult: 100,
+          answerType: "correct"
+        });
+
+        expect((await errorPromise).message).toBeDefined();
       });
     });
 
     it("should handle starting already started game", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket } = setup;
 
-      try {
         // Start game normally first
         await utils.startGame(showmanSocket);
 
@@ -249,95 +169,75 @@ describe("Socket Game Error Tests", () => {
         expect(gameState).toBeDefined();
         expect(gameState!.currentRound).not.toBeNull();
 
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error("Test timeout"));
-          }, 5000);
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
+          showmanSocket,
+          SocketIOEvents.ERROR
+        );
 
-          showmanSocket.on(SocketIOEvents.ERROR, (error: any) => {
-            clearTimeout(timeout);
-            expect(error.message).toBeDefined();
-            error.message.includes("already started");
-            resolve();
-          });
+        // Try to start game again - should emit error
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.START, {});
+        const error = await errorPromise;
 
-          // Try to start game again - should emit error
-          showmanSocket.emit(SocketIOGameEvents.START, {});
-        });
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+        expect(error.message).toBeDefined();
+        expect(error.message).toContain("already started");
+      });
     });
   });
 
   describe("Game State Errors", () => {
     it("should handle invalid game state transitions", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { showmanSocket } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { showmanSocket } = setup;
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
-
-        showmanSocket.on(SocketIOEvents.ERROR, (error: any) => {
-          clearTimeout(timeout);
-          expect(error.message).toBeDefined();
-          resolve();
-        });
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
+          showmanSocket,
+          SocketIOEvents.ERROR
+        );
 
         // Try to skip question without starting game
-        showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {}, () => {
-          // Error will be handled by the error event listener
-        });
-      }).finally(async () => {
-        await utils.cleanupGameClients(setup);
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.SKIP_QUESTION_FORCE, {});
+
+        expect((await errorPromise).message).toBeDefined();
       });
     });
 
     it("should handle creating game with invalid package ID", async () => {
-      const { socket, cookie } = await utils.createGameClient(app, userRepo);
+      await suite.scenario(async () => {
+        const { cookie } = await utils.createGameClient(app, userRepo);
 
-      try {
         const gameData = {
           title: "Test Game",
           packageId: "invalid-package-id",
           isPrivate: false,
           ageRestriction: AgeRestriction.NONE,
-          maxPlayers: 10,
+          maxPlayers: 10
         };
 
-        const gameRes = await request(app)
+        const gameRes = await createHttpTestClient(suite.serverUrl)
           .post("/v1/games")
           .set("Cookie", cookie)
           .send(gameData);
 
         expect(gameRes.status).not.toBe(200);
         expect(gameRes.body.error || gameRes.body.message).toBeDefined();
-      } finally {
-        await utils.disconnectAndCleanup(socket);
-      }
+      });
     });
 
     it("should handle invalid role actions", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
-      const { playerSockets } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 1, 0);
+        const { playerSockets } = setup;
 
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Test timeout"));
-        }, 5000);
-
-        playerSockets[0].on(SocketIOEvents.ERROR, (error: any) => {
-          clearTimeout(timeout);
-          expect(error.message).toBeDefined();
-          resolve();
-        });
+        const errorPromise = scenario.waitForEvent<{ message: string }>(
+          playerSockets[0],
+          SocketIOEvents.ERROR
+        );
 
         // Try to start game as player
-        playerSockets[0].emit(SocketIOGameEvents.START, {});
-      }).finally(async () => {
-        await utils.cleanupGameClients(setup);
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.START, {});
+
+        expect((await errorPromise).message).toBeDefined();
       });
     });
   });

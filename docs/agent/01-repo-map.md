@@ -28,6 +28,8 @@ This map helps agents pick the right files before editing. It is not a replaceme
 | Change game rules | `server/src/domain/entities/game/Game.ts`, `server/src/domain/logic/**`, `server/src/domain/validators/**` |
 | Change final round | `server/docs/final-round-flow.md`, final round use cases/types, `docs/specs/game-state-matrix.md` |
 | Change media readiness | `server/docs/media-download-sync.md`, media download use case, client question/lobby controllers |
+| Write/review backend transport E2E | `.agents/skills/backend-e2e/SKILL.md`, `server/tests/e2e/README.md` |
+| Run/debug backend tests | `.agents/skills/backend-test-runner/SKILL.md`, `server/scripts/test/runPipelineTests.mjs` |
 | Change admin diagnostics | `server/src/application/services/admin/*`, `server/src/presentation/controllers/rest/AdminRestApiController.ts` |
 
 ## Frontend map

@@ -1,15 +1,10 @@
-import { type Express } from "express";
-import request from "supertest";
 import { DataSource, Repository } from "typeorm";
 
 import { Permissions } from "domain/enums/Permissions";
-import { RedisConfig } from "shared/config/RedisConfig";
 import { Permission } from "infrastructure/database/models/Permission";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { createHttpTestClient, type HttpTestClient } from "tests/e2e/harness/HttpTestClient";
+import { ServerTestHarness } from "tests/e2e/harness/ServerTestHarness";
 import { deleteAll } from "tests/utils/TypeOrmTestUtils";
 
 async function preparePermission(
@@ -47,48 +42,32 @@ async function createTargetUser(userRepo: Repository<User>, permissions: Permiss
 }
 
 describe("User Permissions Management", () => {
-  let testEnv: TestEnvironment;
-  let app: Express;
+  let harness: ServerTestHarness;
+  let http: HttpTestClient;
   let dataSource: DataSource;
   let userRepo: Repository<User>;
   let permRepo: Repository<Permission>;
-  let cleanup: (() => Promise<void>) | undefined;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    dataSource = boot.dataSource;
+    harness = await ServerTestHarness.start({ apiPort: 0 });
+    dataSource = harness.dataSource;
     userRepo = dataSource.getRepository<User>("User");
     permRepo = dataSource.getRepository<Permission>("Permission");
-    cleanup = boot.cleanup;
   });
 
   afterEach(async () => {
     await deleteAll(userRepo);
     await deleteAll(permRepo);
 
-    // Clear Redis cache
-    const redisClient = RedisConfig.getClient();
-    const keys = await redisClient.keys("cache:user:*");
-    if (keys.length > 0) {
-      await redisClient.del(...keys);
-    }
+    await harness.resetState();
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await harness?.stop();
   });
 
   beforeEach(async () => {
+    http = createHttpTestClient(harness.serverUrl);
     await deleteAll(userRepo);
   });
 
@@ -105,13 +84,13 @@ describe("User Permissions Management", () => {
     const targetUser = await createTargetUser(userRepo, []);
 
     // Login as admin
-    const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
+    const loginRes = await http.post("/v1/test/login").send({ userId: adminUser.id });
 
     expect(loginRes.status).toBe(200);
     const cookies = loginRes.headers["set-cookie"];
 
     // Update target user permissions
-    const updateRes = await request(app)
+    const updateRes = await http
       .patch(`/v1/users/${targetUser.id}/permissions`)
       .set("Cookie", cookies)
       .send({
@@ -140,13 +119,13 @@ describe("User Permissions Management", () => {
     const targetUser = await createTargetUser(userRepo, []);
 
     // Login as user without manage permissions
-    const loginRes = await request(app).post("/v1/test/login").send({ userId: user.id });
+    const loginRes = await http.post("/v1/test/login").send({ userId: user.id });
 
     expect(loginRes.status).toBe(200);
     const cookies = loginRes.headers["set-cookie"];
 
     // Try to update permissions (should fail)
-    const updateRes = await request(app)
+    const updateRes = await http
       .patch(`/v1/users/${targetUser.id}/permissions`)
       .set("Cookie", cookies)
       .send({
@@ -168,13 +147,13 @@ describe("User Permissions Management", () => {
     const targetUser = await createTargetUser(userRepo, [editPerm]);
 
     // Login as admin
-    const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
+    const loginRes = await http.post("/v1/test/login").send({ userId: adminUser.id });
 
     expect(loginRes.status).toBe(200);
     const cookies = loginRes.headers["set-cookie"];
 
     // Remove all permissions
-    const updateRes = await request(app)
+    const updateRes = await http
       .patch(`/v1/users/${targetUser.id}/permissions`)
       .set("Cookie", cookies)
       .send({
@@ -196,13 +175,13 @@ describe("User Permissions Management", () => {
     const targetUser = await createTargetUser(userRepo, []);
 
     // Login as admin
-    const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
+    const loginRes = await http.post("/v1/test/login").send({ userId: adminUser.id });
 
     expect(loginRes.status).toBe(200);
     const cookies = loginRes.headers["set-cookie"];
 
     // Try to assign invalid permission
-    const updateRes = await request(app)
+    const updateRes = await http
       .patch(`/v1/users/${targetUser.id}/permissions`)
       .set("Cookie", cookies)
       .send({
@@ -220,13 +199,13 @@ describe("User Permissions Management", () => {
     const adminUser = await createUser(userRepo, [managePerm]);
 
     // Login as admin
-    const loginRes = await request(app).post("/v1/test/login").send({ userId: adminUser.id });
+    const loginRes = await http.post("/v1/test/login").send({ userId: adminUser.id });
 
     expect(loginRes.status).toBe(200);
     const cookies = loginRes.headers["set-cookie"];
 
     // Try to update permissions for non-existent user
-    const updateRes = await request(app)
+    const updateRes = await http
       .patch("/v1/users/99999/permissions")
       .set("Cookie", cookies)
       .send({

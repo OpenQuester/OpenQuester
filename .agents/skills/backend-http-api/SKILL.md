@@ -49,7 +49,11 @@ Express Router -> asyncHandler -> RequestDataValidator/Joi -> application servic
 8. Keep request guards consistent with nearby code.
 9. Update `openapi/schema.json` for public contract changes.
 10. Regenerate generated Dart client when schema changes are in scope.
-11. Add focused tests when behavior is non-trivial.
+11. Use `backend-smoke-tests` to decide focused regression coverage and `backend-e2e` for transport tests. Pure HTTP cases use the harness URL and bounded HTTP client; HTTP-triggered socket broadcasts use a hybrid scenario with waits armed before the request.
+
+Check normalization as well as validation: a Joi trim/default/coercion can change
+accepted input or returned content. Describe the actual normalization in OpenAPI;
+do not infer it from a DTO's TypeScript type alone.
 
 ## Common failure modes
 

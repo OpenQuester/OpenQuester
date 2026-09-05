@@ -51,6 +51,9 @@ Runtime handlers still follow the same boundaries:
 - Expiration handling assumes game state still exists.
 - Cleanup removes state still needed by active games.
 - Runtime event bypasses game action queue and creates race conditions.
+- A stale timeout acts on a newer question/phase, or a user ACK racing the
+  timeout causes duplicate transition/timer broadcasts. Check timer identity,
+  current phase, and exact transition/event counts in relevant regressions.
 - Handler registration is added in a second place instead of the existing bootstrap/factory pattern.
 
 ## Verification
@@ -62,7 +65,9 @@ npm run lint
 npm run build
 ```
 
-For timers, do not wait with `setTimeout`; use test helpers or trigger expiration logic directly.
+For transport timer scenarios use `TestUtils.expireTimer()` and the real runtime
+path, with bounded event waits armed first. Direct handler calls and fake timers
+belong in unit/integration self-tests and must not be reported as transport E2E.
 
 ## Handoff checklist
 

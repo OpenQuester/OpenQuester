@@ -1,0 +1,4 @@
+interface:
+  display_name: "Backend Smoke Tests"
+  short_description: "Add focused backend E2E smoke coverage"
+  default_prompt: "Use $backend-smoke-tests to add and run focused backend smoke coverage for this feature or fix."

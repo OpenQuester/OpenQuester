@@ -18,6 +18,9 @@ Each skill is a folder with a `SKILL.md` file. `SKILL.md` must start with frontm
 | `package-editor-change/` | Changing package editor, SIQ/OQ import/export, media refs, validation, package health. |
 | `openapi-sdk-change/` | Changing REST/Socket.IO public contract or generated Dart SDK. |
 | `project-assurance/` | Changing validation strategy, E2E structure, fixtures, helpers, or confidence-building docs. |
+| `backend-e2e/` | Writing/reviewing backend HTTP, gameplay/hybrid, dedicated media E2E, or shared scenario helpers. |
+| `backend-smoke-tests/` | Deciding and adding minimal backend boundary coverage for observable features or fixes. |
+| `backend-test-runner/` | Running, debugging, or reporting backend Jest results through the concise pipeline. |
 | `docs-upkeep/` | Updating docs, specs, skills, AGENTS files, ADRs, or source-of-truth routing. |
 | `release-gate-audit/` | Auditing MVP/alpha/beta readiness, stability, load tests, reconnect/media/storage/admin diagnostics. |
 
@@ -25,4 +28,11 @@ Each skill is a folder with a `SKILL.md` file. `SKILL.md` must start with frontm
 
 Before editing code, read the relevant `SKILL.md` and the scoped `AGENTS.md` for the files being changed.
 
-If a workflow is repeated often and not covered here, add a new skill instead of expanding root `AGENTS.md`.
+Use the smallest relevant combination: assurance owns validation strategy,
+E2E owns transport test writing, smoke owns whether a focused regression is needed,
+and runner owns execution/evidence. These are distinct responsibilities, not four
+alternative test frameworks.
+
+Prefer correcting an existing skill. Add one only for a distinct repeated workflow;
+remove one only after checking callers and updating this catalog and routing docs.
+Skills do not grant permission to change product behavior, dispatch CI, push, or merge.

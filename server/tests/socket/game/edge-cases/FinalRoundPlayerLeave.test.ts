@@ -1,6 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
-import { type Express } from "express";
-import { Repository } from "typeorm";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 
 import { SYSTEM_PLAYER_ID } from "domain/constants/game";
 import { GameActionType } from "domain/enums/GameActionType";
@@ -12,6 +10,7 @@ import { PlayerRole } from "domain/types/game/PlayerRole";
 import { PackageRoundType } from "domain/types/package/PackageRoundType";
 import {
   FinalAnswerSubmitInputData,
+  FinalAnswerSubmitOutputData,
   FinalBidSubmitInputData,
   FinalBidSubmitOutputData,
   FinalSubmitEndEventData,
@@ -19,57 +18,36 @@ import {
   ThemeEliminateOutputData
 } from "domain/types/socket/events/FinalRoundEventData";
 import { GameLeaveBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
-import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { TestUtils } from "tests/utils/TestUtils";
 
 describe("Final Round Player Leave", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
-  let app: Express;
-  let userRepo: Repository<User>;
-  let serverUrl: string;
+  let suite: SocketGameTestSuite;
   let utils: TestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new TestUtils(app, userRepo, serverUrl);
+    suite = await SocketGameTestSuite.start();
+    utils = suite.testUtils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    try {
-      if (cleanup) await cleanup();
-      await testEnv.teardown();
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await suite?.stop();
   });
 
   describe("Theme Elimination Phase", () => {
     it("should auto-eliminate random theme when turn player leaves during their elimination turn", async () => {
-      const setup = await utils.setupFinalRoundGame({
-        playersCount: 3,
-        playerScores: [1500, 1200, 1000]
-      });
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupFinalRoundGame({
+          playersCount: 3,
+          playerScores: [1500, 1200, 1000]
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Verify we're in final round theme elimination
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.currentRound?.type).toBe(PackageRoundType.FINAL);
@@ -86,21 +64,26 @@ describe("Final Round Player Leave", () => {
         );
         const themesCountBefore = themesBefore.length;
 
-        const themeEliminatePromise = utils.waitForEvent<ThemeEliminateOutputData>(
+        const themeEliminatePromise =
+          suite.currentScenario.waitForEventMatching<ThemeEliminateOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.THEME_ELIMINATE,
+            (data) => data.eliminatedBy === SYSTEM_PLAYER_ID
+          );
+        const spectatorThemeEliminatePromise =
+          suite.currentScenario.waitForEventMatching<ThemeEliminateOutputData>(
+            setup.spectatorSockets[0],
+            SocketIOGameEvents.THEME_ELIMINATE,
+            (data) => data.eliminatedBy === SYSTEM_PLAYER_ID
+          );
+        const leavePromise = suite.currentScenario.waitForEventMatching<GameLeaveBroadcastData>(
           showmanSocket,
-          SocketIOGameEvents.THEME_ELIMINATE
-        );
-        const spectatorThemeEliminatePromise = utils.waitForEvent<ThemeEliminateOutputData>(
-          setup.spectatorSockets[0],
-          SocketIOGameEvents.THEME_ELIMINATE
-        );
-        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
+          SocketIOGameEvents.LEAVE,
+          (data) => data.user === turnPlayerId
         );
 
         // Turn player leaves - should trigger system auto-elimination.
-        turnPlayerSocket.emit(SocketIOGameEvents.LEAVE);
+        scenario.actor(turnPlayerSocket).emit(SocketIOGameEvents.LEAVE);
 
         const [eliminateData, spectatorEliminateData, leaveData] = await Promise.all([
           themeEliminatePromise,
@@ -108,9 +91,12 @@ describe("Final Round Player Leave", () => {
           leavePromise
         ]);
 
-        expect(leaveData.user).toBe(turnPlayerId);
-        expect(eliminateData.themeId).toBeDefined();
-        expect(eliminateData.eliminatedBy).toBe(SYSTEM_PLAYER_ID);
+        expect(leaveData).toEqual({ user: turnPlayerId });
+        expect(eliminateData).toEqual({
+          themeId: expect.any(Number),
+          eliminatedBy: SYSTEM_PLAYER_ID,
+          nextPlayerId: expect.any(Number)
+        });
         expect(spectatorEliminateData).toEqual(eliminateData);
 
         // Verify a theme was eliminated
@@ -130,24 +116,22 @@ describe("Final Round Player Leave", () => {
           fetchDisconnected: false
         });
         expect(newTurnPlayer).toBeDefined();
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Bidding Phase", () => {
     it("should auto-bid 1 when player leaves during bidding phase and remove from answerers list", async () => {
-      const setup = await utils.setupFinalRoundGame({
-        playersCount: 3,
-        playerScores: [1500, 1200, 1000] // All players eligible to bid
-      });
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupFinalRoundGame({
+          playersCount: 3,
+          playerScores: [1500, 1200, 1000] // All players eligible to bid
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Complete theme elimination to reach bidding phase
-        const phaseTransitionPromise = utils.waitForEvent(
+        const phaseTransitionPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
@@ -160,20 +144,20 @@ describe("Final Round Player Leave", () => {
         expect(gameState.questionState).toBe(QuestionState.BIDDING);
 
         // Player 0 and Player 1 submit bids normally
-        const firstBidPromise = utils.waitForEvent(
+        const firstBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800
         });
         await firstBidPromise;
 
-        const secondBidPromise = utils.waitForEvent(
+        const secondBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600
         });
         await secondBidPromise;
@@ -181,22 +165,26 @@ describe("Final Round Player Leave", () => {
         // Player 2 leaves without bidding
         const leavePlayerId = playerUsers[2].id;
 
-        const autoBidPromise = utils.waitForEvent<FinalBidSubmitOutputData>(
+        const autoBidPromise = suite.currentScenario.waitForEventMatching<FinalBidSubmitOutputData>(
           showmanSocket,
-          SocketIOGameEvents.FINAL_BID_SUBMIT
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          (data) => data.playerId === leavePlayerId
         );
-        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
+        const leavePromise = suite.currentScenario.waitForEventMatching<GameLeaveBroadcastData>(
           showmanSocket,
-          SocketIOGameEvents.LEAVE
+          SocketIOGameEvents.LEAVE,
+          (data) => data.user === leavePlayerId
         );
 
-        playerSockets[2].emit(SocketIOGameEvents.LEAVE);
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.LEAVE);
 
         const [autoBidData, leaveData] = await Promise.all([autoBidPromise, leavePromise]);
-        expect(leaveData.user).toBe(leavePlayerId);
-        expect(autoBidData.playerId).toBe(leavePlayerId);
-        expect(autoBidData.bidAmount).toBe(1);
-        expect(autoBidData.isAutomatic).toBe(true);
+        expect(leaveData).toEqual({ user: leavePlayerId });
+        expect(autoBidData).toEqual({
+          playerId: leavePlayerId,
+          bidAmount: 1,
+          isAutomatic: true
+        });
 
         // Verify game state shows bid of 1 for leaving player
         gameState = await utils.getGameState(gameId);
@@ -223,22 +211,20 @@ describe("Final Round Player Leave", () => {
         // All 3 players have bids > 0 (800, 600, 1) so all need to answer
         expect(playersWhoShouldAnswer).toContain(leavePlayerId);
         expect(playersWhoShouldAnswer).toHaveLength(3);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should handle bidding timeout after player leaves with bid 1", async () => {
-      const setup = await utils.setupFinalRoundGame({
-        playersCount: 3,
-        playerScores: [1500, 1200, 1000]
-      });
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupFinalRoundGame({
+          playersCount: 3,
+          playerScores: [1500, 1200, 1000]
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Complete theme elimination
-        const phaseTransitionPromise = utils.waitForEvent(
+        const phaseTransitionPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
@@ -247,24 +233,26 @@ describe("Final Round Player Leave", () => {
 
         // Player 2 leaves immediately
         const leavePlayerId = playerUsers[2].id;
-        const autoBidPromise = utils.waitForEvent(
+        const autoBidPromise = suite.currentScenario.waitForEventMatching<FinalBidSubmitOutputData>(
           showmanSocket,
-          SocketIOGameEvents.FINAL_BID_SUBMIT
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          (data) => data.playerId === leavePlayerId
         );
-        playerSockets[2].emit(SocketIOGameEvents.LEAVE);
-        await autoBidPromise;
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.LEAVE);
+        expect(await autoBidPromise).toEqual({
+          playerId: leavePlayerId,
+          bidAmount: 1,
+          isAutomatic: true
+        });
 
         // Wait for timer to expire (should auto-bid 1 for remaining non-bidders)
-        const questionDataPromise = utils.waitForEvent(
+        const questionDataPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
 
         // Verify game state
-        await utils.expireTimerAndWaitForAction(
-          gameId,
-          GameActionType.TIMER_BIDDING_EXPIRED
-        );
+        await utils.expireTimerAndWaitForAction(gameId, GameActionType.TIMER_BIDDING_EXPIRED);
         await questionDataPromise;
 
         const gameState = await utils.getGameState(gameId);
@@ -275,50 +263,48 @@ describe("Final Round Player Leave", () => {
         expect(bids![playerUsers[0].id]).toBe(1); // Timeout bid
         expect(bids![playerUsers[1].id]).toBe(1); // Timeout bid
         expect(bids![leavePlayerId]).toBe(1); // Left player gets bid=1
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Answering Phase", () => {
     it("should submit empty answer and auto-loss immediately when player leaves, then wait for timer for remaining players", async () => {
-      const setup = await utils.setupFinalRoundGame({
-        playersCount: 3,
-        playerScores: [1500, 1200, 1000]
-      });
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupFinalRoundGame({
+          playersCount: 3,
+          playerScores: [1500, 1200, 1000]
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Complete theme elimination
         await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
 
         // Submit bids sequentially to reach answering phase
-        const questionDataPromise = utils.waitForEvent(
+        const questionDataPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
 
-        const firstBidPromise = utils.waitForEvent(
+        const firstBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800
         } satisfies FinalBidSubmitInputData);
         await firstBidPromise;
 
-        const secondBidPromise = utils.waitForEvent(
+        const secondBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600
         } satisfies FinalBidSubmitInputData);
         await secondBidPromise;
 
-        playerSockets[2].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 500
         } satisfies FinalBidSubmitInputData);
 
@@ -329,34 +315,41 @@ describe("Final Round Player Leave", () => {
         expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.ANSWERING);
 
         // Player 0 submits answer
-        const firstAnswerPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT
-        );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+        const firstAnswerPromise =
+          suite.currentScenario.waitForEventMatching<FinalAnswerSubmitOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
+            (data) => data.playerId === playerUsers[0].id
+          );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
           answerText: "Test answer"
         } satisfies FinalAnswerSubmitInputData);
 
-        await firstAnswerPromise;
+        expect(await firstAnswerPromise).toEqual({ playerId: playerUsers[0].id });
 
         // Player 2 leaves without submitting answer
         const leavePlayerId = playerUsers[2].id;
 
         // Listen for the answer submission (empty) and auto-loss event
-        const answerSubmitPromise = utils.waitForEvent(
+        const answerSubmitPromise =
+          suite.currentScenario.waitForEventMatching<FinalAnswerSubmitOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
+            (data) => data.playerId === leavePlayerId
+          );
+        const autoLossPromise =
+          suite.currentScenario.waitForEventMatching<SocketIOFinalAutoLossEventPayload>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_AUTO_LOSS,
+            (data) => data.playerId === leavePlayerId
+          );
+        const leavePromise = suite.currentScenario.waitForEventMatching<GameLeaveBroadcastData>(
           showmanSocket,
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT
-        );
-        const autoLossPromise = utils.waitForEvent<SocketIOFinalAutoLossEventPayload>(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_AUTO_LOSS
-        );
-        const leavePromise = utils.waitForEvent<GameLeaveBroadcastData>(
-          showmanSocket,
-          SocketIOGameEvents.LEAVE
+          SocketIOGameEvents.LEAVE,
+          (data) => data.user === leavePlayerId
         );
 
-        playerSockets[2].emit(SocketIOGameEvents.LEAVE);
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.LEAVE);
 
         const [answerData, autoLossData, leaveData] = await Promise.all([
           answerSubmitPromise,
@@ -364,10 +357,12 @@ describe("Final Round Player Leave", () => {
           leavePromise
         ]);
 
-        expect(leaveData.user).toBe(leavePlayerId);
-        expect(answerData.playerId).toBe(leavePlayerId);
-        expect(autoLossData.playerId).toBe(leavePlayerId);
-        expect(autoLossData.reason).toBe(FinalAnswerLossReason.EMPTY_ANSWER);
+        expect(leaveData).toEqual({ user: leavePlayerId });
+        expect(answerData).toEqual({ playerId: leavePlayerId });
+        expect(autoLossData).toEqual({
+          playerId: leavePlayerId,
+          reason: FinalAnswerLossReason.EMPTY_ANSWER
+        });
 
         // Verify answer was recorded in game state
         gameState = await utils.getGameState(gameId);
@@ -383,7 +378,7 @@ describe("Final Round Player Leave", () => {
         expect(game.hasPlayer(leavePlayerId)).toBe(false);
 
         // Setup listener before expiring timer
-        const phaseCompletePromise = utils.waitForEvent<FinalSubmitEndEventData>(
+        const phaseCompletePromise = scenario.waitForEvent<FinalSubmitEndEventData>(
           showmanSocket,
           SocketIOGameEvents.FINAL_SUBMIT_END
         );
@@ -429,72 +424,88 @@ describe("Final Round Player Leave", () => {
         expect(submittedPlayerAnswer).toBeDefined();
         expect(submittedPlayerAnswer!.answer).toBe("Test answer");
         expect(submittedPlayerAnswer!.autoLoss).toBe(false);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should handle immediate phase transition when all remaining players answered and last one leaves", async () => {
-      const setup = await utils.setupFinalRoundGame({
-        playersCount: 3,
-        playerScores: [1500, 1200, 1000]
-      });
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupFinalRoundGame({
+          playersCount: 3,
+          playerScores: [1500, 1200, 1000]
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Navigate to answering phase
         await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
 
-        const questionDataPromise = utils.waitForEvent(
+        const questionDataPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
 
-        const firstBidPromise = utils.waitForEvent(
+        const firstBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800
         });
         await firstBidPromise;
 
-        const secondBidPromise = utils.waitForEvent(
+        const secondBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600
         });
         await secondBidPromise;
 
-        playerSockets[2].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 500
         });
         await questionDataPromise;
 
         // Players 0 and 1 submit answers
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+        const firstAnswerPromise =
+          suite.currentScenario.waitForEventMatching<FinalAnswerSubmitOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
+            (data) => data.playerId === playerUsers[0].id
+          );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
           answerText: "Answer 1"
         });
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_ANSWER_SUBMIT);
+        expect(await firstAnswerPromise).toEqual({ playerId: playerUsers[0].id });
 
-        playerSockets[1].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+        const secondAnswerPromise =
+          suite.currentScenario.waitForEventMatching<FinalAnswerSubmitOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
+            (data) => data.playerId === playerUsers[1].id
+          );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
           answerText: "Answer 2"
         });
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_ANSWER_SUBMIT);
+        expect(await secondAnswerPromise).toEqual({ playerId: playerUsers[1].id });
 
         // Player 2 leaves - should trigger immediate phase transition
-        const phaseCompletePromise = utils.waitForEvent<FinalSubmitEndEventData>(
+        const phaseCompletePromise = scenario.waitForEvent<FinalSubmitEndEventData>(
           showmanSocket,
           SocketIOGameEvents.FINAL_SUBMIT_END
         );
+        const autoLossAnswerPromise =
+          suite.currentScenario.waitForEventMatching<FinalAnswerSubmitOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
+            (data) => data.playerId === playerUsers[2].id
+          );
 
-        playerSockets[2].emit(SocketIOGameEvents.LEAVE);
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.LEAVE);
 
         // Wait for auto-loss submission
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.FINAL_ANSWER_SUBMIT);
+        expect(await autoLossAnswerPromise).toEqual({ playerId: playerUsers[2].id });
 
         // Should immediately transition to reviewing
         const phaseData = await phaseCompletePromise;
@@ -502,39 +513,37 @@ describe("Final Round Player Leave", () => {
         expect(phaseData.nextPhase).toBe(FinalRoundPhase.REVIEWING);
         expect(phaseData.allReviews).toBeDefined();
         expect(phaseData.allReviews).toHaveLength(3);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should reject duplicate final answer submission", async () => {
-      const setup = await utils.setupFinalRoundGame({
-        playersCount: 2,
-        playerScores: [1500, 1200]
-      });
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupFinalRoundGame({
+          playersCount: 2,
+          playerScores: [1500, 1200]
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Complete theme elimination
         await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
 
         // Submit bids to reach answering phase
-        const questionDataPromise = utils.waitForEvent(
+        const questionDataPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
 
-        const firstBidPromise = utils.waitForEvent(
+        const firstBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800
         });
         await firstBidPromise;
 
-        playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600
         });
         await questionDataPromise;
@@ -544,14 +553,16 @@ describe("Final Round Player Leave", () => {
         expect(gameState.finalRoundData?.phase).toBe(FinalRoundPhase.ANSWERING);
 
         // Player 0 submits first answer - should succeed
-        const firstAnswerPromise = utils.waitForEvent(
-          showmanSocket,
-          SocketIOGameEvents.FINAL_ANSWER_SUBMIT
-        );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+        const firstAnswerPromise =
+          suite.currentScenario.waitForEventMatching<FinalAnswerSubmitOutputData>(
+            showmanSocket,
+            SocketIOGameEvents.FINAL_ANSWER_SUBMIT,
+            (data) => data.playerId === playerUsers[0].id
+          );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
           answerText: "First answer"
         } as FinalAnswerSubmitInputData);
-        await firstAnswerPromise;
+        expect(await firstAnswerPromise).toEqual({ playerId: playerUsers[0].id });
 
         // Verify answer was recorded
         gameState = await utils.getGameState(gameId);
@@ -562,9 +573,9 @@ describe("Final Round Player Leave", () => {
         expect(player0Answer!.answer).toBe("First answer");
 
         // Player 0 tries to submit second answer - should fail
-        const errorPromise = utils.waitForEvent<unknown>(playerSockets[0], SocketIOEvents.ERROR);
+        const errorPromise = scenario.waitForEvent<unknown>(playerSockets[0], SocketIOEvents.ERROR);
 
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
           answerText: "Second answer - should fail"
         } as FinalAnswerSubmitInputData);
 
@@ -578,22 +589,20 @@ describe("Final Round Player Leave", () => {
           (ans) => ans.playerId === playerUsers[0].id
         );
         expect(preservedAnswer!.answer).toBe("First answer");
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 
   describe("Join Restrictions", () => {
     it("should not allow new player to join as PLAYER during final round", async () => {
-      const setup = await utils.setupFinalRoundGame({
-        playersCount: 2,
-        playerScores: [1500, 1200]
-      });
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupFinalRoundGame({
+          playersCount: 2,
+          playerScores: [1500, 1200]
+        });
 
-      const { gameId } = setup;
+        const { gameId } = setup;
 
-      try {
         // Verify we're in final round
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.currentRound?.type).toBe(PackageRoundType.FINAL);
@@ -601,31 +610,27 @@ describe("Final Round Player Leave", () => {
         // Try to join as player
         const { socket: newPlayerSocket } = await utils.createGameClient();
 
-        const errorPromise = utils.waitForEvent<unknown>(newPlayerSocket, SocketIOEvents.ERROR);
+        const errorPromise = scenario.waitForEvent<unknown>(newPlayerSocket, SocketIOEvents.ERROR);
 
-        newPlayerSocket.emit(SocketIOGameEvents.JOIN, {
+        scenario.actor(newPlayerSocket).emit(SocketIOGameEvents.JOIN, {
           gameId,
           role: PlayerRole.PLAYER
         });
 
         const error = (await errorPromise) as { message?: string };
         expect(error).toBeDefined();
-
-        await utils.disconnectAndCleanup(newPlayerSocket);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should allow new spectator to join during final round", async () => {
-      const setup = await utils.setupFinalRoundGame({
-        playersCount: 2,
-        playerScores: [1500, 1200]
-      });
+      await suite.scenario(async () => {
+        const setup = await utils.setupFinalRoundGame({
+          playersCount: 2,
+          playerScores: [1500, 1200]
+        });
 
-      const { gameId } = setup;
+        const { gameId } = setup;
 
-      try {
         const finalState = await utils.getGameState(gameId);
         expect(finalState!.currentRound?.type).toBe(PackageRoundType.FINAL);
 
@@ -638,24 +643,20 @@ describe("Final Round Player Leave", () => {
         const gameAfterJoin = await utils.getGameFromGameService(gameId);
         const spectators = gameAfterJoin.players.filter((p) => p.role === PlayerRole.SPECTATOR);
         expect(spectators.length).toBeGreaterThan(0);
-
-        await utils.disconnectAndCleanup(spectatorSocket);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should allow existing player to rejoin during final round bidding", async () => {
-      const setup = await utils.setupFinalRoundGame({
-        playersCount: 3,
-        playerScores: [1500, 1200, 1000]
-      });
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupFinalRoundGame({
+          playersCount: 3,
+          playerScores: [1500, 1200, 1000]
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Complete theme elimination to reach bidding phase
-        const phaseTransitionPromise = utils.waitForEvent(
+        const phaseTransitionPromise = scenario.waitForEvent(
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
@@ -669,18 +670,22 @@ describe("Final Round Player Leave", () => {
 
         // Player 2 disconnects (leaves the game)
         const leavingPlayerId = playerUsers[2].id;
-        const autoBidPromise = utils.waitForEvent<FinalBidSubmitOutputData>(
+        const autoBidPromise = suite.currentScenario.waitForEventMatching<FinalBidSubmitOutputData>(
           showmanSocket,
-          SocketIOGameEvents.FINAL_BID_SUBMIT
+          SocketIOGameEvents.FINAL_BID_SUBMIT,
+          (data) => data.playerId === leavingPlayerId
         );
 
-        playerSockets[2].emit(SocketIOGameEvents.LEAVE);
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.LEAVE);
         await utils.disconnectAndCleanup(playerSockets[2]);
 
         // Wait for auto-bid of 1 for the leaving player
         const autoBidData = await autoBidPromise;
-        expect(autoBidData.playerId).toBe(leavingPlayerId);
-        expect(autoBidData.bidAmount).toBe(1);
+        expect(autoBidData).toEqual({
+          playerId: leavingPlayerId,
+          bidAmount: 1,
+          isAutomatic: true
+        });
 
         // Verify player was removed
         const gameAfterLeave = await utils.getGameFromGameService(gameId);
@@ -696,9 +701,9 @@ describe("Final Round Player Leave", () => {
 
         // Player should be able to rejoin as PLAYER during final round
         // (because they were an existing player, not a new one)
-        const joinPromise = utils.waitForEvent(reconnectedSocket, SocketIOGameEvents.GAME_DATA);
+        const joinPromise = scenario.waitForEvent(reconnectedSocket, SocketIOGameEvents.GAME_DATA);
 
-        reconnectedSocket.emit(SocketIOGameEvents.JOIN, {
+        scenario.actor(reconnectedSocket).emit(SocketIOGameEvents.JOIN, {
           gameId,
           role: PlayerRole.PLAYER
         });
@@ -715,18 +720,7 @@ describe("Final Round Player Leave", () => {
         // Verify player's bid is preserved (bid=1 from auto-bid on leave)
         gameState = await utils.getGameState(gameId);
         expect(gameState.finalRoundData?.bids[leavingPlayerId]).toBe(1);
-
-        // Cleanup the reconnected socket
-        await utils.disconnectAndCleanup(reconnectedSocket);
-      } finally {
-        // Cleanup remaining sockets (excluding playerSockets[2] which was already cleaned up)
-        await utils.disconnectAndCleanup(showmanSocket);
-        await utils.disconnectAndCleanup(playerSockets[0]);
-        await utils.disconnectAndCleanup(playerSockets[1]);
-        for (const socket of setup.spectatorSockets) {
-          await utils.disconnectAndCleanup(socket);
-        }
-      }
+      });
     });
   });
 });

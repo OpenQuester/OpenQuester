@@ -1,23 +1,41 @@
 import { container } from "tsyringe";
 
+import { GAME_QUESTION_ANSWER_TIME, MEDIA_DOWNLOAD_TIMEOUT } from "domain/constants/game";
+import { GameActionType } from "domain/enums/GameActionType";
+import { withTimeout } from "tests/e2e/harness/TestPromiseUtils";
+import { Game } from "domain/entities/game/Game";
+import { Player } from "domain/entities/game/Player";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
-import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
-import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
 import { PackageQuestionType } from "domain/enums/package/QuestionType";
-import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
-import { PlayerRole } from "domain/types/game/PlayerRole";
-import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
-import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
+import { GameStateDTO } from "domain/types/dto/game/state/GameStateDTO";
 import { QuestionState } from "domain/types/dto/game/state/QuestionState";
+import { PackageQuestionDTO } from "domain/types/dto/package/PackageQuestionDTO";
+import { PlayerGameStatus } from "domain/types/game/PlayerGameStatus";
+import { PlayerRole } from "domain/types/game/PlayerRole";
+import { PlayerReadinessBroadcastData } from "domain/types/socket/events/SocketEventInterfaces";
+import { GameQuestionDataEventPayload } from "domain/types/socket/events/game/GameQuestionDataEventPayload";
+import { MediaDownloadStatusBroadcastData } from "domain/types/socket/events/game/MediaDownloadStatusEventPayload";
+import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
+import { StakeBidType } from "domain/types/socket/events/game/StakeQuestionEventData";
+import { AnswerResultType } from "domain/types/socket/game/AnswerResultData";
 import { PackageStore } from "infrastructure/database/repositories/PackageStore";
 import { TEST_TIMEOUTS } from "tests/utils/TestTimeouts";
+import {
+  assertFreshTimer,
+  assertMediaQuestionData,
+  assertMediaDownloadStatus
+} from "tests/e2e/flows/media-download/MediaDownloadAssertions";
 
-import { GameClientSocket } from "./SocketIOGameTestUtils";
-import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
 import { SocketGameTestEventUtils } from "./SocketGameTestEventUtils";
+import { SocketGameTestStateUtils } from "./SocketGameTestStateUtils";
 import { SocketGameTestUserUtils } from "./SocketGameTestUserUtils";
-import { Player } from "domain/entities/game/Player";
-import { Game } from "domain/entities/game/Game";
+import { GameClientSocket } from "./SocketIOGameTestUtils";
+
+interface QuestionPickExpectation {
+  readonly event: SocketIOGameEvents;
+  readonly mediaHandshake: boolean;
+  readonly question: PackageQuestionDTO;
+}
 
 export class SocketGameTestFlowUtils {
   constructor(
@@ -35,51 +53,94 @@ export class SocketGameTestFlowUtils {
   /**
    * Wait for media download phase to complete.
    */
-  public async waitForMediaDownload(
+  public waitForMediaDownload(
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[]
   ): Promise<void> {
-    let playerIndex = 0;
+    return this.eventUtils.trackExpectation(
+      this.waitForMediaDownloadInternal(showmanSocket, playerSockets),
+      "waitForMediaDownload including derived assertions"
+    );
+  }
 
+  private async waitForMediaDownloadInternal(
+    showmanSocket: GameClientSocket,
+    playerSockets: GameClientSocket[]
+  ): Promise<void> {
     if (playerSockets.length === 0) {
       return;
     }
 
-    const gameState = await this.stateUtils.getGameState(showmanSocket.gameId!);
-
-    if (!gameState || gameState.questionState !== QuestionState.MEDIA_DOWNLOADING) {
-      // State is not MEDIA_DOWNLOADING - possible in secret and stake questions
-      // since those questions has custom phase before MEDIA_DOWNLOADING
-      return;
+    const gameState = await this._expectQuestionState(
+      showmanSocket,
+      QuestionState.MEDIA_DOWNLOADING,
+      "acknowledge media download"
+    );
+    const currentQuestion = gameState.currentQuestion;
+    if (!currentQuestion?.id) {
+      throw new Error(
+        `Cannot acknowledge media download because the current question is unavailable for game ${showmanSocket.gameId ?? "unknown"}`
+      );
     }
 
-    return new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        showmanSocket.removeListener(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, handler);
-        reject(new Error("Timeout waiting for all players to be ready"));
-      }, TEST_TIMEOUTS.SOCKET_ACTION_TIMEOUT_MS * 4);
+    await this._acknowledgeMediaDownload(showmanSocket, playerSockets);
+  }
 
-      const handler = (data: MediaDownloadStatusBroadcastData) => {
-        if (data.allPlayersReady) {
-          clearTimeout(timeout);
-          showmanSocket.removeListener(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, handler);
-          resolve();
-        } else if (playerIndex < playerSockets.length) {
-          playerSockets[playerIndex].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
-          playerIndex++;
-        }
-      };
+  private async _acknowledgeMediaDownload(
+    showmanSocket: GameClientSocket,
+    playerSockets: GameClientSocket[]
+  ): Promise<void> {
+    const timeoutMs = TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS;
+    const deadline = Date.now() + timeoutMs;
 
-      showmanSocket.on(SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS, handler);
+    for (const [index, playerSocket] of playerSockets.entries()) {
+      const playerId = await withTimeout(
+        this.userUtils.getUserIdFromSocket(playerSocket),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "getUserIdFromSocket in game flow"
+      );
+      const expectedAllPlayersReady = index === playerSockets.length - 1;
+      const controller = new AbortController();
+      const statusPromise = this.eventUtils.waitForEventMatching<MediaDownloadStatusBroadcastData>(
+        showmanSocket,
+        SocketIOGameEvents.MEDIA_DOWNLOAD_STATUS,
+        (status) => status?.playerId === playerId,
+        Math.max(1, deadline - Date.now()),
+        controller.signal
+      );
+      void statusPromise.catch(() => undefined);
 
-      if (playerSockets.length > 0) {
-        playerSockets[0].emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
-        playerIndex = 1;
-      } else {
-        clearTimeout(timeout);
-        resolve();
+      try {
+        const accepted = this.eventUtils.waitForSubmittedActions(
+          showmanSocket.gameId!,
+          1,
+          GameActionType.MEDIA_DOWNLOADED
+        );
+        playerSocket.emit(SocketIOGameEvents.MEDIA_DOWNLOADED);
+        const [status] = await Promise.all([statusPromise, accepted]);
+        assertMediaDownloadStatus(status, playerId, expectedAllPlayersReady);
+        await this.eventUtils.waitForActionsComplete(showmanSocket.gameId!);
+        await this._expectQuestionState(
+          showmanSocket,
+          expectedAllPlayersReady ? QuestionState.SHOWING : QuestionState.MEDIA_DOWNLOADING,
+          expectedAllPlayersReady
+            ? "finish media download"
+            : "keep partial readiness in media download"
+        );
+      } catch (error) {
+        const failure = toError(error);
+        const detail = failure.cause instanceof Error ? failure.cause : failure;
+        throw new Error(
+          `Media acknowledgement ${index + 1}/${playerSockets.length} failed ` +
+            `(gameId=${showmanSocket.gameId ?? "unknown"}, playerId=${playerId}, ` +
+            `socketId=${playerSocket.id ?? "unknown"}): ${detail.message}`,
+          { cause: failure }
+        );
+      } finally {
+        controller.abort();
+        await Promise.allSettled([statusPromise]);
       }
-    });
+    }
   }
 
   // ============================================================================
@@ -89,30 +150,93 @@ export class SocketGameTestFlowUtils {
   /**
    * Pick a question and optionally handle media download phase.
    */
-  public async pickQuestion(
+  public pickQuestion(
+    showmanSocket: GameClientSocket,
+    questionId?: number,
+    playerSockets?: GameClientSocket[]
+  ): Promise<void> {
+    return this.eventUtils.trackExpectation(
+      this.pickQuestionInternal(showmanSocket, questionId, playerSockets),
+      "pickQuestion including derived assertions"
+    );
+  }
+
+  private async pickQuestionInternal(
     showmanSocket: GameClientSocket,
     questionId?: number,
     playerSockets?: GameClientSocket[]
   ): Promise<void> {
     const actualQuestionId = await this._resolveQuestionId(showmanSocket, questionId);
 
-    const game = await this.stateUtils.getGame(showmanSocket.gameId!);
+    const game = await withTimeout(
+      this.stateUtils.getGame(showmanSocket.gameId!),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getGame in game flow"
+    );
     if (!game || !game.gameState.currentRound) {
+      throw new Error(
+        `Cannot pick question ${actualQuestionId}: active round is unavailable for game ${showmanSocket.gameId ?? "unknown"}`
+      );
+    }
+
+    const expectation = await this._determineQuestionPickExpectation(game, actualQuestionId);
+
+    if (!expectation.mediaHandshake) {
+      await this.eventUtils.emitAndWaitForEvent(showmanSocket, expectation.event, () =>
+        showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: actualQuestionId
+        })
+      );
       return;
     }
 
-    const questionPickEvent = await this._determineQuestionPickEvent(game, actualQuestionId);
+    await this._pickRegularQuestion(
+      showmanSocket,
+      playerSockets ?? [],
+      actualQuestionId,
+      expectation.question
+    );
+  }
 
-    const questionDataPromise = this.eventUtils.waitForEvent(showmanSocket, questionPickEvent);
+  private async _pickRegularQuestion(
+    showmanSocket: GameClientSocket,
+    playerSockets: GameClientSocket[],
+    questionId: number,
+    question: PackageQuestionDTO
+  ): Promise<void> {
+    const controller = new AbortController();
+    const questionData = this.eventUtils.waitForEventMatching<GameQuestionDataEventPayload>(
+      showmanSocket,
+      SocketIOGameEvents.QUESTION_DATA,
+      (payload) => payload?.data?.id === questionId,
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      controller.signal
+    );
+    void questionData.catch(() => undefined);
 
-    showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-      questionId: actualQuestionId
-    });
-
-    await questionDataPromise;
-
-    if (playerSockets && playerSockets.length > 0) {
-      await this.waitForMediaDownload(showmanSocket, playerSockets);
+    try {
+      const accepted = this.eventUtils.waitForSubmittedActions(
+        showmanSocket.gameId!,
+        1,
+        GameActionType.QUESTION_PICK
+      );
+      showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId });
+      const [data] = await Promise.all([questionData, accepted]);
+      assertMediaQuestionData(data, questionId, question.questionFiles ?? []);
+      await this.eventUtils.waitForActionsComplete(showmanSocket.gameId!);
+      // QUESTION_DATA delivers the links, not proof that readiness has finished.
+      await this._expectQuestionState(
+        showmanSocket,
+        QuestionState.MEDIA_DOWNLOADING,
+        "wait for media readiness"
+      );
+      if (playerSockets.length > 0) {
+        // No-file clients ACK immediately too; the backend uses the same handshake.
+        await this._acknowledgeMediaDownload(showmanSocket, playerSockets);
+      }
+    } finally {
+      controller.abort();
+      await Promise.allSettled([questionData]);
     }
   }
 
@@ -127,29 +251,42 @@ export class SocketGameTestFlowUtils {
       return questionId;
     }
 
-    const socketUserData = await this.userUtils.getSocketUserData(showmanSocket);
+    const socketUserData = await withTimeout(
+      this.userUtils.getSocketUserData(showmanSocket),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getSocketUserData in game flow"
+    );
     if (!socketUserData?.gameId) {
       throw new Error("Cannot determine game ID from socket");
     }
 
-    const simpleQuestionId = await this.stateUtils.getQuestionIdByType(
-      socketUserData.gameId,
-      PackageQuestionType.SIMPLE
+    const simpleQuestionId = await withTimeout(
+      this.stateUtils.getQuestionIdByType(socketUserData.gameId, PackageQuestionType.SIMPLE),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getQuestionIdByType in game flow"
     );
 
     if (simpleQuestionId !== -1) {
       return simpleQuestionId;
     }
 
-    return this.stateUtils.getFirstAvailableQuestionId(showmanSocket.gameId!);
+    return withTimeout(
+      this.stateUtils.getFirstAvailableQuestionId(showmanSocket.gameId!),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getFirstAvailableQuestionId in game flow"
+    );
   }
 
-  private async _determineQuestionPickEvent(
+  private async _determineQuestionPickExpectation(
     game: Game,
     questionId: number
-  ): Promise<SocketIOGameEvents> {
+  ): Promise<QuestionPickExpectation> {
     const packageStore = container.resolve(PackageStore);
-    const questionData = await packageStore.getQuestionWithTheme(game.id, questionId);
+    const questionData = await withTimeout(
+      packageStore.getQuestionWithTheme(game.id, questionId),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getQuestionWithTheme in game flow"
+    );
     const question = questionData?.question ?? null;
 
     if (!question) {
@@ -157,18 +294,23 @@ export class SocketGameTestFlowUtils {
     }
 
     let event: SocketIOGameEvents = SocketIOGameEvents.QUESTION_DATA;
+    let mediaHandshake = true;
 
     switch (question.type) {
       case PackageQuestionType.STAKE:
+        mediaHandshake = false;
         event = SocketIOGameEvents.STAKE_QUESTION_PICKED;
         break;
       case PackageQuestionType.SECRET: {
+        mediaHandshake = false;
         const eligiblePlayers = game.players.filter(
           (p) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME
         ).length;
 
         if (eligiblePlayers >= 2) {
           event = SocketIOGameEvents.SECRET_QUESTION_PICKED;
+        } else {
+          event = SocketIOGameEvents.QUESTION_DATA;
         }
         break;
       }
@@ -177,163 +319,184 @@ export class SocketGameTestFlowUtils {
         break;
     }
 
-    return event;
+    return { event, question, mediaHandshake };
+  }
+
+  private async _expectQuestionState(
+    showmanSocket: GameClientSocket,
+    expectedState: QuestionState,
+    operation: string
+  ): Promise<GameStateDTO> {
+    const gameState = await withTimeout(
+      this.stateUtils.getGameState(showmanSocket.gameId!),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getGameState in game flow"
+    );
+
+    if (!gameState) {
+      throw new Error(
+        `Cannot ${operation} because game state is unavailable for game ${showmanSocket.gameId ?? "unknown"}`
+      );
+    }
+
+    if (gameState.questionState !== expectedState) {
+      throw new Error(
+        `Cannot ${operation} for game ${showmanSocket.gameId ?? "unknown"}: ` +
+          `expected ${expectedState}, received ${gameState.questionState}`
+      );
+    }
+
+    assertFreshTimer(
+      gameState.timer,
+      expectedState === QuestionState.MEDIA_DOWNLOADING
+        ? MEDIA_DOWNLOAD_TIMEOUT
+        : GAME_QUESTION_ANSWER_TIME,
+      operation
+    );
+    return gameState;
   }
 
   // ============================================================================
   // ANSWERING
   // ============================================================================
 
-  public async answerQuestion(
+  public answerQuestion(
     playerSocket: GameClientSocket,
     showmanSocket: GameClientSocket
   ): Promise<void> {
-    const questionAnswerPromise = this.eventUtils.waitForEvent(
+    return this.eventUtils.emitAndWaitForEvent(
       showmanSocket,
-      SocketIOGameEvents.QUESTION_ANSWER
+      SocketIOGameEvents.QUESTION_ANSWER,
+      () => playerSocket.emit(SocketIOGameEvents.QUESTION_ANSWER)
     );
-
-    playerSocket.emit(SocketIOGameEvents.QUESTION_ANSWER);
-
-    return questionAnswerPromise;
   }
 
   // ============================================================================
   // ROUND PROGRESSION
   // ============================================================================
 
-  public async progressToNextRound(showmanSocket: GameClientSocket): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Timeout waiting for NEXT_ROUND event"));
-      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
-
-      const cleanup = () => {
-        clearTimeout(timeout);
-        showmanSocket.removeListener(SocketIOGameEvents.NEXT_ROUND, onNextRound);
-      };
-
-      const onNextRound = () => {
-        cleanup();
-        resolve();
-      };
-
-      showmanSocket.once(SocketIOGameEvents.NEXT_ROUND, onNextRound);
-      showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND);
-    });
+  public progressToNextRound(showmanSocket: GameClientSocket): Promise<void> {
+    return this.eventUtils.emitAndWaitForEvent(showmanSocket, SocketIOGameEvents.NEXT_ROUND, () =>
+      showmanSocket.emit(SocketIOGameEvents.NEXT_ROUND)
+    );
   }
 
   // ============================================================================
   // SKIPPING
   // ============================================================================
 
-  public async skipQuestionForce(showmanSocket: GameClientSocket): Promise<void> {
-    const finishPromise = this.eventUtils.waitForEvent(
+  public skipQuestionForce(showmanSocket: GameClientSocket): Promise<void> {
+    return this.eventUtils.emitAndWaitForEvent(
       showmanSocket,
-      SocketIOGameEvents.QUESTION_FINISH
+      SocketIOGameEvents.QUESTION_FINISH,
+      () => showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE)
     );
-    showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE);
-    await finishPromise;
   }
 
   /**
    * Force skip question AND complete the show answer phase.
    * Use this when you want to fully complete the skip flow.
    */
-  public async skipQuestionForceComplete(showmanSocket: GameClientSocket): Promise<void> {
-    const finishPromise = this.eventUtils.waitForEvent(
-      showmanSocket,
-      SocketIOGameEvents.QUESTION_FINISH
+  public skipQuestionForceComplete(showmanSocket: GameClientSocket): Promise<void> {
+    return this.eventUtils.trackExpectation(
+      this.skipQuestionForceCompleteInternal(showmanSocket),
+      "skipQuestionForceComplete including derived assertions"
     );
+  }
+
+  private async skipQuestionForceCompleteInternal(showmanSocket: GameClientSocket): Promise<void> {
+    const controller = new AbortController();
     const showAnswerStartPromise = this.eventUtils.waitForEvent(
       showmanSocket,
-      SocketIOGameEvents.ANSWER_SHOW_START
+      SocketIOGameEvents.ANSWER_SHOW_START,
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      controller.signal
     );
-    showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE);
-    await finishPromise;
-    await showAnswerStartPromise;
+    void showAnswerStartPromise.catch(() => undefined);
+
+    try {
+      await this.eventUtils.emitAndWaitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.QUESTION_FINISH,
+        () => showmanSocket.emit(SocketIOGameEvents.SKIP_QUESTION_FORCE)
+      );
+      await showAnswerStartPromise;
+    } finally {
+      controller.abort();
+      await Promise.allSettled([showAnswerStartPromise]);
+    }
+
     await this.skipShowAnswer(showmanSocket);
   }
 
-  public async skipShowAnswer(showmanSocket: GameClientSocket): Promise<void> {
-    const endPromise = this.eventUtils.waitForEvent(
+  public skipShowAnswer(showmanSocket: GameClientSocket): Promise<void> {
+    return this.eventUtils.emitAndWaitForEvent(
       showmanSocket,
-      SocketIOGameEvents.ANSWER_SHOW_END
+      SocketIOGameEvents.ANSWER_SHOW_END,
+      () => showmanSocket.emit(SocketIOGameEvents.SKIP_SHOW_ANSWER)
     );
-    showmanSocket.emit(SocketIOGameEvents.SKIP_SHOW_ANSWER);
-    await endPromise;
   }
 
   // ============================================================================
   // TURN MANAGEMENT
   // ============================================================================
 
-  public async setCurrentTurnPlayer(
+  public setCurrentTurnPlayer(
     showmanSocket: GameClientSocket,
     newTurnPlayerId: number
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("TURN_PLAYER_CHANGED event not received within timeout"));
-      }, TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS);
-
-      showmanSocket.once(SocketIOGameEvents.TURN_PLAYER_CHANGED, () => {
-        clearTimeout(timeout);
-        resolve();
-      });
-
-      showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
-        newTurnPlayerId
-      });
-    });
+    return this.eventUtils.emitAndWaitForEvent(
+      showmanSocket,
+      SocketIOGameEvents.TURN_PLAYER_CHANGED,
+      () =>
+        showmanSocket.emit(SocketIOGameEvents.TURN_PLAYER_CHANGED, {
+          newTurnPlayerId
+        })
+    );
   }
 
   // ============================================================================
   // PLAYER READINESS
   // ============================================================================
 
-  public async setPlayerReady(playerSocket: GameClientSocket): Promise<void> {
-    return new Promise((resolve) => {
-      playerSocket.once(SocketIOGameEvents.PLAYER_READY, () => {
-        resolve();
-      });
-      playerSocket.emit(SocketIOGameEvents.PLAYER_READY);
-    });
+  public setPlayerReady(playerSocket: GameClientSocket): Promise<void> {
+    return this.eventUtils.emitAndWaitForEvent(playerSocket, SocketIOGameEvents.PLAYER_READY, () =>
+      playerSocket.emit(SocketIOGameEvents.PLAYER_READY)
+    );
   }
 
-  public async setPlayerUnready(playerSocket: GameClientSocket): Promise<void> {
-    return new Promise((resolve) => {
-      playerSocket.once(SocketIOGameEvents.PLAYER_UNREADY, () => {
-        resolve();
-      });
-      playerSocket.emit(SocketIOGameEvents.PLAYER_UNREADY);
-    });
+  public setPlayerUnready(playerSocket: GameClientSocket): Promise<void> {
+    return this.eventUtils.emitAndWaitForEvent(
+      playerSocket,
+      SocketIOGameEvents.PLAYER_UNREADY,
+      () => playerSocket.emit(SocketIOGameEvents.PLAYER_UNREADY)
+    );
   }
 
-  public async waitForPlayerReady(
+  public waitForPlayerReady(
     socket: GameClientSocket,
     expectedPlayerId?: number
   ): Promise<PlayerReadinessBroadcastData> {
-    return new Promise((resolve) => {
-      socket.once(SocketIOGameEvents.PLAYER_READY, (data: PlayerReadinessBroadcastData) => {
-        if (expectedPlayerId === undefined || data.playerId === expectedPlayerId) {
-          resolve(data);
-        }
-      });
-    });
+    return createObservedWait(() =>
+      this.eventUtils.waitForEventMatching<PlayerReadinessBroadcastData>(
+        socket,
+        SocketIOGameEvents.PLAYER_READY,
+        (data) => expectedPlayerId === undefined || data.playerId === expectedPlayerId
+      )
+    );
   }
 
-  public async waitForPlayerUnready(
+  public waitForPlayerUnready(
     socket: GameClientSocket,
     expectedPlayerId?: number
   ): Promise<PlayerReadinessBroadcastData> {
-    return new Promise((resolve) => {
-      socket.once(SocketIOGameEvents.PLAYER_UNREADY, (data: PlayerReadinessBroadcastData) => {
-        if (expectedPlayerId === undefined || data.playerId === expectedPlayerId) {
-          resolve(data);
-        }
-      });
-    });
+    return createObservedWait(() =>
+      this.eventUtils.waitForEventMatching<PlayerReadinessBroadcastData>(
+        socket,
+        SocketIOGameEvents.PLAYER_UNREADY,
+        (data) => expectedPlayerId === undefined || data.playerId === expectedPlayerId
+      )
+    );
   }
 
   // ============================================================================
@@ -343,7 +506,7 @@ export class SocketGameTestFlowUtils {
   /**
    * Picks and completes any type of question (regular, secret, stake, etc.).
    */
-  public async pickAndCompleteQuestion(
+  public pickAndCompleteQuestion(
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[],
     questionId?: number,
@@ -352,7 +515,34 @@ export class SocketGameTestFlowUtils {
     scoreResult = 100,
     answeringPlayerIdx = 0
   ): Promise<void> {
-    const socketUserData = await this.userUtils.getSocketUserData(showmanSocket);
+    return this.eventUtils.trackExpectation(
+      this.pickAndCompleteQuestionInternal(
+        showmanSocket,
+        playerSockets,
+        questionId,
+        shouldAnswer,
+        answerType,
+        scoreResult,
+        answeringPlayerIdx
+      ),
+      "pickAndCompleteQuestion including derived assertions"
+    );
+  }
+
+  private async pickAndCompleteQuestionInternal(
+    showmanSocket: GameClientSocket,
+    playerSockets: GameClientSocket[],
+    questionId?: number,
+    shouldAnswer = false,
+    answerType = AnswerResultType.CORRECT,
+    scoreResult = 100,
+    answeringPlayerIdx = 0
+  ): Promise<void> {
+    const socketUserData = await withTimeout(
+      this.userUtils.getSocketUserData(showmanSocket),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getSocketUserData in game flow"
+    );
     if (!socketUserData?.gameId) {
       throw new Error("Cannot determine game ID from socket");
     }
@@ -382,8 +572,7 @@ export class SocketGameTestFlowUtils {
         actualQuestionId,
         shouldAnswer,
         answerType,
-        scoreResult,
-        answeringPlayerIdx
+        scoreResult
       );
     } else {
       await this._handleRegularQuestionComplete(
@@ -403,21 +592,30 @@ export class SocketGameTestFlowUtils {
       return questionId;
     }
 
-    const simpleQuestionId = await this.stateUtils.getQuestionIdByType(
-      gameId,
-      PackageQuestionType.SIMPLE
+    const simpleQuestionId = await withTimeout(
+      this.stateUtils.getQuestionIdByType(gameId, PackageQuestionType.SIMPLE),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getQuestionIdByType in game flow"
     );
 
     return simpleQuestionId > 0
       ? simpleQuestionId
-      : await this.stateUtils.getFirstAvailableQuestionId(gameId);
+      : await withTimeout(
+          this.stateUtils.getFirstAvailableQuestionId(gameId),
+          TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+          "getFirstAvailableQuestionId in game flow"
+        );
   }
 
   private async determineQuestionType(
     gameId: string,
     questionId: number
   ): Promise<PackageQuestionType | null> {
-    const game = await this.stateUtils.getGame(gameId);
+    const game = await withTimeout(
+      this.stateUtils.getGame(gameId),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getGame in game flow"
+    );
     if (!game) {
       throw new Error("Game not found");
     }
@@ -428,7 +626,11 @@ export class SocketGameTestFlowUtils {
       for (const theme of game.gameState.currentRound.themes) {
         for (const question of theme.questions) {
           if (question.id === questionId) {
-            questionType = await this.stateUtils.getQuestionTypeFromPackage(game, questionId);
+            questionType = await withTimeout(
+              this.stateUtils.getQuestionTypeFromPackage(game, questionId),
+              TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+              "getQuestionTypeFromPackage in game flow"
+            );
             break;
           }
         }
@@ -438,7 +640,11 @@ export class SocketGameTestFlowUtils {
 
     // Secret question fallback to simple with < 2 players
     if (questionType === PackageQuestionType.SECRET) {
-      const freshGame = await this.stateUtils.getGame(gameId);
+      const freshGame = await withTimeout(
+        this.stateUtils.getGame(gameId),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "getGame in game flow"
+      );
       const eligiblePlayers = freshGame.players.filter(
         (p: Player) => p.role === PlayerRole.PLAYER && p.gameStatus === PlayerGameStatus.IN_GAME
       ).length;
@@ -464,16 +670,11 @@ export class SocketGameTestFlowUtils {
     scoreResult: number,
     answeringPlayerIdx: number
   ): Promise<void> {
-    const secretPickedPromise = this.eventUtils.waitForEvent(
+    await this.eventUtils.emitAndWaitForEvent(
       playerSockets[answeringPlayerIdx],
-      SocketIOGameEvents.SECRET_QUESTION_PICKED
+      SocketIOGameEvents.SECRET_QUESTION_PICKED,
+      () => showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId })
     );
-
-    showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-      questionId
-    });
-
-    await secretPickedPromise;
 
     if (!shouldAnswer) {
       await this.skipQuestionForceComplete(showmanSocket);
@@ -494,16 +695,16 @@ export class SocketGameTestFlowUtils {
     showmanSocket: GameClientSocket,
     targetPlayerSocket: GameClientSocket
   ): Promise<void> {
-    const questionDataPromise = this.eventUtils.waitForEvent(
-      targetPlayerSocket,
-      SocketIOGameEvents.QUESTION_DATA
+    const targetPlayerId = await withTimeout(
+      this.userUtils.getPlayerUserIdFromSocket(targetPlayerSocket),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getPlayerUserIdFromSocket in game flow"
     );
-
-    showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, {
-      targetPlayerId: await this.userUtils.getPlayerUserIdFromSocket(targetPlayerSocket)
-    });
-
-    await questionDataPromise;
+    await this.eventUtils.emitAndWaitForEvent(
+      targetPlayerSocket,
+      SocketIOGameEvents.QUESTION_DATA,
+      () => showmanSocket.emit(SocketIOGameEvents.SECRET_QUESTION_TRANSFER, { targetPlayerId })
+    );
   }
 
   // ============================================================================
@@ -517,37 +718,64 @@ export class SocketGameTestFlowUtils {
     questionId: number,
     shouldAnswer: boolean,
     answerType: AnswerResultType,
-    scoreResult: number,
-    answeringPlayerIdx: number
+    scoreResult: number
   ): Promise<void> {
-    const freshGame = await this.stateUtils.getGame(gameId);
-    const totalPlayerCount = freshGame.players.filter((p) => p.role === PlayerRole.PLAYER).length;
-
-    // If not all player sockets provided, skip stake and recurse
-    if (playerSockets.length < totalPlayerCount) {
-      await this.pickQuestion(showmanSocket, questionId, playerSockets);
-      await this.skipQuestionForceComplete(showmanSocket);
-      await this.pickAndCompleteQuestion(
-        showmanSocket,
-        playerSockets,
-        undefined,
-        shouldAnswer,
-        answerType,
-        scoreResult
-      );
-      return;
+    const freshGame = await withTimeout(
+      this.stateUtils.getGame(gameId),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getGame in game flow"
+    );
+    if (!freshGame) {
+      throw new Error(`Cannot complete stake question ${questionId}: game ${gameId} was not found`);
     }
 
-    const stakePickedPromise = this.eventUtils.waitForEvent(
-      showmanSocket,
-      SocketIOGameEvents.STAKE_QUESTION_PICKED
+    const activePlayerIds = freshGame.players
+      .filter(
+        (player) =>
+          player.role === PlayerRole.PLAYER && player.gameStatus === PlayerGameStatus.IN_GAME
+      )
+      .map((player) => player.meta.id);
+    const providedPlayerIds = await Promise.all(
+      playerSockets.map((socket) =>
+        withTimeout(
+          this.userUtils.getUserIdFromSocket(socket),
+          TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+          "getUserIdFromSocket in game flow"
+        )
+      )
+    );
+    const activePlayerIdSet = new Set(activePlayerIds);
+    const providedPlayerIdSet = new Set(providedPlayerIds);
+    const missingPlayerIds = activePlayerIds.filter(
+      (playerId) => !providedPlayerIdSet.has(playerId)
+    );
+    const unexpectedPlayerIds = providedPlayerIds.filter(
+      (playerId) => !activePlayerIdSet.has(playerId)
+    );
+    const duplicatePlayerIds = providedPlayerIds.filter(
+      (playerId, index) => providedPlayerIds.indexOf(playerId) !== index
     );
 
-    showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, {
-      questionId
-    });
+    if (
+      missingPlayerIds.length > 0 ||
+      unexpectedPlayerIds.length > 0 ||
+      duplicatePlayerIds.length > 0
+    ) {
+      throw new Error(
+        `Cannot complete stake question ${questionId}: provided sockets must exactly cover active ` +
+          `players (gameId=${gameId}, activePlayerIds=${JSON.stringify(activePlayerIds)}, ` +
+          `providedPlayerIds=${JSON.stringify(providedPlayerIds)}, ` +
+          `missingPlayerIds=${JSON.stringify(missingPlayerIds)}, ` +
+          `unexpectedPlayerIds=${JSON.stringify(unexpectedPlayerIds)}, ` +
+          `duplicatePlayerIds=${JSON.stringify(duplicatePlayerIds)})`
+      );
+    }
 
-    await stakePickedPromise;
+    await this.eventUtils.emitAndWaitForEvent(
+      showmanSocket,
+      SocketIOGameEvents.STAKE_QUESTION_PICKED,
+      () => showmanSocket.emit(SocketIOGameEvents.QUESTION_PICK, { questionId })
+    );
 
     if (!shouldAnswer) {
       await this.skipQuestionForceComplete(showmanSocket);
@@ -558,8 +786,7 @@ export class SocketGameTestFlowUtils {
       showmanSocket,
       playerSockets,
       gameId,
-      questionId,
-      answeringPlayerIdx
+      questionId
     );
 
     await this._submitAnswerResultWithQuestionComplete(
@@ -574,64 +801,88 @@ export class SocketGameTestFlowUtils {
     showmanSocket: GameClientSocket,
     playerSockets: GameClientSocket[],
     gameId: string,
-    questionId: number,
-    fallbackPlayerIdx: number
+    questionId: number
   ): Promise<GameClientSocket> {
-    const stakeWinnerPromise = this.eventUtils.waitForEvent(
+    const controller = new AbortController();
+    const stakeWinnerPromise = this.eventUtils.waitForEvent<StakeQuestionWinnerEventData>(
       showmanSocket,
-      SocketIOGameEvents.STAKE_QUESTION_WINNER
+      SocketIOGameEvents.STAKE_QUESTION_WINNER,
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      controller.signal
     );
+    void stakeWinnerPromise.catch(() => undefined);
 
-    const game = await this.stateUtils.getGame(gameId);
-    if (game?.gameState.stakeQuestionData) {
-      const biddingOrder = game.gameState.stakeQuestionData.biddingOrder;
+    try {
+      const game = await withTimeout(
+        this.stateUtils.getGame(gameId),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "getGame in game flow"
+      );
+      if (game?.gameState.stakeQuestionData) {
+        const biddingOrder = game.gameState.stakeQuestionData.biddingOrder;
 
-      for (let i = 0; i < biddingOrder.length; i++) {
-        const playerId = biddingOrder[i];
-        const playerSocket = await this.findPlayerSocket(playerSockets, playerId);
+        for (let i = 0; i < biddingOrder.length; i++) {
+          const playerId = biddingOrder[i];
+          const playerSocket = await this.findPlayerSocket(playerSockets, playerId);
 
-        if (playerSocket) {
-          const bidPromise = this.eventUtils.waitForEvent(
-            playerSocket,
-            SocketIOGameEvents.STAKE_BID_SUBMIT
-          );
+          if (playerSocket) {
+            let bidType = StakeBidType.PASS;
+            let bidAmount: number | null = null;
 
-          if (i === 0) {
-            const packageStore = container.resolve(PackageStore);
-            const questionData = await packageStore.getQuestionWithTheme(gameId, questionId);
-            const question = questionData?.question ?? null;
+            if (i === 0) {
+              const packageStore = container.resolve(PackageStore);
+              const questionData = await withTimeout(
+                packageStore.getQuestionWithTheme(gameId, questionId),
+                TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+                "getQuestionWithTheme in game flow"
+              );
+              const question = questionData?.question ?? null;
 
-            const nominalAmount = question?.price || 300;
+              const nominalAmount = question?.price || 300;
+              bidType = StakeBidType.NORMAL;
+              bidAmount = nominalAmount + 10;
+            }
 
-            playerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-              bidType: StakeBidType.NORMAL,
-              bidAmount: nominalAmount + 10
-            });
-          } else {
-            playerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-              bidType: StakeBidType.PASS,
-              bidAmount: null
-            });
+            await this.eventUtils.emitAndWaitForEvent(
+              playerSocket,
+              SocketIOGameEvents.STAKE_BID_SUBMIT,
+              () =>
+                playerSocket.emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+                  bidType,
+                  bidAmount
+                })
+            );
           }
-
-          await bidPromise;
         }
       }
-    }
 
-    const stakeWinnerData = await stakeWinnerPromise;
+      const stakeWinnerData = await stakeWinnerPromise;
 
-    if (stakeWinnerData?.winnerPlayerId) {
-      const winnerSocket = await this.findPlayerSocket(
-        playerSockets,
-        stakeWinnerData.winnerPlayerId
-      );
-      if (winnerSocket) {
-        return winnerSocket;
+      const winnerPlayerId = stakeWinnerData?.winnerPlayerId;
+      if (
+        typeof winnerPlayerId !== "number" ||
+        !Number.isInteger(winnerPlayerId) ||
+        winnerPlayerId <= 0
+      ) {
+        throw new Error(
+          `Stake winner event did not identify a winner ` +
+            `(gameId=${gameId}, questionId=${questionId}, payload=${JSON.stringify(stakeWinnerData)})`
+        );
       }
-    }
 
-    return playerSockets[fallbackPlayerIdx];
+      const winnerSocket = await this.findPlayerSocket(playerSockets, winnerPlayerId);
+      if (!winnerSocket) {
+        throw new Error(
+          `Stake winner has no provided player socket ` +
+            `(gameId=${gameId}, questionId=${questionId}, winnerPlayerId=${winnerPlayerId})`
+        );
+      }
+
+      return winnerSocket;
+    } finally {
+      controller.abort();
+      await Promise.allSettled([stakeWinnerPromise]);
+    }
   }
 
   private async findPlayerSocket(
@@ -639,7 +890,11 @@ export class SocketGameTestFlowUtils {
     playerId: number
   ): Promise<GameClientSocket | null> {
     for (const socket of playerSockets) {
-      const socketUserId = await this.userUtils.getUserIdFromSocket(socket);
+      const socketUserId = await withTimeout(
+        this.userUtils.getUserIdFromSocket(socket),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "getUserIdFromSocket in game flow"
+      );
       if (socketUserId === playerId) {
         return socket;
       }
@@ -667,7 +922,11 @@ export class SocketGameTestFlowUtils {
       return;
     }
 
-    const gameState = await this.stateUtils.getGameState(showmanSocket.gameId!);
+    const gameState = await withTimeout(
+      this.stateUtils.getGameState(showmanSocket.gameId!),
+      TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+      "getGameState in game flow"
+    );
     const needsAnswer = gameState?.questionState !== QuestionState.ANSWERING;
 
     if (needsAnswer) {
@@ -694,44 +953,66 @@ export class SocketGameTestFlowUtils {
     answerType: AnswerResultType,
     scoreResult: number
   ): Promise<void> {
-    // Set up event listeners before emitting - both events are in the same broadcast batch
-    const answerResultPromise = this.eventUtils.waitForEvent(
-      answeringPlayerSocket,
-      SocketIOGameEvents.ANSWER_RESULT
+    const controller = new AbortController();
+    const answerShowStartPromise = this.eventUtils.waitForEvent(
+      showmanSocket,
+      SocketIOGameEvents.ANSWER_SHOW_START,
+      TEST_TIMEOUTS.SOCKET_ACTION_TIMEOUT_MS,
+      controller.signal
     );
+    void answerShowStartPromise.catch(() => undefined);
 
-    // Set up ANSWER_SHOW_START listener before emitting to catch it in the same batch
-    // This may resolve immediately if SHOWING_ANSWER transition doesn't happen
-    const answerShowStartPromise = this.eventUtils
-      .waitForEvent(
-        showmanSocket,
-        SocketIOGameEvents.ANSWER_SHOW_START,
-        TEST_TIMEOUTS.SOCKET_ACTION_TIMEOUT_MS
-      )
-      .catch(() => null); // Ignore timeout - not all answers trigger SHOWING_ANSWER (therefore this will not be awaited)
+    try {
+      await this.eventUtils.emitAndWaitForEvent(
+        answeringPlayerSocket,
+        SocketIOGameEvents.ANSWER_RESULT,
+        () =>
+          showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
+            scoreResult,
+            answerType
+          })
+      );
 
-    showmanSocket.emit(SocketIOGameEvents.ANSWER_RESULT, {
-      scoreResult,
-      answerType
-    });
+      const gameAfterAnswerResult = await withTimeout(
+        this.stateUtils.getGame(showmanSocket.gameId!),
+        TEST_TIMEOUTS.SOCKET_EVENT_WAIT_MS,
+        "getGame in game flow"
+      );
+      if (gameAfterAnswerResult.finishedAt) {
+        return;
+      }
 
-    await answerResultPromise;
+      const gameState = gameAfterAnswerResult.gameState;
 
-    const gameAfterAnswerResult = await this.stateUtils.getGame(showmanSocket.gameId!);
-    if (gameAfterAnswerResult.finishedAt) {
-      return;
+      if (gameState?.questionState === QuestionState.SHOWING_ANSWER) {
+        await answerShowStartPromise;
+        await this.skipShowAnswer(showmanSocket);
+      } else if (gameState?.questionState === QuestionState.SHOWING) {
+        await this.skipQuestionForceComplete(showmanSocket);
+      } else {
+        throw new Error(
+          `Cannot complete answer result for game ${showmanSocket.gameId ?? "unknown"}: ` +
+            `expected ${QuestionState.SHOWING_ANSWER} or ${QuestionState.SHOWING}, ` +
+            `received ${gameState?.questionState ?? "missing question state"}`
+        );
+      }
+    } finally {
+      controller.abort();
+      await Promise.allSettled([answerShowStartPromise]);
     }
+  }
+}
 
-    const gameState = gameAfterAnswerResult.gameState;
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
 
-    // Handle case when no eligible players remain and show answer phase is started
-    if (gameState?.questionState === QuestionState.SHOWING_ANSWER) {
-      await answerShowStartPromise;
-      await this.skipShowAnswer(showmanSocket);
-    } else if (gameState?.questionState === QuestionState.SHOWING) {
-      // Question is still in progress (other players can answer)
-      // Force-skip to complete the question for test purposes
-      await this.skipQuestionForceComplete(showmanSocket);
-    }
+function createObservedWait<T>(createWait: () => Promise<T>): Promise<T> {
+  try {
+    return createWait();
+  } catch (error) {
+    const rejectedWait = Promise.reject<T>(error);
+    void rejectedWait.catch(() => undefined);
+    return rejectedWait;
   }
 }

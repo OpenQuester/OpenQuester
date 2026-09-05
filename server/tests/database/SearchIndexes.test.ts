@@ -1,7 +1,7 @@
 import { AddSearchIndexes_0_15_3_1752686138751 } from "infrastructure/database/migrations/0.15.3_AddSearchIndexes";
 import { ILogger } from "shared/logging/ILogger";
 import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
+import { bootstrapTestApp, teardownTestAppResources } from "tests/TestApp";
 import { TestEnvironment } from "tests/TestEnvironment";
 
 describe("Search Indexes Migration Test", () => {
@@ -25,12 +25,7 @@ describe("Search Indexes Migration Test", () => {
   });
 
   afterAll(async () => {
-    try {
-      await testEnv.teardown();
-      if (cleanup) await cleanup(); // Ensure Redis and other services are disconnected
-    } catch (err) {
-      console.error("Error during teardown:", err);
-    }
+    await teardownTestAppResources(cleanup, testEnv);
   });
 
   describe("Database Indexes Verification", () => {

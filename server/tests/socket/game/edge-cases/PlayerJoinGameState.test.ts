@@ -1,6 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
-import { type Express } from "express";
-import { Repository } from "typeorm";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 
 import { FinalRoundPhase } from "domain/enums/FinalRoundPhase";
 import { SocketIOGameEvents } from "domain/enums/SocketIOEvents";
@@ -12,67 +10,47 @@ import {
   FinalQuestionEventData
 } from "domain/types/socket/events/FinalRoundEventData";
 import { GameJoinOutputData } from "domain/types/socket/events/SocketEventInterfaces";
-import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 import { TestUtils } from "tests/utils/TestUtils";
-import { type GameClientSocket } from "tests/socket/game/utils/SocketIOGameTestUtils";
 
 describe("Player Join Game State Tests", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
-  let app: Express;
-  let userRepo: Repository<User>;
-  let serverUrl: string;
+  let suite: SocketGameTestSuite;
   let utils: TestUtils;
-  let logger: ILogger;
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new TestUtils(app, userRepo, serverUrl);
+    suite = await SocketGameTestSuite.start();
+    utils = suite.testUtils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    if (cleanup) {
-      await cleanup();
-    }
-    await testEnv.teardown();
+    await suite?.stop();
   });
 
   describe("Player joining during Final Round phases", () => {
     it("should receive questionData when joining during FINAL_ANSWERING phase", async () => {
-      /**
-       * Tests that a player joining during the final round answering phase
-       * receives the question data in their game state.
-       *
-       * Flow:
-       * 1. Set up game and progress to final round answering phase
-       * 2. New player joins the game
-       * 3. Verify the joined player receives questionData in gameState.finalRoundData
-       */
-      const setupResult = await utils.setupFinalRoundGame({
-        playersCount: 2,
-        playerScores: [1500, 1200]
-      });
+      await suite.scenario(async (scenario) => {
+        /**
+         * Tests that a player joining during the final round answering phase
+         * receives the question data in their game state.
+         *
+         * Flow:
+         * 1. Set up game and progress to final round answering phase
+         * 2. New player joins the game
+         * 3. Verify the joined player receives questionData in gameState.finalRoundData
+         */
+        const setupResult = await utils.setupFinalRoundGame({
+          playersCount: 2,
+          playerScores: [1500, 1200]
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
-      try {
         // Complete theme elimination
-        const phaseTransitionPromise = utils.waitForEvent<FinalPhaseCompleteEventData>(
+        const phaseTransitionPromise = scenario.waitForEvent<FinalPhaseCompleteEventData>(
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
@@ -80,21 +58,21 @@ describe("Player Join Game State Tests", () => {
         await phaseTransitionPromise;
 
         // Submit bids to transition to answering phase
-        const questionDataPromise = utils.waitForEvent<FinalQuestionEventData>(
+        const questionDataPromise = scenario.waitForEvent<FinalQuestionEventData>(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
 
-        const firstBidPromise = utils.waitForEvent(
+        const firstBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800
         });
         await firstBidPromise;
 
-        playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600
         });
         const questionDataEvent = await questionDataPromise;
@@ -117,13 +95,12 @@ describe("Player Join Game State Tests", () => {
         const { socket: newPlayerSocket } = await utils.createGameClient();
 
         // Join as spectator (since game is in progress, can't join as player)
-        const joinGamePromise = new Promise<GameJoinOutputData>((resolve) => {
-          newPlayerSocket.once(SocketIOGameEvents.GAME_DATA, (data: GameJoinOutputData) => {
-            resolve(data);
-          });
-        });
+        const joinGamePromise = scenario.waitForEvent<GameJoinOutputData>(
+          newPlayerSocket,
+          SocketIOGameEvents.GAME_DATA
+        );
 
-        newPlayerSocket.emit(SocketIOGameEvents.JOIN, {
+        scenario.actor(newPlayerSocket).emit(SocketIOGameEvents.JOIN, {
           gameId,
           role: PlayerRole.SPECTATOR
         });
@@ -141,55 +118,49 @@ describe("Player Join Game State Tests", () => {
           questionDataEvent.questionData.themeName
         );
         expect(joinedGameData.gameState.finalRoundData?.questionData?.question).toBeDefined();
-
-        // Cleanup
-        await utils.disconnectAndCleanup(newPlayerSocket);
-      } finally {
-        await utils.cleanupGameClients(setupResult);
-      }
+      });
     });
 
     it("should hide submitted final answer text when a spectator joins during FINAL_ANSWERING phase", async () => {
-      const setupResult = await utils.setupFinalRoundGame({
-        playersCount: 2,
-        playerScores: [1500, 1200]
-      });
+      await suite.scenario(async (scenario) => {
+        const setupResult = await utils.setupFinalRoundGame({
+          playersCount: 2,
+          playerScores: [1500, 1200]
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
-      let lateSpectatorSocket: GameClientSocket | null = null;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
-      try {
-        const phaseTransitionPromise = utils.waitForEvent<FinalPhaseCompleteEventData>(
+        const phaseTransitionPromise = scenario.waitForEvent<FinalPhaseCompleteEventData>(
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
         await utils.completeThemeElimination(playerSockets, gameId, playerUsers);
         await phaseTransitionPromise;
 
-        const firstBidPromise = utils.waitForEvent(
+        const firstBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800
         });
         await firstBidPromise;
 
-        const questionDataPromise = utils.waitForEvent<FinalQuestionEventData>(
+        const questionDataPromise = scenario.waitForEvent<FinalQuestionEventData>(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
-        playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600
         });
         await questionDataPromise;
 
         const submittedAnswer = "Private answer that must stay hidden";
-        const submitPromise = utils.waitForEvent<FinalAnswerSubmitOutputData>(
+        const submitPromise = scenario.waitForEvent<FinalAnswerSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.FINAL_ANSWER_SUBMIT
         );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
           answerText: submittedAnswer
         });
 
@@ -201,8 +172,7 @@ describe("Player Join Game State Tests", () => {
         expect(persistedState.finalRoundData?.answers).toHaveLength(1);
         expect(persistedState.finalRoundData?.answers[0].answer).toBe(submittedAnswer);
 
-        const lateSpectator = await utils.createGameClient();
-        lateSpectatorSocket = lateSpectator.socket;
+        const { socket: lateSpectatorSocket } = await utils.createGameClient();
 
         const joinedGameData = await utils.joinGameWithData(
           lateSpectatorSocket,
@@ -217,29 +187,24 @@ describe("Player Join Game State Tests", () => {
         expect(visibleAnswers?.[0].playerId).toBe(playerUsers[0].id);
         expect(visibleAnswers?.[0].answer).toBe("");
         expect(JSON.stringify(joinedGameData.gameState)).not.toContain(submittedAnswer);
-      } finally {
-        if (lateSpectatorSocket) {
-          await utils.disconnectAndCleanup(lateSpectatorSocket);
-        }
-        await utils.cleanupGameClients(setupResult);
-      }
+      });
     });
 
     it("should receive questionData when joining during FINAL_REVIEWING phase", async () => {
-      /**
-       * Tests that questionData persists and is accessible when joining
-       * during the reviewing phase.
-       */
-      const setupResult = await utils.setupFinalRoundGame({
-        playersCount: 2,
-        playerScores: [1500, 1200]
-      });
+      await suite.scenario(async (scenario) => {
+        /**
+         * Tests that questionData persists and is accessible when joining
+         * during the reviewing phase.
+         */
+        const setupResult = await utils.setupFinalRoundGame({
+          playersCount: 2,
+          playerScores: [1500, 1200]
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
-      try {
         // Complete theme elimination
-        const phaseTransitionPromise = utils.waitForEvent<FinalPhaseCompleteEventData>(
+        const phaseTransitionPromise = scenario.waitForEvent<FinalPhaseCompleteEventData>(
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
@@ -247,21 +212,21 @@ describe("Player Join Game State Tests", () => {
         await phaseTransitionPromise;
 
         // Submit bids to transition to answering phase
-        const questionDataPromise = utils.waitForEvent<FinalQuestionEventData>(
+        const questionDataPromise = scenario.waitForEvent<FinalQuestionEventData>(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
 
-        const firstBidPromise = utils.waitForEvent(
+        const firstBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800
         });
         await firstBidPromise;
 
-        playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600
         });
         const questionDataEvent = await questionDataPromise;
@@ -271,21 +236,21 @@ describe("Player Join Game State Tests", () => {
         expect(gameState.questionState).toBe(QuestionState.ANSWERING);
 
         // Submit answers to transition to reviewing phase
-        const submitEndPromise = utils.waitForEvent(
+        const submitEndPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_SUBMIT_END
         );
 
-        const firstAnswerPromise = utils.waitForEvent(
+        const firstAnswerPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_ANSWER_SUBMIT
         );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
           answerText: "Player 1 answer"
         });
         await firstAnswerPromise;
 
-        playerSockets[1].emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_ANSWER_SUBMIT, {
           answerText: "Player 2 answer"
         });
         await submitEndPromise;
@@ -302,13 +267,12 @@ describe("Player Join Game State Tests", () => {
         const { socket: newPlayerSocket } = await utils.createGameClient();
 
         // Join as spectator
-        const joinGamePromise = new Promise<GameJoinOutputData>((resolve) => {
-          newPlayerSocket.once(SocketIOGameEvents.GAME_DATA, (data: GameJoinOutputData) => {
-            resolve(data);
-          });
-        });
+        const joinGamePromise = scenario.waitForEvent<GameJoinOutputData>(
+          newPlayerSocket,
+          SocketIOGameEvents.GAME_DATA
+        );
 
-        newPlayerSocket.emit(SocketIOGameEvents.JOIN, {
+        scenario.actor(newPlayerSocket).emit(SocketIOGameEvents.JOIN, {
           gameId,
           role: PlayerRole.SPECTATOR
         });
@@ -322,29 +286,24 @@ describe("Player Join Game State Tests", () => {
         expect(joinedGameData.gameState.finalRoundData?.questionData?.themeId).toBe(
           questionDataEvent.questionData.themeId
         );
-
-        // Cleanup
-        await utils.disconnectAndCleanup(newPlayerSocket);
-      } finally {
-        await utils.cleanupGameClients(setupResult);
-      }
+      });
     });
 
     it("should NOT have questionData when joining during FINAL_BIDDING phase", async () => {
-      /**
-       * Tests that questionData is NOT present when joining during bidding phase
-       * (before the question is revealed).
-       */
-      const setupResult = await utils.setupFinalRoundGame({
-        playersCount: 2,
-        playerScores: [1500, 1200]
-      });
+      await suite.scenario(async (scenario) => {
+        /**
+         * Tests that questionData is NOT present when joining during bidding phase
+         * (before the question is revealed).
+         */
+        const setupResult = await utils.setupFinalRoundGame({
+          playersCount: 2,
+          playerScores: [1500, 1200]
+        });
 
-      const { playerSockets, gameId, playerUsers } = setupResult;
+        const { playerSockets, gameId, playerUsers } = setupResult;
 
-      try {
         // Complete theme elimination to transition to bidding phase
-        const phaseTransitionPromise = utils.waitForEvent<FinalPhaseCompleteEventData>(
+        const phaseTransitionPromise = scenario.waitForEvent<FinalPhaseCompleteEventData>(
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
@@ -362,13 +321,12 @@ describe("Player Join Game State Tests", () => {
         // Create a new player and have them join the game
         const { socket: newPlayerSocket } = await utils.createGameClient();
 
-        const joinGamePromise = new Promise<GameJoinOutputData>((resolve) => {
-          newPlayerSocket.once(SocketIOGameEvents.GAME_DATA, (data: GameJoinOutputData) => {
-            resolve(data);
-          });
-        });
+        const joinGamePromise = scenario.waitForEvent<GameJoinOutputData>(
+          newPlayerSocket,
+          SocketIOGameEvents.GAME_DATA
+        );
 
-        newPlayerSocket.emit(SocketIOGameEvents.JOIN, {
+        scenario.actor(newPlayerSocket).emit(SocketIOGameEvents.JOIN, {
           gameId,
           role: PlayerRole.SPECTATOR
         });
@@ -389,26 +347,21 @@ describe("Player Join Game State Tests", () => {
         expect(
           stateAfterJoin.currentRound?.themes.some((theme) => (theme.questions ?? []).length > 0)
         ).toBe(true);
-
-        // Cleanup
-        await utils.disconnectAndCleanup(newPlayerSocket);
-      } finally {
-        await utils.cleanupGameClients(setupResult);
-      }
+      });
     });
 
     it("should NOT have questionData when joining during FINAL_THEME_ELIMINATION phase", async () => {
-      /**
-       * Tests that questionData is NOT present when joining during theme elimination phase.
-       */
-      const setupResult = await utils.setupFinalRoundGame({
-        playersCount: 2,
-        playerScores: [1500, 1200]
-      });
+      await suite.scenario(async (scenario) => {
+        /**
+         * Tests that questionData is NOT present when joining during theme elimination phase.
+         */
+        const setupResult = await utils.setupFinalRoundGame({
+          playersCount: 2,
+          playerScores: [1500, 1200]
+        });
 
-      const { gameId } = setupResult;
+        const { gameId } = setupResult;
 
-      try {
         // Verify we're in theme elimination phase
         const gameState = await utils.getGameState(gameId);
         expect(gameState.questionState).toBe(QuestionState.THEME_ELIMINATION);
@@ -423,13 +376,12 @@ describe("Player Join Game State Tests", () => {
         // Create a new player and have them join the game
         const { socket: newPlayerSocket } = await utils.createGameClient();
 
-        const joinGamePromise = new Promise<GameJoinOutputData>((resolve) => {
-          newPlayerSocket.once(SocketIOGameEvents.GAME_DATA, (data: GameJoinOutputData) => {
-            resolve(data);
-          });
-        });
+        const joinGamePromise = scenario.waitForEvent<GameJoinOutputData>(
+          newPlayerSocket,
+          SocketIOGameEvents.GAME_DATA
+        );
 
-        newPlayerSocket.emit(SocketIOGameEvents.JOIN, {
+        scenario.actor(newPlayerSocket).emit(SocketIOGameEvents.JOIN, {
           gameId,
           role: PlayerRole.SPECTATOR
         });
@@ -452,31 +404,26 @@ describe("Player Join Game State Tests", () => {
         expect(
           stateAfterJoin.currentRound?.themes.some((theme) => (theme.questions ?? []).length > 0)
         ).toBe(true);
-
-        // Cleanup
-        await utils.disconnectAndCleanup(newPlayerSocket);
-      } finally {
-        await utils.cleanupGameClients(setupResult);
-      }
+      });
     });
   });
 
   describe("Player joining during paused game states", () => {
     it("should receive correct state when joining during paused answering phase", async () => {
-      /**
-       * Tests that a player joining during a paused game receives the correct state,
-       * including the pause status and questionData if in answering phase.
-       */
-      const setupResult = await utils.setupFinalRoundGame({
-        playersCount: 2,
-        playerScores: [1500, 1200]
-      });
+      await suite.scenario(async (scenario) => {
+        /**
+         * Tests that a player joining during a paused game receives the correct state,
+         * including the pause status and questionData if in answering phase.
+         */
+        const setupResult = await utils.setupFinalRoundGame({
+          playersCount: 2,
+          playerScores: [1500, 1200]
+        });
 
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setupResult;
 
-      try {
         // Complete theme elimination
-        const phaseTransitionPromise = utils.waitForEvent<FinalPhaseCompleteEventData>(
+        const phaseTransitionPromise = scenario.waitForEvent<FinalPhaseCompleteEventData>(
           playerSockets[0],
           SocketIOGameEvents.FINAL_PHASE_COMPLETE
         );
@@ -484,21 +431,21 @@ describe("Player Join Game State Tests", () => {
         await phaseTransitionPromise;
 
         // Submit bids to transition to answering phase
-        const questionDataPromise = utils.waitForEvent<FinalQuestionEventData>(
+        const questionDataPromise = scenario.waitForEvent<FinalQuestionEventData>(
           showmanSocket,
           SocketIOGameEvents.FINAL_QUESTION_DATA
         );
 
-        const firstBidPromise = utils.waitForEvent(
+        const firstBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.FINAL_BID_SUBMIT
         );
-        playerSockets[0].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 800
         });
         await firstBidPromise;
 
-        playerSockets[1].emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.FINAL_BID_SUBMIT, {
           bid: 600
         });
         const questionDataEvent = await questionDataPromise;
@@ -509,8 +456,8 @@ describe("Player Join Game State Tests", () => {
         expect(gameState.isPaused).toBe(false);
 
         // Pause the game
-        const pausePromise = utils.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_PAUSE);
-        showmanSocket.emit(SocketIOGameEvents.GAME_PAUSE);
+        const pausePromise = scenario.waitForEvent(playerSockets[0], SocketIOGameEvents.GAME_PAUSE);
+        scenario.actor(showmanSocket).emit(SocketIOGameEvents.GAME_PAUSE);
         await pausePromise;
 
         // Verify game is paused
@@ -520,13 +467,12 @@ describe("Player Join Game State Tests", () => {
         // Create a new player and have them join
         const { socket: newPlayerSocket } = await utils.createGameClient();
 
-        const joinGamePromise = new Promise<GameJoinOutputData>((resolve) => {
-          newPlayerSocket.once(SocketIOGameEvents.GAME_DATA, (data: GameJoinOutputData) => {
-            resolve(data);
-          });
-        });
+        const joinGamePromise = scenario.waitForEvent<GameJoinOutputData>(
+          newPlayerSocket,
+          SocketIOGameEvents.GAME_DATA
+        );
 
-        newPlayerSocket.emit(SocketIOGameEvents.JOIN, {
+        scenario.actor(newPlayerSocket).emit(SocketIOGameEvents.JOIN, {
           gameId,
           role: PlayerRole.SPECTATOR
         });
@@ -540,12 +486,7 @@ describe("Player Join Game State Tests", () => {
         expect(joinedGameData.gameState.finalRoundData?.questionData?.themeId).toBe(
           questionDataEvent.questionData.themeId
         );
-
-        // Cleanup
-        await utils.disconnectAndCleanup(newPlayerSocket);
-      } finally {
-        await utils.cleanupGameClients(setupResult);
-      }
+      });
     });
   });
 });

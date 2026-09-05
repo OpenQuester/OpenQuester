@@ -23,11 +23,16 @@ Before editing, classify the task:
 - `cleanup` — readability/structure improves without behavior change.
 - `extraction` — logic moves to a better owner.
 
-If the category changes during work, update the handoff summary.
+If the category would exceed the user's scope, ask before making that change.
+Record authorized behavior changes separately from refactoring in the handoff.
 
 ## Implementation steps
 
 1. Identify current behavior and tests before changing code.
+   For a reported regression, trace producer, transport, consumer, and visible
+   effect as relevant. A state assignment or green lower-layer test is not proof
+   that the user-visible symptom is fixed. Use commit diffs and ancestry, not
+   commit titles, when attributing a fix to a branch or PR.
 2. Keep the diff as small as possible.
 3. Move logic toward the correct layer: domain rules to `domain/`, orchestration to `application/`, transport code to `presentation/`.
 4. Avoid renaming/moving many files unless the task requires it.

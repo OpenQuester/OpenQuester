@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "@jest/globals";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "@jest/globals";
 import { type Express } from "express";
 import { Repository } from "typeorm";
 
@@ -12,20 +12,14 @@ import {
 import { StakeQuestionPickedBroadcastData } from "domain/types/socket/events/game/StakeQuestionPickedEventPayload";
 import { StakeQuestionWinnerEventData } from "domain/types/socket/events/game/StakeQuestionWinnerEventData";
 import { User } from "infrastructure/database/models/User";
-import { ILogger } from "shared/logging/ILogger";
-import { PinoLogger } from "infrastructure/logger/PinoLogger";
 import { GameTestSetup, SocketGameTestUtils } from "tests/socket/game/utils/SocketIOGameTestUtils";
-import { bootstrapTestApp } from "tests/TestApp";
-import { TestEnvironment } from "tests/TestEnvironment";
+import { SocketGameTestSuite } from "tests/socket/game/utils/SocketGameTestSuite";
 
 describe("Stake Question Max Price Cases Tests", () => {
-  let testEnv: TestEnvironment;
-  let cleanup: (() => Promise<void>) | undefined;
+  let suite: SocketGameTestSuite;
   let app: Express;
   let userRepo: Repository<User>;
-  let serverUrl: string;
   let utils: SocketGameTestUtils;
-  let logger: ILogger;
 
   /**
    * Flexible preparation function for stake question tests
@@ -42,7 +36,6 @@ describe("Stake Question Max Price Cases Tests", () => {
   ): Promise<{
     setup: GameTestSetup;
     stakeQuestionId: number;
-    cleanup: () => Promise<void>;
   }> {
     const {
       playerCount = 3,
@@ -70,51 +63,49 @@ describe("Stake Question Max Price Cases Tests", () => {
     const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
     if (shouldPickQuestion) {
+      const stakeQuestionPickedPromise = suite.currentScenario.waitForEvent(
+        showmanSocket,
+        SocketIOGameEvents.STAKE_QUESTION_PICKED
+      );
+
       // Pick the stake question
-      setup.playerSockets[pickerIndex].emit(SocketIOGameEvents.QUESTION_PICK, {
-        questionId: stakeQuestionId
-      });
+      suite.currentScenario
+        .actor(setup.playerSockets[pickerIndex])
+        .emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestionId
+        });
 
       // Wait for stake question to be picked
-      await utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_QUESTION_PICKED);
+      await stakeQuestionPickedPromise;
     }
 
     return {
       setup,
-      stakeQuestionId,
-      cleanup: () => utils.cleanupGameClients(setup)
+      stakeQuestionId
     };
   }
 
   beforeAll(async () => {
-    logger = await PinoLogger.init({ pretty: true });
-    testEnv = new TestEnvironment(logger);
-    await testEnv.setup();
-    const boot = await bootstrapTestApp(testEnv.getDatabase());
-    app = boot.app;
-    userRepo = testEnv.getDatabase().getRepository(User);
-    cleanup = boot.cleanup;
-    serverUrl = `http://localhost:${process.env.API_PORT || 3030}`;
-    utils = new SocketGameTestUtils(serverUrl);
+    suite = await SocketGameTestSuite.start();
+    app = suite.app;
+    userRepo = suite.userRepo;
+    utils = suite.utils;
   });
 
-  beforeEach(async () => {
-    await testEnv.clearRedis();
+  afterEach(async () => {
+    await suite?.reset();
   });
 
   afterAll(async () => {
-    if (cleanup) {
-      await cleanup();
-    }
-    await testEnv.teardown();
+    await suite?.stop();
   });
 
   describe("Max Price Related Behaviors", () => {
     it("should automatically bid question price when picker has insufficient score", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Start game
         await utils.startGame(showmanSocket);
 
@@ -133,12 +124,12 @@ describe("Stake Question Max Price Cases Tests", () => {
         const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
         // Listen for both stake question picked and automatic bid
-        const stakePickedPromise = utils.waitForEvent<StakeQuestionPickedBroadcastData>(
+        const stakePickedPromise = scenario.waitForEvent<StakeQuestionPickedBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_QUESTION_PICKED
         );
 
-        const autoBidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+        const autoBidPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT,
           150
@@ -146,7 +137,7 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 0 (score 50) picks STAKE question (price 200)
         // Should automatically place bid of 200 (question price)
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: stakeQuestionId
         });
 
@@ -166,29 +157,27 @@ describe("Stake Question Max Price Cases Tests", () => {
         const gameState = await utils.getGameState(gameId);
         const player0Id = await utils.getUserIdFromSocket(playerSockets[0]);
         expect(gameState?.stakeQuestionData?.bids).toHaveProperty(player0Id.toString(), 200); // Player has bid 200 (question price), not 50 (their available score)
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should allow all-in bids", async () => {
-      // Setup with player score exactly equal to maxPrice to avoid validation issues
-      const { setup, cleanup } = await _prepare({
-        playerScores: [400, 600, 300], // Player 0 score = maxPrice (400)
-        shouldPickQuestion: true,
-        pickerIndex: 0
-      });
+      await suite.scenario(async (scenario) => {
+        // Setup with player score exactly equal to maxPrice to avoid validation issues
+        const { setup } = await _prepare({
+          playerScores: [400, 600, 300], // Player 0 score = maxPrice (400)
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
 
-      try {
         const { playerSockets, showmanSocket } = setup;
 
-        const bidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+        const bidPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT
         );
 
         // Player 0 goes all-in (should bid their full score of 400, which equals maxPrice)
-        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.ALL_IN,
           bidAmount: null
         } as StakeBidSubmitInputData);
@@ -197,30 +186,28 @@ describe("Stake Question Max Price Cases Tests", () => {
         expect(result.playerId).toBe(await utils.getUserIdFromSocket(playerSockets[0]));
         expect(result.bidAmount).toBe(400); // Player score = maxPrice = 400
         expect(result.bidType).toBe(StakeBidType.ALL_IN);
-      } finally {
-        await cleanup();
-      }
+      });
     });
 
     it("should not count max score bid as all-in", async () => {
-      // Setup with player score higher than maxPrice to test normal bid logic
-      const { setup, cleanup } = await _prepare({
-        playerScores: [500, 600, 400], // Player 0 score > maxPrice (400)
-        shouldPickQuestion: true,
-        pickerIndex: 0
-      });
+      await suite.scenario(async (scenario) => {
+        // Setup with player score higher than maxPrice to test normal bid logic
+        const { setup } = await _prepare({
+          playerScores: [500, 600, 400], // Player 0 score > maxPrice (400)
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
 
-      try {
         const { playerSockets, showmanSocket } = setup;
 
-        const bidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+        const bidPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT
         );
 
         // Player 0 bids the max price (400) - should NOT be detected as all-in
         // since player has more score (500) than the bid amount
-        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 400 // Question max price - should be treated as normal bid
         } as StakeBidSubmitInputData);
@@ -229,127 +216,144 @@ describe("Stake Question Max Price Cases Tests", () => {
         expect(result.playerId).toBe(await utils.getUserIdFromSocket(playerSockets[0]));
         expect(result.bidAmount).toBe(400); // Question max price
         expect(result.bidType).toBe(StakeBidType.NORMAL); // Should be NORMAL, not ALL_IN
-      } finally {
-        await cleanup();
-      }
+      });
     });
 
     it("should reject bid exceeding question max price", async () => {
-      // Setup with custom scores to test this scenario
-      const { setup, cleanup } = await _prepare({
-        playerScores: [500, 700, 500], // High scores to avoid automatic bidding
-        shouldPickQuestion: true,
-        pickerIndex: 0
-      });
+      await suite.scenario(async (scenario) => {
+        // Setup with custom scores to test this scenario
+        const { setup } = await _prepare({
+          playerScores: [500, 700, 500], // High scores to avoid automatic bidding
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
 
-      try {
         const { playerSockets, showmanSocket } = setup;
 
         // First, player[0] bids to start the sequence (must be >= question price of 200)
-        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        const initialBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 250
         });
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_BID_SUBMIT);
+        await initialBidPromise;
 
         // Listen for error on Player 1's socket (the one making the invalid bid)
-        const errorPromise = utils.waitForEvent(playerSockets[1], SocketIOEvents.ERROR);
+        const errorPromise = scenario.waitForEvent(playerSockets[1], SocketIOEvents.ERROR);
 
         // Player[1] (score 700) tries to bid more than question max price (400)
-        playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 500 // exceeds question max price of 400
         });
 
         const error = await errorPromise;
         expect(error.message).toMatch(/maximum.*price|exceeds/i);
-      } finally {
-        await cleanup();
-      }
+      });
     });
 
     it("should support continuous bidding until all-in", async () => {
-      // Setup with appropriate scores for continuous bidding
-      const { setup, cleanup } = await _prepare({
-        playerScores: [400, 450, 350], // Scores that allow for continuous bidding up to maxPrice
-        shouldPickQuestion: true,
-        pickerIndex: 0
-      });
+      await suite.scenario(async (scenario) => {
+        // Setup with appropriate scores for continuous bidding
+        const { setup } = await _prepare({
+          playerScores: [400, 450, 350], // Scores that allow for continuous bidding up to maxPrice
+          shouldPickQuestion: true,
+          pickerIndex: 0
+        });
 
-      try {
         const { playerSockets, showmanSocket } = setup;
 
         // Round 1: p0 bids 250, p1 bids 260, p2 bids 270 (all >= question price of 200)
-        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bidType: StakeBidType.NORMAL,
-          bidAmount: 250
-        });
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_BID_SUBMIT);
-
-        playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bidType: StakeBidType.NORMAL,
-          bidAmount: 260
-        });
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_BID_SUBMIT);
-
-        playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
-          bidType: StakeBidType.NORMAL,
-          bidAmount: 270
-        });
-        let bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
+        const firstBidPromise = scenario.waitForEvent(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT
         );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 250
+        });
+        await firstBidPromise;
+
+        const secondBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 260
+        });
+        await secondBidPromise;
+
+        const thirdBidPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+          bidType: StakeBidType.NORMAL,
+          bidAmount: 270
+        });
+        let bidResult = await thirdBidPromise;
 
         // Should continue to player[0] for next round of continuous bidding
         expect(bidResult.isPhaseComplete).toBe(false);
         expect(bidResult.nextBidderId).toBe(await utils.getUserIdFromSocket(playerSockets[0]));
 
         // Round 2: p0 bids 280, p1 bids 290, p2 bids 300
-        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        const fourthBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 280
         });
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_BID_SUBMIT);
+        await fourthBidPromise;
 
-        playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        const fifthBidPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 290
         });
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_BID_SUBMIT);
+        await fifthBidPromise;
 
-        playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        const sixthBidPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 300
         });
-        await utils.waitForEvent<StakeBidSubmitOutputData>(
+        await sixthBidPromise;
+
+        // Round 3: p0 goes all-in (400 - their score, which equals question max price)
+        const allInPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT
         );
-
-        // Round 3: p0 goes all-in (400 - their score, which equals question max price)
-        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.ALL_IN,
           bidAmount: null
         });
-        bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_BID_SUBMIT
-        );
+        bidResult = await allInPromise;
 
         expect(bidResult.bidType).toBe(StakeBidType.ALL_IN);
         expect(bidResult.bidAmount).toBe(400); // Player's score = Question max price
-      } finally {
-        await cleanup();
-      }
+      });
     });
 
     it("should automatically declare winner when player bids maximum price", async () => {
-      // Setup with proper scores for manual bidding
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        // Setup with proper scores for manual bidding
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         await utils.startGame(showmanSocket);
         // Set player scores to make player[0] the current turn player with sufficient score for manual bidding
         await utils.setPlayerScore(gameId, playerUsers[0].id, 500); // Sufficient score for manual bidding (> maxPrice 400)
@@ -361,29 +365,35 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
+        const stakePickedPromise = scenario.waitForEvent(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_QUESTION_PICKED
+        );
+
         // Player 0 (current turn player) starts stake question
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: stakeQuestionId
         });
 
-        await utils.waitForEvent(showmanSocket, SocketIOGameEvents.STAKE_QUESTION_PICKED);
+        await stakePickedPromise;
 
-        const winnerPromise = utils.waitForEvent<StakeQuestionWinnerEventData>(
+        const winnerPromise = scenario.waitForEvent<StakeQuestionWinnerEventData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_QUESTION_WINNER
         );
+        const bidPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
 
         // Player 0 bids the maximum price (400) - should automatically end bidding and declare winner
-        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 400
         });
 
         // Should get both the bid result AND the winner announcement
-        const bidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_BID_SUBMIT
-        );
+        const bidResult = await bidPromise;
 
         expect(bidResult.playerId).toBe(await utils.getUserIdFromSocket(playerSockets[0]));
         expect(bidResult.bidAmount).toBe(400);
@@ -395,16 +405,14 @@ describe("Stake Question Max Price Cases Tests", () => {
         const winnerData = await winnerPromise;
         expect(winnerData.winnerPlayerId).toBe(await utils.getUserIdFromSocket(playerSockets[0]));
         expect(winnerData.finalBid).toBe(400);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should automatically end bidding when auto-bid wins", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Start the game
         await utils.startGame(showmanSocket);
 
@@ -423,17 +431,17 @@ describe("Stake Question Max Price Cases Tests", () => {
         const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
         // Listen for both stake question picked and automatic bid AND winner announcement
-        const stakePickedPromise = utils.waitForEvent<StakeQuestionPickedBroadcastData>(
+        const stakePickedPromise = scenario.waitForEvent<StakeQuestionPickedBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_QUESTION_PICKED
         );
 
-        const autoBidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+        const autoBidPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT
         );
 
-        const winnerPromise = utils.waitForEvent<StakeQuestionWinnerEventData>(
+        const winnerPromise = scenario.waitForEvent<StakeQuestionWinnerEventData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_QUESTION_WINNER
         );
@@ -441,7 +449,7 @@ describe("Stake Question Max Price Cases Tests", () => {
         // Player 0 (score 50) picks STAKE question (price 200)
         // Should automatically bid question price (200) and win immediately
         // since other players (40, 30) cannot outbid 200
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: stakeQuestionId
         });
 
@@ -462,16 +470,14 @@ describe("Stake Question Max Price Cases Tests", () => {
         const winnerData = await winnerPromise;
         expect(winnerData.winnerPlayerId).toBe(playerUsers[0].id);
         expect(winnerData.finalBid).toBe(200); // Player auto-bids question price, not their available score
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should restrict numeric bids after ALL_IN bid", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 4, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 4, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         // Start the game
         await utils.startGame(showmanSocket);
 
@@ -489,28 +495,31 @@ describe("Stake Question Max Price Cases Tests", () => {
         // Get STAKE question ID
         const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
-        // Player 1 picks the stake question
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
-          questionId: stakeQuestionId
-        });
-
-        // Wait for stake question to be picked
-        await utils.waitForEvent<StakeQuestionPickedBroadcastData>(
+        const stakePickedPromise = scenario.waitForEvent<StakeQuestionPickedBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_QUESTION_PICKED
         );
 
+        // Player 1 picks the stake question
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
+          questionId: stakeQuestionId
+        });
+
+        // Wait for stake question to be picked
+        await stakePickedPromise;
+
         // Player 1 (picker) bids first - normal bid
-        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        const firstBidPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 200
         });
 
         // Wait for Player 1's bid to be processed
-        const firstBidResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_BID_SUBMIT
-        );
+        const firstBidResult = await firstBidPromise;
 
         expect(firstBidResult.playerId).toBe(playerUsers[0].id);
         expect(firstBidResult.bidAmount).toBe(200);
@@ -518,16 +527,17 @@ describe("Stake Question Max Price Cases Tests", () => {
         expect(firstBidResult.nextBidderId).toBe(playerUsers[1].id); // Player 2's turn
 
         // Player 2 goes ALL_IN (250)
-        playerSockets[1].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        const allInPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[1]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.ALL_IN,
           bidAmount: null
         });
 
         // Wait for Player 2's ALL_IN bid to be processed
-        const allInResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_BID_SUBMIT
-        );
+        const allInResult = await allInPromise;
 
         expect(allInResult.playerId).toBe(playerUsers[1].id);
         expect(allInResult.bidAmount).toBe(250); // Player 2's full score (ALL_IN)
@@ -536,13 +546,14 @@ describe("Stake Question Max Price Cases Tests", () => {
         expect(allInResult.nextBidderId).toBe(playerUsers[2].id); // Player 3's turn
 
         // Player 3 tries to make a numeric bid (should be rejected)
-        playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        const errorPromise = scenario.waitForEvent<any>(playerSockets[2], SocketIOEvents.ERROR);
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 300
         });
 
         // Should get an error response since numeric bids are not allowed after ALL_IN
-        const errorResult = await utils.waitForEvent<any>(playerSockets[2], SocketIOEvents.ERROR);
+        const errorResult = await errorPromise;
 
         expect(errorResult).toBeDefined();
         expect(errorResult.message).toContain(
@@ -550,44 +561,44 @@ describe("Stake Question Max Price Cases Tests", () => {
         );
 
         // Player 3 should be able to PASS
-        playerSockets[2].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        const passPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[2]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.PASS,
           bidAmount: null
         });
 
-        const passResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_BID_SUBMIT
-        );
+        const passResult = await passPromise;
 
         expect(passResult.playerId).toBe(playerUsers[2].id);
         expect(passResult.bidType).toBe(StakeBidType.PASS);
         expect(passResult.nextBidderId).toBe(playerUsers[3].id); // Player 4's turn
 
         // Player 4 can go ALL_IN if they want to compete
-        playerSockets[3].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        const secondAllInPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
+          showmanSocket,
+          SocketIOGameEvents.STAKE_BID_SUBMIT
+        );
+        scenario.actor(playerSockets[3]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.ALL_IN,
           bidAmount: null
         });
 
-        const secondAllInResult = await utils.waitForEvent<StakeBidSubmitOutputData>(
-          showmanSocket,
-          SocketIOGameEvents.STAKE_BID_SUBMIT
-        );
+        const secondAllInResult = await secondAllInPromise;
 
         expect(secondAllInResult.playerId).toBe(playerUsers[3].id);
         expect(secondAllInResult.bidAmount).toBe(380); // Player 4's full score
         expect(secondAllInResult.bidType).toBe(StakeBidType.ALL_IN);
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should handle player with exact score-to-max-price ratio", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         await utils.startGame(showmanSocket);
 
         // Set player scores where player[0] has exactly 400 (question max price)
@@ -602,13 +613,13 @@ describe("Stake Question Max Price Cases Tests", () => {
         // Get STAKE question ID (price 200, maxPrice 400)
         const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
-        const stakePickedPromise = utils.waitForEvent<StakeQuestionPickedBroadcastData>(
+        const stakePickedPromise = scenario.waitForEvent<StakeQuestionPickedBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_QUESTION_PICKED
         );
 
         // Player 0 (score 400) picks STAKE question
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: stakeQuestionId
         });
 
@@ -616,13 +627,13 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 0 should be able to manually bid since score (400) >= question price (200)
         // But when they bid their max (400), it's considered ALL_IN since it equals their total score
-        const bidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+        const bidPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT
         );
 
         // Player 0 bids exactly their score (400) - should be accepted as ALL_IN
-        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 400
         });
@@ -643,16 +654,14 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Verify player could only bid their exact score (400) when going all-in
         // This demonstrates: player score = max bid amount when going all-in
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
 
     it("should handle player with score equal to question price as all-in", async () => {
-      const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
-      const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
+      await suite.scenario(async (scenario) => {
+        const setup = await utils.setupGameTestEnvironment(userRepo, app, 3, 0);
+        const { showmanSocket, playerSockets, gameId, playerUsers } = setup;
 
-      try {
         await utils.startGame(showmanSocket);
 
         // Set player scores where player[0] has exactly 200 (question price, not maxPrice)
@@ -667,13 +676,13 @@ describe("Stake Question Max Price Cases Tests", () => {
         // Get STAKE question ID (price 200, maxPrice 400)
         const stakeQuestionId = await utils.getQuestionIdByType(gameId, PackageQuestionType.STAKE);
 
-        const stakePickedPromise = utils.waitForEvent<StakeQuestionPickedBroadcastData>(
+        const stakePickedPromise = scenario.waitForEvent<StakeQuestionPickedBroadcastData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_QUESTION_PICKED
         );
 
         // Player 0 (score 200) picks STAKE question (price 200, maxPrice 400)
-        playerSockets[0].emit(SocketIOGameEvents.QUESTION_PICK, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.QUESTION_PICK, {
           questionId: stakeQuestionId
         });
 
@@ -681,13 +690,13 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // Player 0 should be able to manually bid since score (200) >= question price (200)
         // When they bid exactly their score (200), it should be classified as ALL_IN
-        const bidPromise = utils.waitForEvent<StakeBidSubmitOutputData>(
+        const bidPromise = scenario.waitForEvent<StakeBidSubmitOutputData>(
           showmanSocket,
           SocketIOGameEvents.STAKE_BID_SUBMIT
         );
 
         // Player 0 bids exactly their score (200) which equals the question price
-        playerSockets[0].emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
+        scenario.actor(playerSockets[0]).emit(SocketIOGameEvents.STAKE_BID_SUBMIT, {
           bidType: StakeBidType.NORMAL,
           bidAmount: 200
         });
@@ -708,9 +717,7 @@ describe("Stake Question Max Price Cases Tests", () => {
 
         // This demonstrates: when player score equals question price,
         // they can bid that amount as ALL_IN, even though it's also the minimum bid
-      } finally {
-        await utils.cleanupGameClients(setup);
-      }
+      });
     });
   });
 });

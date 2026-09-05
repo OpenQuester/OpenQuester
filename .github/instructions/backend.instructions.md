@@ -9,6 +9,8 @@ This file exists for GitHub Copilot compatibility. The canonical backend agent i
 - `AGENTS.md` — repository-wide router
 - `server/AGENTS.md` — backend architecture and coding rules
 - `.agents/skills/backend-socket-action/SKILL.md` — socket/game action workflow
+- `.agents/skills/backend-e2e/SKILL.md` — HTTP/Socket.IO transport test writing
+- `.agents/skills/backend-test-runner/SKILL.md` — concise test execution/evidence
 - `docs/agent/03-verification-matrix.md` — validation commands
 
 ## Current backend source of truth

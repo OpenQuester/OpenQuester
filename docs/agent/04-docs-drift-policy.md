@@ -14,6 +14,8 @@ Examples:
 - Lists a command that no longer exists.
 - Describes UX behavior that contradicts the product/state matrix.
 - Duplicates another doc and one copy changes while the other does not.
+- Claims verified user-visible behavior from backend-only tests or describes a
+  known implementation gap as a completed feature.
 
 ## Fix priority
 
@@ -45,6 +47,10 @@ When a task reveals drift:
 - Keep product decisions in `docs/product/` and implementation behavior in `docs/specs/`.
 - Keep architecture reasons in ADRs, not scattered comments.
 - Do not duplicate long command lists across many files.
+- Keep the skill catalog complete and triggers distinct. Link the E2E writing
+  skill to its canonical README instead of copying a second API manual.
+- Pin historical audit evidence to a revision; do not preserve an old failure
+  count as an expected-results list or attribute an unmerged fix to the PR.
 - Keep `.github/instructions/*` as compatibility pointers, not canonical sources.
 
 ## Review checklist

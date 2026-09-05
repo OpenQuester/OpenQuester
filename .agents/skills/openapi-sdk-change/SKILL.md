@@ -27,6 +27,11 @@ Use this skill when changing `openapi/schema.json`, REST contracts, Socket.IO co
 
 The public contract should not drift between backend, schema, and client.
 
+Separate wire shape, event semantics, and UI behavior. Schema descriptions must
+not claim real downloads or synchronized content visibility just because the
+backend accepted readiness ACKs. Inspect the actual branch and emitters/listeners;
+an unmerged fix or a target spec is not the current protocol.
+
 ## Implementation steps
 
 1. Identify whether the change is REST, Socket.IO, enum, DTO, or error contract.
@@ -37,6 +42,18 @@ The public contract should not drift between backend, schema, and client.
 6. Update frontend call sites/listeners for new generated shapes.
 7. Update docs/specs if product-visible behavior changed.
 8. Report compatibility impact.
+
+For documentation-only corrections to descriptions or `x-socket-io` metadata,
+preserve event names, DTO shapes, requiredness, and nullability unless a concrete
+mismatch was verified. State whether generation changes runtime types or only
+comments/metadata, and report if generation was not run; never hand-edit generated
+comments to mimic a generator run. Schema validation checks schema structure,
+not compatibility with handlers, event order, or Flutter behavior.
+
+For media metadata, follow `server/docs/media-download-sync.md`: distinguish
+initial question data/media timer, partial status with a null timer, completion
+with a question timer, and system timeout readiness. Document wrong-phase ACK
+no-ops and no-file client ACKs without introducing a new preload/reveal event.
 
 ## Common failure modes
 
