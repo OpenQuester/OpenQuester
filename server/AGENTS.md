@@ -187,12 +187,17 @@ the origin socket.
 - For a new backend feature or behavior fix, follow `.agents/skills/backend-smoke-tests/SKILL.md` to
   add one focused E2E smoke case without creating smoke-test churn for behavior-neutral minor
   changes.
-- Use `tests/TestApp.ts` for integration setup.
+- Use `ServerTestHarness` for transport setup; `tests/TestApp.ts` is its lower-level
+  implementation and is used directly only by appropriate internal integration tests.
+- Read `.agents/skills/backend-e2e/SKILL.md` when writing or reviewing HTTP,
+  gameplay/hybrid, dedicated media E2E, or shared scenario helpers.
 - For client-perspective Socket.IO scenario/journal tests, follow `tests/e2e/README.md` for
   accepted-action, drain, disposal, and cleanup rules.
 - Timer tests must use `TestUtils.expireTimer()`; do not use `setTimeout` as a test synchronization
   mechanism.
 - Do not increase test timeouts to hide missing events.
+- Backend media ACK tests do not prove actual downloads or Flutter content hiding.
+  See `server/docs/media-download-sync.md` for the current contract and client gaps.
 - For socket/game changes, cover success, validation failure, permission/role failure, and
   queue-sensitive cases when applicable.
 

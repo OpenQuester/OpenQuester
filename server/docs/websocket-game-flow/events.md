@@ -192,12 +192,21 @@ Edge cases (server-handled):
 ### `media-downloaded`
 
 - Direction: **C→S** request
-- Payload: `EmptyInputData` (`{}`)
+- Payload: `EmptyInputData`; no application payload is required.
+- After authentication/player validation, ACKs outside `MEDIA_DOWNLOADING` are
+  successful no-ops without readiness changes or broadcasts, including late ACKs
+  after `SHOWING`. During the media phase, repeated ACKs may repeat statuses.
+- This reports readiness, not verified file transfer. See the
+  [media coordination reference](../media-download-sync.md) for the full contract
+  and known Flutter gaps.
 
 ### `media-download-status`
 
 - Direction: **S→C** broadcast
 - Payload: `MediaDownloadStatusBroadcastData` = `{ playerId, mediaDownloaded, allPlayersReady, timer: GameStateTimerDTO | null }`
+- Only active `PLAYER` / `IN_GAME` participants block completion. Partial status
+  has `timer: null` without deleting the active media timer; completion supplies
+  the question timer. Media timeout uses `playerId: -1` and forces readiness.
 
 Edge cases (server-handled):
 
@@ -220,6 +229,8 @@ Server broadcasts (depends on question type):
 - Normal question:
   - emits `question-data` to each socket (role-based question payload)
   - starts `MEDIA_DOWNLOADING` timer (clients must send `media-downloaded`)
+  - no-file questions use immediate client ACKs, not backend auto-skip
+  - readiness completes through `media-download-status`, not a second `question-data`
 - Secret question:
   - emits `secret-question-picked`
   - later, after `secret-question-transfer`, emits `question-data` to each socket

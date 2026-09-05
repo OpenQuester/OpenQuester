@@ -21,6 +21,7 @@ Run from `server/`.
 | DB model/repository/migration | `npm run lint`, `npm run build` | migration/integration test against PostgreSQL |
 | Logging/metrics/admin diagnostics | `npm run lint`, `npm run build` | focused endpoint/service tests |
 | OpenAPI/schema only | `npm run validate:schema` | client `melos run gen_api` |
+| Backend E2E/helper/lifecycle/policy | changed infrastructure self-tests through `test:pipeline`, lint/build if TypeScript changed | relevant real transport cases; independent repeatability passes for broad reliability work |
 
 Backend test rules:
 
@@ -31,6 +32,12 @@ Backend test rules:
 - Do not use `setTimeout` to wait for game timers in tests; use `TestUtils.expireTimer()`.
 - Do not increase test timeouts to hide missing events.
 - Tests requiring PostgreSQL/Redis must say so when not run.
+- Follow `backend-e2e` and `server/tests/e2e/README.md` for transport writing and
+  self-test → focused transport → full/repeatability sequencing. The README owns
+  exact selectors and CI artifact instructions; do not maintain a failure allowlist.
+- Report the tested commit and the actual failing expectation, not just totals.
+  Preserve Jest JSON and the real exit code when comparing runs. Missing services
+  or log permissions are environment failures; do not classify them as game bugs.
 
 ## Frontend checks
 
@@ -55,6 +62,12 @@ Frontend quality notes:
 - If user-facing strings were added and localization was not regenerated, call it out.
 - Game UI changes should mention phase/role/disabled-reason impact.
 - Frontend code changes should report Context7 docs fetched or why Context7 was unavailable.
+- Backend readiness tests simulate client ACKs. Claims about downloaded bytes,
+  hidden question text, or playback need client controller/widget or manual
+  evidence with delayed preparation; see `server/docs/media-download-sync.md`.
+- Check whether CI actually executed the claimed tests. At revision `8348d429`,
+  `.github/workflows/test.yml` disables the client `Run Tests` step with `if: false`;
+  a green client build/analyze is not Flutter test evidence. Recheck on later revisions.
 
 ## OpenAPI contract checks
 
@@ -63,6 +76,7 @@ Frontend quality notes:
 | REST request/response schema | `npm run validate:schema` | `melos run gen_api`, `melos run analyze` |
 | Socket event enum/payload | `npm run validate:schema` | `melos run gen_api`, affected socket listener compile/analyze |
 | Public enum change | `npm run validate:schema` | generated client + affected UI compile/analyze |
+| Descriptions / `x-socket-io` metadata only | schema validation, inspect emitters/types, verify no runtime shape change | generation may change comments; report generation status explicitly |
 
 Generated Dart API files live in `client/packages/openapi/`; the schema source is `openapi/schema.json`.
 
@@ -83,6 +97,11 @@ Minimum docs review:
 - No old architecture names are introduced.
 - The doc links to the canonical source instead of duplicating it when possible.
 - Any new spec is linked from an `AGENTS.md` or skill.
+- Every skill has valid name/description frontmatter and a catalog entry; referenced
+  skills, files, and command names resolve. Existing optional invocation/UI metadata
+  is preserved. Structural validation does not replace a behavioral review of guidance.
+- Current wire behavior, product targets, known defects, and verification evidence
+  are distinguished rather than documented as interchangeable facts.
 
 ## Suggested verification block
 

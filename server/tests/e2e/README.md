@@ -1,5 +1,8 @@
 # E2E Test Lifecycle Rules
 
+Agent writing workflow: [backend-e2e skill](../../../.agents/skills/backend-e2e/SKILL.md).
+This README remains the canonical reference for test APIs and lifecycle rules.
+
 ## Choose the right layer
 
 | Test behavior                                                                              | Writing mechanism                                                                                            |
@@ -197,6 +200,11 @@ coordination, event order, readiness gating, and timers. They do not download fi
 Flutter media loading, or prove that the UI hides or plays media at the right time. Those claims
 require client-side coverage. Actual game-rule uncertainty must be resolved with the user.
 
+The media synchronization reference also records known Flutter gaps (early image
+ACKs and ungated question text). A green backend suite must not be reported as
+closing those client bugs. ACKs outside `MEDIA_DOWNLOADING`, including late ACKs
+after `SHOWING`, must neither mutate readiness nor broadcast status.
+
 ## Static contract checks
 
 `tests/e2e/contracts/SocketActionContracts.test.ts` is a fast wiring guard for the socket action map
@@ -223,6 +231,18 @@ exceptions in `TransportSuitePolicy.ts`; adding an endpoint test to that list is
 ordered teardown helper and rejects teardown failures that are caught and only logged.
 
 ## CI evidence and repeatability
+
+Run from `server/`, starting with infrastructure and then the affected transport
+cases. These are the same focused selectors used by the backend CI job:
+
+```bash
+npm run test:pipeline -- tests/e2e/scenario tests/e2e/contracts tests/socket/game/utils tests/e2e/flows/media-download/MediaDownloadFlow.test.ts --runInBand
+npm run test:pipeline -- tests/e2e/flows/MediaDownloadScenario.test.ts tests/e2e/flows/MediaDownloadEdgeScenario.test.ts tests/socket/game/GameLockAndQueueMechanics.test.ts tests/user/UserNotificationRooms.test.ts --runInBand
+```
+
+For broader backend changes, follow with lint/build and `npm run test:pipeline`.
+Pure documentation/metadata changes do not require real transport reruns. Do not
+claim an unrun transport/UI check from a passing schema or helper self-test.
 
 The backend job shows infrastructure self-tests, high-risk transport cases, and the full suite as
 separate steps. All retain their failure exit status. Its artifact contains the tested checkout's

@@ -24,6 +24,35 @@
       "gameChangingEvents": "Client-to-server game events are serialized per game through the Redis action queue and lock.",
       "directEvents": "Read-only events such as chat-message bypass the game mutation queue but still prefetch game/session context for validation."
     },
+    "mediaReadiness": {
+      "scope": "Normal-question path in a regular round; secret, stake, and final questions have separate transitions.",
+      "pick": {
+        "event": "question-pick",
+        "direction": "client-to-server",
+        "payloadSchema": "#/components/schemas/SocketIOQuestionPickEventInput"
+      },
+      "questionData": {
+        "event": "question-data",
+        "direction": "server-to-client",
+        "payloadSchema": "#/components/schemas/SocketIOQuestionDataEventPayload",
+        "description": "Initial role-filtered question content and file links arrive while the server is in MEDIA_DOWNLOADING, with the media timer. Receipt is not readiness completion or permission to reveal/play content."
+      },
+      "ready": {
+        "event": "media-downloaded",
+        "direction": "client-to-server",
+        "description": "Application readiness acknowledgement with no required payload. After authentication/player validation, acknowledgements outside MEDIA_DOWNLOADING are successful no-ops without readiness, persistence, timer, or broadcast mutations. This is not a Socket.IO callback acknowledgement."
+      },
+      "status": {
+        "event": "media-download-status",
+        "direction": "server-to-client",
+        "payloadSchema": "#/components/schemas/MediaDownloadStatusEventPayload",
+        "description": "Broadcast to the game. Partial readiness leaves the media timer active and carries timer: null. Completion enters SHOWING and carries the question timer. Repeated acknowledgements during the media phase can produce repeated statuses."
+      },
+      "requiredParticipants": "Only role PLAYER with game status IN_GAME. Showman and spectators do not block readiness.",
+      "withoutFiles": "The same backend handshake applies when questionFiles is absent or empty; clients acknowledge immediately. File absence does not itself auto-skip the backend phase.",
+      "timeout": "Media timeout forces active players ready and emits media-download-status with playerId: -1 (SYSTEM_PLAYER_ID), mediaDownloaded: true, allPlayersReady: true, and the new question timer.",
+      "completion": "No inbound preload question-pick and no second question-data are emitted on readiness completion. Readiness is client-reported or timeout-forced; it does not prove downloaded bytes or synchronized UI visibility."
+    },
     "events": {
       "lobby": {
         "event": "games",
@@ -4269,25 +4298,25 @@
       },
       "MediaDownloadStatusEventPayload": {
         "type": "object",
-        "description": "Data sent to all players when a player downloads media",
+        "description": "Game-wide media-download-status broadcast for reported readiness or system-forced completion. This coordinates the server phase; it does not verify file downloads or client content visibility.",
         "properties": {
           "playerId": {
             "type": "integer",
-            "description": "ID of the player who downloaded media",
-            "examples": [123]
+            "description": "Participant reporting readiness, or -1 (SYSTEM_PLAYER_ID) for a system completion such as media timeout.",
+            "examples": [123, -1]
           },
           "mediaDownloaded": {
             "type": "boolean",
-            "description": "Whether the player has downloaded media",
+            "description": "Reported or system-forced readiness, not independent verification of downloaded bytes.",
             "examples": [true]
           },
           "allPlayersReady": {
             "type": "boolean",
-            "description": "Whether all active players have downloaded media",
+            "description": "Whether all PLAYER participants with IN_GAME status are marked ready. Showman/spectators do not block. A timeout can force this to true without completed downloads.",
             "examples": [true, false]
           },
           "timer": {
-            "description": "Question timer when media download completes the phase, otherwise null",
+            "description": "New question timer when readiness completion transitions to SHOWING, otherwise null. A partial status with null does not remove the active media timer.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/GameStateTimer"
@@ -4571,6 +4600,7 @@
       },
       "SocketIOChatMessageContent": {
         "type": "object",
+        "description": "Chat message input and normalized broadcast content. The server trims leading/trailing whitespace before validating the 1-255 character limit; internal whitespace is preserved. Empty or whitespace-only input emits error to the sender and is neither stored nor broadcast.",
         "properties": {
           "message": {
             "type": "string",
@@ -4583,7 +4613,7 @@
       },
       "SocketIOQuestionPickEventInput": {
         "type": "object",
-        "description": "Send this data to pick a question",
+        "description": "Client-to-server question-pick command. For a normal regular-round question, the response is question-data with a media timer while readiness is pending, not an inbound question-pick preload event. Secret/stake questions use their own selection flows.",
         "properties": {
           "questionId": {
             "type": "integer",
@@ -4596,13 +4626,15 @@
       },
       "SocketIOQuestionDataEventPayload": {
         "type": "object",
-        "description": "Data sent to players when a question is picked, containing question details and timer",
+        "description": "Role-filtered question details and the applicable phase timer. On a normal regular-round pick this is sent during MEDIA_DOWNLOADING so clients can prepare files; it is not a readiness-completion/reveal signal and is not sent again when the media barrier completes.",
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/PackageQuestion"
+            "$ref": "#/components/schemas/PackageQuestion",
+            "description": "Question content and optional questionFiles with file links. Answer-related fields are filtered for players/spectators; do not expect their complete payload to equal the showman's."
           },
           "timer": {
-            "$ref": "#/components/schemas/GameStateTimer"
+            "$ref": "#/components/schemas/GameStateTimer",
+            "description": "The applicable phase timer. For the normal question readiness handshake this is the media timer; the subsequent question timer arrives in media-download-status."
           },
           "questionEligiblePlayers": {
             "$ref": "#/components/schemas/QuestionEligiblePlayers"

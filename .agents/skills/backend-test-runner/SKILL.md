@@ -14,6 +14,13 @@ Use this skill whenever backend tests are executed, whether as the main task or 
 3. Read the nearest test-area guide, such as `server/tests/e2e/README.md`, when it exists.
 4. Run all commands from `server/`.
 
+Before transport runs, check PostgreSQL, the configured test Redis, and writable
+log/result paths. Local Redis defaults to port 6380; CI explicitly uses 6379.
+Do not start a second run against the same test services from another checkout.
+Independent scenario/contract self-tests can run without those services; this
+does not replace a real transport run. Use CI when local transport is unavailable
+and dispatch is authorized; otherwise report that validation remains unperformed.
+
 ## Mandatory command policy
 
 - Use `npm run test:pipeline` for a full backend test run and for the normal pass/fail verification of test changes.
@@ -65,5 +72,16 @@ Report:
 - any infrastructure blocker, especially unavailable PostgreSQL or Redis;
 - the exact single-test diagnostic command, if detailed logs were necessary;
 - checks not run and why.
+
+For retained or compared runs, include the tested commit, selectors, and Jest
+JSON artifact (`--json --outputFile=...`) as well as the true exit code. Check
+the output directory before running: Jest does not create a missing parent for
+`--outputFile`, and artifact-write failure makes the run fail even if cases pass.
+Inspect open handles, pending/skipped cases, cleanup errors, and unhandled rejections.
+Classify each unique failure as environment, infrastructure, wrong test
+expectation, or backend-rule mismatch using its full title and expected/actual
+result. Old red counts are not an allowlist and a green job with a skipped test
+step is not test evidence. Follow the E2E README for independent reliability
+passes; do not introduce retries or suppressions to turn failures green.
 
 Summarize the relevant failure instead of copying unrelated Jest output into the handoff.

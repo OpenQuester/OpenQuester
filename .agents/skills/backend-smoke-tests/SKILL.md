@@ -12,6 +12,7 @@ Add smoke coverage only where it proves a new backend capability or a fixed user
 1. Read `server/AGENTS.md`.
 2. Read `.agents/skills/backend-test-runner/SKILL.md` and obey its output and `--forceExit` rules.
 3. Read `server/tests/e2e/README.md` before adding or changing smoke coverage.
+   Use `.agents/skills/backend-e2e/SKILL.md` for the transport writing workflow.
 4. Inspect the nearest existing E2E suite and helpers before creating a new file or abstraction.
 
 ## Decide whether smoke coverage is required
@@ -31,10 +32,14 @@ If an existing E2E case already exercises the path, add the smallest regression 
 - For a fix, make the test fail against the broken behavior and pass with the fix whenever practical.
 - Use `ServerTestHarness` and real HTTP or Socket.IO transports for new transport E2E coverage.
 - For client-perspective game flows, use `GameScenario`, actors, `ScenarioAssertions`, and `EventJournal` according to `server/tests/e2e/README.md`.
+- Keep each gameplay/hybrid case entirely inside a returned/awaited
+  `suite.scenario(...)`; dedicated media cases use `withMediaDownloadFlow(...)`.
 - Follow the existing accepted-action, wait, drain, assertion, disposal, and cleanup sequence exactly.
 - Reuse the nearest fixture or helper. Extract a new flow helper only after the pattern repeats.
 - Keep waits named, bounded, and deterministic. Never add sleeps or inflate timeouts to make the smoke test pass.
 - Keep exhaustive branches, validation matrices, and edge cases in focused unit/integration coverage rather than multiplying smoke scenarios.
+- A backend media smoke test simulates ACKs; it cannot prove that Flutter
+  downloaded bytes or hid content. State that boundary when reporting the fix.
 
 ## Run with minimum logs first
 

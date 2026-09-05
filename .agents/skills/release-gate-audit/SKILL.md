@@ -104,7 +104,7 @@ One paragraph with release risk level.
 
 Use consistent statuses:
 
-- `Done` — product behavior is implemented and visible.
+- `Done` — product behavior is implemented and verified at the claimed boundary.
 - `Partial` — technical base exists but product definition is incomplete.
 - `NotFound` — no implementation evidence found.
 - `Polish` — base behavior exists but quality/clarity needs improvement.
@@ -113,6 +113,13 @@ Use consistent statuses:
 ## Evidence rule
 
 Every finding should cite file paths or docs. Avoid vague claims like “probably implemented”. If unsure, say what was inspected and what was not found.
+
+Distinguish static inspection, controlled self-tests, real backend transport,
+and client/manual evidence. Record the commit and actual test-step result;
+a green build or a skipped test step is not a passing gameplay test. In
+particular, media readiness ACKs are not evidence of downloaded bytes or hidden
+content. Check the known client gaps in `server/docs/media-download-sync.md`.
+Treat this audit as read-only unless the user also authorizes implementation.
 
 ## Common failure modes
 

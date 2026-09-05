@@ -20,6 +20,12 @@ Documentation is part of implementation. If a task changes architecture, workflo
 
 Do not wait for a periodic docs cleanup if the current task made a doc stale.
 
+Separate current implementation, intended behavior, and verified behavior.
+Do not turn a bug into the desired contract by documenting it as correct, or
+claim a UI fix because backend coordination tests pass. Record known gaps with
+source paths and the checked revision; recheck them before carrying them forward.
+For historical fixes, verify commit ancestry and diffs against the actual PR base.
+
 ## When to update docs
 
 Update docs when changing:
@@ -49,6 +55,13 @@ Do not add a new doc just because a small feature was implemented. Prefer updati
 Remove or collapse docs when they are stale, misleading, duplicated, no longer relevant after a release phase, or replaced by a better source of truth.
 
 When removing docs, update all links that pointed to them.
+
+For a skill audit, inventory every repository skill, check trigger overlap and
+referenced paths/commands, and reconcile `.agents/skills/README.md` with the
+actual folders. Use `skill-creator` when available for authoring/validation;
+otherwise check frontmatter and references directly. Global/plugin skills are
+outside a repository audit unless explicitly requested. Do not add a skill
+merely to restate another skill or a one-off PR checkpoint.
 
 ## Handoff checklist
 

@@ -59,6 +59,12 @@ Every validation/import/export change should answer:
 9. Add fixtures/checks where practical.
 10. Report import/export/manual validation scenarios.
 
+Keep preview, storage/download, and in-game playback evidence separate. A valid
+hash/link or successful preview does not prove that all game clients prepared
+media before acknowledging readiness. Use `server/docs/media-download-sync.md`
+when an editor/playtest change crosses into gameplay, and preserve unsupported
+feature/validation gaps rather than describing product targets as implemented.
+
 ## Common failure modes
 
 - Import converts unsupported SIQ data without warning.
