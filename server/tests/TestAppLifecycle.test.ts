@@ -85,6 +85,7 @@ describe("createTestAppRuntime lifecycle", () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     jest.restoreAllMocks();
     restoreEnv(envSnapshot);
   });
@@ -252,6 +253,51 @@ describe("createTestAppRuntime lifecycle", () => {
     expect(containerClear).toHaveBeenCalledTimes(1);
     expect(loggerClose).toHaveBeenCalledTimes(1);
     expect(mockCreatedHttpServer?.eventNames()).toEqual([]);
+  });
+
+  it("preserves a Socket.IO close callback failure after its close promise resolves", async () => {
+    const runtime = await createTestAppRuntime({} as DataSource);
+    jest.useFakeTimers();
+    jest.spyOn(runtime.api, "shutdown").mockRejectedValue(new Error("shutdown failed"));
+    let closeCallback: ((error?: Error) => void) | undefined;
+    ioClose.mockImplementationOnce(async (callback?: (error?: Error) => void) => {
+      closeCallback = callback;
+    });
+
+    const failure = getRejectedError(runtime.cleanup());
+    await jest.advanceTimersByTimeAsync(0);
+    expect(closeCallback).toBeDefined();
+    closeCallback!(new Error("HTTP close callback failed"));
+    await jest.runAllTimersAsync();
+    const error = await failure;
+
+    expect(flattenErrorMessages(error)).toEqual(
+      expect.arrayContaining(["Socket.IO forced close failed: HTTP close callback failed"])
+    );
+  });
+
+  it("force-closes pending HTTP connections after the server stops listening", async () => {
+    const runtime = await createTestAppRuntime({} as DataSource, { apiShutdownTimeoutMs: 25 });
+    jest.useFakeTimers();
+    jest.spyOn(runtime.api, "shutdown").mockRejectedValue(new Error("shutdown failed"));
+    ioClose.mockImplementationOnce(async () => undefined);
+    const httpClose = jest.spyOn(runtime.httpServer, "close").mockReturnValue(runtime.httpServer);
+    const closeAllConnections = jest
+      .spyOn(runtime.httpServer, "closeAllConnections")
+      .mockImplementation(() => undefined);
+
+    const failure = getRejectedError(runtime.cleanup());
+    await jest.runAllTimersAsync();
+    const error = await failure;
+
+    expect(runtime.httpServer.listening).toBe(false);
+    expect(httpClose).toHaveBeenCalledTimes(1);
+    expect(closeAllConnections).toHaveBeenCalledTimes(1);
+    expect(flattenErrorMessages(error)).toEqual(
+      expect.arrayContaining([
+        "HTTP server final cleanup failed: Timed out after 25ms waiting for partial-startup HTTP close"
+      ])
+    );
   });
 
   it("bounds full harness startup and its rollback when initialization never settles", async () => {

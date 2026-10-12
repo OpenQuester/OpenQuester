@@ -328,11 +328,10 @@ async function closeSocketIo(
         finish(error);
       });
       httpServer.closeIdleConnections?.();
-      void closePromise
-        .then(() => finish())
-        .catch((error: unknown) => {
-          finish(toError(error));
-        });
+      // Socket.IO's promise resolves before the HTTP close callback runs.
+      void closePromise.catch((error: unknown) => {
+        finish(toError(error));
+      });
     } catch (error) {
       finish(toError(error));
     }
@@ -340,11 +339,6 @@ async function closeSocketIo(
 }
 
 async function closeHttpServer(httpServer: HTTPServer, timeoutMs: number): Promise<void> {
-  if (!httpServer.listening) {
-    httpServer.removeAllListeners();
-    return;
-  }
-
   await new Promise<void>((resolve, reject) => {
     let settled = false;
     const finish = (error?: Error): void => {
@@ -355,7 +349,7 @@ async function closeHttpServer(httpServer: HTTPServer, timeoutMs: number): Promi
       settled = true;
       clearTimeout(timeout);
       httpServer.removeAllListeners();
-      if (error) {
+      if (error && !isServerNotRunningError(error)) {
         reject(error);
         return;
       }
